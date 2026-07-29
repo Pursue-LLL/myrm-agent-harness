@@ -330,7 +330,13 @@ class SkillAgentToolsMixin:
             self._wiki_structure = structure  # type: ignore[attr-defined]
             self._wiki_compiler = compiler  # type: ignore[attr-defined]
 
-            tools = create_wiki_tools(compiler, query_engine, linter, structure)
+            tools = create_wiki_tools(
+                compiler,
+                query_engine,
+                linter,
+                structure,
+                wiki_scope_id=getattr(self, "_wiki_scope_id", None),
+            )
 
             self._register_large_doc_ingest(structure, compiler)
 

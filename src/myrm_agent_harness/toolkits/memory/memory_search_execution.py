@@ -206,8 +206,24 @@ async def search_wiki_corpus(
 ) -> str:
     if backends.query_wiki is None:
         return "Wiki search is not available."
-    wiki_answer = await backends.query_wiki(query)
-    body = wiki_answer.strip() or "No relevant wiki content found."
+    from myrm_agent_harness.toolkits.memory.memory_citations import emit_sources
+    from myrm_agent_harness.toolkits.wiki.retrieval.source_citations import build_wiki_query_sources
+
+    result = await backends.query_wiki(query)
+    sources = build_wiki_query_sources(result)
+    if sources:
+        indexed_sources: list[dict[str, object]] = []
+        for index, source in enumerate(sources, start=1):
+            entry = {**source, "index": index}
+            if backends.wiki_agent_id:
+                entry["agent_id"] = backends.wiki_agent_id
+            indexed_sources.append(entry)
+        await emit_sources(indexed_sources)
+    body = (result.answer or "").strip() or "No relevant wiki content found."
+    if body != "No relevant wiki content found.":
+        from myrm_agent_harness.utils.context_format import wrap_with_external_sources_tag
+
+        body = wrap_with_external_sources_tag(body, source="LLM-Wiki")
     return body
 
 

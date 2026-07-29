@@ -72,7 +72,7 @@
 | `security_guardrail_middleware.py` | 安全护栏 |
 | `subagent_limit_middleware.py` | 单轮 delegate 上限 |
 | `dangling_tool_call_middleware.py` | 修复 strict provider 400 |
-| `skill_attenuation_middleware.py` | Skill attenuation + runtime intent-aware narrowing via `tool_choice.allowed_tools`; dynamic tool resolution for ToolNode (no `request.tools` mutation) |
+| `skill_attenuation_middleware.py` | Skill attenuation + runtime intent-aware narrowing via `tool_choice.allowed_tools` when provider supports it; capability gate skips model-layer hint on unsupported gateways (e.g. `openai-like/*`); execution SSOT via `check_trust_attenuation`; dynamic tool resolution for ToolNode (no `request.tools` mutation) |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
 | `memory_context_middleware.py` | 记忆上下文注入编排（首轮 LLM 前 idempotent 注入） |
 | `memory_context_format.py` | 记忆注入格式化纯函数（stable SystemMessage / learned UNTRUSTED HumanMessage） |

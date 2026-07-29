@@ -60,7 +60,13 @@ if TYPE_CHECKING:
 
 logger = get_agent_logger(__name__)
 
-NON_RETRYABLE_ERRORS = (ToolError, BrowserError, WebSearchError, asyncio.CancelledError, ToolException)
+NON_RETRYABLE_ERRORS = (
+    ToolError,
+    BrowserError,
+    WebSearchError,
+    asyncio.CancelledError,
+    ToolException,
+)
 
 
 def smart_truncate_output(text: str, max_lines: int = 20) -> str:
@@ -166,7 +172,9 @@ def format_tool_error(e: Exception, tool_name: str) -> str:
     return sanitize(redact_sensitive_text(content))
 
 
-def apply_validation_result(result: ToolMessage, validation: ValidationResult, tool_name: str) -> ToolMessage:
+def apply_validation_result(
+    result: ToolMessage, validation: ValidationResult, tool_name: str
+) -> ToolMessage:
     """Append validation warning to a ToolMessage."""
     severity = validation.severity
     prefix = " Warning" if severity == "error" else " Notice"
@@ -193,7 +201,21 @@ def apply_validation_result(result: ToolMessage, validation: ValidationResult, t
 
 
 def check_trust_attenuation(tool_name: str) -> str | None:
-    """Check if the tool is blocked by trust attenuation. Returns error message or None."""
+    """Check if the tool is blocked by turn policy or trust attenuation."""
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_turn_allowed_tool_names,
+    )
+
+    allowed = get_turn_allowed_tool_names()
+    if allowed is not None:
+        if tool_name in allowed:
+            return None
+        logger.warning("Turn tool policy blocked: %s", tool_name)
+        return (
+            f"Error: '{tool_name}' is restricted by the active turn tool policy.\n"
+            f"Available tools: {', '.join(sorted(allowed))}"
+        )
+
     from myrm_agent_harness.agent._skill_agent_context import get_loaded_skills
     from myrm_agent_harness.agent.skills.runtime.attenuator import (
         READ_ONLY_TOOLS,
@@ -221,7 +243,9 @@ def extract_text_content(content: str | list[dict[str, str]]) -> str:
     if isinstance(content, str):
         return content
     return "".join(
-        block.get("text", "") for block in content if isinstance(block, dict) and block.get("type") == "text"
+        block.get("text", "")
+        for block in content
+        if isinstance(block, dict) and block.get("type") == "text"
     )
 
 
@@ -260,7 +284,9 @@ def check_tool_params_pii(tool_name: str, tool_args: dict[str, object]) -> str |
         f"level={result.level.value} patterns={','.join(result.patterns)}",
     )
 
-    action = policy.s3_action if result.level == SensitivityLevel.S3 else policy.s2_action
+    action = (
+        policy.s3_action if result.level == SensitivityLevel.S3 else policy.s2_action
+    )
     if action == PIIAction.BLOCK:
         return (
             f"Error: Tool call blocked due to PII detection ({result.level.value}).\n"
@@ -273,7 +299,9 @@ def check_tool_params_pii(tool_name: str, tool_args: dict[str, object]) -> str |
     return None
 
 
-def check_tool_result_pii(result: ToolMessage, result_text: str, tool_name: str) -> tuple[ToolMessage, str]:
+def check_tool_result_pii(
+    result: ToolMessage, result_text: str, tool_name: str
+) -> tuple[ToolMessage, str]:
     """Check tool result for PII, optionally redacting. Returns (result, text)."""
     policy = get_privacy_policy()
     if not policy.enabled:
@@ -370,7 +398,9 @@ def build_hook_failure_result(
             elif hook_result.reason:
                 error_details.append(hook_result.reason)
 
-    hook_error_msg = "\n".join(error_details) if error_details else "Hook validation failed"
+    hook_error_msg = (
+        "\n".join(error_details) if error_details else "Hook validation failed"
+    )
     truncated_output = smart_truncate_output(post_result_text, max_lines=20)
     error_content = (
         f"[HOOK_VALIDATION_FAILED] Post-execution hook detected critical issues:\n\n"
@@ -379,7 +409,9 @@ def build_hook_failure_result(
     )
 
     record_decision(tool_name, "POST_HOOK_BLOCKED", post_hook_result.reason)
-    logger.warning("POST_TOOL_USE hook blocked: %s -- %s", tool_name, post_hook_result.reason)
+    logger.warning(
+        "POST_TOOL_USE hook blocked: %s -- %s", tool_name, post_hook_result.reason
+    )
 
     return ToolMessage(
         content=error_content,
@@ -390,7 +422,9 @@ def build_hook_failure_result(
     )
 
 
-async def emit_hook_failure_event(tool_name: str, post_hook_result: Any, agent_event_type: Any) -> None:
+async def emit_hook_failure_event(
+    tool_name: str, post_hook_result: Any, agent_event_type: Any
+) -> None:
     """Emit observability events for hook failures."""
     try:
         from myrm_agent_harness.observability.metrics.registry import (
@@ -399,7 +433,9 @@ async def emit_hook_failure_event(tool_name: str, post_hook_result: Any, agent_e
 
         mr = get_metrics_registry()
         if mr and mr.enabled:
-            mr.record_hook_failure(agent_id="base_agent", tool_name=tool_name, hook_event="post_tool_use")
+            mr.record_hook_failure(
+                agent_id="base_agent", tool_name=tool_name, hook_event="post_tool_use"
+            )
     except ImportError:
         pass
 

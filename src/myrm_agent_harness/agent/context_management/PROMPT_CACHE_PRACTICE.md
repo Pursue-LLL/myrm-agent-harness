@@ -118,7 +118,7 @@ sorted_entries = sorted(
 | 组件 | 路径 | 作用 |
 |------|------|------|
 | ToolNode resolve | `middlewares/skill_attenuation_middleware.py` | 动态解析技能工具，不 mutate `request.tools` |
-| Skill attenuation | `middlewares/_skill_tool_choice.py` + `skill_attenuation_middleware.py` | 技能加载后通过 `tool_choice.allowed_tools` 收窄可调用工具；**不**修改 bind_tools 前缀；执行层 `check_trust_attenuation` 兜底 |
+| Skill attenuation | `middlewares/_skill_tool_choice.py` + `skill_attenuation_middleware.py` | 技能加载后通过 `tool_choice.allowed_tools` 收窄可调用工具（provider 支持时）；不支持时 skip 模型层 hint，执行层 `check_trust_attenuation` 仍 enforcement；**不**修改 bind_tools 前缀 |
 
 **缓存效果**：Tools 前缀在长对话中保持稳定；discover 网关 description 无动态工具名嵌入；skill 加载后仍保持 Tools+System 前缀命中（`tool_choice` 变化仅影响 Messages 段，见 CONTEXT_ENGINEERING §6.2）。
 

@@ -237,13 +237,19 @@ async def test_per_tool_counting_isolation(mock_get_suggestion, middleware):
     )
 
     async def ok_handler(req):
-        return ToolMessage(content="ok", name="skill_select_tool", tool_call_id="call_ok")
+        return ToolMessage(
+            content="ok", name="skill_select_tool", tool_call_id="call_ok"
+        )
 
     await middleware.awrap_tool_call(success_request, ok_handler)
     assert _per_tool_errors_var.get().get("bash_code_execute_tool") == 3
 
     fail_request = ToolCallRequest(
-        tool_call={"name": "bash_code_execute_tool", "args": {"command": "echo"}, "id": "call_f"},
+        tool_call={
+            "name": "bash_code_execute_tool",
+            "args": {"command": "echo"},
+            "id": "call_f",
+        },
         tool=MagicMock(),
         state={},
         runtime=MagicMock(),

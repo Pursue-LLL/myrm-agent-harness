@@ -13,7 +13,9 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
-from myrm_agent_harness.agent.context_management.pipeline.processors.cache_optimizer import ExplicitCacheProcessor
+from myrm_agent_harness.agent.context_management.pipeline.processors.cache_optimizer import (
+    ExplicitCacheProcessor,
+)
 
 pytestmark = pytest.mark.performance
 
@@ -36,13 +38,17 @@ def _generate_test_messages(count: int) -> list:
                 ],
             )
         )
-        messages.append(ToolMessage(content=f"Command output {i}\n" * 10, tool_call_id=f"tc{i}"))
+        messages.append(
+            ToolMessage(content=f"Command output {i}\n" * 10, tool_call_id=f"tc{i}")
+        )
 
     return messages
 
 
 @pytest.mark.asyncio
-async def test_processor_overhead_small_context(caplog: pytest.LogCaptureFixture) -> None:
+async def test_processor_overhead_small_context(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Benchmark: Small context (10 messages) overhead is acceptable (<10ms).
 
     Evidence: ExplicitCacheProcessor process completes in <10ms for typical small
@@ -63,11 +69,15 @@ async def test_processor_overhead_small_context(caplog: pytest.LogCaptureFixture
     elapsed = time.perf_counter() - start
 
     avg_per_call = (elapsed / iterations) * 1_000
-    assert avg_per_call < 20.0, f"Small context overhead {avg_per_call:.1f}ms exceeds 20ms threshold"
+    assert (
+        avg_per_call < 20.0
+    ), f"Small context overhead {avg_per_call:.1f}ms exceeds 20ms threshold"
 
 
 @pytest.mark.asyncio
-async def test_processor_overhead_medium_context(caplog: pytest.LogCaptureFixture) -> None:
+async def test_processor_overhead_medium_context(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Benchmark: Medium context (50 messages) overhead is acceptable (<50ms).
 
     Evidence: ExplicitCacheProcessor scales linearly with message count. 50-message
@@ -89,11 +99,15 @@ async def test_processor_overhead_medium_context(caplog: pytest.LogCaptureFixtur
     elapsed = time.perf_counter() - start
 
     avg_per_call = (elapsed / iterations) * 1_000
-    assert avg_per_call < 65.0, f"Medium context overhead {avg_per_call:.1f}ms exceeds 65ms threshold"
+    assert (
+        avg_per_call < 65.0
+    ), f"Medium context overhead {avg_per_call:.1f}ms exceeds 65ms threshold"
 
 
 @pytest.mark.asyncio
-async def test_processor_overhead_large_context(caplog: pytest.LogCaptureFixture) -> None:
+async def test_processor_overhead_large_context(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """Benchmark: Large context (150 messages) overhead is acceptable (<200ms).
 
     Evidence: Even with 150 messages spanning multiple 20-block windows, processor
@@ -115,7 +129,9 @@ async def test_processor_overhead_large_context(caplog: pytest.LogCaptureFixture
     elapsed = time.perf_counter() - start
 
     avg_per_call = (elapsed / iterations) * 1_000
-    assert avg_per_call < 200.0, f"Large context overhead {avg_per_call:.1f}ms exceeds 200ms threshold"
+    assert (
+        avg_per_call < 200.0
+    ), f"Large context overhead {avg_per_call:.1f}ms exceeds 200ms threshold"
 
 
 @pytest.mark.asyncio
@@ -139,7 +155,9 @@ async def test_processor_should_process_fast(caplog: pytest.LogCaptureFixture) -
     elapsed = time.perf_counter() - start
 
     avg_per_call = (elapsed / iterations) * 1_000_000
-    assert avg_per_call < 10.0, f"should_process overhead {avg_per_call:.1f}μs exceeds 10μs threshold"
+    assert (
+        avg_per_call < 10.0
+    ), f"should_process overhead {avg_per_call:.1f}μs exceeds 10μs threshold"
 
 
 @pytest.mark.asyncio
@@ -163,4 +181,6 @@ async def test_processor_throughput(caplog: pytest.LogCaptureFixture) -> None:
     elapsed = time.perf_counter() - start
 
     throughput = iterations / elapsed
-    assert throughput > 20.0, f"Throughput {throughput:.0f} calls/s below 20/s threshold"
+    assert (
+        throughput > 20.0
+    ), f"Throughput {throughput:.0f} calls/s below 20/s threshold"

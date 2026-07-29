@@ -49,6 +49,7 @@ class WikiConfig:
         enable_statistics: Track wiki usage statistics (query frequency, hot concepts)
         enable_auto_maintenance: Enable automatic wiki maintenance (lint + repair)
         maintenance_interval_hours: Hours between automatic maintenance runs
+        enable_asset_index: Index wiki/assets images for caption-based hybrid search (requires caption provider)
     """
 
     llm_model: str = "claude-sonnet-4.5"
@@ -68,6 +69,7 @@ class WikiConfig:
     enable_statistics: bool = True
     enable_auto_maintenance: bool = True
     maintenance_interval_hours: int = 24
+    enable_asset_index: bool = False
 
 
 @dataclass(frozen=True, slots=True)

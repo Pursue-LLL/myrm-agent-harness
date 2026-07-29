@@ -13,12 +13,32 @@ Agent meta-tool adapter for clarification forms. Runtime interrupt binding is in
 
 from __future__ import annotations
 
+import asyncio
+import json
 from collections.abc import Awaitable, Callable
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, PrivateAttr
 
-from myrm_agent_harness.agent.meta_tools.clarification.ask_question import AskQuestionInput
+from myrm_agent_harness.agent.meta_tools.clarification.ask_question import (
+    AskQuestionInput,
+)
+
+
+def _format_ask_question_interrupt_response(response: object) -> str:
+    if not response:
+        return (
+            "User did not answer the clarification (skipped or timed out). "
+            "Proceed with your best judgment; do not wait for further input."
+        )
+    return json.dumps(response, ensure_ascii=False)
+
+
+def _interrupt_ask_question_form(form: AskQuestionInput) -> str:
+    from langgraph.types import interrupt
+
+    payload = {"type": "ask_question", "form": form.model_dump()}
+    return _format_ask_question_interrupt_response(interrupt(payload))
 
 
 class AskQuestionTool(BaseTool):
@@ -49,9 +69,19 @@ class AskQuestionTool(BaseTool):
         return await self._callback(input_data)
 
     def _run(self, **kwargs: object) -> str:
-        raise NotImplementedError("AskQuestionTool only supports async execution.")
+        input_data = AskQuestionInput.model_validate(kwargs)
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self._arun(**kwargs))
+
+        # Sync ToolNode while agent astream holds the loop: interrupt must run on this
+        # thread. Thread-pool asyncio.run() breaks GraphInterrupt propagation (R142 warm).
+        return _interrupt_ask_question_form(input_data)
 
 
-def create_ask_question_tool(callback: Callable[[AskQuestionInput], Awaitable[str]]) -> AskQuestionTool:
+def create_ask_question_tool(
+    callback: Callable[[AskQuestionInput], Awaitable[str]],
+) -> AskQuestionTool:
     """Create an ask_question LangChain tool bound to a runtime HITL callback."""
     return AskQuestionTool(callback=callback)

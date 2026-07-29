@@ -42,7 +42,7 @@ dispatcher  handlers      events         recovery*
 | `stream_dispatcher.py` | chunk → output_queue；swarm_fission GraphInterrupt 专路由 |
 | `stream_recovery.py` | 主恢复策略组合（overflow/failover/escalation/retry/iteration-limit） |
 | `stream_recovery_truncation.py` | max-token 续写、truncated tool-call 重试 |
-| `stream_recovery_oneshot.py` | THINKING_SIGNATURE / IMAGE_TOO_LARGE 等一次性恢复 |
+| `stream_recovery_oneshot.py` | THINKING_SIGNATURE / IMAGE_TOO_LARGE / MEDIA_REJECTED / ALLOWED_TOOLS_TOOL_CHOICE_REJECTED 等一次性恢复 |
 | `stream_recovery_continuation.py` | steering、subagent 完成、goal continuation |
 | `stream_compactor.py` | 流状态持久化/compaction |
 | `stream_buffer.py` | 引擎层流状态持久化 |

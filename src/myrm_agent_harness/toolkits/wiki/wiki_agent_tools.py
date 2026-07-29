@@ -13,14 +13,14 @@ core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP, 
 [OUTPUT]
 create_wiki_tools(): creates 3 LangChain agent tools (ingest, query, apply)
 create_wiki_admin_tools(): creates compile/maintain tools for REST and tests
-_wiki_source_entry(): builds chat citation metadata incl. claim snapshot_status and source_key
+retrieval.source_citations::build_wiki_query_sources (POS: Shared wiki citation metadata builder)
 
 [POS]
 LangChain tool integration layer for Wiki toolkit. Wraps WikiCompiler, WikiQueryEngine,
 and WikiLinter into agent-facing StructuredTools for Agent use. Provides end-to-end
 automation: ingest triggers compilation, query archives high-value results for knowledge
 compounding, and URL fetching uses FetchEngine (YouTube/Bilibili subtitle extraction, multi-tier fallback).
-Query metadata forwards layered citations and read-time evidence snapshot_status for Chat/Settings UI.
+Query metadata forwards layered citations, asset hit metadata, and read-time evidence snapshot_status for Chat/Settings UI.
 """
 
 from __future__ import annotations
@@ -34,12 +34,12 @@ from langchain_core.tools import tool
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .core.structure import WikiStructure
-from .core.types import SourceSnippet
 from .maintenance.linter import WikiLinter
 from .pipeline.compiler import WikiCompiler
 from .pipeline.apply import WikiApplyError, WikiApplyOp, WikiApplyRequest, apply_wiki_mutation
 from .retrieval.indexer import WikiIndexer
 from .retrieval.query import WikiQueryEngine
+from .retrieval.source_citations import attach_wiki_scope_id, build_wiki_query_sources
 
 logger = get_agent_logger(__name__)
 
@@ -47,61 +47,33 @@ _BINARY_DOC_EXTENSIONS = frozenset({".pdf", ".docx", ".doc", ".xlsx", ".xls", ".
 _LARGE_DOC_CHUNK_THRESHOLD = 80_000
 
 
-def _wiki_source_dedup_key(snip: SourceSnippet) -> str:
-    if snip.claim_id and snip.evidence_path:
-        return (
-            f"kb:LLM-Wiki:{snip.article_path}:claim:{snip.claim_id}:evidence:{snip.evidence_path}:{snip.line_range}"
-        )
-    return f"kb:LLM-Wiki:{snip.article_path}:{snip.section}:{snip.level}"
-
-
-def _wiki_source_entry(snip: SourceSnippet, *, confidence_score: float) -> dict[str, object]:
-    display_name = snip.article_name or Path(snip.article_path).stem or "wiki-source"
-    entry: dict[str, object] = {
-        "type": "knowledge",
-        "kb_name": "LLM-Wiki",
-        "filename": display_name,
-        "score": confidence_score,
-        "path": snip.article_path,
-        "source_key": _wiki_source_dedup_key(snip),
-    }
-    if snip.snippet:
-        entry["snippet"] = snip.snippet
-    if snip.section:
-        entry["section"] = snip.section
-    if snip.level:
-        entry["level"] = snip.level
-    if snip.claim_id:
-        entry["claim_id"] = snip.claim_id
-    if snip.evidence_path:
-        entry["evidence_path"] = snip.evidence_path
-    if snip.line_range:
-        entry["line_range"] = snip.line_range
-    if snip.claim_status:
-        entry["claim_status"] = snip.claim_status
-    if snip.evidence_snapshot_status:
-        entry["snapshot_status"] = snip.evidence_snapshot_status
-    return entry
-
-
 def create_wiki_tools(
     compiler: WikiCompiler,
     query_engine: WikiQueryEngine,
     linter: WikiLinter,
     structure: WikiStructure,
+    *,
+    wiki_scope_id: str | None = None,
 ) -> list:
     """
     Create agent-facing wiki tools (ingest + query only).
 
     Compile/maintain are Settings/REST operations and are not exposed to the LLM.
     """
-    return create_wiki_agent_tools(compiler, query_engine, structure)
+    return create_wiki_agent_tools(
+        compiler,
+        query_engine,
+        structure,
+        wiki_scope_id=wiki_scope_id,
+    )
 
 
 def create_wiki_agent_tools(
     compiler: WikiCompiler,
     query_engine: WikiQueryEngine,
     structure: WikiStructure,
+    *,
+    wiki_scope_id: str | None = None,
 ) -> list:
     """Create LangChain tools exposed to the agent at Turn1."""
 
@@ -217,47 +189,21 @@ def create_wiki_agent_tools(
         try:
             result = await query_engine.query(question)
 
-            if not result.related_articles:
+            if (
+                not result.source_snippets
+                and not result.related_articles
+                and result.confidence_score == 0.0
+            ):
                 return "No relevant information found in wiki. Consider ingesting more documents."
 
             from myrm_agent_harness.utils.context_format import wrap_with_external_sources_tag
 
             wrapped_context = wrap_with_external_sources_tag(result.answer, source="LLM-Wiki")
 
-            sources_by_key: dict[str, dict[str, object]] = {}
-            ordered_keys: list[str] = []
-
-            for snip in result.source_snippets:
-                key = _wiki_source_dedup_key(snip)
-                if key in sources_by_key:
-                    entry = sources_by_key[key]
-                    if snip.snippet:
-                        entry["snippet"] = snip.snippet
-                    if snip.evidence_snapshot_status:
-                        entry["snapshot_status"] = snip.evidence_snapshot_status
-                    continue
-                sources_by_key[key] = _wiki_source_entry(snip, confidence_score=result.confidence_score)
-                ordered_keys.append(key)
-
-            snippet_paths = {snip.article_path for snip in result.source_snippets}
-            for path_str in result.related_articles:
-                if path_str in snippet_paths:
-                    continue
-                path_key = f"kb:LLM-Wiki:{path_str}::L2"
-                if path_key in sources_by_key:
-                    continue
-                p = Path(path_str)
-                sources_by_key[path_key] = {
-                    "type": "knowledge",
-                    "kb_name": "LLM-Wiki",
-                    "filename": p.stem,
-                    "score": result.confidence_score,
-                    "path": path_str,
-                    "source_key": path_key,
-                }
-                ordered_keys.append(path_key)
-
-            sources = [sources_by_key[key] for key in ordered_keys]
+            sources = attach_wiki_scope_id(
+                build_wiki_query_sources(result),
+                wiki_scope_id,
+            )
 
             if result.should_archive:
                 try:

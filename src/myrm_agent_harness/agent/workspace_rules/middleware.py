@@ -116,9 +116,13 @@ class WorkspaceRulesMiddleware(AgentMiddleware):  # type: ignore[type-arg]
     ) -> ModelResponse:
         state = request.state
         raw_state_messages = state.get("messages", [])
-        state_messages: list[object] = list(raw_state_messages) if isinstance(raw_state_messages, list) else []
+        state_messages: list[object] = (
+            list(raw_state_messages) if isinstance(raw_state_messages, list) else []
+        )
 
-        already_injected = _has_workspace_context(state_messages) or _has_workspace_context(request.messages)
+        already_injected = _has_workspace_context(
+            state_messages
+        ) or _has_workspace_context(request.messages)
 
         if already_injected:
             return await handler(request)

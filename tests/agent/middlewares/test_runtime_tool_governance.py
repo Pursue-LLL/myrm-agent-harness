@@ -5,6 +5,7 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage
 
 from myrm_agent_harness.agent.middlewares._runtime_tool_governance import (
+    compute_turn_allowed_names,
     derive_runtime_allowed_tools,
     extract_recent_human_text,
 )
@@ -22,7 +23,12 @@ def test_extract_recent_human_text_uses_latest_human_message() -> None:
 
 def test_extract_recent_human_text_handles_segment_list_content() -> None:
     messages: list[object] = [
-        HumanMessage(content=[{"type": "text", "text": "segment A"}, {"type": "text", "text": "segment B"}]),
+        HumanMessage(
+            content=[
+                {"type": "text", "text": "segment A"},
+                {"type": "text", "text": "segment B"},
+            ]
+        ),
     ]
 
     assert extract_recent_human_text(messages) == "segment A segment B"
@@ -90,3 +96,28 @@ def test_runtime_governance_action_intent_keeps_mutation_tools() -> None:
     assert allowed is None
     assert reasons == ()
 
+
+def test_compute_turn_allowed_names_merges_readonly_intent_gate() -> None:
+    tool_names = ["file_read_tool", "file_write_tool", "web_search_tool"]
+    messages: list[object] = [HumanMessage(content="请分析这段日志为什么会失败？")]
+
+    allowed = compute_turn_allowed_names(
+        tool_names=tool_names,
+        messages=messages,
+        loaded_skills=None,
+    )
+
+    assert allowed == frozenset({"file_read_tool", "web_search_tool"})
+
+
+def test_compute_turn_allowed_names_returns_none_when_unrestricted() -> None:
+    tool_names = ["file_read_tool", "web_search_tool"]
+    messages: list[object] = [HumanMessage(content="请修改这个配置文件并修复报错")]
+
+    allowed = compute_turn_allowed_names(
+        tool_names=tool_names,
+        messages=messages,
+        loaded_skills=None,
+    )
+
+    assert allowed is None

@@ -26,8 +26,8 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `context_pipeline_middleware.py` | Core | `create_context_pipeline_middleware` factory. | ✅ |
 | `dangling_tool_call_middleware.py` | Core | Repair malformed tool histories for strict providers: sanitize malformed calls, patch dangling tool_calls, and drop orphan ToolMessages. | ✅ |
 | `_skill_tool_choice.py` | Internal | Build OpenAI ``allowed_tools`` tool_choice for skill attenuation (cache-safe). | ✅ |
-| `_runtime_tool_governance.py` | Internal | Per-turn intent-aware tool narrowing helper (UI intent gate + readonly intent gate) using cache-safe `tool_choice.allowed_tools`. | ✅ |
-| `skill_attenuation_middleware.py` | Core | Skill attenuation via ``tool_choice.allowed_tools`` + runtime intent-aware narrowing; dynamic tool resolution for ToolNode. Does not mutate `request.tools`. | ✅ |
+| `_runtime_tool_governance.py` | Internal | Per-turn intent-aware tool narrowing (UI + readonly gates) and `compute_turn_allowed_names()` merged allowlist for model hint + execution enforcement. | ✅ |
+| `skill_attenuation_middleware.py` | Core | Skill attenuation via ``tool_choice.allowed_tools`` when provider supports it; skips model-layer hint otherwise; execution SSOT via ContextVar + `check_trust_attenuation`; dynamic tool resolution for ToolNode. Does not mutate `request.tools`. | ✅ |
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
 | `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping；若存在 `memory_brief_snapshot` 则优先复用同源快照，避免预览/执行漂移；并通过 API hooks 记录 `injection` 与 `budget` telemetry（applied/not_applied + source/reason）供 server 透传；未注入时清空 budget telemetry 防止跨轮残留。 | ✅ |

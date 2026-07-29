@@ -12,17 +12,22 @@ from myrm_agent_harness.toolkits.llms.capability_learner import get_capability_l
 def test_openai_like_models_default_to_unsupported() -> None:
     learner = get_capability_learner()
     learner.clear()
-    assert model_supports_allowed_tools_tool_choice("openai-like/agnes-2.5-flash") is False
+    assert (
+        model_supports_allowed_tools_tool_choice("openai-like/agnes-2.5-flash") is False
+    )
 
 
 def test_minimax_models_default_to_unsupported() -> None:
     learner = get_capability_learner()
     learner.clear()
     assert model_supports_allowed_tools_tool_choice("minimax/MiniMax-M3") is False
-    assert model_supports_allowed_tools_tool_choice(
-        "MiniMax-M2.7",
-        api_base="https://api.minimaxi.com/v1",
-    ) is False
+    assert (
+        model_supports_allowed_tools_tool_choice(
+            "MiniMax-M2.7",
+            api_base="https://api.minimaxi.com/v1",
+        )
+        is False
+    )
 
 
 def test_native_openai_model_supported_by_default() -> None:
@@ -49,7 +54,11 @@ def test_learned_rejection_is_case_insensitive() -> None:
     learner = get_capability_learner()
     learner.clear()
     try:
-        learner.learn(normalize_model_capability_key("GPT-4o"), CAPABILITY_REJECTS_ALLOWED_TOOLS, True)
+        learner.learn(
+            normalize_model_capability_key("GPT-4o"),
+            CAPABILITY_REJECTS_ALLOWED_TOOLS,
+            True,
+        )
         assert model_supports_allowed_tools_tool_choice("gpt-4o") is False
     finally:
         learner.clear()

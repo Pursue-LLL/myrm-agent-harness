@@ -53,10 +53,16 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
             timestamp=datetime.now(UTC).isoformat(),
         )
 
-    def _build_denied_message(self, request: ToolCallRequest, decision: GuardrailDecision) -> ToolMessage:
+    def _build_denied_message(
+        self, request: ToolCallRequest, decision: GuardrailDecision
+    ) -> ToolMessage:
         tool_name = str(request.tool_call.get("name", "unknown_tool"))
         tool_call_id = str(request.tool_call.get("id", "missing_id"))
-        reason_text = decision.reasons[0].message if decision.reasons else "blocked by guardrail policy"
+        reason_text = (
+            decision.reasons[0].message
+            if decision.reasons
+            else "blocked by guardrail policy"
+        )
         reason_code = decision.reasons[0].code if decision.reasons else "oap.denied"
 
         return ToolMessage(
@@ -68,15 +74,73 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
             tool_call_id=tool_call_id,
             name=tool_name,
             status="error",
-            additional_kwargs={"error_category": ToolErrorCategory.GUARDRAIL_BLOCKED, "guardrail_code": reason_code},
+            additional_kwargs={
+                "error_category": ToolErrorCategory.GUARDRAIL_BLOCKED,
+                "guardrail_code": reason_code,
+            },
         )
 
-    async def on_tool_start(self, tool: str, input_str: str, **kwargs: object) -> str | None:
+    async def on_tool_start(
+        self, tool: str, input_str: str, **kwargs: object
+    ) -> str | None:
         """Legacy compatibility for string-based check if needed.
 
         We implement the actual interception in wrap_tool_call/awrap_tool_call instead.
         """
         return None
+
+    def _evaluate_sync(self, request: ToolCallRequest) -> GuardrailDecision | None:
+        """Sync tool path (signoff clarify pool warm): evaluate providers via asyncio.run."""
+        import asyncio
+
+        if not self.providers:
+            return None
+
+        gr = self._build_request(request)
+        for provider in self.providers:
+            try:
+                decision = asyncio.run(provider.aevaluate(gr))
+            except Exception as e:
+                logger.exception(f"Guardrail provider '{provider.name}' error: {e}")
+                if self.fail_closed:
+                    return GuardrailDecision(
+                        allow=False,
+                        reasons=[
+                            GuardrailReason(
+                                code="oap.evaluator_error",
+                                message=f"guardrail error in {provider.name} (fail-closed)",
+                            )
+                        ],
+                    )
+                continue
+
+            if not decision.allow:
+                code = decision.reasons[0].code if decision.reasons else "unknown"
+                logger.warning(
+                    "Guardrail denied: tool=%s provider=%s code=%s",
+                    gr.tool_name,
+                    provider.name,
+                    code,
+                )
+                from myrm_agent_harness.agent.security.audit import record_decision
+
+                record_decision(
+                    gr.tool_name,
+                    "GUARDRAIL_BLOCKED",
+                    f"provider={provider.name} code={code} reason={decision.reasons[0].message if decision.reasons else ''}",
+                )
+                return decision
+        return None
+
+    def wrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], ToolMessage | Command],
+    ) -> ToolMessage | Command:
+        decision = self._evaluate_sync(request)
+        if decision is not None and not decision.allow:
+            return self._build_denied_message(request, decision)
+        return handler(request)
 
     async def awrap_tool_call(
         self,
@@ -99,7 +163,8 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
                         allow=False,
                         reasons=[
                             GuardrailReason(
-                                code="oap.evaluator_error", message=f"guardrail error in {provider.name} (fail-closed)"
+                                code="oap.evaluator_error",
+                                message=f"guardrail error in {provider.name} (fail-closed)",
                             )
                         ],
                     )
@@ -108,7 +173,9 @@ class GuardrailMiddleware(AgentMiddleware[object, object]):
 
             if not decision.allow:
                 code = decision.reasons[0].code if decision.reasons else "unknown"
-                logger.warning(f"Guardrail denied: tool={gr.tool_name} provider={provider.name} code={code}")
+                logger.warning(
+                    f"Guardrail denied: tool={gr.tool_name} provider={provider.name} code={code}"
+                )
 
                 # Report to audit
                 from myrm_agent_harness.agent.security.audit import record_decision

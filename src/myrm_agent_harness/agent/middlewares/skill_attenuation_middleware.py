@@ -3,17 +3,19 @@
 [INPUT]
 - agent.tool_management.registry::ToolRegistry (POS: Tool registry)
 - agent.middlewares._skill_tool_choice (POS: Skill attenuation request metadata builder)
+- agent.middlewares._runtime_tool_governance::compute_turn_allowed_names (POS: merged allowlist for model hint + execution enforcement)
+- toolkits.llms.allowed_tools_capability::model_supports_allowed_tools_tool_choice (POS: provider capability gate for cache-safe skill attenuation)
 - langchain.agents.middleware::AgentMiddleware (POS: Middleware base)
 - langgraph.prebuilt.tool_node::ToolCallRequest (POS: Tool execution request for interceptors)
 
 [OUTPUT]
 - SkillAttenuationMiddleware: applies skill attenuation via ``tool_choice.allowed_tools``
-  and resolves dynamic tools at ToolNode execution time.
+  when supported, and resolves dynamic tools at ToolNode execution time.
 
 [POS]
 Skill attenuation uses per-turn ``tool_choice`` (OpenAI ``allowed_tools`` mode) so the
-bound tools prefix stays cache-stable. Execution-layer enforcement remains in
-``check_trust_attenuation`` via tool_interceptor.
+bound tools prefix stays cache-stable when the provider supports it. Execution-layer
+enforcement uses the same turn allowlist via ``check_trust_attenuation``.
 ``awrap_tool_call`` resolves tools for ToolNode when ``request.tool is None``.
 """
 
@@ -33,8 +35,10 @@ from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
 from myrm_agent_harness.agent.middlewares._runtime_tool_governance import (
-    derive_runtime_allowed_tools,
-    extract_recent_human_text,
+    compute_turn_allowed_names,
+)
+from myrm_agent_harness.agent.middlewares._session_context import (
+    set_turn_allowed_tool_names,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
@@ -52,7 +56,7 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
         request: ModelRequest[object],
         handler: Callable[[ModelRequest[object]], ModelResponse[object]],
     ) -> ModelResponse[object]:
-        # Sync path (rare): pass through — signoff pool warm uses sync model invoke.
+        request = self._apply_turn_tool_policy(request)
         return handler(request)
 
     async def awrap_model_call(
@@ -60,58 +64,64 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
         request: ModelRequest[object],
         handler: Callable[[ModelRequest[object]], Awaitable[ModelResponse[object]]],
     ) -> ModelResponse[object]:
+        request = self._apply_turn_tool_policy(request)
+        return await handler(request)
+
+    def _apply_turn_tool_policy(
+        self, request: ModelRequest[object]
+    ) -> ModelRequest[object]:
         from myrm_agent_harness.agent._skill_agent_context import get_loaded_skills
         from myrm_agent_harness.agent.middlewares._skill_tool_choice import (
             build_allowed_tools_tool_choice,
             extract_bound_tool_names,
         )
-        from myrm_agent_harness.agent.skills.runtime.attenuator import attenuate_tools
+        from myrm_agent_harness.toolkits.llms.allowed_tools_capability import (
+            model_supports_allowed_tools_tool_choice,
+        )
 
-        if request.tools:
-            tool_names = extract_bound_tool_names(list(request.tools))
-            allowed_names = set(tool_names)
-            restriction_reasons: list[str] = []
+        if not request.tools:
+            set_turn_allowed_tool_names(None)
+            return request
 
-            loaded_skills = get_loaded_skills()
-            if loaded_skills:
-                attenuation = attenuate_tools(tool_names, loaded_skills)
-                if attenuation.removed_tools:
-                    allowed_names &= set(attenuation.tool_names)
-                    restriction_reasons.append("skill_attenuation")
+        tool_names = extract_bound_tool_names(list(request.tools))
+        loaded_skills = get_loaded_skills()
+        final_allowed = compute_turn_allowed_names(
+            tool_names,
+            list(request.messages),
+            loaded_skills or None,
+        )
+        set_turn_allowed_tool_names(final_allowed)
 
-            recent_human_text = extract_recent_human_text(list(request.messages))
-            runtime_allowed, runtime_reasons = derive_runtime_allowed_tools(
-                tool_names=sorted(allowed_names),
-                recent_human_text=recent_human_text,
+        if final_allowed is None:
+            return request
+
+        llm = getattr(request, "model", None)
+        model_name = getattr(llm, "model", None) or getattr(llm, "model_name", None)
+        api_base = getattr(llm, "api_base", None)
+        model_id = str(model_name) if model_name else None
+
+        if not model_supports_allowed_tools_tool_choice(
+            model_id, api_base=str(api_base or "")
+        ):
+            logger.info(
+                " SkillAttenuationMiddleware skipped allowed_tools model-layer hint "
+                "(model=%s); execution-layer policy remains active",
+                model_id or "unknown",
             )
-            if runtime_allowed is not None:
-                allowed_names &= set(runtime_allowed)
-                restriction_reasons.extend(runtime_reasons)
+            return request
 
-            if not allowed_names:
-                # Fail-open is intentional to avoid invalid empty allowed_tools payloads.
-                # Keep explicit observability so policy authors can tune skill/runtime gates.
-                logger.warning(
-                    " SkillAttenuationMiddleware produced empty allowlist; skipping tool_choice override (reasons=%s)",
-                    ",".join(restriction_reasons) or "unspecified",
-                )
-                return await handler(request)
+        logger.info(
+            " SkillAttenuationMiddleware allowed_tools restricted %d tool(s): %s",
+            len(tool_names) - len(final_allowed),
+            sorted(set(tool_names) - set(final_allowed)),
+        )
+        return request.override(
+            tool_choice=build_allowed_tools_tool_choice(final_allowed),
+        )
 
-            if allowed_names and len(allowed_names) < len(tool_names):
-                final_allowed = frozenset(allowed_names)
-                request = request.override(
-                    tool_choice=build_allowed_tools_tool_choice(final_allowed),
-                )
-                logger.info(
-                    " SkillAttenuationMiddleware allowed_tools restricted %d tool(s): %s (reasons=%s)",
-                    len(tool_names) - len(final_allowed),
-                    sorted(set(tool_names) - set(final_allowed)),
-                    ",".join(restriction_reasons) or "unspecified",
-                )
-
-        return await handler(request)
-
-    def _resolve_dynamic_tool_request(self, request: ToolCallRequest) -> ToolCallRequest:
+    def _resolve_dynamic_tool_request(
+        self, request: ToolCallRequest
+    ) -> ToolCallRequest:
         """Resolve dynamic BaseTool instances for ToolNode when not pre-bound."""
         if request.tool is not None:
             return request

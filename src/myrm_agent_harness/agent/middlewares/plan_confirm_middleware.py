@@ -100,13 +100,15 @@ class PlanConfirmMiddleware(AgentMiddleware[Any, Any]):
 
         plan_items = _extract_plan_summary(todos)
 
-        resume_value = interrupt({
-            "action_type": "plan_confirm",
-            "tool_name": "todo_write",
-            "plan_items": plan_items,
-            "total_items": len(todos),
-            "goal": args.get("goal"),
-        })
+        resume_value = interrupt(
+            {
+                "action_type": "plan_confirm",
+                "tool_name": "todo_write",
+                "plan_items": plan_items,
+                "total_items": len(todos),
+                "goal": args.get("goal"),
+            }
+        )
 
         if not isinstance(resume_value, dict):
             _plan_confirmed_var.set(True)

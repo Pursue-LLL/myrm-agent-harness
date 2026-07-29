@@ -26,7 +26,9 @@ from langgraph.types import Command
 
 logger = logging.getLogger(__name__)
 
-_per_tool_errors_var: ContextVar[dict[str, int] | None] = ContextVar("replan_per_tool_errors", default=None)
+_per_tool_errors_var: ContextVar[dict[str, int] | None] = ContextVar(
+    "replan_per_tool_errors", default=None
+)
 
 
 def reset_replan_attempts() -> None:
@@ -98,9 +100,7 @@ class ReplanMiddleware(AgentMiddleware[Any, Any]):
             target=target or "unknown",
             error=str(error),
         )
-        error_content = (
-            f"ToolExecutionError: {error}\n\n{error_context}\n\nDiagnostic Hint: {suggestion}"
-        )
+        error_content = f"ToolExecutionError: {error}\n\n{error_context}\n\nDiagnostic Hint: {suggestion}"
         return ToolMessage(
             content=error_content,
             name=tool_name,

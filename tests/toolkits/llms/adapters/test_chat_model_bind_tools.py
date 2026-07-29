@@ -41,3 +41,16 @@ def test_bind_tools_passes_named_function_tool_choice() -> None:
         "type": "function",
         "function": {"name": "echo_tool"},
     }
+
+
+def test_inject_allowed_params_excludes_allowed_tools_from_force_whitelist() -> None:
+    params: dict[str, object] = {
+        "tool_choice": {
+            "type": "allowed_tools",
+            "mode": "auto",
+            "tools": [{"type": "function", "name": "file_write_tool"}],
+        },
+        "tools": [],
+    }
+    ChatLiteLLM._inject_allowed_params(params)
+    assert "tool_choice" not in params["allowed_openai_params"]

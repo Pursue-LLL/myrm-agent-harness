@@ -1,0 +1,116 @@
+"""Wiki query citation metadata for chat and memory_search sources.
+
+[INPUT]
+- ..core.types::QueryResult, SourceSnippet (POS: Wiki toolkit type definitions)
+
+[OUTPUT]
+- build_wiki_query_sources: Deduplicated LLM-Wiki source dicts for SSE metadata.
+- attach_wiki_scope_id: Inject logical agent scope into wiki source metadata.
+
+[POS]
+Shared citation builder for wiki_query_tool and memory_search wiki corpus. Keeps memory
+toolkit free of LangChain tool module dependencies.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from ..core.types import QueryResult, SourceSnippet
+
+
+def wiki_source_dedup_key(snip: SourceSnippet) -> str:
+    if snip.hit_kind == "asset" and snip.asset_filename:
+        return f"kb:LLM-Wiki:asset:{snip.asset_filename}"
+    if snip.claim_id and snip.evidence_path:
+        return (
+            f"kb:LLM-Wiki:{snip.article_path}:claim:{snip.claim_id}:evidence:{snip.evidence_path}:{snip.line_range}"
+        )
+    return f"kb:LLM-Wiki:{snip.article_path}:{snip.section}:{snip.level}"
+
+
+def wiki_source_entry(snip: SourceSnippet, *, confidence_score: float) -> dict[str, object]:
+    display_name = snip.article_name or Path(snip.article_path).stem or "wiki-source"
+    entry: dict[str, object] = {
+        "type": "knowledge",
+        "kb_name": "LLM-Wiki",
+        "filename": display_name,
+        "score": confidence_score,
+        "path": snip.article_path,
+        "source_key": wiki_source_dedup_key(snip),
+    }
+    if snip.snippet:
+        entry["snippet"] = snip.snippet
+    if snip.section:
+        entry["section"] = snip.section
+    if snip.level:
+        entry["level"] = snip.level
+    if snip.claim_id:
+        entry["claim_id"] = snip.claim_id
+    if snip.evidence_path:
+        entry["evidence_path"] = snip.evidence_path
+    if snip.line_range:
+        entry["line_range"] = snip.line_range
+    if snip.claim_status:
+        entry["claim_status"] = snip.claim_status
+    if snip.evidence_snapshot_status:
+        entry["snapshot_status"] = snip.evidence_snapshot_status
+    if snip.hit_kind == "asset":
+        entry["hit_kind"] = "asset"
+    if snip.asset_filename:
+        entry["asset_filename"] = snip.asset_filename
+    return entry
+
+
+def build_wiki_query_sources(result: QueryResult) -> list[dict[str, object]]:
+    """Build deduplicated LLM-Wiki citation metadata from a query result."""
+    sources_by_key: dict[str, dict[str, object]] = {}
+    ordered_keys: list[str] = []
+
+    for snip in result.source_snippets:
+        key = wiki_source_dedup_key(snip)
+        if key in sources_by_key:
+            entry = sources_by_key[key]
+            if snip.snippet:
+                entry["snippet"] = snip.snippet
+            if snip.evidence_snapshot_status:
+                entry["snapshot_status"] = snip.evidence_snapshot_status
+            continue
+        sources_by_key[key] = wiki_source_entry(snip, confidence_score=result.confidence_score)
+        ordered_keys.append(key)
+
+    snippet_paths = {snip.article_path for snip in result.source_snippets}
+    for path_str in result.related_articles:
+        if path_str in snippet_paths:
+            continue
+        path_key = f"kb:LLM-Wiki:{path_str}::L2"
+        if path_key in sources_by_key:
+            continue
+        path = Path(path_str)
+        sources_by_key[path_key] = {
+            "type": "knowledge",
+            "kb_name": "LLM-Wiki",
+            "filename": path.stem,
+            "score": result.confidence_score,
+            "path": path_str,
+            "source_key": path_key,
+        }
+        ordered_keys.append(path_key)
+
+    return [sources_by_key[key] for key in ordered_keys]
+
+
+def attach_wiki_scope_id(
+    sources: list[dict[str, object]],
+    wiki_scope_id: str | None,
+) -> list[dict[str, object]]:
+    """Attach logical agent scope for wiki asset HTTP URLs."""
+    scope = (wiki_scope_id or "").strip()
+    if not scope:
+        return sources
+    scoped: list[dict[str, object]] = []
+    for source in sources:
+        entry = dict(source)
+        entry["agent_id"] = scope
+        scoped.append(entry)
+    return scoped

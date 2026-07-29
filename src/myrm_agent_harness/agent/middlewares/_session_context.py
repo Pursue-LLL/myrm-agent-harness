@@ -19,6 +19,7 @@ ContextVars so they are not owned by any single middleware.
 - set_goal_provider / get_goal_provider: Per-run GoalProvider for goal_focus_middleware.
 - set_canary_token / get_canary_token: Session-scoped canary token for output-side injection detection.
 - set_is_shadow_agent / reset_is_shadow_agent / get_is_shadow_agent: Background shadow-agent bulkhead flag.
+- set_turn_allowed_tool_names / get_turn_allowed_tool_names: Per-turn merged tool allowlist for execution-layer enforcement.
 
 [POS]
 Middleware session context — shared ContextVars for the middleware chain.
@@ -334,6 +335,10 @@ _protected_paths_var: ContextVar[tuple[str, ...]] = ContextVar(
     "protected_paths", default=()
 )
 
+_turn_allowed_tool_names_var: ContextVar[frozenset[str] | None] = ContextVar(
+    "turn_allowed_tool_names", default=None
+)
+
 
 def set_protected_paths(patterns: tuple[str, ...]) -> None:
     """Set the Goal-scoped protected file path patterns for the current context."""
@@ -346,3 +351,13 @@ def get_protected_paths() -> tuple[str, ...]:
     Returns an empty tuple when no Goal is active or no protection configured.
     """
     return _protected_paths_var.get()
+
+
+def set_turn_allowed_tool_names(allowed: frozenset[str] | None) -> None:
+    """Publish the per-turn tool allowlist for execution-layer enforcement."""
+    _turn_allowed_tool_names_var.set(allowed)
+
+
+def get_turn_allowed_tool_names() -> frozenset[str] | None:
+    """Return the current turn tool allowlist, or None when unrestricted."""
+    return _turn_allowed_tool_names_var.get()

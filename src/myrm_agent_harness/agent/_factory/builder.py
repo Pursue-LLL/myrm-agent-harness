@@ -90,6 +90,7 @@ async def create_skill_agent(
     wiki_base_dir: Path | str | None = None,
     wiki_public_dirs: list[Path | str] | None = None,
     wiki_search_fn: SemanticSearchFn | None = None,
+    wiki_scope_id: str | None = None,
     similarity_checker: SkillSimilarityChecker | None = None,
     on_session_cleanup: (
         Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None
@@ -357,6 +358,7 @@ async def create_skill_agent(
         wiki_base_dir=wiki_base_dir,
         wiki_public_dirs=wiki_public_dirs,
         wiki_search_fn=wiki_search_fn,
+        wiki_scope_id=wiki_scope_id or spec.agent_id,
         similarity_checker=similarity_checker,
         on_session_cleanup=on_session_cleanup,
         on_loaded_skills_persist=on_loaded_skills_persist,

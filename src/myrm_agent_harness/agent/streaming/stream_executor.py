@@ -92,7 +92,10 @@ class StreamContext:
     drain_teammate_messages: Callable[[], str | None] | None = None
     llm_info: dict[str, str | None] | None = None
     goal_provider: GoalProvider | None = None
-    on_goal_terminal: Callable[[Goal, list[BaseMessage], GoalExecutionSummary], Awaitable[None]] | None = None
+    on_goal_terminal: (
+        Callable[[Goal, list[BaseMessage], GoalExecutionSummary], Awaitable[None]]
+        | None
+    ) = None
     on_loop_restart: Callable[[str, Goal], Awaitable[None]] | None = None
     escalation_target_llm: BaseChatModel | None = None
     llm: BaseChatModel | None = None
@@ -174,6 +177,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
         thinking_sig_attempted = False
         image_shrink_attempted = False
         media_rejected_attempted = False
+        allowed_tools_rejected_attempted = False
 
         is_resume_mode = isinstance(ctx.agent_input, Command)
 
@@ -203,8 +207,16 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     initial_total_tokens = tracker.usage.total_tokens
                     initial_cached_tokens = tracker.usage.cached_tokens
                 else:
-                    initial_total_tokens = ctx.stats.token_usage.total_tokens if ctx.stats.token_usage else 0
-                    initial_cached_tokens = ctx.stats.token_usage.cached_tokens if ctx.stats.token_usage else 0
+                    initial_total_tokens = (
+                        ctx.stats.token_usage.total_tokens
+                        if ctx.stats.token_usage
+                        else 0
+                    )
+                    initial_cached_tokens = (
+                        ctx.stats.token_usage.cached_tokens
+                        if ctx.stats.token_usage
+                        else 0
+                    )
 
                 initial_cost_usd = tracker.total_cost_usd if tracker else 0.0
 
@@ -217,7 +229,9 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                     collected_messages: list[BaseMessage] = []
                 else:
                     messages_dict = ctx.agent_input
-                    messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
+                    messages = cast(
+                        list["BaseMessage"], messages_dict.get("messages", [])
+                    )
                     final_agent_input = {**messages_dict, **ctx.merged_context}
                     collected_messages = list(messages)
 
@@ -257,11 +271,16 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                                 from langchain_core.messages import AIMessage
 
                                 last_ai = next(
-                                    (m for m in reversed(collected_messages)
-                                     if isinstance(m, AIMessage) and m.content),
+                                    (
+                                        m
+                                        for m in reversed(collected_messages)
+                                        if isinstance(m, AIMessage) and m.content
+                                    ),
                                     None,
                                 )
-                                if not last_ai or self._partial_text_buffer not in str(last_ai.content):
+                                if not last_ai or self._partial_text_buffer not in str(
+                                    last_ai.content
+                                ):
                                     collected_messages.append(
                                         AIMessage(content=self._partial_text_buffer)
                                     )
@@ -272,22 +291,39 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                         await self._dispatch_chunk(chunk, ctx, collected_messages)
 
                 except Exception as astream_exc:
-                    iteration_limit_hit = await self._handle_iteration_limit(astream_exc, collected_messages)
+                    iteration_limit_hit = await self._handle_iteration_limit(
+                        astream_exc, collected_messages
+                    )
                     if iteration_limit_hit:
                         if ctx.goal_provider is None:
                             break
-                        logger.info(" Iteration limit in goal mode — falling through to goal continuation")
+                        logger.info(
+                            " Iteration limit in goal mode — falling through to goal continuation"
+                        )
                     else:
-                        if await self._handle_thinking_signature(astream_exc, thinking_sig_attempted):
+                        if await self._handle_thinking_signature(
+                            astream_exc, thinking_sig_attempted
+                        ):
                             thinking_sig_attempted = True
                             continue
 
-                        if await self._handle_image_shrink(astream_exc, image_shrink_attempted):
+                        if await self._handle_image_shrink(
+                            astream_exc, image_shrink_attempted
+                        ):
                             image_shrink_attempted = True
                             continue
 
-                        if await self._handle_media_rejected(astream_exc, media_rejected_attempted):
+                        if await self._handle_media_rejected(
+                            astream_exc, media_rejected_attempted
+                        ):
                             media_rejected_attempted = True
+                            continue
+
+                        if await self._handle_allowed_tools_tool_choice_rejected(
+                            astream_exc,
+                            allowed_tools_rejected_attempted,
+                        ):
+                            allowed_tools_rejected_attempted = True
                             continue
 
                         if await self._handle_long_context_tier(astream_exc):
@@ -301,7 +337,9 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                         if await self._handle_failover(astream_exc):
                             continue
 
-                        if await self._handle_transient_retry(astream_exc, transient_retries):
+                        if await self._handle_transient_retry(
+                            astream_exc, transient_retries
+                        ):
                             transient_retries += 1
                             continue
 
@@ -321,14 +359,18 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 if await self._handle_escalation(collected_messages):
                     continue
 
-                if await self._handle_length_truncation(collected_messages, length_continue_retries):
+                if await self._handle_length_truncation(
+                    collected_messages, length_continue_retries
+                ):
                     length_continue_retries += 1
                     continue
 
                 if await self._handle_safety_refusal_fallback():
                     continue
 
-                if await self._handle_empty_response(collected_messages, empty_response_retries):
+                if await self._handle_empty_response(
+                    collected_messages, empty_response_retries
+                ):
                     empty_response_retries += 1
                     continue
 
@@ -338,16 +380,28 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
 
                 tracker = get_token_tracker()
 
-                tools_called_this_turn = ctx.stats.tool_call_count > initial_tool_call_count
+                tools_called_this_turn = (
+                    ctx.stats.tool_call_count > initial_tool_call_count
+                )
 
                 if tracker and tracker.usage:
                     current_total = tracker.usage.total_tokens
                     current_cached = tracker.usage.cached_tokens
                 else:
-                    current_total = ctx.stats.token_usage.total_tokens if ctx.stats.token_usage else 0
-                    current_cached = ctx.stats.token_usage.cached_tokens if ctx.stats.token_usage else 0
+                    current_total = (
+                        ctx.stats.token_usage.total_tokens
+                        if ctx.stats.token_usage
+                        else 0
+                    )
+                    current_cached = (
+                        ctx.stats.token_usage.cached_tokens
+                        if ctx.stats.token_usage
+                        else 0
+                    )
 
-                net_tokens_this_turn = (current_total - initial_total_tokens) - (current_cached - initial_cached_tokens)
+                net_tokens_this_turn = (current_total - initial_total_tokens) - (
+                    current_cached - initial_cached_tokens
+                )
                 current_cost_usd = tracker.total_cost_usd if tracker else 0.0
                 cost_this_turn = max(0.0, current_cost_usd - initial_cost_usd)
                 time_this_turn_seconds = int(time.time() - initial_time)
@@ -371,7 +425,9 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 ):
                     reset_loop_guard(
                         is_resume=True,
-                        graph_recursion_limit=ctx.run_config.get("recursion_limit", 100),
+                        graph_recursion_limit=ctx.run_config.get(
+                            "recursion_limit", 100
+                        ),
                     )
                     continue
 
@@ -400,7 +456,9 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
             )
             escalation_flushed = self._escalation_scrubber.flush()
             if escalation_flushed:
-                for scrubbed_type, scrubbed_text in self._reasoning_scrubber.process(escalation_flushed):
+                for scrubbed_type, scrubbed_text in self._reasoning_scrubber.process(
+                    escalation_flushed
+                ):
                     if scrubbed_text:
                         restored = self._restore_pseudonyms(scrubbed_text)
                         await self._emit_event(
@@ -489,7 +547,9 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 base_url=base_url,
             )
 
-            locale = ctx.merged_context.get("locale", "en") if ctx.merged_context else "en"
+            locale = (
+                ctx.merged_context.get("locale", "en") if ctx.merged_context else "en"
+            )
             cooldown_remaining_ms = error_event.get("cooldown_remaining_ms")
 
             diagnostic = LLMErrorDiagnostic.diagnose(
@@ -503,7 +563,9 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                 "locale": diagnostic.locale,
             }
 
-            recovery_actions = LLMErrorDiagnostic.get_recovery_actions(diagnostic.error_type, locale=diagnostic.locale)
+            recovery_actions = LLMErrorDiagnostic.get_recovery_actions(
+                diagnostic.error_type, locale=diagnostic.locale
+            )
             if recovery_actions:
                 error_event["recovery_actions"] = recovery_actions
         except Exception as diag_err:

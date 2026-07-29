@@ -26,7 +26,9 @@ def middleware():
     return PlanConfirmMiddleware()
 
 
-def _make_request(tool_name: str = "todo_write", args: dict | None = None) -> ToolCallRequest:
+def _make_request(
+    tool_name: str = "todo_write", args: dict | None = None
+) -> ToolCallRequest:
     return ToolCallRequest(
         tool_call={"name": tool_name, "args": args or {}, "id": "call_1"},
         tool=MagicMock(),
@@ -36,11 +38,15 @@ def _make_request(tool_name: str = "todo_write", args: dict | None = None) -> To
 
 
 def _make_todos(n: int) -> list[dict]:
-    return [{"id": f"t{i}", "content": f"Task {i}", "status": "pending"} for i in range(n)]
+    return [
+        {"id": f"t{i}", "content": f"Task {i}", "status": "pending"} for i in range(n)
+    ]
 
 
 async def _passthrough_handler(req: ToolCallRequest) -> ToolMessage:
-    return ToolMessage(content="ok", name=req.tool_call["name"], tool_call_id=req.tool_call["id"])
+    return ToolMessage(
+        content="ok", name=req.tool_call["name"], tool_call_id=req.tool_call["id"]
+    )
 
 
 @pytest.mark.asyncio
@@ -137,7 +143,9 @@ async def test_interrupt_payload_structure(middleware):
         return {"action": "confirm"}
 
     todos = _make_todos(4)
-    request = _make_request(args={"merge": False, "todos": todos, "goal": "Build feature X"})
+    request = _make_request(
+        args={"merge": False, "todos": todos, "goal": "Build feature X"}
+    )
 
     with (
         patch(
@@ -273,9 +281,10 @@ async def test_non_dict_resume_value_proceeds(middleware):
     assert _plan_confirmed_var.get() is True
 
 
-@pytest.mark.asyncio
-async def test_sync_wrap_raises(middleware):
-    """Synchronous wrap_tool_call is not supported."""
+def test_sync_wrap_passthrough(middleware):
+    """Sync wrap_tool_call passthrough for signoff clarify HITL path."""
     request = _make_request()
-    with pytest.raises(NotImplementedError):
-        middleware.wrap_tool_call(request, lambda r: None)
+    expected = ToolMessage(content="ok", name="todo_write", tool_call_id="call_1")
+
+    result = middleware.wrap_tool_call(request, lambda r: expected)
+    assert result is expected

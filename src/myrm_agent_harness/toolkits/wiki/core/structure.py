@@ -60,6 +60,7 @@ class WikiStructure:
             self.raw_dir,
             self.wiki_dir,
             self.concepts_dir,
+            self.wiki_dir / "assets",
         ]:
             directory.mkdir(parents=True, exist_ok=True)
 

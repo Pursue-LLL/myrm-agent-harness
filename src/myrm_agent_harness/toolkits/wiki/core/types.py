@@ -80,6 +80,8 @@ class SourceSnippet:
     claim_status: str = ""
     evidence_content_sha256: str = ""
     evidence_snapshot_status: str = ""
+    hit_kind: str = "concept"
+    asset_filename: str = ""
 
 
 @dataclass(frozen=True, slots=True)

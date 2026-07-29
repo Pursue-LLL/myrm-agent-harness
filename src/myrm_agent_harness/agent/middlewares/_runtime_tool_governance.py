@@ -8,10 +8,12 @@
 [OUTPUT]
 - extract_recent_human_text(): best-effort recent user text extraction
 - derive_runtime_allowed_tools(): per-turn allowed-tools restriction decision
+- compute_turn_allowed_names(): skill trust + intent gates merged allowlist
 
 [POS]
-Lightweight intent-aware tool narrowing that only mutates per-turn
-``tool_choice.allowed_tools`` and keeps ``bind_tools`` prefix stable.
+Lightweight intent-aware tool narrowing. Computes merged per-turn allowlists for
+model-layer ``tool_choice.allowed_tools`` hints and execution-layer enforcement
+while keeping ``bind_tools`` prefix stable.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import re
 
 from langchain_core.messages import HumanMessage
 
+from myrm_agent_harness.backends.skills.types import SkillMetadata
 from myrm_agent_harness.core.security.tool_registry import (
     resolve_permission_type,
     resolve_safety_metadata,
@@ -180,11 +183,45 @@ def derive_runtime_allowed_tools(
     return frozenset(allowed), tuple(reasons)
 
 
+def compute_turn_allowed_names(
+    tool_names: list[str],
+    messages: list[object],
+    loaded_skills: list[SkillMetadata] | None,
+) -> frozenset[str] | None:
+    """Merge skill trust attenuation and runtime intent gates into one allowlist.
+
+    Returns None when no effective restriction applies (all bound tools remain).
+    """
+    if not tool_names:
+        return None
+
+    allowed: set[str] = set(tool_names)
+
+    if loaded_skills:
+        from myrm_agent_harness.agent.skills.runtime.attenuator import attenuate_tools
+
+        attenuation = attenuate_tools(tool_names, loaded_skills)
+        if attenuation.removed_tools:
+            allowed &= set(attenuation.tool_names)
+
+    recent_human_text = extract_recent_human_text(messages)
+    runtime_allowed, _runtime_reasons = derive_runtime_allowed_tools(
+        tool_names=sorted(allowed),
+        recent_human_text=recent_human_text,
+    )
+    if runtime_allowed is not None:
+        allowed &= set(runtime_allowed)
+
+    if not allowed or allowed == set(tool_names):
+        return None
+    return frozenset(allowed)
+
+
 def _is_read_only_intent(text: str) -> bool:
     lowered = text.lower()
-    has_readonly_hint = _has_keyword(lowered, _READ_ONLY_INTENT_KEYWORDS) or lowered.endswith(
-        ("?", "？")
-    )
+    has_readonly_hint = _has_keyword(
+        lowered, _READ_ONLY_INTENT_KEYWORDS
+    ) or lowered.endswith(("?", "？"))
     has_action_hint = _has_keyword(lowered, _ACTION_INTENT_KEYWORDS)
     return has_readonly_hint and not has_action_hint
 
@@ -232,4 +269,3 @@ def _content_to_text(content: object) -> str:
                     parts.append(text.strip())
         return " ".join(parts)
     return ""
-

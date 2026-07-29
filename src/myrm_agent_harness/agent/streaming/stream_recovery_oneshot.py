@@ -97,7 +97,13 @@ class OneshotRecoveryMixin:
                 continue
             content = msg.content
             if isinstance(content, list):
-                new_content = [b for b in content if not (isinstance(b, dict) and b.get("type") in _THINKING_BLOCK_TYPES)]
+                new_content = [
+                    b
+                    for b in content
+                    if not (
+                        isinstance(b, dict) and b.get("type") in _THINKING_BLOCK_TYPES
+                    )
+                ]
                 if len(new_content) != len(content):
                     msg.content = new_content  # type: ignore[assignment]
                     stripped += 1
@@ -185,7 +191,11 @@ class OneshotRecoveryMixin:
 
         model_name = _resolve_model_name_from_ctx(ctx)
         merged_ctx = getattr(ctx, "merged_context", None)
-        supports_vision = bool(merged_ctx.get("supports_vision", True)) if isinstance(merged_ctx, dict) else True
+        supports_vision = (
+            bool(merged_ctx.get("supports_vision", True))
+            if isinstance(merged_ctx, dict)
+            else True
+        )
         if supports_vision:
             logger.warning(
                 "Model marked supports_vision but rejected multimodal input. "
@@ -209,7 +219,9 @@ class OneshotRecoveryMixin:
             " Model rejected multimodal input — stripped media from %d message(s), retrying",
             stripped,
         )
-        await self._emit_recovery_event("media_rejected_recovery", stripped_count=stripped)
+        await self._emit_recovery_event(
+            "media_rejected_recovery", stripped_count=stripped
+        )
         self.streaming_final_answer = False
         return True
 

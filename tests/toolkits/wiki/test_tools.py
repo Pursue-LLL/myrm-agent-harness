@@ -377,6 +377,116 @@ async def test_wiki_query_includes_sidecar_sources(direct_mock_tools: tuple) -> 
 
 
 @pytest.mark.asyncio
+async def test_wiki_query_asset_only_returns_sources(direct_mock_tools: tuple) -> None:
+    """Asset-only wiki hits must not early-exit when related_articles is empty."""
+    from myrm_agent_harness.toolkits.wiki.core.types import QueryResult, SourceSnippet
+
+    tools, _, mock_qe, _ = direct_mock_tools
+    query_tool = next(t for t in tools if t.name == "wiki_query_tool")
+
+    mock_qe.query = AsyncMock(
+        return_value=QueryResult(
+            question="architecture diagram",
+            answer="The diagram shows three tiers.",
+            related_articles=[],
+            confidence_score=0.5,
+            source_snippets=[
+                SourceSnippet(
+                    article_path="wiki/assets/arch.png",
+                    article_name="architecture",
+                    snippet="Three-tier system diagram",
+                    section="Image",
+                    level="L2",
+                    hit_kind="asset",
+                    asset_filename="arch.png",
+                )
+            ],
+        )
+    )
+
+    result = await query_tool.ainvoke({"question": "architecture diagram"})
+    assert isinstance(result, dict)
+    sources = result["metadata"]["sources"]
+    assert len(sources) == 1
+    assert sources[0]["hit_kind"] == "asset"
+    assert "UNTRUSTED_DATA" in result["content"]
+
+
+@pytest.mark.asyncio
+async def test_wiki_query_injects_wiki_scope_id(wiki_structure: WikiStructure) -> None:
+    from myrm_agent_harness.toolkits.wiki.core.types import QueryResult, SourceSnippet
+
+    mock_compiler = MagicMock(spec=WikiCompiler)
+    mock_query_engine = MagicMock(spec=WikiQueryEngine)
+    mock_linter = MagicMock(spec=WikiLinter)
+    tools = create_wiki_tools(
+        mock_compiler,
+        mock_query_engine,
+        mock_linter,
+        wiki_structure,
+        wiki_scope_id="agent-scope-42",
+    )
+    query_tool = next(t for t in tools if t.name == "wiki_query_tool")
+    mock_query_engine.query = AsyncMock(
+        return_value=QueryResult(
+            question="screenshot",
+            answer="Image caption match",
+            related_articles=["wiki/assets/sha_ui.png"],
+            confidence_score=0.77,
+            source_snippets=[
+                SourceSnippet(
+                    article_path="wiki/assets/sha_ui.png",
+                    article_name="ui",
+                    snippet="Login screen mockup",
+                    section="Image",
+                    level="L2",
+                    hit_kind="asset",
+                    asset_filename="sha_ui.png",
+                )
+            ],
+        )
+    )
+
+    result = await query_tool.ainvoke({"question": "screenshot"})
+    assert result["metadata"]["sources"][0]["agent_id"] == "agent-scope-42"
+
+
+@pytest.mark.asyncio
+async def test_wiki_query_emits_asset_source_metadata(direct_mock_tools: tuple) -> None:
+    """wiki_query forwards asset hit metadata for chat thumbnails."""
+    from myrm_agent_harness.toolkits.wiki.core.types import QueryResult, SourceSnippet
+
+    tools, _, mock_qe, _ = direct_mock_tools
+    query_tool = next(t for t in tools if t.name == "wiki_query_tool")
+
+    mock_qe.query = AsyncMock(
+        return_value=QueryResult(
+            question="screenshot",
+            answer="Image caption match",
+            related_articles=["wiki/assets/sha_ui.png"],
+            confidence_score=0.77,
+            source_snippets=[
+                SourceSnippet(
+                    article_path="wiki/assets/sha_ui.png",
+                    article_name="ui",
+                    snippet="Login screen mockup",
+                    section="Image",
+                    level="L2",
+                    hit_kind="asset",
+                    asset_filename="sha_ui.png",
+                )
+            ],
+        )
+    )
+
+    result = await query_tool.ainvoke({"question": "screenshot"})
+    sources = result["metadata"]["sources"]
+    assert len(sources) == 1
+    assert sources[0]["hit_kind"] == "asset"
+    assert sources[0]["asset_filename"] == "sha_ui.png"
+
+
+@pytest.mark.asyncio
 async def test_wiki_query_emits_claim_snapshot_status(direct_mock_tools: tuple) -> None:
     """wiki_query should forward claim evidence snapshot_status to chat metadata sources."""
     from myrm_agent_harness.toolkits.wiki.core.types import QueryResult, SourceSnippet

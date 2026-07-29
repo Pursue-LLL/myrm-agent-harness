@@ -39,7 +39,9 @@ from langchain_core.messages import BaseMessage, ToolMessage
 logger = logging.getLogger(__name__)
 
 _INTERRUPTED_CONTENT = "[Tool call was interrupted and did not return a result.]"
-_INVALID_ARGS_CONTENT = "[Tool call could not be executed because its arguments were invalid.]"
+_INVALID_ARGS_CONTENT = (
+    "[Tool call could not be executed because its arguments were invalid.]"
+)
 _MAX_ERROR_DETAIL_LEN = 500
 
 
@@ -66,7 +68,9 @@ def _coerce_tool_args_object(args: object) -> dict[str, object]:
     return {}
 
 
-def _sanitize_tool_calls_list(raw_calls: object) -> tuple[list[dict[str, object]], bool]:
+def _sanitize_tool_calls_list(
+    raw_calls: object,
+) -> tuple[list[dict[str, object]], bool]:
     if not isinstance(raw_calls, list):
         return [], bool(raw_calls)
     sanitized: list[dict[str, object]] = []
@@ -89,7 +93,9 @@ def _sanitize_tool_calls_list(raw_calls: object) -> tuple[list[dict[str, object]
     return sanitized, changed
 
 
-def _sanitize_invalid_tool_calls_list(raw_calls: object) -> tuple[list[dict[str, object]], bool]:
+def _sanitize_invalid_tool_calls_list(
+    raw_calls: object,
+) -> tuple[list[dict[str, object]], bool]:
     if not isinstance(raw_calls, list):
         return [], bool(raw_calls)
     sanitized: list[dict[str, object]] = []
@@ -115,7 +121,9 @@ def _sanitize_invalid_tool_calls_list(raw_calls: object) -> tuple[list[dict[str,
     return sanitized, changed
 
 
-def _sanitize_raw_tool_calls_list(raw_calls: object) -> tuple[list[dict[str, object]], bool]:
+def _sanitize_raw_tool_calls_list(
+    raw_calls: object,
+) -> tuple[list[dict[str, object]], bool]:
     if not isinstance(raw_calls, list):
         return [], bool(raw_calls)
     sanitized: list[dict[str, object]] = []
@@ -162,7 +170,9 @@ def _sanitize_ai_message(msg: BaseMessage) -> bool:
     if hasattr(msg, "tool_calls"):
         setattr(msg, "tool_calls", tool_calls)
 
-    invalid_tool_calls, itc_changed = _sanitize_invalid_tool_calls_list(getattr(msg, "invalid_tool_calls", None))
+    invalid_tool_calls, itc_changed = _sanitize_invalid_tool_calls_list(
+        getattr(msg, "invalid_tool_calls", None)
+    )
     if itc_changed:
         changed = True
     if hasattr(msg, "invalid_tool_calls"):
@@ -208,19 +218,29 @@ def _extract_tool_calls(msg: BaseMessage) -> list[tuple[str, str, bool]]:
     for tc in getattr(msg, "tool_calls", None) or []:
         tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
         if tc_id and tc_id not in seen_ids:
-            name = tc.get("name", "unknown") if isinstance(tc, dict) else getattr(tc, "name", "unknown")
+            name = (
+                tc.get("name", "unknown")
+                if isinstance(tc, dict)
+                else getattr(tc, "name", "unknown")
+            )
             results.append((tc_id, name, False))
             seen_ids.add(tc_id)
 
     for itc in getattr(msg, "invalid_tool_calls", None) or []:
         itc_id = itc.get("id") if isinstance(itc, dict) else getattr(itc, "id", None)
         if itc_id and itc_id not in seen_ids:
-            name = itc.get("name", "unknown") if isinstance(itc, dict) else getattr(itc, "name", "unknown")
+            name = (
+                itc.get("name", "unknown")
+                if isinstance(itc, dict)
+                else getattr(itc, "name", "unknown")
+            )
             results.append((itc_id, name, True))
             seen_ids.add(itc_id)
 
     if not results:
-        raw_tool_calls = (getattr(msg, "additional_kwargs", None) or {}).get("tool_calls") or []
+        raw_tool_calls = (getattr(msg, "additional_kwargs", None) or {}).get(
+            "tool_calls"
+        ) or []
         for raw_tc in raw_tool_calls:
             if not isinstance(raw_tc, dict):
                 continue
@@ -228,7 +248,11 @@ def _extract_tool_calls(msg: BaseMessage) -> list[tuple[str, str, bool]]:
             if not tc_id or tc_id in seen_ids:
                 continue
             function = raw_tc.get("function")
-            name = raw_tc.get("name") or (function.get("name") if isinstance(function, dict) else None) or "unknown"
+            name = (
+                raw_tc.get("name")
+                or (function.get("name") if isinstance(function, dict) else None)
+                or "unknown"
+            )
             results.append((tc_id, name, False))
             seen_ids.add(tc_id)
 
@@ -314,7 +338,11 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
         return None
 
     if patched_names:
-        logger.warning("Patched %d dangling tool call(s): %s", len(patched_names), ", ".join(patched_names))
+        logger.warning(
+            "Patched %d dangling tool call(s): %s",
+            len(patched_names),
+            ", ".join(patched_names),
+        )
     if dropped_orphan_ids:
         logger.warning(
             "Dropped %d orphan tool message(s): %s",
@@ -347,7 +375,9 @@ class DanglingToolCallMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         return handler(self._maybe_patch_request(request))
 
     async def awrap_model_call(
-        self, request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse:
         return await handler(self._maybe_patch_request(request))
 

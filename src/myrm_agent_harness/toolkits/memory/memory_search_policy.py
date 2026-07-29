@@ -19,6 +19,7 @@ from typing import Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.conversation_search import ConversationSearchProtocol
+    from myrm_agent_harness.toolkits.wiki.core.types import QueryResult
 
 MemorySearchCorpus = Literal["memory", "wiki", "sessions", "web", "all"]
 
@@ -36,7 +37,8 @@ class MemorySearchPolicy:
 class MemorySearchBackends:
     """Optional backends bound by the application layer."""
 
-    query_wiki: Callable[[str], Awaitable[str]] | None = None
+    query_wiki: Callable[[str], Awaitable[QueryResult]] | None = None
+    wiki_agent_id: str | None = None
     conversation_provider: ConversationSearchProtocol | None = None
     query_web_corpus: Callable[[str, int], Awaitable[str]] | None = None
 

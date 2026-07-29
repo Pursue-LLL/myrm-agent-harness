@@ -65,7 +65,9 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_core.utils.pydantic import is_basemodel_subclass
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin import ChatLiteLLMAsyncMixin
+from myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin import (
+    ChatLiteLLMAsyncMixin,
+)
 from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
     EmptyChoicesError,
     EmptyStreamError,
@@ -73,8 +75,12 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
     _DEVELOPER_ROLE_PATTERN,
     _FRAMEWORK_REQUIRED_OPENAI_PARAMS,
 )
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_message_mixin import ChatLiteLLMMessageMixin
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_sync_mixin import ChatLiteLLMSyncMixin
+from myrm_agent_harness.toolkits.llms.adapters.chat_model_message_mixin import (
+    ChatLiteLLMMessageMixin,
+)
+from myrm_agent_harness.toolkits.llms.adapters.chat_model_sync_mixin import (
+    ChatLiteLLMSyncMixin,
+)
 from myrm_agent_harness.toolkits.llms.adapters.metrics import EmptyRetryMetrics
 from myrm_agent_harness.toolkits.llms.adapters.schema_normalizer import (
     normalize_tool_schema,
@@ -100,7 +106,9 @@ __all__ = [
 ]
 
 
-class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyncMixin, BaseChatModel):
+class ChatLiteLLM(
+    ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyncMixin, BaseChatModel
+):
     """Minimal LangChain ChatModel adapter for litellm.
 
     Implements the subset of features this project uses: non-streaming/streaming
@@ -172,9 +180,13 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
         try:
             import litellm  # type: ignore
         except (ImportError, TypeError):
-            raise ValueError("Could not import litellm python package. Please install it with uv sync.") from None
+            raise ValueError(
+                "Could not import litellm python package. Please install it with uv sync."
+            ) from None
 
-        values["openai_api_key"] = get_from_dict_or_env(values, "openai_api_key", "OPENAI_API_KEY", default="")
+        values["openai_api_key"] = get_from_dict_or_env(
+            values, "openai_api_key", "OPENAI_API_KEY", default=""
+        )
         values["client"] = litellm
         return values
 
@@ -212,7 +224,9 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
 
         # Inject Authorization header for providers that might need it explicitly (like minimax)
         api_key_val = self.api_key or self.openai_api_key
-        logger.debug(f"_client_params api_key_val type: {type(api_key_val)}, val: {str(api_key_val)[:5]}***")
+        logger.debug(
+            f"_client_params api_key_val type: {type(api_key_val)}, val: {str(api_key_val)[:5]}***"
+        )
         if api_key_val:
             extra_headers = self.model_kwargs.get("extra_headers", {})
             if "Authorization" not in extra_headers:
@@ -234,9 +248,15 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
         This injects ``allowed_openai_params`` into *params* so that every key
         we explicitly passed is white-listed for the current call, while the
         global ``drop_params`` safety-net remains active for truly unknown params.
+
+        ``tool_choice.type=allowed_tools`` is excluded from forced whitelisting so
+        unsupported gateways can drop it instead of returning HTTP 400.
         """
         allowed = set(params.keys())
         allowed |= _FRAMEWORK_REQUIRED_OPENAI_PARAMS
+        tool_choice = params.get("tool_choice")
+        if isinstance(tool_choice, dict) and tool_choice.get("type") == "allowed_tools":
+            allowed.discard("tool_choice")
         params["allowed_openai_params"] = sorted(allowed)
 
     @staticmethod
@@ -311,7 +331,9 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
         return should_skip_response_format(model)
 
     @staticmethod
-    def clean_model_kwargs(kwargs: dict, model: str, additional_remove_keys: list[str] | None = None) -> dict:
+    def clean_model_kwargs(
+        kwargs: dict, model: str, additional_remove_keys: list[str] | None = None
+    ) -> dict:
         return utils_clean_model_kwargs(kwargs, model, additional_remove_keys)
 
     def _get_model_name(self) -> str:
@@ -322,16 +344,22 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
         if "tools" in kwargs:
             logger.debug(f"ainvoke tools count: {len(kwargs.get('tools', []))}")  # type: ignore[override]
         if kwargs.get("_in_fallback", False):
-            return await super().ainvoke(input, config, **self.clean_model_kwargs(kwargs, self._get_model_name()))
+            return await super().ainvoke(
+                input, config, **self.clean_model_kwargs(kwargs, self._get_model_name())
+            )
 
         result = await super().ainvoke(input, config, **kwargs)
         if not kwargs.get("_json_mode_fallback", False):
             return result
 
-        if result.content and (isinstance(result.content, str) and result.content.strip()):
+        if result.content and (
+            isinstance(result.content, str) and result.content.strip()
+        ):
             return result
 
-        reasoning_content = getattr(result, "additional_kwargs", {}).get("reasoning_content")
+        reasoning_content = getattr(result, "additional_kwargs", {}).get(
+            "reasoning_content"
+        )
         if (
             reasoning_content
             and isinstance(reasoning_content, str)
@@ -371,7 +399,9 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
 
         if is_pydantic_schema:
             # schema is guaranteed to be Type[BaseModel] when is_pydantic_schema is True
-            output_parser: PydanticOutputParser | JsonOutputParser = PydanticOutputParser(
+            output_parser: (
+                PydanticOutputParser | JsonOutputParser
+            ) = PydanticOutputParser(
                 pydantic_object=schema  # type: ignore
             )
         else:
@@ -382,7 +412,9 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
                 parsed=itemgetter("raw") | output_parser, parsing_error=lambda _: None
             )
             parser_none = RunnablePassthrough.assign(parsed=lambda _: None)
-            parser_with_fallback = parser_assign.with_fallbacks([parser_none], exception_key="parsing_error")
+            parser_with_fallback = parser_assign.with_fallbacks(
+                [parser_none], exception_key="parsing_error"
+            )
             return RunnableMap(raw=llm) | parser_with_fallback
 
         return llm | output_parser
@@ -403,7 +435,11 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
                 openai_tools.append(normalize_tool_schema(t, model_name=model_id))
             else:
                 try:
-                    openai_tools.append(normalize_tool_schema(convert_to_openai_tool(t), model_name=model_id))
+                    openai_tools.append(
+                        normalize_tool_schema(
+                            convert_to_openai_tool(t), model_name=model_id
+                        )
+                    )
                 except Exception as e:
                     logger.warning(
                         "Failed to convert tool %s: %s",
@@ -441,5 +477,7 @@ class ChatLiteLLM(ChatLiteLLMMessageMixin, ChatLiteLLMSyncMixin, ChatLiteLLMAsyn
         return self.bind(**bind_kwargs)
 
 
-def clean_model_kwargs(kwargs: dict, model: str, additional_remove_keys: list[str] | None = None) -> dict:
+def clean_model_kwargs(
+    kwargs: dict, model: str, additional_remove_keys: list[str] | None = None
+) -> dict:
     return ChatLiteLLM.clean_model_kwargs(kwargs, model, additional_remove_keys)

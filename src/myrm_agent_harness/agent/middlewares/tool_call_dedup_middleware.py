@@ -51,7 +51,10 @@ def _dedup_tool_messages(messages: list[BaseMessage]) -> list[BaseMessage] | Non
             if tool_call_id in seen_ids:
                 old_idx = seen_ids[tool_call_id]
                 logger.warning(
-                    "Duplicate tool_call_id detected: %s (indices: %d, %d). Keeping last.", tool_call_id, old_idx, i
+                    "Duplicate tool_call_id detected: %s (indices: %d, %d). Keeping last.",
+                    tool_call_id,
+                    old_idx,
+                    i,
                 )
                 tool_msg_indices.append(old_idx)
             seen_ids[tool_call_id] = i
@@ -61,7 +64,9 @@ def _dedup_tool_messages(messages: list[BaseMessage]) -> list[BaseMessage] | Non
 
     deduped = [msg for i, msg in enumerate(messages) if i not in tool_msg_indices]
     logger.warning(
-        "Deduplicated %d tool message(s) with duplicate IDs: %s", len(tool_msg_indices), list(seen_ids.keys())
+        "Deduplicated %d tool message(s) with duplicate IDs: %s",
+        len(tool_msg_indices),
+        list(seen_ids.keys()),
     )
     return deduped
 
@@ -75,8 +80,18 @@ class ToolCallDedupMiddleware(AgentMiddleware):  # type: ignore[type-arg]
 
     name = "tool_call_dedup_middleware"
 
+    def wrap_model_call(
+        self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]
+    ) -> ModelResponse:
+        deduped = _dedup_tool_messages(list(request.messages))
+        if deduped is not None:
+            request = request.override(messages=deduped)
+        return handler(request)
+
     async def awrap_model_call(
-        self, request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse:
         deduped = _dedup_tool_messages(list(request.messages))
         if deduped is not None:

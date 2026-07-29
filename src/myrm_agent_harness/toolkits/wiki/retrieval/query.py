@@ -44,6 +44,7 @@ from ..pipeline.cognitive_map.index_routing import (
     match_index_entries,
     read_index_entries,
 )
+from .asset_index import AssetSearchHit, WikiAssetIndexer
 from .best_first import RetrievalSeed, converge_retrieval_candidates
 from .indexer import WikiIndexer
 from .tokenizer import extract_query_terms
@@ -84,6 +85,7 @@ class WikiQueryEngine:
         self._query_config = query_config or WikiQueryConfig()
         self._search_fn = search_fn
         self._indexer = WikiIndexer(structure, config)
+        self._asset_indexer: WikiAssetIndexer | None = None
 
     async def query(
         self,
@@ -111,6 +113,24 @@ class WikiQueryEngine:
         logger.info(f"Found {len(related_articles)} related articles")
 
         if not related_articles:
+            asset_snippets = await self._search_asset_snippets(question)
+            if asset_snippets:
+                asset_lines = "\n".join(
+                    f"- {snippet.snippet} ({snippet.article_path})" for snippet in asset_snippets
+                )
+                answer = self._compose_answer(
+                    hot_context,
+                    f"## Related images\n{asset_lines}",
+                    question,
+                )
+                return QueryResult(
+                    question=question,
+                    answer=answer,
+                    related_articles=[],
+                    should_archive=False,
+                    confidence_score=0.5,
+                    source_snippets=asset_snippets,
+                )
             if hot_context:
                 return QueryResult(
                     question=question,
@@ -133,6 +153,14 @@ class WikiQueryEngine:
             search_result.index_matches,
             effective_query_config,
         )
+        asset_snippets = await self._search_asset_snippets(question)
+        if asset_snippets:
+            snippets = [*snippets, *asset_snippets]
+            asset_lines = "\n".join(
+                f"- {snippet.snippet} ({snippet.article_path})" for snippet in asset_snippets
+            )
+            asset_block = f"## Related images\n{asset_lines}"
+            context = f"{context}\n\n{asset_block}" if context else asset_block
         context = self._compose_answer(hot_context, context, question)
 
         # Step 3: Determine if should archive
@@ -680,6 +708,26 @@ class WikiQueryEngine:
                     )
                 )
         return claim_snippets
+
+    async def _search_asset_snippets(self, query: str) -> list[SourceSnippet]:
+        if self._asset_indexer is None:
+            return []
+        hits = await self._asset_indexer.search(query, limit=3)
+        snippets: list[SourceSnippet] = []
+        for hit in hits:
+            parent = hit.source_concepts[0] if hit.source_concepts else hit.filename
+            snippets.append(
+                SourceSnippet(
+                    article_path=f"wiki/assets/{hit.filename}",
+                    article_name=parent,
+                    snippet=hit.caption,
+                    section="Image",
+                    level="L2",
+                    hit_kind="asset",
+                    asset_filename=hit.filename,
+                )
+            )
+        return snippets
 
     @staticmethod
     def _extract_snippet(content: str, max_chars: int = 500) -> tuple[str, str]:
