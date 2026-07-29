@@ -67,7 +67,8 @@ class PlanConfirmMiddleware(AgentMiddleware[Any, Any]):
         request: ToolCallRequest,
         handler: Callable[[ToolCallRequest], ToolMessage | Command[Any]],
     ) -> ToolMessage | Command[Any]:
-        raise NotImplementedError("PlanConfirmMiddleware does not support synchronous wrap_tool_call")
+        # Sync tool path (signoff clarify HITL): plan review uses async interrupt().
+        return handler(request)
 
     async def awrap_tool_call(
         self,

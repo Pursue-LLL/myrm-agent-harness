@@ -9,7 +9,7 @@ server `/wiki/stats` and CI retrieval regression gates.
 
 | File | Role |
 |------|------|
-| `structural_lint.py` | SSOT for broken links + frontmatter type gate counts |
+| `structural_lint.py` | SSOT for broken markdown links (code-fence aware), broken `[[wikilink]]` targets (path + title alias), and frontmatter type gate counts |
 | `recall_benchmark.py` | Offline FTS retrieval benchmark (hit@k, latency) |
 
 ## Boundaries

@@ -30,6 +30,10 @@ async def indexed_fixture_vault(tmp_path: Path) -> tuple[WikiStructure, WikiConf
             "billing postgres database",
             "## Compiled Truth\nBilling postgres database stores invoices.",
         ),
+        "ZhGravity": (
+            "zh-gravity-ci-token",
+            "## Compiled Truth\nzh-gravity-ci-token 重力模型用于中文知识库验证。",
+        ),
     }
     from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
@@ -55,12 +59,17 @@ async def test_wiki_recall_benchmark_gate_meets_baseline(
             query="billing postgres database",
             expected_concept_name="BillingDB",
         ),
+        WikiRecallBenchmarkCase(
+            case_id="zh_gravity",
+            query="zh-gravity-ci-token",
+            expected_concept_name="ZhGravity",
+        ),
     ]
 
     results = await run_wiki_recall_benchmark(structure, config, cases)
     summary = summarize_wiki_recall_benchmark(results)
 
-    assert summary.case_count == 3
+    assert summary.case_count == 4
     assert summary.recall_at_k >= MIN_RECALL_AT_K, (
         f"recall@k={summary.recall_at_k:.3f} below baseline {MIN_RECALL_AT_K}"
     )

@@ -107,7 +107,7 @@ class WorkspaceRulesMiddleware(AgentMiddleware):  # type: ignore[type-arg]
         request: ModelRequest,
         handler: Callable[[ModelRequest], ModelResponse],
     ) -> ModelResponse:
-        raise NotImplementedError("WorkspaceRulesMiddleware does not support synchronous wrap_model_call")
+        return handler(request)
 
     async def awrap_model_call(
         self,

@@ -64,6 +64,24 @@ async def test_awrap_tool_call_propagates_graph_interrupt(middleware):
         await middleware.awrap_tool_call(request, handler)
 
 
+def test_wrap_tool_call_propagates_graph_interrupt(middleware):
+    """Sync wrap_tool_call must propagate GraphInterrupt for signoff clarify HITL."""
+    from langgraph.errors import GraphInterrupt
+
+    request = ToolCallRequest(
+        tool_call={"name": "ask_question_tool", "args": {}, "id": "call_clarify_sync"},
+        tool=MagicMock(),
+        state={},
+        runtime=MagicMock(),
+    )
+
+    def handler(req):
+        raise GraphInterrupt("clarification")
+
+    with pytest.raises(GraphInterrupt):
+        middleware.wrap_tool_call(request, handler)
+
+
 @pytest.mark.asyncio
 @patch(
     "myrm_agent_harness.agent.security.guards.loop_suggestions.core.get_tool_suggestion"

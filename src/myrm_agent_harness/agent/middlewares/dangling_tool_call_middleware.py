@@ -333,13 +333,23 @@ class DanglingToolCallMiddleware(AgentMiddleware):  # type: ignore[type-arg]
 
     name = "dangling_tool_call_middleware"
 
+    def _maybe_patch_request(self, request: ModelRequest) -> ModelRequest:
+        patched = _build_patched_messages(list(request.messages))
+        if patched is not None:
+            return request.override(messages=patched)
+        return request
+
+    def wrap_model_call(
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], ModelResponse],
+    ) -> ModelResponse:
+        return handler(self._maybe_patch_request(request))
+
     async def awrap_model_call(
         self, request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
     ) -> ModelResponse:
-        patched = _build_patched_messages(list(request.messages))
-        if patched is not None:
-            request = request.override(messages=patched)
-        return await handler(request)
+        return await handler(self._maybe_patch_request(request))
 
 
 dangling_tool_call_middleware = DanglingToolCallMiddleware()

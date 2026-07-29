@@ -47,12 +47,102 @@ class ReplanMiddleware(AgentMiddleware[Any, Any]):
     def __init__(self, max_attempts: int = 3):
         self.max_attempts = max_attempts
 
+    def _handle_tool_success(self, tool_name: str) -> None:
+        counters = (_per_tool_errors_var.get() or {}).copy()
+        if tool_name in counters:
+            del counters[tool_name]
+            _per_tool_errors_var.set(counters)
+
+    def _build_replan_error_message(
+        self,
+        request: ToolCallRequest,
+        *,
+        tool_name: str,
+        error: Exception,
+        attempts: int,
+    ) -> ToolMessage:
+        if attempts > self.max_attempts:
+            logger.warning(
+                "ReplanNode limit exceeded for '%s' (%d attempts)",
+                tool_name,
+                attempts,
+            )
+            error_content = (
+                f"ToolExecutionError: {error}\n\n"
+                f"Engine limit reached: max_replan_attempts exceeded ({self.max_attempts}). "
+                "Stop trying to use this tool."
+            )
+            return ToolMessage(
+                content=error_content,
+                name=tool_name,
+                tool_call_id=request.tool_call["id"],
+                status="error",
+            )
+
+        tool_args = request.tool_call.get("args", {})
+        target = str(
+            tool_args.get("path", tool_args.get("url", tool_args.get("command", "")))
+        )[:200]
+        logger.warning("ReplanNode caught tool error in '%s': %s", tool_name, error)
+
+        from myrm_agent_harness.agent._internals.agent_recovery import (
+            build_error_context,
+        )
+        from myrm_agent_harness.agent.security.guards.loop_suggestions.core import (
+            get_tool_suggestion,
+        )
+
+        suggestion = get_tool_suggestion(tool_name)
+        error_context = build_error_context(
+            operation=tool_name,
+            target=target or "unknown",
+            error=str(error),
+        )
+        error_content = (
+            f"ToolExecutionError: {error}\n\n{error_context}\n\nDiagnostic Hint: {suggestion}"
+        )
+        return ToolMessage(
+            content=error_content,
+            name=tool_name,
+            tool_call_id=request.tool_call["id"],
+            status="error",
+        )
+
+    def _handle_tool_error(
+        self,
+        request: ToolCallRequest,
+        *,
+        tool_name: str,
+        error: Exception,
+    ) -> ToolMessage:
+        from langgraph.errors import GraphInterrupt
+
+        if isinstance(error, (GraphInterrupt, InterruptedError)):
+            raise error
+
+        counters = (_per_tool_errors_var.get() or {}).copy()
+        attempts = counters.get(tool_name, 0) + 1
+        counters[tool_name] = attempts
+        _per_tool_errors_var.set(counters)
+        return self._build_replan_error_message(
+            request,
+            tool_name=tool_name,
+            error=error,
+            attempts=attempts,
+        )
+
     def wrap_tool_call(
         self,
         request: ToolCallRequest,
         handler: Callable[[ToolCallRequest], ToolMessage | Command[Any]],
     ) -> ToolMessage | Command[Any]:
-        raise NotImplementedError("ReplanMiddleware does not support synchronous wrap_tool_call")
+        tool_name = request.tool_call.get("name", "unknown")
+        try:
+            result = handler(request)
+            self._handle_tool_success(tool_name)
+            return result
+        except Exception as exc:
+            return self._handle_tool_error(request, tool_name=tool_name, error=exc)
 
     async def awrap_tool_call(
         self,
@@ -62,59 +152,7 @@ class ReplanMiddleware(AgentMiddleware[Any, Any]):
         tool_name = request.tool_call.get("name", "unknown")
         try:
             result = await handler(request)
-            counters = (_per_tool_errors_var.get() or {}).copy()
-            if tool_name in counters:
-                del counters[tool_name]
-                _per_tool_errors_var.set(counters)
+            self._handle_tool_success(tool_name)
             return result
-        except Exception as e:
-            from langgraph.errors import GraphInterrupt
-
-            if isinstance(e, (GraphInterrupt, InterruptedError)):
-                raise
-
-            counters = (_per_tool_errors_var.get() or {}).copy()
-            attempts = counters.get(tool_name, 0) + 1
-            counters[tool_name] = attempts
-            _per_tool_errors_var.set(counters)
-
-            if attempts > self.max_attempts:
-                logger.warning(
-                    "ReplanNode limit exceeded for '%s' (%d attempts)",
-                    tool_name,
-                    attempts,
-                )
-                error_content = f"ToolExecutionError: {e}\n\nEngine limit reached: max_replan_attempts exceeded ({self.max_attempts}). Stop trying to use this tool."
-                return ToolMessage(
-                    content=error_content,
-                    name=tool_name,
-                    tool_call_id=request.tool_call["id"],
-                    status="error",
-                )
-
-            tool_args = request.tool_call.get("args", {})
-            target = str(tool_args.get("path", tool_args.get("url", tool_args.get("command", ""))))[:200]
-            logger.warning("ReplanNode caught tool error in '%s': %s", tool_name, e)
-
-            from myrm_agent_harness.agent._internals.agent_recovery import (
-                build_error_context,
-            )
-            from myrm_agent_harness.agent.security.guards.loop_suggestions.core import (
-                get_tool_suggestion,
-            )
-
-            suggestion = get_tool_suggestion(tool_name)
-            error_context = build_error_context(
-                operation=tool_name,
-                target=target or "unknown",
-                error=str(e),
-            )
-
-            error_content = f"ToolExecutionError: {e}\n\n{error_context}\n\nDiagnostic Hint: {suggestion}"
-
-            return ToolMessage(
-                content=error_content,
-                name=tool_name,
-                tool_call_id=request.tool_call["id"],
-                status="error",
-            )
+        except Exception as exc:
+            return self._handle_tool_error(request, tool_name=tool_name, error=exc)

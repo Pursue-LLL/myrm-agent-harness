@@ -6,7 +6,7 @@ LLM-driven consistency checks, knowledge drift defense (drift + stale),
 LLM-driven wikilink enrichment, and proactive knowledge-gap analysis
 (isolated/bridge node detection via graph insights).
 
-Deterministic broken-link and frontmatter-type checks live in `../diagnostics/structural_lint.py` (SSOT); `linter.py` delegates to that module.
+Deterministic broken markdown/wikilink links and frontmatter-type checks live in `../diagnostics/structural_lint.py` (SSOT); `linter.py` delegates to that module.
 
 ## File & Submodule Index
 

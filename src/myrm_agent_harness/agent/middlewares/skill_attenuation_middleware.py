@@ -52,7 +52,8 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
         request: ModelRequest[object],
         handler: Callable[[ModelRequest[object]], ModelResponse[object]],
     ) -> ModelResponse[object]:
-        raise NotImplementedError("SkillAttenuationMiddleware does not support synchronous wrap_model_call")
+        # Sync path (rare): pass through — signoff pool warm uses sync model invoke.
+        return handler(request)
 
     async def awrap_model_call(
         self,
@@ -110,21 +111,10 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
 
         return await handler(request)
 
-    def wrap_tool_call(
-        self,
-        request: ToolCallRequest,
-        handler: Callable[[ToolCallRequest], ToolMessage | Command[object]],
-    ) -> ToolMessage | Command[object]:
-        raise NotImplementedError("SkillAttenuationMiddleware does not support synchronous wrap_tool_call")
-
-    async def awrap_tool_call(
-        self,
-        request: ToolCallRequest,
-        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[object]]],
-    ) -> ToolMessage | Command[object]:
+    def _resolve_dynamic_tool_request(self, request: ToolCallRequest) -> ToolCallRequest:
         """Resolve dynamic BaseTool instances for ToolNode when not pre-bound."""
         if request.tool is not None:
-            return await handler(request)
+            return request
 
         from myrm_agent_harness.agent.middlewares._session_context import (
             get_active_resolved_tools,
@@ -154,6 +144,21 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
                 continue
             seen.add(name)
             if name in candidate_names:
-                return await handler(request.override(tool=resolved_tool))
+                return request.override(tool=resolved_tool)
 
-        return await handler(request)
+        return request
+
+    def wrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], ToolMessage | Command[object]],
+    ) -> ToolMessage | Command[object]:
+        return handler(self._resolve_dynamic_tool_request(request))
+
+    async def awrap_tool_call(
+        self,
+        request: ToolCallRequest,
+        handler: Callable[[ToolCallRequest], Awaitable[ToolMessage | Command[object]]],
+    ) -> ToolMessage | Command[object]:
+        """Resolve dynamic BaseTool instances for ToolNode when not pre-bound."""
+        return await handler(self._resolve_dynamic_tool_request(request))

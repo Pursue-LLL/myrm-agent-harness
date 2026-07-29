@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from langchain_core.messages import HumanMessage
@@ -104,3 +105,25 @@ async def test_applies_allowed_tools_when_restriction_is_non_empty(
     assert tool_choice is not None
     assert tool_choice["type"] == "allowed_tools"
     assert tool_choice["tools"] == [{"type": "function", "name": "web_search_tool"}]
+
+
+def test_wrap_tool_call_delegates_when_tool_prebound() -> None:
+    from langchain.agents.middleware.types import ToolCallRequest
+    from langchain_core.messages import ToolMessage
+
+    middleware = SkillAttenuationMiddleware(ToolRegistry())
+    bound_tool = SimpleNamespace(name="ask_question_tool")
+    request = ToolCallRequest(
+        tool_call={"name": "ask_question_tool", "args": {}, "id": "call_1"},
+        tool=bound_tool,
+        state={},
+        runtime=MagicMock(),
+    )
+    expected = ToolMessage(content="ok", name="ask_question_tool", tool_call_id="call_1")
+
+    def handler(req: ToolCallRequest) -> ToolMessage:
+        assert req.tool is bound_tool
+        return expected
+
+    result = middleware.wrap_tool_call(request, handler)
+    assert result is expected

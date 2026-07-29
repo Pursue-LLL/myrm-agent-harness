@@ -37,6 +37,7 @@ from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue, LintResult
 from myrm_agent_harness.toolkits.wiki.diagnostics.structural_lint import (
     collect_broken_link_issues,
+    collect_broken_wikilink_issues,
     collect_invalid_frontmatter_type_issues,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
@@ -223,8 +224,11 @@ class WikiLinter:
         )
 
     async def _check_broken_links(self) -> list[LintIssue]:
-        """Check for broken internal links."""
-        return collect_broken_link_issues(self._structure)
+        """Check for broken internal markdown links and wikilinks."""
+        return [
+            *collect_broken_link_issues(self._structure),
+            *collect_broken_wikilink_issues(self._structure),
+        ]
 
     async def _check_completeness(self) -> list[LintIssue]:
         """Check for incomplete articles."""
