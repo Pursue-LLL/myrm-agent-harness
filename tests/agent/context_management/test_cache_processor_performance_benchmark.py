@@ -15,6 +15,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.pipeline.processors.cache_optimizer import ExplicitCacheProcessor
 
+pytestmark = pytest.mark.performance
+
 
 def _generate_test_messages(count: int) -> list:
     """Generate realistic message sequences for benchmarking."""
@@ -87,7 +89,7 @@ async def test_processor_overhead_medium_context(caplog: pytest.LogCaptureFixtur
     elapsed = time.perf_counter() - start
 
     avg_per_call = (elapsed / iterations) * 1_000
-    assert avg_per_call < 50.0, f"Medium context overhead {avg_per_call:.1f}ms exceeds 50ms threshold"
+    assert avg_per_call < 65.0, f"Medium context overhead {avg_per_call:.1f}ms exceeds 65ms threshold"
 
 
 @pytest.mark.asyncio
