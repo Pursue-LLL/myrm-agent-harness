@@ -6,7 +6,10 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
-from myrm_agent_harness.agent.context_management.infra.retention_helpers import extract_failed_tool_call_ids
+from myrm_agent_harness.agent.context_management.infra.retention_helpers import (
+    effective_keep_recent_calls,
+    extract_failed_tool_call_ids,
+)
 from myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor import (
     CompressProcessor,
     _extract_focus_files,
@@ -367,8 +370,5 @@ class TestEcoMode:
         """Eco mode never reduces keep_recent_calls below 2."""
         processor = CompressProcessor(max_context_tokens=1000, keep_recent_calls=2)
         assert processor._is_eco_mode(_build_context(metadata={"eco_mode": True}))
-        # With keep_recent_calls=2, max(2, 2-2)=max(2,0)=2
-        eco_keep = max(
-            2, processor.config.keep_recent_calls - processor._ECO_KEEP_RECENT_REDUCTION
-        )
+        eco_keep = effective_keep_recent_calls(keep_recent_calls=processor.config.keep_recent_calls, eco_mode=True)
         assert eco_keep == 2

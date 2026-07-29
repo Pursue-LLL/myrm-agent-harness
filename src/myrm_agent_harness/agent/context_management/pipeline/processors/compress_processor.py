@@ -40,7 +40,7 @@ from ...infra.schemas import (
     ContextConfig,
     ContextSnapshotCallback,
 )
-from ...infra.retention_helpers import extract_failed_tool_call_ids
+from ...infra.retention_helpers import effective_keep_recent_calls, extract_failed_tool_call_ids
 from ...strategies.compactor import compress_messages_async
 from ...strategies.smart_fallback import apply_smart_fallback
 from ..base import BaseProcessor, ProcessorContext
@@ -88,7 +88,6 @@ class CompressProcessor(BaseProcessor):
             keep_recent_calls=keep_recent_calls,
         )
 
-    _ECO_KEEP_RECENT_REDUCTION: int = 2
     _ECO_THRESHOLD_FACTOR: float = 0.80
     _HOT_CACHE_WINDOW_SECONDS: float = 300.0  # 5 minutes
     _ANTI_THRASHING_STREAK_LIMIT: int = 2
@@ -236,7 +235,10 @@ class CompressProcessor(BaseProcessor):
         effective_config = self.config
         eco_mode = self._is_eco_mode(context)
         if eco_mode:
-            eco_keep = max(2, self.config.keep_recent_calls - self._ECO_KEEP_RECENT_REDUCTION)
+            eco_keep = effective_keep_recent_calls(
+                keep_recent_calls=self.config.keep_recent_calls,
+                eco_mode=True,
+            )
             effective_config = replace(self.config, keep_recent_calls=eco_keep)
             logger.info(
                 "[Eco] keep_recent_calls: %d -> %d",

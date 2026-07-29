@@ -161,7 +161,6 @@ def test_discover_description_omits_market_tool_when_market_not_mounted() -> Non
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        market_backend=None,
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,
@@ -175,15 +174,14 @@ def test_discover_description_omits_market_tool_when_market_not_mounted() -> Non
 
 
 @pytest.mark.integration
-def test_registry_omits_marketplace_tool_without_market_backend() -> None:
-    """skill_market_tool mounts only when market_backend is provided."""
+def test_registry_omits_marketplace_tool_without_user_mount() -> None:
+    """skill_market_tool mounts only when registered via user_tools (server mount)."""
     skills = [_sample_skill()]
     registry = ToolRegistry()
     meta_tools = get_meta_tools(
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        market_backend=None,
         enable_file_tools=False,
         enable_shell_tools=False,
         enable_answer_tool=False,

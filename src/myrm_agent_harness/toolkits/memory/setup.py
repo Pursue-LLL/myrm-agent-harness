@@ -36,7 +36,10 @@ from myrm_agent_harness.toolkits.vector.config import DeploymentMode, VectorStor
 from myrm_agent_harness.toolkits.vector.qdrant.factory import create_vector_store
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.memory.strategies.consolidation import ConflictCallback
+    from myrm_agent_harness.toolkits.memory.strategies.consolidation import (
+        ConflictCallback,
+        ConsolidationCompleteCallback,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +62,7 @@ async def create_local_memory_manager(
     vector_store: object | None = None,
     time_decay_half_life_days: float | None = None,
     on_conflict: ConflictCallback | None = None,
+    on_consolidation_complete: ConsolidationCompleteCallback | None = None,
 ) -> MemoryManager:
     """Create a fully functional MemoryManager using local file-based storage.
 
@@ -195,6 +199,7 @@ async def create_local_memory_manager(
         recall_mode=recall_mode,
         preference_facet_store=preference_facet_store,
         on_conflict=on_conflict,
+        on_consolidation_complete=on_consolidation_complete,
     )
 
     logger.info(f"Local MemoryManager initialized at {base_path} for local user")

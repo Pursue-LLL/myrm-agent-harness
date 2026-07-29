@@ -32,10 +32,13 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     repair_file_frontmatter,
-    validate_wiki_frontmatter,
 )
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue, LintResult
+from myrm_agent_harness.toolkits.wiki.diagnostics.structural_lint import (
+    collect_broken_link_issues,
+    collect_invalid_frontmatter_type_issues,
+)
 from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
     WikiCognitiveMapService,
     WikiMapEvent,
@@ -221,32 +224,7 @@ class WikiLinter:
 
     async def _check_broken_links(self) -> list[LintIssue]:
         """Check for broken internal links."""
-        issues = []
-        concepts = self._structure.list_concepts()
-
-        for concept_path in concepts:
-            try:
-                content = concept_path.read_text(encoding="utf-8")
-                links = re.findall(r"\[([^\]]+)\]\(([^\)]+)\)", content)
-
-                for _link_text, link_target in links:
-                    if not link_target.startswith("http"):
-                        target_path = (concept_path.parent / link_target).resolve()
-                        if not target_path.exists():
-                            issues.append(
-                                LintIssue(
-                                    issue_type="broken_link",
-                                    severity="medium",
-                                    location=str(concept_path),
-                                    description=f"Broken link to {link_target}",
-                                    can_auto_fix=False,
-                                )
-                            )
-
-            except Exception as e:
-                logger.warning(f"Failed to check links in {concept_path}: {e}")
-
-        return issues
+        return collect_broken_link_issues(self._structure)
 
     async def _check_completeness(self) -> list[LintIssue]:
         """Check for incomplete articles."""
@@ -287,26 +265,7 @@ class WikiLinter:
 
     async def _check_frontmatter_types(self) -> list[LintIssue]:
         """Check concept articles for required frontmatter `type` field."""
-        issues: list[LintIssue] = []
-        for concept_path in self._structure.list_concepts():
-            try:
-                content = concept_path.read_text(encoding="utf-8")
-                validation = validate_wiki_frontmatter(content)
-                if validation.ok:
-                    continue
-                issues.append(
-                    LintIssue(
-                        issue_type="invalid_frontmatter_type",
-                        severity="high",
-                        location=str(concept_path),
-                        description="; ".join(validation.errors),
-                        can_auto_fix=True,
-                        suggested_fix="Repair page metadata to add a valid page type",
-                    )
-                )
-            except OSError as exc:
-                logger.warning("Failed to check frontmatter type for %s: %s", concept_path, exc)
-        return issues
+        return collect_invalid_frontmatter_type_issues(self._structure)
 
     async def _check_consistency(self) -> list[LintIssue]:
         """

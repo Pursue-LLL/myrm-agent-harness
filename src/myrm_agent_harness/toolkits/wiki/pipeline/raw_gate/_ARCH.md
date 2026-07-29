@@ -12,7 +12,9 @@ Raw publication gate — single SSOT for stable-path writes into vault `raw/`.
 | `forget.py` | Core | `forget_evidence`, `scan_existing_raw_vault` (blocked → unlink + optional FTS purge) | ✅ |
 | `service.py` | Core | `publish_raw()` with per-vault asyncio lock + security pre-scan | ✅ |
 
-Policies: `FAIL` (agent ingest), `SKIP` / `SUPERSEDE` (settings import), `PUT_IF_ABSENT` (query archive).
+Policies: `FAIL` (agent ingest), `SKIP` / `SUPERSEDE` (settings import), `PUT_IF_ABSENT` (query archive, turn digest, consolidation digest).
+
+Programmatic ingress (all via `publish_raw`): SessionNotes (`memory_to_wiki`), turn digest (`_skill_agent_review`), Deep Research (`stream_lane_factory`), consolidation digest (`consolidation_bridge`), agent `wiki_ingest`, Settings import.
 
 Supersede appends `RAW_SUPERSEDE` to `wiki/log.md` via cognitive map writer.
 

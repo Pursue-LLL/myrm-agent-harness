@@ -89,15 +89,37 @@ class SkillAgentReviewMixin:
         config = getattr(self, "config", None)
 
         async def _archive() -> None:
+            import hashlib
+
+            from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import (
+                RawConflictPolicy,
+                RawPublishRequest,
+                publish_raw,
+            )
+
             try:
                 assert wiki_structure is not None
                 assert wiki_compiler is not None
 
                 chat_id = getattr(config, "chat_id", None) or "unknown"
-                raw_path = wiki_structure.get_raw_file_path(f"conversation_{chat_id}.md")
-                raw_path.write_text(archive_content, encoding="utf-8")
-                await wiki_compiler.compile_all()
-                logger.info("Wiki auto-archive completed: %s", raw_path.name)
+                content_hash = hashlib.sha256(archive_content.encode()).hexdigest()[:12]
+                relative_path = f"turn_{chat_id}_{content_hash}.md"
+                result = await publish_raw(
+                    wiki_structure,
+                    RawPublishRequest(
+                        relative_path=relative_path,
+                        content=archive_content,
+                        conflict_policy=RawConflictPolicy.PUT_IF_ABSENT,
+                    ),
+                    caller="chat",
+                )
+                if result.security_blocked:
+                    logger.warning("Wiki turn archive blocked: sensitive content in %s", relative_path)
+                    return
+                if not result.written:
+                    return
+                wiki_compiler.enqueue_file(result.absolute_path)
+                logger.info("Wiki turn archive enqueued: %s", relative_path)
             except Exception as e:
                 logger.warning("Wiki auto-archive failed: %s", e)
 

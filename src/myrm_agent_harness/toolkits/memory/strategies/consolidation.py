@@ -52,6 +52,8 @@ class ConflictContext:
 
 ConflictCallback = Callable[[ConflictContext], Awaitable["ConflictResolution"]]
 
+ConsolidationCompleteCallback = Callable[["ConsolidationStats"], Awaitable[None]]
+
 _PROFILE_KEY_LAST_CONSOLIDATED = "_system.last_consolidated_at"
 
 
@@ -360,6 +362,7 @@ async def run_consolidation(
     config: ConsolidationConfig,
     *,
     on_conflict: ConflictCallback | None = None,
+    on_complete: ConsolidationCompleteCallback | None = None,
 ) -> ConsolidationStats:
     """Execute a full consolidation cycle.
 
@@ -457,6 +460,11 @@ async def run_consolidation(
         len(parsed.insights),
         elapsed_ms,
     )
+    if on_complete is not None and parsed.insights:
+        try:
+            await on_complete(stats)
+        except Exception as exc:
+            logger.warning("Consolidation complete hook failed (non-fatal): %s", exc)
     return stats
 
 

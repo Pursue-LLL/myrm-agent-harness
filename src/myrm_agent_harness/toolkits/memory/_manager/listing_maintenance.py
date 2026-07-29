@@ -298,7 +298,13 @@ class MemoryManagerListingMaintenanceMixin:
         if not cfg.enabled or not (force or await should_consolidate(self, cfg)):
             return MaintenanceConsolidationResult((0, 0, 0, 0, ()))
 
-        stats = await run_consolidation(self, self._consolidation_llm, cfg)
+        stats = await run_consolidation(
+            self,
+            self._consolidation_llm,
+            cfg,
+            on_conflict=self._on_conflict,
+            on_complete=self._on_consolidation_complete,
+        )
         if stats.merged + stats.corrected + stats.updated > 0:
             from myrm_agent_harness.toolkits.memory.strategies.pattern_discovery import (
                 increment_consolidation_count,

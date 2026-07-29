@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -229,21 +230,24 @@ class TestMaybeArchiveToWiki:
         agent._maybe_archive_to_wiki("query", ["tiny"])
 
     @pytest.mark.asyncio
-    async def test_schedules_archive_for_long_reply(self) -> None:
-        mock_compiler = MagicMock()
-        mock_compiler.compile_all = AsyncMock()
-        mock_structure = MagicMock()
-        mock_path = MagicMock()
-        mock_structure.get_raw_file_path.return_value = mock_path
+    async def test_schedules_archive_for_long_reply(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.wiki import WikiCompiler, WikiConfig, WikiStructure
 
-        agent = FakeSkillAgent(
-            wiki_compiler=mock_compiler, wiki_structure=mock_structure
-        )
+        wiki_dir = tmp_path / "wiki"
+        structure = WikiStructure(wiki_dir)
+        structure.ensure_structure()
+        compiler = WikiCompiler(MagicMock(), structure, WikiConfig())
+        compiler.enqueue_file = MagicMock()
+
+        agent = FakeSkillAgent(wiki_compiler=compiler, wiki_structure=structure)
+        agent.config.chat_id = "review-chat"
         long_reply = ["x" * 600]
         agent._maybe_archive_to_wiki("query", long_reply)
         await asyncio.sleep(0.2)
-        mock_path.write_text.assert_called_once()
-        mock_compiler.compile_all.assert_called_once()
+
+        turn_files = list(structure.raw_dir.glob("turn_review-chat_*.md"))
+        assert len(turn_files) == 1
+        compiler.enqueue_file.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

@@ -115,7 +115,7 @@ class TestMaybeArchiveToWiki:
         long_reply = "This is a detailed response. " * 30
 
         mock_compiler = MagicMock()
-        mock_compiler.compile_all = AsyncMock()
+        mock_compiler.enqueue_file = MagicMock()
         agent._wiki_compiler = mock_compiler
 
         loop = asyncio.new_event_loop()
@@ -130,10 +130,11 @@ class TestMaybeArchiveToWiki:
 
         assert agent._wiki_structure is not None
         chat_id = getattr(agent.config, "chat_id", None) or "unknown"
-        raw_path = agent._wiki_structure.get_raw_file_path(f"conversation_{chat_id}.md")
+        raw_dir = agent._wiki_structure.raw_dir
+        turn_files = list(raw_dir.glob(f"turn_{chat_id}_*.md"))
 
-        if raw_path.exists():
-            content = raw_path.read_text(encoding="utf-8")
+        if turn_files:
+            content = turn_files[0].read_text(encoding="utf-8")
             assert "# Query" in content
             assert "What is Python?" in content
             assert "# Response" in content
@@ -162,7 +163,7 @@ class TestMaybeArchiveToWiki:
         agent._create_wiki_tools()
 
         mock_compiler = MagicMock()
-        mock_compiler.compile_all = AsyncMock()
+        mock_compiler.enqueue_file = MagicMock()
         agent._wiki_compiler = mock_compiler
 
         long_reply = "x" * 600
@@ -178,9 +179,10 @@ class TestMaybeArchiveToWiki:
         await asyncio.sleep(0.2)
 
         assert agent._wiki_structure is not None
-        raw_path = agent._wiki_structure.get_raw_file_path("conversation_unknown.md")
-        if raw_path.exists():
-            content = raw_path.read_text(encoding="utf-8")
+        raw_dir = agent._wiki_structure.raw_dir
+        turn_files = list(raw_dir.glob("turn_unknown_*.md"))
+        if turn_files:
+            content = turn_files[0].read_text(encoding="utf-8")
             assert "# Query" in content
 
     def test_archive_failure_is_warning_not_error(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
@@ -189,7 +191,7 @@ class TestMaybeArchiveToWiki:
         agent._create_wiki_tools()
 
         mock_compiler = MagicMock()
-        mock_compiler.compile_all = AsyncMock(side_effect=RuntimeError("compile boom"))
+        mock_compiler.enqueue_file = MagicMock(side_effect=RuntimeError("enqueue boom"))
         agent._wiki_compiler = mock_compiler
 
         long_reply = "x" * 600
@@ -210,7 +212,7 @@ class TestMaybeArchiveToWiki:
         agent._create_wiki_tools()
 
         mock_compiler = MagicMock()
-        mock_compiler.compile_all = AsyncMock()
+        mock_compiler.enqueue_file = MagicMock()
         agent._wiki_compiler = mock_compiler
 
         reply_500 = "x" * 500
