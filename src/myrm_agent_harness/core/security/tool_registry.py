@@ -177,6 +177,8 @@ TOOL_GROUP_MAP: dict[str, frozenset[str]] = {
             "memory_manage_tool",
         }
     ),
+    # Metadata-only group: conversation_search_tool is LAYER_EXEMPT (tool_registry_config).
+    # Product Turn1 binds memory_search_tool(corpus=sessions), not this factory tool name.
     "conversation_history": frozenset(
         {
             "conversation_search_tool",
