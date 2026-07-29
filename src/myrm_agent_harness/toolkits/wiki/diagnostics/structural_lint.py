@@ -12,6 +12,9 @@ collect_broken_link_issues, collect_invalid_frontmatter_type_issues
 [POS]
 Zero-LLM structural lint SSOT. Used by WikiLinter and server /wiki/stats without
 triggering LLM maintenance paths.
+
+Scope: markdown `[text](path)` links only (same as legacy linter); Obsidian `[[wikilink]]`
+resolution remains in indexer graph paths, not this counter.
 """
 
 from __future__ import annotations

@@ -25,10 +25,10 @@ async def indexed_fixture_vault(tmp_path: Path) -> tuple[WikiStructure, WikiConf
 
     articles = {
         "Gravity": ("gravity mass weight", "## Compiled Truth\nGravity attracts mass."),
-        "Redis Cache": ("redis session cache ttl", "## Compiled Truth\nRedis stores session cache with TTL."),
-        "Billing Postgres": (
+        "RedisCache": ("redis session cache ttl", "## Compiled Truth\nRedis stores session cache with TTL."),
+        "BillingDB": (
             "billing postgres database",
-            "## Compiled Truth\nBilling data lives in PostgreSQL.",
+            "## Compiled Truth\nBilling postgres database stores invoices.",
         ),
     }
     from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
@@ -49,11 +49,11 @@ async def test_wiki_recall_benchmark_gate_meets_baseline(
     structure, config = indexed_fixture_vault
     cases = [
         WikiRecallBenchmarkCase(case_id="en_gravity", query="gravity mass", expected_concept_name="Gravity"),
-        WikiRecallBenchmarkCase(case_id="en_redis", query="redis session cache", expected_concept_name="Redis Cache"),
+        WikiRecallBenchmarkCase(case_id="en_redis", query="redis session cache", expected_concept_name="RedisCache"),
         WikiRecallBenchmarkCase(
             case_id="en_billing",
             query="billing postgres database",
-            expected_concept_name="Billing Postgres",
+            expected_concept_name="BillingDB",
         ),
     ]
 
