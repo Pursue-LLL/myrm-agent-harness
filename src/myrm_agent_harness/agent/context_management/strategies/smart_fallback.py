@@ -44,7 +44,12 @@ from .tool_call_groups import build_tool_call_groups
 logger = get_agent_logger(__name__)
 
 
-async def apply_smart_fallback(messages: list[BaseMessage], max_tokens: int) -> tuple[list[BaseMessage], int]:
+async def apply_smart_fallback(
+    messages: list[BaseMessage],
+    max_tokens: int,
+    *,
+    failed_tool_call_ids: frozenset[str] | None = None,
+) -> tuple[list[BaseMessage], int]:
     """Apply smart fallback when essential content exceeds budget.
 
     Args:
@@ -56,13 +61,19 @@ async def apply_smart_fallback(messages: list[BaseMessage], max_tokens: int) -> 
     """
     logger.warning(f" Applying SMART FALLBACK: essential content exceeds {max_tokens} tokens")
 
+    protected_tool_calls = failed_tool_call_ids or frozenset()
+
     # Detect last iteration
     is_last_iteration = _detect_last_iteration_ids(messages)
 
     # Phase 1: Keep all CRITICAL (priority 0-1) messages
     critical_messages: list[tuple[int, BaseMessage]] = []
     for i, msg in enumerate(messages):
-        priority = classify_message_priority(msg, is_last_iteration=is_last_iteration.get(id(msg), False))
+        priority = classify_message_priority(
+            msg,
+            is_last_iteration=is_last_iteration.get(id(msg), False),
+            failed_tool_call_ids=protected_tool_calls,
+        )
         if priority <= MessagePriority.CRITICAL_FINAL:
             critical_messages.append((i, msg))
 
@@ -80,10 +91,14 @@ async def apply_smart_fallback(messages: list[BaseMessage], max_tokens: int) -> 
     high_groups = []
     for group in build_tool_call_groups(messages):
         ai_priority = classify_message_priority(
-            group.ai_message, is_last_iteration=is_last_iteration.get(id(group.ai_message), False)
+            group.ai_message,
+            is_last_iteration=is_last_iteration.get(id(group.ai_message), False),
+            failed_tool_call_ids=protected_tool_calls,
         )
         tool_priority = classify_message_priority(
-            group.tool_message, is_last_iteration=is_last_iteration.get(id(group.tool_message), False)
+            group.tool_message,
+            is_last_iteration=is_last_iteration.get(id(group.tool_message), False),
+            failed_tool_call_ids=protected_tool_calls,
         )
         if ai_priority in {MessagePriority.HIGH_TOOL_CALL, MessagePriority.HIGH_TOOL_ERROR} or tool_priority in {
             MessagePriority.HIGH_TOOL_CALL,
@@ -119,7 +134,11 @@ async def apply_smart_fallback(messages: list[BaseMessage], max_tokens: int) -> 
         for i, msg in enumerate(messages):
             if i in {idx for idx, _ in critical_messages} or i in high_group_indices:
                 continue
-            priority = classify_message_priority(msg, is_last_iteration=is_last_iteration.get(id(msg), False))
+            priority = classify_message_priority(
+            msg,
+            is_last_iteration=is_last_iteration.get(id(msg), False),
+            failed_tool_call_ids=protected_tool_calls,
+        )
             if priority == MessagePriority.MEDIUM_REASONING:
                 medium_messages.append((i, msg))
 

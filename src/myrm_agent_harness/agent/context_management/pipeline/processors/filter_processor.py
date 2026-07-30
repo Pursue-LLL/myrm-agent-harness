@@ -29,6 +29,8 @@ from myrm_agent_harness.utils.text_utils import get_token_count
 
 from ...infra.retention_helpers import (
     extract_failed_tool_call_ids,
+    extract_focus_files,
+    extract_focus_modules,
     format_retained_tool_trim_message,
     should_retain_tool_message,
     structure_trim_tokens_saved,
@@ -123,6 +125,8 @@ class FilterProcessor(BaseProcessor):
         protected_tools: list[str] = []
         total_saved = 0
         failed_tool_call_ids = extract_failed_tool_call_ids(context.metadata)
+        focus_files = extract_focus_files(context.metadata)
+        focus_modules = extract_focus_modules(context.metadata)
 
         # 1. Single-tool filtering
         for msg in context.messages:
@@ -141,6 +145,8 @@ class FilterProcessor(BaseProcessor):
                         msg=msg,
                         content=content,
                         failed_tool_call_ids=failed_tool_call_ids,
+                        focus_files=focus_files,
+                        focus_modules=focus_modules,
                         filter_llm=filter_llm,
                         user_query=context.user_query,
                     )
@@ -160,7 +166,12 @@ class FilterProcessor(BaseProcessor):
             m
             for m in latest_turn_msgs
             if not (m.name and self.protection_config.is_protected(m.name))
-            and not should_retain_tool_message(m, failed_tool_call_ids)
+            and not should_retain_tool_message(
+                m,
+                failed_tool_call_ids,
+                focus_files=focus_files,
+                focus_modules=focus_modules,
+            )
         ]
 
         # Calculate current aggregate tokens
@@ -191,6 +202,8 @@ class FilterProcessor(BaseProcessor):
                     msg=msg,
                     content=content,
                     failed_tool_call_ids=failed_tool_call_ids,
+                    focus_files=focus_files,
+                    focus_modules=focus_modules,
                     filter_llm=filter_llm,
                     user_query=context.user_query,
                 )
@@ -230,13 +243,20 @@ class FilterProcessor(BaseProcessor):
         msg: ToolMessage,
         content: str,
         failed_tool_call_ids: frozenset[str],
+        focus_files: frozenset[str],
+        focus_modules: frozenset[str],
         filter_llm: BaseChatModel | None,
         user_query: str,
     ) -> tuple[int, bool]:
         """Filter one tool message. Returns (tokens_saved, retained_error_path)."""
         saved_path = await persist_large_tool_output(content, msg.name)
 
-        if should_retain_tool_message(msg, failed_tool_call_ids):
+        if should_retain_tool_message(
+            msg,
+            failed_tool_call_ids,
+            focus_files=focus_files,
+            focus_modules=focus_modules,
+        ):
             trimmed = trim_tool_result_content(content, DEFAULT_CACHE_TTL_PRUNE_CONFIG)
             preview = trimmed.content if trimmed is not None else content
             msg.content = format_retained_tool_trim_message(preview, saved_path=saved_path)

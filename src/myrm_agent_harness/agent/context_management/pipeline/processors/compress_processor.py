@@ -40,7 +40,12 @@ from ...infra.schemas import (
     ContextConfig,
     ContextSnapshotCallback,
 )
-from ...infra.retention_helpers import effective_keep_recent_calls, extract_failed_tool_call_ids
+from ...infra.retention_helpers import (
+    effective_keep_recent_calls,
+    extract_failed_tool_call_ids,
+    extract_focus_files,
+    extract_focus_modules,
+)
 from ...strategies.compactor import compress_messages_async
 from ...strategies.smart_fallback import apply_smart_fallback
 from ..base import BaseProcessor, ProcessorContext
@@ -255,8 +260,8 @@ class CompressProcessor(BaseProcessor):
             chat_id=context.chat_id,
             user_id=context.user_id,
             failed_tool_call_ids=extract_failed_tool_call_ids(context.metadata),
-            focus_files=_extract_focus_files(context),
-            focus_modules=_extract_focus_modules(context),
+            focus_files=extract_focus_files(context.metadata),
+            focus_modules=extract_focus_modules(context.metadata),
             user_goal_hint=_extract_user_goal_hint(context),
         )
 
@@ -267,7 +272,9 @@ class CompressProcessor(BaseProcessor):
                 after_compress_tokens,
             )
             context.messages, fallback_saved = await apply_smart_fallback(
-                context.messages, max_tokens=int(self.config.max_context_tokens * 0.9)
+                context.messages,
+                max_tokens=int(self.config.max_context_tokens * 0.9),
+                failed_tool_call_ids=extract_failed_tool_call_ids(context.metadata),
             )
             saved += fallback_saved
 
@@ -326,30 +333,6 @@ class CompressProcessor(BaseProcessor):
     def _is_compressed(self, tool_msg: BaseMessage) -> bool:
         content = str(tool_msg.content)
         return content.startswith("COMPACTED:")
-
-
-def _extract_focus_files(context: ProcessorContext) -> frozenset[str]:
-    raw_intent = context.metadata.get("compression_intent")
-    if not isinstance(raw_intent, dict):
-        return frozenset()
-
-    raw_focus_files = raw_intent.get("focus_files")
-    if not isinstance(raw_focus_files, list):
-        return frozenset()
-
-    return frozenset(file_path for file_path in raw_focus_files if isinstance(file_path, str) and file_path)
-
-
-def _extract_focus_modules(context: ProcessorContext) -> frozenset[str]:
-    raw_intent = context.metadata.get("compression_intent")
-    if not isinstance(raw_intent, dict):
-        return frozenset()
-
-    raw_focus_modules = raw_intent.get("focus_modules")
-    if not isinstance(raw_focus_modules, list):
-        return frozenset()
-
-    return frozenset(module_name for module_name in raw_focus_modules if isinstance(module_name, str) and module_name)
 
 
 def _extract_user_goal_hint(context: ProcessorContext) -> str:

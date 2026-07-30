@@ -9,11 +9,11 @@ from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorC
 from myrm_agent_harness.agent.context_management.infra.retention_helpers import (
     effective_keep_recent_calls,
     extract_failed_tool_call_ids,
+    extract_focus_files,
+    extract_focus_modules,
 )
 from myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor import (
     CompressProcessor,
-    _extract_focus_files,
-    _extract_focus_modules,
     _extract_user_goal_hint,
 )
 
@@ -252,16 +252,16 @@ class TestCompressionIntentExtraction:
         )
 
         assert extract_failed_tool_call_ids(context.metadata) == frozenset({"call_1"})
-        assert _extract_focus_files(context) == frozenset({"src/app.py"})
-        assert _extract_focus_modules(context) == frozenset({"agent.context"})
+        assert extract_focus_files(context.metadata) == frozenset({"src/app.py"})
+        assert extract_focus_modules(context.metadata) == frozenset({"agent.context"})
         assert _extract_user_goal_hint(context) == "fix timeout"
 
     def test_extract_helpers_ignore_invalid_payload_shape(self) -> None:
         context = _build_context(metadata={"compression_intent": "invalid"})
 
         assert extract_failed_tool_call_ids(context.metadata) == frozenset()
-        assert _extract_focus_files(context) == frozenset()
-        assert _extract_focus_modules(context) == frozenset()
+        assert extract_focus_files(context.metadata) == frozenset()
+        assert extract_focus_modules(context.metadata) == frozenset()
         assert _extract_user_goal_hint(context) == ""
 
     def test_extract_helpers_missing_fields_in_valid_intent(self) -> None:
@@ -269,8 +269,8 @@ class TestCompressionIntentExtraction:
         context = _build_context(metadata={"compression_intent": {}})
 
         assert extract_failed_tool_call_ids(context.metadata) == frozenset()
-        assert _extract_focus_files(context) == frozenset()
-        assert _extract_focus_modules(context) == frozenset()
+        assert extract_focus_files(context.metadata) == frozenset()
+        assert extract_focus_modules(context.metadata) == frozenset()
         assert _extract_user_goal_hint(context) == ""
 
     def test_extract_helpers_wrong_field_types(self) -> None:
@@ -287,8 +287,8 @@ class TestCompressionIntentExtraction:
         )
 
         assert extract_failed_tool_call_ids(context.metadata) == frozenset()
-        assert _extract_focus_files(context) == frozenset()
-        assert _extract_focus_modules(context) == frozenset()
+        assert extract_focus_files(context.metadata) == frozenset()
+        assert extract_focus_modules(context.metadata) == frozenset()
         assert _extract_user_goal_hint(context) == ""
 
 

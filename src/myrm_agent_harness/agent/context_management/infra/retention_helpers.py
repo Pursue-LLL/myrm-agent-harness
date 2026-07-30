@@ -29,13 +29,16 @@ _ECO_KEEP_RECENT_REDUCTION = 2
 _ECO_KEEP_RECENT_MIN = 2
 
 
+def _read_compression_intent(metadata: dict[str, object]) -> dict[str, object]:
+    raw_intent = metadata.get("compression_intent")
+    if isinstance(raw_intent, dict):
+        return raw_intent
+    return {}
+
+
 def extract_failed_tool_call_ids(metadata: dict[str, object]) -> frozenset[str]:
     """Read failed tool-call IDs from pipeline metadata compression intent."""
-    raw_intent = metadata.get("compression_intent")
-    if not isinstance(raw_intent, dict):
-        return frozenset()
-
-    raw_failed_ids = raw_intent.get("failed_tool_call_ids")
+    raw_failed_ids = _read_compression_intent(metadata).get("failed_tool_call_ids")
     if not isinstance(raw_failed_ids, list):
         return frozenset()
 
@@ -46,6 +49,30 @@ def extract_failed_tool_call_ids(metadata: dict[str, object]) -> frozenset[str]:
     )
 
 
+def extract_focus_files(metadata: dict[str, object]) -> frozenset[str]:
+    """Read focus file paths from pipeline metadata compression intent."""
+    raw_focus_files = _read_compression_intent(metadata).get("focus_files")
+    if not isinstance(raw_focus_files, list):
+        return frozenset()
+
+    return frozenset(
+        file_path for file_path in raw_focus_files if isinstance(file_path, str) and file_path
+    )
+
+
+def extract_focus_modules(metadata: dict[str, object]) -> frozenset[str]:
+    """Read focus module paths from pipeline metadata compression intent."""
+    raw_focus_modules = _read_compression_intent(metadata).get("focus_modules")
+    if not isinstance(raw_focus_modules, list):
+        return frozenset()
+
+    return frozenset(
+        module_name
+        for module_name in raw_focus_modules
+        if isinstance(module_name, str) and module_name
+    )
+
+
 def effective_keep_recent_calls(*, keep_recent_calls: int, eco_mode: bool) -> int:
     """Mirror CompressProcessor eco adjustment for keep_recent_calls."""
     if not eco_mode:
@@ -53,10 +80,41 @@ def effective_keep_recent_calls(*, keep_recent_calls: int, eco_mode: bool) -> in
     return max(_ECO_KEEP_RECENT_MIN, keep_recent_calls - _ECO_KEEP_RECENT_REDUCTION)
 
 
-def should_retain_tool_message(msg: ToolMessage, failed_tool_call_ids: frozenset[str]) -> bool:
+def tool_message_matches_focus_signals(
+    msg: ToolMessage,
+    *,
+    focus_files: frozenset[str],
+    focus_modules: frozenset[str],
+) -> bool:
+    """Return True when tool output references a structured focus file/module signal."""
+    if not focus_files and not focus_modules:
+        return False
+
+    content = msg.content if isinstance(msg.content, str) else str(msg.content or "")
+    haystack = content.lower()
+    for signal in (*focus_files, *focus_modules):
+        normalized = signal.removeprefix("./").lower()
+        if normalized and normalized in haystack:
+            return True
+    return False
+
+
+def should_retain_tool_message(
+    msg: ToolMessage,
+    failed_tool_call_ids: frozenset[str],
+    *,
+    focus_files: frozenset[str] | None = None,
+    focus_modules: frozenset[str] | None = None,
+) -> bool:
     """Return True when Filter should use deterministic trim instead of LLM summary."""
     tool_call_id = getattr(msg, "tool_call_id", None)
     if isinstance(tool_call_id, str) and tool_call_id and tool_call_id in failed_tool_call_ids:
+        return True
+    if tool_message_matches_focus_signals(
+        msg,
+        focus_files=focus_files or frozenset(),
+        focus_modules=focus_modules or frozenset(),
+    ):
         return True
     return _is_tool_error(msg)
 

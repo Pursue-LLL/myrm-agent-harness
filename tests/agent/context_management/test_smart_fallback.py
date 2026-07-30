@@ -133,6 +133,26 @@ class TestBoundaryGuard:
         assert not isinstance(fallback_messages[0], ToolMessage)
 
 
+    @pytest.mark.asyncio
+    async def test_failed_tool_call_ids_stay_high_priority(self) -> None:
+        """Failed tool IDs should remain HIGH priority during smart fallback."""
+        messages = [
+            HumanMessage(content="Query"),
+            AIMessage(content="Call", tool_calls=[{"name": "bash", "args": {}, "id": "call_failed"}]),
+            ToolMessage(content="Success-looking output without error keywords", tool_call_id="call_failed"),
+            AIMessage(content="Final answer"),
+        ]
+
+        fallback_messages, _ = await apply_smart_fallback(
+            messages,
+            max_tokens=5000,
+            failed_tool_call_ids=frozenset({"call_failed"}),
+        )
+
+        tool_msgs = [m for m in fallback_messages if isinstance(m, ToolMessage)]
+        assert any(getattr(m, "tool_call_id", None) == "call_failed" for m in tool_msgs)
+
+
 class TestFallbackBudgetAllocation:
     """Test budget allocation in Phase 2."""
 

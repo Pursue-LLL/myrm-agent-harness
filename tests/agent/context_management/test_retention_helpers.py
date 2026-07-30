@@ -7,8 +7,11 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from myrm_agent_harness.agent.context_management.infra.retention_helpers import (
     effective_keep_recent_calls,
     extract_failed_tool_call_ids,
+    extract_focus_files,
+    extract_focus_modules,
     find_keep_recent_prune_cutoff,
     should_retain_tool_message,
+    tool_message_matches_focus_signals,
 )
 
 
@@ -36,6 +39,39 @@ def test_should_retain_tool_message_for_error_heuristic() -> None:
         name="bash",
     )
     assert should_retain_tool_message(msg, frozenset()) is True
+
+
+def test_should_retain_tool_message_for_focus_file_signal() -> None:
+    msg = ToolMessage(
+        content="Read src/app/main.py successfully",
+        tool_call_id="call_read",
+        name="file_read_tool",
+    )
+    assert should_retain_tool_message(
+        msg,
+        frozenset(),
+        focus_files=frozenset({"src/app/main.py"}),
+    ) is True
+
+
+def test_tool_message_matches_focus_signals() -> None:
+    msg = ToolMessage(content="output from myrm-agent-server/app/main.py", tool_call_id="c1", name="grep")
+    assert tool_message_matches_focus_signals(
+        msg,
+        focus_files=frozenset({"./myrm-agent-server/app/main.py"}),
+        focus_modules=frozenset(),
+    ) is True
+
+
+def test_extract_focus_files_and_modules() -> None:
+    metadata = {
+        "compression_intent": {
+            "focus_files": ["src/a.py", ""],
+            "focus_modules": ["agent.context", 1],
+        }
+    }
+    assert extract_focus_files(metadata) == frozenset({"src/a.py"})
+    assert extract_focus_modules(metadata) == frozenset({"agent.context"})
 
 
 def test_find_keep_recent_prune_cutoff_protects_recent_groups() -> None:

@@ -168,6 +168,41 @@ class TestFilterProcessor:
             assert "ValueError" in str(result.messages[0].content)
 
     @pytest.mark.asyncio
+    async def test_process_retains_focus_file_tool_with_structure_trim(self) -> None:
+        fp = FilterProcessor()
+        large_body = ("Read myrm-agent-server/app/main.py\n" + "line\n") * 1200
+        ctx = _make_context(
+            [
+                ToolMessage(
+                    content=large_body,
+                    tool_call_id="call_read",
+                    name="grep_tool",
+                )
+            ],
+            metadata={
+                "compression_intent": {
+                    "focus_files": ["myrm-agent-server/app/main.py"],
+                }
+            },
+        )
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.persist_large_tool_output",
+                new_callable=AsyncMock,
+                return_value="/tmp/saved.txt",
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.create_filtered_result",
+                new_callable=AsyncMock,
+            ) as mock_llm_filter,
+        ):
+            result = await fp.process(ctx)
+            mock_llm_filter.assert_not_called()
+            assert "RETAINED TOOL OUTPUT" in str(result.messages[0].content)
+            assert "myrm-agent-server/app/main.py" in str(result.messages[0].content)
+
+    @pytest.mark.asyncio
     async def test_process_turn_aggregate_filters_latest_parallel_tools(self) -> None:
         fp = FilterProcessor()
         large_chunk = "word " * 8_000
