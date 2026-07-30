@@ -2,18 +2,10 @@
 
 Why this exists
 ---------------
-``langchain_mcp_adapters`` builds *connection-based* tools: every ``ainvoke``
-opens a fresh ``create_session`` (a new stdio subprocess / SSE connection) and
-re-runs the MCP ``initialize`` handshake, then tears it down — the adapter's own
-note: "A new session will be created for each tool call". For a server that
-loads heavy state on init (a large catalog, a DB pool, a model) this pays the
-full startup cost on *every* call and multiplies transient connection failures.
-
-This actor flips that: a single owner task opens the session **once**, keeps it
-warm, and serialises all tool calls onto it. Holding an MCP session open is only
-anyio-safe when every interaction (enter/exit/initialize/call_tool) runs in the
-*same* task, so callers never touch the session directly — they submit a request
-and await a future that the owner resolves.
+A single owner task opens the MCP session **once** via ``mcp.client.Client``,
+keeps it warm, and serialises all tool calls onto it. Callers never touch the
+session directly — they submit a request and await a future that the owner
+resolves.
 
 Staying warm for a whole agent lifetime means surviving the things that break a
 long-lived connection: a crashed subprocess, an SSE/HTTP drop, an idle timeout
@@ -28,8 +20,8 @@ queue, zero locks) while leaving the prompt-facing proxy tools frozen — prompt
 prefix cache stability is never compromised.
 
 [INPUT]
-- langchain_mcp_adapters.sessions::create_session (POS: MCP transport sessions)
-- langchain_mcp_adapters.tools::load_mcp_tools (POS: MCP→LangChain tool loader)
+- mcp.client::Client (POS: MCP SDK 2.x high-level client)
+- tool_converter::convert_mcp_tools (POS: MCP→LangChain tool converter)
 - agent::MCPAgent (POS: MCP agent layer — shared tool post-processing)
 - config::sanitize_mcp_name_component (POS: MCP Configuration — name sanitizer for prefix fallback)
 - config_scan::scan_mcp_runtime_surface (POS: static/runtime MCP scanners)
@@ -43,7 +35,7 @@ prefix cache stability is never compromised.
   dynamic tool discovery, auth expiry notification, and dynamic auth header refresh.
 
 [POS]
-MCP persistent-session layer. Owns one warm ClientSession per server and routes
+MCP persistent-session layer. Owns one warm Client per server and routes
 all tool calls and resource reads through a single task, enabling true
 process/connection reuse with transparent recovery from transport breaks,
 dynamic tool refresh on ``notifications/tools/list_changed``, and dynamic auth
@@ -292,6 +284,48 @@ class MCPSessionActor:
 
     # ------------------------------------------------------------ owner task
 
+    def _build_client_target(self, conn: dict[str, object]) -> object:
+        """Build the ``mcp.client.Client`` target from the connection config dict.
+
+        Returns a proper SDK v2 target:
+        - HTTP with headers: ``streamable_http_client(url, http_client=...)`` transport
+        - HTTP without headers: bare URL string (``Client`` auto-wraps)
+        - SSE: ``sse_client(url)`` transport (with optional headers via http_client)
+        - stdio: ``stdio_client(StdioServerParameters(...))`` transport
+
+        ``Client`` resolves transports by type: a ``str`` becomes Streamable HTTP,
+        anything else is entered as-is via the ``Transport`` protocol.
+        """
+        transport = conn.get("transport", "stdio")
+        if transport in ("sse", "streamable_http"):
+            url = conn.get("url")
+            if not url:
+                raise ValueError(f"MCP server '{self.server_name}': HTTP transport requires 'url'")
+            url_str = str(url)
+            headers: dict[str, str] = dict(conn.get("headers") or {})  # type: ignore[arg-type]
+            if headers or transport == "sse":
+                import httpx2
+                http_client = httpx2.AsyncClient(
+                    headers=headers or None,
+                    timeout=httpx2.Timeout(30.0, read=300.0),
+                    follow_redirects=True,
+                )
+                if transport == "sse":
+                    from mcp.client.sse import sse_client
+                    return sse_client(url_str, http_client=http_client)
+                from mcp.client.streamable_http import streamable_http_client
+                return streamable_http_client(url_str, http_client=http_client)
+            return url_str
+
+        from mcp import StdioServerParameters
+        from mcp.client.stdio import stdio_client
+
+        return stdio_client(StdioServerParameters(
+            command=str(conn.get("command", "")),
+            args=[str(a) for a in (conn.get("args") or [])],  # type: ignore[union-attr]
+            env=conn.get("env"),  # type: ignore[arg-type]
+        ))
+
     async def _run(self) -> None:
         """Owner task: establish the session, serve calls, and self-reconnect.
 
@@ -301,39 +335,43 @@ class MCPSessionActor:
         drops into a bounded, backed-off reconnect that rebuilds the session in
         place — the proxy tools handed to the agent keep working across the gap.
         """
-        from langchain_mcp_adapters.sessions import create_session
-        from langchain_mcp_adapters.tools import load_mcp_tools
+        from mcp.client import Client
         from mcp.types import Implementation
 
         from myrm_agent_harness import __version__
 
+        from .tool_converter import convert_mcp_tools
+
         conn = dict(self._connection)
-        sk = dict(conn.get("session_kwargs") or {})  # type: ignore[arg-type]
-        sk["message_handler"] = self._make_notification_handler()
-        sk.setdefault("client_info", Implementation(name="myrm-agent", version=__version__))
-        conn["session_kwargs"] = sk
 
         start_attempts = 0
         reconnect_failures = 0
         last_error = "not started"
 
         while not self._closed:
-            # On reconnect, refresh auth headers from the provider so a newly
-            # re-authorized token is picked up instead of replaying stale creds.
             if reconnect_failures > 0:
                 await self._refresh_auth_headers(conn)
             outcome: _ServeOutcome | None = None
             connected_at = 0.0
             try:
-                async with create_session(conn) as session:  # type: ignore[arg-type]
+                target = self._build_client_target(conn)
+                client = Client(
+                    target,
+                    message_handler=self._make_notification_handler(),
+                    client_info=Implementation(name="myrm-agent", version=__version__),
+                )
+                async with client:
                     async with asyncio.timeout(self._connect_timeout):
-                        init_result = await session.initialize()
-                        raw_tools = await load_mcp_tools(session, server_name=self.server_name)
+                        raw_tools = convert_mcp_tools(
+                            list((await client.list_tools()).tools),
+                            client.call_tool,
+                            server_name=self.server_name,
+                        )
                     if not raw_tools:
                         raise _TransientStartError("no tools enumerated")
-                    self._apply_tools(init_result, raw_tools)
+                    self._apply_tools(client, raw_tools)
                     connected_at = time.monotonic()
-                    outcome = await self._serve_on(session)
+                    outcome = await self._serve_on(client)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -526,7 +564,7 @@ class MCPSessionActor:
                 server_name=self.server_name,
             )
 
-    def _apply_tools(self, init_result: object, raw_tools: list[BaseTool]) -> None:
+    def _apply_tools(self, client: object, raw_tools: list[BaseTool]) -> None:
         """Bind freshly enumerated tools to the live session.
 
         Runs on every (re)connect so the executable tools always target the
@@ -548,7 +586,7 @@ class MCPSessionActor:
         )
         instructions: str | None = None
         if not self._ready.is_set():
-            instructions = _extract_instructions(init_result)
+            instructions = _extract_instructions(client)
         self._enforce_runtime_posture(instructions, processed)
         self._tools = {tool.name: tool for tool in processed}
         if not self._ready.is_set():
@@ -557,46 +595,42 @@ class MCPSessionActor:
             self._ready.set()
 
     def _make_notification_handler(self):
-        """Build a ``message_handler`` for ``ClientSession``.
+        """Build a ``message_handler`` for ``mcp.client.Client``.
 
-        Dispatches ``ToolListChangedNotification`` into the queue as a refresh
-        signal; prompt/resource change notifications are logged for future use.
+        In MCP SDK 2.x, notifications are delivered as their concrete types
+        (no ``ServerNotification`` RootModel wrapper). Dispatches
+        ``ToolListChangedNotification`` into the queue as a refresh signal.
         """
         try:
             from mcp.types import (
                 PromptListChangedNotification,
                 ResourceListChangedNotification,
-                ServerNotification,
                 ToolListChangedNotification,
             )
         except ImportError:
             logger.debug("MCP SDK notification types unavailable; dynamic tool discovery disabled")
             return None
 
-        async def _handler(
-            message: object,
-        ) -> None:
+        async def _handler(message: object) -> None:
             try:
                 if isinstance(message, Exception):
                     return
-                if isinstance(message, ServerNotification):
-                    match message.root:
-                        case ToolListChangedNotification():
-                            logger.info(
-                                "MCP server '%s': received tools/list_changed",
-                                self.server_name,
-                            )
-                            self._queue.put_nowait(_REFRESH_SIGNAL)
-                        case PromptListChangedNotification():
-                            logger.debug(
-                                "MCP server '%s': prompts/list_changed (ignored)",
-                                self.server_name,
-                            )
-                        case ResourceListChangedNotification():
-                            logger.debug(
-                                "MCP server '%s': resources/list_changed (ignored)",
-                                self.server_name,
-                            )
+                if isinstance(message, ToolListChangedNotification):
+                    logger.info(
+                        "MCP server '%s': received tools/list_changed",
+                        self.server_name,
+                    )
+                    self._queue.put_nowait(_REFRESH_SIGNAL)
+                elif isinstance(message, PromptListChangedNotification):
+                    logger.debug(
+                        "MCP server '%s': prompts/list_changed (ignored)",
+                        self.server_name,
+                    )
+                elif isinstance(message, ResourceListChangedNotification):
+                    logger.debug(
+                        "MCP server '%s': resources/list_changed (ignored)",
+                        self.server_name,
+                    )
             except Exception:
                 logger.exception("Error in MCP notification handler for '%s'", self.server_name)
 
@@ -609,14 +643,15 @@ class MCPSessionActor:
         needed. Updates ``self._tools`` (execution layer) but leaves
         ``self._proxy_tools`` frozen (prompt prefix cache stability).
         """
-        from langchain_mcp_adapters.tools import load_mcp_tools
+        from .tool_converter import convert_mcp_tools
 
         try:
             old_names = set(self._tools)
             async with asyncio.timeout(self._connect_timeout):
-                raw_tools = await load_mcp_tools(
-                    session,
-                    server_name=self.server_name,  # type: ignore[arg-type]
+                raw_tools = convert_mcp_tools(
+                    list((await session.list_tools()).tools),  # type: ignore[attr-defined]
+                    session.call_tool,  # type: ignore[attr-defined]
+                    server_name=self.server_name,
                 )
             from .agent import MCPAgent
 
@@ -830,11 +865,13 @@ def _describe_error(exc: Exception) -> str:
     return f"{type(exc).__name__}: {exc}"
 
 
-def _extract_instructions(init_result: object) -> str | None:
-    """Pull server instructions from an MCP initialize result (best-effort)."""
-    instructions = getattr(init_result, "instructions", None)
+def _extract_instructions(client_or_result: object) -> str | None:
+    """Pull server instructions from an MCP Client or result object."""
+    instructions = getattr(client_or_result, "instructions", None)
     if not instructions:
-        server_info = getattr(init_result, "serverInfo", None)
+        server_info = getattr(client_or_result, "server_info", None) or getattr(
+            client_or_result, "serverInfo", None
+        )
         if server_info is not None:
             instructions = getattr(server_info, "instructions", None)
     return instructions if isinstance(instructions, str) else None
