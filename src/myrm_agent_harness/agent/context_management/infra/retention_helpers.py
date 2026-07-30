@@ -6,14 +6,15 @@
 - strategies.tool_call_groups::build_tool_call_groups
 
 [OUTPUT]
-- extract_failed_tool_call_ids: read failed tool IDs from compression intent metadata
-- should_retain_tool_message: whether a tool result should skip LLM semantic filtering
-- find_keep_recent_prune_cutoff: align ActivePrune with Compress keep_recent_calls
-- format_retained_tool_trim_message: deterministic trim message for error/failed outputs
+- extract_failed_tool_call_ids / extract_focus_files / extract_focus_modules: read compression intent fields
+- tool_message_matches_focus_signals: detect focus file/module signals in tool output
+- should_retain_tool_message: skip LLM semantic filter for failed/error/focus tool outputs
+- effective_keep_recent_calls / find_keep_recent_prune_cutoff: keep_recent alignment for ActivePrune + Compress
+- format_retained_tool_trim_message / structure_trim_tokens_saved: deterministic trim helpers
 
 [POS]
-Cross-processor retention contract. Keeps Filter and ActivePrune aligned with
-CompressProcessor keep_recent_calls without a separate planner processor.
+Cross-processor retention contract. Keeps Filter, ActivePrune, Compress, and smart_fallback
+aligned on failed-tool and focus-file protection without a separate planner processor.
 """
 
 from __future__ import annotations

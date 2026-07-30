@@ -14,7 +14,7 @@ Pipeline processors module.
 | cache_ttl_prune_processor.py | Core | Provides CacheTtlPruneProcessor for token-aware pruning with adaptive backoff and delegates archive-summary checkpoints to injected `ArchiveSummaryService`. | ✅ |
 | cache_ttl_prune_helpers.py | Internal | Cache TTL pruning helper layer. Keeps DTOs, archive write/reuse counters, pure content conversion, archive placeholder rendering, and message replacement helpers outside the processor orchestration file. | ✅ |
 | compress_processor.py | Core | Provides CompressProcessor with Hot Cache Bypass and Anti-Thrashing protection. | ✅ |
-| filter_processor.py | Core | Provides FilterProcessor. | ✅ |
+| filter_processor.py | Core | LLM semantic filter for oversized tool outputs; skips LLM summary for failed-tool IDs, tool errors, and focus-file/module signals via retention_helpers (structure trim only) | ✅ |
 | media_filter.py | Core | Proactive media filter — strips image/video/audio for text-only models before LLM call. | ✅ |
 | media_resolver.py | Core | Resolves non-base64 image URLs (HTTP/file/API references) to base64 data URLs right before LLM invocation. Supports `file://` local paths, HTTP(S) StorageProvider URLs, and `/api/media/` paths via injected `FileContentReader`. Positioned after MediaFilter so only surviving images are resolved. | ✅ |
 | normalize_processor.py | Core | Provides NormalizeProcessor. | ✅ |
