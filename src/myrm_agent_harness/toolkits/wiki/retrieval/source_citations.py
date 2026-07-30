@@ -2,6 +2,8 @@
 
 [INPUT]
 - ..core.types::QueryResult, SourceSnippet (POS: Wiki toolkit type definitions)
+- ..core.structure::WikiStructure (POS: optional vault paths for live digest fallback)
+- ..core.claims_contract::build_evidence_resource_uri (POS: portable resource URI builder)
 
 [OUTPUT]
 - build_wiki_query_sources: Deduplicated LLM-Wiki source dicts for SSE metadata.
@@ -15,8 +17,12 @@ toolkit free of LangChain tool module dependencies.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ..core.types import QueryResult, SourceSnippet
+
+if TYPE_CHECKING:
+    from ..core.structure import WikiStructure
 
 
 def wiki_source_dedup_key(snip: SourceSnippet) -> str:
@@ -29,7 +35,26 @@ def wiki_source_dedup_key(snip: SourceSnippet) -> str:
     return f"kb:LLM-Wiki:{snip.article_path}:{snip.section}:{snip.level}"
 
 
-def wiki_source_entry(snip: SourceSnippet, *, confidence_score: float) -> dict[str, object]:
+def _evidence_resource_uri_for_snippet(
+    snip: SourceSnippet,
+    *,
+    structure: WikiStructure | None,
+) -> str:
+    from ..core.claims_contract import build_evidence_resource_uri
+
+    return build_evidence_resource_uri(
+        snip.evidence_path or snip.article_path,
+        snip.evidence_content_sha256,
+        structure=structure,
+    )
+
+
+def wiki_source_entry(
+    snip: SourceSnippet,
+    *,
+    confidence_score: float,
+    structure: WikiStructure | None = None,
+) -> dict[str, object]:
     display_name = snip.article_name or Path(snip.article_path).stem or "wiki-source"
     entry: dict[str, object] = {
         "type": "knowledge",
@@ -55,6 +80,9 @@ def wiki_source_entry(snip: SourceSnippet, *, confidence_score: float) -> dict[s
         entry["claim_status"] = snip.claim_status
     if snip.evidence_snapshot_status:
         entry["snapshot_status"] = snip.evidence_snapshot_status
+    uri = _evidence_resource_uri_for_snippet(snip, structure=structure)
+    if uri:
+        entry["resource_uri"] = uri
     if snip.hit_kind == "asset":
         entry["hit_kind"] = "asset"
     if snip.asset_filename:
@@ -62,7 +90,11 @@ def wiki_source_entry(snip: SourceSnippet, *, confidence_score: float) -> dict[s
     return entry
 
 
-def build_wiki_query_sources(result: QueryResult) -> list[dict[str, object]]:
+def build_wiki_query_sources(
+    result: QueryResult,
+    *,
+    structure: WikiStructure | None = None,
+) -> list[dict[str, object]]:
     """Build deduplicated LLM-Wiki citation metadata from a query result."""
     sources_by_key: dict[str, dict[str, object]] = {}
     ordered_keys: list[str] = []
@@ -75,8 +107,15 @@ def build_wiki_query_sources(result: QueryResult) -> list[dict[str, object]]:
                 entry["snippet"] = snip.snippet
             if snip.evidence_snapshot_status:
                 entry["snapshot_status"] = snip.evidence_snapshot_status
+            uri = _evidence_resource_uri_for_snippet(snip, structure=structure)
+            if uri:
+                entry["resource_uri"] = uri
             continue
-        sources_by_key[key] = wiki_source_entry(snip, confidence_score=result.confidence_score)
+        sources_by_key[key] = wiki_source_entry(
+            snip,
+            confidence_score=result.confidence_score,
+            structure=structure,
+        )
         ordered_keys.append(key)
 
     snippet_paths = {snip.article_path for snip in result.source_snippets}

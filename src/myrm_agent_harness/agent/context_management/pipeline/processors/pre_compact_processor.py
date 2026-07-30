@@ -7,6 +7,7 @@ Invokes ContextPreCompactCallback to inject a protected HumanMessage recall bloc
 - pipeline.processors.compress_processor::CompressProcessor
 - pipeline.processors.session_notes_processor::SessionNotesProcessor
 - pipeline.processors.summarize_processor::SummarizeProcessor
+- infra.retention_helpers::extract_user_goal_hint (POS: cross-processor retention contract)
 
 [OUTPUT]
 - PreCompactProcessor: pre-compaction recall processor
@@ -22,9 +23,9 @@ from myrm_agent_harness.agent.context_management.infra.schemas import (
     PRE_COMPACT_MESSAGE_METADATA_KEY,
     ContextPreCompactCallback,
 )
+from myrm_agent_harness.agent.context_management.infra.retention_helpers import extract_user_goal_hint
 from myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor import (
     CompressProcessor,
-    _extract_user_goal_hint,
 )
 from myrm_agent_harness.agent.context_management.pipeline.processors.session_notes_processor import (
     SessionNotesProcessor,
@@ -82,7 +83,7 @@ class PreCompactProcessor(BaseProcessor):
         total_tokens = estimate_messages_tokens(context.messages)
         max_tokens = self._compress_processor.config.max_context_tokens or 128000
         pressure_ratio = min(total_tokens / max_tokens, 1.0) if max_tokens > 0 else 0.0
-        user_goal_hint = _extract_user_goal_hint(context)
+        user_goal_hint = extract_user_goal_hint(context.metadata)
 
         try:
             injection = await self._on_pre_compact(

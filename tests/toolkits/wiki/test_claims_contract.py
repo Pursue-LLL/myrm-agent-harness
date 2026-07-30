@@ -3,10 +3,17 @@
 from __future__ import annotations
 
 import hashlib
+import json
 
 from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
+    RAW_SUPERSEDE_KEY,
+    build_evidence_resource_uri,
+    collect_raw_content_hashes,
     ensure_compile_claims,
+    format_resource_uri,
+    lookup_raw_supersede_uri,
     parse_claims_from_content,
+    record_raw_supersede_entry,
     validate_compile_claims,
 )
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -102,6 +109,67 @@ def test_resolve_evidence_snapshot_status_tri_state(tmp_path) -> None:
     assert resolve_evidence_snapshot_status("raw/budget.md", pinned, structure) == "stale"
     assert resolve_evidence_snapshot_status("raw/budget.md", "", structure) == "missing"
     assert resolve_evidence_snapshot_status("raw/missing.md", pinned, structure) == "missing"
+
+
+def test_format_resource_uri_normalizes_path_and_digest() -> None:
+    sha = "abc123"
+    assert format_resource_uri("budget.md", sha) == f"raw/budget.md@sha256:{sha}"
+    assert format_resource_uri("raw/budget.md", sha) == f"raw/budget.md@sha256:{sha}"
+    assert format_resource_uri("", sha) == ""
+    assert format_resource_uri("raw/budget.md", "") == ""
+
+
+def test_collect_raw_content_hashes_uses_relative_keys(tmp_path) -> None:
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    raw_file = structure.raw_dir / "notes.md"
+    raw_bytes = b"Portable hash key"
+    raw_file.write_bytes(raw_bytes)
+    expected_sha = hashlib.sha256(raw_bytes).hexdigest()
+
+    hashes = collect_raw_content_hashes(structure)
+    assert hashes == {"raw/notes.md": expected_sha}
+
+
+def test_record_and_lookup_raw_supersede_uri(tmp_path) -> None:
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    previous_sha = "deadbeef" * 8
+    new_sha = "cafebabe" * 8
+
+    record_raw_supersede_entry(
+        structure,
+        rel_path="budget.md",
+        previous_sha256=previous_sha,
+        new_sha256=new_sha,
+        reason="settings import",
+    )
+
+    uri = lookup_raw_supersede_uri(structure, "raw/budget.md")
+    assert uri == f"raw/budget.md@sha256:{previous_sha}"
+
+    metadata_path = structure.get_wiki_metadata_path()
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    entry = metadata[RAW_SUPERSEDE_KEY]["raw/budget.md"]
+    assert entry["current_sha256"] == new_sha
+    assert entry["reason"] == "settings import"
+
+
+def test_build_evidence_resource_uri_prefers_pin(tmp_path) -> None:
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    raw_file = structure.raw_dir / "budget.md"
+    raw_bytes = b"Live content"
+    raw_file.write_bytes(raw_bytes)
+    live_sha = hashlib.sha256(raw_bytes).hexdigest()
+    pinned_sha = "pinned" * 8
+
+    assert build_evidence_resource_uri("raw/budget.md", pinned_sha, structure=structure) == (
+        f"raw/budget.md@sha256:{pinned_sha}"
+    )
+    assert build_evidence_resource_uri("raw/budget.md", "", structure=structure) == (
+        f"raw/budget.md@sha256:{live_sha}"
+    )
 
 
 def test_validate_compile_claims_rejects_empty_entries() -> None:

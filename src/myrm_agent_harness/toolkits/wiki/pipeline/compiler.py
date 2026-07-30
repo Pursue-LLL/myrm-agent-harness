@@ -48,10 +48,12 @@ from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptInfo
 
 from .cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
+from .contradiction_synthesis import run_contradiction_synthesis_pass
 from .postprocess import generate_backlinks, save_metadata
 from .queue import WikiIngestionQueue
 from .resilience import CompileRunSnapshot, evaluate_batch_pause, resolve_io_failure, resolve_llm_failure
 from .sidecar import build_directory_sidecars
+from .survey import CompileSessionState, build_compile_survey
 
 logger = get_agent_logger(__name__)
 
@@ -86,6 +88,7 @@ class WikiCompiler:
     """
 
     _active_workers: ClassVar[dict[str, asyncio.Task]] = {}
+    _compile_sessions: ClassVar[dict[str, CompileSessionState]] = {}
 
     def __init__(
         self,
@@ -106,6 +109,125 @@ class WikiCompiler:
         self._semaphore: asyncio.Semaphore | None = (
             asyncio.Semaphore(config.max_parallel_workers) if self._parallel else None
         )
+
+    def _session_key(self) -> str:
+        return str(self._structure.base_dir)
+
+    def _get_session(self) -> CompileSessionState | None:
+        return self.__class__._compile_sessions.get(self._session_key())
+
+    def _clear_compile_session(self) -> None:
+        self.__class__._compile_sessions.pop(self._session_key(), None)
+        self._queue.set_compile_phase("idle")
+
+    def _maybe_clear_compile_session(self) -> None:
+        queue_stats = self._queue.get_stats()
+        if queue_stats.get("pending", 0) == 0 and queue_stats.get("processing", 0) == 0:
+            self._clear_compile_session()
+
+    def _ensure_compile_session(self) -> CompileSessionState:
+        existing = self._get_session()
+        if existing is not None:
+            return existing
+
+        pending_paths = [Path(path) for path in self._queue.list_pending_file_paths()]
+        self._queue.set_compile_phase("structure_survey")
+        context = build_compile_survey(
+            self._structure,
+            pending_paths,
+            fast_path_scope_paths=self._structure.list_raw_files(),
+        )
+        session = CompileSessionState(context=context)
+        self.__class__._compile_sessions[self._session_key()] = session
+        self._queue.set_compile_phase(
+            "semantic_compile",
+            facet_count=context.facet_count,
+            warning_count=context.warning_count,
+            survey_skipped=context.skipped,
+        )
+        logger.info(
+            "Compile survey ready: skipped=%s facets=%d warnings=%d pending=%d",
+            context.skipped,
+            context.facet_count,
+            context.warning_count,
+            len(pending_paths),
+        )
+        return session
+
+    def _relative_raw_path(self, doc_path: Path) -> str:
+        try:
+            return doc_path.relative_to(self._structure.base_dir).as_posix()
+        except ValueError:
+            return doc_path.name
+
+    def _sort_queue_items_for_survey(self, queue_items: list[dict]) -> list[dict]:
+        session = self._get_session()
+        if session is None or session.context.skipped:
+            return queue_items
+
+        order_index = {
+            facet_id: index for index, facet_id in enumerate(session.context.processing_order)
+        }
+
+        def _sort_key(item: dict) -> tuple[int, str]:
+            rel = self._relative_raw_path(Path(str(item["file_path"])))
+            facet_id = session.context.path_to_facet.get(rel, "")
+            return (order_index.get(facet_id, len(order_index)), rel)
+
+        return sorted(queue_items, key=_sort_key)
+
+    def _build_extract_survey_context(self, relative_path: str) -> str:
+        session = self._get_session()
+        if session is None or session.context.skipped:
+            return ""
+
+        sections: list[str] = []
+        facet_id = session.context.path_to_facet.get(relative_path)
+        if facet_id is not None:
+            facet = session.context.facets.get(facet_id)
+            if facet is not None:
+                sections.append(f"# Compile Facet: {facet.folder_path}")
+                seed_lines = [
+                    *session.facet_seeds.get(facet_id, []),
+                    *list(facet.suggested_seeds),
+                ]
+                unique_seeds = list(dict.fromkeys(seed for seed in seed_lines if seed))[:12]
+                if unique_seeds:
+                    sections.append(
+                        "# Facet concept seeds (reuse these names when applicable):\n"
+                        + "\n".join(f"- {seed}" for seed in unique_seeds)
+                    )
+
+        chunk_group_id = session.context.path_to_chunk_group.get(relative_path)
+        if chunk_group_id is not None:
+            siblings = session.context.chunk_groups.get(chunk_group_id, ())
+            if len(siblings) > 1:
+                sections.append(
+                    f"# Chunk group ({len(siblings)} parts of one source document)\n"
+                    "Extract concepts once for the whole group; prefer one shared concept path.\n"
+                    + "\n".join(f"- {path}" for path in siblings[:20])
+                )
+
+        if not sections:
+            return ""
+        return "\n\n".join(sections) + "\n\n"
+
+    def _record_facet_seeds(self, queue_items: list[dict], concepts: list[ConceptInfo]) -> None:
+        session = self._get_session()
+        if session is None or session.context.skipped or not concepts:
+            return
+
+        batch_paths = {self._relative_raw_path(Path(str(item["file_path"]))) for item in queue_items}
+        for concept in concepts:
+            for source in concept.source_files:
+                if source not in batch_paths:
+                    continue
+                facet_id = session.context.path_to_facet.get(source)
+                if facet_id is None:
+                    continue
+                seeds = session.facet_seeds.setdefault(facet_id, [])
+                if concept.name not in seeds:
+                    seeds.append(concept.name)
 
     def enqueue_file(self, file_path: Path) -> None:
         """Enqueue a raw file for compilation and ensure the background worker is running.
@@ -187,6 +309,8 @@ class WikiCompiler:
                 consecutive_empty = 0
                 logger.info(f"Worker draining {len(pending_items)} items from queue...")
 
+                self._ensure_compile_session()
+                self._queue.set_compile_phase("semantic_compile")
                 batch_outcome = await self._extract_concepts_batch(pending_items)
                 should_pause, pause_reason, primary_kind = evaluate_batch_pause(
                     success_count=batch_outcome.success_count,
@@ -199,18 +323,34 @@ class WikiCompiler:
 
                 all_concepts = batch_outcome.concepts
                 if all_concepts:
+                    self._queue.set_compile_phase("postprocess")
                     articles = await self._generate_articles_batch(all_concepts)
+                    synthesis_result = await run_contradiction_synthesis_pass(
+                        self._llm,
+                        self._structure,
+                        self._compile_config,
+                        self._indexer,
+                        all_concepts,
+                    )
+                    if synthesis_result.synthesis_staged:
+                        logger.info(
+                            "CCSP staged %s evolution page(s) from %s pair(s)",
+                            synthesis_result.synthesis_staged,
+                            synthesis_result.pairs_considered,
+                        )
                     self._refresh_cognitive_map(all_concepts, batch=True)
                     if self._config.enable_backlinks:
                         await self._generate_backlinks(all_concepts)
                     if self._config.enable_directory_sidecars:
                         await self._build_sidecars(all_concepts)
                     await self._save_metadata(len(all_concepts), articles)
+                    await self._maybe_commit_vault_git("compile batch")
 
                 await asyncio.sleep(1)
         except Exception as e:
             logger.error(f"Wiki worker loop failed: {e}")
         finally:
+            self._maybe_clear_compile_session()
             if user_key in self.__class__._active_workers:
                 del self.__class__._active_workers[user_key]
             logger.info(f"Wiki background worker stopped for {user_key}")
@@ -248,6 +388,7 @@ class WikiCompiler:
                 articles_pending=0,
                 articles_published=0,
                 articles_blocked=0,
+                synthesis_pending=0,
             )
 
         if not pending_items:
@@ -261,9 +402,13 @@ class WikiCompiler:
                 articles_pending=0,
                 articles_published=0,
                 articles_blocked=0,
+                synthesis_pending=0,
             )
 
         logger.info(f"Processing batch of {len(pending_items)} files from queue")
+
+        self._ensure_compile_session()
+        self._queue.set_compile_phase("semantic_compile")
 
         # Step 1: Extract concepts sequentially from the queue batch
         batch_outcome = await self._extract_concepts_batch(pending_items)
@@ -276,6 +421,11 @@ class WikiCompiler:
         all_concepts = batch_outcome.concepts
         logger.info(f"Extracted {len(all_concepts)} concepts from batch")
 
+        if all_concepts:
+            self._queue.set_compile_phase("postprocess")
+        else:
+            self._queue.set_compile_phase("semantic_compile")
+
         # Step 2: Generate articles for each concept
         batch_stats = await self._generate_articles_batch(all_concepts)
         logger.info(
@@ -285,6 +435,20 @@ class WikiCompiler:
             batch_stats.pending,
             batch_stats.blocked,
         )
+
+        synthesis_result = await run_contradiction_synthesis_pass(
+            self._llm,
+            self._structure,
+            self._compile_config,
+            self._indexer,
+            all_concepts,
+        )
+        if synthesis_result.synthesis_staged:
+            logger.info(
+                "CCSP staged %s evolution page(s) from %s pair(s)",
+                synthesis_result.synthesis_staged,
+                synthesis_result.pairs_considered,
+            )
 
         # Step 3: Refresh OKF cognitive map (index/log/hot)
         self._refresh_cognitive_map(all_concepts, batch=True)
@@ -302,6 +466,10 @@ class WikiCompiler:
         # Step 6: Update metadata
         await self._save_metadata(len(all_concepts), batch_stats.generated)
 
+        await self._maybe_commit_vault_git("compile")
+
+        self._maybe_clear_compile_session()
+
         duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)
 
         # Start background worker to drain the rest of the queue if any
@@ -315,6 +483,7 @@ class WikiCompiler:
             articles_pending=batch_stats.pending,
             articles_published=batch_stats.published,
             articles_blocked=batch_stats.blocked,
+            synthesis_pending=synthesis_result.synthesis_staged,
         )
 
     async def _filter_changed_files(self, raw_files: list[Path]) -> list[Path]:
@@ -326,7 +495,12 @@ class WikiCompiler:
         try:
             with open(metadata_path, encoding="utf-8") as f:
                 metadata = json.load(f)
-                known_hashes: dict[str, str] = metadata.get("file_hashes", {})
+            from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
+                get_last_compile_raw_hashes,
+                raw_relative_storage_key,
+            )
+
+            known_hashes = get_last_compile_raw_hashes(metadata)
         except Exception as e:
             logger.warning(f"Failed to read metadata: {e}")
             return raw_files
@@ -335,7 +509,8 @@ class WikiCompiler:
         for f in raw_files:
             try:
                 content_hash = hashlib.sha256(f.read_bytes()).hexdigest()
-                if known_hashes.get(str(f)) != content_hash:
+                storage_key = raw_relative_storage_key(self._structure, f)
+                if known_hashes.get(storage_key) != content_hash:
                     changed.append(f)
             except OSError:
                 changed.append(f)
@@ -343,6 +518,7 @@ class WikiCompiler:
 
     async def _extract_concepts_batch(self, queue_items: list[dict]) -> _BatchExtractOutcome:
         """Extract concepts from queue items with configurable parallelism."""
+        queue_items = self._sort_queue_items_for_survey(queue_items)
         failure_kinds: list[str] = []
         success_count = 0
 
@@ -418,6 +594,8 @@ class WikiCompiler:
                 else:
                     all_concepts[concept.name] = concept
 
+        self._record_facet_seeds(queue_items, list(all_concepts.values()))
+
         return _BatchExtractOutcome(
             concepts=list(all_concepts.values()),
             success_count=success_count,
@@ -433,15 +611,15 @@ class WikiCompiler:
             return []
 
         # Include relative path as context (e.g. docs/architecture.md vs notes/daily.md)
-        try:
-            relative_path = doc_path.relative_to(self._structure.base_dir)
-        except ValueError:
-            relative_path = doc_path.name
+        relative_path = self._relative_raw_path(doc_path)
 
+        survey_context = self._build_extract_survey_context(relative_path)
         prompt = self._compile_config.extract_concepts_prompt_template
         system_msg = SystemMessage(content="You are a knowledge extraction expert.")
         human_msg = HumanMessage(
-            content=f"{prompt}\n\n# Document Path: {relative_path}\n# Document Content:\n\n{content}"
+            content=(
+                f"{prompt}\n\n{survey_context}# Document Path: {relative_path}\n# Document Content:\n\n{content}"
+            )
         )
 
         try:
@@ -633,4 +811,14 @@ class WikiCompiler:
             result.rebuilt_directories,
             result.skipped_directories,
             result.removed_directories,
+        )
+
+    async def _maybe_commit_vault_git(self, reason: str) -> None:
+        from ..portability.vault_git import maybe_commit_vault_git_snapshot
+
+        await asyncio.to_thread(
+            maybe_commit_vault_git_snapshot,
+            self._structure,
+            self._config,
+            reason=reason,
         )

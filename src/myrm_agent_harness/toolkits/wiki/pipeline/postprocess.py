@@ -4,10 +4,11 @@
 ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 ..core.config::WikiConfig (POS: Wiki configuration center)
 ..core.types::ConceptInfo, WikiMetadata (POS: Wiki toolkit type definitions)
+..core.claims_contract (POS: raw hash metadata keys and collectors)
 
 [OUTPUT]
 generate_backlinks(): Generate Obsidian-compatible backlinks between concepts
-save_metadata(): Persist compilation metadata with SHA256 file hashes
+save_metadata(): Persist compilation metadata with portable SHA256 raw snapshots (preserves raw_supersede lineage)
 
 [POS]
 Post-compilation steps: backlink creation and metadata persistence after concept
@@ -16,8 +17,6 @@ extraction and article generation. OKF index/log/hot live in cognitive_map/.
 
 from __future__ import annotations
 
-import contextlib
-import hashlib
 import inspect
 import json
 import re
@@ -26,6 +25,12 @@ from typing import TYPE_CHECKING
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
+from ..core.claims_contract import (
+    LAST_COMPILE_RAW_HASHES_KEY,
+    RAW_SUPERSEDE_KEY,
+    collect_raw_content_hashes,
+    read_wiki_metadata_file,
+)
 from ..core.structure import WikiStructure
 from ..core.types import ConceptInfo, WikiMetadata
 
@@ -93,12 +98,9 @@ async def save_metadata(
     concepts_count: int,
     articles_count: int,
 ) -> None:
-    """Save wiki metadata including SHA256 file hashes for incremental compilation."""
+    """Save wiki metadata including portable SHA256 raw snapshots for incremental compile."""
     raw_files = structure.list_raw_files()
-    file_hashes: dict[str, str] = {}
-    for f in raw_files:
-        with contextlib.suppress(OSError):
-            file_hashes[str(f)] = hashlib.sha256(f.read_bytes()).hexdigest()
+    raw_hashes = collect_raw_content_hashes(structure)
 
     metadata = WikiMetadata(
         last_compile_time=datetime.now(UTC),
@@ -108,14 +110,21 @@ async def save_metadata(
     )
 
     metadata_path = structure.get_wiki_metadata_path()
-    metadata_dict = {
+    existing = read_wiki_metadata_file(metadata_path)
+    preserved_supersede = existing.get(RAW_SUPERSEDE_KEY)
+    if not isinstance(preserved_supersede, dict):
+        preserved_supersede = {}
+
+    metadata_dict: dict[str, object] = {
         "last_compile_time": metadata.last_compile_time.isoformat(),
         "total_concepts": metadata.total_concepts,
         "total_articles": metadata.total_articles,
         "total_raw_files": metadata.total_raw_files,
         "version": metadata.version,
-        "file_hashes": file_hashes,
+        LAST_COMPILE_RAW_HASHES_KEY: raw_hashes,
+        RAW_SUPERSEDE_KEY: preserved_supersede,
     }
 
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
     metadata_path.write_text(json.dumps(metadata_dict, indent=2), encoding="utf-8")
     logger.info(f"Saved metadata: {metadata_path}")

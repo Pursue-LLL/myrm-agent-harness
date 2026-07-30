@@ -12,13 +12,15 @@
 - all tools → FilterProcessor → tool_output_persister → UECD `.context/.../evicted/`
 
 [INPUT]
-- (none)
+- infra.retention_helpers::build_tool_call_group_by_id, should_retain_tool_message, extract_* (POS: cross-processor retention contract)
+- infra.tool_output_persister::persist_large_tool_output (POS: UECD evicted overflow persistence)
+- strategies.filter::create_filtered_result, should_filter (POS: tool result filter)
 
 [OUTPUT]
-- FilterProcessor: class — Filter Processor
+- FilterProcessor: oversized ToolMessage filter; retention path uses structure trim instead of LLM summary
 
 [POS]
-Provides FilterProcessor.
+Pipeline filter stage. Persists large tool output to disk, then applies LLM summary or deterministic retain trim based on compression_intent signals.
 """
 
 from langchain_core.language_models import BaseChatModel
@@ -28,9 +30,11 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
 
 from ...infra.retention_helpers import (
+    build_tool_call_group_by_id,
     extract_failed_tool_call_ids,
     extract_focus_files,
     extract_focus_modules,
+    extract_user_goal_hint,
     format_retained_tool_trim_message,
     should_retain_tool_message,
     structure_trim_tokens_saved,
@@ -49,9 +53,20 @@ from ...strategies.filter import (
     format_filtered_message,
     should_filter,
 )
+from ...strategies.tool_call_groups import ToolCallGroup
 from ..base import BaseProcessor, ProcessorContext
 
 logger = get_agent_logger(__name__)
+
+
+def _tool_call_group(
+    group_by_tool_call_id: dict[str, ToolCallGroup],
+    msg: ToolMessage,
+) -> ToolCallGroup | None:
+    tool_call_id = getattr(msg, "tool_call_id", None)
+    if not isinstance(tool_call_id, str) or not tool_call_id:
+        return None
+    return group_by_tool_call_id.get(tool_call_id)
 
 
 class FilterProcessor(BaseProcessor):
@@ -127,6 +142,8 @@ class FilterProcessor(BaseProcessor):
         failed_tool_call_ids = extract_failed_tool_call_ids(context.metadata)
         focus_files = extract_focus_files(context.metadata)
         focus_modules = extract_focus_modules(context.metadata)
+        user_goal_hint = extract_user_goal_hint(context.metadata)
+        group_by_tool_call_id = build_tool_call_group_by_id(context.messages)
 
         # 1. Single-tool filtering
         for msg in context.messages:
@@ -147,6 +164,8 @@ class FilterProcessor(BaseProcessor):
                         failed_tool_call_ids=failed_tool_call_ids,
                         focus_files=focus_files,
                         focus_modules=focus_modules,
+                        user_goal_hint=user_goal_hint,
+                        group=_tool_call_group(group_by_tool_call_id, msg),
                         filter_llm=filter_llm,
                         user_query=context.user_query,
                     )
@@ -171,6 +190,8 @@ class FilterProcessor(BaseProcessor):
                 failed_tool_call_ids,
                 focus_files=focus_files,
                 focus_modules=focus_modules,
+                user_goal_hint=user_goal_hint,
+                group=_tool_call_group(group_by_tool_call_id, m),
             )
         ]
 
@@ -204,6 +225,8 @@ class FilterProcessor(BaseProcessor):
                     failed_tool_call_ids=failed_tool_call_ids,
                     focus_files=focus_files,
                     focus_modules=focus_modules,
+                    user_goal_hint=user_goal_hint,
+                    group=_tool_call_group(group_by_tool_call_id, msg),
                     filter_llm=filter_llm,
                     user_query=context.user_query,
                 )
@@ -245,6 +268,8 @@ class FilterProcessor(BaseProcessor):
         failed_tool_call_ids: frozenset[str],
         focus_files: frozenset[str],
         focus_modules: frozenset[str],
+        user_goal_hint: str,
+        group: ToolCallGroup | None,
         filter_llm: BaseChatModel | None,
         user_query: str,
     ) -> tuple[int, bool]:
@@ -256,6 +281,8 @@ class FilterProcessor(BaseProcessor):
             failed_tool_call_ids,
             focus_files=focus_files,
             focus_modules=focus_modules,
+            user_goal_hint=user_goal_hint,
+            group=group,
         ):
             trimmed = trim_tool_result_content(content, DEFAULT_CACHE_TTL_PRUNE_CONFIG)
             preview = trimmed.content if trimmed is not None else content

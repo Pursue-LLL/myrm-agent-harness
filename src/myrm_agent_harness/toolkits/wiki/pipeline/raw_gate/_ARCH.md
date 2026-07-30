@@ -16,7 +16,7 @@ Policies: `FAIL` (agent ingest), `SKIP` / `SUPERSEDE` (settings import), `PUT_IF
 
 Programmatic ingress (all via `publish_raw`): SessionNotes (`memory_to_wiki`), turn digest (`_skill_agent_review`), Deep Research (`stream_lane_factory`), consolidation digest (`consolidation_bridge`), agent `wiki_ingest`, Settings import.
 
-Supersede appends `RAW_SUPERSEDE` to `wiki/log.md` via cognitive map writer.
+Supersede appends `RAW_SUPERSEDE` to `wiki/log.md` via cognitive map writer and records `raw_supersede` lineage in wiki metadata (`claims_contract.record_raw_supersede_entry`).
 
 ## Key Dependencies
 

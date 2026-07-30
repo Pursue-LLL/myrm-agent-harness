@@ -209,6 +209,15 @@ def _publish_raw_impl(
                     },
                 ),
             )
+            from myrm_agent_harness.toolkits.wiki.core.claims_contract import record_raw_supersede_entry
+
+            record_raw_supersede_entry(
+                structure,
+                rel_path=rel_path,
+                previous_sha256=previous_hash or "",
+                new_sha256=new_hash,
+                reason=reason,
+            )
             return _result_from_write(
                 rel_path=rel_path,
                 raw_path=raw_path,

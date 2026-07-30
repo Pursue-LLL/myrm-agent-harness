@@ -14,7 +14,7 @@ Three-tier context reduction strategies: Filter, Compress, Summarize.
 | deduplication.py | Core | Provides deduplicate_tool_results. | ✅ |
 | filter.py | Core | Tool result filter. Truncates large tool outputs and generates smart previews via structural extract | ✅ |
 | integrity_guard.py | Core | Tool pair integrity guard for compacted message histories. | ✅ |
-| priority_signals.py | Core | Priority signal helpers for compression planning. | ✅ |
+| priority_signals.py | Core | Group-level focus/goal signal matchers shared by Compress priority planning and Filter retention | ✅ |
 | smart_fallback.py | Core | Smart fallback for extreme token overflow; accepts failed_tool_call_ids so protected tools stay HIGH priority during budget allocation | ✅ |
 | progress_timeout.py | Core | Progress-aware timeout primitives (SummaryProgressTracker Protocol, ProgressClock, InactivityTimeoutError, TotalCeilingTimeoutError) for detecting stalled summarization. | ✅ |
 | summarizer.py | Core | Context summarizer. Pure in-memory summarization strategy using structured summary schema, cache-safe message-prefix invocation, streaming progress tracking, and aux-model context guard. | ✅ |

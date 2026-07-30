@@ -130,35 +130,6 @@ async def test_check_drift_detects_drift(mock_llm: MagicMock, linter_auto: WikiL
     assert any(i.issue_type == "drift" for i in issues)
 
 
-# --- _check_consistency ---
-
-
-@pytest.mark.asyncio
-async def test_check_consistency_clean(mock_llm: MagicMock, linter_auto: WikiLinter, temp_wiki: WikiStructure) -> None:
-    concept = temp_wiki.get_concept_file_path("Clean")
-    concept.write_text("# Clean\n\n## Compiled Truth\nConsistent content.\n## Timeline\n")
-
-    concept2 = temp_wiki.get_concept_file_path("Clean2")
-    concept2.write_text("# Clean2\n\n## Compiled Truth\nAlso consistent.\n## Timeline\n")
-
-    mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="No issues found."))
-    issues = await linter_auto._check_consistency()
-    assert all(i.issue_type != "inconsistency" for i in issues)
-
-
-@pytest.mark.asyncio
-async def test_check_consistency_detects_issues(mock_llm: MagicMock, linter_auto: WikiLinter, temp_wiki: WikiStructure) -> None:
-    concept = temp_wiki.get_concept_file_path("Inconsistent")
-    concept.write_text("# Inconsistent\n\n## Compiled Truth\nA is B.\n## Timeline\n")
-
-    concept2 = temp_wiki.get_concept_file_path("Contradicting")
-    concept2.write_text("# Contradicting\n\n## Compiled Truth\nA is not B.\n## Timeline\n")
-
-    mock_llm.ainvoke = AsyncMock(return_value=AIMessage(content="Found inconsistency: A is B vs A is not B."))
-    issues = await linter_auto._check_consistency()
-    assert any(i.issue_type == "inconsistency" for i in issues)
-
-
 # --- _auto_fix_issue ---
 
 

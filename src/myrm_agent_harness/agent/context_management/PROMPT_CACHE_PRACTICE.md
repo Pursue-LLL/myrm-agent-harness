@@ -680,8 +680,8 @@ Pipeline 按 `max_context_tokens` 缓存实例，避免重复创建。
 - 不完整工具调用直接跳过，宁可少压一点，也不破坏 Prompt Cache 与消息结构稳定性
 - `compression_intent` 只传递小体积结构化信号（如 `focus_files`、`focus_modules`、`failed_tool_call_ids`、`user_goal_hint`），避免把长文本业务语义注入稳定前缀而破坏缓存
 - `failed_tool_call_ids` 已接入 Filter（结构 trim 保留失败输出）、Compress 优先级规划：失败工具调用即使输出内容看起来“像成功”，也会被提升为高优先级，减少错误恢复链路被过早 Filter 摘要或 Compress 压缩的概率
-- `focus_files` / `focus_modules` 已接入压缩优先级规划：当前使用受控窗口扫描（头尾窗口）匹配工具调用参数、AI 调用内容与工具结果，在长输出里也能更稳地保护当前焦点
-- `user_goal_hint` 已接入压缩优先级规划：当缺少明确文件/模块路径时，压缩器仍可根据稳定目标关键词延后压缩与当前任务强相关的工具调用组
+- `focus_files` / `focus_modules` 已接入 Filter 与 Compress 的 group 级优先级/retain 规划：Filter 与 Compress 共用同一套 tool_call args + 结果窗口扫描匹配逻辑，避免路径仅出现在 tool args 时被 Filter LLM 摘要
+- `user_goal_hint` 已接入 Filter 与 Compress 的 group 级匹配：当缺少明确文件/模块路径时，仍可根据稳定目标关键词保护相关工具调用组，Filter 侧同样走结构 trim 而非 LLM 摘要
 
 ### 5.5 Resume-Aware Cache Preservation（HITL专用）
 

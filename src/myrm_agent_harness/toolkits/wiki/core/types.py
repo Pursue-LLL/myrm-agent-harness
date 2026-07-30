@@ -61,6 +61,7 @@ class CompileResult:
     articles_pending: int = 0
     articles_published: int = 0
     articles_blocked: int = 0
+    synthesis_pending: int = 0
     errors: list[str] = field(default_factory=list)
 
 

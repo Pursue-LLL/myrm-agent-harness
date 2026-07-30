@@ -16,8 +16,8 @@ and sidecar-first hierarchical retrieval (L0/L1 route + L2 article grounding).
 | graph_store.py | Core | Knowledge graph BFS traversal, federated graph queries, insight delegation | ✅ |
 | graph_analysis.py | Core | LPA community detection, knowledge gap discovery, graph insights | ✅ |
 | best_first.py | Core | Best-first priority-queue convergence + raw_claim frontmatter rerank | ✅ |
-| query.py | Core | Query engine: index-first seeds → sidecar scope → FTS rerank → best-first graph converge; SourceSnippet incl. claims + snapshot_status + asset hits | ✅ |
-| source_citations.py | Core | Shared LLM-Wiki citation metadata builder; scope id injection for asset URLs | ✅ |
+| query.py | Core | Query engine: index-first seeds → sidecar scope → FTS rerank → best-first graph converge; SourceSnippet incl. claims + snapshot_status + evidence SHA + asset hits | ✅ |
+| source_citations.py | Core | Shared LLM-Wiki citation metadata builder (`build_evidence_resource_uri` + optional structure); scope id injection for asset URLs | ✅ |
 | asset_index.py | Core | Wiki asset caption indexer: FTS5 + Qdrant `wiki_assets`, SHA256 skip, provenance scan, orphan purge | ✅ |
 
 ## Key Dependencies

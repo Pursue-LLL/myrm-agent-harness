@@ -203,6 +203,100 @@ class TestFilterProcessor:
             assert "myrm-agent-server/app/main.py" in str(result.messages[0].content)
 
     @pytest.mark.asyncio
+    async def test_process_retains_focus_file_when_path_only_in_tool_args(self) -> None:
+        fp = FilterProcessor()
+        large_body = "import os\n" + ("def handler() -> None:\n    pass\n" * 900)
+        ctx = _make_context(
+            [
+                HumanMessage(content="review login module"),
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "call_read",
+                            "name": "grep_tool",
+                            "args": {"pattern": "TODO", "path": "src/auth/login.py"},
+                        }
+                    ],
+                ),
+                ToolMessage(
+                    content=large_body,
+                    tool_call_id="call_read",
+                    name="grep_tool",
+                ),
+            ],
+            metadata={
+                "compression_intent": {
+                    "focus_files": ["src/auth/login.py"],
+                }
+            },
+        )
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.persist_large_tool_output",
+                new_callable=AsyncMock,
+                return_value="/tmp/saved.txt",
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.create_filtered_result",
+                new_callable=AsyncMock,
+            ) as mock_llm_filter,
+        ):
+            result = await fp.process(ctx)
+            mock_llm_filter.assert_not_called()
+            tool_msg = result.messages[2]
+            assert "RETAINED TOOL OUTPUT" in str(tool_msg.content)
+            assert "import os" in str(tool_msg.content)
+
+    @pytest.mark.asyncio
+    async def test_process_retains_goal_hint_when_signal_only_in_tool_args(self) -> None:
+        fp = FilterProcessor()
+        large_body = "stdout chunk\n" + ("line output without error markers\n" * 1500)
+        ctx = _make_context(
+            [
+                HumanMessage(content="fix login timeout"),
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "call_bash",
+                            "name": "bash_code_execute_tool",
+                            "args": {"command": "pytest tests/test_login_timeout.py -q"},
+                        }
+                    ],
+                ),
+                ToolMessage(
+                    content=large_body,
+                    tool_call_id="call_bash",
+                    name="bash_code_execute_tool",
+                ),
+            ],
+            metadata={
+                "compression_intent": {
+                    "user_goal_hint": "fix login timeout issue",
+                }
+            },
+        )
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.persist_large_tool_output",
+                new_callable=AsyncMock,
+                return_value="/tmp/saved.txt",
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.create_filtered_result",
+                new_callable=AsyncMock,
+            ) as mock_llm_filter,
+        ):
+            result = await fp.process(ctx)
+            mock_llm_filter.assert_not_called()
+            tool_msg = result.messages[2]
+            assert "RETAINED TOOL OUTPUT" in str(tool_msg.content)
+            assert "stdout chunk" in str(tool_msg.content)
+
+    @pytest.mark.asyncio
     async def test_process_turn_aggregate_filters_latest_parallel_tools(self) -> None:
         fp = FilterProcessor()
         large_chunk = "word " * 8_000

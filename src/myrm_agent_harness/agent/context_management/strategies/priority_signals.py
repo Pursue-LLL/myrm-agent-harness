@@ -7,9 +7,10 @@
 
 [OUTPUT]
 - adjust_group_priority: Adjust group priority using structured focus and goal hints.
+- group_matches_focus_signals / group_matches_goal_hint: shared group haystack matchers for Filter + Compress.
 
 [POS]
-Priority signal helpers for compression planning.
+Priority signal helpers for compression planning and Filter retention alignment.
 """
 
 from __future__ import annotations
@@ -62,17 +63,29 @@ def adjust_group_priority(
     if base_priority <= MessagePriority.HIGH_TOOL_ERROR:
         return base_priority
 
-    if _group_matches_focus_signals(
+    if group_matches_focus_signals(
         group, focus_files=focus_files or frozenset(), focus_modules=focus_modules or frozenset()
     ):
         return MessagePriority.HIGH_TOOL_CALL
 
-    if _group_matches_goal_hint(group, user_goal_hint):
+    if group_matches_goal_hint(group, user_goal_hint):
         if base_priority >= MessagePriority.LOW_TOOL_SUCCESS:
             return MessagePriority.MEDIUM_TOOL_SUMMARY
         return MessagePriority.HIGH_TOOL_CALL
 
     return base_priority
+
+
+def group_matches_focus_signals(
+    group: object, *, focus_files: frozenset[str], focus_modules: frozenset[str]
+) -> bool:
+    """Return True when a tool-call group references focus file/module signals."""
+    return _group_matches_focus_signals(group, focus_files=focus_files, focus_modules=focus_modules)
+
+
+def group_matches_goal_hint(group: object, user_goal_hint: str) -> bool:
+    """Return True when a tool-call group matches structured user goal terms."""
+    return _group_matches_goal_hint(group, user_goal_hint)
 
 
 def _group_matches_focus_signals(group: object, *, focus_files: frozenset[str], focus_modules: frozenset[str]) -> bool:

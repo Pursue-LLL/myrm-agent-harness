@@ -17,7 +17,7 @@ import contextlib
 import sqlite3
 from pathlib import Path
 
-from .types import CompileCircuitState, CompileRunSnapshot
+from .types import CompileCircuitState, CompilePhase, CompileRunSnapshot
 
 
 class CompileCircuitStore:
@@ -48,6 +48,10 @@ class CompileCircuitStore:
                     state TEXT NOT NULL DEFAULT 'running',
                     pause_reason TEXT NOT NULL DEFAULT '',
                     primary_error_kind TEXT NOT NULL DEFAULT '',
+                    phase TEXT NOT NULL DEFAULT 'idle',
+                    facet_count INTEGER NOT NULL DEFAULT 0,
+                    warning_count INTEGER NOT NULL DEFAULT 0,
+                    survey_skipped INTEGER NOT NULL DEFAULT 0,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -57,17 +61,45 @@ class CompileCircuitStore:
                 VALUES (1, 'running')
                 """
             )
+            self._migrate_schema(conn)
+
+    def _migrate_schema(self, conn: sqlite3.Connection) -> None:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(compile_circuit)").fetchall()}
+        if "phase" not in columns:
+            conn.execute("ALTER TABLE compile_circuit ADD COLUMN phase TEXT NOT NULL DEFAULT 'idle'")
+        if "facet_count" not in columns:
+            conn.execute("ALTER TABLE compile_circuit ADD COLUMN facet_count INTEGER NOT NULL DEFAULT 0")
+        if "warning_count" not in columns:
+            conn.execute("ALTER TABLE compile_circuit ADD COLUMN warning_count INTEGER NOT NULL DEFAULT 0")
+        if "survey_skipped" not in columns:
+            conn.execute("ALTER TABLE compile_circuit ADD COLUMN survey_skipped INTEGER NOT NULL DEFAULT 0")
 
     def get_snapshot(self) -> CompileRunSnapshot:
         with self._conn() as conn:
-            row = conn.execute("SELECT state, pause_reason, primary_error_kind FROM compile_circuit WHERE id = 1").fetchone()
+            row = conn.execute(
+                """
+                SELECT state, pause_reason, primary_error_kind, phase, facet_count, warning_count, survey_skipped
+                FROM compile_circuit
+                WHERE id = 1
+                """
+            ).fetchone()
             if row is None:
                 return CompileRunSnapshot(state="running")
             state: CompileCircuitState = "paused" if row["state"] == "paused" else "running"
+            phase_value = row["phase"] or "idle"
+            phase: CompilePhase
+            if phase_value in {"idle", "structure_survey", "semantic_compile", "postprocess"}:
+                phase = phase_value  # type: ignore[assignment]
+            else:
+                phase = "idle"
             return CompileRunSnapshot(
                 state=state,
                 pause_reason=row["pause_reason"] or "",
                 primary_error_kind=row["primary_error_kind"] or "",
+                phase=phase,
+                facet_count=int(row["facet_count"] or 0),
+                warning_count=int(row["warning_count"] or 0),
+                survey_skipped=bool(row["survey_skipped"]),
             )
 
     def is_paused(self) -> bool:
@@ -97,5 +129,27 @@ class CompileCircuitStore:
                     primary_error_kind = '',
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = 1
+                """,
+            )
+
+    def set_phase(
+        self,
+        phase: CompilePhase,
+        *,
+        facet_count: int = 0,
+        warning_count: int = 0,
+        survey_skipped: bool = False,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
                 """
+                UPDATE compile_circuit
+                SET phase = ?,
+                    facet_count = ?,
+                    warning_count = ?,
+                    survey_skipped = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = 1
+                """,
+                (phase, facet_count, warning_count, 1 if survey_skipped else 0),
             )

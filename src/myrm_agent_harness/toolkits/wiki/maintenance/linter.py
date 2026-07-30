@@ -12,8 +12,7 @@ WikiLinter: Wiki health check and maintenance engine
 
 [POS]
 Wiki health maintenance core engine. Performs wiki quality checks and targeted repairs:
-broken link detection, completeness checks (report-only; no LLM auto-write), consistency
-checks (LLM-driven), stale/drift detection, knowledge-gap analysis, and cross-reference discovery.
+broken link detection, completeness checks (report-only; no LLM auto-write), stale/drift detection, knowledge-gap analysis, and cross-reference discovery.
 """
 
 from __future__ import annotations
@@ -58,7 +57,7 @@ logger = get_agent_logger(__name__)
 class WikiLinter:
     """Wiki health checker and automatic maintenance engine.
 
-    Checks: broken links, completeness, consistency, stale content, drift,
+    Checks: broken links, completeness, stale content, drift,
     knowledge-gap analysis (isolated/bridge nodes). Auto-repairs and discovers connections.
     """
 
@@ -100,12 +99,7 @@ class WikiLinter:
         invalid_types = await self._check_frontmatter_types()
         all_issues.extend(invalid_types)
 
-        # Check 3: Consistency (advanced, requires LLM)
-        if self._config.enable_auto_maintenance:
-            consistency = await self._check_consistency()
-            all_issues.extend(consistency)
-
-        # Check 4: Stale content (raw files updated but wiki not recompiled)
+        # Check 3: Stale content (raw files updated but wiki not recompiled)
         stale = await self._check_stale()
         all_issues.extend(stale)
 
@@ -213,6 +207,8 @@ class WikiLinter:
             else []
         )
 
+        await self._maybe_commit_vault_git("maintain")
+
         return LintResult(
             issues_found=len(all_issues),
             issues_fixed=fixed_count,
@@ -221,6 +217,18 @@ class WikiLinter:
             issues=all_issues,
             raw_security_removed=raw_security_removed,
             raw_security_removed_paths=raw_security_removed_paths,
+        )
+
+    async def _maybe_commit_vault_git(self, reason: str) -> None:
+        import asyncio
+
+        from ..portability.vault_git import maybe_commit_vault_git_snapshot
+
+        await asyncio.to_thread(
+            maybe_commit_vault_git_snapshot,
+            self._structure,
+            self._config,
+            reason=reason,
         )
 
     async def _check_broken_links(self) -> list[LintIssue]:
@@ -270,48 +278,6 @@ class WikiLinter:
     async def _check_frontmatter_types(self) -> list[LintIssue]:
         """Check concept articles for required frontmatter `type` field."""
         return collect_invalid_frontmatter_type_issues(self._structure)
-
-    async def _check_consistency(self) -> list[LintIssue]:
-        """
-        Check for contradictions or inconsistencies (using LLM).
-
-        This is an advanced check that requires LLM analysis.
-        """
-        issues = []
-        concepts = self._structure.list_concepts()
-
-        if len(concepts) < 2:
-            return issues
-
-        for _i, concept_path in enumerate(concepts[:10]):
-            try:
-                content = concept_path.read_text(encoding="utf-8")
-
-                system_msg = SystemMessage(
-                    content="You are a wiki quality checker. Identify contradictions or inconsistencies."
-                )
-                human_msg = HumanMessage(
-                    content=f"Check this article for issues:\n\n{content}\n\nReport any problems found."
-                )
-
-                response = await self._llm.ainvoke([system_msg, human_msg])
-
-                if "inconsistency" in response.content.lower() or "contradiction" in response.content.lower():
-                    issues.append(
-                        LintIssue(
-                            issue_type="inconsistency",
-                            severity="high",
-                            location=str(concept_path),
-                            description=response.content[:200],
-                            can_auto_fix=False,
-                        )
-                    )
-
-            except Exception as e:
-                logger.error(f"Failed to check consistency of {concept_path}: {e}")
-                break
-
-        return issues
 
     async def _auto_fix_issue(self, issue: LintIssue) -> None:
         """Automatically fix an issue if possible."""

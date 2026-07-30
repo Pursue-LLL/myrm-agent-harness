@@ -16,13 +16,15 @@ IMPORTANT: Self-update reminder: once this file is updated, also update:
 1. agent/context_management/PROMPT_CACHE_PRACTICE.md §4.1
 
 [INPUT]
-- (none)
+- infra.retention_helpers::extract_failed_tool_call_ids, extract_focus_files, extract_focus_modules, extract_user_goal_hint, effective_keep_recent_calls (POS: cross-processor retention contract)
+- strategies.compactor::compress_messages_async (POS: priority-aware message compactor)
+- strategies.smart_fallback::apply_smart_fallback (POS: extreme overflow fallback)
 
 [OUTPUT]
-- CompressProcessor: class — Compress Processor
+- CompressProcessor: priority-aware compression with keep_recent ToolCallGroup protection and compression_intent consumption
 
 [POS]
-Provides CompressProcessor with Hot Cache Bypass and Anti-Thrashing protection.
+Pipeline compress stage. Offloads and compacts old tool-call groups; honors compression_intent and keep_recent_calls alignment with ActivePrune.
 """
 
 import time
@@ -45,6 +47,7 @@ from ...infra.retention_helpers import (
     extract_failed_tool_call_ids,
     extract_focus_files,
     extract_focus_modules,
+    extract_user_goal_hint,
 )
 from ...strategies.compactor import compress_messages_async
 from ...strategies.smart_fallback import apply_smart_fallback
@@ -262,7 +265,7 @@ class CompressProcessor(BaseProcessor):
             failed_tool_call_ids=extract_failed_tool_call_ids(context.metadata),
             focus_files=extract_focus_files(context.metadata),
             focus_modules=extract_focus_modules(context.metadata),
-            user_goal_hint=_extract_user_goal_hint(context),
+            user_goal_hint=extract_user_goal_hint(context.metadata),
         )
 
         after_compress_tokens = estimate_messages_tokens(context.messages)
@@ -333,14 +336,3 @@ class CompressProcessor(BaseProcessor):
     def _is_compressed(self, tool_msg: BaseMessage) -> bool:
         content = str(tool_msg.content)
         return content.startswith("COMPACTED:")
-
-
-def _extract_user_goal_hint(context: ProcessorContext) -> str:
-    raw_intent = context.metadata.get("compression_intent")
-    if not isinstance(raw_intent, dict):
-        return ""
-
-    raw_goal_hint = raw_intent.get("user_goal_hint")
-    if not isinstance(raw_goal_hint, str):
-        return ""
-    return raw_goal_hint.strip()

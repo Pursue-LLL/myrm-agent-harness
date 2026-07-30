@@ -11,10 +11,10 @@ from myrm_agent_harness.agent.context_management.infra.retention_helpers import 
     extract_failed_tool_call_ids,
     extract_focus_files,
     extract_focus_modules,
+    extract_user_goal_hint,
 )
 from myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor import (
     CompressProcessor,
-    _extract_user_goal_hint,
 )
 
 
@@ -219,7 +219,11 @@ class TestCompressProcessorProcess:
         ):
             result = await processor.process(context)
 
-        mock_fallback.assert_awaited_once_with(original_messages, max_tokens=9000)
+        mock_fallback.assert_awaited_once_with(
+            original_messages,
+            max_tokens=9000,
+            failed_tool_call_ids=frozenset(),
+        )
         assert result.messages == fallback_messages
         assert result.tokens_saved == 70
         assert result.metadata["compression_count"] == 1
@@ -254,7 +258,7 @@ class TestCompressionIntentExtraction:
         assert extract_failed_tool_call_ids(context.metadata) == frozenset({"call_1"})
         assert extract_focus_files(context.metadata) == frozenset({"src/app.py"})
         assert extract_focus_modules(context.metadata) == frozenset({"agent.context"})
-        assert _extract_user_goal_hint(context) == "fix timeout"
+        assert extract_user_goal_hint(context.metadata) == "fix timeout"
 
     def test_extract_helpers_ignore_invalid_payload_shape(self) -> None:
         context = _build_context(metadata={"compression_intent": "invalid"})
@@ -262,7 +266,7 @@ class TestCompressionIntentExtraction:
         assert extract_failed_tool_call_ids(context.metadata) == frozenset()
         assert extract_focus_files(context.metadata) == frozenset()
         assert extract_focus_modules(context.metadata) == frozenset()
-        assert _extract_user_goal_hint(context) == ""
+        assert extract_user_goal_hint(context.metadata) == ""
 
     def test_extract_helpers_missing_fields_in_valid_intent(self) -> None:
         """Intent is dict but individual fields are missing or wrong type."""
@@ -271,7 +275,7 @@ class TestCompressionIntentExtraction:
         assert extract_failed_tool_call_ids(context.metadata) == frozenset()
         assert extract_focus_files(context.metadata) == frozenset()
         assert extract_focus_modules(context.metadata) == frozenset()
-        assert _extract_user_goal_hint(context) == ""
+        assert extract_user_goal_hint(context.metadata) == ""
 
     def test_extract_helpers_wrong_field_types(self) -> None:
         """Intent has fields but with wrong types."""
@@ -289,7 +293,7 @@ class TestCompressionIntentExtraction:
         assert extract_failed_tool_call_ids(context.metadata) == frozenset()
         assert extract_focus_files(context.metadata) == frozenset()
         assert extract_focus_modules(context.metadata) == frozenset()
-        assert _extract_user_goal_hint(context) == ""
+        assert extract_user_goal_hint(context.metadata) == ""
 
 
 class TestEcoMode:

@@ -737,8 +737,15 @@ tools = create_memory_tools(manager=manager)
 | 工具            | 功能                                                                  |
 | --------------- | --------------------------------------------------------------------- |
 | `memory_search_tool` | COMMON 层统一读工具：`corpus=memory|wiki|sessions|all`；Server 通过 `MemorySearchPolicy` ACL 绑定 wiki/会话后端 |
-| `memory_save_tool`   | 存储新记忆，支持 knowledge/event/preference/rule/instruction 五种类别 |
+| `memory_save_tool`   | 存储新记忆，支持 knowledge/event/preference/rule/instruction 五种类别；当 `MemorySearchPolicy.allow_wiki=True` 时，≥800 字或 ≥3 个 markdown 标题的 knowledge/event 会被硬拒并指向 `wiki_ingest_tool` |
 | `memory_manage_tool` | 更新/删除/纠正记忆（correct action 创建纠正链） |
+
+#### Wiki vs Memory 写入边界
+
+- **memory_save 硬护栏**（`wiki_memory_boundary.py`）：wiki 启用时，document-like 的 knowledge/event 拒写；计数见 `record_wiki_memory_save_rejection()`。
+- **persist 硬滤**（同模块 `filter_wiki_document_vector_memories`）：auto_extract 写入前 drop document-like semantic/episodic。
+- **自动提取 prompt**（`ExtractionConfig.wiki_boundary_enabled`）：提取 LLM 跳过 document-like 事实；`_skill_agent_review` 在 `_wiki_base_dir` 存在时开启。
+- **Settings 文案**（Server FE）：Knowledge / Second Brain / External sources 描述中说明 Wiki 存长文、Memory 存短事实。
 
 `memory_search_tool` 的 `limit` 在 memory corpus 下收敛到 `1..15`；sessions corpus 下收敛到 `1..8`。空查询或 `*` 在 `corpus=sessions` 时表示浏览最近会话。wiki/sessions corpus 由 Server policy 控制，runtime 无法扩 scope。
 

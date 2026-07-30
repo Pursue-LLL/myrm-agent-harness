@@ -525,6 +525,7 @@ async def test_wiki_query_emits_claim_snapshot_status(direct_mock_tools: tuple) 
     assert sources[0]["snapshot_status"] == "stale"
     assert sources[0]["claim_id"] == "claim.budget"
     assert sources[0]["evidence_path"] == "raw/source.md"
+    assert sources[0]["resource_uri"] == "raw/source.md@sha256:abc123"
     assert "claim.budget" in str(sources[0]["source_key"])
 
 

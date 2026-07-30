@@ -96,9 +96,15 @@ async def test_filter_changed_files_unchanged(wiki_structure: WikiStructure, moc
 
     import hashlib
 
+    from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
+        LAST_COMPILE_RAW_HASHES_KEY,
+        raw_relative_storage_key,
+    )
+
     content_hash = hashlib.sha256(raw.read_bytes()).hexdigest()
+    storage_key = raw_relative_storage_key(wiki_structure, raw)
     metadata_path = wiki_structure.get_wiki_metadata_path()
-    metadata_path.write_text(json.dumps({"file_hashes": {str(raw): content_hash}}))
+    metadata_path.write_text(json.dumps({LAST_COMPILE_RAW_HASHES_KEY: {storage_key: content_hash}}))
 
     changed = await compiler._filter_changed_files([raw])
     assert changed == []
@@ -110,8 +116,11 @@ async def test_filter_changed_files_modified(wiki_structure: WikiStructure, mock
     raw = wiki_structure.raw_dir / "test.md"
     raw.write_text("content")
 
+    from myrm_agent_harness.toolkits.wiki.core.claims_contract import LAST_COMPILE_RAW_HASHES_KEY, raw_relative_storage_key
+
     metadata_path = wiki_structure.get_wiki_metadata_path()
-    metadata_path.write_text(json.dumps({"file_hashes": {str(raw): "stale_hash"}}))
+    storage_key = raw_relative_storage_key(wiki_structure, raw)
+    metadata_path.write_text(json.dumps({LAST_COMPILE_RAW_HASHES_KEY: {storage_key: "stale_hash"}}))
 
     changed = await compiler._filter_changed_files([raw])
     assert changed == [raw]
@@ -178,10 +187,31 @@ async def test_save_metadata(wiki_structure: WikiStructure, mock_llm: AsyncMock)
     await compiler._save_metadata(5, 3)
     metadata_path = wiki_structure.get_wiki_metadata_path()
     assert metadata_path.exists()
+    from myrm_agent_harness.toolkits.wiki.core.claims_contract import LAST_COMPILE_RAW_HASHES_KEY, raw_relative_storage_key
+
     metadata = json.loads(metadata_path.read_text())
     assert metadata["total_concepts"] == 5
     assert metadata["total_articles"] == 3
-    assert str(raw) in metadata["file_hashes"]
+    assert raw_relative_storage_key(wiki_structure, raw) in metadata[LAST_COMPILE_RAW_HASHES_KEY]
+
+
+@pytest.mark.asyncio
+async def test_save_metadata_preserves_raw_supersede(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
+    from myrm_agent_harness.toolkits.wiki.core.claims_contract import RAW_SUPERSEDE_KEY, record_raw_supersede_entry
+
+    record_raw_supersede_entry(
+        wiki_structure,
+        rel_path="budget.md",
+        previous_sha256="a" * 64,
+        new_sha256="b" * 64,
+        reason="settings import",
+    )
+
+    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
+    await compiler._save_metadata(2, 1)
+
+    metadata = json.loads(wiki_structure.get_wiki_metadata_path().read_text())
+    assert "raw/budget.md" in metadata[RAW_SUPERSEDE_KEY]
 
 
 # --- _generate_backlinks ---
@@ -665,7 +695,7 @@ async def test_filter_changed_files_unreadable_file(
     raw.write_text("content")
 
     metadata_path = wiki_structure.get_wiki_metadata_path()
-    metadata_path.write_text(json.dumps({"file_hashes": {str(raw): "oldhash"}}))
+    metadata_path.write_text(json.dumps({"last_compile_raw_hashes": {"raw/ghost.md": "oldhash"}}))
 
     raw.unlink()
 

@@ -11,7 +11,7 @@ Optional memory strategies: forgetting, extraction, deduplication, consolidation
 | consolidation.py | Core | Cross-session memory consolidation strategy. Analyzes recent memories via LLM to detect contradictions, redundancies, and generate insights. | ✅ |
 | consolidation_rollback.py | Core | Consolidation rollback. Reverses the most recent consolidation cycle using existing soft-deletion and metadata mechanisms. Zero extra storage. | ✅ |
 | deduplicator.py | Core | Three-layer smart deduplication strategy. Layer 1: O(1) normalized hash with persistent cache | ✅ |
-| extractor.py | Core | Automatic memory extractor. Regex pre-scan for tool edicts + LLM extraction of structured memories. Includes goal learnings extraction for post-goal actionable knowledge capture. | ✅ |
+| extractor.py | Core | Automatic memory extractor. Regex pre-scan for tool edicts + LLM extraction of structured memories. `ExtractionConfig.wiki_boundary_enabled` skips document-like facts when wiki is enabled. | ✅ |
 | forgetting.py | Core | Forgetting strategy. Calculates retention scores based on time decay, access frequency, | ✅ |
 | llm_prompt.py | Core | LLM prompt for Layer 3 semantic deduplication judgment. | ✅ |
 | pattern_discovery.py | Core | Cross-cycle pattern discovery. Analyzes accumulated memories and consolidation insights to surface behavioral patterns the user may not be aware of. Gated by memory count (≥50) and consolidation count (≥3). | ✅ |

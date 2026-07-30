@@ -348,6 +348,19 @@ Agent 在任务进行中**主动**将关键发现写入文件，这是独立于�
 - 技能文档被过滤后，Agent 读取文件又被过滤 → **死循环**
 - 任务计划被过滤后，Agent 无法执行任务
 
+**compression_intent 保留（结构 trim，跳过 LLM 摘要）**：
+
+当 pipeline metadata 含 `compression_intent` 时，Filter 在超大工具结果上优先走 deterministic retain：
+
+| 信号 | 匹配范围 | 行为 |
+|------|----------|------|
+| `failed_tool_call_ids` | tool_call_id | 结构 trim + 磁盘完整内容 |
+| `focus_files` / `focus_modules` | ToolCallGroup（args + 输出窗口） | 结构 trim |
+| `user_goal_hint` | ToolCallGroup 关键词 | 结构 trim |
+| 工具错误启发式 | ToolMessage 正文 | 结构 trim |
+
+与 Compress 共用 `priority_signals` 的 group haystack 匹配，避免路径仅出现在 tool args 时被 LLM 摘要。
+
 **任务感知的混合过滤策略**：
 
 根据内容类型自动选择最优过滤方式：

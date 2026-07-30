@@ -5,14 +5,17 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.infra.retention_helpers import (
+    build_tool_call_group_by_id,
     effective_keep_recent_calls,
     extract_failed_tool_call_ids,
     extract_focus_files,
     extract_focus_modules,
+    extract_user_goal_hint,
     find_keep_recent_prune_cutoff,
     should_retain_tool_message,
     tool_message_matches_focus_signals,
 )
+from myrm_agent_harness.agent.context_management.strategies.tool_call_groups import build_tool_call_groups
 
 
 def test_extract_failed_tool_call_ids_invalid_shape() -> None:
@@ -52,6 +55,91 @@ def test_should_retain_tool_message_for_focus_file_signal() -> None:
         frozenset(),
         focus_files=frozenset({"src/app/main.py"}),
     ) is True
+
+
+def test_should_retain_tool_message_for_focus_path_in_tool_args_only() -> None:
+    messages = [
+        HumanMessage(content="review login module"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "call_read",
+                    "name": "file_read_tool",
+                    "args": {"path": "src/auth/login.py"},
+                }
+            ],
+        ),
+        ToolMessage(
+            content="import os\n" + ("def todo_item() -> None:\n    pass\n" * 400),
+            tool_call_id="call_read",
+            name="file_read_tool",
+        ),
+    ]
+    groups = build_tool_call_groups(messages)
+    assert len(groups) == 1
+    tool_msg = messages[2]
+    assert isinstance(tool_msg, ToolMessage)
+
+    assert should_retain_tool_message(
+        tool_msg,
+        frozenset(),
+        focus_files=frozenset({"src/auth/login.py"}),
+        group=groups[0],
+    ) is True
+    assert should_retain_tool_message(
+        tool_msg,
+        frozenset(),
+        focus_files=frozenset({"src/auth/login.py"}),
+    ) is False
+
+
+def test_should_retain_tool_message_for_goal_hint_in_tool_args_only() -> None:
+    messages = [
+        HumanMessage(content="fix login timeout"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "call_bash",
+                    "name": "bash_code_execute_tool",
+                    "args": {"command": "pytest tests/test_login_timeout.py -q"},
+                }
+            ],
+        ),
+        ToolMessage(
+            content="FAILED " + ("assert False\n" * 500),
+            tool_call_id="call_bash",
+            name="bash_code_execute_tool",
+        ),
+    ]
+    groups = build_tool_call_groups(messages)
+    assert len(groups) == 1
+    tool_msg = messages[2]
+    assert isinstance(tool_msg, ToolMessage)
+
+    assert should_retain_tool_message(
+        tool_msg,
+        frozenset(),
+        user_goal_hint="fix login timeout issue",
+        group=groups[0],
+    ) is True
+
+
+def test_build_tool_call_group_by_id() -> None:
+    messages = [
+        HumanMessage(content="hi"),
+        AIMessage(content="", tool_calls=[{"id": "tc1", "name": "grep_tool", "args": {}}]),
+        ToolMessage(content="result1", name="grep_tool", tool_call_id="tc1"),
+    ]
+    index = build_tool_call_group_by_id(messages)
+    assert "tc1" in index
+    assert index["tc1"].tool_index == 2
+
+
+def test_extract_user_goal_hint() -> None:
+    assert extract_user_goal_hint({}) == ""
+    assert extract_user_goal_hint({"compression_intent": {"user_goal_hint": " fix timeout "}}) == "fix timeout"
 
 
 def test_tool_message_matches_focus_signals() -> None:

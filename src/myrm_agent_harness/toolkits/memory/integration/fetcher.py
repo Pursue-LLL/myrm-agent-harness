@@ -218,7 +218,13 @@ class IntegrationFetcher:
         pending_known_keys: list[tuple[str, str]] = []
 
         for leaf, emb, text in zip(leaves, embeddings, texts, strict=True):
-            item_data = {"text": text, "type": leaf.source_type, "title": leaf.title}
+            item_data = {
+                "text": text,
+                "type": leaf.source_type,
+                "title": leaf.title,
+                "provider": leaf.provider,
+                "external_object_id": leaf.external_object_id,
+            }
             if self._is_known(leaf.provider, leaf.external_object_id):
                 results.append((IntegrationSyncOutcome.SKIPPED, "", item_data))
                 continue

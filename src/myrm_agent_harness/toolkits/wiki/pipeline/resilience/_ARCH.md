@@ -10,9 +10,9 @@ Consumed by `queue.py` and `compiler.py`; exposed to product UI via server `comp
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public exports | — |
-| `types.py` | Core | `CompileRunSnapshot`, `FailureResolution` | ✅ |
+| `types.py` | Core | `CompileRunSnapshot` (incl. compile phase + survey stats), `FailureResolution` | ✅ |
 | `failure_policy.py` | Core | ErrorKind SSOT mapping, batch pause rules, transient detection | ✅ |
-| `circuit.py` | Core | SQLite `compile_circuit` store (running/paused) | ✅ |
+| `circuit.py` | Core | SQLite `compile_circuit` store (running/paused, compile phase + survey stats) | ✅ |
 | `sanitize.py` | Core | Redact API keys from queue error messages | ✅ |
 
 ## v1 Scope

@@ -42,7 +42,7 @@ class WikiConfig:
         max_concepts_per_doc: Maximum concepts to extract per document (prevent explosion)
         enable_semantic_search: Enable semantic search in addition to keyword search
         enable_backlinks: Generate backlinks and cross-references
-        enable_version_control: Enable Git version control for wiki articles
+        enable_version_control: Enable local git auto-commit in the wiki vault directory (Local/Tauri)
         parallel_compilation: Enable parallel document compilation (10x faster for batch)
         max_parallel_workers: Maximum parallel workers for compilation
         enable_directory_sidecars: Enable L0/L1 directory sidecar generation for hierarchical retrieval

@@ -210,7 +210,7 @@ async def search_wiki_corpus(
     from myrm_agent_harness.toolkits.wiki.retrieval.source_citations import build_wiki_query_sources
 
     result = await backends.query_wiki(query)
-    sources = build_wiki_query_sources(result)
+    sources = build_wiki_query_sources(result, structure=backends.wiki_structure)
     if sources:
         indexed_sources: list[dict[str, object]] = []
         for index, source in enumerate(sources, start=1):

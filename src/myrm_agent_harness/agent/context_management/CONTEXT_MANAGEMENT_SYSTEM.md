@@ -49,7 +49,7 @@
 | `pipeline/engine.py` | 处理器链引擎 + session lock |
 | `pipeline/processors/` | 过滤、cache-TTL 裁剪、pre-compaction recall、摘要、规范化、cache-control 标记 |
 | `strategies/` | Filter / Compress / Summarize 三档策略；Summarize 用 structured output 防 JSON 脆弱性 |
-| `infra/` | Token 估算、预算管理、schemas、cache policy |
+| infra/ | Token 估算、预算管理、schemas、cache policy、retention_helpers（compression_intent 提取与 retain 判定） |
 | `archive_checkpoint/` | Lite-LLM archive summary 检查点 Protocol + 持久化 |
 | `tracking/` | Artifact 追踪、task metrics、archive 读预算 |
 | `preheat.py` | 显式 cache provider 前缀预热（Agent 启动 + 压缩后） |
@@ -74,6 +74,21 @@
 | `context_bundle/` (toolkits) | 磁盘卷布局 SSOT |
 
 context_management **不实现**向量检索；通过 IntegrationProvider / pre_compact 回调与 memory 协作。
+
+---
+
+## compression_intent 与 retention
+
+业务层（如 server GeneralAgent）在 pipeline metadata 注入 `compression_intent`：`focus_files`、`focus_modules`、`failed_tool_call_ids`、`user_goal_hint`。
+
+| 信号 | Filter | Compress / ActivePrune |
+|------|--------|----------------------|
+| `failed_tool_call_ids` | 结构 trim，跳过 LLM 摘要 | 高优先级；smart_fallback 同步保护 |
+| `focus_files` / `focus_modules` | group 级匹配（tool_call args + 输出窗口），结构 trim | group 级优先级提升 |
+| `user_goal_hint` | group 级关键词匹配，结构 trim | group 级优先级提升 |
+| `keep_recent_calls`（默认 5） | — | 最近 N 个 ToolCallGroup 不压缩；ActivePrune cutoff 对齐 |
+
+SSOT：`infra/retention_helpers.py`（提取 intent、retain 判定）+ `strategies/priority_signals.py`（group haystack 匹配）。
 
 ---
 

@@ -331,6 +331,7 @@ class SkillAgentReviewMixin:
                 privacy = get_privacy_policy()
                 llm: BaseChatModel = self.llm
                 extraction_llm: BaseChatModel | None = getattr(self, "_extraction_llm", None)
+                wiki_boundary_enabled = bool(getattr(self, "_wiki_base_dir", None))
                 task = asyncio.create_task(
                     auto_extract_memories(
                         query,
@@ -341,6 +342,7 @@ class SkillAgentReviewMixin:
                         source_chat_id=session_chat_id,
                         assistant_reply="".join(assistant_chunks),
                         deep_scan=privacy.deep_scan,
+                        wiki_boundary_enabled=wiki_boundary_enabled,
                     )
                 )
                 track_background_task(task)

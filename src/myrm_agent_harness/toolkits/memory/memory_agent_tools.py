@@ -7,6 +7,7 @@ Server binds wiki and conversation providers via MemorySearchBackends.
 - toolkits.memory.manager::MemoryManager (POS: memory lifecycle manager)
 - toolkits.memory.memory_search_policy::MemorySearchPolicy (POS: corpus ACL for memory_search_tool)
 - toolkits.memory.memory_search_execution (POS: memory/wiki/sessions search execution helpers)
+- toolkits.memory.wiki_memory_boundary (POS: wiki-memory write boundary heuristics)
 
 [OUTPUT]
 - create_memory_tools: Create memory_search_tool, memory_save_tool, memory_manage_tool.
@@ -39,6 +40,11 @@ from myrm_agent_harness.toolkits.memory.memory_search_policy import (
     resolve_search_corpora,
 )
 from myrm_agent_harness.toolkits.memory.types import MemoryType, RuleSource
+from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
+    looks_like_wiki_document,
+    record_wiki_memory_save_rejection,
+    wiki_memory_save_rejection_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -256,6 +262,14 @@ def create_memory_tools(
         parsed_kw = _parse_string_list(rule_keywords)
         session = manager.active_session
         pending = manager.approval_required
+
+        if (
+            policy.allow_wiki
+            and category in ("knowledge", "event")
+            and looks_like_wiki_document(content)
+        ):
+            record_wiki_memory_save_rejection()
+            return wiki_memory_save_rejection_message()
 
         try:
             if category == "knowledge":

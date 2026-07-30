@@ -201,7 +201,7 @@ def create_wiki_agent_tools(
             wrapped_context = wrap_with_external_sources_tag(result.answer, source="LLM-Wiki")
 
             sources = attach_wiki_scope_id(
-                build_wiki_query_sources(result),
+                build_wiki_query_sources(result, structure=structure),
                 wiki_scope_id,
             )
 

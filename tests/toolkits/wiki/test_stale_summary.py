@@ -13,19 +13,30 @@ from myrm_agent_harness.toolkits.wiki.maintenance.stale_summary import (
 )
 
 
-def _write_metadata(structure: WikiStructure, last_compile_time: str) -> None:
+def _write_metadata(structure: WikiStructure, last_compile_time: str, *, raw_hashes: dict[str, str] | None = None) -> None:
     metadata_path = structure.get_wiki_metadata_path()
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
-    metadata_path.write_text(json.dumps({"last_compile_time": last_compile_time}), encoding="utf-8")
+    payload: dict[str, object] = {"last_compile_time": last_compile_time}
+    if raw_hashes is not None:
+        payload["last_compile_raw_hashes"] = raw_hashes
+    metadata_path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_resolve_raw_file_ingest_status_tri_state(tmp_path: Path) -> None:
     structure = WikiStructure(tmp_path)
     structure.ensure_structure()
-    _write_metadata(structure, "2020-01-01T00:00:00+00:00")
 
     raw_file = structure.raw_dir / "notes.md"
     raw_file.write_text("hello", encoding="utf-8")
+
+    import hashlib
+
+    current_hash = hashlib.sha256(raw_file.read_bytes()).hexdigest()
+    _write_metadata(
+        structure,
+        "2020-01-01T00:00:00+00:00",
+        raw_hashes={"raw/notes.md": "different-hash"},
+    )
 
     stale_paths = collect_stale_raw_path_set(structure)
     assert resolve_raw_file_ingest_status(
@@ -34,7 +45,12 @@ def test_resolve_raw_file_ingest_status_tri_state(tmp_path: Path) -> None:
         last_compile_time="2020-01-01T00:00:00+00:00",
     ) == "tracked-modified"
 
-    stale_paths_empty = frozenset()
+    _write_metadata(
+        structure,
+        "2099-01-01T00:00:00+00:00",
+        raw_hashes={"raw/notes.md": current_hash},
+    )
+    stale_paths_empty = collect_stale_raw_path_set(structure)
     assert (
         resolve_raw_file_ingest_status(
             "raw/notes.md",
@@ -56,9 +72,13 @@ def test_resolve_raw_file_ingest_status_tri_state(tmp_path: Path) -> None:
 def test_concept_uses_stale_sources_matches_claim_evidence(tmp_path: Path) -> None:
     structure = WikiStructure(tmp_path)
     structure.ensure_structure()
-    _write_metadata(structure, "2020-01-01T00:00:00+00:00")
     raw_file = structure.raw_dir / "budget.md"
     raw_file.write_text("Budget details", encoding="utf-8")
+    _write_metadata(
+        structure,
+        "2020-01-01T00:00:00+00:00",
+        raw_hashes={"raw/budget.md": "stale-hash"},
+    )
     stale_paths = collect_stale_raw_path_set(structure)
 
     content = """---

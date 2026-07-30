@@ -1071,6 +1071,23 @@ class TestExtractionQualityRules:
         assert "cron heartbeats" in prompt
         assert "acknowledgments" in prompt
 
+    def test_wiki_boundary_section_when_enabled(self):
+        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
+            _build_system_prompt,
+        )
+
+        prompt = _build_system_prompt(ExtractionConfig(wiki_boundary_enabled=True))
+        assert "Wiki vs Memory Boundary" in prompt
+        assert "wiki_ingest_tool" not in prompt
+
+    def test_wiki_boundary_section_absent_when_disabled(self):
+        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
+            _build_system_prompt,
+        )
+
+        prompt = _build_system_prompt(ExtractionConfig(wiki_boundary_enabled=False))
+        assert "Wiki vs Memory Boundary" not in prompt
+
     def test_quality_rules_absent_when_no_types_enabled(self):
         """Quality rules are part of core prompt, not shown when all types disabled."""
         from myrm_agent_harness.toolkits.memory.strategies.extractor import (

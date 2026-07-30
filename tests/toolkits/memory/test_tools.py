@@ -468,6 +468,73 @@ class TestMemorySaveTool:
             )
         assert "approval" in result.lower()
 
+    @pytest.mark.asyncio
+    async def test_save_knowledge_rejects_wiki_document_when_wiki_enabled(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+        from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchPolicy
+        from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
+            get_wiki_memory_save_rejection_count,
+            reset_wiki_memory_save_rejection_count,
+        )
+
+        reset_wiki_memory_save_rejection_count()
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        long_content = "x" * 900
+        tool = next(
+            t
+            for t in create_memory_tools(
+                manager,
+                search_policy=MemorySearchPolicy(allow_wiki=True),
+            )
+            if t.name == "memory_save_tool"
+        )
+        with patch.object(MemoryManager, "add_knowledge", AsyncMock()) as add_mock:
+            result = await tool.ainvoke({"content": long_content, "category": "knowledge"})
+        assert "wiki_ingest_tool" in result
+        add_mock.assert_not_called()
+        assert get_wiki_memory_save_rejection_count() == 1
+
+    @pytest.mark.asyncio
+    async def test_save_knowledge_allows_short_fact_when_wiki_enabled(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+        from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchPolicy
+
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        with patch.object(
+            MemoryManager, "add_knowledge", AsyncMock(return_value=SemanticMemory(content="fact", id="mem-2"))
+        ):
+            tool = next(
+                t
+                for t in create_memory_tools(
+                    manager,
+                    search_policy=MemorySearchPolicy(allow_wiki=True),
+                )
+                if t.name == "memory_save_tool"
+            )
+            result = await tool.ainvoke(
+                {"content": "User prefers concise answers", "category": "knowledge"}
+            )
+        assert "stored" in result
+
+    @pytest.mark.asyncio
+    async def test_save_knowledge_allows_long_content_when_wiki_disabled(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        long_content = "x" * 900
+        with patch.object(
+            MemoryManager, "add_knowledge", AsyncMock(return_value=SemanticMemory(content=long_content, id="mem-3"))
+        ):
+            tool = next(t for t in create_memory_tools(manager) if t.name == "memory_save_tool")
+            result = await tool.ainvoke({"content": long_content, "category": "knowledge"})
+        assert "stored" in result
+
 
 # ── memory_manage tool tests ──
 

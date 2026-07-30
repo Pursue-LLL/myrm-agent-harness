@@ -2,29 +2,33 @@
 
 [INPUT]
 ..core.structure::WikiStructure (POS: vault paths and metadata)
+..core.claims_contract (POS: portable raw hash snapshots)
 
 [OUTPUT]
 collect_stale_raw_files, collect_stale_raw_path_set, concept_uses_stale_sources,
 resolve_raw_file_ingest_status, WikiStaleSummary, StaleRawFile
 
 [POS]
-Shared stale detection for WikiLinter and product API surfaces. Compares raw file
-mtime against last_compile_time from wiki metadata — no LLM, no background watcher.
+Shared stale detection for WikiLinter and product API surfaces. Compares current raw
+content digests against the last-compile snapshot in wiki metadata.
 """
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
+from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
+    collect_raw_content_hashes,
+    get_last_compile_raw_hashes,
+    read_wiki_metadata_file,
+)
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 
 
 @dataclass(frozen=True, slots=True)
 class StaleRawFile:
-    """A raw source file modified after the last wiki compilation."""
+    """A raw source file whose content digest differs from the last compile snapshot."""
 
     relative_path: str
 
@@ -38,35 +42,30 @@ class WikiStaleSummary:
     stale_files: tuple[StaleRawFile, ...]
 
 
-def _relative_raw_path(structure: WikiStructure, raw_file: Path) -> str:
-    try:
-        return raw_file.relative_to(structure.base_dir).as_posix()
-    except ValueError:
-        return raw_file.name
-
-
 def collect_stale_raw_files(structure: WikiStructure) -> WikiStaleSummary:
-    """Return raw files newer than the last compile timestamp."""
+    """Return raw files whose content digest differs from the last compile snapshot."""
     metadata_path = structure.get_wiki_metadata_path()
     if not metadata_path.exists():
         return WikiStaleSummary(stale_count=0, last_compile_time=None, stale_files=())
 
-    try:
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        last_compile = str(metadata.get("last_compile_time", "")).strip()
-        if not last_compile:
-            return WikiStaleSummary(stale_count=0, last_compile_time=None, stale_files=())
-        compile_ts = datetime.fromisoformat(last_compile).timestamp()
-    except (OSError, ValueError, TypeError):
+    metadata = read_wiki_metadata_file(metadata_path)
+    last_compile = str(metadata.get("last_compile_time", "")).strip()
+    if not last_compile:
         return WikiStaleSummary(stale_count=0, last_compile_time=None, stale_files=())
 
+    known_hashes = get_last_compile_raw_hashes(metadata)
+    if not known_hashes:
+        return WikiStaleSummary(stale_count=0, last_compile_time=last_compile, stale_files=())
+
+    current_hashes = collect_raw_content_hashes(structure)
     stale: list[StaleRawFile] = []
-    for raw_file in structure.list_raw_files():
-        try:
-            if raw_file.stat().st_mtime > compile_ts:
-                stale.append(StaleRawFile(relative_path=_relative_raw_path(structure, raw_file)))
-        except OSError:
-            continue
+    for key, current_hash in current_hashes.items():
+        if known_hashes.get(key) != current_hash:
+            stale.append(StaleRawFile(relative_path=key))
+
+    for key in known_hashes:
+        if key not in current_hashes:
+            stale.append(StaleRawFile(relative_path=key))
 
     stale.sort(key=lambda item: item.relative_path)
     return WikiStaleSummary(

@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 CompileCircuitState = Literal["running", "paused"]
+CompilePhase = Literal["idle", "structure_survey", "semantic_compile", "postprocess"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +27,10 @@ class CompileRunSnapshot:
     state: CompileCircuitState
     pause_reason: str = ""
     primary_error_kind: str = ""
+    phase: CompilePhase = "idle"
+    facet_count: int = 0
+    warning_count: int = 0
+    survey_skipped: bool = False
 
 
 @dataclass(frozen=True, slots=True)

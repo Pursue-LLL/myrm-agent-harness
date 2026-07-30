@@ -198,6 +198,8 @@ class ExtractionConfig:
     max_input_chars: int = 80_000
     """Maximum characters for the conversation prompt sent to extraction LLM.
     Conversations exceeding this are truncated using head-tail preservation."""
+    wiki_boundary_enabled: bool = False
+    """When True, extraction prompt skips document-like semantic/episodic facts (wiki owns those)."""
 
 
 class ExtractedMemory(BaseModel):
@@ -325,6 +327,17 @@ For semantic and episodic memories, estimate how long the fact will likely remai
   - Corrections of prior mistakes: null (permanent)
   - If uncertain, omit the field (defaults to global decay)"""
 
+_WIKI_BOUNDARY_SECTION = """
+## Wiki vs Memory Boundary
+
+This agent has a wiki knowledge base. DO NOT extract document-like content into semantic or episodic memories:
+- Long passages, article summaries, tutorial steps, reference docs, or multi-section notes
+- Fetched page content, URLs with full page text, markdown documents with multiple headings
+
+DO extract into memory (keep each fact 15-50 words):
+- User preferences, profile attributes, behavioral rules, concise stable facts
+- Corrections to agent behavior and durable project constraints"""
+
 _GUIDELINES = """
 ## Guidelines
 
@@ -436,6 +449,9 @@ def _build_system_prompt(
 
     if config.extract_semantic or config.extract_episodic:
         parts.append(_VALIDITY_SECTION)
+
+    if config.wiki_boundary_enabled and (config.extract_semantic or config.extract_episodic):
+        parts.append(_WIKI_BOUNDARY_SECTION)
 
     parts.append(_GUIDELINES)
     parts.append(_OUTPUT_FORMAT)

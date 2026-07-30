@@ -114,6 +114,43 @@ class TestAutoExtractMemories:
         mock_llm.ainvoke.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_wiki_boundary_flag_passed_to_extraction_config(self) -> None:
+        mock_manager = MagicMock()
+        mock_manager.user_id = "user1"
+        mock_manager.store_batch = AsyncMock(return_value=[])
+        mock_llm = AsyncMock()
+        mock_llm.ainvoke.return_value = MagicMock(content="[]")
+
+        config_calls: list[dict[str, object]] = []
+
+        class _CapturingConfig:
+            def __init__(self, **kwargs: object) -> None:
+                config_calls.append(kwargs)
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.memory.strategies.extractor.extract_memories_from_conversation",
+                new_callable=AsyncMock,
+                return_value=MagicMock(memories=[], extraction_time_ms=0.0),
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.memory.strategies.extractor.ExtractionConfig",
+                _CapturingConfig,
+            ),
+        ):
+            await auto_extract_memories(
+                query="long question about architecture",
+                chat_history=None,
+                memory_manager=mock_manager,
+                llm=mock_llm,
+                assistant_reply="A" * 200,
+                wiki_boundary_enabled=True,
+            )
+
+        assert config_calls
+        assert config_calls[0].get("wiki_boundary_enabled") is True
+
+    @pytest.mark.asyncio
     async def test_extracts_and_persists(self) -> None:
         mock_memory = MagicMock()
         mock_memory.importance = "high"

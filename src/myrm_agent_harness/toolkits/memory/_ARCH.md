@@ -22,8 +22,9 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | health.py                | Core     | Memory system diagnostics — instance-level health and maintenance reports.                                    | ✅    |
 | intent_recognizers.py    | Core     | Query intent recognition for adaptive type weighting.                                                         | ✅    |
 | manager.py               | Core     | Public import path for ``MemoryManager`` and memory error types. | ✅    |
-| memory_agent_tools.py    | Core     | Agent memory tools: memory_search_tool, save, manage. Unified corpus read plane with server ACL. | ✅    |
-| memory_search_policy.py  | Core     | Corpus ACL and optional wiki/sessions/web backends for memory_search_tool; `query_wiki` binds QueryResult + optional `wiki_agent_id` for scoped asset URLs. | ✅    |
+| memory_agent_tools.py    | Core     | Agent memory tools: memory_search_tool, save, manage. Unified corpus read plane with server ACL. Wiki save guard when allow_wiki. | ✅    |
+| wiki_memory_boundary.py  | Core     | Wiki vs memory write boundary heuristics; memory_save rejection counter; persist vector filter. | ✅    |
+| memory_search_policy.py  | Core     | Corpus ACL and optional wiki/sessions/web backends for memory_search_tool; `query_wiki` + optional `wiki_structure` / `wiki_agent_id` for citation URI parity with wiki_query_tool. | ✅    |
 | memory_search_execution.py | Core   | Memory/wiki/sessions search execution; wiki corpus emits sources + UNTRUSTED wrap on answers. | ✅    |
 | memory_citations.py      | Core     | Citation/source bridge that converts recalled memories, retrieval traces, and conversation sources into UI-safe SSE metadata. | ✅    |
 | memory_recall_budget.py      | Core     | Recall budget guardrails: limit normalization, output size accounting, and content truncation helpers.        | ✅    |

@@ -132,6 +132,17 @@ class WikiIngestionQueue:
                 [(str(p),) for p in file_paths],
             )
 
+    def list_pending_file_paths(self) -> list[str]:
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT file_path FROM ingestion_queue
+                WHERE status = 'pending'
+                ORDER BY created_at ASC
+                """
+            )
+            return [str(row["file_path"]) for row in cursor.fetchall()]
+
     def get_pending_items(self, limit: int = 10) -> list[QueueItem]:
         """Get batch of pending items to process."""
         with self._get_conn() as conn:
@@ -343,3 +354,25 @@ class WikiIngestionQueue:
 
     def is_compile_paused(self) -> bool:
         return self._circuit.is_paused()
+
+    def set_compile_phase(
+        self,
+        phase: str,
+        *,
+        facet_count: int = 0,
+        warning_count: int = 0,
+        survey_skipped: bool = False,
+    ) -> None:
+        from .resilience.types import CompilePhase
+
+        typed_phase: CompilePhase
+        if phase in {"idle", "structure_survey", "semantic_compile", "postprocess"}:
+            typed_phase = phase  # type: ignore[assignment]
+        else:
+            typed_phase = "idle"
+        self._circuit.set_phase(
+            typed_phase,
+            facet_count=facet_count,
+            warning_count=warning_count,
+            survey_skipped=survey_skipped,
+        )

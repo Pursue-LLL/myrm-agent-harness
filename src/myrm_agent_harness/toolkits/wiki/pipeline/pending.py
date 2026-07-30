@@ -8,11 +8,14 @@ typing::Literal, TypedDict (POS: standard library types)
 [OUTPUT]
 WikiPendingEditsManager: SQLite-driven pending review draft manager
 PendingWikiEdit: draft type definition
+count_synthesis_pending: SQL count of Comparisons/* evolution drafts
+approve_edit: publish + evolution synthesis timeline backlinks
 
 [POS]
 Implements Human-in-the-loop (HITL) knowledge review mechanism. Intercepts LLM-generated
 wiki document modifications and persists them as drafts. Originals are only overwritten after
 user review, preventing AI hallucinations from polluting the personal knowledge base.
+Evolution synthesis pages from CCSP share the same queue under Comparisons/* paths.
 """
 
 import contextlib
@@ -155,6 +158,17 @@ class WikiPendingEditsManager:
                 final_content,
             )
 
+            from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis import (
+                apply_synthesis_backlinks,
+            )
+
+            await apply_synthesis_backlinks(
+                self._structure,
+                self._indexer,
+                synthesis_concept_name=concept_name,
+                synthesis_content=final_content,
+            )
+
             # Update DB
             conn.execute("UPDATE pending_edits SET status = 'approved' WHERE id = ?", (edit_id,))
             return True
@@ -166,6 +180,19 @@ class WikiPendingEditsManager:
                 "UPDATE pending_edits SET status = 'rejected' WHERE id = ? AND status = 'pending'", (edit_id,)
             )
             return cursor.rowcount > 0
+
+    def count_synthesis_pending(self) -> int:
+        """Count pending evolution synthesis drafts (Comparisons/.../Evolution)."""
+        with self._get_conn() as conn:
+            cursor = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM pending_edits
+                WHERE status = 'pending' AND concept_name LIKE 'Comparisons/%'
+                """
+            )
+            row = cursor.fetchone()
+            return int(row["count"]) if row else 0
 
     def get_stats(self) -> dict[str, int]:
         """Get stats for pending edits."""

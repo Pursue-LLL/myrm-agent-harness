@@ -10,15 +10,17 @@ with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory s
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Init | — |
-| compiler.py | Core | LLM compiler: parallel batch ingestion, purpose injection, frontmatter type gate, **`ensure_compile_claims`**, HITL pending | ✅ |
-| postprocess.py | Core | Post-compilation: backlink generation, metadata persistence | ✅ |
+| compiler.py | Core | LLM compiler: parallel batch ingestion, compile structure survey + facet seed carry-forward, compile phase tracking, …; post-batch **vault git snapshot** when `enable_version_control` | ✅ |
+| contradiction_synthesis/ | Core | Cross-concept evolution page synthesis (pairing → LLM verdict → pending) | ✅ |
+| postprocess.py | Core | Post-compilation: backlink generation, metadata persistence with `last_compile_raw_hashes` (preserves `raw_supersede`) | ✅ |
 | cognitive_map/ | Core | OKF index.md, log.md, hot.md deterministic writers + refresh service | ✅ |
 | sidecar.py | Core | Directory sidecar builder (`.abstract.md`/`.overview.md`): bottom-up DAG invalidation + incremental rebuild + index sync | ✅ |
-| pending.py | Core | HITL pending edits; `stage_pending_edit` demotes stale published; approve blocks stale + uses `publish_concept_article` | ✅ |
+| pending.py | Core | HITL pending edits; `stage_pending_edit` demotes stale published; approve blocks stale + uses `publish_concept_article`; **CCSP approve backlinks**; `count_synthesis_pending` SQL | ✅ |
 | publication/ | Core | WPG publish SSOT: `publish_concept_article`, `repair_publication_status` | ✅ |
 | apply/ | Core | Narrow-write apply SSOT: `apply_wiki_mutation` (metadata/truth/timeline/create) | ✅ |
 | raw_gate/ | Core | Raw publication gate SSOT: `publish_raw` (FAIL/SKIP/SUPERSEDE/PUT_IF_ABSENT) + `RAW_SUPERSEDE` audit | ✅ |
 | queue.py | Core | SQLite persistent ingestion queue with retry + stale recovery + compile circuit pause | ✅ |
+| survey/ | Core | Zero-LLM compile structure survey (facet seeds, chunk sibling groups, fast-path) — see [survey/_ARCH.md](survey/_ARCH.md) | ✅ |
 | resilience/ | Core | Compile failure policy (ErrorKind SSOT), circuit pause/resume, display sanitization — see [resilience/_ARCH.md](resilience/_ARCH.md) | ✅ |
 
 ## Key Dependencies

@@ -155,6 +155,7 @@ async def persist_extracted_memories(
     source_chat_id: str | None,
     *,
     deep_scan_llm_func: Callable[[str, str], Awaitable[str]] | None = None,
+    wiki_boundary_enabled: bool = False,
 ) -> int:
     """Persist extracted memories to MemoryManager.
 
@@ -182,8 +183,18 @@ async def persist_extracted_memories(
     if batch and deep_scan_llm_func is not None:
         batch = await _apply_deep_pii_scan(batch, deep_scan_llm_func, memory_manager)
 
+    if batch and wiki_boundary_enabled:
+        from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
+            filter_wiki_document_vector_memories,
+        )
+
+        filtered_batch, dropped = filter_wiki_document_vector_memories(batch, enabled=True)
+        batch = filtered_batch
+    else:
+        dropped = 0
+
     stored = await memory_manager.store_batch(batch) if batch else []
-    return len(stored) + len(concrete) - len(batch)
+    return len(stored) + len(concrete) - len(batch) - dropped
 
 
 async def _apply_deep_pii_scan(
@@ -240,6 +251,7 @@ async def auto_extract_memories(
     enable_verbatim: bool = True,
     *,
     deep_scan: bool = False,
+    wiki_boundary_enabled: bool = False,
 ) -> None:
     logger.info("auto_extract_memories invoked for %s", source_chat_id)
     try:
@@ -303,7 +315,10 @@ async def auto_extract_memories(
         llm_func = create_extraction_llm_func(llm_for_extraction)
         if correction_detected:
             logger.info("Correction signals detected in conversation, enhancing extraction prompt")
-        config = ExtractionConfig(enable_task_digest=True)
+        config = ExtractionConfig(
+            enable_task_digest=True,
+            wiki_boundary_enabled=wiki_boundary_enabled,
+        )
 
         from myrm_agent_harness.toolkits.memory.strategies.extractor import extract_memories_from_conversation
 
@@ -322,6 +337,7 @@ async def auto_extract_memories(
             memory_manager,
             source_chat_id,
             deep_scan_llm_func=deep_scan_llm,
+            wiki_boundary_enabled=wiki_boundary_enabled,
         )
 
         logger.info(
