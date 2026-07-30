@@ -171,14 +171,14 @@ def derive_runtime_allowed_tools(
 
     if text and _is_read_only_intent(text):
         readonly_allowed = {name for name in allowed if _is_read_only_tool(name)}
-        if readonly_allowed and readonly_allowed != allowed:
+        if readonly_allowed != allowed:
             allowed = readonly_allowed
             reasons.append("readonly_intent_gate")
 
     if len(allowed) == len(tool_names):
         return None, ()
     if not allowed:
-        return None, ()
+        return frozenset(), tuple(reasons)
 
     return frozenset(allowed), tuple(reasons)
 
@@ -212,7 +212,9 @@ def compute_turn_allowed_names(
     if runtime_allowed is not None:
         allowed &= set(runtime_allowed)
 
-    if not allowed or allowed == set(tool_names):
+    if not allowed:
+        return frozenset()
+    if allowed == set(tool_names):
         return None
     return frozenset(allowed)
 

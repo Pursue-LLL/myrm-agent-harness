@@ -5,12 +5,13 @@
 
 [OUTPUT]
 - CAPABILITY_REJECTS_ALLOWED_TOOLS: learner key for unsupported tool_choice payloads
-- normalize_model_capability_key(): stable learner key for model identifiers
+- normalize_model_capability_key(): stable learner key for model + optional API base
 - model_supports_allowed_tools_tool_choice(): whether to send allowed_tools this call
 
 [POS]
 Provider capability gate for cache-safe skill attenuation. Execution-layer policy
-remains authoritative when model-layer hint is skipped.
+remains authoritative when the model-layer hint is skipped. Gate also matches
+gateway api_base markers (e.g. minimax, agnes).
 """
 
 from __future__ import annotations
@@ -22,11 +23,22 @@ CAPABILITY_REJECTS_ALLOWED_TOOLS = "rejects_allowed_tools_tool_choice"
 _OPENAI_LIKE_PREFIX = "openai-like/"
 _MINIMAX_PREFIX = "minimax/"
 _MINIMAX_API_BASE_MARKERS = ("minimaxi.com", "minimax.io")
+_AGNES_API_BASE_MARKERS = ("agnes-ai.com", "apihub.agnes")
 
 
-def normalize_model_capability_key(model_name: str) -> str:
-    """Normalize model identifiers for capability learner keys."""
-    return model_name.strip().lower()
+def normalize_model_capability_key(
+    model_name: str,
+    *,
+    api_base: str | None = None,
+) -> str:
+    """Normalize model + optional API base into a stable capability learner key."""
+    model = model_name.strip().lower()
+    if not model:
+        return model
+    api = (api_base or "").strip().lower().rstrip("/")
+    if not api:
+        return model
+    return f"{model}@{api}"
 
 
 def model_supports_allowed_tools_tool_choice(
@@ -38,7 +50,7 @@ def model_supports_allowed_tools_tool_choice(
     if not model_name:
         return True
 
-    normalized = normalize_model_capability_key(model_name)
+    normalized = normalize_model_capability_key(model_name, api_base=api_base)
     if not normalized:
         return True
 
@@ -54,6 +66,9 @@ def model_supports_allowed_tools_tool_choice(
 
     api = (api_base or "").lower()
     if any(marker in api for marker in _MINIMAX_API_BASE_MARKERS):
+        return False
+
+    if any(marker in api for marker in _AGNES_API_BASE_MARKERS):
         return False
 
     if "api.openai.com" in api:

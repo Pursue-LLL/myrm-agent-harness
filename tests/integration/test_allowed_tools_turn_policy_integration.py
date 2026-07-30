@@ -1,10 +1,4 @@
-"""Integration test: turn tool policy with unsupported allowed_tools gateways.
-
-Verifies the real minimax/agnes-class path from .env.test:
-- capability gate skips model-layer allowed_tools
-- execution-layer ContextVar still enforces allowlist
-- real LLM invoke succeeds without allowed_tools payload
-"""
+"""Integration tests for turn tool policy on allowed_tools-incompatible gateways."""
 
 from __future__ import annotations
 
@@ -65,6 +59,26 @@ def _get_basic_llm_config() -> tuple[str, str, str]:
     return api_key, base_url, model
 
 
+def _get_agnes_llm_config_from_env_test() -> tuple[str, str, str] | None:
+    """Parse optional agnes credentials from commented lines in .env.test."""
+    if not _ENV_TEST.exists():
+        return None
+    agnes_key = ""
+    agnes_base = ""
+    agnes_model = ""
+    for line in _ENV_TEST.read_text().splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# BASIC_API_KEY=sk-"):
+            agnes_key = stripped.split("=", 1)[1]
+        elif stripped.startswith("# BASIC_BASE_URL=https://apihub.agnes"):
+            agnes_base = stripped.split("=", 1)[1]
+        elif stripped.startswith("# BASIC_MODEL=openai-like/agnes"):
+            agnes_model = stripped.split("=", 1)[1]
+    if all([agnes_key, agnes_base, agnes_model]):
+        return agnes_key, agnes_base, normalize_env_model_selection_string(agnes_model)
+    return None
+
+
 @pytest.mark.asyncio
 async def test_unsupported_gateway_skips_allowed_tools_but_execution_blocks(
     monkeypatch: pytest.MonkeyPatch,
@@ -114,6 +128,26 @@ async def test_unsupported_gateway_skips_allowed_tools_but_execution_blocks(
 @pytest.mark.asyncio
 async def test_real_llm_invoke_without_allowed_tools_succeeds() -> None:
     api_key, base_url, model = _get_basic_llm_config()
+    assert model_supports_allowed_tools_tool_choice(model, api_base=base_url) is False
+
+    llm = create_litellm_model(
+        model, base_url=base_url, api_key=api_key, streaming=False
+    )
+    result = await llm.ainvoke([HumanMessage(content="Reply with exactly: OK")])
+    content = result.content
+    assert isinstance(content, str)
+    assert content.strip()
+
+    set_turn_allowed_tool_names(None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.timeout(120)
+async def test_agnes_real_llm_invoke_without_allowed_tools_succeeds() -> None:
+    agnes = _get_agnes_llm_config_from_env_test()
+    if agnes is None:
+        pytest.skip("agnes credentials not found in .env.test comments")
+    api_key, base_url, model = agnes
     assert model_supports_allowed_tools_tool_choice(model, api_base=base_url) is False
 
     llm = create_litellm_model(

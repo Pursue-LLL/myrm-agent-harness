@@ -95,6 +95,13 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
         if final_allowed is None:
             return request
 
+        if not final_allowed:
+            logger.info(
+                " SkillAttenuationMiddleware block-all turn policy active "
+                "(execution-layer enforcement only)"
+            )
+            return request
+
         llm = getattr(request, "model", None)
         model_name = getattr(llm, "model", None) or getattr(llm, "model_name", None)
         api_base = getattr(llm, "api_base", None)

@@ -252,6 +252,17 @@ class TestCheckTrustAttenuation:
     def test_turn_policy_allows_listed_tool(self, _mock_allowed: MagicMock) -> None:
         assert check_trust_attenuation("web_search_tool") is None
 
+    @patch(
+        "myrm_agent_harness.agent.middlewares._session_context.get_turn_allowed_tool_names",
+        return_value=frozenset(),
+    )
+    def test_turn_policy_block_all_when_allowlist_empty(self, _mock_allowed: MagicMock) -> None:
+        msg = check_trust_attenuation("bash_code_execute_tool")
+        assert msg is not None
+        assert "turn tool policy" in msg
+        assert "read-only analysis mode" in msg
+        assert "file_read_tool" in msg
+
     @patch("myrm_agent_harness.agent.skills.runtime.attenuator.attenuate_tools")
     @patch("myrm_agent_harness.agent._skill_agent_context.get_loaded_skills")
     @patch(

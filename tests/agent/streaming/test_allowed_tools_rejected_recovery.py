@@ -114,6 +114,32 @@ class TestHandleAllowedToolsRejected:
         assert learner.get("gpt-4o-mini", CAPABILITY_REJECTS_ALLOWED_TOOLS) is True
 
     @pytest.mark.asyncio
+    async def test_learns_model_capability_scoped_to_api_base(self) -> None:
+        ctx = _FakeStreamContext(
+            llm_info={
+                "model_name": "gpt-4o-mini",
+                "api_base": "https://api-a.example.com/v1",
+            },
+        )
+        compactor = _FakeCompactor()
+        recovery = _FakeRecovery(ctx, compactor)
+
+        exc = _FakeError(
+            "tool_choice type allowed_tools not supported", status_code=400
+        )
+        await recovery._handle_allowed_tools_tool_choice_rejected(exc, attempted=False)
+
+        learner = get_capability_learner()
+        assert (
+            learner.get(
+                "gpt-4o-mini@https://api-a.example.com/v1",
+                CAPABILITY_REJECTS_ALLOWED_TOOLS,
+            )
+            is True
+        )
+        assert learner.get("gpt-4o-mini", CAPABILITY_REJECTS_ALLOWED_TOOLS) is None
+
+    @pytest.mark.asyncio
     async def test_emits_recovery_event(self) -> None:
         ctx = _FakeStreamContext(
             llm_info={"model_name": "openai-like/agnes-2.5-flash", "base_url": None},

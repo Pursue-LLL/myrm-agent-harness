@@ -246,16 +246,21 @@ class OneshotRecoveryMixin:
                 get_capability_learner,
             )
 
+            api_base = _resolve_api_base_from_ctx(self._ctx)
             learner = get_capability_learner()
+            capability_key = normalize_model_capability_key(
+                str(model_name),
+                api_base=api_base,
+            )
             learner.learn(
-                normalize_model_capability_key(str(model_name)),
+                capability_key,
                 CAPABILITY_REJECTS_ALLOWED_TOOLS,
                 True,
             )
             logger.info(
                 "Learned: model %s rejects allowed_tools tool_choice — "
                 "future requests skip model-layer hint",
-                model_name,
+                capability_key,
             )
 
         logger.warning(
@@ -320,6 +325,24 @@ def _resolve_model_name_from_ctx(ctx: object) -> str | None:
         name = merged_ctx.get("model_name")
         if name:
             return str(name)
+
+    return None
+
+
+def _resolve_api_base_from_ctx(ctx: object) -> str | None:
+    """Resolve API base URL from StreamContext (llm_info first, then merged_context)."""
+    llm_info = getattr(ctx, "llm_info", None)
+    if isinstance(llm_info, dict):
+        api_base = llm_info.get("api_base") or llm_info.get("base_url")
+        if isinstance(api_base, str) and api_base.strip():
+            return api_base.strip()
+
+    merged_ctx = getattr(ctx, "merged_context", None)
+    if isinstance(merged_ctx, dict):
+        for key in ("api_base", "base_url"):
+            value = merged_ctx.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
 
     return None
 

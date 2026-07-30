@@ -211,6 +211,13 @@ def check_trust_attenuation(tool_name: str) -> str | None:
         if tool_name in allowed:
             return None
         logger.warning("Turn tool policy blocked: %s", tool_name)
+        if not allowed:
+            return (
+                f"Error: '{tool_name}' is restricted by the active turn tool policy.\n"
+                "No tools are available under the current read-only analysis mode. "
+                "Enable read-only tools such as file_read_tool or web_fetch_tool "
+                "in the agent profile."
+            )
         return (
             f"Error: '{tool_name}' is restricted by the active turn tool policy.\n"
             f"Available tools: {', '.join(sorted(allowed))}"

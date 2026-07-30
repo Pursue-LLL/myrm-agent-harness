@@ -70,6 +70,36 @@ async def test_skips_override_when_allowlist_becomes_empty(
 
 
 @pytest.mark.asyncio
+async def test_skips_tool_choice_for_block_all_empty_frozenset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares.skill_attenuation_middleware.compute_turn_allowed_names",
+        lambda *_args, **_kwargs: frozenset(),
+    )
+
+    request = _FakeRequest(
+        tools=[SimpleNamespace(name="bash_code_execute_tool")],
+        messages=[HumanMessage(content="请分析这段日志为什么会失败？")],
+        model=SimpleNamespace(model="gpt-4o", model_name="gpt-4o", api_base=None),
+    )
+    middleware = SkillAttenuationMiddleware(ToolRegistry())
+
+    captured: dict[str, _FakeRequest] = {}
+
+    async def _handler(req: _FakeRequest) -> _FakeResponse:
+        captured["request"] = req
+        return _FakeResponse()
+
+    await middleware.awrap_model_call(request, _handler)
+    assert captured["request"].tool_choice is None
+
+
+@pytest.mark.asyncio
 async def test_applies_allowed_tools_when_restriction_is_non_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -168,3 +198,84 @@ def test_wrap_tool_call_delegates_when_tool_prebound() -> None:
 
     result = middleware.wrap_tool_call(request, handler)
     assert result is expected
+
+
+def test_wrap_model_call_sync_skips_when_no_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.middlewares._session_context.set_turn_allowed_tool_names",
+        lambda _value: None,
+    )
+
+    request = _FakeRequest(
+        tools=[],
+        messages=[HumanMessage(content="hello")],
+        model=SimpleNamespace(model="gpt-4o", model_name="gpt-4o", api_base=None),
+    )
+    middleware = SkillAttenuationMiddleware(ToolRegistry())
+    captured: dict[str, _FakeRequest] = {}
+
+    def _handler(req: _FakeRequest) -> _FakeResponse:
+        captured["request"] = req
+        return _FakeResponse()
+
+    middleware.wrap_model_call(request, _handler)
+    assert captured["request"].tool_choice is None
+
+
+def test_wrap_tool_call_resolves_dynamic_tool_from_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain.agents.middleware.types import ToolCallRequest
+    from langchain_core.messages import ToolMessage
+
+    resolved_tool = SimpleNamespace(name="web_search_tool")
+    registry = ToolRegistry()
+    monkeypatch.setattr(registry, "resolve", lambda: [resolved_tool])
+    monkeypatch.setattr(registry, "get_runtime_tools", lambda: [])
+
+    middleware = SkillAttenuationMiddleware(registry)
+    request = ToolCallRequest(
+        tool_call={"name": "web_search_tool", "args": {}, "id": "call_2"},
+        tool=None,
+        state={},
+        runtime=MagicMock(),
+    )
+    expected = ToolMessage(
+        content="ok", name="web_search_tool", tool_call_id="call_2"
+    )
+
+    def handler(req: ToolCallRequest) -> ToolMessage:
+        assert req.tool is resolved_tool
+        return expected
+
+    assert middleware.wrap_tool_call(request, handler) is expected
+
+
+@pytest.mark.asyncio
+async def test_awrap_tool_call_resolves_dynamic_tool_from_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from langchain.agents.middleware.types import ToolCallRequest
+    from langchain_core.messages import ToolMessage
+
+    resolved_tool = SimpleNamespace(name="file_read_tool")
+    registry = ToolRegistry()
+    monkeypatch.setattr(registry, "resolve", lambda: [resolved_tool])
+    monkeypatch.setattr(registry, "get_runtime_tools", lambda: [])
+
+    middleware = SkillAttenuationMiddleware(registry)
+    request = ToolCallRequest(
+        tool_call={"name": "file_read", "args": {}, "id": "call_3"},
+        tool=None,
+        state={},
+        runtime=MagicMock(),
+    )
+    expected = ToolMessage(content="ok", name="file_read_tool", tool_call_id="call_3")
+
+    async def handler(req: ToolCallRequest) -> ToolMessage:
+        assert req.tool is resolved_tool
+        return expected
+
+    assert await middleware.awrap_tool_call(request, handler) is expected

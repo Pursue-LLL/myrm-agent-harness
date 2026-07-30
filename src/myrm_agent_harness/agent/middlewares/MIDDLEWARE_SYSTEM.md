@@ -59,7 +59,7 @@
 | `_mutation_verifier.py` | 文件变更 per-turn 验证 → SSE |
 | `_skill_failure_tracking.py` | 技能失败事件跟踪 |
 | `_tool_execution_lifecycle.py` | 工具执行生命周期 hook |
-| `_runtime_tool_governance.py` | 回合级工具面收敛（UI intent gate + readonly intent gate） |
+| `_runtime_tool_governance.py` | 回合级工具面收敛（UI intent gate + readonly intent gate）；空 allowlist → block-all execution SSOT |
 | `approval/` | HITL 审批队列、batch、scheduler、correction_learning |
 | `approval_interception/` | 审批拦截识别与注入 |
 | `guardrails/` | Provider 链 + `GuardrailMiddleware` |
