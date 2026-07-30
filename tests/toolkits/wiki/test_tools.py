@@ -524,6 +524,7 @@ async def test_wiki_query_emits_claim_snapshot_status(direct_mock_tools: tuple) 
     assert len(sources) == 1
     assert sources[0]["snapshot_status"] == "stale"
     assert sources[0]["claim_id"] == "claim.budget"
+    assert sources[0]["claim_status"] == "supported"
     assert sources[0]["evidence_path"] == "raw/source.md"
     assert sources[0]["resource_uri"] == "raw/source.md@sha256:abc123"
     assert "claim.budget" in str(sources[0]["source_key"])
@@ -545,14 +546,15 @@ async def test_wiki_maintain_exception_at_tools_layer(direct_mock_tools: tuple) 
 class TestArchiveQueryResult:
     """Tests for _archive_query_result helper."""
 
-    def test_archives_qa_pair_to_raw(self, wiki_structure: WikiStructure, mock_llm: MagicMock) -> None:
+    @pytest.mark.asyncio
+    async def test_archives_qa_pair_to_raw(self, wiki_structure: WikiStructure, mock_llm: MagicMock) -> None:
         """Test that _archive_query_result writes Q&A to raw/ and enqueues."""
         from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _archive_query_result
 
         config = WikiConfig()
         compiler = WikiCompiler(mock_llm, wiki_structure, config)
 
-        _archive_query_result(wiki_structure, compiler, "What is Python?", "Python is a programming language.")
+        await _archive_query_result(wiki_structure, compiler, "What is Python?", "Python is a programming language.")
 
         raw_files = list(wiki_structure.raw_dir.glob("query_archive_*.md"))
         assert len(raw_files) == 1
@@ -562,22 +564,24 @@ class TestArchiveQueryResult:
         assert "# Answer" in content
         assert "Python is a programming language." in content
 
-    def test_idempotent_same_question(self, wiki_structure: WikiStructure, mock_llm: MagicMock) -> None:
+    @pytest.mark.asyncio
+    async def test_idempotent_same_question(self, wiki_structure: WikiStructure, mock_llm: MagicMock) -> None:
         """Test that archiving the same question twice doesn't create duplicates."""
         from myrm_agent_harness.toolkits.wiki.wiki_agent_tools import _archive_query_result
 
         config = WikiConfig()
         compiler = WikiCompiler(mock_llm, wiki_structure, config)
 
-        _archive_query_result(wiki_structure, compiler, "Repeat?", "Answer 1")
-        _archive_query_result(wiki_structure, compiler, "Repeat?", "Answer 2")
+        await _archive_query_result(wiki_structure, compiler, "Repeat?", "Answer 1")
+        await _archive_query_result(wiki_structure, compiler, "Repeat?", "Answer 2")
 
         raw_files = list(wiki_structure.raw_dir.glob("query_archive_*.md"))
         assert len(raw_files) == 1
         content = raw_files[0].read_text(encoding="utf-8")
         assert "Answer 1" in content
 
-    def test_different_questions_create_different_files(
+    @pytest.mark.asyncio
+    async def test_different_questions_create_different_files(
         self, wiki_structure: WikiStructure, mock_llm: MagicMock
     ) -> None:
         """Test that different questions create separate archive files."""
@@ -586,8 +590,8 @@ class TestArchiveQueryResult:
         config = WikiConfig()
         compiler = WikiCompiler(mock_llm, wiki_structure, config)
 
-        _archive_query_result(wiki_structure, compiler, "Question A", "Answer A")
-        _archive_query_result(wiki_structure, compiler, "Question B", "Answer B")
+        await _archive_query_result(wiki_structure, compiler, "Question A", "Answer A")
+        await _archive_query_result(wiki_structure, compiler, "Question B", "Answer B")
 
         raw_files = list(wiki_structure.raw_dir.glob("query_archive_*.md"))
         assert len(raw_files) == 2
@@ -905,12 +909,12 @@ class TestIngestPathTraversalDefense:
     async def test_backslash_traversal(
         self, wiki_tools: list, wiki_structure: WikiStructure
     ) -> None:
-        """Windows-style backslash traversal is neutralized."""
+        """Windows-style backslash traversal is rejected before write."""
         ingest_tool = next(t for t in wiki_tools if t.name == "wiki_ingest_tool")
         result = await ingest_tool.ainvoke(
             {"source": "Content", "filename": "..\\..\\evil.md"}
         )
-        assert "Successfully ingested" in result
+        assert "Path traversal detected" in result
         assert not (wiki_structure.raw_dir.parent.parent / "evil.md").exists()
 
     @pytest.mark.asyncio

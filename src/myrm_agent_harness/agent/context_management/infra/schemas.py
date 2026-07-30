@@ -499,6 +499,7 @@ class CompressionIntent:
 
     focus_files: list[str] = field(default_factory=list)
     focus_modules: list[str] = field(default_factory=list)
+    pinned_files: list[str] = field(default_factory=list)
     failed_tool_call_ids: list[str] = field(default_factory=list)
     user_goal_hint: str = ""
 
@@ -511,6 +512,7 @@ class CompressionIntent:
         return cls(
             focus_files=[str(item) for item in value.get("focus_files", []) if str(item)],
             focus_modules=[str(item) for item in value.get("focus_modules", []) if str(item)],
+            pinned_files=[str(item) for item in value.get("pinned_files", []) if str(item)],
             failed_tool_call_ids=[str(item) for item in value.get("failed_tool_call_ids", []) if str(item)],
             user_goal_hint=str(value.get("user_goal_hint", "")).strip(),
         )
@@ -519,6 +521,7 @@ class CompressionIntent:
         return {
             "focus_files": self.focus_files,
             "focus_modules": self.focus_modules,
+            "pinned_files": self.pinned_files,
             "failed_tool_call_ids": self.failed_tool_call_ids,
             "user_goal_hint": self.user_goal_hint,
         }

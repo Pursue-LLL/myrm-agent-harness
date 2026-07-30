@@ -75,7 +75,15 @@ async def test_check_stale_detects_updated_raw(linter_auto: WikiLinter, temp_wik
 
     metadata_path = temp_wiki.get_wiki_metadata_path()
     old_time = datetime(2020, 1, 1, tzinfo=UTC).isoformat()
-    metadata_path.write_text(json.dumps({"last_compile_time": old_time}))
+    stale_pin = "0" * 64
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "last_compile_time": old_time,
+                "last_compile_raw_hashes": {"raw/test.md": stale_pin},
+            }
+        )
+    )
 
     issues = await linter_auto._check_stale()
     assert len(issues) >= 1
@@ -84,12 +92,23 @@ async def test_check_stale_detects_updated_raw(linter_auto: WikiLinter, temp_wik
 
 @pytest.mark.asyncio
 async def test_check_stale_no_stale_when_fresh(linter_auto: WikiLinter, temp_wiki: WikiStructure) -> None:
+    import hashlib
+
     raw_file = temp_wiki.raw_dir / "test.md"
-    raw_file.write_text("raw content")
+    raw_content = "raw content"
+    raw_file.write_text(raw_content)
 
     metadata_path = temp_wiki.get_wiki_metadata_path()
     future_time = datetime(2099, 1, 1, tzinfo=UTC).isoformat()
-    metadata_path.write_text(json.dumps({"last_compile_time": future_time}))
+    current_hash = hashlib.sha256(raw_content.encode()).hexdigest()
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "last_compile_time": future_time,
+                "last_compile_raw_hashes": {"raw/test.md": current_hash},
+            }
+        )
+    )
 
     issues = await linter_auto._check_stale()
     assert len(issues) == 0

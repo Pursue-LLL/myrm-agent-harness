@@ -1,18 +1,19 @@
 """Best-first retrieval convergence for wiki query.
 
 [INPUT]
-..core.claims_contract::parse_claims_from_content (POS: frontmatter claims parser)
+..core.claims_contract::WikiClaim, parse_claims_from_content, resolve_evidence_snapshot_status (POS: claim parse + snapshot tri-state)
 ..core.config::WikiQueryConfig (POS: query strategy knobs)
 ..core.structure::WikiStructure (POS: concept path resolution)
 .indexer::WikiIndexer (POS: weighted graph edge lookup)
 .tokenizer::extract_query_terms (POS: shared query term extraction)
 
 [OUTPUT]
-RetrievalSeed, score_claim_overlap, converge_retrieval_candidates
+RetrievalSeed, score_claim_overlap, converge_retrieval_candidates (claim status + stale evidence + claim confidence aware rerank)
 
 [POS]
 Budgeted priority-queue convergence over index/FTS/sidecar/keyword seeds plus weighted
-graph expansion. Supports raw_claim rerank via frontmatter claim overlap boosts.
+graph expansion. Supports raw_claim rerank via frontmatter claim overlap boosts and claim-health
+multipliers (supported/contested/stale evidence).
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ import heapq
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..core.claims_contract import parse_claims_from_content
+from ..core.claims_contract import WikiClaim, parse_claims_from_content, resolve_evidence_snapshot_status
 from .tokenizer import extract_query_terms
 
 if TYPE_CHECKING:
@@ -38,6 +39,14 @@ SOURCE_TIER_BOOST: dict[str, float] = {
 }
 RAW_CLAIM_TIER_BOOST = 50.0
 NON_CLAIM_DEMOTION = 0.5
+CLAIM_STATUS_MULTIPLIER: dict[str, float] = {
+    "supported": 1.15,
+    "contested": 0.7,
+    "unsupported": 0.5,
+    "unknown": 0.85,
+}
+STALE_EVIDENCE_MULTIPLIER = 0.6
+DEFAULT_CLAIM_CONFIDENCE = 0.5
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +58,35 @@ class RetrievalSeed:
     source: str
 
 
-def score_claim_overlap(content: str, query_terms: frozenset[str]) -> float:
+def _claim_health_multiplier(
+    claim: WikiClaim,
+    *,
+    structure: WikiStructure | None,
+) -> float:
+    multiplier = CLAIM_STATUS_MULTIPLIER.get(claim.status, 1.0)
+    if structure is None or not claim.evidence:
+        return multiplier
+    if any(
+        resolve_evidence_snapshot_status(evidence.path, evidence.content_sha256, structure) == "stale"
+        for evidence in claim.evidence
+    ):
+        multiplier *= STALE_EVIDENCE_MULTIPLIER
+    return multiplier
+
+
+def _claim_confidence_factor(claim: WikiClaim) -> float:
+    confidence = claim.confidence
+    if confidence <= 0.0 or confidence == DEFAULT_CLAIM_CONFIDENCE:
+        return 1.0
+    return 1.0 + 0.2 * min(1.0, confidence)
+
+
+def score_claim_overlap(
+    content: str,
+    query_terms: frozenset[str],
+    *,
+    structure: WikiStructure | None = None,
+) -> float:
     """Return best normalized query/claim term overlap score for a concept body."""
     if not query_terms:
         return 0.0
@@ -60,8 +97,8 @@ def score_claim_overlap(content: str, query_terms: frozenset[str]) -> float:
         if overlap <= 0:
             continue
         score = overlap / max(len(query_terms), 1)
-        if claim.status == "supported":
-            score *= 1.15
+        score *= _claim_health_multiplier(claim, structure=structure)
+        score *= _claim_confidence_factor(claim)
         best = max(best, score)
     return best
 
@@ -99,7 +136,7 @@ def _claim_overlap_for_concept(
     except OSError:
         cache[concept_name] = 0.0
         return 0.0
-    overlap = score_claim_overlap(content, query_terms)
+    overlap = score_claim_overlap(content, query_terms, structure=structure)
     cache[concept_name] = overlap
     return overlap
 

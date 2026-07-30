@@ -11,7 +11,7 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message typ
 .best_first::RetrievalSeed, converge_retrieval_candidates (POS: budgeted best-first graph convergence + raw_claim rerank)
 
 [OUTPUT]
-WikiQueryEngine: Wiki query and enhancement engine
+WikiQueryEngine: Wiki query and enhancement engine; derived QueryResult.confidence_score; QueryResult.retrieval_trace metadata
 
 [POS]
 Wiki query core engine. Responsible for querying the wiki knowledge base and answering questions:
@@ -19,7 +19,8 @@ concept search, context loading, LLM answer generation, and automatic archival o
 Uses index-first seeding, then sidecar hierarchical routing, FTS rerank, and best-first graph
 convergence with context-budgeted loading (L0/L1 before L2). Prepends hot.md vault status inside
 wiki_query answers only (no global agent middleware), and falls back to keyword matching when
-semantic retrieval is unavailable. Supports raw_claim rerank via frontmatter claim overlap.
+semantic retrieval is unavailable. Supports raw_claim rerank, claim-health multipliers, and
+derived confidence for citation scoring.
 """
 
 from __future__ import annotations
@@ -35,7 +36,13 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from ..core.config import WikiConfig, WikiQueryConfig
 from ..core.structure import WikiStructure
-from ..core.types import QueryResult, SourceSnippet
+from ..core.types import (
+    QueryResult,
+    SourceSnippet,
+    WikiIndexTraceHit,
+    WikiRetrievalSeedTrace,
+    WikiRetrievalTrace,
+)
 from ..pipeline.cognitive_map import read_hot_context
 from ..pipeline.cognitive_map.index_routing import (
     IndexRouteEntry,
@@ -58,6 +65,8 @@ SemanticSearchFn = Callable[[str, int], Awaitable[list[tuple[Path, float]]]]
 class _ConceptSearchResult:
     article_paths: list[Path]
     index_matches: list[tuple[IndexRouteEntry, float]]
+    seeds: list[RetrievalSeed]
+    sidecar_directories: list[str]
 
 
 class WikiQueryEngine:
@@ -163,8 +172,18 @@ class WikiQueryEngine:
             context = f"{context}\n\n{asset_block}" if context else asset_block
         context = self._compose_answer(hot_context, context, question)
 
-        # Step 3: Determine if should archive
-        confidence = 1.0
+        confidence = self._derive_query_confidence(
+            index_matches=search_result.index_matches,
+            seeds=search_result.seeds,
+            snippets=snippets,
+            article_count=len(related_articles),
+        )
+        retrieval_trace = self._build_retrieval_trace(
+            index_matches=search_result.index_matches,
+            seeds=search_result.seeds,
+            sidecar_directories=search_result.sidecar_directories,
+            article_paths=related_articles,
+        )
         should_archive = (
             effective_query_config.auto_enhance_enabled
             and confidence >= effective_query_config.min_query_quality_score
@@ -177,6 +196,7 @@ class WikiQueryEngine:
             should_archive=should_archive,
             confidence_score=confidence,
             source_snippets=snippets,
+            retrieval_trace=retrieval_trace,
         )
 
     @staticmethod
@@ -199,6 +219,107 @@ class WikiQueryEngine:
             return f"## Recent vault context\n{hot_context}"
         return article_context
 
+    @staticmethod
+    def _derive_query_confidence(
+        *,
+        index_matches: list[tuple[IndexRouteEntry, float]],
+        seeds: list[RetrievalSeed],
+        snippets: list[SourceSnippet],
+        article_count: int,
+    ) -> float:
+        if article_count <= 0:
+            return 0.0
+
+        score = 0.45
+        if index_matches:
+            top_index_score = max(match_score for _entry, match_score in index_matches)
+            score += min(0.25, top_index_score * 0.15)
+
+        seed_sources = {seed.source for seed in seeds}
+        if "index" in seed_sources:
+            score += 0.1
+        if "fts" in seed_sources:
+            score += 0.08
+        if "sidecar" in seed_sources:
+            score += 0.05
+
+        claim_snippets = [snippet for snippet in snippets if snippet.claim_id]
+        if claim_snippets:
+            quality_factors = [WikiQueryEngine._claim_snippet_quality_factor(snippet) for snippet in claim_snippets]
+            score *= sum(quality_factors) / len(quality_factors)
+
+        return round(min(1.0, max(0.05, score)), 3)
+
+    @staticmethod
+    def _claim_snippet_quality_factor(snippet: SourceSnippet) -> float:
+        factor = 1.0
+        snapshot_status = snippet.evidence_snapshot_status.strip()
+        if snapshot_status == "stale":
+            factor *= 0.6
+        elif snapshot_status == "missing" and snippet.evidence_path.strip():
+            factor *= 0.75
+
+        claim_status = snippet.claim_status.strip().lower()
+        if claim_status == "contested":
+            factor *= 0.7
+        elif claim_status == "unsupported":
+            factor *= 0.5
+
+        if snippet.claim_confidence > 0.0 and snippet.claim_confidence != 0.5:
+            factor *= 1.0 + 0.1 * min(1.0, snippet.claim_confidence)
+        return factor
+
+    def _build_retrieval_trace(
+        self,
+        *,
+        index_matches: list[tuple[IndexRouteEntry, float]],
+        seeds: list[RetrievalSeed],
+        sidecar_directories: list[str],
+        article_paths: list[Path],
+    ) -> WikiRetrievalTrace | None:
+        if not index_matches and not seeds and not sidecar_directories and not article_paths:
+            return None
+
+        index_hits = tuple(
+            WikiIndexTraceHit(
+                link_name=entry.link_name,
+                summary=entry.summary,
+                score=match_score,
+                page_type=entry.page_type,
+            )
+            for entry, match_score in index_matches[:8]
+        )
+        seed_traces = tuple(
+            WikiRetrievalSeedTrace(
+                concept_name=seed.concept_name,
+                score=seed.score,
+                source=seed.source,
+            )
+            for seed in seeds[:16]
+        )
+        selected_concepts = tuple(self._concept_name_from_path(path) for path in article_paths[:16])
+        return WikiRetrievalTrace(
+            index_hits=index_hits,
+            seeds=seed_traces,
+            sidecar_directories=tuple(sidecar_directories[:8]),
+            selected_concepts=selected_concepts,
+        )
+
+    def _sidecar_directories_from_articles(self, article_paths: list[Path]) -> list[str]:
+        ordered_dirs: list[str] = []
+        seen_dirs: set[str] = set()
+        for article in article_paths:
+            try:
+                rel = article.relative_to(self._structure.concepts_dir).with_suffix("")
+            except ValueError:
+                continue
+            dir_path = "" if str(rel.parent) in (".", "") else str(rel.parent).replace("\\", "/")
+            if not dir_path or dir_path in seen_dirs:
+                continue
+            seen_dirs.add(dir_path)
+            ordered_dirs.append(dir_path)
+        return ordered_dirs
+
     async def _search_concepts(
         self,
         query: str,
@@ -208,7 +329,7 @@ class WikiQueryEngine:
         qc = query_config or self._query_config
         concepts = self._structure.list_concepts()
         if not concepts:
-            return _ConceptSearchResult([], [])
+            return _ConceptSearchResult([], [], [], [])
 
         top_n = qc.max_context_articles
         index_matches = self._resolve_index_matches(query, qc)
@@ -232,7 +353,8 @@ class WikiQueryEngine:
         )
         if not seeds:
             keyword_paths = self._keyword_search(query, scoped_concepts, top_n)
-            return _ConceptSearchResult(keyword_paths, index_matches)
+            sidecar_directories = self._sidecar_directories_from_articles(keyword_paths)
+            return _ConceptSearchResult(keyword_paths, index_matches, [], sidecar_directories)
 
         expanded = converge_retrieval_candidates(
             query=query,
@@ -261,7 +383,8 @@ class WikiQueryEngine:
             if path.exists() and path not in seen_paths:
                 seen_paths.add(path)
                 resolved.append(path)
-        return _ConceptSearchResult(resolved[:top_n], index_matches)
+        sidecar_directories = self._sidecar_directories_from_articles(resolved)
+        return _ConceptSearchResult(resolved[:top_n], index_matches, seeds, sidecar_directories)
 
     async def _collect_retrieval_seeds(
         self,
@@ -667,22 +790,29 @@ class WikiQueryEngine:
         return f"{normalized}/{filename}"
 
     def _claim_snippets_from_content(self, content: str, path: Path) -> list[SourceSnippet]:
-        from ..core.claims_contract import parse_claims_from_content, resolve_evidence_snapshot_status
+        from ..core.claims_contract import (
+            parse_claims_from_content,
+            resolve_evidence_snapshot_and_excerpt,
+        )
 
         claim_snippets: list[SourceSnippet] = []
+        raw_bytes_cache: dict[str, bytes] = {}
         for claim in parse_claims_from_content(content):
             if claim.evidence:
                 for evidence in claim.evidence:
-                    snapshot_status = resolve_evidence_snapshot_status(
+                    snapshot_status, excerpt = resolve_evidence_snapshot_and_excerpt(
                         evidence.path,
+                        evidence.lines,
                         evidence.content_sha256,
                         self._structure,
+                        cache=raw_bytes_cache,
                     )
+                    snippet_text = excerpt or claim.text
                     claim_snippets.append(
                         SourceSnippet(
                             article_path=str(path),
                             article_name=path.stem,
-                            snippet=claim.text,
+                            snippet=snippet_text,
                             section="Claim",
                             level="L2",
                             claim_id=claim.id,
@@ -690,6 +820,7 @@ class WikiQueryEngine:
                             evidence_path=evidence.path,
                             line_range=evidence.lines,
                             claim_status=claim.status,
+                            claim_confidence=claim.confidence,
                             evidence_content_sha256=evidence.content_sha256,
                             evidence_snapshot_status=snapshot_status,
                         )
@@ -705,6 +836,7 @@ class WikiQueryEngine:
                         claim_id=claim.id,
                         claim_text=claim.text,
                         claim_status=claim.status,
+                        claim_confidence=claim.confidence,
                     )
                 )
         return claim_snippets

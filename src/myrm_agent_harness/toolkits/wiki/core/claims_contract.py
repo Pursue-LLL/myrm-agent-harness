@@ -5,7 +5,7 @@ agent.meta_tools.file_ops.utils.markdown_frontmatter (POS: frontmatter block det
 
 [OUTPUT]
 WikiClaim, WikiEvidence, parse_claims_from_content, validate_compile_claims, ensure_compile_claims,
-merge_claims_into_content, resolve_evidence_snapshot_status, format_resource_uri, build_evidence_resource_uri,
+merge_claims_into_content, resolve_evidence_snapshot_status, resolve_evidence_snapshot_and_excerpt, read_evidence_excerpt, clear_raw_bytes_lru_cache, format_resource_uri, build_evidence_resource_uri,
 last_compile_raw_hashes metadata helpers, raw_supersede lineage
 
 [POS]
@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import OrderedDict
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,9 +30,21 @@ if TYPE_CHECKING:
 
 CLAIM_STATUSES = frozenset({"supported", "contested", "unsupported", "unknown"})
 EvidenceSnapshotStatus = Literal["verified", "stale", "missing"]
+MAX_EVIDENCE_EXCERPT_CHARS = 2000
+RAW_BYTES_LRU_MAX_BYTES = 32 * 1024 * 1024
 
 LAST_COMPILE_RAW_HASHES_KEY = "last_compile_raw_hashes"
 RAW_SUPERSEDE_KEY = "raw_supersede"
+
+
+@dataclass(frozen=True, slots=True)
+class _RawBytesLruEntry:
+    mtime_ns: int
+    raw: bytes
+
+
+_RAW_BYTES_LRU: OrderedDict[str, _RawBytesLruEntry] = OrderedDict()
+_RAW_BYTES_LRU_TOTAL_BYTES = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -272,19 +285,169 @@ def _resolve_raw_file(structure: WikiStructure, source_ref: str) -> Path | None:
     return None
 
 
+def _parse_evidence_line_range(lines: str) -> tuple[int | None, int | None]:
+    cleaned = lines.strip()
+    if not cleaned:
+        return None, None
+    if "-" in cleaned:
+        start_part, _, end_part = cleaned.partition("-")
+        start_text = start_part.strip()
+        end_text = end_part.strip()
+        start = int(start_text) if start_text.isdigit() else None
+        end = int(end_text) if end_text.isdigit() else None
+        return start, end
+    if cleaned.isdigit():
+        line_no = int(cleaned)
+        return line_no, line_no
+    return None, None
+
+
+def _normalize_source_ref(source_ref: str) -> str:
+    return source_ref.strip().replace("\\", "/")
+
+
+def clear_raw_bytes_lru_cache() -> None:
+    """Clear the process-wide raw bytes LRU cache (for tests)."""
+    _RAW_BYTES_LRU.clear()
+    global _RAW_BYTES_LRU_TOTAL_BYTES
+    _RAW_BYTES_LRU_TOTAL_BYTES = 0
+
+
+def _store_raw_bytes_lru(cache_key: str, mtime_ns: int, raw: bytes) -> None:
+    global _RAW_BYTES_LRU_TOTAL_BYTES
+    existing = _RAW_BYTES_LRU.pop(cache_key, None)
+    if existing is not None:
+        _RAW_BYTES_LRU_TOTAL_BYTES -= len(existing.raw)
+    _RAW_BYTES_LRU[cache_key] = _RawBytesLruEntry(mtime_ns=mtime_ns, raw=raw)
+    _RAW_BYTES_LRU_TOTAL_BYTES += len(raw)
+    while _RAW_BYTES_LRU and _RAW_BYTES_LRU_TOTAL_BYTES > RAW_BYTES_LRU_MAX_BYTES:
+        _, evicted = _RAW_BYTES_LRU.popitem(last=False)
+        _RAW_BYTES_LRU_TOTAL_BYTES -= len(evicted.raw)
+
+
+def _load_raw_bytes(
+    source_ref: str,
+    structure: WikiStructure | None,
+    *,
+    cache: dict[str, bytes] | None = None,
+) -> bytes:
+    if structure is None or not source_ref.strip():
+        return b""
+    normalized = _normalize_source_ref(source_ref)
+    if Path(normalized).is_absolute():
+        return b""
+    path = _resolve_raw_file(structure, source_ref)
+    if path is None:
+        return b""
+    cache_key = str(path.resolve())
+    if cache is not None and cache_key in cache:
+        return cache[cache_key]
+    try:
+        mtime_ns = path.stat().st_mtime_ns
+    except OSError:
+        return b""
+    lru_entry = _RAW_BYTES_LRU.get(cache_key)
+    if lru_entry is not None and lru_entry.mtime_ns == mtime_ns:
+        _RAW_BYTES_LRU.move_to_end(cache_key)
+        raw = lru_entry.raw
+    else:
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            return b""
+        _store_raw_bytes_lru(cache_key, mtime_ns, raw)
+    if cache is not None:
+        cache[cache_key] = raw
+    return raw
+
+
+def _digest_raw_bytes(raw: bytes) -> str:
+    if not raw:
+        return ""
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _decode_raw_text(raw: bytes) -> str:
+    if not raw:
+        return ""
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return ""
+
+
+def _slice_excerpt_from_text(text: str, lines: str, max_chars: int) -> str:
+    start, end = _parse_evidence_line_range(lines)
+    if start is None:
+        return ""
+    file_lines = text.splitlines()
+    start_idx = max(start - 1, 0)
+    if end is None:
+        selected = file_lines[start_idx:]
+    else:
+        end_idx = min(max(end, start), len(file_lines))
+        selected = file_lines[start_idx:end_idx]
+    excerpt = "\n".join(selected).strip()
+    if not excerpt:
+        return ""
+    if len(excerpt) > max_chars:
+        return excerpt[:max_chars].rstrip() + "…"
+    return excerpt
+
+
+def read_evidence_excerpt(
+    source_ref: str,
+    lines: str,
+    structure: WikiStructure | None,
+    *,
+    max_chars: int = MAX_EVIDENCE_EXCERPT_CHARS,
+) -> str:
+    """Read a bounded excerpt from a raw evidence file using 1-based line ranges."""
+    raw = _load_raw_bytes(source_ref, structure)
+    text = _decode_raw_text(raw)
+    if not text:
+        return ""
+    return _slice_excerpt_from_text(text, lines, max_chars)
+
+
 def _content_sha256_for_ref(
     source_ref: str,
     structure: WikiStructure | None,
+    *,
+    cache: dict[str, bytes] | None = None,
 ) -> str:
     if structure is None or not source_ref.strip():
         return ""
-    path = _resolve_raw_file(structure, source_ref)
-    if path is None:
+    if Path(source_ref.strip()).is_absolute():
         return ""
-    try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
-    except OSError:
-        return ""
+    return _digest_raw_bytes(_load_raw_bytes(source_ref, structure, cache=cache))
+
+
+def resolve_evidence_snapshot_and_excerpt(
+    source_ref: str,
+    lines: str,
+    pinned_sha256: str,
+    structure: WikiStructure | None,
+    *,
+    cache: dict[str, bytes] | None = None,
+    max_chars: int = MAX_EVIDENCE_EXCERPT_CHARS,
+) -> tuple[EvidenceSnapshotStatus, str]:
+    """Resolve compile snapshot status and raw excerpt from a single raw file read."""
+    pinned = pinned_sha256.strip()
+    raw = _load_raw_bytes(source_ref, structure, cache=cache)
+    digest = _digest_raw_bytes(raw)
+    text = _decode_raw_text(raw)
+    excerpt = _slice_excerpt_from_text(text, lines, max_chars) if text else ""
+
+    if not pinned:
+        status: EvidenceSnapshotStatus = "missing"
+    elif not digest:
+        status = "missing"
+    elif digest == pinned:
+        status = "verified"
+    else:
+        status = "stale"
+    return status, excerpt
 
 
 def resolve_evidence_snapshot_status(

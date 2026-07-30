@@ -6,7 +6,7 @@
 - ..core.claims_contract::build_evidence_resource_uri (POS: portable resource URI builder)
 
 [OUTPUT]
-- build_wiki_query_sources: Deduplicated LLM-Wiki source dicts for SSE metadata.
+- build_wiki_query_sources: Deduplicated LLM-Wiki source dicts for SSE metadata (`snippet` raw excerpt, `claim_text`, `claim_confidence`, `resource_uri` / `superseded_from_uri` when `evidence_path` is set).
 - attach_wiki_scope_id: Inject logical agent scope into wiki source metadata.
 
 [POS]
@@ -42,11 +42,27 @@ def _evidence_resource_uri_for_snippet(
 ) -> str:
     from ..core.claims_contract import build_evidence_resource_uri
 
+    source_path = (snip.evidence_path or "").strip()
+    if not source_path:
+        return ""
     return build_evidence_resource_uri(
-        snip.evidence_path or snip.article_path,
+        source_path,
         snip.evidence_content_sha256,
         structure=structure,
     )
+
+
+def _superseded_from_uri_for_snippet(
+    snip: SourceSnippet,
+    *,
+    structure: WikiStructure | None,
+) -> str:
+    from ..core.claims_contract import lookup_raw_supersede_uri
+
+    evidence_path = (snip.evidence_path or "").strip()
+    if (snip.evidence_snapshot_status or "").strip() != "stale" or not evidence_path:
+        return ""
+    return lookup_raw_supersede_uri(structure, evidence_path)
 
 
 def wiki_source_entry(
@@ -72,17 +88,24 @@ def wiki_source_entry(
         entry["level"] = snip.level
     if snip.claim_id:
         entry["claim_id"] = snip.claim_id
+    if snip.claim_text:
+        entry["claim_text"] = snip.claim_text
     if snip.evidence_path:
         entry["evidence_path"] = snip.evidence_path
     if snip.line_range:
         entry["line_range"] = snip.line_range
     if snip.claim_status:
         entry["claim_status"] = snip.claim_status
+    if snip.claim_confidence > 0.0 and snip.claim_confidence != 0.5:
+        entry["claim_confidence"] = snip.claim_confidence
     if snip.evidence_snapshot_status:
         entry["snapshot_status"] = snip.evidence_snapshot_status
     uri = _evidence_resource_uri_for_snippet(snip, structure=structure)
     if uri:
         entry["resource_uri"] = uri
+    superseded_uri = _superseded_from_uri_for_snippet(snip, structure=structure)
+    if superseded_uri:
+        entry["superseded_from_uri"] = superseded_uri
     if snip.hit_kind == "asset":
         entry["hit_kind"] = "asset"
     if snip.asset_filename:
@@ -110,6 +133,9 @@ def build_wiki_query_sources(
             uri = _evidence_resource_uri_for_snippet(snip, structure=structure)
             if uri:
                 entry["resource_uri"] = uri
+            superseded_uri = _superseded_from_uri_for_snippet(snip, structure=structure)
+            if superseded_uri:
+                entry["superseded_from_uri"] = superseded_uri
             continue
         sources_by_key[key] = wiki_source_entry(
             snip,
@@ -136,7 +162,11 @@ def build_wiki_query_sources(
         }
         ordered_keys.append(path_key)
 
-    return [sources_by_key[key] for key in ordered_keys]
+    return [
+        sources_by_key[key]
+        for key in ordered_keys
+        if sources_by_key[key].get("snippet") or sources_by_key[key].get("claim_id")
+    ]
 
 
 def attach_wiki_scope_id(

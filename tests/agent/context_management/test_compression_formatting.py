@@ -129,9 +129,10 @@ class TestGenerateCompressedContent:
 
     def test_with_evicted_path(self) -> None:
         info = _make_compact(evicted_path="offload/123.txt")
-        result = generate_compressed_content(info, "COMPACTED: {identifier}")
-        assert "FILE:" in result
-        assert "RECOVER:" in result
+        result = generate_compressed_content(info, "COMPACTED: {identifier}", original_content="payload")
+        assert "[Tool result offloaded during context compression]" in result
+        assert "archive_ref:" in result
+        assert "offload/123.txt" in result
         assert "LIFECYCLE:" in result
 
 
@@ -182,9 +183,10 @@ class TestGenerateGenericCompressedContent:
 
     def test_with_evicted_path(self) -> None:
         info = _make_compact(evicted_path="offload/abc.txt")
-        result = generate_generic_compressed_content(info)
-        assert "FILE:" in result
-        assert "RECOVER:" in result
+        result = generate_generic_compressed_content(info, original_content="payload")
+        assert "[Tool result offloaded during context compression]" in result
+        assert "archive_ref:" in result
+        assert "offload/abc.txt" in result
 
     def test_empty_stats_dict_no_result_line(self) -> None:
         info = _make_compact()

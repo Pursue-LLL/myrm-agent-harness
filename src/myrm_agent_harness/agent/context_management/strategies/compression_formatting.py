@@ -74,29 +74,61 @@ def extract_identifier(tool_msg: ToolMessage, ai_msg: AIMessage | None, identifi
     return f"tool_call_{tool_msg.tool_call_id or 'unknown'}"
 
 
-def generate_compressed_content(compact_info: CompactToolCall, template: str) -> str:
+def _append_evicted_restore_lines(
+    lines: list[str],
+    *,
+    tool_name: str,
+    evicted_path: str,
+    original_content: str,
+    original_tokens: int,
+) -> None:
+    """Append structured archive restore hints for compress-offloaded tool output."""
+    from myrm_agent_harness.agent.context_management.infra.archive_reference import (
+        build_tool_result_archive_reference,
+    )
+
+    archive_path = evicted_path
+    reference = build_tool_result_archive_reference(
+        tool_name=tool_name,
+        archive_path=archive_path,
+        content=original_content,
+        original_tokens=original_tokens,
+        original_chars=len(original_content),
+        reason="compress_offload",
+    )
+    lines.append(reference.render_for_model())
+    lines.append("LIFECYCLE: Retained while session active (30d) or file accessed (14d)")
+
+
+def generate_compressed_content(
+    compact_info: CompactToolCall,
+    template: str,
+    *,
+    original_content: str = "",
+) -> str:
     """生成压缩格式内容。"""
     content = template.format(identifier=compact_info.identifier)
     meta = f"META: tokens_saved={compact_info.original_tokens} time={compact_info.timestamp}"
     lines = [content, meta]
 
     if compact_info.evicted_path:
-        from myrm_agent_harness.runtime.execution_paths import PERSISTENT_ROOT
-
-        abs_path = f"{PERSISTENT_ROOT}/{compact_info.evicted_path}"
-        lines.extend(
-            [
-                f"FILE: {abs_path}",
-                f"RECOVER: cat {abs_path}",
-                "LIFECYCLE: Retained while session active (30d) or file accessed (14d)",
-            ]
+        _append_evicted_restore_lines(
+            lines,
+            tool_name=compact_info.tool_name,
+            evicted_path=compact_info.evicted_path,
+            original_content=original_content,
+            original_tokens=compact_info.original_tokens,
         )
 
     return "\n".join(lines)
 
 
 def generate_compressed_content_with_stats(
-    compact_info: CompactToolCall, stats_template: str, tool_stats: dict[str, object]
+    compact_info: CompactToolCall,
+    stats_template: str,
+    tool_stats: dict[str, object],
+    *,
+    original_content: str = "",
 ) -> str:
     """生成带统计信息的压缩内容。"""
     template_params = {
@@ -117,22 +149,22 @@ def generate_compressed_content_with_stats(
     lines = [content, meta]
 
     if compact_info.evicted_path:
-        from myrm_agent_harness.runtime.execution_paths import PERSISTENT_ROOT
-
-        abs_path = f"{PERSISTENT_ROOT}/{compact_info.evicted_path}"
-        lines.extend(
-            [
-                f"FILE: {abs_path}",
-                f"RECOVER: cat {abs_path}",
-                "LIFECYCLE: Retained while session active (30d) or file accessed (14d)",
-            ]
+        _append_evicted_restore_lines(
+            lines,
+            tool_name=compact_info.tool_name,
+            evicted_path=compact_info.evicted_path,
+            original_content=original_content,
+            original_tokens=compact_info.original_tokens,
         )
 
     return "\n".join(lines)
 
 
 def generate_generic_compressed_content(
-    compact_info: CompactToolCall, tool_stats: dict[str, object] | None = None
+    compact_info: CompactToolCall,
+    tool_stats: dict[str, object] | None = None,
+    *,
+    original_content: str = "",
 ) -> str:
     """生成通用压缩格式内容。"""
     lines = [
@@ -146,15 +178,12 @@ def generate_generic_compressed_content(
     lines.append(f"META: tokens_saved={compact_info.original_tokens} time={compact_info.timestamp}")
 
     if compact_info.evicted_path:
-        from myrm_agent_harness.runtime.execution_paths import PERSISTENT_ROOT
-
-        abs_path = f"{PERSISTENT_ROOT}/{compact_info.evicted_path}"
-        lines.extend(
-            [
-                f"FILE: {abs_path}",
-                f"RECOVER: cat {abs_path}",
-                "LIFECYCLE: Retained while session active (30d) or file accessed (14d)",
-            ]
+        _append_evicted_restore_lines(
+            lines,
+            tool_name=compact_info.tool_name,
+            evicted_path=compact_info.evicted_path,
+            original_content=original_content,
+            original_tokens=compact_info.original_tokens,
         )
 
     return "\n".join(lines)

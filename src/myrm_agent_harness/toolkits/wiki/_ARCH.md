@@ -11,7 +11,7 @@ directory sidecars, bottom-up incremental DAG refresh, and LLM-driven wikilink e
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Wiki toolkit entry point | ✅ |
-| wiki_agent_tools.py | Core | LangChain tool integration: **ingest/query/apply** agent tools; admin compile/maintain via REST. Auto-compile on ingest, knowledge compounding on query, FetchEngine URL/binary ingest. Query metadata emits layered citations + claim snapshot_status + resource_uri via shared `build_wiki_query_sources(structure=...)`. | ✅ |
+| wiki_agent_tools.py | Core | LangChain tool integration: **ingest/query/apply** agent tools; admin compile/maintain via REST. Auto-compile on ingest, knowledge compounding on query, FetchEngine URL/binary ingest. Query metadata emits layered citations + claim snapshot_status + resource_uri + superseded_from_uri via shared `build_wiki_query_sources(structure=...)`. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

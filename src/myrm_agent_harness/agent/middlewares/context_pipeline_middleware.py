@@ -355,6 +355,28 @@ def create_context_pipeline_middleware(
                 except Exception as e:
                     logger.debug("Failed to dispatch cache pruning status event: %s", e)
 
+            if result.tokens_saved > 0 and (
+                "compress" in result.operations or "summarize" in result.operations
+            ):
+                from myrm_agent_harness.utils.event_utils import dispatch_custom_event
+
+                snapshot_path = result.metadata.get("context_snapshot_path")
+                payload: dict[str, object] = {
+                    "step_key": "context_pruned",
+                    "message": "Context compressed",
+                    "tokens_saved": result.tokens_saved,
+                }
+                if isinstance(snapshot_path, str) and snapshot_path:
+                    payload["snapshot_path"] = snapshot_path
+                try:
+                    await dispatch_custom_event(
+                        "agent_status",
+                        payload,
+                        config=getattr(request, "config", None),
+                    )
+                except Exception as e:
+                    logger.debug("Failed to dispatch compression status event: %s", e)
+
             if result.tokens_saved > 0 or result.messages is not messages:
                 request = request.override(messages=cast(list[AnyMessage], result.messages))
 

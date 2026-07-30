@@ -54,13 +54,24 @@ def extract_failed_tool_call_ids(metadata: dict[str, object]) -> frozenset[str]:
 
 
 def extract_focus_files(metadata: dict[str, object]) -> frozenset[str]:
-    """Read focus file paths from pipeline metadata compression intent."""
+    """Read focus and pinned file paths from pipeline metadata compression intent."""
     raw_focus_files = _read_compression_intent(metadata).get("focus_files")
-    if not isinstance(raw_focus_files, list):
-        return frozenset()
+    raw_pinned_files = _read_compression_intent(metadata).get("pinned_files")
+    merged: set[str] = set()
+    if isinstance(raw_focus_files, list):
+        merged.update(file_path for file_path in raw_focus_files if isinstance(file_path, str) and file_path)
+    if isinstance(raw_pinned_files, list):
+        merged.update(file_path for file_path in raw_pinned_files if isinstance(file_path, str) and file_path)
+    return frozenset(merged)
 
+
+def extract_pinned_files(metadata: dict[str, object]) -> frozenset[str]:
+    """Read pinned file paths from pipeline metadata compression intent."""
+    raw_pinned_files = _read_compression_intent(metadata).get("pinned_files")
+    if not isinstance(raw_pinned_files, list):
+        return frozenset()
     return frozenset(
-        file_path for file_path in raw_focus_files if isinstance(file_path, str) and file_path
+        file_path for file_path in raw_pinned_files if isinstance(file_path, str) and file_path
     )
 
 

@@ -12,6 +12,7 @@ from .media_filter import MediaFilterProcessor
 from .media_resolver import MediaResolverProcessor
 from .normalize_processor import NormalizeProcessor
 from .post_compaction_reread_processor import PostCompactionRereadProcessor
+from .post_compaction_refetch_guard_processor import PostCompactionRefetchGuardProcessor
 from .pre_compact_processor import PreCompactProcessor
 from .session_notes_processor import SessionNotesProcessor
 from .summarize_processor import SummarizeProcessor
@@ -27,6 +28,7 @@ __all__ = [
     "MediaResolverProcessor",
     "NormalizeProcessor",
     "PostCompactionRereadProcessor",
+    "PostCompactionRefetchGuardProcessor",
     "PreCompactProcessor",
     "SessionNotesProcessor",
     "SummarizeProcessor",

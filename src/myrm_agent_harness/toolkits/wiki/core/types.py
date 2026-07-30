@@ -11,6 +11,7 @@ WikiArticle: Wiki article dataclass
 CompileResult: compilation result dataclass
 SourceSnippet: chunk-level snippet for citation linking
 QueryResult: query result dataclass
+WikiRetrievalTrace, WikiRetrievalSeedTrace, WikiIndexTraceHit: structured retrieval trace metadata
 LintIssue: lint issue dataclass
 LintResult: lint result dataclass
 WikiMetadata: Wiki metadata class
@@ -79,10 +80,40 @@ class SourceSnippet:
     evidence_path: str = ""
     line_range: str = ""
     claim_status: str = ""
+    claim_confidence: float = 0.0
     evidence_content_sha256: str = ""
     evidence_snapshot_status: str = ""
     hit_kind: str = "concept"
     asset_filename: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class WikiIndexTraceHit:
+    """One index.md routing hit included in retrieval trace metadata."""
+
+    link_name: str
+    summary: str
+    score: float
+    page_type: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class WikiRetrievalSeedTrace:
+    """One retrieval seed before best-first convergence."""
+
+    concept_name: str
+    score: float
+    source: str
+
+
+@dataclass(frozen=True, slots=True)
+class WikiRetrievalTrace:
+    """Structured wiki_query retrieval path for GUI debugging."""
+
+    index_hits: tuple[WikiIndexTraceHit, ...] = ()
+    seeds: tuple[WikiRetrievalSeedTrace, ...] = ()
+    sidecar_directories: tuple[str, ...] = ()
+    selected_concepts: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +126,7 @@ class QueryResult:
     should_archive: bool = False
     confidence_score: float = 0.0
     source_snippets: list[SourceSnippet] = field(default_factory=list)
+    retrieval_trace: WikiRetrievalTrace | None = None
 
 
 @dataclass(frozen=True, slots=True)

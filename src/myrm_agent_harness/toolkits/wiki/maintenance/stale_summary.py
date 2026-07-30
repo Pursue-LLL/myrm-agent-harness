@@ -10,7 +10,8 @@ resolve_raw_file_ingest_status, WikiStaleSummary, StaleRawFile
 
 [POS]
 Shared stale detection for WikiLinter and product API surfaces. Compares current raw
-content digests against the last-compile snapshot in wiki metadata.
+content digests against the last-compile snapshot in wiki metadata. When compile time
+exists but hash snapshot is missing, all current raw files are treated as stale.
 """
 
 from __future__ import annotations
@@ -54,10 +55,17 @@ def collect_stale_raw_files(structure: WikiStructure) -> WikiStaleSummary:
         return WikiStaleSummary(stale_count=0, last_compile_time=None, stale_files=())
 
     known_hashes = get_last_compile_raw_hashes(metadata)
+    current_hashes = collect_raw_content_hashes(structure)
     if not known_hashes:
+        if current_hashes:
+            stale = [StaleRawFile(relative_path=key) for key in sorted(current_hashes)]
+            return WikiStaleSummary(
+                stale_count=len(stale),
+                last_compile_time=last_compile,
+                stale_files=tuple(stale),
+            )
         return WikiStaleSummary(stale_count=0, last_compile_time=last_compile, stale_files=())
 
-    current_hashes = collect_raw_content_hashes(structure)
     stale: list[StaleRawFile] = []
     for key, current_hash in current_hashes.items():
         if known_hashes.get(key) != current_hash:

@@ -436,11 +436,17 @@ async def compress_tool_message_async(
     if rule:
         stats_template = rule.stats_template
         if stats_template is not None and tool_stats and original_tokens >= 25:
-            compressed_content = generate_compressed_content_with_stats(compact_info, stats_template, tool_stats)
+            compressed_content = generate_compressed_content_with_stats(
+                compact_info, stats_template, tool_stats, original_content=original_content
+            )
         else:
-            compressed_content = generate_compressed_content(compact_info, rule.result_template)
+            compressed_content = generate_compressed_content(
+                compact_info, rule.result_template, original_content=original_content
+            )
     else:
-        compressed_content = generate_generic_compressed_content(compact_info, tool_stats)
+        compressed_content = generate_generic_compressed_content(
+            compact_info, tool_stats, original_content=original_content
+        )
 
     tool_msg.content = compressed_content
 

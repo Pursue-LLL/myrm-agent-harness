@@ -15,9 +15,9 @@ and sidecar-first hierarchical retrieval (L0/L1 route + L2 article grounding).
 | tokenizer.py | Core | FTS5 query tokenizer with CJK bigram support; `extract_query_terms()` shared with index routing | ✅ |
 | graph_store.py | Core | Knowledge graph BFS traversal, federated graph queries, insight delegation | ✅ |
 | graph_analysis.py | Core | LPA community detection, knowledge gap discovery, graph insights | ✅ |
-| best_first.py | Core | Best-first priority-queue convergence + raw_claim frontmatter rerank | ✅ |
-| query.py | Core | Query engine: index-first seeds → sidecar scope → FTS rerank → best-first graph converge; SourceSnippet incl. claims + snapshot_status + evidence SHA + asset hits | ✅ |
-| source_citations.py | Core | Shared LLM-Wiki citation metadata builder (`build_evidence_resource_uri` + optional structure); scope id injection for asset URLs | ✅ |
+| best_first.py | Core | Best-first priority-queue convergence + raw_claim frontmatter rerank + claim-health multipliers (supported/contested/stale) | ✅ |
+| query.py | Core | Query engine: index-first seeds → sidecar scope → FTS rerank → best-first graph converge; derived `confidence_score`; `retrieval_trace` metadata; SourceSnippet incl. claims + raw evidence excerpt + `claim_text` + `claim_confidence` + snapshot_status + evidence SHA + asset hits | ✅ |
+| source_citations.py | Core | Shared LLM-Wiki citation SSOT; `snippet` (raw excerpt) + `claim_text` + `resource_uri` + `superseded_from_uri` for claim snippets with `evidence_path`; optional `structure` for live digest when pin missing | ✅ |
 | asset_index.py | Core | Wiki asset caption indexer: FTS5 + Qdrant `wiki_assets`, SHA256 skip, provenance scan, orphan purge | ✅ |
 
 ## Key Dependencies

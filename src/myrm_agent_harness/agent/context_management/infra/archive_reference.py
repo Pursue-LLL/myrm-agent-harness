@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Literal
 
-ArchiveReason = Literal["cache_ttl_expired"]
+ArchiveReason = Literal["cache_ttl_expired", "compress_offload"]
 ArchiveReferenceType = Literal["tool_result"]
 ArchiveContentType = Literal["text", "json", "unknown"]
 RestoreTool = Literal["file_read_tool"]
@@ -74,8 +74,13 @@ class ContextArchiveReference:
     def render_for_model(self) -> str:
         """Render a compact model-readable restore hint."""
         payload = json.dumps(self.to_dict(), ensure_ascii=False, separators=(",", ":"))
+        header = (
+            "[Tool result offloaded during context compression]"
+            if self.reason == "compress_offload"
+            else "[Tool result archived after prompt cache TTL expiry]"
+        )
         return (
-            "[Tool result archived after prompt cache TTL expiry]\n"
+            f"{header}\n"
             f"- archive_ref: {payload}\n"
             f"- archived_path: {self.archive_path}\n"
             f"- restore_tool: {self.restore_tool}\n"

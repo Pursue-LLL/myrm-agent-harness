@@ -179,6 +179,7 @@ def build_default_processors(
         MediaResolverProcessor,
         NormalizeProcessor,
         PostCompactionRereadProcessor,
+        PostCompactionRefetchGuardProcessor,
         PreCompactProcessor,
         SessionNotesProcessor,
         SummarizeProcessor,
@@ -253,6 +254,7 @@ def build_default_processors(
         [
             summarize_processor,
             PostCompactionRereadProcessor(),
+            PostCompactionRefetchGuardProcessor(),
             NormalizeProcessor(),
             MediaResolverProcessor(),
             ExplicitCacheProcessor(),

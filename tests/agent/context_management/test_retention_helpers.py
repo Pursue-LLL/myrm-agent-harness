@@ -10,6 +10,7 @@ from myrm_agent_harness.agent.context_management.infra.retention_helpers import 
     extract_failed_tool_call_ids,
     extract_focus_files,
     extract_focus_modules,
+    extract_pinned_files,
     extract_user_goal_hint,
     find_keep_recent_prune_cutoff,
     should_retain_tool_message,
@@ -160,6 +161,59 @@ def test_extract_focus_files_and_modules() -> None:
     }
     assert extract_focus_files(metadata) == frozenset({"src/a.py"})
     assert extract_focus_modules(metadata) == frozenset({"agent.context"})
+
+
+def test_extract_pinned_files_and_merge_into_focus() -> None:
+    metadata = {
+        "compression_intent": {
+            "focus_files": ["src/a.py"],
+            "pinned_files": ["src/b.py", "", 1],
+        }
+    }
+    assert extract_pinned_files(metadata) == frozenset({"src/b.py"})
+    assert extract_focus_files(metadata) == frozenset({"src/a.py", "src/b.py"})
+
+
+def test_extract_pinned_files_returns_empty_for_invalid_shape() -> None:
+    assert extract_pinned_files({"compression_intent": {"pinned_files": "bad"}}) == frozenset()
+
+
+def test_extract_focus_modules_returns_empty_for_invalid_shape() -> None:
+    assert extract_focus_modules({"compression_intent": {"focus_modules": 1}}) == frozenset()
+
+
+def test_format_retained_tool_trim_message_with_saved_path() -> None:
+    from myrm_agent_harness.agent.context_management.infra.retention_helpers import (
+        format_retained_tool_trim_message,
+    )
+
+    message = format_retained_tool_trim_message("trimmed", saved_path="/tmp/out.txt")
+    assert "Full output saved to: /tmp/out.txt" in message
+    assert "file_read_tool" in message
+
+
+def test_format_retained_tool_trim_message_without_saved_path() -> None:
+    from myrm_agent_harness.agent.context_management.infra.retention_helpers import (
+        format_retained_tool_trim_message,
+    )
+
+    message = format_retained_tool_trim_message("trimmed", saved_path=None)
+    assert "trimmed" in message
+    assert "Full output saved to" not in message
+
+
+def test_structure_trim_tokens_saved_non_negative() -> None:
+    from myrm_agent_harness.agent.context_management.infra.retention_helpers import (
+        structure_trim_tokens_saved,
+    )
+
+    assert structure_trim_tokens_saved("hello world", "hi") >= 0
+    assert structure_trim_tokens_saved("hi", "hello world") == 0
+
+
+def test_find_keep_recent_prune_cutoff_without_tool_groups() -> None:
+    messages = [HumanMessage(content="only user message")]
+    assert find_keep_recent_prune_cutoff(messages, keep_recent_calls=3) == 0
 
 
 def test_find_keep_recent_prune_cutoff_protects_recent_groups() -> None:

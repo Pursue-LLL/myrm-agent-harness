@@ -83,8 +83,8 @@ def test_is_transient_error_kind() -> None:
 
 def test_sanitize_display_message_redacts_api_key() -> None:
     cleaned = sanitize_display_message("Invalid key sk-abcdefghijklmnopqrstuvwxyz123456")
-    assert "sk-" not in cleaned
-    assert "[redacted]" in cleaned
+    assert "abcdefghijklmnopqrstuvwxyz123456" not in cleaned
+    assert "[REDACTED:high_entropy_token]" in cleaned
 
 
 def test_queue_mark_failed_stores_error_kind(tmp_path: Path) -> None:

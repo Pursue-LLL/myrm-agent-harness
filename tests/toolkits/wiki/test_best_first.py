@@ -1,3 +1,5 @@
+import hashlib
+
 import pytest
 
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig, WikiQueryConfig
@@ -34,6 +36,122 @@ claims:
 """
     terms = frozenset(extract_query_terms("revenue grew fifteen percent"))
     assert score_claim_overlap(content, terms) > 0.0
+
+
+def test_score_claim_overlap_prefers_fresh_supported_over_stale_contested(wiki_structure) -> None:
+    fresh_raw = wiki_structure.raw_dir / "fresh.md"
+    stale_raw = wiki_structure.raw_dir / "stale.md"
+    fresh_bytes = b"postgresql production writes fresh"
+    stale_bytes = b"postgresql production writes stale"
+    fresh_raw.write_bytes(fresh_bytes)
+    stale_raw.write_bytes(stale_bytes)
+    fresh_pin = hashlib.sha256(fresh_bytes).hexdigest()
+    stale_pin = hashlib.sha256(b"original stale content").hexdigest()
+
+    fresh_content = f"""---
+claims:
+  - id: claim.fresh
+    text: Alpha uses PostgreSQL for production writes
+    status: supported
+    evidence:
+      - kind: raw-note
+        sourceId: source.fresh
+        path: raw/fresh.md
+        lines: "1-1"
+        weight: 1.0
+        confidence: 0.9
+        contentSha256: {fresh_pin}
+---
+"""
+    stale_content = f"""---
+claims:
+  - id: claim.stale
+    text: Alpha uses PostgreSQL for production writes
+    status: contested
+    evidence:
+      - kind: raw-note
+        sourceId: source.stale
+        path: raw/stale.md
+        lines: "1-1"
+        weight: 1.0
+        confidence: 0.9
+        contentSha256: {stale_pin}
+---
+"""
+    terms = frozenset(extract_query_terms("postgresql production writes"))
+    fresh_score = score_claim_overlap(fresh_content, terms, structure=wiki_structure)
+    stale_score = score_claim_overlap(stale_content, terms, structure=wiki_structure)
+    assert fresh_score > stale_score
+
+
+def test_best_first_prefers_fresh_supported_claim_concept(wiki_structure, indexer) -> None:
+    fresh_raw = wiki_structure.raw_dir / "fresh.md"
+    stale_raw = wiki_structure.raw_dir / "stale.md"
+    fresh_bytes = b"postgresql production writes fresh"
+    stale_bytes = b"postgresql production writes stale"
+    fresh_raw.write_bytes(fresh_bytes)
+    stale_raw.write_bytes(stale_bytes)
+    fresh_pin = hashlib.sha256(fresh_bytes).hexdigest()
+    stale_pin = hashlib.sha256(b"original stale content").hexdigest()
+
+    fresh_path = wiki_structure.get_concept_file_path("AlphaFresh")
+    stale_path = wiki_structure.get_concept_file_path("AlphaStale")
+    fresh_path.parent.mkdir(parents=True, exist_ok=True)
+    fresh_path.write_text(
+        f"""---
+claims:
+  - id: claim.fresh
+    text: Alpha uses PostgreSQL for production writes
+    status: supported
+    evidence:
+      - kind: raw-note
+        sourceId: source.fresh
+        path: raw/fresh.md
+        lines: "1-1"
+        weight: 1.0
+        confidence: 0.9
+        contentSha256: {fresh_pin}
+---
+## Compiled Truth
+Fresh alpha claim.
+""",
+        encoding="utf-8",
+    )
+    stale_path.write_text(
+        f"""---
+claims:
+  - id: claim.stale
+    text: Alpha uses PostgreSQL for production writes
+    status: contested
+    evidence:
+      - kind: raw-note
+        sourceId: source.stale
+        path: raw/stale.md
+        lines: "1-1"
+        weight: 1.0
+        confidence: 0.9
+        contentSha256: {stale_pin}
+---
+## Compiled Truth
+Stale contested alpha claim.
+""",
+        encoding="utf-8",
+    )
+
+    query_config = WikiQueryConfig(best_first_max_expansions=0)
+    results = converge_retrieval_candidates(
+        query="postgresql production writes",
+        query_config=query_config,
+        structure=wiki_structure,
+        indexer=indexer,
+        seeds=[
+            RetrievalSeed("AlphaFresh", 1.0, "index"),
+            RetrievalSeed("AlphaStale", 1.0, "index"),
+        ],
+        max_results=2,
+    )
+    assert results[0] == "AlphaFresh"
+    assert results[1] == "AlphaStale"
 
 
 def test_best_first_prefers_high_weight_neighbor(wiki_structure, indexer) -> None:
