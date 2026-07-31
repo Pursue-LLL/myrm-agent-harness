@@ -88,31 +88,58 @@ async def _set_acl(path: str, sid: str, permission: str, *, timeout: int = 30) -
         return False
 
 
-async def _apply_acls(policy: SandboxPolicy, work_dir: str, sid: str) -> bool:
-    """Apply filesystem ACLs for the AppContainer profile."""
+async def _apply_acls(
+    policy: SandboxPolicy, work_dir: str, sid: str
+) -> tuple[bool, list[tuple[str, str]]]:
+    """Apply filesystem ACLs for the AppContainer profile.
+
+    Returns:
+        (all_succeeded, applied_acls) where applied_acls is a list of
+        (path, permission) tuples for cleanup tracking.
+    """
+    entries: list[tuple[str, str]] = []
     tasks: list[asyncio.Task[bool]] = []
 
     for path in (*policy.writable_paths, work_dir):
         if os.path.exists(path):
+            entries.append((path, "F"))
             tasks.append(asyncio.create_task(_set_acl(path, sid, "F")))
 
     for path in policy.readable_paths:
         if os.path.exists(path):
+            entries.append((path, "R"))
             tasks.append(asyncio.create_task(_set_acl(path, sid, "R")))
 
     python_paths = {sys.base_prefix, sys.prefix}
     for path in python_paths:
         if os.path.exists(path):
+            entries.append((path, "RX"))
             tasks.append(asyncio.create_task(_set_acl(path, sid, "RX")))
 
     if not tasks:
-        return True
+        return True, []
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    failures = sum(1 for r in results if r is not True)
+    applied = [e for e, r in zip(entries, results) if r is True]
+    failures = len(results) - len(applied)
     if failures > 0:
         logger.warning(f"ACL setup: {failures}/{len(results)} paths failed")
-    return failures == 0
+    return failures == 0, applied
+
+
+def _remove_acl_sync(path: str, sid: str) -> None:
+    """Synchronous fallback for ACL removal (used during cleanup/atexit)."""
+    import subprocess
+
+    try:
+        subprocess.run(
+            ["icacls", path, "/remove", f"*{sid}", "/T", "/C", "/Q"],
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        logger.warning(f"Failed to remove ACL for SID {sid} from {path}")
 
 
 class AppContainerProvider:
@@ -120,7 +147,8 @@ class AppContainerProvider:
 
     Uses PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES to launch the shell
     process inside an AppContainer, restricting filesystem/network access
-    at the kernel level.
+    at the kernel level.  Child processes are bound to a Job Object so
+    the entire process tree is terminated on cleanup.
     """
 
     def __init__(self) -> None:
@@ -128,6 +156,8 @@ class AppContainerProvider:
         self._container_sid: str | None = None
         self._acl_fingerprint: str | None = None
         self._oem_encoding = "utf-8"
+        self._acl_paths: list[tuple[str, str]] = []
+        self._job_handle: Any = None
 
     @property
     def name(self) -> str:
@@ -205,7 +235,8 @@ class AppContainerProvider:
             raise OSError(f"Failed to create AppContainer profile: {e}") from e
 
         if self._acl_fingerprint != fingerprint:
-            success = await _apply_acls(policy, work_dir, sid)
+            success, applied = await _apply_acls(policy, work_dir, sid)
+            self._acl_paths = applied
             if not success:
                 logger.warning("Some ACL grants failed; sandbox may have limited access")
 
@@ -221,7 +252,11 @@ class AppContainerProvider:
         policy: SandboxPolicy,
         env: dict[str, str],
     ) -> asyncio.subprocess.Process:
-        """Launch shell inside AppContainer via CreateProcessW."""
+        """Launch shell inside AppContainer via CreateProcessW.
+
+        Binds the child to a Job Object so the entire process tree
+        (including grandchildren) is terminated on cleanup.
+        """
         from myrm_agent_harness.toolkits.code_execution.sandbox.providers._win32_defs import (
             CREATE_NO_WINDOW,
             CREATE_UNICODE_ENVIRONMENT,
@@ -233,6 +268,7 @@ class AppContainerProvider:
             build_capabilities,
             build_env_block,
             create_attribute_list,
+            create_job_object,
             create_pipe,
             string_to_sid,
             wrap_handles_as_process,
@@ -284,12 +320,18 @@ class AppContainerProvider:
                 err = ctypes.get_last_error()
                 raise OSError(f"CreateProcessW failed: error {err}")
 
+            h_job = create_job_object(kernel32)
+            if h_job:
+                kernel32.AssignProcessToJobObject(h_job, pi.hProcess)
+                self._job_handle = h_job
+
             kernel32.CloseHandle(pi.hThread)
             kernel32.CloseHandle(stdin_read)
             kernel32.CloseHandle(stdout_write)
 
             return await wrap_handles_as_process(
-                pi.hProcess, pi.dwProcessId, stdin_write, stdout_read, kernel32
+                pi.hProcess, pi.dwProcessId, stdin_write, stdout_read,
+                kernel32, h_job,
             )
 
         except Exception:
@@ -300,7 +342,18 @@ class AppContainerProvider:
             raise
 
     def cleanup(self) -> None:
-        """Clean up AppContainer profile on application exit."""
+        """Clean up Job Object, ACLs, and AppContainer profile."""
+        if self._job_handle:
+            try:
+                kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+                kernel32.CloseHandle(self._job_handle)
+            except (OSError, TypeError):
+                pass
+            self._job_handle = None
+
+        if self._container_sid and self._acl_paths:
+            self._remove_acls()
+
         if not self._container_name:
             return
 
@@ -308,10 +361,32 @@ class AppContainerProvider:
             delete_appcontainer_profile,
         )
 
-        if self._container_name:
-            delete_appcontainer_profile(self._container_name)
-            self._container_name = None
-            self._container_sid = None
+        delete_appcontainer_profile(self._container_name)
+        self._container_name = None
+        self._container_sid = None
+        self._acl_paths = []
+
+    def _remove_acls(self) -> None:
+        """Best-effort removal of ACLs granted to the AppContainer SID."""
+        if not self._container_sid:
+            return
+        for path, _ in self._acl_paths:
+            if not os.path.exists(path):
+                continue
+            try:
+                proc = asyncio.get_event_loop().run_until_complete(
+                    asyncio.create_subprocess_exec(
+                        "icacls", path, "/remove", f"*{self._container_sid}",
+                        "/T", "/C", "/Q",
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                )
+                asyncio.get_event_loop().run_until_complete(
+                    asyncio.wait_for(proc.communicate(), timeout=15)
+                )
+            except (OSError, asyncio.TimeoutError, RuntimeError):
+                _remove_acl_sync(path, self._container_sid)
 
 
 class AppContainerProcess:
@@ -324,6 +399,7 @@ class AppContainerProcess:
         stdin: asyncio.StreamWriter,
         stdout: asyncio.StreamReader,
         kernel32: Any,
+        job_handle: Any = None,
     ) -> None:
         self._handle = handle
         self.pid = pid
@@ -332,6 +408,7 @@ class AppContainerProcess:
         self.stderr = None
         self.returncode: int | None = None
         self._kernel32 = kernel32
+        self._job_handle = job_handle
 
     async def wait(self) -> int:
         """Wait for process to terminate."""
@@ -346,8 +423,11 @@ class AppContainerProcess:
         self.returncode = exit_code.value
 
     def send_signal(self, signal: int) -> None:
-        """Terminate the process."""
-        self._kernel32.TerminateProcess(self._handle, 1)
+        """Terminate the entire process tree via Job Object, or just the root."""
+        if self._job_handle:
+            self._kernel32.TerminateJobObject(self._job_handle, 1)
+        else:
+            self._kernel32.TerminateProcess(self._handle, 1)
 
     def terminate(self) -> None:
         self.send_signal(1)

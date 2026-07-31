@@ -46,6 +46,9 @@ CAP_INTERNET_CLIENT = "S-1-15-3-1"
 CAP_INTERNET_CLIENT_SERVER = "S-1-15-3-2"
 CAP_PRIVATE_NETWORK = "S-1-15-3-3"
 
+JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
+
 
 # --- ctypes structures ---
 
@@ -103,6 +106,61 @@ class PROCESS_INFORMATION(ctypes.Structure):
         ("dwProcessId", ctypes.wintypes.DWORD),
         ("dwThreadId", ctypes.wintypes.DWORD),
     ]
+
+
+class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("PerProcessUserTimeLimit", ctypes.c_int64),
+        ("PerJobUserTimeLimit", ctypes.c_int64),
+        ("LimitFlags", ctypes.wintypes.DWORD),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", ctypes.wintypes.DWORD),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", ctypes.wintypes.DWORD),
+        ("SchedulingClass", ctypes.wintypes.DWORD),
+    ]
+
+
+class IO_COUNTERS(ctypes.Structure):
+    _fields_ = [
+        ("ReadOperationCount", ctypes.c_uint64),
+        ("WriteOperationCount", ctypes.c_uint64),
+        ("OtherOperationCount", ctypes.c_uint64),
+        ("ReadTransferCount", ctypes.c_uint64),
+        ("WriteTransferCount", ctypes.c_uint64),
+        ("OtherTransferCount", ctypes.c_uint64),
+    ]
+
+
+class JOBOBJECT_EXTENDED_LIMIT_INFORMATION_STRUCT(ctypes.Structure):
+    _fields_ = [
+        ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+        ("IoInfo", IO_COUNTERS),
+        ("ProcessMemoryLimit", ctypes.c_size_t),
+        ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+        ("PeakJobMemoryUsed", ctypes.c_size_t),
+    ]
+
+
+def create_job_object(kernel32: Any) -> ctypes.wintypes.HANDLE | None:
+    """Create a Job Object that terminates all children when closed."""
+    h_job = kernel32.CreateJobObjectW(None, None)
+    if not h_job:
+        return None
+    info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION_STRUCT()
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    ok = kernel32.SetInformationJobObject(
+        h_job,
+        JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+        ctypes.byref(info),
+        ctypes.sizeof(info),
+    )
+    if not ok:
+        kernel32.CloseHandle(h_job)
+        return None
+    return h_job
 
 
 # --- SID helpers ---
@@ -271,6 +329,7 @@ async def wrap_handles_as_process(
     stdin_write: ctypes.wintypes.HANDLE,
     stdout_read: ctypes.wintypes.HANDLE,
     kernel32: Any,
+    job_handle: Any = None,
 ) -> asyncio.subprocess.Process:
     """Wrap Win32 handles into an asyncio-compatible subprocess.
 
@@ -301,5 +360,7 @@ async def wrap_handles_as_process(
         AppContainerProcess,
     )
 
-    proc = AppContainerProcess(process_handle, pid, stdin_writer, stdout_reader, kernel32)
+    proc = AppContainerProcess(
+        process_handle, pid, stdin_writer, stdout_reader, kernel32, job_handle
+    )
     return proc  # type: ignore[return-value]
