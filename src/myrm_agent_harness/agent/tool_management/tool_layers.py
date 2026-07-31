@@ -7,13 +7,15 @@
 (none — pure enum + dict, no external deps)
 
 [OUTPUT]
-- ToolLayer: 工具层级枚举(CORE=1, COMMON=2, EXTENDED=3)
+- ToolLayer: 工具层级枚举(CORE=1, COMMON=2, EXTENDED=3, EXTERNAL=4)
 - register_tool_layer(): 注册工具到指定层级
 - get_tool_layer(): 获取工具的层级
+- get_tool_registry_sort_key(): Cache-friendly sort key for ToolRegistry
+- tool_layer_snapshot_label(): GUI-facing layer slug (core/common/extended/external)
 - is_registered_action_tool(): 判断工具名是否在 Action Tool SSOT 中
 
 [POS]
-Tool layer priority registry. Defines CORE/COMMON/EXTENDED three-tier tool priorities used by ToolRegistry for ordering.
+Tool layer priority registry. Defines CORE/COMMON/EXTENDED/EXTERNAL four-tier tool priorities used by ToolRegistry for ordering.
 
 Tool loading dual-track (SSOT):
 - General track (Web non-fast, Channel/IM, Cron/Kanban): CORE tools always Turn1 eager via tool_mount.resolve_agent_mount → get_meta_tools(enable_shell_tools=True).
@@ -33,12 +35,14 @@ class ToolLayer(IntEnum):
     层级说明:
     - CORE: 核心工具,始终存在,不可关闭
     - COMMON: 通用工具,默认存在,前端可控制开关
-    - EXTENDED: 扩展工具,按需加载或定义始终发送
+    - EXTENDED: harness 可选能力,按需 Turn1 加载
+    - EXTERNAL: 框架外来源(server vendor / MCP direct / OpenAPI / 未登记动态工具)
     """
 
     CORE = 1
     COMMON = 2
     EXTENDED = 3
+    EXTERNAL = 4
 
 
 # 工具层级注册表
@@ -46,15 +50,16 @@ class ToolLayer(IntEnum):
 # 设计原则:
 # 1. 始终加载的工具放 CORE,永远在最前面,缓存稳定
 # 2. 默认开启但可关的工具放 COMMON,在中间
-# 3. 按需加载的工具放 EXTENDED,在最后,变化只影响自己
+# 3. harness 可选工具放 EXTENDED
+# 4. 框架外工具(server vendor / MCP / OpenAPI)放 EXTERNAL,永远在最后
 #
 # 排序规则:按层级排序; COMMON 层内 memory 组优先于 web_search，其余按名称字母序
 # 缓存原理:Prompt Cache 是前缀匹配,CORE 工具放最前面可保证永远被缓存
 #
 # 工具名称必须与 @tool() 装饰器中声明的名称完全一致
 #
-# 架构边界:此处登记 harness 框架自有工具。业务层 vendor 集成 tool（如 x_search_tool）
-# 在 myrm-agent-server 通过 skill-gated Turn1 注册,以维持框架-业务层分离原则。
+# 架构边界:此处仅登记 harness 框架自有工具(52)。业务层 vendor 集成 tool（如 x_search_tool）
+# 在 myrm-agent-server `_tool_layer_bootstrap.py` 登记为 EXTERNAL; MCP/OpenAPI 运行时未登记名默认 EXTERNAL。
 _TOOL_LAYERS: dict[str, ToolLayer] = {
     # ============================================================
     # CORE - 通用 Agent 基线工具（无条件 Turn1 eager，前端无开关）
@@ -77,7 +82,7 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "memory_save_tool": ToolLayer.COMMON,
     "memory_manage_tool": ToolLayer.COMMON,
     # ============================================================
-    # EXTENDED - 按需加载或低频辅助工具(放最后,变化不影响前面的缓存)
+    # EXTENDED - harness 可选能力(Turn1 按需); EXTERNAL 在其后, 见 get_tool_layer 默认 fallback
     # ============================================================
     # --- ACP（Agent Communication Protocol）---
     "delegate_to_agent_tool": ToolLayer.EXTENDED,
@@ -129,8 +134,6 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "wiki_ingest_tool": ToolLayer.EXTENDED,
     "wiki_query_tool": ToolLayer.EXTENDED,
     "wiki_apply_tool": ToolLayer.EXTENDED,
-    "wiki_compile_tool": ToolLayer.EXTENDED,
-    "wiki_maintain_tool": ToolLayer.EXTENDED,
 }
 
 
@@ -141,6 +144,19 @@ _COMMON_LAYER_SORT_RANK: dict[str, int] = {
     "memory_save_tool": 2,
     "web_search_tool": 10,
 }
+
+
+_LAYER_SNAPSHOT_LABELS: dict[ToolLayer, str] = {
+    ToolLayer.CORE: "core",
+    ToolLayer.COMMON: "common",
+    ToolLayer.EXTENDED: "extended",
+    ToolLayer.EXTERNAL: "external",
+}
+
+
+def tool_layer_snapshot_label(layer: ToolLayer) -> str:
+    """Return a stable GUI-facing slug for a tool layer."""
+    return _LAYER_SNAPSHOT_LABELS[layer]
 
 
 def get_tool_registry_sort_key(
@@ -156,18 +172,17 @@ def get_tool_registry_sort_key(
 def get_tool_layer(tool_name: str) -> ToolLayer:
     """获取工具层级
 
-    [核心架构约束]:保护大模型 Prompt Prefix Cache
-    所有动态挂载的外部工具(特别是 MCP 提供的工具,如 github_search 等)
-    必须强制路由到 EXTENDED 层级(Prompt尾部).
-    这能确保前部巨大的 System Prompt 和核心通用工具不被打乱,缓存命中率锁定在100%.
+    [核心架构约束]: 保护大模型 Prompt Prefix Cache
+    harness SSOT 工具使用 CORE/COMMON/EXTENDED; 框架外工具(MCP direct / OpenAPI /
+    server vendor / 一切未登记名)使用 EXTERNAL, 排序上永远位于 harness 三层之后.
 
     Args:
         tool_name: 工具名称
 
     Returns:
-        工具层级,未注册的工具(含所有 MCP 工具)默认为 EXTENDED(放在最后)
+        工具层级; 未在 harness ``_TOOL_LAYERS`` 或 server bootstrap 登记的工具默认为 EXTERNAL
     """
-    return _TOOL_LAYERS.get(tool_name, ToolLayer.EXTENDED)
+    return _TOOL_LAYERS.get(tool_name, ToolLayer.EXTERNAL)
 
 
 def is_registered_action_tool(tool_name: str) -> bool:

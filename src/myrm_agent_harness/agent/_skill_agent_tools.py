@@ -33,6 +33,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.skills import SkillMetadata
+    from myrm_agent_harness.backends.skills.types import SkillInstance
 
 logger = get_agent_logger(__name__)
 
@@ -58,6 +59,7 @@ class SkillAgentToolsMixin:
         skills = await self._get_cached_skills()  # type: ignore[attr-defined]
 
         skill_env_map = dict(self._skill_env_map) if self._skill_env_map else {}  # type: ignore[attr-defined]
+        skill_instance_by_name: dict[str, SkillInstance] = {}
         if self.state_manager and self._default_skill_instances:  # type: ignore[attr-defined]
             for skill_name, instance_name in self._default_skill_instances.items():  # type: ignore[attr-defined]
                 try:
@@ -67,6 +69,7 @@ class SkillAgentToolsMixin:
                         instance_name=instance_name,
                     )
                     if instance:
+                        skill_instance_by_name[skill_name] = instance
                         skill_env_map[skill_name] = instance.config.env_overrides
                         logger.info(
                             "Loaded skill instance: %s.%s", skill_name, instance_name
@@ -141,6 +144,7 @@ class SkillAgentToolsMixin:
             has_manage_tool=has_manage_tool,
             available_tool_names=self._available_tool_names,  # type: ignore[attr-defined]
             available_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]
+            skill_instances=skill_instance_by_name or None,
         )
 
         todo_tool = await self._create_todo_write_tool()

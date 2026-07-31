@@ -1,0 +1,149 @@
+"""Tests for moa_advisor_middleware — skip gates and transient injection."""
+
+from __future__ import annotations
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from langchain.agents.middleware import ModelRequest, ModelResponse
+from langchain_core.messages import HumanMessage
+
+from myrm_agent_harness.agent.middlewares.moa_advisor_middleware import (
+    create_moa_advisor_middleware,
+)
+from myrm_agent_harness.toolkits.llms.consensus.moa_overlay_types import MoAOverlayConfig
+from myrm_agent_harness.toolkits.llms.consensus.types import ReferenceResponse
+
+
+@pytest.mark.asyncio
+async def test_middleware_skips_when_unattended() -> None:
+    mock_llm = MagicMock()
+    middleware = create_moa_advisor_middleware(
+        [mock_llm],
+        config=MoAOverlayConfig(),
+        unattended=True,
+    )
+    request = ModelRequest(messages=[HumanMessage(content="hello")], model=mock_llm)
+    handler = AsyncMock(return_value=ModelResponse(result=MagicMock()))
+
+    with patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+        new_callable=AsyncMock,
+    ) as run_mock:
+        await middleware.awrap_model_call(request, handler)
+        run_mock.assert_not_called()
+    handler.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_middleware_emits_overlay_active_before_fanout() -> None:
+    mock_llm = MagicMock(model_name="ref-a")
+    middleware = create_moa_advisor_middleware(
+        [mock_llm],
+        config=MoAOverlayConfig(min_successful=1, fanout="user_turn"),
+        unattended=False,
+    )
+    request = ModelRequest(messages=[HumanMessage(content="hello")], model=mock_llm)
+    handler = AsyncMock(return_value=ModelResponse(result=MagicMock()))
+    active_mock = AsyncMock()
+
+    with patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+        new_callable=AsyncMock,
+        return_value=[],
+    ):
+        with patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_active",
+            active_mock,
+        ):
+            await middleware.awrap_model_call(request, handler)
+
+    active_mock.assert_awaited_once()
+    assert active_mock.await_args.args[0] == ["ref-a"]
+    handler.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_middleware_emits_ref_done_via_callback() -> None:
+    mock_llm = MagicMock()
+    middleware = create_moa_advisor_middleware(
+        [mock_llm],
+        config=MoAOverlayConfig(min_successful=1),
+        unattended=False,
+    )
+    request = ModelRequest(messages=[HumanMessage(content="hello")], model=mock_llm)
+    handler = AsyncMock(return_value=ModelResponse(result=MagicMock()))
+
+    refs = [
+        ReferenceResponse(
+            model="ref-a",
+            content="Advice A",
+            elapsed_seconds=0.5,
+            success=True,
+        ),
+        ReferenceResponse(
+            model="ref-b",
+            content="Advice B",
+            elapsed_seconds=0.6,
+            success=True,
+        ),
+    ]
+    emit_mock = AsyncMock()
+
+    async def run_with_callback(_messages, *, on_ref_done=None):
+        if on_ref_done is not None:
+            for ref in refs:
+                await on_ref_done(ref)
+        return refs
+
+    with patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+        side_effect=run_with_callback,
+    ):
+        with patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
+            emit_mock,
+        ):
+            await middleware.awrap_model_call(request, handler)
+
+    assert emit_mock.await_count == 2
+    handler.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_middleware_injects_advisor_block_on_success() -> None:
+    mock_llm = MagicMock()
+    middleware = create_moa_advisor_middleware(
+        [mock_llm],
+        config=MoAOverlayConfig(min_successful=1),
+        unattended=False,
+    )
+    request = ModelRequest(messages=[HumanMessage(content="hello")], model=mock_llm)
+    handler = AsyncMock(return_value=ModelResponse(result=MagicMock()))
+
+    refs = [
+        ReferenceResponse(
+            model="ref-a",
+            content="Use incremental approach",
+            elapsed_seconds=0.5,
+            success=True,
+        )
+    ]
+
+    with patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+        new_callable=AsyncMock,
+        return_value=refs,
+    ):
+        with patch(
+            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
+            new_callable=AsyncMock,
+        ):
+            await middleware.awrap_model_call(request, handler)
+
+    handler.assert_awaited_once()
+    passed_request = handler.await_args.args[0]
+    last_msg = passed_request.messages[-1]
+    assert isinstance(last_msg, HumanMessage)
+    assert "Use incremental approach" in str(last_msg.content)
+    assert "hello" in str(last_msg.content)

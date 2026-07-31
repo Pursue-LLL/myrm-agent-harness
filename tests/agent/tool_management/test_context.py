@@ -11,9 +11,10 @@ class TestToolLayer:
         assert ToolLayer.CORE == 1
         assert ToolLayer.COMMON == 2
         assert ToolLayer.EXTENDED == 3
+        assert ToolLayer.EXTERNAL == 4
 
     def test_layer_ordering(self) -> None:
-        assert ToolLayer.CORE < ToolLayer.COMMON < ToolLayer.EXTENDED
+        assert ToolLayer.CORE < ToolLayer.COMMON < ToolLayer.EXTENDED < ToolLayer.EXTERNAL
 
 
 class TestToolLayerRegistry:
@@ -25,7 +26,7 @@ class TestToolLayerRegistry:
 
     def test_get_unregistered_tool_layer(self) -> None:
         layer = get_tool_layer("unknown_tool")
-        assert layer == ToolLayer.EXTENDED
+        assert layer == ToolLayer.EXTERNAL
 
     def test_register_custom_tool_layer(self) -> None:
         key = "_test_only_custom_tool"

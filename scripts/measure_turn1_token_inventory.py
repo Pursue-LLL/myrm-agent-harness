@@ -2,10 +2,10 @@
 """Measure default GeneralAgent Turn-1 bind_tools token cost (tiktoken cl100k_base).
 
 Builds the harness-side default product profile:
-  web_search + web_fetch + file_ops (5) + bash + memory (3, COMMON)
-  + skill_select + skill_manage + bash_process + skill_market (all Turn1)
+  web_search + web_fetch + file_ops (5) + bash + bash_process + memory (3, COMMON)
+  + skill_select (when demo skill present)
   (conversation_search opt-in via server; excluded from default Turn1)
-  (TSM v1: no request_answer_user_tool, no todo_write)
+  (TSM v1: no request_answer_user_tool, no todo_write; skill_manage opt-in via server)
 
 Usage:
     python scripts/measure_turn1_token_inventory.py
@@ -74,13 +74,11 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
 
     skill_backend = MagicMock()
     skill_backend.load_skill = MagicMock()
-    write_backend = MagicMock()
 
     registry = create_registry()
     meta_tools = get_meta_tools(
         [sample_skill],
         skill_backend,
-        write_backend=write_backend,
         registry=registry,
         enable_file_tools=True,
         enable_shell_tools=True,
@@ -179,7 +177,7 @@ def _print_table(report: dict[str, object]) -> None:
     print("-" * 54)
     layer_totals = report["layer_totals"]
     assert isinstance(layer_totals, dict)
-    for layer in ("CORE", "COMMON", "EXTENDED"):
+    for layer in ("CORE", "COMMON", "EXTENDED", "EXTERNAL"):
         if layer in layer_totals:
             print(f"{layer + ' subtotal':<42} {layer_totals[layer]:>8}")
     print(f"{'Description subtotal':<42} {report['description_tokens']:>8}")

@@ -11,16 +11,32 @@ from myrm_agent_harness.toolkits.llms.consensus.engine import (
     ConsensusEngine,
     ConsensusStreamEvent,
 )
+from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
+from myrm_agent_harness.toolkits.llms.consensus.advisor_prompts import (
+    ADVISOR_SYSTEM,
+    build_advisor_injection_block,
+)
+from myrm_agent_harness.toolkits.llms.consensus.moa_overlay_types import (
+    MoAOverlayConfig,
+    MoAFanoutMode,
+)
 from myrm_agent_harness.toolkits.llms.consensus.types import (
     ConsensusConfig,
     ConsensusResult,
+    PrivacyFilterMode,
     ReferenceResponse,
 )
 
 __all__ = [
+    "ADVISOR_SYSTEM",
+    "AdvisorFanoutRunner",
     "ConsensusConfig",
     "ConsensusEngine",
     "ConsensusResult",
     "ConsensusStreamEvent",
+    "MoAOverlayConfig",
+    "MoAFanoutMode",
+    "PrivacyFilterMode",
     "ReferenceResponse",
+    "build_advisor_injection_block",
 ]

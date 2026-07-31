@@ -67,13 +67,14 @@ LLM API 的序列化顺序为 `Tools → System Prompt → Messages`。前缀匹
 
 **实现**：
 
-`tool_layers.py` 定义三层枚举：
+`tool_layers.py` 定义四层枚举（harness 三层 + EXTERNAL）：
 
 ```python
 class ToolLayer(IntEnum):
     CORE = 1       # 始终存在，不可关闭
     COMMON = 2     # 默认存在，前端可控制开关
-    EXTENDED = 3   # 按需加载
+    EXTENDED = 3   # harness 可选能力，按需 Turn1
+    EXTERNAL = 4   # 框架外(server vendor / MCP direct / OpenAPI)
 ```
 
 具体的工具层级注册：
@@ -82,7 +83,8 @@ class ToolLayer(IntEnum):
 |------|------|---------|
 | **CORE** | web_fetch + file×3 + bash + glob/grep | 7 登记 | 通用 Agent 基线 | 不依赖搜索 API |
 | **COMMON** | memory×3 + web_search | 4 登记 | 默认 bind memory×3 + web_search | memory 组内优先排序 |
-| **EXTENDED** | 46 登记（harness 41 + server 5）+ 未注册 MCP 动态工具 | 按需 Turn1（profile 开关） | todo_write / ask_question 等 opt-in |
+| **EXTENDED** | 40 登记（仅 harness 可选能力） | 按需 Turn1（profile 开关） | todo_write / browser / wiki 等 |
+| **EXTERNAL** | 6 登记（server vendor）+ 未登记 MCP/OpenAPI 动态工具 | Turn1 when mounted | x_search / MCP direct / OpenAPI |
 
 `ToolRegistry.resolve()` 执行去重 + 排序：
 
@@ -95,7 +97,7 @@ sorted_entries = sorted(
 )
 ```
 
-排序规则：先按层级（CORE → COMMON → EXTENDED）；COMMON 层内按工具组优先级（memory → web_search → 其余），同组内按名称字母序；EXTENDED 层按名称字母序。
+排序规则：先按层级（CORE → COMMON → EXTENDED → EXTERNAL）；COMMON 层内按工具组优先级（memory → web_search → 其余），同组内按名称字母序；EXTENDED 层按名称字母序；EXTERNAL 层按名称字母序（整段位于 harness 三层之后）。
 
 **缓存效果**（API 顺序：`Tools → System → Messages`）：
 
@@ -581,6 +583,8 @@ BUILTIN_PROTECTED_TOOLS = frozenset({"skill_select_tool", "todo_write", "file_re
 ```
 ThinkingBlockCleaner     ← 首先清理 thinking blocks，减少无效 token
        ↓
+VisionFallbackProcessor  ← text-only 主模型 + visionFallbackModel 时将 image block 转为文本（在 MediaFilter 剥离前）
+       ↓
 MediaFilterProcessor     ← 文本模型主动剥离 image/video/audio（避免 400 + 省 token）
        ↓
 FilterProcessor                ← 大型工具结果 → 磁盘持久化 + 智能预览 + 文件引用
@@ -717,6 +721,7 @@ def _should_skip_for_cache_preservation(self, context: ProcessorContext) -> bool
 
 | Processor | Normal | Resume | HITL会话期间 |
 |-----------|--------|--------|-------------|
+| VisionFallbackProcessor | ✅ 图像转文本 | ❌ 完全跳过 | ❌ 完全跳过 |
 | MediaFilterProcessor | ✅ 剥离媒体 | ❌ 完全跳过 | ❌ 完全跳过 |
 | FilterProcessor | ✅ 过滤 | ❌ 完全跳过 | ❌ 完全跳过 |
 | CompressProcessor | ✅ 压缩 | ❌ 完全跳过 | ❌ 完全跳过 |
@@ -988,14 +993,12 @@ Turn 12 (会话结束):
 | ``likely 5min/1h TTL expiry`` | 两次调用间隔推测 |
 | ``likely server-side`` | 所有客户端指标不变，<5min 间隔 |
 
-#### 技能目录与 Cache（更正 2026-05-25）
-
-**易错点**：技能/MCP 目录**默认不在 SystemMessage**，而在 meta-tool 的 **tool description**：
+#### 技能目录与 Cache
 
 | 内容 | 位置 | Cache 维度 |
 |------|------|------------|
-| Bound 技能 XML（含 MCP `mcp_*_skill`） | ``skill_select_tool.description``（``get_metadata_summary()``） | tool schema 前缀；列表稳定则 **不** 触发 ``tool_definitions_changed`` |
-| todo_write 绑定说明 | ``todo_write`` tool description | 同上 |
+| Bound 技能 XML（含 MCP `mcp_*_skill`） | 首条 HumanMessage ``<bound_skills hidden_count="N">``（``skill_catalog_delivery.py`` + ``get_metadata_summary()``） | messages[] 前缀；bind 变时不触发 ``tool_definitions_changed`` |
+| skill_select_tool 静态规则 | ``skill_select_tool.description``（无 embed XML、无 hidden 计数、无 manage 规则） | tool schema 前缀跨 Profile 稳定 |
 | MCP 函数文档 | skill workspace ``/mcp/.../*.md``；经 ``skill_select_tool`` 返回 ToolMessage | 对话消息，非 system/tool schema |
 | Active todo focus | ``progress_middleware`` **追加到最后一个 HumanMessage** | 不破坏 system prefix cache |
 | Session Notes 摘要 | ``SessionNotesProcessor`` 注入 **HumanMessage** | 不破坏 cache |
@@ -1012,7 +1015,7 @@ Turn 12 (会话结束):
 | 门禁 | ``tests/architecture/test_tool_prompt_placement.py`` + ``measure_turn1_token_inventory.py`` |
 | 例外 | ``web_search_tool`` 保留长 description（中下等模型 query 调优）；**禁止**再迁入 System 或进一步瘦身，除非重做 golden eval |
 
-``SkillMetadata.always=True`` 表示 **始终出现在 skill_select XML**（``always="true"`` 属性），**不是**写入 SystemMessage。
+``SkillMetadata.always=True`` 表示 **始终出现在首条 HumanMessage ``<bound_skills>`` catalog**（``always="true"`` 属性），**不是**写入 SystemMessage。
 
 MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 planner / memory 等 middleware 的首轮 one-shot 注入，而非 MCP 协议或 skill_select 目录变更。
 
@@ -1227,7 +1230,7 @@ MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 p
 
 | 文件 | 职责 |
 |------|------|
-| `tool_management/tool_layers.py` | CORE/COMMON/EXTENDED 三层定义 + 工具注册表 |
+| `tool_management/tool_layers.py` | CORE/COMMON/EXTENDED/EXTERNAL 四层定义 + 工具注册表 |
 | `tool_management/registry.py` | `resolve()` 按 layer + name 排序，确保工具定义顺序确定性 |
 | `streaming/utils.py` | `get_datetime_prompt()` 生成时间标签 + `DATETIME_SYSTEM_RULES` 系统规则常量 |
 | `streaming/model_discipline.py` | Per-model 执行纪律系统：`resolve_execution_discipline(llm)` 返回 3 层合并的固定文本（核心规则 + 工具强制 + per-model 纠正） |
@@ -1273,6 +1276,7 @@ MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 p
 |------|------|
 | `pipeline/engine.py` | `ContextPipeline` — 处理器链执行引擎 |
 | `pipeline/processors/media_filter.py` | 文本模型主动剥离 image/video/audio（避免 400） |
+| `pipeline/processors/vision_fallback_processor.py` | text-only 主模型 + visionFallbackModel 时将 image block 转为文本（MediaFilter 之前） |
 | `pipeline/processors/filter_processor.py` | 大型工具结果过滤（工具保护机制） |
 | `pipeline/processors/summarize_processor.py` | 结构化摘要（最后手段） |
 | `pipeline/processors/thinking_cleaner.py` | Thinking Block 清理（减少无效 token） |

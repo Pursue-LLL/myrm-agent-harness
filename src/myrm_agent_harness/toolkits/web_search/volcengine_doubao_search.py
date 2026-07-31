@@ -218,6 +218,11 @@ class VolcengineDoubaoSearch:
             publish_time = item.get("PublishTime") or item.get("PublishedTime")
             date = str(publish_time).strip() if publish_time else None
 
+            site_name_raw = item.get("SiteName")
+            site_name = str(site_name_raw).strip() if site_name_raw else None
+            auth_raw = item.get("AuthInfoDes")
+            authority_description = str(auth_raw).strip() if auth_raw else None
+
             parsed.append(
                 SearchResult(
                     title=title,
@@ -225,6 +230,8 @@ class VolcengineDoubaoSearch:
                     snippet=snippet,
                     date=date,
                     summary=summary,
+                    site_name=site_name,
+                    authority_description=authority_description,
                 )
             )
         return parsed

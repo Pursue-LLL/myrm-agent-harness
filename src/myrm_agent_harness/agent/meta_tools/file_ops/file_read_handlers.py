@@ -57,6 +57,7 @@ async def build_multimodal_result(
     url_errors: list[str],
     supports_vision: bool,
     vision_fallback_model_cfg: object | None = None,
+    vision_fallback_model_cfgs: object | None = None,
     video_paths: list[str] | None = None,
     parse_mode: str | None = None,
     mode: str = "all",
@@ -76,13 +77,19 @@ async def build_multimodal_result(
                 blocks.extend(result)
             else:
                 blocks.append(create_text_block(result))
-        elif vision_fallback_model_cfg:
-            from myrm_agent_harness.agent.config.llm import LLMConfig
-            from myrm_agent_harness.toolkits.llms.vision.fallback_engine import VisionFallbackEngine
+        elif vision_fallback_model_cfg is not None or vision_fallback_model_cfgs is not None:
+            from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+                create_vision_fallback_engine,
+            )
 
             try:
-                fallback_config = LLMConfig.model_validate(vision_fallback_model_cfg, from_attributes=True)
-                fallback_text = await VisionFallbackEngine(fallback_config).describe_local_image(img_path, executor)
+                engine = create_vision_fallback_engine(
+                    vision_fallback_model_cfg,
+                    vision_fallback_model_cfgs,
+                )
+                if engine is None:
+                    raise ValueError("Vision fallback engine is not configured")
+                fallback_text = await engine.describe_local_image(img_path, executor)
                 blocks.append(create_text_block(f"[Image Analysis for {img_path}]:\n{fallback_text}"))
             except Exception as e:
                 logger.warning("Vision fallback failed for %s: %s", img_path, e)
@@ -112,6 +119,7 @@ async def build_multimodal_result(
             supports_vision=supports_vision,
             supports_video=False,
             vision_fallback_model_cfg=vision_fallback_model_cfg,
+            vision_fallback_model_cfgs=vision_fallback_model_cfgs,
         )
         if isinstance(result, list):
             blocks.extend(result)
@@ -149,6 +157,7 @@ async def append_media_text_parts(
     executor: CodeExecutor | None,
     supports_vision: bool,
     vision_fallback_model_cfg: object | None,
+    vision_fallback_model_cfgs: object | None = None,
     parse_mode: str | None,
 ) -> None:
     """Append text-mode results for media paths when multimodal is unavailable."""
@@ -158,13 +167,19 @@ async def append_media_text_parts(
                 img_result = await read_image_as_content_blocks(img_path, executor, supports_vision=True)
                 if isinstance(img_result, str):
                     text_parts.append(img_result)
-            elif vision_fallback_model_cfg:
-                from myrm_agent_harness.agent.config.llm import LLMConfig
-                from myrm_agent_harness.toolkits.llms.vision.fallback_engine import VisionFallbackEngine
+            elif vision_fallback_model_cfg is not None or vision_fallback_model_cfgs is not None:
+                from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+                    create_vision_fallback_engine,
+                )
 
                 try:
-                    fallback_config = LLMConfig.model_validate(vision_fallback_model_cfg, from_attributes=True)
-                    fallback_text = await VisionFallbackEngine(fallback_config).describe_local_image(
+                    engine = create_vision_fallback_engine(
+                        vision_fallback_model_cfg,
+                        vision_fallback_model_cfgs,
+                    )
+                    if engine is None:
+                        raise ValueError("Vision fallback engine is not configured")
+                    fallback_text = await engine.describe_local_image(
                         img_path, executor
                     )
                     text_parts.append(f"[Image Analysis for {img_path}]:\n{fallback_text}")
@@ -201,6 +216,7 @@ async def append_media_text_parts(
                 supports_vision=supports_vision,
                 supports_video=False,
                 vision_fallback_model_cfg=vision_fallback_model_cfg,
+            vision_fallback_model_cfgs=vision_fallback_model_cfgs,
             )
             if isinstance(vid_result, str):
                 text_parts.append(vid_result)

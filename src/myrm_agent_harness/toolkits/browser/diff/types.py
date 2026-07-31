@@ -8,6 +8,7 @@
 - ComparisonResult: Protocol for all comparison results
 - FastComparisonResult: dHash comparison result (dataclass)
 - AccurateComparisonResult: Canvas API comparison result (dataclass)
+- validate_screenshot_input: Shared validation for base64 screenshot inputs
 
 [POS]
 Unified type system for screenshot diff. Defines Protocol and dataclass types for type safety.
@@ -15,8 +16,59 @@ Unified type system for screenshot diff. Defines Protocol and dataclass types fo
 
 from __future__ import annotations
 
+import base64
+import io
 from dataclasses import dataclass
 from typing import Literal, Protocol
+
+MAX_BASE64_SIZE = 10 * 1024 * 1024
+MAX_IMAGE_DIMENSION = 4096
+
+
+def validate_screenshot_input(screenshot_b64: str, param_name: str) -> bytes:
+    """Validate and decode screenshot base64 input.
+
+    Args:
+        screenshot_b64: Base64-encoded screenshot
+        param_name: Parameter name for error messages
+
+    Returns:
+        Decoded image bytes
+
+    Raises:
+        ValueError: If input is invalid (too large, invalid base64, invalid image)
+    """
+    if len(screenshot_b64) > MAX_BASE64_SIZE:
+        raise ValueError(
+            f"{param_name} too large: {len(screenshot_b64)} bytes (max {MAX_BASE64_SIZE // 1024 // 1024}MB)"
+        )
+
+    try:
+        image_bytes = base64.b64decode(screenshot_b64, validate=True)
+    except Exception as exc:
+        raise ValueError(f"{param_name} is not valid base64") from exc
+
+    try:
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(image_bytes))
+        width, height = img.size
+
+        if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
+            raise ValueError(
+                f"{param_name} dimensions too large: {width}x{height} "
+                f"(max {MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION})"
+            )
+
+        img.verify()
+    except ValueError:
+        raise
+    except ImportError:
+        pass
+    except Exception as exc:
+        raise ValueError(f"{param_name} is not a valid image") from exc
+
+    return image_bytes
 
 
 class ComparisonResult(Protocol):

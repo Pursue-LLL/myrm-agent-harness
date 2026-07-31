@@ -19,13 +19,19 @@ import logging
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path, PurePosixPath
-from typing import Protocol
+from typing import Any, Protocol
 
 from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.core.config.llm import LLMConfig
 from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
+from myrm_agent_harness.toolkits.llms.errors import classify_failover_reason
+from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+    VisionProviderCapacityError,
+    should_vision_capacity_failover,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -164,21 +170,60 @@ class VideoAnalysisEngine:
         "Output ONLY the description."
     )
 
-    def __init__(self, fallback_config: LLMConfig):
+    def __init__(self, fallback_configs: LLMConfig | Sequence[LLMConfig]):
         """初始化引擎
 
         Args:
-            fallback_config: 辅助视觉/视频模型的配置
+            fallback_configs: 辅助视觉/视频模型配置（支持有序 failover 链）
         """
-        self.fallback_config = fallback_config
-        self.model = create_litellm_model(
-            model=fallback_config.model,
-            api_key=fallback_config.api_key,
-            base_url=fallback_config.base_url,
-            temperature=0.1,
-            streaming=False,
-            **(fallback_config.model_kwargs or {}),
-        )
+        if isinstance(fallback_configs, LLMConfig):
+            configs = [fallback_configs]
+        else:
+            configs = list(fallback_configs)
+        if not configs:
+            raise ValueError("VideoAnalysisEngine requires at least one LLMConfig")
+        self.fallback_configs = configs
+        self.fallback_config = configs[0]
+        self._models: list[Any] = []
+
+    def _get_model(self, index: int) -> Any:
+        while len(self._models) <= index:
+            idx = len(self._models)
+            cfg = self.fallback_configs[idx]
+            self._models.append(
+                create_litellm_model(
+                    model=cfg.model,
+                    api_key=cfg.api_key,
+                    base_url=cfg.base_url,
+                    temperature=0.1,
+                    streaming=False,
+                    **(cfg.model_kwargs or {}),
+                )
+            )
+        return self._models[index]
+
+    async def _invoke_with_failover(self, msg: HumanMessage) -> str:
+        last_error: str | None = None
+        for index in range(len(self.fallback_configs)):
+            model = self._get_model(index)
+            try:
+                response = await model.ainvoke([msg])
+                return str(response.content)
+            except Exception as exc:
+                reason = classify_failover_reason(exc)
+                if (
+                    should_vision_capacity_failover(reason)
+                    and index < len(self.fallback_configs) - 1
+                ):
+                    last_error = str(exc)
+                    logger.warning(
+                        "Video provider %s capacity failure, trying next provider: %s",
+                        self.fallback_configs[index].model,
+                        exc,
+                    )
+                    continue
+                raise VisionProviderCapacityError(str(exc)) from exc
+        return f"[Video Analysis Failed: {last_error or 'unknown error'}]"
 
     async def analyze_video_b64(
         self,
@@ -216,8 +261,10 @@ class VideoAnalysisEngine:
                 ]
             )
             try:
-                response = await self.model.ainvoke([msg])
-                return str(response.content)
+                return await self._invoke_with_failover(msg)
+            except VisionProviderCapacityError as exc:
+                logger.error("Video URL analysis failed: %s", exc)
+                return f"[Video Analysis Failed: {exc}]"
             except Exception as e:
                 logger.error("Video URL analysis failed: %s", e)
                 return f"[Video Analysis Failed: {e}]"
@@ -274,8 +321,10 @@ class VideoAnalysisEngine:
             ]
         )
         try:
-            response = await self.model.ainvoke([msg])
-            return str(response.content)
+            return await self._invoke_with_failover(msg)
+        except VisionProviderCapacityError as exc:
+            logger.error("Video direct analysis failed: %s", exc)
+            return f"[Video Analysis Failed: {exc}]"
         except Exception as e:
             logger.error("Video direct analysis failed: %s", e)
             return f"[Video Analysis Failed: {e}]"
@@ -335,8 +384,10 @@ class VideoAnalysisEngine:
 
         msg = HumanMessage(content=content_blocks)
         try:
-            response = await self.model.ainvoke([msg])
-            return str(response.content)
+            return await self._invoke_with_failover(msg)
+        except VisionProviderCapacityError as exc:
+            logger.error("Frame analysis failed: %s", exc)
+            return f"[Video Frame Analysis Failed: {exc}]"
         except Exception as e:
             logger.error("Frame analysis failed: %s", e)
             return f"[Video Frame Analysis Failed: {e}]"

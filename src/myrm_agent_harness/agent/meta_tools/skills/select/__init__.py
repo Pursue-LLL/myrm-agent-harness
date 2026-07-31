@@ -5,7 +5,8 @@
 - get_skill_document: 加载技能 SOP 文档（供显式注入使用）
 """
 
-from .skill_select_tool import create_select_skill_tool, get_skill_document
+from .skill_document_loader import get_skill_document
+from .skill_select_tool import create_select_skill_tool
 
 __all__ = [
     "create_select_skill_tool",

@@ -119,7 +119,8 @@ async def test_wiki_query_hot_only_when_no_matches(wiki_structure, mock_llm) -> 
     result = await engine.query("Unknown concept with no wiki hits")
     assert result.confidence_score == 0.1
     assert "No matching wiki articles were found" in result.answer
-    assert "Vault status" in result.answer
+    assert "Recent vault context" in result.answer
+    assert "Recent activity log" in result.answer
     assert "Test refresh for hot-only query" in result.answer
     assert result.related_articles == []
 
@@ -475,4 +476,43 @@ async def test_best_first_query_expands_graph_within_budget(wiki_structure, mock
     lowered = [article.lower() for article in result.related_articles]
     assert any("alphanode" in article for article in lowered)
     assert any("betanode" in article for article in lowered)
+
+
+def test_read_log_context_returns_empty_when_missing(wiki_structure: WikiStructure) -> None:
+    from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.writer import read_log_context
+
+    assert read_log_context(wiki_structure) == ""
+
+
+def test_read_log_context_truncates_large_log(wiki_structure: WikiStructure) -> None:
+    from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.writer import read_log_context
+
+    log_path = wiki_structure.get_log_file_path()
+    log_path.write_text("# Wiki activity log\n\n" + "x" * 3_000, encoding="utf-8")
+    context = read_log_context(wiki_structure, max_chars=100)
+    assert context.endswith("[truncated]")
+    assert len(context) < 200
+
+
+@pytest.mark.asyncio
+async def test_wiki_query_includes_recent_activity_log(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
+    from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.events import WikiMapEvent, WikiMapEventType
+    from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.writer import append_log_entry
+
+    append_log_entry(
+        wiki_structure,
+        WikiMapEvent(
+            event_type=WikiMapEventType.COMPILE,
+            summary="Compiled arxiv transformer survey",
+        ),
+    )
+
+    config = WikiConfig(enable_semantic_search=False)
+    engine = WikiQueryEngine(llm=mock_llm, structure=wiki_structure, config=config)
+    concept_path = wiki_structure.get_concept_file_path("Transformer")
+    concept_path.write_text("## Compiled Truth\nAttention is all you need.", encoding="utf-8")
+
+    result = await engine.query("What is transformer?")
+    assert "Recent activity log" in result.answer
+    assert "Compiled arxiv transformer survey" in result.answer
 

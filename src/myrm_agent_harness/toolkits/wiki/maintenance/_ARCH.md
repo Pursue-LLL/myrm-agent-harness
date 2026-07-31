@@ -13,7 +13,8 @@ Deterministic broken markdown/wikilink links and frontmatter-type checks live in
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Init | — |
-| linter.py | Core | Health checker: …; post-maintain **vault git snapshot** when `enable_version_control` | ✅ |
+| linter.py | Core | Health checker: …; `lint_and_maintain(mode=STRUCTURAL|FULL)` — STRUCTURAL skips LLM drift/backlinks; post-maintain **vault git snapshot** when `enable_version_control` | ✅ |
+| modes.py | Types | `MaintainMode` enum for cron vs manual maintain SSOT | ✅ |
 | stale_summary.py | Core | Hash-based raw stale detection vs `last_compile_raw_hashes` snapshot; conservative all-raw-stale when compile time exists without hash snapshot; path set + concept stale-source matching + raw ingest tri-state resolver | ✅ |
 
 ## Key Dependencies

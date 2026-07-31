@@ -1,13 +1,12 @@
-"""Tests for MCP client management (config conversion, auth injection, initialization, TLS/mTLS)."""
+"""Tests for MCP client management (target building, auth injection, TLS/mTLS)."""
 
 from __future__ import annotations
 
 import datetime
 import ssl
 from dataclasses import dataclass
-from datetime import timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -96,78 +95,67 @@ def tls_certs(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
     return {**{k: str(v) for k, v in paths.items()}, "passphrase": "s3cr3t"}
 
 
-class TestConvertServerConfig:
-    """convert_server_config_to_client_format: transport config conversion."""
+class TestBuildClientTarget:
+    """build_client_target: transport target construction."""
 
-    def test_sse_config(self) -> None:
+    def test_sse_returns_url(self) -> None:
         cfg = FakeMCPServerConfig(type="sse", url="https://api.example.com/sse")
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["transport"] == "sse"
-        assert result["url"] == "https://api.example.com/sse"
-        assert result["timeout"] == 15.0
-        assert result["sse_read_timeout"] == 120.0
-        assert "session_kwargs" in result
-        sk = result["session_kwargs"]
-        assert isinstance(sk, dict)
-        assert sk["read_timeout_seconds"] == timedelta(seconds=120.0)
+        target = MCPClientManager.build_client_target(cfg)
+        assert target == "https://api.example.com/sse"
 
-    def test_streamable_http_config(self) -> None:
+    def test_streamable_http_returns_url(self) -> None:
         cfg = FakeMCPServerConfig(type="streamable_http", url="https://api.example.com/http")
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["transport"] == "streamable_http"
-        assert result["url"] == "https://api.example.com/http"
+        target = MCPClientManager.build_client_target(cfg)
+        assert target == "https://api.example.com/http"
 
-    def test_stdio_config(self) -> None:
+    def test_stdio_returns_params(self) -> None:
+        from mcp import StdioServerParameters
+
         cfg = FakeMCPServerConfig(
             type="stdio",
             url=None,
             command="npx",
             args=["-y", "@modelcontextprotocol/server-filesystem"],
         )
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["transport"] == "stdio"
-        assert result["command"] == "npx"
-        assert result["args"] == ["-y", "@modelcontextprotocol/server-filesystem"]
+        target = MCPClientManager.build_client_target(cfg)
+        assert isinstance(target, StdioServerParameters)
+        assert target.command == "npx"
+        assert target.args == ["-y", "@modelcontextprotocol/server-filesystem"]
 
     def test_stdio_no_args(self) -> None:
+        from mcp import StdioServerParameters
+
         cfg = FakeMCPServerConfig(type="stdio", url=None, command="mcp-server", args=None)
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["args"] == []
+        target = MCPClientManager.build_client_target(cfg)
+        assert isinstance(target, StdioServerParameters)
+        assert target.args == []
 
     def test_unsupported_type_raises(self) -> None:
         cfg = FakeMCPServerConfig(type="websocket")
         with pytest.raises(ValueError, match="Unsupported transport type"):
-            MCPClientManager.convert_server_config_to_client_format(cfg)
+            MCPClientManager.build_client_target(cfg)
 
-    def test_extra_params_merged(self) -> None:
-        cfg = FakeMCPServerConfig(extra_params={"headers": {"X-Custom": "val"}})
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["headers"] == {"X-Custom": "val"}
-
-    def test_custom_timeouts(self) -> None:
-        cfg = FakeMCPServerConfig(connect_timeout=30.0, execute_timeout=300.0)
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["timeout"] == 30.0
-        assert result["sse_read_timeout"] == 300.0
+    def test_http_missing_url_raises(self) -> None:
+        cfg = FakeMCPServerConfig(type="sse", url=None)
+        with pytest.raises(ValueError, match="requires 'url'"):
+            MCPClientManager.build_client_target(cfg)
 
 
 class TestInjectAuthHeaders:
-    """_inject_auth_headers: OAuth/auth header injection for HTTP transports."""
+    """_inject_auth_headers_into_config: OAuth/auth header injection for HTTP transports."""
 
     @pytest.mark.asyncio
     async def test_no_auth_provider(self) -> None:
         cfg = FakeMCPServerConfig(auth_provider=None)
-        client_config: dict[str, object] = {"transport": "sse"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        assert "headers" not in client_config
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        assert not hasattr(cfg, "_injected_auth_headers")
 
     @pytest.mark.asyncio
     async def test_stdio_skips_auth(self) -> None:
         provider = MagicMock()
         provider.get_auth_headers = AsyncMock(return_value={"Authorization": "Bearer token"})
         cfg = FakeMCPServerConfig(type="stdio", auth_provider=provider)
-        client_config: dict[str, object] = {"transport": "stdio"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
         provider.get_auth_headers.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -175,30 +163,29 @@ class TestInjectAuthHeaders:
         provider = MagicMock()
         provider.get_auth_headers = AsyncMock(return_value={"Authorization": "Bearer abc123"})
         cfg = FakeMCPServerConfig(auth_provider=provider)
-        client_config: dict[str, object] = {"transport": "sse"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        assert client_config["headers"] == {"Authorization": "Bearer abc123"}
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        headers = MCPClientManager.get_headers(cfg)
+        assert headers["Authorization"] == "Bearer abc123"
 
     @pytest.mark.asyncio
     async def test_streamable_http_injects_headers(self) -> None:
         provider = MagicMock()
         provider.get_auth_headers = AsyncMock(return_value={"X-Api-Key": "key123"})
         cfg = FakeMCPServerConfig(type="streamable_http", auth_provider=provider)
-        client_config: dict[str, object] = {"transport": "streamable_http"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        assert client_config["headers"] == {"X-Api-Key": "key123"}
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        headers = MCPClientManager.get_headers(cfg)
+        assert headers["X-Api-Key"] == "key123"
 
     @pytest.mark.asyncio
     async def test_merges_with_existing_headers(self) -> None:
         provider = MagicMock()
         provider.get_auth_headers = AsyncMock(return_value={"Authorization": "Bearer new"})
-        cfg = FakeMCPServerConfig(auth_provider=provider)
-        client_config: dict[str, object] = {
-            "transport": "sse",
-            "headers": {"X-Existing": "keep"},
-        }
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        headers = client_config["headers"]
+        cfg = FakeMCPServerConfig(
+            auth_provider=provider,
+            headers={"X-Existing": "keep"},
+        )
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        headers = MCPClientManager.get_headers(cfg)
         assert headers == {"X-Existing": "keep", "Authorization": "Bearer new"}
 
     @pytest.mark.asyncio
@@ -206,65 +193,60 @@ class TestInjectAuthHeaders:
         provider = MagicMock()
         provider.get_auth_headers = AsyncMock(return_value={})
         cfg = FakeMCPServerConfig(auth_provider=provider)
-        client_config: dict[str, object] = {"transport": "sse"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        assert "headers" not in client_config
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        assert not hasattr(cfg, "_injected_auth_headers")
 
     @pytest.mark.asyncio
     async def test_auth_failure_is_non_fatal(self) -> None:
         provider = MagicMock()
         provider.get_auth_headers = AsyncMock(side_effect=RuntimeError("Token expired"))
         cfg = FakeMCPServerConfig(auth_provider=provider)
-        client_config: dict[str, object] = {"transport": "sse"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        assert "headers" not in client_config
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        assert not hasattr(cfg, "_injected_auth_headers")
 
 
-class TestInitializeClient:
-    """initialize_client: multi-server client initialization."""
-
-    @pytest.mark.asyncio
-    async def test_empty_config(self) -> None:
-        client = await MCPClientManager.initialize_client(None)
-        assert client is not None
+class TestPrepareServerConfigs:
+    """prepare_server_configs: multi-server config validation."""
 
     @pytest.mark.asyncio
-    async def test_empty_list(self) -> None:
-        client = await MCPClientManager.initialize_client([])
-        assert client is not None
-
-    @pytest.mark.asyncio
-    async def test_valid_config_creates_client(self) -> None:
+    async def test_valid_config_passes(self) -> None:
         cfg = FakeMCPServerConfig(name="my-sse", type="sse", url="https://example.com/sse")
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.client.MultiServerMCPClient",
-        ) as mock_cls:
-            mock_cls.return_value = MagicMock()
-            client = await MCPClientManager.initialize_client([cfg])
-            assert client is not None
-            mock_cls.assert_called_once()
-            call_args = mock_cls.call_args[0][0]
-            assert "my-sse" in call_args
+        result = await MCPClientManager.prepare_server_configs([cfg])
+        assert "my-sse" in result
 
     @pytest.mark.asyncio
     async def test_config_error_skips_server(self) -> None:
         cfg = FakeMCPServerConfig(name="bad", type="invalid_type")
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.client.MultiServerMCPClient",
-        ) as mock_cls:
-            mock_cls.return_value = MagicMock()
-            client = await MCPClientManager.initialize_client([cfg])
-            assert client is not None
+        result = await MCPClientManager.prepare_server_configs([cfg])
+        assert len(result) == 0
 
     @pytest.mark.asyncio
-    async def test_client_init_failure_returns_empty(self) -> None:
-        cfg = FakeMCPServerConfig(name="good", type="sse", url="https://example.com/sse")
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.client.MultiServerMCPClient",
-            side_effect=[RuntimeError("init failed"), MagicMock()],
-        ):
-            client = await MCPClientManager.initialize_client([cfg])
-            assert client is not None
+    async def test_multiple_configs(self) -> None:
+        cfg1 = FakeMCPServerConfig(name="good", type="sse", url="https://example.com/sse")
+        cfg2 = FakeMCPServerConfig(name="bad", type="invalid_type")
+        result = await MCPClientManager.prepare_server_configs([cfg1, cfg2])
+        assert "good" in result
+        assert "bad" not in result
+
+
+class TestGetHeaders:
+    """get_headers: merge static + injected auth headers."""
+
+    def test_stdio_returns_empty(self) -> None:
+        cfg = FakeMCPServerConfig(type="stdio", headers={"X-Test": "val"})
+        assert MCPClientManager.get_headers(cfg) == {}
+
+    def test_sse_returns_config_headers(self) -> None:
+        cfg = FakeMCPServerConfig(
+            type="sse",
+            headers={"Authorization": "Bearer tok", "X-Custom": "val"},
+        )
+        headers = MCPClientManager.get_headers(cfg)
+        assert headers == {"Authorization": "Bearer tok", "X-Custom": "val"}
+
+    def test_no_headers_returns_empty(self) -> None:
+        cfg = FakeMCPServerConfig(type="sse")
+        assert MCPClientManager.get_headers(cfg) == {}
 
 
 class TestResolveTlsPath:
@@ -396,85 +378,57 @@ class TestBuildSSLContext:
 
 
 class TestTLSClientFactory:
-    """_build_tls_client_factory + convert_server_config_to_client_format TLS injection."""
+    """_build_tls_client_factory: TLS injection."""
 
     def test_factory_none_without_tls(self) -> None:
         assert MCPClientManager._build_tls_client_factory(FakeMCPServerConfig()) is None
 
-    def test_factory_injected_for_sse_with_tls(self, tls_certs: dict[str, str]) -> None:
+    def test_factory_created_for_sse_with_tls(self, tls_certs: dict[str, str]) -> None:
         cfg = FakeMCPServerConfig(type="sse", url="https://x/sse", ssl_verify=tls_certs["ca"])
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert "httpx_client_factory" in result
+        factory = MCPClientManager._build_tls_client_factory(cfg)
+        assert factory is not None
 
-    def test_factory_not_injected_without_tls(self) -> None:
+    def test_factory_none_without_tls_sse(self) -> None:
         cfg = FakeMCPServerConfig(type="sse", url="https://x/sse")
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert "httpx_client_factory" not in result
-
-    def test_factory_not_injected_for_stdio(self, tls_certs: dict[str, str]) -> None:
-        cfg = FakeMCPServerConfig(type="stdio", url=None, command="mcp", ssl_verify=tls_certs["ca"])
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert "httpx_client_factory" not in result
+        assert MCPClientManager._build_tls_client_factory(cfg) is None
 
     @pytest.mark.asyncio
     async def test_factory_builds_async_client(self, tls_certs: dict[str, str]) -> None:
-        import httpx
+        import httpx2
 
         cfg = FakeMCPServerConfig(client_cert=tls_certs["cert"], client_key=tls_certs["key"])
         factory = MCPClientManager._build_tls_client_factory(cfg)
         assert factory is not None
         client = factory(headers={"X-Test": "1"}, timeout=None, auth=None)
         try:
-            assert isinstance(client, httpx.AsyncClient)
+            assert isinstance(client, httpx2.AsyncClient)
         finally:
             await client.aclose()
 
 
 class TestHeadersMerging:
-    """Verify that MCPConfig.headers are merged into SSE/streamable_http client_config."""
+    """Verify that MCPConfig.headers are correctly returned by get_headers."""
 
-    def test_headers_merged_into_sse_config(self) -> None:
+    def test_headers_for_sse(self) -> None:
         cfg = FakeMCPServerConfig(
             type="sse",
             url="https://example.com/sse",
             headers={"Authorization": "Bearer {{secret:TOKEN}}", "X-Custom": "val"},
         )
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["headers"] == {
+        headers = MCPClientManager.get_headers(cfg)
+        assert headers == {
             "Authorization": "Bearer {{secret:TOKEN}}",
             "X-Custom": "val",
         }
 
-    def test_headers_merged_into_streamable_http_config(self) -> None:
+    def test_headers_for_streamable_http(self) -> None:
         cfg = FakeMCPServerConfig(
             type="streamable_http",
             url="https://example.com/mcp",
             headers={"X-API-Key": "my-key"},
         )
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["headers"] == {"X-API-Key": "my-key"}
-
-    def test_headers_merged_with_extra_params_headers(self) -> None:
-        cfg = FakeMCPServerConfig(
-            type="sse",
-            url="https://example.com/sse",
-            headers={"Authorization": "Bearer tok"},
-            extra_params={"headers": {"X-From-Extra": "yes"}},
-        )
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["headers"]["Authorization"] == "Bearer tok"
-        assert result["headers"]["X-From-Extra"] == "yes"
-
-    def test_headers_override_extra_params_headers(self) -> None:
-        """First-class headers field takes precedence over extra_params.headers."""
-        cfg = FakeMCPServerConfig(
-            type="sse",
-            url="https://example.com/sse",
-            headers={"Authorization": "Bearer new"},
-            extra_params={"headers": {"Authorization": "Bearer old"}},
-        )
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["headers"]["Authorization"] == "Bearer new"
+        headers = MCPClientManager.get_headers(cfg)
+        assert headers == {"X-API-Key": "my-key"}
 
     def test_no_headers_for_stdio(self) -> None:
         cfg = FakeMCPServerConfig(
@@ -483,10 +437,10 @@ class TestHeadersMerging:
             url=None,
             headers={"Authorization": "Bearer tok"},
         )
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert "headers" not in result
+        headers = MCPClientManager.get_headers(cfg)
+        assert headers == {}
 
-    def test_empty_headers_not_added(self) -> None:
+    def test_empty_headers(self) -> None:
         cfg = FakeMCPServerConfig(type="sse", url="https://example.com/sse")
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert "headers" not in result or result.get("headers") is None
+        headers = MCPClientManager.get_headers(cfg)
+        assert headers == {}

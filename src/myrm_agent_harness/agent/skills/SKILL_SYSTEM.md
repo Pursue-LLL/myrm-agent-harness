@@ -1087,12 +1087,12 @@ STATIC_SKILL_SLUGS: list[str] = [
 为了解决海量技能带来的上下文噪音（Context Noise）和“能力遗忘”（Capability Amnesia）问题，系统采用了 L1/L2 缓存架构：
 
 1. **L1 核心技能 (Core Skills)**：
-   - **机制**：将技能的完整元数据（XML 格式）直接注入到 LLM 的系统提示词中。
-   - **特点**：高感知度，极速调用，但消耗大量 Token，增加认知负载。
-   - **适用场景**：高频使用、对当前任务至关重要的技能。
+   - **机制**：`skill_configs.is_core=true` 的技能优先进入首条用户消息的 ``<bound_skills>`` 块（与 L2 同通道，由 ``resolve_catalog_display_skills()`` 解析；**不在** SystemMessage）。
+   - **特点**：相对 L2 更高优先级出现在 catalog 内联列表，仍保持 ``skill_select_tool.description`` 字节稳定。
+   - **适用场景**：用户在 GUI 标记为核心、对当前智能体高频使用的技能。
 
 2. **L2 外围技能 (Peripheral Skills)**：
-   - **机制**：仅将技能的 `[名称: 简短描述]` 注入到 `skill_select_tool` 的提示词中（最多 50 个），其余技能通过 `skill_search_tool` 统一搜索网关发现。
+   - **机制**：将技能的 `[名称: 简短描述]` 注入首条用户消息的 ``<bound_skills>`` 块（最多 20 个内联；超出部分以 ``hidden_count`` 标注并通过 `skill_search_tool` 发现），``skill_select_tool.description`` 保持字节稳定。
    - **特点**：极低 Token 消耗，0 认知负担。LLM 知道其存在，需要时通过 `skill_select_tool` 渐进式加载完整 SOP。
    - **适用场景**：低频使用、长尾技能。
 

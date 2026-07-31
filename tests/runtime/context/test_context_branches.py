@@ -9,6 +9,7 @@ import pytest
 import myrm_agent_harness.runtime.context.context_branches as branches_module
 from myrm_agent_harness.runtime.context.context_branches import (
     append_context_branch,
+    get_context_branch,
     list_context_branches,
 )
 
@@ -58,6 +59,14 @@ def test_list_context_branches_ignores_corrupt_payload(persistent_root: str) -> 
     )
     assert list_context_branches("chat-corrupt") == []
 
+    path.write_text(
+        json.dumps(["not-a-dict", {"branch_id": "ok", "label": "l", "snapshot_path": "p", "created_at": "t"}]),
+        encoding="utf-8",
+    )
+    branches = list_context_branches("chat-corrupt")
+    assert len(branches) == 1
+    assert branches[0].branch_id == "ok"
+
 
 def test_append_context_branch_requires_session_id(persistent_root: str) -> None:
     with pytest.raises(ValueError, match="session_id"):
@@ -84,3 +93,14 @@ def test_append_context_branch_evicts_oldest_when_over_cap(
     assert branches[0].branch_id == second.branch_id
     assert branches[1].branch_id == third.branch_id
     assert first.branch_id not in {item.branch_id for item in branches}
+
+
+def test_get_context_branch_returns_record_or_none(persistent_root: str) -> None:
+    record = append_context_branch(
+        "chat-lookup",
+        snapshot_path=".context/snap.jsonl",
+        label="lookup",
+    )
+    assert get_context_branch("chat-lookup", record.branch_id) == record
+    assert get_context_branch("chat-lookup", "missing") is None
+    assert get_context_branch("", record.branch_id) is None

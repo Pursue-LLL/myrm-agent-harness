@@ -16,6 +16,7 @@ Pipeline processors module.
 | compress_processor.py | Core | Provides CompressProcessor with Hot Cache Bypass and Anti-Thrashing protection. | ✅ |
 | filter_processor.py | Core | LLM semantic filter for oversized tool outputs; skips LLM summary for failed-tool IDs, tool errors, and focus/goal tool-call groups via retention_helpers (structure trim only) | ✅ |
 | media_filter.py | Core | Proactive media filter — strips image/video/audio for text-only models before LLM call. | ✅ |
+| vision_fallback_processor.py | Core | Converts surviving image blocks to text via VisionFallbackEngine capacity failover chain (`vision_fallback_model_cfgs` / cfg) when primary model is text-only. Runs immediately before MediaFilterProcessor. Resolves non-base64 `/api/media` URLs via injected `file_content_reader`. Shared `apply_vision_fallback_to_messages` is also used by stream recovery on MEDIA_REJECTED. | ✅ |
 | media_resolver.py | Core | Resolves non-base64 image URLs (HTTP/file/API references) to base64 data URLs right before LLM invocation. Supports `file://` local paths, HTTP(S) StorageProvider URLs, and `/api/media/` paths via injected `FileContentReader`. Positioned after MediaFilter so only surviving images are resolved. | ✅ |
 | normalize_processor.py | Core | Provides NormalizeProcessor. | ✅ |
 | post_compaction_reread_processor.py | Core | Post-compaction active file reread. After compaction (tokens_saved > 0), reads top-5 recently modified files from ArtifactTracker and injects their content as HumanMessage, eliminating redundant read_file tool calls. | ✅ |

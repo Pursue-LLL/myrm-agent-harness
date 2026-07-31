@@ -232,8 +232,8 @@ class LocalFileOpsMixin:
         stdout: str = str(result.stdout)
         match_count = len(stdout.splitlines()) if stdout else 0
         logger.debug(
-            f"grep: tool={tool}, regex={use_regex}, case_sensitive={case_sensitive}, "
-            f"elapsed={elapsed:.4f}s, pattern_len={len(pattern)}, matches={match_count}"
+            "grep: tool=%s, regex=%s, case_sensitive=%s, elapsed=%.4fs, pattern_len=%d, matches=%d",
+            tool, use_regex, case_sensitive, elapsed, len(pattern), match_count,
         )
 
         return stdout

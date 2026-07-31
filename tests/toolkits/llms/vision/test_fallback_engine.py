@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.config.llm import LLMConfig
-from myrm_agent_harness.toolkits.llms.vision.fallback_engine import VisionFallbackEngine
+from myrm_agent_harness.toolkits.llms.errors import FailoverReason
+from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+    VisionFallbackEngine,
+    should_vision_capacity_failover,
+)
 
 
 @pytest.fixture
@@ -20,7 +24,7 @@ def fallback_engine(mock_llm_config):
         mock_model = AsyncMock()
         mock_create.return_value = mock_model
         engine = VisionFallbackEngine(mock_llm_config)
-        engine.model = mock_model
+        engine._models = [mock_model]
         yield engine
 
 @pytest.mark.asyncio
@@ -113,6 +117,111 @@ async def test_describe_image_b64_compression_returns_empty(fallback_engine):
 
         assert "Vision Analysis Failed" in result
         mock_compressor.compress.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_describe_image_b64_provider_chain_failover():
+    cfg_primary = LLMConfig(model="gpt-4o-mini", api_key="primary")
+    cfg_backup = LLMConfig(model="gpt-4o", api_key="backup")
+
+    with patch("myrm_agent_harness.toolkits.llms.vision.fallback_engine.create_litellm_model") as mock_create:
+        mock_primary = AsyncMock()
+        mock_backup = AsyncMock()
+        mock_create.side_effect = [mock_primary, mock_backup]
+
+        engine = VisionFallbackEngine([cfg_primary, cfg_backup])
+
+        mock_response = MagicMock()
+        mock_response.content = "backup description"
+        mock_primary.ainvoke.side_effect = Exception("402 Payment Required")
+        mock_backup.ainvoke.return_value = mock_response
+
+        result = await engine.describe_image_b64(base64.b64encode(b"dummy").decode(), "image/png")
+        assert result == "backup description"
+        assert mock_primary.ainvoke.call_count == 1
+        assert mock_backup.ainvoke.call_count == 1
+        assert engine.last_success_provider_index == 1
+        assert engine.last_success_model == "gpt-4o"
+
+
+@pytest.mark.asyncio
+async def test_describe_image_b64_chain_failure_clears_last_success():
+    cfg_primary = LLMConfig(model="gpt-4o-mini", api_key="primary")
+    cfg_backup = LLMConfig(model="gpt-4o", api_key="backup")
+
+    with patch("myrm_agent_harness.toolkits.llms.vision.fallback_engine.create_litellm_model") as mock_create:
+        mock_primary = AsyncMock()
+        mock_backup = AsyncMock()
+        mock_create.side_effect = [mock_primary, mock_backup]
+
+        engine = VisionFallbackEngine([cfg_primary, cfg_backup])
+        mock_primary.ainvoke.side_effect = Exception("402 Payment Required")
+        mock_backup.ainvoke.side_effect = Exception("402 Payment Required")
+
+        result = await engine.describe_image_b64(base64.b64encode(b"dummy").decode(), "image/png")
+        assert "Vision Analysis Failed" in result
+        assert engine.last_success_provider_index is None
+        assert engine.last_success_model is None
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [FailoverReason.AUTH_PERMANENT, FailoverReason.MODEL_NOT_FOUND],
+)
+def test_should_vision_capacity_failover_rejects_permanent_errors(reason: FailoverReason) -> None:
+    assert should_vision_capacity_failover(reason) is False
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        FailoverReason.BILLING,
+        FailoverReason.RATE_LIMIT,
+        FailoverReason.OVERLOADED,
+        FailoverReason.TIMEOUT,
+        FailoverReason.SESSION_EXPIRED,
+    ],
+)
+def test_should_vision_capacity_failover_accepts_capacity_errors(reason: FailoverReason) -> None:
+    assert should_vision_capacity_failover(reason) is True
+
+
+@pytest.mark.asyncio
+async def test_describe_image_b64_auth_error_does_not_failover():
+    cfg_primary = LLMConfig(model="gpt-4o-mini", api_key="primary")
+    cfg_backup = LLMConfig(model="gpt-4o", api_key="backup")
+
+    with patch("myrm_agent_harness.toolkits.llms.vision.fallback_engine.create_litellm_model") as mock_create:
+        mock_primary = AsyncMock()
+        mock_backup = AsyncMock()
+        mock_create.side_effect = [mock_primary, mock_backup]
+
+        engine = VisionFallbackEngine([cfg_primary, cfg_backup])
+        mock_primary.ainvoke.side_effect = Exception("401 Unauthorized: invalid api key")
+
+        result = await engine.describe_image_b64(base64.b64encode(b"dummy").decode(), "image/png")
+        assert "Vision Analysis Failed" in result
+        assert mock_primary.ainvoke.call_count == 1
+        assert mock_backup.ainvoke.call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_describe_image_b64_model_not_found_does_not_failover():
+    cfg_primary = LLMConfig(model="gpt-4o-mini", api_key="primary")
+    cfg_backup = LLMConfig(model="gpt-4o", api_key="backup")
+
+    with patch("myrm_agent_harness.toolkits.llms.vision.fallback_engine.create_litellm_model") as mock_create:
+        mock_primary = AsyncMock()
+        mock_backup = AsyncMock()
+        mock_create.side_effect = [mock_primary, mock_backup]
+
+        engine = VisionFallbackEngine([cfg_primary, cfg_backup])
+        mock_primary.ainvoke.side_effect = Exception("model not found: gpt-4o-mini")
+
+        result = await engine.describe_image_b64(base64.b64encode(b"dummy").decode(), "image/png")
+        assert "Vision Analysis Failed" in result
+        assert mock_primary.ainvoke.call_count == 1
+        assert mock_backup.ainvoke.call_count == 0
+
 
 @pytest.mark.asyncio
 async def test_describe_image_b64_compression_raises(fallback_engine):

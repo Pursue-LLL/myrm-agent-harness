@@ -352,7 +352,7 @@ class TestCheckOsvMalware:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("myrm_agent_harness.toolkits.mcp.security.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.toolkits.mcp.security.create_httpx_client", return_value=mock_client):
             result = await check_osv_malware("npx", ["-y", "evil-package"])
             assert result is not None
             assert "MAL-2024-001" in result
@@ -370,7 +370,7 @@ class TestCheckOsvMalware:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("myrm_agent_harness.toolkits.mcp.security.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.toolkits.mcp.security.create_httpx_client", return_value=mock_client):
             result = await check_osv_malware("npx", ["-y", "safe-package"])
             assert result is None
 
@@ -383,7 +383,7 @@ class TestCheckOsvMalware:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("myrm_agent_harness.toolkits.mcp.security.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.toolkits.mcp.security.create_httpx_client", return_value=mock_client):
             result = await check_osv_malware("npx", ["-y", "some-package"])
             assert result is None
 
@@ -400,7 +400,7 @@ class TestCheckOsvMalware:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("myrm_agent_harness.toolkits.mcp.security.httpx.AsyncClient", return_value=mock_client):
+        with patch("myrm_agent_harness.toolkits.mcp.security.create_httpx_client", return_value=mock_client):
             result = await check_osv_malware("npx", ["-y", "safe-package"])
             assert result is None
 

@@ -34,7 +34,7 @@ class TestSkillMarketNotInGetMetaTools:
         assert "skill_market_tool" not in returned_names
         assert "skill_manage_tool" not in returned_names
 
-    def test_has_manage_tool_injects_evolution_rules_without_manage_factory(
+    def test_skill_select_description_is_byte_identical_regardless_of_manage_tool(
         self,
         skill_backend: MagicMock,
     ) -> None:
@@ -49,7 +49,16 @@ class TestSkillMarketNotInGetMetaTools:
             )
         ]
         registry = ToolRegistry()
-        tools = get_meta_tools(
+        without_manage = get_meta_tools(
+            skills,
+            skill_backend,
+            registry=registry,
+            has_manage_tool=False,
+            enable_file_tools=False,
+            enable_shell_tools=False,
+            enable_answer_tool=False,
+        )
+        with_manage = get_meta_tools(
             skills,
             skill_backend,
             registry=registry,
@@ -58,5 +67,7 @@ class TestSkillMarketNotInGetMetaTools:
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
-        select_tool = next(t for t in tools if t.name == "skill_select_tool")
-        assert "skill_manage_tool" in select_tool.description
+        select_without = next(t for t in without_manage if t.name == "skill_select_tool")
+        select_with = next(t for t in with_manage if t.name == "skill_select_tool")
+        assert select_without.description == select_with.description
+        assert "skill_manage_tool" not in (select_without.description or "")

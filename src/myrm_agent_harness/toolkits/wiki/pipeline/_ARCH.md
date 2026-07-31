@@ -10,10 +10,10 @@ with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory s
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Init | — |
-| compiler.py | Core | LLM compiler: parallel batch ingestion, compile structure survey + facet seed carry-forward, compile phase tracking, …; post-batch **vault git snapshot** when `enable_version_control` | ✅ |
+| compiler.py | Core | LLM compiler: parallel batch ingestion, compile structure survey + facet seed carry-forward + **index catalog seed for concept extraction**, compile phase tracking, …; post-batch **vault git snapshot** when `enable_version_control` | ✅ |
 | contradiction_synthesis/ | Core | Cross-concept evolution page synthesis (pairing → LLM verdict → pending) | ✅ |
 | postprocess.py | Core | Post-compilation: backlink generation, metadata persistence with `last_compile_raw_hashes` (preserves `raw_supersede`) | ✅ |
-| cognitive_map/ | Core | OKF index.md, log.md, hot.md deterministic writers + refresh service | ✅ |
+| cognitive_map/ | Core | OKF index.md, log.md, hot.md, **SCHEMA.md** deterministic writers + refresh service | ✅ |
 | sidecar.py | Core | Directory sidecar builder (`.abstract.md`/`.overview.md`): bottom-up DAG invalidation + incremental rebuild + index sync | ✅ |
 | pending.py | Core | HITL pending edits; `stage_pending_edit` demotes stale published; approve blocks stale + uses `publish_concept_article`; **CCSP approve backlinks**; `count_synthesis_pending` SQL | ✅ |
 | publication/ | Core | WPG publish SSOT: `publish_concept_article`, `repair_publication_status` | ✅ |

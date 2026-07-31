@@ -8,7 +8,7 @@
 
 | 对外说法 | 含义 | 当前规模 |
 |----------|------|----------|
-| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **58**（CORE 8 + COMMON 4 + EXTENDED 46） |
+| **LLM 工具** / **工具** | `BaseTool` 注册进 `ToolRegistry` 与 `_TOOL_LAYERS`，LLM 通过 tool_call 执行 | **56**（Harness 50: CORE 8 + COMMON 4 + EXTENDED 38; External 6: server vendor） |
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
@@ -19,7 +19,7 @@
 ## 设计目标
 
 1. **减少动作空间**：工具越少 → 决策越准（见 ASCS 指标）
-2. **三层分级**：CORE / COMMON / EXTENDED — profile 可开关 COMMON/EXTENDED
+2. **四层分级**：CORE / COMMON / EXTENDED / EXTERNAL — profile 可开关 COMMON/EXTENDED；EXTERNAL 为框架外集成
 3. **统一注册**：替代 BaseAgent 内 scattered dedup/sort
 4. **框架 vs 业务边界**：harness 只放通用原语；SaaS 集成走 skill/MCP/server
 
@@ -30,7 +30,7 @@
 ```
 SkillAgent / Server factory
         ↓
-tool_layers.py — CORE/COMMON/EXTENDED SSOT
+tool_layers.py — CORE/COMMON/EXTENDED/EXTERNAL SSOT
         ↓
 registry.py — dedup + sort + ToolBindMode (TURN1 LLM tools; RUNTIME_ONLY internal hooks)
         ↓
@@ -45,7 +45,7 @@ action_space.py — ASCS _profiler
 
 | 文件 | 职责 |
 |------|------|
-| `tool_layers.py` | 三层优先级注册表；未注册工具 WARNING |
+| `tool_layers.py` | 四层优先级注册表；未登记名默认 EXTERNAL + WARNING |
 | `tool_catalog.py` | LLM Tool 角色/加载条件；Product ID 由 `TOOL_TO_GROUP` + `BUILTIN_TOOL_ID_TO_GROUP` 派生 |
 | `registry.py` | 去重、排序、`ToolBindMode` 三分绑定 |
 | `lifecycle_manager.py` | 工具 init/cleanup 编排 |
@@ -65,13 +65,13 @@ action_space.py — ASCS _profiler
 | 框架元工具 | `meta_tools/` | Agent 绑定工具实现 |
 | 通用工具 | `toolkits/` | 可独立 import 的原语 |
 
-Server `_tool_layer_bootstrap.py` 扩展 EXTENDED 层业务工具。
+Server `_tool_layer_bootstrap.py` 将 server vendor 工具注册为 EXTERNAL 层。
 
 ---
 
 ## 内部分类（实现 / token 会计，非产品术语）
 
-以下四类**不计入 LLM 工具 58 个**，仅用于实现与 Turn1 token 隔离：
+以下四类**不计入 LLM 工具 56 个**，仅用于实现与 Turn1 token 隔离：
 
 | 内部术语 | 含义 | SSOT |
 |----------|------|------|
@@ -80,7 +80,7 @@ Server `_tool_layer_bootstrap.py` 扩展 EXTENDED 层业务工具。
 | **PTC Runtime Tool** | Dynamic Workflow PTC 沙箱内 `myrm_tools.spawn_subagent` / `myrm_tools.notify`；零 Turn1 bind | `agent/dynamic_workflow/tools.py` · `scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES` |
 | **非 LLM 实现** | 引擎、Skill 文档、REST 等普通代码 | `toolkits/`、`app/services/` 等 |
 
-**只有 LLM 工具（Action Tool）使用 CORE / COMMON / EXTENDED 三层。**
+**只有 LLM 工具（Action Tool）使用 CORE / COMMON / EXTENDED / EXTERNAL 四层。**
 
 PTC `spawn_subagent` 与 LLM `delegate_task_tool` 共用 `_spawn_child()` 下游，但调用者不同（Python 编排脚本 vs 主 Agent tool_call）。详见 [DYNAMIC_WORKFLOW_SYSTEM.md](../dynamic_workflow/DYNAMIC_WORKFLOW_SYSTEM.md)。
 
@@ -105,7 +105,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `memory_save_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory |
 | `memory_search_tool` | COMMON | user_capability | memory | enable_memory + enabled_builtin_tools: memory; corpus=sessions when memoryEnableConversationSearch |
 | `web_search_tool` | COMMON | user_capability | web_search | enabled_builtin_tools: web_search (default on) |
-| `artifact_publish` | EXTENDED | user_capability | — | Opt-in Turn1; see product switch |
 | `ask_question_tool` | EXTENDED | user_capability | structured_clarify | server mount policy (interactive web_chat); requires_confirmation WebUI emphasis; ClarificationGuardMiddleware one call/turn; HitlToolPolicy L1 subagent block |
 | `browser_ask_human_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_execute_script_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
@@ -115,7 +114,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `browser_manage_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_navigate_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
 | `browser_snapshot_tool` | EXTENDED | user_capability | browser | enabled_builtin_tools: browser |
-| `channel_notify_tool` | EXTENDED | user_capability | — | Agent notify_targets configured |
 | `complete_goal_tool` | EXTENDED | user_capability | — | active Goal on chat |
 | `cron_manage_tool` | EXTENDED | user_capability | cron | user cron capability wired |
 | `delegate_task_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
@@ -123,7 +121,6 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `desktop_interact_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_snapshot_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
 | `desktop_vision_tool` | EXTENDED | user_capability | computer_use | enabled_builtin_tools: computer_use |
-| `image_tool` | EXTENDED | user_capability | image_generation | enabled_builtin_tools: image_generation |
 | `kanban_add_task` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_attach` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
 | `kanban_block` | EXTENDED | user_capability | kanban | enabled_builtin_tools: kanban |
@@ -142,15 +139,16 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `skill_select_tool` | EXTENDED | user_capability | — | skill_backend present |
 | `subagent_control_tool` | EXTENDED | user_capability | — | SubagentManagementExtension + entitlements |
 | `todo_write` | EXTENDED | user_capability | planning | planning or existing workspace todos |
-| `tts_generate` | EXTENDED | user_capability | tts | enabled_builtin_tools: tts |
 | `update_ui_data_tool` | EXTENDED | user_capability | render_ui | enabled_builtin_tools: render_ui |
-| `video_tool` | EXTENDED | user_capability | video_generation | enabled_builtin_tools: video_generation |
 | `wiki_apply_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
-| `wiki_compile_tool` | EXTENDED | user_capability | — | Settings REST + create_wiki_admin_tools(); not Turn1 LLM |
 | `wiki_ingest_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
-| `wiki_maintain_tool` | EXTENDED | user_capability | — | Settings REST + create_wiki_admin_tools(); not Turn1 LLM |
 | `wiki_query_tool` | EXTENDED | user_capability | wiki | enabled_builtin_tools: wiki |
-| `x_search_tool` | EXTENDED | user_capability | — | x-live-search prebuilt skill bound |
+| `artifact_publish` | EXTERNAL | user_capability | — | Server vendor / MCP direct / OpenAPI / unregistered dynamic tools |
+| `channel_notify_tool` | EXTERNAL | user_capability | — | Agent notify_targets configured |
+| `image_tool` | EXTERNAL | user_capability | image_generation | enabled_builtin_tools: image_generation |
+| `tts_generate` | EXTERNAL | user_capability | tts | enabled_builtin_tools: tts |
+| `video_tool` | EXTERNAL | user_capability | video_generation | enabled_builtin_tools: video_generation |
+| `x_search_tool` | EXTERNAL | user_capability | — | x-live-search prebuilt skill bound |
 <!-- TOOL_CATALOG_END -->
 
 ---

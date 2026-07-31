@@ -391,8 +391,15 @@ class MCPConnectionManager:
         logger.info("[MCPConnectionManager] Creating connection: %s", config_hash[:16])
 
         async def _spawn(cfg: MCPServerConfigProtocol) -> tuple[str, MCPSessionActor]:
-            conn_dict = MCPClientManager.convert_server_config_to_client_format(cfg)
-            await MCPClientManager._inject_auth_headers(cfg, conn_dict)
+            await MCPClientManager._inject_auth_headers_into_config(cfg)
+            conn_dict: dict[str, object] = {
+                "transport": cfg.type,
+                "url": cfg.url,
+                "headers": MCPClientManager.get_headers(cfg),
+                "command": cfg.command,
+                "args": cfg.args,
+                "env": getattr(cfg, "env", None),
+            }
             actor = MCPSessionActor(
                 cfg.name,
                 conn_dict,
@@ -405,6 +412,7 @@ class MCPConnectionManager:
                 keepalive_interval=getattr(cfg, "keepalive_interval", None),
                 auth_provider=getattr(cfg, "auth_provider", None),
                 oversized_result_handler=getattr(cfg, "oversized_result_handler", None),
+                elicitation_handler=getattr(cfg, "elicitation_handler", None),
             )
             await actor.start()
             return cfg.name, actor

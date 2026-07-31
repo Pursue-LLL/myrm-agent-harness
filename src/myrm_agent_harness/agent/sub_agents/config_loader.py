@@ -4,7 +4,7 @@ Loads subagent configurations from YAML files with strict validation.
 Supports directory-level batch loading and graceful error handling.
 
 [INPUT]
-- agent.tool_management.tool_layers::is_registered_action_tool (POS: Tool layer priority registry. Defines CORE/COMMON/EXTENDED three-tier tool priorities used by ToolRegistry for ordering.)
+- agent.tool_management.tool_layers::is_registered_action_tool (POS: Tool layer priority registry. Defines CORE/COMMON/EXTENDED/EXTERNAL four-tier tool priorities used by ToolRegistry for ordering.)
 - agent.types::SubagentConfig (POS: Subagent subsystem core type definitions. Defines all subagent-related data types, enums, and protocols.)
 
 [OUTPUT]

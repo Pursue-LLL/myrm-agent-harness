@@ -3,7 +3,7 @@
 Verifies:
 - estimate_schema_tokens correctly estimates token count from tool schemas
 - Auto routing decision: ≤threshold → direct, >threshold → PTC
-- MCPAgent._normalize_mcp_result handles all langchain_mcp_adapters formats
+- MCPAgent._normalize_mcp_result handles all MCP tool result formats
 """
 
 from __future__ import annotations
@@ -165,7 +165,7 @@ class TestMCPConfigClean:
 
 
 class TestNormalizeMcpResult:
-    """Test MCPAgent._normalize_mcp_result handles all langchain_mcp_adapters formats."""
+    """Test MCPAgent._normalize_mcp_result handles all MCP tool result formats."""
 
     def test_text_content_blocks(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent

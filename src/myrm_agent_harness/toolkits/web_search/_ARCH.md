@@ -9,7 +9,7 @@ and the intent-aware search parameter optimizer.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Web search toolkit entry point. Aggregates and re-exports search tools, result types. | ✅ |
-| common.py | Core | Provides SearchResult. | ✅ |
+| common.py | Core | Provides SearchResult (title, link, snippet, summary, date, site_name, authority_description, engines, citations). | ✅ |
 | engine.py | Core | Web search tools wrapper. Two modes: basic (BM25) and precision (BM25+Reranker+Autocut). Integrates intent detection. | ✅ |
 | error_handling.py | Core | Search failure classification and ErrorContext construction. Quota/rate-limit SSOT (`is_quota_or_rate_limit_error`) — non-retryable + chain hop. | ✅ |
 | exceptions.py | Core | Web Search exception hierarchy. All exceptions implement format_for_llm(). | ✅ |
@@ -20,7 +20,7 @@ and the intent-aware search parameter optimizer.
 | web_search_agent_tools.py | Core | Web search meta-tool. Integrates web search capability as a meta-tool (high frequency, 80%+ queries). | ✅ |
 | citation_resolver.py | Core | SSRF-safe citation redirect resolution. Normalizes `metadata.sources` so `url` is the final clickable destination; preserves provider redirect in `redirect_url`. | ✅ |
 | web_searcher.py | Core | Web search orchestrator. Unified interface for querying search providers with caching, retry, per-query parameter override, and optional priority provider chain (`provider_chain`). Dispatches native slugs (`volcengine_doubao`) or LiteLLM providers. | ✅ |
-| volcengine_doubao_search.py | Core | Volcengine Search Infinity native adapter (API Key → Torchlight WebSearch). | ✅ |
+| volcengine_doubao_search.py | Core | Volcengine Search Infinity native adapter (API Key → Torchlight WebSearch). Preserves SiteName and AuthInfoDes from API response. | ✅ |
 | chain.py | Core | Priority-ordered provider chain runner. Quota/rate-limit hops via `error_handling.is_quota_or_rate_limit_error`. 45s wall-clock budget and chain_hop metrics. | ✅ |
 | bilibili_search.py | Core | Bilibili search fast-path. Direct API call to `api.bilibili.com/x/web-interface/search/all/v2`; zero-login, returns structured SearchResult with play count, author, duration. Returns None on failure to trigger fallback. | ✅ |
 | constants.py | Core | Canonical SearXNG URLs and region presets for self-hosted search. | ✅ |

@@ -27,13 +27,12 @@ dependencies = [
   "dill>=0.4.1",                        # checkpoint serde (ChatLiteLLM / complex objects)
   # --- LLM 多供应商适配 ---
   "litellm>=1.93.0", # 统一 LLM API 代理 (100+ 供应商)
-  # --- MCP 协议支持 ---
-  "langchain-mcp-adapters>=0.3.0", # MCP 工具/服务适配器
   # --- 数据验证与序列化 ---
   "pydantic>=2.13.4", # 数据模型验证
   "PyYAML>=6.0.3",    # YAML 配置解析
   # --- HTTP 与异步 I/O ---
   "httpx>=0.28.1",        # 异步 HTTP 客户端（统一网络栈；SOCKS 由 server/渠道层按需安装）
+  "httpx2>=2.5.0",        # MCP SDK v2 传输层 HTTP 客户端（TLS/mTLS、auth headers）
   "aiofiles>=25.1.0",     # 异步文件 I/O
   # --- 图片处理 (7 模块跨 4 层使用) ---
   "Pillow>=12.3.0",       # 图片读写/resize/压缩 (image_reader + image_compressor + browser/diff + file_parsers + computer_use)
@@ -50,7 +49,7 @@ dependencies = [
   "lxml>=6.1.1",            # bs4 lxml parser (content_pruning + tree_truncator)
   # --- Agent 协议与基础设施 ---
   "filelock>=3.32.0",  # 跨进程文件锁 (Skill 并发控制)
-  "mcp>=1.28.1",       # MCP 协议 SDK (Server transport)
+  "mcp>=2.0.0",        # MCP 协议 SDK 2.x (2026-07-28 spec: stateless HTTP, Client API)
   "watchdog>=6.0.0",   # 文件系统变更监控 (backends/skills/watcher.py)
   "pdfplumber>=0.11.10", # PDF 文本+表格提取 (file_read_tool CORE; pypdfium2 由 pdfplumber 传递依赖)
 ]
@@ -144,7 +143,7 @@ override-dependencies = [
   "patchright>=1.59.1",
   "openai>=2.48.0",
   "opentelemetry-semantic-conventions>=0.61b0",
-  "mcp>=1.28.0,<2",               # langchain-mcp-adapters needs RequestContext (removed in mcp 2.0 alpha)
+  "mcp>=2.0.0",                   # MCP SDK 2.x
 ]
 
 [build-system]

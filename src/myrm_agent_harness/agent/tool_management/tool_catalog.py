@@ -1,7 +1,7 @@
 """LLM Action Tool catalog metadata — load condition and derived product ID.
 
 [INPUT]
-- .tool_layers::ToolLayer (POS: CORE/COMMON/EXTENDED priority)
+- .tool_layers::ToolLayer (POS: CORE/COMMON/EXTENDED/EXTERNAL priority)
 - core.security.tool_registry::TOOL_TO_GROUP (POS: harness tool group SSOT)
 - meta_tools.discover_capability.capability_gap::BUILTIN_TOOL_ID_TO_GROUP (POS: GUI togglable product ID → group)
 
@@ -65,8 +65,6 @@ _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "skill_search_tool": "Turn1 when searchable skills exist",
     "skill_select_tool": "skill_backend present",
     "skill_manage_tool": "enabled_builtin_tools: skill_manage or /learn force_skill_manage (server Turn1)",
-    "wiki_compile_tool": "Settings REST + create_wiki_admin_tools(); not Turn1 LLM",
-    "wiki_maintain_tool": "Settings REST + create_wiki_admin_tools(); not Turn1 LLM",
     "delegate_task_tool": "SubagentManagementExtension + entitlements",
     "subagent_control_tool": "SubagentManagementExtension + entitlements",
     "send_teammate_message_tool": "SubagentManagementExtension + entitlements",
@@ -87,6 +85,7 @@ _DEFAULT_LOAD_BY_LAYER: dict[ToolLayer, str] = {
     ToolLayer.CORE: "Agent baseline; Turn1 eager",
     ToolLayer.COMMON: "Profile togglable; Turn1 when enabled (default-on product IDs only)",
     ToolLayer.EXTENDED: "Opt-in Turn1; see product switch",
+    ToolLayer.EXTERNAL: "Server vendor / MCP direct / OpenAPI / unregistered dynamic tools",
 }
 
 # SSOT for layer-product CI gate; aligned with server ``builtin_tool_ids.py``

@@ -9,7 +9,7 @@
 
 [OUTPUT]
 write_index_markdown(), append_log_entry(), write_hot_markdown(): vault file writers
-read_hot_context(): hot.md reader for wiki_query prefix
+read_hot_context(), read_log_context(): hot.md / log.md readers for wiki_query prefix
 count_log_entries(), hot_updated_at_iso(): stats helpers for server /stats API
 WikiCognitiveMapService: orchestrates index + log + hot refresh
 
@@ -35,20 +35,20 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
+from .atomic_io import atomic_write_text
 from .events import WikiMapEvent
+from .schema_writer import write_schema_markdown
 from .snapshot import HotSnapshot, build_hot_snapshot, render_hot_markdown
 
 logger = get_agent_logger(__name__)
 
 _LOG_MAX_BYTES = 100_000
+_LOG_CONTEXT_MAX_CHARS = 1_500
 _SUMMARY_MAX_CHARS = 120
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_name(f"{path.name}.tmp")
-    tmp_path.write_text(content, encoding="utf-8")
-    tmp_path.replace(path)
+    atomic_write_text(path, content)
 
 
 def _concept_wikilink_name(concept_path: Path, concepts_dir: Path) -> str:
@@ -198,6 +198,26 @@ def read_hot_context(structure: WikiStructure, *, max_chars: int = 2_000) -> str
     return text[:max_chars] + "\n[truncated]"
 
 
+def read_log_context(structure: WikiStructure, *, max_chars: int = _LOG_CONTEXT_MAX_CHARS) -> str:
+    """Load recent wiki/log.md entries for wiki_query activity context (bounded, zero LLM)."""
+    log_path = structure.get_log_file_path()
+    if not log_path.exists():
+        return ""
+    try:
+        text = log_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    if not text:
+        return ""
+    if text.startswith("# Wiki activity log"):
+        text = text.removeprefix("# Wiki activity log").strip()
+    if not text:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "\n[truncated]"
+
+
 def count_log_entries(structure: WikiStructure) -> int:
     log_path = structure.get_log_file_path()
     if not log_path.exists():
@@ -225,6 +245,7 @@ class CognitiveMapRefreshResult:
     index_path: Path
     log_path: Path
     hot_path: Path
+    schema_path: Path
 
 
 class WikiCognitiveMapService:
@@ -253,4 +274,10 @@ class WikiCognitiveMapService:
             queue_pending=queue_pending,
         )
         hot_path = write_hot_markdown(self._structure, snapshot)
-        return CognitiveMapRefreshResult(index_path=index_path, log_path=log_path, hot_path=hot_path)
+        schema_path = write_schema_markdown(self._structure)
+        return CognitiveMapRefreshResult(
+            index_path=index_path,
+            log_path=log_path,
+            hot_path=hot_path,
+            schema_path=schema_path,
+        )

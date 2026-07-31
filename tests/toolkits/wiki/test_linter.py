@@ -200,3 +200,17 @@ async def test_discover_connections(
     connections = await linter._discover_connections()
 
     assert connections >= 0
+
+
+@pytest.mark.asyncio
+async def test_lint_and_maintain_structural_skips_llm(
+    mock_llm: MagicMock,
+    wiki_structure: WikiStructure,
+) -> None:
+    """STRUCTURAL mode must not invoke LLM drift or backlink discovery."""
+    from myrm_agent_harness.toolkits.wiki.maintenance.modes import MaintainMode
+
+    config = WikiConfig(enable_auto_maintenance=True, enable_backlinks=True)
+    linter = WikiLinter(mock_llm, wiki_structure, config)
+    await linter.lint_and_maintain(mode=MaintainMode.STRUCTURAL)
+    mock_llm.ainvoke.assert_not_called()

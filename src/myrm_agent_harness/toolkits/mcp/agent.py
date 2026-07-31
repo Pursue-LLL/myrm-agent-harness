@@ -4,21 +4,21 @@
 belong to the harness Agent runtime package. See ``toolkits/_ARCH.md`` § Naming disambiguation.
 
 Provides MCP tool fetching capabilities:
-- Fetches tools from multiple MCP servers
+- Fetches tools from multiple MCP servers via ``mcp.client.Client`` (SDK 2.x)
 - Server-prefix isolation: ``mcp__{server}__{tool}`` naming prevents collisions and permission bypass
 - Maintains tool-to-server mapping
 - Supports parallel multi-server tool fetching
 - Auto-truncates excessively long tool descriptions to prevent token waste
 - Content block coercion: ``_coerce_content_block`` ensures only LLM-safe types (text, image) reach the API — ``file``, ``audio``, and unknown blocks are gracefully degraded to text, preventing 400 errors and session history poisoning
 - Content boundary defense: ``_timeout_wrapper`` applies ``wrap_untrusted()`` to MCP tool string outputs, ensuring third-party server data receives the same 5-layer content boundary protection (Unicode folding, structural framing strip, marker sanitization, random boundary, pattern detection) as all built-in tools
-- Upstream fault tolerance: ``_timeout_wrapper`` catches adapter-layer exceptions (NotImplementedError for AudioContent, ValueError for unknown types) from langchain_mcp_adapters, returning readable error messages instead of crashing
-- Auth error detection: ``_timeout_wrapper`` catches ``httpx.HTTPStatusError(401)`` from the MCP transport, returns a clear re-authorization message to the Agent, and emits ``MCPAuthExpiredEvent`` to trigger the existing toast/SSE notification chain
+- Upstream fault tolerance: ``_timeout_wrapper`` catches adapter-layer exceptions (NotImplementedError for AudioContent, ValueError for unknown types), returning readable error messages instead of crashing
+- Auth error detection: ``_timeout_wrapper`` catches ``httpx2.HTTPStatusError(401)`` from the MCP transport, returns a clear re-authorization message to the Agent, and emits ``MCPAuthExpiredEvent`` to trigger the existing toast/SSE notification chain
 - Extracts MCP structuredContent from artifacts as supplementary text blocks
 - Detects ext-apps ``_meta.ui.resourceUri`` and emits MCP App view events via progress_sink
 
-
 [INPUT]
 - client::MCPClientManager, MCPServerConfigProtocol (POS: MCP client management layer)
+- tool_converter::convert_mcp_tools (POS: MCP tool → LangChain BaseTool converter)
 - config::parse_mcp_tool_name, sanitize_mcp_name_component, should_register_mcp_tool (POS: MCP configuration, name sanitization, tool name parsing, and per-server tool filter function)
 - schema_utils::FlattenMeta, canonicalize_schema_for_cache, coerce_arguments_by_schema, flatten_deep_schema, flatten_json_schema, has_dot_keys, nest_flat_arguments (POS: MCP schema tolerance utilities)
 - core.security.tool_registry::MCPAnnotations, SafetyMetadata, register_ptc_safety_metadata (POS: Tool metadata and permission mapping)
@@ -27,8 +27,7 @@ Provides MCP tool fetching capabilities:
 - core.security.detection.content_boundary::wrap_untrusted (POS: 5-layer content boundary defense for MCP tool outputs)
 - runtime.events::get_event_bus (wired via auth_notify at runtime import)
 - runtime.events.system_events::MCPAuthExpiredEvent (published by runtime handler)
-- httpx::HTTPStatusError (POS: HTTP status error for 401 auth detection)
-- langchain_mcp_adapters (POS: MCP adapter library)
+- httpx2::HTTPStatusError (POS: HTTP status error for 401 auth detection)
 
 [OUTPUT]
 - MCPAgent: MCP tool fetching, server mapping, content block coercion (file/audio/unknown→text), multimodal result normalization, content boundary defense (wrap_untrusted for all string outputs), upstream fault tolerance, auth error detection (401→MCPAuthExpiredEvent), ext-apps metadata emission, safety annotation registration, and oversized output vault spill (via injectable OversizedResultHandler callback)
@@ -40,8 +39,8 @@ server-prefix isolation (mcp__{server}__{tool} naming), per-server tool filterin
 (include/exclude whitelist), description truncation, content block coercion
 (file/audio/unknown types gracefully degraded to text for LLM API safety),
 content boundary defense (wrap_untrusted for all string outputs against prompt injection),
-upstream fault tolerance (catches adapter-layer NotImplementedError/ValueError),
-auth error detection (httpx 401 → MCPAuthExpiredEvent + clear re-auth message),
+upstream fault tolerance (catches NotImplementedError/ValueError),
+auth error detection (httpx2 401 → MCPAuthExpiredEvent + clear re-auth message),
 multimodal result normalization (ImageContent passthrough + structuredContent
 extraction), ext-apps UI metadata detection and SSE event emission, and safety
 metadata registration. `process_session_tools()` is the single post-processing
@@ -56,7 +55,6 @@ import logging
 from collections.abc import Callable, Sequence
 
 from langchain_core.tools import BaseTool
-from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from myrm_agent_harness.core.security.tool_registry import (
     MCPAnnotations,
@@ -88,12 +86,26 @@ back to the default head-truncation."""
 
 
 def _is_mcp_auth_error(exc: Exception) -> bool:
-    """Return True if *exc* is an HTTP 401 from the MCP transport layer."""
+    """Return True if *exc* is an HTTP 401 from the MCP transport layer.
+
+    MCP SDK v2 uses httpx2 internally, so the transport raises
+    ``httpx2.HTTPStatusError``.  We also check ``httpx.HTTPStatusError``
+    for defensive compatibility (e.g. custom transports that still use httpx).
+    """
+    status_error_types: list[type] = []
     try:
-        from httpx import HTTPStatusError
+        from httpx2 import HTTPStatusError as Httpx2StatusError
+        status_error_types.append(Httpx2StatusError)
     except ImportError:
+        pass
+    try:
+        from httpx import HTTPStatusError as HttpxStatusError
+        status_error_types.append(HttpxStatusError)
+    except ImportError:
+        pass
+    if not status_error_types:
         return False
-    return isinstance(exc, HTTPStatusError) and exc.response.status_code == 401
+    return isinstance(exc, tuple(status_error_types)) and exc.response.status_code == 401
 
 
 def _emit_auth_expired_for_tool(server_name: str, error_detail: str) -> None:
@@ -202,12 +214,12 @@ class MCPAgent:
     def _coerce_content_block(block: dict[str, object]) -> dict[str, object]:
         """Coerce a LangChain content block to an LLM-safe type.
 
-        ``langchain_mcp_adapters`` converts MCP ``ResourceLink`` to LangChain
-        ``{type: "file"}`` blocks and ``EmbeddedResource`` blobs to similar
-        non-standard types.  LLM APIs (Anthropic, OpenAI) only accept ``text``
-        and ``image`` in tool results — sending ``file`` or unknown types causes
-        400 errors and permanently poisons the session history (every subsequent
-        turn replays the invalid block).
+        MCP tool results may contain ``ResourceLink`` (→ ``{type: "file"}``)
+        or ``EmbeddedResource`` blobs that LLM APIs don't accept.  LLM APIs
+        (Anthropic, OpenAI) only accept ``text`` and ``image`` in tool results
+        — sending ``file`` or unknown types causes 400 errors and permanently
+        poisons the session history (every subsequent turn replays the invalid
+        block).
 
         This method acts as a safety boundary: ``text`` and well-formed ``image``
         blocks pass through unchanged; everything else is gracefully degraded to
@@ -237,9 +249,9 @@ class MCPAgent:
 
     @staticmethod
     def _normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
-        """Normalize content_and_artifact tuple from langchain_mcp_adapters.
+        """Normalize content_and_artifact tuple from MCP tool execution.
 
-        langchain_mcp_adapters returns ``(list[ContentBlock], artifact | None)``
+        MCP tool results arrive as ``(list[ContentBlock], artifact | None)``
         where ContentBlock is ``{"type": "text", "text": "..."}`` or image/file
         blocks.  Every block is passed through ``_coerce_content_block`` to
         guarantee only LLM-safe types (``text``, ``image``) reach the API —
@@ -575,23 +587,75 @@ class MCPAgent:
                 return server_name
         return "unknown_server"
 
-    async def get_tools_from_server(
+    @staticmethod
+    def _build_enumeration_target(server_config: MCPServerConfigProtocol) -> object:
+        """Build an SDK v2 ``Client`` target for one-shot tool enumeration.
+
+        - SSE: ``sse_client(url, headers=...)`` — SSE transport accepts ``headers``
+          directly (no ``http_client`` param).
+        - Streamable HTTP with auth headers: ``streamable_http_client(url, http_client=...)``
+          — requires an explicit ``httpx2.AsyncClient`` for custom headers.
+        - Streamable HTTP without headers: bare URL string (``Client`` auto-wraps).
+        - stdio: ``stdio_client(StdioServerParameters(...))`` wrapping.
+        """
+        raw_target = MCPClientManager.build_client_target(server_config)
+
+        if isinstance(raw_target, str):
+            headers = MCPClientManager.get_headers(server_config)
+            transport_type = server_config.type
+            if transport_type == "sse":
+                from mcp.client.sse import sse_client
+                return sse_client(raw_target, headers=headers or None)
+            if headers:
+                import httpx2
+                http_client = httpx2.AsyncClient(
+                    headers=headers,
+                    timeout=httpx2.Timeout(30.0, read=300.0),
+                    follow_redirects=True,
+                )
+                from mcp.client.streamable_http import streamable_http_client
+                return streamable_http_client(raw_target, http_client=http_client)
+            return raw_target
+
+        from mcp.client.stdio import stdio_client
+        return stdio_client(raw_target)
+
+    async def _enumerate_server_tools(
         self,
-        client: MultiServerMCPClient,
-        server_name: str,
-        connect_timeout: float = 15.0,
+        server_config: MCPServerConfigProtocol,
     ) -> tuple[str, list[BaseTool], str | None]:
         """Fetch tools from a single MCP server with connection timeout and bounded retry.
 
-        Transient enumeration failures (empty listing, timeout, connection drop) are
-        retried up to ``_TOOL_FETCH_MAX_ATTEMPTS`` times; genuine cancellation is never
-        retried. The last failure reason is returned so callers keep their error contract.
+        Uses ``mcp.client.Client`` for a one-shot connect→list_tools→disconnect
+        cycle.  Transient enumeration failures (empty listing, timeout, connection
+        drop) are retried up to ``_TOOL_FETCH_MAX_ATTEMPTS`` times; genuine
+        cancellation is never retried.
         """
+        from mcp.client import Client
+        from mcp.types import Implementation
+
+        from myrm_agent_harness import __version__
+
+        from .tool_converter import convert_mcp_tools
+
+        server_name = server_config.name
+        connect_timeout = server_config.connect_timeout
         last_error = "not found tools"
+
         for attempt in range(1, _TOOL_FETCH_MAX_ATTEMPTS + 1):
             try:
-                async with asyncio.timeout(connect_timeout):
-                    tools = await client.get_tools(server_name=server_name)
+                target = self._build_enumeration_target(server_config)
+                client = Client(
+                    target,
+                    client_info=Implementation(name="myrm-agent", version=__version__),
+                )
+                async with client:
+                    async with asyncio.timeout(connect_timeout):
+                        tools = convert_mcp_tools(
+                            list((await client.list_tools()).tools),
+                            client.call_tool,
+                            server_name=server_name,
+                        )
                 if tools:
                     return server_name, tools, None
                 last_error = "not found tools"
@@ -599,7 +663,7 @@ class MCPAgent:
                 from .errors import reraise_if_genuine_cancel
 
                 reraise_if_genuine_cancel(e)
-                logger.warning(f"Server {server_name} cancelled by MCP SDK")
+                logger.warning("Server %s cancelled by MCP SDK", server_name)
                 return server_name, [], "cancelled by SDK"
             except TimeoutError:
                 last_error = f"connection timed out after {connect_timeout}s"
@@ -626,93 +690,51 @@ class MCPAgent:
         return server_name, [], last_error
 
     async def get_tools(self, mcp_config: Sequence[MCPServerConfigProtocol] | None = None) -> list[BaseTool]:
-        """Get all available MCP tools."""
-        _, tools = await self.get_tools_with_client(mcp_config)
-        return tools
+        """Get all available MCP tools from configured servers.
 
-    async def get_tools_with_client(
-        self, mcp_config: Sequence[MCPServerConfigProtocol] | None = None
-    ) -> tuple[MultiServerMCPClient, list[BaseTool]]:
-        """Get all available MCP tools, also returning the client instance.
-
-        Returns:
-            tuple[MultiServerMCPClient, list[BaseTool]]: (client, tools)
+        Each server gets a one-shot ``mcp.client.Client`` connection for tool
+        enumeration.  Multiple servers are fetched in parallel.
         """
+        if not mcp_config:
+            return []
+
         self._tool_server_mapping.clear()
-        client = await MCPClientManager.initialize_client(mcp_config)
+        configs = await MCPClientManager.prepare_server_configs(mcp_config)
+        if not configs:
+            return []
 
-        if not client.connections:
-            return client, []
-
-        server_names = list(client.connections.keys())
         all_tools: list[BaseTool] = []
 
-        # Build per-server timeout, output-limit, and tool-filter mappings
-        connect_timeout_by_server: dict[str, float] = {}
-        execute_timeout_by_server: dict[str, float] = {}
-        max_output_chars_by_server: dict[str, int] = {}
-        tool_filter_by_server: dict[str, tuple[list[str] | None, list[str] | None]] = {}
-        host_serial_by_server: dict[str, bool] = {}
-        if mcp_config:
-            for cfg in mcp_config:
-                connect_timeout_by_server[cfg.name] = cfg.connect_timeout
-                execute_timeout_by_server[cfg.name] = cfg.execute_timeout
-                max_output_chars_by_server[cfg.name] = getattr(cfg, "max_output_chars", 100_000)
-                tool_filter_by_server[cfg.name] = (
-                    getattr(cfg, "tool_include", None),
-                    getattr(cfg, "tool_exclude", None),
-                )
-                host_serial_by_server[cfg.name] = bool(getattr(cfg, "host_serial", False))
-
-        if len(server_names) == 1:
-            server_name, tools, error = await self.get_tools_from_server(
-                client,
-                server_names[0],
-                connect_timeout_by_server.get(server_names[0], 15.0),
-            )
+        async def _fetch_and_process(cfg: MCPServerConfigProtocol) -> list[BaseTool]:
+            server_name, tools, error = await self._enumerate_server_tools(cfg)
             if error:
-                raise Exception(f"Failed to get tools from {server_name}: {error}")
-
-            include, exclude = tool_filter_by_server.get(server_name, (None, None))
+                raise RuntimeError(f"Failed to get tools from {server_name}: {error}")
+            include = getattr(cfg, "tool_include", None)
+            exclude = getattr(cfg, "tool_exclude", None)
             tools = self.process_session_tools(
                 tools,
                 server_name,
                 include,
                 exclude,
-                execute_timeout_by_server.get(server_name, 120.0),
-                max_output_chars_by_server.get(server_name, 100_000),
-                host_serial=host_serial_by_server.get(server_name, False),
+                cfg.execute_timeout,
+                getattr(cfg, "max_output_chars", 100_000),
+                host_serial=bool(getattr(cfg, "host_serial", False)),
             )
             self._store_tool_server_mapping(tools, server_name)
-            all_tools = tools
+            return tools
+
+        server_list = list(configs.values())
+        if len(server_list) == 1:
+            all_tools = await _fetch_and_process(server_list[0])
         else:
-            tasks = [
-                self.get_tools_from_server(client, sn, connect_timeout_by_server.get(sn, 15.0)) for sn in server_names
-            ]
-
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
+            results = await asyncio.gather(
+                *[_fetch_and_process(cfg) for cfg in server_list],
+                return_exceptions=True,
+            )
             for result in results:
                 if isinstance(result, Exception):
-                    logger.error(f"Task failed: {result}")
+                    logger.error("MCP server fetch failed: %s", result)
                     raise result
+                all_tools.extend(result)
 
-                if isinstance(result, tuple) and len(result) == 3:
-                    server_name, tools, error = result
-                    if error:
-                        raise Exception(f"Failed to get tools from {server_name}: {error}")
-
-                    include, exclude = tool_filter_by_server.get(server_name, (None, None))
-                    tools = self.process_session_tools(
-                        tools,
-                        server_name,
-                        include,
-                        exclude,
-                        execute_timeout_by_server.get(server_name, 120.0),
-                        max_output_chars_by_server.get(server_name, 100_000),
-                        host_serial=host_serial_by_server.get(server_name, False),
-                    )
-                    self._store_tool_server_mapping(tools, server_name)
-                    all_tools.extend(tools)
-
-        return client, all_tools
+        return all_tools

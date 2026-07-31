@@ -16,6 +16,7 @@ Positioned AFTER MediaFilterProcessor in the pipeline:
 
 [OUTPUT]
 - MediaResolverProcessor: resolves URL references to base64 for LLM consumption
+- resolve_image_reference_to_data_url: shared SSRF-safe URL→data URL helper
 
 [POS]
 Media reference resolver. Converts StorageProvider URLs and local file paths
@@ -27,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import mimetypes
+import os
 import re
 from pathlib import Path
 from typing import Protocol
@@ -48,10 +50,60 @@ _MAX_CONCURRENT_RESOLVES = 8
 _API_FILE_PATTERN = re.compile(r"/api/media/files/([^/]+)/content")
 
 
+def _internal_api_origin() -> str:
+    """Loopback origin for /api/media HTTP fallback (matches myrm-agent-server PORT)."""
+    port = os.getenv("PORT", "8080")
+    return f"http://127.0.0.1:{port}"
+
+
 class FileContentReader(Protocol):
     """Protocol for reading file content by ID (injected by business layer)."""
 
     async def __call__(self, file_id: str) -> bytes | None: ...
+
+
+async def resolve_image_reference_to_data_url(
+    url: str,
+    *,
+    file_content_reader: FileContentReader | None = None,
+) -> str | None:
+    """Resolve HTTP, file, or /api/media image references to a base64 data URL."""
+    if url.startswith("file://"):
+        return _resolve_local_file(url[7:])
+
+    if url.startswith(("http://", "https://")):
+        return await _resolve_http(url)
+
+    if url.startswith("/api/"):
+        return await _resolve_api_file_path(url, file_content_reader=file_content_reader)
+
+    return _resolve_local_file(url)
+
+
+async def _resolve_api_file_path(
+    path: str,
+    *,
+    file_content_reader: FileContentReader | None = None,
+) -> str | None:
+    """Resolve /api/media/files/{file_id}/content via injected reader or HTTP."""
+    match = _API_FILE_PATTERN.match(path)
+    if not match:
+        return await _resolve_http(f"{_internal_api_origin()}{path}")
+
+    file_id = match.group(1)
+    if file_content_reader:
+        try:
+            data = await file_content_reader(file_id)
+            if data:
+                return _bytes_to_data_url(data, file_id)
+        except Exception as exc:
+            logger.debug(
+                "[MediaResolver] File reader failed for %s, falling back to HTTP: %s",
+                file_id,
+                exc,
+            )
+
+    return await _resolve_http(f"{_internal_api_origin()}{path}")
 
 
 class MediaResolverProcessor(BaseProcessor):
@@ -133,33 +185,10 @@ class MediaResolverProcessor(BaseProcessor):
 
     async def _resolve_url(self, url: str) -> str | None:
         """Resolve a URL to a base64 data URL."""
-        if url.startswith("file://"):
-            return _resolve_local_file(url[7:])
-
-        if url.startswith(("http://", "https://")):
-            return await _resolve_http(url)
-
-        if url.startswith("/api/"):
-            return await self._resolve_api_file(url)
-
-        return _resolve_local_file(url)
-
-    async def _resolve_api_file(self, path: str) -> str | None:
-        """Resolve /api/media/files/{file_id}/content via injected reader or HTTP."""
-        match = _API_FILE_PATTERN.match(path)
-        if not match:
-            return await _resolve_http(f"http://127.0.0.1:8000{path}")
-
-        file_id = match.group(1)
-        if self._file_reader:
-            try:
-                data = await self._file_reader(file_id)
-                if data:
-                    return _bytes_to_data_url(data, file_id)
-            except Exception as exc:
-                logger.debug("[MediaResolver] File reader failed for %s, falling back to HTTP: %s", file_id, exc)
-
-        return await _resolve_http(f"http://127.0.0.1:8000{path}")
+        return await resolve_image_reference_to_data_url(
+            url,
+            file_content_reader=self._file_reader,
+        )
 
 
 def _resolve_local_file(path_str: str) -> str | None:

@@ -267,3 +267,47 @@ async def test_discover_runtime_bm25_synonym_expansion_finds_skill() -> None:
     assert "<BoundSkills>" in result
     assert any(name in result for name in ("oauth_auth", "jwt_auth", "session_auth"))
     assert "No capabilities found" not in result
+
+
+_SELECT_TOOL = "skill_select_tool"
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_skill_select_static_description_and_catalog_delivery_wiring() -> None:
+    """get_meta_tools static skill_select + SkillAgent stream catalog reinject (no tool XML)."""
+    from langchain_core.messages import HumanMessage
+
+    from myrm_agent_harness.agent._internals.agent_runtime import (
+        apply_bound_skill_catalog_for_stream,
+    )
+    from myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool import (
+        build_skill_select_static_description,
+    )
+
+    skills = [_sample_skill()]
+    registry = ToolRegistry()
+    meta_tools = get_meta_tools(
+        skills,
+        _StubSkillBackend(skills),
+        registry=registry,
+        enable_file_tools=False,
+        enable_shell_tools=False,
+        enable_answer_tool=False,
+    )
+    select_tool = next(t for t in meta_tools if getattr(t, "name", None) == _SELECT_TOOL)
+    description = select_tool.description or ""
+    assert description.rstrip() == build_skill_select_static_description().rstrip()
+    assert "github_pr" not in description
+    assert "<skills>" not in description
+    assert "hidden_count" in description
+
+    agent = SkillAgent(llm=AsyncMock(), skill_backend=_StubSkillBackend(skills))
+    messages = [HumanMessage(content="plan a PR review")]
+    await apply_bound_skill_catalog_for_stream(messages, agent)
+
+    first = messages[0]
+    assert isinstance(first.content, str)
+    assert first.content.startswith("<bound_skills")
+    assert "github_pr" in first.content
+    assert "plan a PR review" in first.content

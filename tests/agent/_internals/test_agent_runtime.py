@@ -317,3 +317,85 @@ class TestSchedulePostRunIdleTasks:
         )
 
         schedule_post_run_idle_tasks({})
+
+
+class TestApplyBoundSkillCatalogForStream:
+    """Integration tests for SkillAgent stream catalog hook."""
+
+    @pytest.mark.asyncio
+    async def test_skill_agent_injects_bound_skills_on_first_human_message(self) -> None:
+        from unittest.mock import AsyncMock
+
+        from langchain_core.messages import HumanMessage
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_stream,
+        )
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+        from myrm_agent_harness.backends.skills.types import SkillMetadata
+
+        skill = SkillMetadata(
+            name="alpha_skill",
+            description="alpha",
+            model_invocable=True,
+            available=True,
+        )
+        mock_backend = AsyncMock()
+        mock_backend.list_skills = AsyncMock(return_value=[skill])
+        agent = SkillAgent(llm=AsyncMock(), skill_backend=mock_backend)
+
+        messages = [HumanMessage(content="hello")]
+        await apply_bound_skill_catalog_for_stream(messages, agent)
+
+        first = messages[0]
+        assert isinstance(first.content, str)
+        assert first.content.startswith("<bound_skills")
+        assert "alpha_skill" in first.content
+        assert "hello" in first.content
+
+    @pytest.mark.asyncio
+    async def test_non_skill_agent_leaves_messages_unchanged(self) -> None:
+        from unittest.mock import MagicMock
+
+        from langchain_core.messages import HumanMessage
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_stream,
+        )
+        from myrm_agent_harness.agent.base_agent import BaseAgent
+
+        agent = MagicMock(spec=BaseAgent)
+        messages = [HumanMessage(content="hello")]
+        await apply_bound_skill_catalog_for_stream(messages, agent)
+        assert messages[0].content == "hello"
+
+    @pytest.mark.asyncio
+    async def test_skill_agent_without_backend_leaves_messages_unchanged(self) -> None:
+        from unittest.mock import AsyncMock
+
+        from langchain_core.messages import HumanMessage
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_stream,
+        )
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+        agent = SkillAgent(llm=AsyncMock(), skill_backend=None)
+        messages = [HumanMessage(content="hello")]
+        await apply_bound_skill_catalog_for_stream(messages, agent)
+        assert messages[0].content == "hello"
+
+    def test_run_agent_loop_wires_catalog_helper_after_datetime_inject(self) -> None:
+        from pathlib import Path
+
+        source = (
+            Path(__file__).resolve().parents[3]
+            / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
+        ).read_text(encoding="utf-8")
+        inject_idx = source.index("inject_datetime_tags(messages, chat_history, query)")
+        hook_idx = source.index(
+            "await apply_bound_skill_catalog_for_stream(messages, agent_state)",
+            inject_idx,
+        )
+        assert hook_idx > inject_idx
+        assert hook_idx - inject_idx < 200

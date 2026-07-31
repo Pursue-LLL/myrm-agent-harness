@@ -8,8 +8,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from myrm_agent_harness.agent.meta_tools.skills.select.skill_document_loader import (
+    build_reload_summary,
+)
 from myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool import (
-    _build_reload_summary,
     create_select_skill_tool,
 )
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
@@ -50,11 +52,11 @@ def _make_storage_skill(name: str = "test_storage_skill") -> SkillMetadata:
 
 
 class TestBuildReloadSummary:
-    """Tests for _build_reload_summary function."""
+    """Tests for build_reload_summary function."""
 
     def test_mcp_skill_includes_tool_names(self) -> None:
         skill = _make_mcp_skill(tools=["search_tool", "fetch_tool", "parse_tool"])
-        result = _build_reload_summary(skill)
+        result = build_reload_summary(skill)
 
         assert "already loaded" in result
         assert "search_tool" in result
@@ -64,7 +66,7 @@ class TestBuildReloadSummary:
     def test_mcp_skill_limits_tool_names_to_20(self) -> None:
         tools = [f"tool_{i}" for i in range(30)]
         skill = _make_mcp_skill(tools=tools)
-        result = _build_reload_summary(skill)
+        result = build_reload_summary(skill)
 
         assert "tool_0" in result
         assert "tool_19" in result
@@ -72,35 +74,35 @@ class TestBuildReloadSummary:
 
     def test_non_mcp_skill_no_tools_section(self) -> None:
         skill = _make_storage_skill()
-        result = _build_reload_summary(skill)
+        result = build_reload_summary(skill)
 
         assert "already loaded" in result
         assert "Available tools" not in result
 
     def test_mcp_skill_empty_tools_list(self) -> None:
         skill = _make_mcp_skill(tools=[])
-        result = _build_reload_summary(skill)
+        result = build_reload_summary(skill)
 
         assert "already loaded" in result
         assert "Available tools" not in result
 
     def test_output_contains_skill_name(self) -> None:
         skill = _make_mcp_skill(name="my_custom_skill")
-        result = _build_reload_summary(skill)
+        result = build_reload_summary(skill)
 
         assert "my_custom_skill" in result
 
     def test_output_suggests_bash_execution(self) -> None:
         skill = _make_mcp_skill()
-        result = _build_reload_summary(skill)
+        result = build_reload_summary(skill)
 
         assert "bash_code_execute_tool" in result
 
-    def test_output_suggests_file_read_for_full_sop(self) -> None:
+    def test_output_suggests_file_path_for_auxiliary_files(self) -> None:
         skill = _make_mcp_skill()
-        result = _build_reload_summary(skill)
+        result = build_reload_summary(skill)
 
-        assert "file_read_tool" in result
+        assert "file_path" in result
 
 
 class TestCreateSelectSkillToolDeduplication:
@@ -341,7 +343,7 @@ class TestSelectSkillReloadSkipsUsage:
                 return_value=[],
             ),
             patch(
-                "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool._get_skill_file",
+                "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool.get_skill_file",
                 return_value=None,
             ),
         ):

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Skill execution runtime: registry, loader, env prep, trust attenuation. **`get_metadata_summary()`** builds XML skill catalogs embedded in meta-tool descriptions (see `meta_tools/skills/select/_ARCH.md`).
+Skill execution runtime: registry, loader, env prep, trust attenuation. **`get_metadata_summary()`** builds XML for HumanMessage `<bound_skills>` blocks (see `skill_catalog_delivery.py` and `meta_tools/skills/select/_ARCH.md`).
 
 ## File & Submodule Index
 
@@ -13,7 +13,9 @@ Skill execution runtime: registry, loader, env prep, trust attenuation. **`get_m
 | session_skills_rehydrate.py | Core | Rebuild `loaded_skills` from chat history ∪ `context.session_loaded_skill_names` SSOT at `SkillAgent.run()` start. | ✅ |
 | env.py | Core | Skill execution environment preparer before sandbox execution. | ✅ |
 | loader.py | Core | Skill document loader and trap injection. | ✅ |
-| registry.py | Core | SkillRegistry + get_metadata_summary (XML for tool descriptions, not SystemMessage). | ✅ |
+| registry.py | Core | SkillRegistry + get_metadata_summary (XML for HumanMessage catalog, not tool schema). | ✅ |
+| catalog_display.py | Core | resolve_catalog_display_skills SSOT (inline vs hidden). | ✅ |
+| skill_catalog_delivery.py | Core | strip/reinject `<bound_skills hidden_count="N">` on first HumanMessage each stream. | ✅ |
 
 ## Key Dependencies
 

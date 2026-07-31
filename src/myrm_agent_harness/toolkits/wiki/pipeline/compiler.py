@@ -48,6 +48,7 @@ from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptInfo
 
 from .cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
+from .cognitive_map.schema_writer import read_index_context
 from .contradiction_synthesis import run_contradiction_synthesis_pass
 from .postprocess import generate_backlinks, save_metadata
 from .queue import WikiIngestionQueue
@@ -614,11 +615,15 @@ class WikiCompiler:
         relative_path = self._relative_raw_path(doc_path)
 
         survey_context = self._build_extract_survey_context(relative_path)
+        index_context = read_index_context(self._structure)
+        index_block = ""
+        if index_context:
+            index_block = f"# Existing wiki catalog (reuse these concept names when applicable):\n{index_context}\n\n"
         prompt = self._compile_config.extract_concepts_prompt_template
         system_msg = SystemMessage(content="You are a knowledge extraction expert.")
         human_msg = HumanMessage(
             content=(
-                f"{prompt}\n\n{survey_context}# Document Path: {relative_path}\n# Document Content:\n\n{content}"
+                f"{prompt}\n\n{survey_context}{index_block}# Document Path: {relative_path}\n# Document Content:\n\n{content}"
             )
         )
 

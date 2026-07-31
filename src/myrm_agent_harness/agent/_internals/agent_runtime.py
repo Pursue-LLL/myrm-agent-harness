@@ -26,6 +26,7 @@ and helper functions that ``BaseAgent`` delegates to.
 - utils.token_economics.usage_ledger::UsageLedger (POS: LLM  JSONL)
 
 [OUTPUT]
+- apply_bound_skill_catalog_for_stream: Reinject ``<bound_skills>`` on SkillAgent stream prep.
 - build_middlewares: Build the full middleware chain for a BaseAgent.
 - create_registry: Create a fresh ToolRegistry for one build cycle.
 - build_tools: Build the resolved tool list via ToolRegistry.
@@ -114,6 +115,7 @@ logger = get_agent_logger(__name__)
 
 # Re-export for backward compatibility
 __all__ = [
+    "apply_bound_skill_catalog_for_stream",
     "build_middlewares",
     "build_tools",
     "create_registry",
@@ -124,6 +126,39 @@ __all__ = [
     "run_agent_loop",
     "schedule_post_run_idle_tasks",
 ]
+
+
+# ============================================================================
+# Stream message prep
+# ============================================================================
+
+
+async def apply_bound_skill_catalog_for_stream(
+    messages: list[BaseMessage],
+    agent_state: BaseAgent,
+) -> None:
+    """Reinject bound skill catalog on first HumanMessage for SkillAgent streams."""
+    from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+    if not isinstance(agent_state, SkillAgent) or agent_state.skill_backend is None:
+        return
+
+    from myrm_agent_harness.agent.skills.runtime.skill_catalog_delivery import (
+        ensure_skill_catalog_in_messages,
+    )
+
+    bound_skills = await agent_state._get_cached_skills()
+    ensure_skill_catalog_in_messages(
+        messages,
+        bound_skills,
+        skill_configs=agent_state.skill_configs,
+        available_tool_names=agent_state._available_tool_names,
+        available_tool_groups=agent_state._available_tool_groups,
+    )
+    logger.debug(
+        " Bound skill catalog reinjected on first HumanMessage (%d skills)",
+        len(bound_skills),
+    )
 
 
 # ============================================================================
@@ -422,6 +457,7 @@ async def run_agent_loop(
         else:
             messages = build_messages(query, chat_history)
             inject_datetime_tags(messages, chat_history, query)
+            await apply_bound_skill_catalog_for_stream(messages, agent_state)
 
             quote_raw = merged_context.get("quote_attachment")
             if quote_raw is not None and messages:

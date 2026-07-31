@@ -8,7 +8,7 @@
 [OUTPUT]
 - SkillRegistry: Skill registry class (manages registration, lookup, updates)
 - skill_registry: Global skill registry singleton
-- get_metadata_summary(): XML-format skill summary (embedded in skill_select_tool / todo_write tool descriptions, not in SystemMessage)
+- get_metadata_summary(): XML-format skill summary (embedded in first HumanMessage ``<bound_skills>``, not tool schema)
 
 [POS]
 Skill registry. Manages runtime caches and lookups, primarily for MCP-based skills.
@@ -112,10 +112,10 @@ skill_registry = SkillRegistry()
 
 
 def get_metadata_summary(skills: list[SkillMetadata], max_skills: int = MAX_SKILLS_IN_PROMPT) -> str:
-    """Generate structured XML skill summary for tool descriptions.
+    """Generate structured XML skill summary for HumanMessage catalog blocks.
 
-    Embedded in ``skill_select_tool`` and ``todo_write`` LangChain tool
-    descriptions (part of tool schema sent to the LLM), **not** in SystemMessage.
+    Rendered inside ``<bound_skills>`` on the first HumanMessage (see
+    ``skill_catalog_delivery.py``), **not** in tool schema or SystemMessage.
 
     XML format is more parseable by LLMs than Markdown lists, and supports
     structured attributes (availability, trust, routing hints).
@@ -123,8 +123,8 @@ def get_metadata_summary(skills: list[SkillMetadata], max_skills: int = MAX_SKIL
     Skills with always=True are guaranteed inclusion in the XML. Remaining slots
     are filled by available skills first, then unavailable ones, up to max_skills.
 
-    Cache impact: stable skill list → tool schema hash stable → no
-    ``tool_definitions_changed`` break; size still counts toward cached prefix.
+    Cache impact: stable skill list in messages[] keeps tool schema bytes stable;
+    catalog size still counts toward cached conversation prefix when present.
     """
     if not skills:
         return "<skills>No skills available.</skills>"

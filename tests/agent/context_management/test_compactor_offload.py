@@ -73,9 +73,9 @@ async def test_compress_tool_message_async_with_offload_large_output() -> None:
     assert len(written) == 1
     assert written[0][0] == "web_fetch_tool"
     body = str(tool.content)
-    assert "FILE: /persistent/.context/session123/compacted_web_fetch_tool.txt" in body
-    assert "RECOVER: cat /persistent/.context/session123/compacted_web_fetch_tool.txt" in body
     assert "COMPACTED: web_fetch_tool" in body
+    assert "archived_path: .context/session123/compacted_web_fetch_tool.txt" in body
+    assert "restore_tool: file_read_tool" in body
 
 
 @pytest.mark.asyncio
@@ -165,9 +165,8 @@ async def test_skill_select_tool_compression_preserves_recovery_info() -> None:
     body = str(tool.content)
     assert "COMPACTED:" in body
     assert "skill_select_tool" in body or "/skills/coding.md" in body
-    assert "FILE:" in body
-    assert "RECOVER: cat" in body
-    assert ".context/chat_skill/skills/skill_content.txt" in body
+    assert "archived_path: .context/chat_skill/skills/skill_content.txt" in body
+    assert "restore_tool: file_read_tool" in body
 
 
 @pytest.mark.asyncio

@@ -1,10 +1,11 @@
 """Integration tests for MCP content block coercion pipeline.
 
-Exercises the FULL pipeline from real ``mcp.types`` objects through
-``langchain_mcp_adapters`` conversion into ``_coerce_content_block``
-and ``_normalize_mcp_result`` — no mocking of conversion or coercion
-logic.  Verifies that every MCP content type that can appear in
-production is safely handled end-to-end.
+Exercises the coercion and normalization pipeline for MCP tool result
+content blocks. Verifies that every MCP content type that can appear
+in production is safely handled end-to-end through
+``_coerce_content_block`` and ``_normalize_mcp_result``.
+
+Uses MCP SDK v2 types directly.
 """
 
 import asyncio
@@ -13,7 +14,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 from langchain_core.tools import StructuredTool
-from langchain_mcp_adapters.tools import _convert_mcp_content_to_lc_block
 from mcp.types import (
     BlobResourceContents,
     EmbeddedResource,
@@ -24,23 +24,31 @@ from mcp.types import (
 )
 
 from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
-from myrm_agent_harness.toolkits.mcp.client import MCPServerConfigProtocol
 
 
-class DummyConfig(MCPServerConfigProtocol):
-    name: str = "test_server"
-    connect_timeout: float = 1.0
-    execute_timeout: float = 2.0
-    tool_include: list[str] | None = None
-    tool_exclude: list[str] | None = None
+def _mcp_to_lc_block(mcp_content: object) -> dict[str, Any]:
+    """Convert an MCP content object to a LangChain-style content block dict.
 
-    @property
-    def transport(self) -> str:
-        return "stdio"
+    Standalone test helper for MCP → LangChain content block conversion.
+    """
+    from mcp.types import ImageContent, TextContent
 
-    @property
-    def transport_kwargs(self) -> dict[str, Any]:
-        return {}
+    if isinstance(mcp_content, TextContent):
+        return {"type": "text", "text": mcp_content.text}
+    if isinstance(mcp_content, ImageContent):
+        return {"type": "image", "base64": mcp_content.data, "mime_type": mcp_content.mime_type}
+    if hasattr(mcp_content, "uri"):
+        return {"type": "file", "url": str(getattr(mcp_content, "uri", "")), "mime_type": getattr(mcp_content, "mime_type", "")}
+    if hasattr(mcp_content, "resource"):
+        res = mcp_content.resource
+        if hasattr(res, "blob") and res.blob:
+            mime = getattr(res, "mime_type", "") or ""
+            if mime.startswith("image/"):
+                return {"type": "image", "base64": res.blob, "mime_type": mime}
+            return {"type": "file", "url": str(res.uri), "mime_type": mime}
+        if hasattr(res, "text") and res.text:
+            return {"type": "text", "text": res.text}
+    return {"type": "text", "text": str(mcp_content)}
 
 
 def _make_tool(name: str = "tool") -> StructuredTool:
@@ -53,11 +61,11 @@ def _make_tool(name: str = "tool") -> StructuredTool:
 
 
 class TestRealMcpTypesThroughPipeline:
-    """End-to-end: real MCP types -> langchain_mcp_adapters -> coercion -> normalize."""
+    """End-to-end: real MCP types -> LangChain blocks -> coercion -> normalize."""
 
     def test_text_content_passthrough(self):
         """TextContent flows through unchanged."""
-        lc_block = _convert_mcp_content_to_lc_block(
+        lc_block = _mcp_to_lc_block(
             TextContent(type="text", text="hello world")
         )
         coerced = MCPAgent._coerce_content_block(lc_block)
@@ -69,7 +77,7 @@ class TestRealMcpTypesThroughPipeline:
 
     def test_image_content_preserved_as_multimodal(self):
         """ImageContent with base64 produces a multimodal list result."""
-        lc_block = _convert_mcp_content_to_lc_block(
+        lc_block = _mcp_to_lc_block(
             ImageContent(type="image", data="base64data", mimeType="image/png")
         )
         coerced = MCPAgent._coerce_content_block(lc_block)
@@ -82,7 +90,7 @@ class TestRealMcpTypesThroughPipeline:
 
     def test_resource_link_degraded_to_text(self):
         """ResourceLink -> file block -> safely degraded to text."""
-        lc_block = _convert_mcp_content_to_lc_block(
+        lc_block = _mcp_to_lc_block(
             ResourceLink(
                 type="resource_link",
                 uri="file:///tmp/report.csv",
@@ -90,7 +98,7 @@ class TestRealMcpTypesThroughPipeline:
                 mimeType="text/csv",
             )
         )
-        assert lc_block["type"] == "file", "langchain_mcp_adapters should produce file block"
+        assert lc_block["type"] == "file", "ResourceLink should produce file block"
 
         coerced = MCPAgent._coerce_content_block(lc_block)
         assert coerced["type"] == "text"
@@ -102,10 +110,10 @@ class TestRealMcpTypesThroughPipeline:
 
     def test_mixed_text_and_resource_link(self):
         """Mix of TextContent + ResourceLink: text survives, file degraded."""
-        text_block = _convert_mcp_content_to_lc_block(
+        text_block = _mcp_to_lc_block(
             TextContent(type="text", text="Here is the report:")
         )
-        file_block = _convert_mcp_content_to_lc_block(
+        file_block = _mcp_to_lc_block(
             ResourceLink(
                 type="resource_link",
                 uri="https://example.com/data.json",
@@ -120,10 +128,10 @@ class TestRealMcpTypesThroughPipeline:
 
     def test_mixed_image_and_resource_link(self):
         """Image + ResourceLink: returns multimodal list, file becomes text."""
-        img_block = _convert_mcp_content_to_lc_block(
+        img_block = _mcp_to_lc_block(
             ImageContent(type="image", data="imgdata", mimeType="image/jpeg")
         )
-        file_block = _convert_mcp_content_to_lc_block(
+        file_block = _mcp_to_lc_block(
             ResourceLink(
                 type="resource_link",
                 uri="file:///a.pdf",
@@ -140,7 +148,7 @@ class TestRealMcpTypesThroughPipeline:
 
     def test_structured_content_appended(self):
         """structuredContent from artifact is appended as JSON text."""
-        text_block = _convert_mcp_content_to_lc_block(
+        text_block = _mcp_to_lc_block(
             TextContent(type="text", text="summary")
         )
         artifact = {"structured_content": {"key": "value", "num": 42}}
@@ -152,7 +160,7 @@ class TestRealMcpTypesThroughPipeline:
 
     def test_embedded_resource_text_passthrough(self):
         """EmbeddedResource with TextResourceContents passes through as text."""
-        lc_block = _convert_mcp_content_to_lc_block(
+        lc_block = _mcp_to_lc_block(
             EmbeddedResource(
                 type="resource",
                 resource=TextResourceContents(
@@ -167,7 +175,7 @@ class TestRealMcpTypesThroughPipeline:
 
     def test_embedded_resource_blob_degraded(self):
         """EmbeddedResource with non-image BlobResourceContents -> file -> degraded to text."""
-        lc_block = _convert_mcp_content_to_lc_block(
+        lc_block = _mcp_to_lc_block(
             EmbeddedResource(
                 type="resource",
                 resource=BlobResourceContents(
@@ -186,7 +194,7 @@ class TestRealMcpTypesThroughPipeline:
 
     def test_embedded_resource_image_blob_preserved(self):
         """EmbeddedResource with image/png BlobResourceContents -> image (valid passthrough)."""
-        lc_block = _convert_mcp_content_to_lc_block(
+        lc_block = _mcp_to_lc_block(
             EmbeddedResource(
                 type="resource",
                 resource=BlobResourceContents(
@@ -213,7 +221,7 @@ class TestRealMcpTypesThroughPipeline:
     def test_multiple_file_blocks_all_degraded(self):
         """Multiple ResourceLink file blocks all degrade to text."""
         blocks = [
-            _convert_mcp_content_to_lc_block(
+            _mcp_to_lc_block(
                 ResourceLink(type="resource_link", uri=f"s3://bucket/file{i}.csv", name=f"file{i}", mimeType="text/csv")
             )
             for i in range(3)
@@ -229,7 +237,7 @@ class TestRealMcpTypesThroughPipeline:
     def test_multiple_text_blocks_joined(self):
         """Multiple text blocks are joined with newline separator."""
         blocks = [
-            _convert_mcp_content_to_lc_block(TextContent(type="text", text=f"line {i}"))
+            _mcp_to_lc_block(TextContent(type="text", text=f"line {i}"))
             for i in range(3)
         ]
         result = MCPAgent._normalize_mcp_result((blocks, None))
@@ -314,7 +322,7 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_resource_link_tuple(self):
         """Tool returns (content_blocks_with_file, artifact) — full pipeline."""
-        file_lc = _convert_mcp_content_to_lc_block(
+        file_lc = _mcp_to_lc_block(
             ResourceLink(
                 type="resource_link",
                 uri="s3://bucket/key.csv",
@@ -338,7 +346,7 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_text_tuple(self):
         """Tool returns (text_blocks, artifact) — plain string output."""
-        text_lc = _convert_mcp_content_to_lc_block(
+        text_lc = _mcp_to_lc_block(
             TextContent(type="text", text="query result: 42")
         )
 
@@ -356,7 +364,7 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_image_tuple(self):
         """Tool returns (image_blocks, artifact) — multimodal list output."""
-        img_lc = _convert_mcp_content_to_lc_block(
+        img_lc = _mcp_to_lc_block(
             ImageContent(type="image", data="chart_png_base64", mimeType="image/png")
         )
 
@@ -374,10 +382,10 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_mixed_types_tuple(self):
         """Tool returns text + file + image — file degraded, image preserved."""
-        text_lc = _convert_mcp_content_to_lc_block(
+        text_lc = _mcp_to_lc_block(
             TextContent(type="text", text="Analysis complete")
         )
-        file_lc = _convert_mcp_content_to_lc_block(
+        file_lc = _mcp_to_lc_block(
             ResourceLink(
                 type="resource_link",
                 uri="gs://bucket/report.pdf",
@@ -385,7 +393,7 @@ class TestFullToolExecutionPipeline:
                 mimeType="application/pdf",
             )
         )
-        img_lc = _convert_mcp_content_to_lc_block(
+        img_lc = _mcp_to_lc_block(
             ImageContent(type="image", data="chart", mimeType="image/png")
         )
 
@@ -423,7 +431,7 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_embedded_resource_blob(self):
         """Tool returns EmbeddedResource non-image blob -> file -> degraded to text."""
-        blob_lc = _convert_mcp_content_to_lc_block(
+        blob_lc = _mcp_to_lc_block(
             EmbeddedResource(
                 type="resource",
                 resource=BlobResourceContents(
@@ -484,7 +492,7 @@ class TestProcessSessionToolsChain:
     @pytest.mark.asyncio
     async def test_full_chain_applies_coercion(self):
         """process_session_tools -> _wrap_tools_with_timeout -> coercion active."""
-        file_lc = _convert_mcp_content_to_lc_block(
+        file_lc = _mcp_to_lc_block(
             ResourceLink(
                 type="resource_link",
                 uri="https://cdn.example.com/doc.pdf",
@@ -516,7 +524,7 @@ class TestProcessSessionToolsChain:
     @pytest.mark.asyncio
     async def test_full_chain_preserves_image(self):
         """process_session_tools preserves image blocks in multimodal output."""
-        img_lc = _convert_mcp_content_to_lc_block(
+        img_lc = _mcp_to_lc_block(
             ImageContent(type="image", data="screenshot_b64", mimeType="image/png")
         )
 

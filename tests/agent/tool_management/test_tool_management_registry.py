@@ -204,10 +204,10 @@ class TestToolLayerFunctions:
         assert get_tool_layer("web_search_tool") == ToolLayer.COMMON
         assert get_tool_layer("skill_select_tool") == ToolLayer.EXTENDED
 
-    def test_get_tool_layer_unregistered_defaults_extended(self) -> None:
+    def test_get_tool_layer_unregistered_defaults_external(self) -> None:
         from myrm_agent_harness.agent.tool_management.tool_layers import get_tool_layer
 
-        assert get_tool_layer("mcp_github_tool") == ToolLayer.EXTENDED
+        assert get_tool_layer("mcp_github_tool") == ToolLayer.EXTERNAL
 
     def test_register_tool_layer(self) -> None:
         from myrm_agent_harness.agent.tool_management.tool_layers import (
@@ -227,7 +227,7 @@ class TestToolLayerFunctions:
         reg = ToolRegistry()
         reg.register(_make_tool("unknown_mcp_tool"), source=ToolSource.META)
         entries = reg._resolve_entries()
-        assert entries[0].layer == ToolLayer.EXTENDED
+        assert entries[0].layer == ToolLayer.EXTERNAL
 
     def test_alphabetical_ordering_within_layer(self) -> None:
         reg = ToolRegistry()
@@ -376,7 +376,7 @@ class TestRegistryWarning:
         with caplog.at_level(logging.WARNING, logger="myrm_agent_harness.agent.tool_management.registry"):
             reg.register(_make_tool("totally_unknown_xyz_tool"), source=ToolSource.META)
         assert "totally_unknown_xyz_tool" in caplog.text
-        assert "not in _TOOL_LAYERS" in caplog.text
+        assert "not in harness _TOOL_LAYERS" in caplog.text
 
     def test_registered_tool_no_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         import logging

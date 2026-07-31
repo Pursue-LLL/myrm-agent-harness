@@ -34,11 +34,12 @@ import logging
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
-import httpx
 from pydantic import BaseModel, Field
 
+from myrm_agent_harness.core.security.guards.ssrf import (
+    async_validate_url_for_ssrf,
+)
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
-
 from myrm_agent_harness.toolkits.mcp.config_scan import (
     MCPConfigScanResult,
     MCPConfigSnapshot,
@@ -49,9 +50,6 @@ from myrm_agent_harness.toolkits.mcp.config_scan import (
     format_mcp_scan_block_message,
     scan_mcp_config,
     scan_mcp_runtime_surface,
-)
-from myrm_agent_harness.core.security.guards.ssrf import (
-    async_validate_url_for_ssrf,
 )
 from myrm_agent_harness.utils.url_utils import validate_scheme_and_hostname
 

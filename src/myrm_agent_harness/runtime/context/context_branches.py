@@ -4,7 +4,7 @@
 - runtime.execution_paths::PERSISTENT_ROOT (POS: persistent volume root)
 
 [OUTPUT]
-- list_context_branches / append_context_branch / ContextBranchRecord
+- list_context_branches / append_context_branch / get_context_branch / ContextBranchRecord
 
 [POS]
 Volume-backed branch manifest pointing at existing conversation snapshots.
@@ -34,6 +34,16 @@ class ContextBranchRecord:
 
 def _branch_path(session_id: str) -> Path:
     return Path(PERSISTENT_ROOT) / ".context" / session_id / _BRANCH_FILENAME
+
+
+def get_context_branch(session_id: str, branch_id: str) -> ContextBranchRecord | None:
+    """Return one bookmark record by id, or None when missing."""
+    if not session_id or not branch_id:
+        return None
+    for item in list_context_branches(session_id):
+        if item.branch_id == branch_id:
+            return item
+    return None
 
 
 def list_context_branches(session_id: str) -> list[ContextBranchRecord]:

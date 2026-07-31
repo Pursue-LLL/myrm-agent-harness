@@ -44,6 +44,7 @@ from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
     WikiMapEvent,
     WikiMapEventType,
 )
+from myrm_agent_harness.toolkits.wiki.maintenance.modes import MaintainMode
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -75,9 +76,12 @@ class WikiLinter:
         self._indexer = indexer
         self._web_searcher = web_searcher
 
-    async def lint_and_maintain(self) -> LintResult:
+    async def lint_and_maintain(self, mode: MaintainMode = MaintainMode.FULL) -> LintResult:
         """
-        Run full health check and automatic maintenance.
+        Run health check and automatic maintenance.
+
+        Args:
+            mode: STRUCTURAL skips LLM drift/backlink discovery; FULL runs the complete pipeline.
 
         Returns:
             LintResult with issues and fixes
@@ -135,7 +139,7 @@ class WikiLinter:
                     )
 
         # Check 5: Knowledge drift (wiki diverged from raw source facts)
-        if self._config.enable_auto_maintenance:
+        if mode == MaintainMode.FULL and self._config.enable_auto_maintenance:
             drift = await self._check_drift()
             all_issues.extend(drift)
 
@@ -173,7 +177,7 @@ class WikiLinter:
 
         # Discover new connections
         connections_count = 0
-        if self._config.enable_backlinks:
+        if mode == MaintainMode.FULL and self._config.enable_backlinks:
             connections_count = await self._discover_connections()
 
         duration_ms = int((datetime.now(UTC) - start_time).total_seconds() * 1000)

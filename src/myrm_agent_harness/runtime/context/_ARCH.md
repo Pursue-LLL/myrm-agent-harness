@@ -23,7 +23,8 @@ Context lifecycle management — cleanup, config, metrics, tracking, reading, of
 | tracker_manager.py | Core | Generic singleton manager for tracker instances. | ✅ |
 | transparent_reader.py | Core | Transparent decompression for context files. | ✅ |
 | session_context_pins.py | Core | Volume-backed pinned file registry for cross-compaction retention (`pinned_context_files.json` per session). | ✅ |
-| context_branches.py | Core | Volume-backed snapshot branch manifest for GUI restore flows (`branches.json` per session). | ✅ |
+| context_branches.py | Core | Volume-backed snapshot branch manifest (`branches.json`); list/append/get by branch_id for GUI bookmark fork. | ✅ |
+| session_continuity.py | Core | LangGraph checkpoint/message SSOT for rewind/truncate/edit-resend (`sync_checkpoint_messages`, `ContinuitySyncError`). | ✅ |
 
 ## Key Dependencies
 

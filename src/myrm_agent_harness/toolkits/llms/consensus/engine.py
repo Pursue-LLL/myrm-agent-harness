@@ -31,6 +31,12 @@ from typing import TYPE_CHECKING, Literal
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
+from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import (
+    apply_privacy_to_ref,
+    inject_privacy_mode,
+    sse_privacy_mode,
+)
+from myrm_agent_harness.toolkits.llms.consensus._history import flatten_tool_free_history
 from myrm_agent_harness.toolkits.llms.consensus._prompts import (
     build_aggregation_messages,
 )
@@ -119,7 +125,7 @@ class ConsensusEngine:
         """
         t0 = time.monotonic()
         cfg = self._cfg
-        flat_history = self._flatten_history(chat_history) if chat_history else None
+        flat_history = flatten_tool_free_history(chat_history) if chat_history else None
 
         if cancel_token and cancel_token.is_cancelled:
             return self._cancelled_result(t0)
@@ -148,9 +154,11 @@ class ConsensusEngine:
                 "Consensus: 1 reference succeeded, returning it without aggregation (%s)",
                 successful[0].model,
             )
-            return self._success_result(successful[0].content, ref_responses, t0)
+            single = self._refs_for_aggregation(successful)[0]
+            return self._success_result(single.content, ref_responses, t0)
 
-        final = await self._aggregate(query, successful, system_prompt, flat_history)
+        agg_refs = self._refs_for_aggregation(successful)
+        final = await self._aggregate(query, agg_refs, system_prompt, flat_history)
 
         logger.info(
             "Consensus complete: %d/%d refs OK, %.1fs total",
@@ -177,7 +185,7 @@ class ConsensusEngine:
         """
         t0 = time.monotonic()
         cfg = self._cfg
-        flat_history = self._flatten_history(chat_history) if chat_history else None
+        flat_history = flatten_tool_free_history(chat_history) if chat_history else None
 
         if cancel_token and cancel_token.is_cancelled:
             yield ConsensusStreamEvent(kind="done", result=self._cancelled_result(t0))
@@ -194,7 +202,8 @@ class ConsensusEngine:
                 for coro in asyncio.as_completed(tasks, timeout=cfg.timeout_total):
                     ref = await coro
                     ref_responses.append(ref)
-                    yield ConsensusStreamEvent(kind="ref_done", ref=ref)
+                    sse_ref = apply_privacy_to_ref(ref, sse_privacy_mode(cfg.privacy_filter))
+                    yield ConsensusStreamEvent(kind="ref_done", ref=sse_ref)
                     if cancel_token and cancel_token.is_cancelled:
                         break
             except TimeoutError:
@@ -235,7 +244,7 @@ class ConsensusEngine:
             return
 
         if len(successful) == 1:
-            single = successful[0]
+            single = self._refs_for_aggregation(successful)[0]
             logger.info(
                 "Consensus stream: 1 reference succeeded, returning it without aggregation (%s)",
                 single.model,
@@ -247,14 +256,15 @@ class ConsensusEngine:
             )
             return
 
+        agg_refs = self._refs_for_aggregation(successful)
         final_chunks: list[str] = []
-        async for chunk in self._aggregate_stream(query, successful, cancel_token, system_prompt, flat_history):
+        async for chunk in self._aggregate_stream(query, agg_refs, cancel_token, system_prompt, flat_history):
             final_chunks.append(chunk)
             yield ConsensusStreamEvent(kind="agg_chunk", chunk=chunk)
 
         final_answer = "".join(final_chunks)
         if not final_answer:
-            best = max(successful, key=lambda r: len(r.content))
+            best = max(agg_refs, key=lambda r: len(r.content))
             final_answer = best.content
 
         logger.info(
@@ -300,6 +310,12 @@ class ConsensusEngine:
             aggregator_model=self._model_name(self._agg),
             elapsed_seconds=time.monotonic() - t0,
         )
+
+    def _refs_for_aggregation(self, successful: list[ReferenceResponse]) -> list[ReferenceResponse]:
+        mode = inject_privacy_mode(self._cfg.privacy_filter)
+        if mode == "off":
+            return successful
+        return [apply_privacy_to_ref(r, mode) for r in successful]
 
     async def _query_references(
         self,
@@ -501,35 +517,8 @@ class ConsensusEngine:
             yield best.content
 
     @staticmethod
-    def _flatten_history(
-        chat_history: list[BaseMessage],
-    ) -> list[BaseMessage]:
-        """Flatten chat history into a tool-free view.
-
-        Neither reference nor aggregator models have tools defined, so raw
-        ToolMessages or AIMessages with ``tool_calls`` would trigger
-        provider-level validation errors (e.g. OpenAI 400).
-
-        Strategy: keep HumanMessage/SystemMessage as-is, strip tool_calls
-        from AIMessage (keep text content only), convert ToolMessage to a
-        brief HumanMessage summary.
-        """
-        from langchain_core.messages import ToolMessage
-
-        flat: list[BaseMessage] = []
-        for msg in chat_history:
-            if isinstance(msg, (HumanMessage, SystemMessage)):
-                flat.append(msg)
-            elif isinstance(msg, AIMessage):
-                content = msg.content or ""
-                if content:
-                    flat.append(AIMessage(content=content))
-            elif isinstance(msg, ToolMessage):
-                name = getattr(msg, "name", None) or "tool"
-                text = str(msg.content)[:500] if msg.content else ""
-                if text:
-                    flat.append(HumanMessage(content=f"[{name} result]: {text}"))
-        return flat
+    def _flatten_history(chat_history: list[BaseMessage]) -> list[BaseMessage]:
+        return flatten_tool_free_history(chat_history)
 
     @staticmethod
     def _model_name(llm: BaseChatModel) -> str:

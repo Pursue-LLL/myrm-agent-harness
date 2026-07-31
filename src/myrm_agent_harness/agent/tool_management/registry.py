@@ -5,7 +5,7 @@
 [INPUT]
 - langchain_core.tools::BaseTool (POS: LangChain tool instances)
 - .types::ToolEntry (POS: tool entry with bind mode and source)
-- .tool_layers::ToolLayer (POS: CORE COMMON EXTENDED cache ordering)
+- .tool_layers::ToolLayer (POS: CORE COMMON EXTENDED EXTERNAL cache ordering)
 
 [OUTPUT]
 - ToolRegistry: register / register_runtime_hook → resolve / snapshot pipeline
@@ -27,6 +27,7 @@ from myrm_agent_harness.agent.tool_management.tool_layers import (
     ToolLayer,
     get_tool_layer,
     get_tool_registry_sort_key,
+    tool_layer_snapshot_label,
 )
 from myrm_agent_harness.agent.tool_management.types import (
     ToolBindMode,
@@ -98,7 +99,7 @@ class ToolRegistry:
         layer:
             Explicit cache-ordering layer.  When ``None`` the layer is
             looked up from the global ``_TOOL_LAYERS`` mapping (falling
-            back to ``EXTENDED``).
+            back to ``EXTERNAL`` for framework-external tools).
         provider:
             Human-readable identifier of the tool provider, e.g.
             ``"skill:web_search"`` or ``"mcp:github"``.  ``None`` for
@@ -112,8 +113,9 @@ class ToolRegistry:
 
         if tool.name not in _TOOL_LAYERS and layer is None and provider is None and not is_runtime_hook(tool.name):
             logger.warning(
-                "Tool '%s' (source=%s) not in _TOOL_LAYERS registry, "
-                "defaulting to EXTENDED. Add it to tool_layers.py for explicit ordering.",
+                "Tool '%s' (source=%s) not in harness _TOOL_LAYERS registry, "
+                "defaulting to EXTERNAL. Register harness tools in tool_layers.py "
+                "or server vendor tools in _tool_layer_bootstrap.py.",
                 tool.name,
                 source.value,
             )
@@ -174,7 +176,7 @@ class ToolRegistry:
             best.values(),
             key=lambda e: get_tool_registry_sort_key(
                 e.tool.name,
-                e.layer or ToolLayer.EXTENDED,
+                e.layer or get_tool_layer(e.tool.name),
             ),
         )
 
@@ -184,7 +186,7 @@ class ToolRegistry:
         Dedup rule: on name collision the entry with the **highest source
         priority** wins (META > USER > MIDDLEWARE).
 
-        Sort rule: first by ``ToolLayer`` (CORE → COMMON → EXTENDED),
+        Sort rule: first by ``ToolLayer`` (CORE → COMMON → EXTENDED → EXTERNAL),
         then COMMON group priority, then alphabetically within each tier.
 
         Only returns Turn1-bound tools (``bind_mode == TURN1``).
@@ -243,7 +245,9 @@ class ToolRegistry:
                     description=desc,
                     source=entry.source.value,
                     provider=entry.provider,
-                    layer=str((entry.layer or ToolLayer.EXTENDED).value),
+                    layer=tool_layer_snapshot_label(
+                        entry.layer or get_tool_layer(tool.name)
+                    ),
                     parameters_schema=params,
                     bind_mode=entry.bind_mode.value,
                     builtin_tool_id=get_tool_product_id(tool.name),

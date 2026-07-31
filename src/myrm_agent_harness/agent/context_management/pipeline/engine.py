@@ -35,6 +35,7 @@ if TYPE_CHECKING:
         ContextSnapshotCallback,
     )
     from ..strategies.session_notes.updater import SessionNotesManager
+    from .processors.media_resolver import FileContentReader
 
 logger = get_agent_logger(__name__)
 
@@ -119,12 +120,17 @@ class ContextPipeline:
         return context
 
 
-def create_default_pipeline(max_context_tokens: int | None = None) -> ContextPipeline:
+def create_default_pipeline(
+    max_context_tokens: int | None = None,
+    *,
+    file_content_reader: "FileContentReader | None" = None,
+) -> ContextPipeline:
     """Create the default pipeline.
 
     Default processor chain (in execution order):
     1. ThinkingBlockCleaner — clean thinking blocks
-    2. MediaFilterProcessor — strip media for text-only models (proactive)
+    2. VisionFallbackProcessor — auxiliary vision text conversion for text-only models
+    3. MediaFilterProcessor — strip media for text-only models (proactive)
     3. FilterProcessor — truncate large tool results
     4. ActiveToolResultPruneProcessor — per-step active prune of large prior tool results (zero API cost)
     5. CacheTtlPruneProcessor — rule-based pruning of expired tool results (zero API cost)
@@ -140,7 +146,12 @@ def create_default_pipeline(max_context_tokens: int | None = None) -> ContextPip
     External data security isolation is handled by the tool layer (content_boundary module),
     not duplicated in the pipeline layer.
     """
-    return ContextPipeline(build_default_processors(max_context_tokens=max_context_tokens))
+    return ContextPipeline(
+        build_default_processors(
+            max_context_tokens=max_context_tokens,
+            file_content_reader=file_content_reader,
+        )
+    )
 
 
 def build_default_processors(
@@ -161,6 +172,7 @@ def build_default_processors(
     time_decay_half_life_days: float | None = None,
     cache_ttl_prune_config: "CacheTtlPruneConfig | None" = None,
     active_prune_threshold_tokens: int = 2048,
+    file_content_reader: "FileContentReader | None" = None,
 ) -> list[BaseProcessor]:
     """Build the unified default processor chain.
 
@@ -184,6 +196,7 @@ def build_default_processors(
         SessionNotesProcessor,
         SummarizeProcessor,
         ThinkingBlockCleaner,
+        VisionFallbackProcessor,
     )
 
     max_context = max_context_tokens or 128000
@@ -220,6 +233,7 @@ def build_default_processors(
 
     processors: list[BaseProcessor] = [
         ThinkingBlockCleaner(),
+        VisionFallbackProcessor(file_content_reader=file_content_reader),
         MediaFilterProcessor(),
         FilterProcessor(),
         ActiveToolResultPruneProcessor(
@@ -256,7 +270,7 @@ def build_default_processors(
             PostCompactionRereadProcessor(),
             PostCompactionRefetchGuardProcessor(),
             NormalizeProcessor(),
-            MediaResolverProcessor(),
+            MediaResolverProcessor(file_content_reader=file_content_reader),
             ExplicitCacheProcessor(),
         ]
     )

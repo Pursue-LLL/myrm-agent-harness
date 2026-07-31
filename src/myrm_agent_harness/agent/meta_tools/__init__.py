@@ -12,7 +12,7 @@
 [OUTPUT]
 - get_meta_tools: 获取所有元工具的函数(含自适应技能搜索逻辑)
 - 各个工具的 create_xxx_tool 工厂函数
-- SKILL_INLINE_THRESHOLD, SKILL_CORE_MAX: 自适应阈值常量
+- SKILL_INLINE_THRESHOLD, SKILL_CORE_MAX: 自适应阈值常量（定义于 agent.skills.runtime.catalog_display）
 
 [POS]
 Agent meta-tools module. Provides tools that depend on Agent framework infrastructure:
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
         ScanningSkillWriteBackend,
     )
     from myrm_agent_harness.backends.skills.similarity import SkillSimilarityChecker
-    from myrm_agent_harness.backends.skills.types import SkillMetadata
+    from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillInstance
     from myrm_agent_harness.toolkits.memory.protocols.cache import (
         EmbeddingCacheProtocol,
     )
@@ -59,9 +59,12 @@ from .spawn_subagent import (
     create_subagent_control_tool,
 )
 
-SKILL_INLINE_THRESHOLD = 20
-SKILL_CORE_MAX = 10
-SKILL_SELECT_INLINE_MAX = 20
+from myrm_agent_harness.agent.skills.runtime.catalog_display import (
+    SKILL_CORE_MAX,
+    SKILL_INLINE_THRESHOLD,
+    SKILL_SELECT_INLINE_MAX,
+    resolve_catalog_display_skills,
+)
 
 
 def get_meta_tools(
@@ -80,6 +83,7 @@ def get_meta_tools(
     has_manage_tool: bool = False,
     available_tool_names: frozenset[str] | None = None,
     available_tool_groups: frozenset[str] | None = None,
+    skill_instances: dict[str, SkillInstance] | None = None,
 ) -> list[BaseTool]:
     """获取元工具列表
 
@@ -107,6 +111,7 @@ def get_meta_tools(
         embedding_cache: Embedding 缓存实例(可选, 仅 Hybrid 模式使用)
         skill_env_map: Per-skill resolved env vars (skill_name -> env dict).
         skill_configs: Per-agent skill configurations (e.g., is_core).
+        skill_instances: Per-skill resolved SkillInstance objects (skill_name -> instance).
     Returns:
         元工具列表(根据技能情况动态组合)
     """
@@ -149,82 +154,38 @@ def get_meta_tools(
 
     tools = []
 
-    def _sorted_inline(skills_to_inline: list[SkillMetadata]) -> list[SkillMetadata]:
-        return sorted(skills_to_inline, key=lambda skill: skill.name)[
-            :SKILL_SELECT_INLINE_MAX
-        ]
-
     if skills and skill_backend is not None:
-        available_skills = [s for s in skills if s.available]
-        model_visible_skills = [s for s in available_skills if s.model_invocable]
-
+        catalog_resolution = resolve_catalog_display_skills(
+            skills,
+            skill_configs=skill_configs,
+            available_tool_names=available_tool_names,
+            available_tool_groups=available_tool_groups,
+        )
+        inline_skills = catalog_resolution.display_skills
+        hidden_count = catalog_resolution.hidden_skill_count
+        skill_select_tool = create_select_skill_tool(
+            catalog_resolution.filtered_skills,
+            skill_backend,
+            skill_instances=skill_instances,
+        )
+        tools.append(skill_select_tool)
         if skill_configs is not None:
-            core_candidates = [
-                s
-                for s in model_visible_skills
-                if skill_configs.get(s.id, {}).get("is_core", False)
-            ]
-            inline_skills = _sorted_inline(core_candidates)
-            hidden_count = len(model_visible_skills) - len(inline_skills)
-            skill_select_tool = create_select_skill_tool(
-                skills,
-                skill_backend,
-                inline_skills=inline_skills,
-                hidden_skill_count=hidden_count,
-                has_manage_tool=has_manage_tool,
-            )
-            tools.append(skill_select_tool)
             logger.info(
                 " Per-Agent 认知负载控制已启用: %d 个内联 (Core) + %d 个隐藏 (Peripheral)",
                 len(inline_skills),
                 hidden_count,
             )
+        elif hidden_count > 0:
+            logger.info(
+                " skill_select_tool 已加载(%d 个模型可见技能内联, %d 个走 search)",
+                len(inline_skills),
+                hidden_count,
+            )
         else:
-            always_skills = sorted(
-                [s for s in model_visible_skills if s.always],
-                key=lambda skill: skill.name,
+            logger.info(
+                " skill_select_tool 已加载(%d 个模型可见技能内联)",
+                len(inline_skills),
             )
-            non_always_skills = sorted(
-                [s for s in model_visible_skills if not s.always],
-                key=lambda skill: skill.name,
-            )
-
-            if len(model_visible_skills) > SKILL_INLINE_THRESHOLD:
-                remaining = max(SKILL_SELECT_INLINE_MAX - len(always_skills), 0)
-                core_non_always = non_always_skills[: min(SKILL_CORE_MAX, remaining)]
-                inline_skills = _sorted_inline(always_skills + core_non_always)
-                hidden_count = len(model_visible_skills) - len(inline_skills)
-                skill_select_tool = create_select_skill_tool(
-                    skills,
-                    skill_backend,
-                    inline_skills=inline_skills,
-                    hidden_skill_count=hidden_count,
-                    has_manage_tool=has_manage_tool,
-                )
-                tools.append(skill_select_tool)
-                logger.info(
-                    " 自适应技能选择已启用: %d 个内联(%d always + %d core) + %d 个隐藏",
-                    len(inline_skills),
-                    len(always_skills),
-                    len(core_non_always),
-                    hidden_count,
-                )
-            else:
-                inline_skills = _sorted_inline(model_visible_skills)
-                hidden_count = len(model_visible_skills) - len(inline_skills)
-                skill_select_tool = create_select_skill_tool(
-                    skills,
-                    skill_backend,
-                    inline_skills=inline_skills,
-                    hidden_skill_count=hidden_count,
-                    has_manage_tool=has_manage_tool,
-                )
-                tools.append(skill_select_tool)
-                logger.info(
-                    " skill_select_tool 已加载(%d 个模型可见技能内联, %d 个走 search)",
-                    len(inline_skills),
-                    hidden_count,
-                )
     else:
         if not skills:
             logger.info(" skill_select_tool 未加载(无可用技能)")

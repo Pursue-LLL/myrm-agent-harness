@@ -66,6 +66,10 @@ def search_results_to_documents(results: list[SearchResult]) -> list[Document]:
             metadata["summary"] = result.summary
         if result.engines:
             metadata["engines"] = result.engines
+        if result.site_name:
+            metadata["site_name"] = result.site_name
+        if result.authority_description:
+            metadata["authority_description"] = result.authority_description
 
         if result.citations:
             metadata["citations"] = [
@@ -190,15 +194,14 @@ def combine_search_results_unified(
         enhanced_content = enhance_document_content(doc)
 
         new_metadata = {
-            "title": doc.metadata.get("title", ""),
+            **doc.metadata,
             "url": semantic_url,
-            "description": doc.metadata.get("description", ""),
         }
 
         unified_docs.append(
             Document(page_content=enhanced_content, metadata=new_metadata)
         )
-        url_metadata_list.append({"url": semantic_url, "title": new_metadata["title"]})
+        url_metadata_list.append({"url": semantic_url, "title": new_metadata.get("title", "")})
 
     logger.debug(
         f"Document pool: {total_docs} raw -> {len(unified_docs)} deduplicated "

@@ -10,6 +10,7 @@ from .compress_processor import CompressProcessor
 from .filter_processor import FilterProcessor
 from .media_filter import MediaFilterProcessor
 from .media_resolver import MediaResolverProcessor
+from .vision_fallback_processor import VisionFallbackProcessor
 from .normalize_processor import NormalizeProcessor
 from .post_compaction_reread_processor import PostCompactionRereadProcessor
 from .post_compaction_refetch_guard_processor import PostCompactionRefetchGuardProcessor
@@ -33,4 +34,5 @@ __all__ = [
     "SessionNotesProcessor",
     "SummarizeProcessor",
     "ThinkingBlockCleaner",
+    "VisionFallbackProcessor",
 ]

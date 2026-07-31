@@ -123,6 +123,9 @@ _SHUTDOWN = object()
 _REFRESH_SIGNAL = object()
 
 
+_ELICITATION_DEFAULT_TIMEOUT = 300.0
+
+
 class MCPSessionActor:
     """Owns one persistent, self-healing MCP session for a single server.
 
@@ -136,6 +139,13 @@ class MCPSessionActor:
     auth header refresh on reconnect: when a session breaks and reconnects,
     fresh headers are fetched from the provider so a re-authorized token is
     used instead of replaying stale credentials baked in at initial spawn.
+
+    An optional ``elicitation_handler`` enables MCP elicitation (MRTR
+    ``InputRequiredResult``): when a server requests user confirmation
+    mid-tool-call, the handler is invoked to collect the decision and the SDK
+    resumes the call automatically. Without a handler the SDK's default
+    ``ErrorData("Elicitation not supported")`` is used, and the server sees
+    the client as non-elicitation-capable.
     """
 
     def __init__(
@@ -152,6 +162,7 @@ class MCPSessionActor:
         keepalive_interval: float | None = None,
         auth_provider: object | None = None,
         oversized_result_handler: object | None = None,
+        elicitation_handler: object | None = None,
     ) -> None:
         self.server_name = server_name
         self._connection = connection
@@ -163,6 +174,7 @@ class MCPSessionActor:
         self._host_serial = host_serial
         self._auth_provider = auth_provider
         self._oversized_result_handler = oversized_result_handler
+        self._elicitation_handler = elicitation_handler
         # Idle keepalive only matters for remote transports that sit behind LBs /
         # NAT; a local stdio pipe never idle-disconnects (interval 0 = disabled).
         transport = str(connection.get("transport", "")).lower()
@@ -174,6 +186,7 @@ class MCPSessionActor:
         self._ready = asyncio.Event()
         self._start_error: Exception | None = None
         self._closed = False
+        self._http_client: object | None = None
         # Wall-clock of the last call; lets the pool's TTL see activity from
         # *both* PTC (via connection.call) and direct-mode tools (which invoke
         # the proxy → actor directly, bypassing the connection's metrics).
@@ -281,20 +294,92 @@ class MCPSessionActor:
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await self._task
         self._fail_pending(RuntimeError(f"MCP session '{self.server_name}' closed"))
+        await self._close_http_client()
 
     # ------------------------------------------------------------ owner task
+
+    async def _close_http_client(self) -> None:
+        """Close any ``httpx2.AsyncClient`` created for the current transport."""
+        hc = self._http_client
+        if hc is not None:
+            self._http_client = None
+            with contextlib.suppress(Exception):
+                await hc.aclose()
+
+    def _build_elicitation_callback(self) -> object | None:
+        """Build an ``elicitation_callback`` for ``mcp.client.Client``.
+
+        When ``elicitation_handler`` is provided the callback bridges MCP SDK
+        ``ElicitRequest`` events to the business layer (e.g. ApprovalRegistry),
+        making elicitation-capable MCP servers fully functional. The handler is
+        an async callable ``(server_name, message, schema) -> "accept"|"decline"|"cancel"``
+        injected by the business layer via the connection manager.
+
+        Returns ``None`` when no handler is configured — the SDK falls back to
+        its default "Elicitation not supported" response and does not advertise
+        ``ElicitationCapability`` to the server.
+        """
+        handler = self._elicitation_handler
+        if handler is None:
+            return None
+
+        server_name = self.server_name
+
+        async def _elicitation_callback(context: object, params: object) -> object:
+            from mcp.types import ElicitResult
+
+            mode = getattr(params, "mode", "form")
+            if mode == "url":
+                logger.info(
+                    "MCP server '%s' requested url-mode elicitation; declining (not supported)",
+                    server_name,
+                )
+                return ElicitResult(action="decline")
+
+            message = getattr(params, "message", "") or f"MCP server '{server_name}' requests confirmation"
+            schema = getattr(params, "requested_schema", None) or {}
+
+            try:
+                decision = await asyncio.wait_for(
+                    handler(server_name, message, schema),
+                    timeout=_ELICITATION_DEFAULT_TIMEOUT,
+                )
+            except TimeoutError:
+                logger.warning(
+                    "MCP server '%s' elicitation timed out after %ds",
+                    server_name,
+                    int(_ELICITATION_DEFAULT_TIMEOUT),
+                )
+                return ElicitResult(action="cancel")
+            except Exception as exc:
+                logger.error(
+                    "MCP server '%s' elicitation handler failed: %s",
+                    server_name,
+                    exc,
+                    exc_info=True,
+                )
+                return ElicitResult(action="decline")
+
+            if decision in ("accept", "decline", "cancel"):
+                return ElicitResult(action=decision)
+            logger.warning(
+                "MCP server '%s' elicitation handler returned unexpected value: %r; declining",
+                server_name,
+                decision,
+            )
+            return ElicitResult(action="decline")
+
+        return _elicitation_callback
 
     def _build_client_target(self, conn: dict[str, object]) -> object:
         """Build the ``mcp.client.Client`` target from the connection config dict.
 
         Returns a proper SDK v2 target:
-        - HTTP with headers: ``streamable_http_client(url, http_client=...)`` transport
-        - HTTP without headers: bare URL string (``Client`` auto-wraps)
-        - SSE: ``sse_client(url)`` transport (with optional headers via http_client)
-        - stdio: ``stdio_client(StdioServerParameters(...))`` transport
-
-        ``Client`` resolves transports by type: a ``str`` becomes Streamable HTTP,
-        anything else is entered as-is via the ``Transport`` protocol.
+        - SSE: ``sse_client(url, headers=...)`` — headers passed directly.
+        - Streamable HTTP with auth headers: ``streamable_http_client(url, http_client=...)``
+          — ``httpx2.AsyncClient`` stored on ``self._http_client`` for explicit cleanup.
+        - Streamable HTTP without headers: bare URL string (``Client`` auto-wraps).
+        - stdio: ``stdio_client(StdioServerParameters(...))`` transport.
         """
         transport = conn.get("transport", "stdio")
         if transport in ("sse", "streamable_http"):
@@ -303,16 +388,17 @@ class MCPSessionActor:
                 raise ValueError(f"MCP server '{self.server_name}': HTTP transport requires 'url'")
             url_str = str(url)
             headers: dict[str, str] = dict(conn.get("headers") or {})  # type: ignore[arg-type]
-            if headers or transport == "sse":
+            if transport == "sse":
+                from mcp.client.sse import sse_client
+                return sse_client(url_str, headers=headers or None)
+            if headers:
                 import httpx2
                 http_client = httpx2.AsyncClient(
-                    headers=headers or None,
+                    headers=headers,
                     timeout=httpx2.Timeout(30.0, read=300.0),
                     follow_redirects=True,
                 )
-                if transport == "sse":
-                    from mcp.client.sse import sse_client
-                    return sse_client(url_str, http_client=http_client)
+                self._http_client = http_client
                 from mcp.client.streamable_http import streamable_http_client
                 return streamable_http_client(url_str, http_client=http_client)
             return url_str
@@ -355,23 +441,29 @@ class MCPSessionActor:
             connected_at = 0.0
             try:
                 target = self._build_client_target(conn)
-                client = Client(
-                    target,
-                    message_handler=self._make_notification_handler(),
-                    client_info=Implementation(name="myrm-agent", version=__version__),
-                )
-                async with client:
-                    async with asyncio.timeout(self._connect_timeout):
-                        raw_tools = convert_mcp_tools(
-                            list((await client.list_tools()).tools),
-                            client.call_tool,
-                            server_name=self.server_name,
-                        )
-                    if not raw_tools:
-                        raise _TransientStartError("no tools enumerated")
-                    self._apply_tools(client, raw_tools)
-                    connected_at = time.monotonic()
-                    outcome = await self._serve_on(client)
+                elicitation_cb = self._build_elicitation_callback()
+                client_kwargs: dict[str, object] = {
+                    "message_handler": self._make_notification_handler(),
+                    "client_info": Implementation(name="myrm-agent", version=__version__),
+                }
+                if elicitation_cb is not None:
+                    client_kwargs["elicitation_callback"] = elicitation_cb
+                client = Client(target, **client_kwargs)  # type: ignore[arg-type]
+                try:
+                    async with client:
+                        async with asyncio.timeout(self._connect_timeout):
+                            raw_tools = convert_mcp_tools(
+                                list((await client.list_tools()).tools),
+                                client.call_tool,
+                                server_name=self.server_name,
+                            )
+                        if not raw_tools:
+                            raise _TransientStartError("no tools enumerated")
+                        self._apply_tools(client, raw_tools)
+                        connected_at = time.monotonic()
+                        outcome = await self._serve_on(client)
+                finally:
+                    await self._close_http_client()
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -781,8 +873,8 @@ class MCPSessionActor:
         """
         try:
             from mcp.types import ReadResourceResult
-        except ImportError:
-            raise RuntimeError("MCP SDK not available for resource reading")
+        except ImportError as exc:
+            raise RuntimeError("MCP SDK not available for resource reading") from exc
 
         async with asyncio.timeout(self._connect_timeout):
             result: ReadResourceResult = await session.read_resource(uri)  # type: ignore[attr-defined]

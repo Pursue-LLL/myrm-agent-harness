@@ -206,11 +206,13 @@ class BaseAgent(BaseAgentModesMixin):
 
         if self._extensions:
             from myrm_agent_harness.agent.tool_management.tool_layers import (
-                ToolLayer,
                 get_tool_layer,
+                get_tool_registry_sort_key,
             )
 
-            self._cached_tools.sort(key=lambda t: (get_tool_layer(t.name) or ToolLayer.EXTENDED, t.name))
+            self._cached_tools.sort(
+                key=lambda t: get_tool_registry_sort_key(t.name, get_tool_layer(t.name))
+            )
 
         logger.debug("BaseAgent: final tools=%s", [t.name for t in self._cached_tools])
 
@@ -268,8 +270,8 @@ class BaseAgent(BaseAgentModesMixin):
         """
         from myrm_agent_harness.agent.streaming.utils import normalize_tool_names
         from myrm_agent_harness.agent.tool_management.tool_layers import (
-            ToolLayer,
             get_tool_layer,
+            get_tool_registry_sort_key,
         )
         from myrm_agent_harness.agent.tool_management.types import ToolSource
 
@@ -277,18 +279,20 @@ class BaseAgent(BaseAgentModesMixin):
         for tool in normalized:
             self._tool_registry.register(tool, source=ToolSource.USER)
 
+        sort_key = lambda t: get_tool_registry_sort_key(t.name, get_tool_layer(t.name))
+
         if self._agent is None:
             if self._cached_tools is None:
                 self.user_tools.extend(normalized)
-                self.user_tools.sort(key=lambda t: (get_tool_layer(t.name) or ToolLayer.EXTENDED, t.name))
+                self.user_tools.sort(key=sort_key)
             else:
                 self._cached_tools.extend(normalized)
-                self._cached_tools.sort(key=lambda t: (get_tool_layer(t.name) or ToolLayer.EXTENDED, t.name))
+                self._cached_tools.sort(key=sort_key)
             return
 
         self._cached_tools.extend(normalized)
-        # Enforce Cache Tiering: sort tools by ToolLayer to protect prompt cache prefixes
-        self._cached_tools.sort(key=lambda t: (get_tool_layer(t.name) or ToolLayer.EXTENDED, t.name))
+        # Enforce cache tiering: sort tools by ToolLayer to protect prompt cache prefixes
+        self._cached_tools.sort(key=sort_key)
 
         # Mark tools as needing re-initialization (lifecycle-aware tools will be init'd on next run)
         # LifecycleManager.initialize_tools() is idempotent (skips already-initialized tools)

@@ -78,7 +78,12 @@ class SkillAgentPreloadMixin:
 
         for skill_meta in matched:
             try:
-                sop_doc = await get_skill_document(skill_meta, self.skill_backend)
+                skill_instance = await self._resolve_skill_instance_for_l1(skill_meta.name)
+                sop_doc = await get_skill_document(
+                    skill_meta,
+                    self.skill_backend,
+                    skill_instance=skill_instance,
+                )
             except Exception:
                 logger.warning("Failed to preload SOP for skill '%s' — skipped", skill_meta.name, exc_info=True)
                 continue
@@ -87,7 +92,14 @@ class SkillAgentPreloadMixin:
                 logger.info("Empty or errored SOP for skill '%s' — skipped", skill_meta.name)
                 continue
 
-            if total_chars + len(sop_doc) > self._TOKEN_BUDGET_MAX and sop_sections:
+            section_parts = [f"--- Skill: {skill_meta.name} ---", sop_doc]
+
+            if not skill_meta.available:
+                reason = skill_meta.unavailable_reason or "dependency requirements not met"
+                section_parts.append(f"WARNING: Skill '{skill_meta.name}' is UNAVAILABLE ({reason}).")
+
+            section_text = "\n".join(section_parts)
+            if total_chars + len(section_text) > self._TOKEN_BUDGET_MAX and sop_sections:
                 logger.warning(
                     "Token budget exceeded after %d skills (%d chars), skipping '%s'",
                     len(sop_sections),
@@ -96,18 +108,8 @@ class SkillAgentPreloadMixin:
                 )
                 break
 
-            section_parts = [f"--- Skill: {skill_meta.name} ---", sop_doc]
-
-            file_listing = self._list_skill_auxiliary_files(skill_meta)
-            if file_listing:
-                section_parts.append(file_listing)
-
-            if not skill_meta.available:
-                reason = skill_meta.unavailable_reason or "dependency requirements not met"
-                section_parts.append(f"WARNING: Skill '{skill_meta.name}' is UNAVAILABLE ({reason}).")
-
-            sop_sections.append("\n".join(section_parts))
-            total_chars += len(sop_doc)
+            sop_sections.append(section_text)
+            total_chars += len(section_text)
             loaded_names.append(skill_meta.name)
 
         if not sop_sections:
@@ -151,37 +153,33 @@ class SkillAgentPreloadMixin:
 
         return "\n".join(parts), preloaded_skills[0], preloaded_skills
 
-    @staticmethod
-    def _list_skill_auxiliary_files(skill_meta: SkillMetadata) -> str:
-        """List auxiliary files under a skill's storage directory.
+    async def _resolve_skill_instance_for_l1(
+        self, skill_name: str
+    ) -> "SkillInstance | None":
+        """Resolve bound SkillInstance for L1 config footer (matches select tool SSOT)."""
+        from myrm_agent_harness.backends.skills.types import SkillInstance
 
-        Scans the allowed subdirectories (scripts/, references/, templates/, assets/)
-        and returns a formatted listing for the LLM. Returns empty string if the skill
-        has no storage path or no auxiliary files exist.
-        """
-        if not skill_meta.storage_path:
-            return ""
-
-        from pathlib import Path
-
-        skill_dir = Path(skill_meta.storage_path)
-        if not skill_dir.is_dir():
-            return ""
-
-        allowed_dirs = ("scripts", "references", "templates", "assets")
-        file_entries: list[str] = []
-
-        for subdir_name in allowed_dirs:
-            subdir = skill_dir / subdir_name
-            if not subdir.is_dir():
-                continue
-            for file_path in sorted(subdir.rglob("*")):
-                if file_path.is_file():
-                    rel_path = file_path.relative_to(skill_dir)
-                    file_entries.append(f"- {rel_path}")
-
-        if not file_entries:
-            return ""
-
-        return f"[This skill has supporting files in {skill_meta.name}/]:\n" + "\n".join(file_entries)
+        state_manager = getattr(self, "state_manager", None)
+        default_instances = getattr(self, "_default_skill_instances", None) or {}
+        skill_backend = getattr(self, "skill_backend", None)
+        if state_manager is None or not default_instances or skill_backend is None:
+            return None
+        instance_name = default_instances.get(skill_name)
+        if not instance_name:
+            return None
+        try:
+            instance = await state_manager.load_instance(
+                backend=skill_backend,
+                skill_name=skill_name,
+                instance_name=instance_name,
+            )
+        except Exception:
+            logger.debug(
+                "Failed to load skill instance %s.%s for L1 footer",
+                skill_name,
+                instance_name,
+                exc_info=True,
+            )
+            return None
+        return instance if isinstance(instance, SkillInstance) else None
 

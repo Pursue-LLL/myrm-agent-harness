@@ -162,10 +162,16 @@ def build_wiki_query_sources(
         }
         ordered_keys.append(path_key)
 
+    has_snippet_sources = any(
+        sources_by_key[k].get("snippet") or sources_by_key[k].get("claim_id")
+        for k in ordered_keys
+    )
     return [
         sources_by_key[key]
         for key in ordered_keys
-        if sources_by_key[key].get("snippet") or sources_by_key[key].get("claim_id")
+        if sources_by_key[key].get("snippet")
+        or sources_by_key[key].get("claim_id")
+        or (not has_snippet_sources and key.endswith("::L2"))
     ]
 
 

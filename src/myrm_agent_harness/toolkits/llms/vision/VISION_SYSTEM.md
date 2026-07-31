@@ -89,7 +89,27 @@ if not supports_vision and vision_fallback_model_cfg:
     # 4. Replace image with text description
 ```
 
-### 3. Frontend Status Display
+**非 Web 渠道入站**：`preprocess_inbound_multimodal_query()` 对 Channel/Cron/Voice/Kanban 等多模态 query 复用相同降级逻辑；Channel 侧通过 `ProgressUpdate(analyzing_image)` 反馈进度。
+
+### 3. VisionFallbackProcessor (Harness Pipeline)
+
+**位置**: `myrm_agent_harness/agent/context_management/pipeline/processors/vision_fallback_processor.py`
+
+**职责**:
+- 在 `MediaFilterProcessor` 之前，将 HumanMessage / ToolMessage 内的图像块（base64、`/api/media/...` URL、HTTP(S)、`file://`）转为 `[Image Analysis]` 文本
+- 非 base64 引用通过 `resolve_image_reference_to_data_url()` 解析；业务层注入 `file_content_reader`（`files_service.get_content`）直读上传文件，HTTP loopback 仅作 fallback（`PORT` env，默认 8080）
+- `apply_vision_fallback_to_messages()` 同时供 `stream_recovery_oneshot.py` 在 `MEDIA_REJECTED` 时先尝试降级再 strip
+- 同条 message 内 text + image 并存时，优先用同条 text 作为 `describe_image_b64(prompt=...)`；ToolMessage 优先取相邻 HumanMessage 用户文本
+
+**配置注入**：各 ExecutionSurface 经 `extract_vision_fallback_model_config()` 解析 `defaultModelConfig.visionFallbackModel` 并写入 `GeneralAgentParams.vision_fallback_model_cfg` → harness `merged_context`。`file_content_reader` 由 server `GeneralAgent` / `create_context_pipeline_middleware` 注入。
+
+### 4. Vision Health Check (Settings)
+
+**API**: `POST /api/v1/config/vision-health` — 对 1×1 PNG 调用 `describe_image_b64` 探活 auxiliary 模型（连通性探测，不代表复杂图片分析能力）。失败时返回 `model` 与 `base_url`，供 Settings 排查 endpoint 误配。
+
+**Frontend**: Settings → AI Core → Vision Fallback →「Test vision chain / 测试视觉链路」按钮（`DefaultModelSection.tsx` + `checkVisionFallbackHealth()`）。失败态展示模型名与接口地址（`settings.defaultModel` namespace · en/zh）。当主模型不支持视觉且未配置 `visionFallbackModel.primary` 时，展示「Use this model / 使用此模型」一键推荐卡片（`visionCapability.ts` 扫描已启用 Provider 中首个 `supports_vision` 模型，写入配置后走现有 failover 链）。聊天 attach/upload 在缺少视觉能力时通过 `visionConfigGap.ts` 弹出带「Go to Settings / 前往设置」的 toast，深链至 `/settings/models?sub=default`。
+
+### 5. Frontend Status Display
 
 **MessageBox Component** (`myrm-agent-frontend/src/components/ui/message-box/MessageBox.tsx`):
 - 检查 `message.mediaAnalysisStatus`（统一字段支持 `analyzing_image` / `analyzing_video`）
@@ -164,7 +184,29 @@ except Exception as e:
     return {"type": "text", "text": f"[Image Analysis Failed: {e}]"}
 ```
 
+## 容量型 Provider Failover 链
+
+当辅助视觉 provider 返回 billing / rate-limit / overloaded / timeout 等容量型错误时，`VisionFallbackEngine` 按有序配置链切换下一 provider（413 payload 过大仍在当前 provider 上 Reactive Resize，不切换）。`AUTH_PERMANENT` 与 `MODEL_NOT_FOUND` 不触发链切换，避免无效重试。
+
+**链顺序（Server `resolve_vision_fallback_chain_for_agent`）**：
+1. `defaultModelConfig.visionFallbackModel` primary
+2. 同 slot 的 `fallback`（若 WebUI 已配置）
+3. 主 Agent 模型（仅当 `supports_vision=true` 且与前面 dedupe）
+
+**Context 字段**：`vision_fallback_model_cfgs`（完整链）+ `vision_fallback_model_cfg`（链首，兼容旧调用方）。
+
+**Health check**：`POST /config/vision-health` 使用完整 `VisionFallbackEngine` 探测；若链首失败会容量 failover。响应 `model` 为配置 primary，`resolved_model` 为实际成功 provider（与 primary 不同时返回）。引擎返回 `[Vision Analysis Failed` 前缀时判定为 unhealthy。
+
 ## 测试覆盖
+
+### Harness Pipeline Test
+
+**文件**: `myrm-agent-harness/tests/agent/context_management/test_vision_fallback_processor.py`
+
+**验证点**:
+- ✅ text-only 主模型 + cfg 时转换 base64 image block
+- ✅ ToolMessage 使用相邻 HumanMessage text 作为 prompt
+- ✅ `VisionFallbackProcessor` 记录 `vision_fallback` operation
 
 ### Backend API Test
 
@@ -193,6 +235,10 @@ except Exception as e:
 **验证点**:
 - ✅ `VisionFallbackEngine` / `VideoAnalysisEngine` import 自 `toolkits.llms.vision`
 - ✅ MD5 cache 命中、SSE bus 发布、supports_vision 直传路径
+- ✅ `preprocess_inbound_multimodal_query` 非 Web 入站预处理
+- ✅ `extract_vision_fallback_model_config` SSOT 解析
+- ✅ `build_vision_fallback_engine_from_providers` wiki / sticker / health 非 Agent 路径
+- ✅ `should_vision_capacity_failover` 排除 AUTH / MODEL_NOT_FOUND（`test_fallback_engine.py`）
 
 ## 当前能力
 

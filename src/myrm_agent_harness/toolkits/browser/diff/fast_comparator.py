@@ -3,8 +3,7 @@
 
 [INPUT]
 - PIL::Image (POS: Python image processing library)
-- base64 (POS: Base64 encode/decode)
-- .types (POS: FastComparisonResult)
+- .types (POS: FastComparisonResult, validate_screenshot_input)
 
 [OUTPUT]
 - FastComparator: fast screenshot comparator
@@ -24,64 +23,44 @@ Performance: ~2ms
 
 from __future__ import annotations
 
-import base64
 import io
 from dataclasses import dataclass
 
-from .types import FastComparisonResult
+from .types import FastComparisonResult, validate_screenshot_input
 
 try:
     from PIL import Image
 except (ImportError, TypeError):
     Image = None  # type: ignore[assignment]
 
-_MAX_BASE64_SIZE = 10 * 1024 * 1024
-_MAX_IMAGE_DIMENSION = 4096
+def _dhash(image_bytes: bytes) -> int:
+    """Compute dHash (Difference Hash) from image bytes.
 
-
-def _validate_screenshot_input(screenshot_b64: str, param_name: str) -> bytes:
-    """Validate and decode screenshot base64 input.
+    Algorithm: resize to 9x8 grayscale, compute horizontal gradient,
+    generate 64-bit hash from adjacent pixel comparisons.
 
     Args:
-        screenshot_b64: Base64-encoded screenshot
-        param_name: Parameter name for error messages
+        image_bytes: Raw image bytes
 
     Returns:
-        Decoded image bytes
-
-    Raises:
-        ValueError: If input is invalid (too large, invalid base64, invalid image)
+        64-bit integer hash value
     """
-    if len(screenshot_b64) > _MAX_BASE64_SIZE:
-        raise ValueError(
-            f"{param_name} too large: {len(screenshot_b64)} bytes (max {_MAX_BASE64_SIZE // 1024 // 1024}MB)"
-        )
+    img = Image.open(io.BytesIO(image_bytes))
+    img = img.convert("L")  # type: ignore[assignment]
+    img = img.resize((9, 8), Image.Resampling.LANCZOS)  # type: ignore[assignment]
 
     try:
-        image_bytes = base64.b64decode(screenshot_b64, validate=True)
-    except Exception as exc:
-        raise ValueError(f"{param_name} is not valid base64") from exc
+        pixels = img.get_flattened_data()  # type: ignore[attr-defined]
+    except AttributeError:
+        pixels = list(img.getdata())
 
-    if Image is None:
-        raise ImportError("Pillow is required for FastComparator. Install: uv sync --all-extras")
-
-    try:
-        img = Image.open(io.BytesIO(image_bytes))
-        width, height = img.size
-
-        if width > _MAX_IMAGE_DIMENSION or height > _MAX_IMAGE_DIMENSION:
-            raise ValueError(
-                f"{param_name} dimensions too large: {width}x{height} "
-                f"(max {_MAX_IMAGE_DIMENSION}x{_MAX_IMAGE_DIMENSION})"
-            )
-
-        img.verify()
-    except ValueError:
-        raise
-    except Exception as exc:
-        raise ValueError(f"{param_name} is not a valid image") from exc
-
-    return image_bytes
+    hash_value = 0
+    for row in range(8):
+        for col in range(8):
+            idx = row * 9 + col
+            if int(pixels[idx]) < int(pixels[idx + 1]):
+                hash_value |= 1 << (row * 8 + col)
+    return hash_value
 
 
 @dataclass
@@ -127,8 +106,8 @@ class FastComparator:
         Raises:
             ValueError: If input is invalid (too large, invalid base64, invalid image)
         """
-        img1_bytes = _validate_screenshot_input(screenshot1, "screenshot1")
-        img2_bytes = _validate_screenshot_input(screenshot2, "screenshot2")
+        img1_bytes = validate_screenshot_input(screenshot1, "screenshot1")
+        img2_bytes = validate_screenshot_input(screenshot2, "screenshot2")
 
         hash1 = self._compute_hash_from_bytes(img1_bytes)
         hash2 = self._compute_hash_from_bytes(img2_bytes)
@@ -144,44 +123,8 @@ class FastComparator:
         )
 
     def _compute_hash_from_bytes(self, image_bytes: bytes) -> int:
-        """Compute dHash (Difference Hash) from image bytes.
-
-        Algorithm steps:
-        1. Load PIL Image from bytes
-        2. Convert to grayscale
-        3. Resize to 9x8 pixels
-        4. Calculate horizontal gradient (compare adjacent pixels per row)
-        5. Generate 64-bit hash
-
-        Args:
-            image_bytes: Raw image bytes (already validated)
-
-        Returns:
-            64-bit integer hash value
-        """
-        img = Image.open(io.BytesIO(image_bytes))
-
-        img = img.convert("L")  # type: ignore[assignment]
-
-        img = img.resize((9, 8), Image.Resampling.LANCZOS)  # type: ignore[assignment]
-
-        try:
-            pixels = img.get_flattened_data()  # type: ignore[attr-defined]
-        except AttributeError:
-            pixels = list(img.getdata())  # Fallback for older Pillow versions
-
-        hash_value = 0
-        for row in range(8):
-            for col in range(8):
-                idx = row * 9 + col
-                left_pixel = int(pixels[idx])
-                right_pixel = int(pixels[idx + 1])
-
-                if left_pixel < right_pixel:
-                    bit_pos = row * 8 + col
-                    hash_value |= 1 << bit_pos
-
-        return hash_value
+        """Compute dHash from image bytes. Delegates to module-level `_dhash`."""
+        return _dhash(image_bytes)
 
     @staticmethod
     def _hamming_distance(hash1: int, hash2: int) -> int:
@@ -212,23 +155,4 @@ class FastComparator:
         """
         if Image is None:
             raise ImportError("Pillow is required for FastComparator")
-
-        img = Image.open(io.BytesIO(image_bytes))
-        img = img.convert("L").resize((9, 8), Image.Resampling.LANCZOS)  # type: ignore[assignment]
-        try:
-            pixels = img.get_flattened_data()  # type: ignore[attr-defined]
-        except AttributeError:
-            pixels = list(img.getdata())  # Fallback for older Pillow versions
-
-        hash_value = 0
-        for row in range(8):
-            for col in range(8):
-                idx = row * 9 + col
-                left_pixel = int(pixels[idx])
-                right_pixel = int(pixels[idx + 1])
-
-                if left_pixel < right_pixel:
-                    bit_pos = row * 8 + col
-                    hash_value |= 1 << bit_pos
-
-        return hash_value
+        return _dhash(image_bytes)

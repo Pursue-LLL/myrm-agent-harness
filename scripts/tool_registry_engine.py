@@ -249,7 +249,7 @@ def _count_call_sites(factory_names: set[str], scan_roots: tuple[Path, ...]) -> 
 
 def load_registered_layers() -> dict[str, str]:
     """Return the union of harness static `_TOOL_LAYERS` and server bootstrap,
-    keyed by tool name, valued by layer name ("CORE" | "COMMON" | "EXTENDED").
+    keyed by tool name, valued by layer name ("CORE" | "COMMON" | "EXTENDED" | "EXTERNAL").
 
     The server bootstrap is parsed statically (AST) so callers do not need to
     import the server package — useful for CI environments where only the

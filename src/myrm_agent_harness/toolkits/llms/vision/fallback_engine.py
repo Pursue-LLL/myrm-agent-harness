@@ -7,38 +7,118 @@ myrm_agent_harness.utils.media.image_compressor::image_compressor (POS: 图像�
 
 [OUTPUT]
 VisionFallbackEngine: 提供使用辅助视觉模型将图像转为文本描述的服务，支持异常时自适应压缩重试。
+create_vision_fallback_engine: 从 context 字段构建引擎（支持单配置或有序链）。
 
 [POS]
 视觉能力降级服务。在主模型缺乏视觉能力时，提供底层、无状态的图像转文本能力；封装并发解析与 image_compressor Reactive Resize 兜底。属于 Harness 框架层，供业务层与框架工具链调用，不依赖业务逻辑和数据库。
 """
 
+from __future__ import annotations
+
 import asyncio
 import base64
 import io
 import logging
-from typing import Protocol
+from collections.abc import Sequence
+from typing import Any, Protocol
 
 from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.core.config.llm import LLMConfig
 from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
+from myrm_agent_harness.toolkits.llms.errors import FailoverReason, classify_failover_reason
 from myrm_agent_harness.utils.media.image_compressor import image_compressor
 
 logger = logging.getLogger(__name__)
+
+VISION_ANALYSIS_FAILED_PREFIX = "[Vision Analysis Failed"
+
+_VISION_CAPACITY_FAILOVER_REASONS: frozenset[FailoverReason] = frozenset(
+    {
+        FailoverReason.BILLING,
+        FailoverReason.RATE_LIMIT,
+        FailoverReason.OVERLOADED,
+        FailoverReason.TIMEOUT,
+        FailoverReason.SESSION_EXPIRED,
+    }
+)
 
 
 class FileExecutor(Protocol):
     async def read_file_bytes(self, path: str) -> bytes: ...
 
 
+class VisionProviderCapacityError(Exception):
+    """Raised when the current vision provider should failover to the next config."""
+
+
+def should_vision_capacity_failover(reason: FailoverReason) -> bool:
+    if reason in (FailoverReason.AUTH_PERMANENT, FailoverReason.MODEL_NOT_FOUND):
+        return False
+    return reason in _VISION_CAPACITY_FAILOVER_REASONS
+
+
+def resolve_vision_fallback_llm_configs(
+    vision_fallback_model_cfg: object | None = None,
+    vision_fallback_model_cfgs: object | None = None,
+) -> list[LLMConfig]:
+    """Build ordered LLMConfig list from singular cfg and/or plural cfgs context fields."""
+    raw_items: list[object] = []
+    if vision_fallback_model_cfgs is not None:
+        if isinstance(vision_fallback_model_cfgs, (list, tuple)):
+            raw_items.extend(vision_fallback_model_cfgs)
+        else:
+            raw_items.append(vision_fallback_model_cfgs)
+    elif vision_fallback_model_cfg is not None:
+        raw_items.append(vision_fallback_model_cfg)
+
+    configs: list[LLMConfig] = []
+    seen: set[tuple[str, str | None]] = set()
+    for raw in raw_items:
+        cfg = LLMConfig.model_validate(raw, from_attributes=True)
+        key = (cfg.model, cfg.base_url)
+        if key in seen:
+            continue
+        seen.add(key)
+        configs.append(cfg)
+    return configs
+
+
+def create_vision_fallback_engine(
+    vision_fallback_model_cfg: object | None = None,
+    vision_fallback_model_cfgs: object | None = None,
+) -> VisionFallbackEngine | None:
+    """Create a VisionFallbackEngine from context fields, or None when unconfigured."""
+    configs = resolve_vision_fallback_llm_configs(
+        vision_fallback_model_cfg,
+        vision_fallback_model_cfgs,
+    )
+    if not configs:
+        return None
+    return VisionFallbackEngine(configs)
+
+
+def _is_payload_size_error(exc: Exception) -> bool:
+    err_str = str(exc).lower()
+    return (
+        "413" in err_str
+        or "payload too large" in err_str
+        or "415" in err_str
+        or "too large" in err_str
+    )
+
+
+def _should_failover_to_next_provider(reason: FailoverReason) -> bool:
+    return should_vision_capacity_failover(reason)
+
+
 class VisionFallbackEngine:
     """视觉回退引擎
 
     使用辅助视觉大模型对图像进行深度解析，将多模态数据转为纯文本，
-    彻底解决无视觉主模型无法处理图像的痛点。
+    彻底解决无视觉主模型无法处理图像的痛点。支持按配置顺序进行容量型 failover。
     """
 
-    # 解析图像时使用的固定 Prompt
     _VISION_PROMPT = (
         "You are an expert vision analysis AI. Please provide a detailed, accurate, "
         "and comprehensive text description of this image. If there is text, code, "
@@ -47,22 +127,48 @@ class VisionFallbackEngine:
         "Output ONLY the description."
     )
 
-    def __init__(self, fallback_config: LLMConfig):
-        """初始化引擎
+    def __init__(self, fallback_configs: LLMConfig | Sequence[LLMConfig]):
+        if isinstance(fallback_configs, LLMConfig):
+            configs = [fallback_configs]
+        else:
+            configs = list(fallback_configs)
+        if not configs:
+            raise ValueError("VisionFallbackEngine requires at least one LLMConfig")
+        self.fallback_configs = configs
+        self.fallback_config = configs[0]
+        self._models: list[Any] = []
+        self._last_success_provider_index: int | None = None
 
-        Args:
-            fallback_config: 辅助视觉大模型的配置，必须支持 vision (例如 gpt-4o-mini)
-        """
-        self.fallback_config = fallback_config
-        # 温度尽量低，保证解析的确定性和代码抄写的准确性
-        self.model = create_litellm_model(
-            model=fallback_config.model,
-            api_key=fallback_config.api_key,
-            base_url=fallback_config.base_url,
-            temperature=0.1,
-            streaming=False,
-            **(fallback_config.model_kwargs or {}),
-        )
+    @property
+    def last_success_provider_index(self) -> int | None:
+        return self._last_success_provider_index
+
+    @property
+    def last_success_model(self) -> str | None:
+        if self._last_success_provider_index is None:
+            return None
+        return self.fallback_configs[self._last_success_provider_index].model
+
+    @property
+    def model(self) -> Any:
+        """Primary model instance (lazy). Kept for tests and legacy callers."""
+        return self._get_model(0)
+
+    def _get_model(self, index: int) -> Any:
+        while len(self._models) <= index:
+            idx = len(self._models)
+            cfg = self.fallback_configs[idx]
+            self._models.append(
+                create_litellm_model(
+                    model=cfg.model,
+                    api_key=cfg.api_key,
+                    base_url=cfg.base_url,
+                    temperature=0.1,
+                    streaming=False,
+                    **(cfg.model_kwargs or {}),
+                )
+            )
+        return self._models[index]
 
     async def describe_image_b64(
         self,
@@ -71,70 +177,103 @@ class VisionFallbackEngine:
         retry_count: int = 1,
         prompt: str | None = None,
     ) -> str:
-        """解析单张 Base64 格式的图片 (带 Reactive Resize 兜底)
-
-        Args:
-            b64_data: Base64 编码的图片数据
-            mime_type: MIME 类型
-            retry_count: 剩余重试次数
-            prompt: 自定义 prompt，默认使用通用图像分析 prompt
-        """
+        """解析单张 Base64 格式的图片 (带 Reactive Resize 与 provider 链 failover)"""
         effective_prompt = prompt or self._VISION_PROMPT
+        last_error: str | None = None
+        self._last_success_provider_index = None
+
+        for index in range(len(self.fallback_configs)):
+            try:
+                result = await self._describe_image_b64_with_model(
+                    index,
+                    b64_data,
+                    mime_type,
+                    retry_count=retry_count,
+                    prompt=effective_prompt,
+                )
+                self._last_success_provider_index = index
+                return result
+            except VisionProviderCapacityError as exc:
+                last_error = str(exc)
+                if index < len(self.fallback_configs) - 1:
+                    logger.warning(
+                        "Vision provider %s capacity failure, trying next provider: %s",
+                        self.fallback_configs[index].model,
+                        exc,
+                    )
+                    continue
+                logger.error(
+                    "Vision Fallback Engine exhausted provider chain: %s",
+                    exc,
+                )
+            except Exception as exc:
+                last_error = str(exc)
+                logger.error("Vision Fallback Engine failed to describe image: %s", exc)
+                break
+
+        return f"{VISION_ANALYSIS_FAILED_PREFIX}: {last_error or 'unknown error'}]"
+
+    async def _describe_image_b64_with_model(
+        self,
+        model_index: int,
+        b64_data: str,
+        mime_type: str,
+        *,
+        retry_count: int,
+        prompt: str,
+    ) -> str:
+        model = self._get_model(model_index)
         data_url = f"data:{mime_type};base64,{b64_data}"
         msg = HumanMessage(
             content=[
-                {"type": "text", "text": effective_prompt},
+                {"type": "text", "text": prompt},
                 {"type": "image_url", "image_url": {"url": data_url}},
             ]
         )
 
         try:
-            response = await self.model.ainvoke([msg])
+            response = await model.ainvoke([msg])
             return str(response.content)
-        except Exception as e:
-            err_str = str(e).lower()
-            # 捕获 413 Payload Too Large / 415 异常进行 Reactive Resize
-            if retry_count > 0 and (
-                "413" in err_str or "payload too large" in err_str or "415" in err_str or "too large" in err_str
-            ):
+        except Exception as exc:
+            if retry_count > 0 and _is_payload_size_error(exc):
                 logger.warning(
                     "Vision API rejected payload due to size (%s). Triggering Reactive Resize...",
-                    e,
+                    exc,
                 )
                 try:
-                    # 将 base64 转回 bytes
                     raw_bytes = base64.b64decode(b64_data)
                     buffer = io.BytesIO(raw_bytes)
-
-                    # 质量压缩
                     compressed_bytes = image_compressor.compress(buffer, quality=0.5)
                     if compressed_bytes:
                         compressed_b64 = base64.b64encode(compressed_bytes).decode("ascii")
                         logger.info("Reactive Resize successful. Retrying vision fallback...")
-                        return await self.describe_image_b64(compressed_b64, mime_type, retry_count=0, prompt=prompt)
-                    else:
-                        logger.warning("Image compression returned empty. Fallback failed.")
+                        return await self._describe_image_b64_with_model(
+                            model_index,
+                            compressed_b64,
+                            mime_type,
+                            retry_count=0,
+                            prompt=prompt,
+                        )
+                    logger.warning("Image compression returned empty. Fallback failed.")
                 except Exception as comp_err:
                     logger.error("Reactive Resize failed: %s", comp_err)
 
-            logger.error("Vision Fallback Engine failed to describe image: %s", e)
-            return f"[Vision Analysis Failed: {e!s}]"
+            reason = classify_failover_reason(exc)
+            if (
+                _should_failover_to_next_provider(reason)
+                and model_index < len(self.fallback_configs) - 1
+            ):
+                raise VisionProviderCapacityError(str(exc)) from exc
+            raise
 
     async def describe_images_b64(self, images: list[tuple[str, str]]) -> list[str]:
-        """并发解析多张 Base64 格式的图片
-
-        Args:
-            images: 列表，每一项为 (b64_data, mime_type)
-        Returns:
-            对应的文本描述列表
-        """
+        """并发解析多张 Base64 格式的图片"""
         tasks = [self.describe_image_b64(b64, mime) for b64, mime in images]
         results = await asyncio.gather(*tasks, return_exceptions=False)
         return list(results)
 
     async def describe_local_image(self, path: str, executor: FileExecutor) -> str:
         """通过文件沙箱执行器解析本地图像文件"""
-        import base64
         from pathlib import PurePosixPath
 
         from myrm_agent_harness.utils.mime_types import IMAGE_MIME_TYPES as MIME_TYPES

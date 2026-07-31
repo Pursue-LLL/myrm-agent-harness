@@ -30,6 +30,7 @@ class _StubSkillBackend:
     """Minimal stub satisfying SkillBackend protocol for testing."""
 
     content_map: dict[str, str] = field(default_factory=dict)
+    resource_map: dict[str, list[str]] = field(default_factory=dict)
 
     async def list_skills(self) -> list[SkillMetadata]:
         return []
@@ -44,6 +45,9 @@ class _StubSkillBackend:
 
     async def get_skill_resources(self, skill_id: str, path: str) -> bytes:
         raise NotImplementedError
+
+    async def list_skill_resources(self, skill_id: str) -> list[str]:
+        return list(self.resource_map.get(skill_id, []))
 
 
 def _make_skill(
@@ -377,13 +381,16 @@ class TestPreloadExplicitSkill:
             storage_skill_id="deploy_skill",
             storage_path=str(skill_dir),
         )
-        backend = _StubSkillBackend(content_map={"deploy_skill": "# Deploy\n\nRun deploy."})
+        backend = _StubSkillBackend(
+            content_map={"deploy_skill": "# Deploy\n\nRun deploy."},
+            resource_map={"deploy_skill": ["scripts/deploy.sh"]},
+        )
         agent = _make_agent(skills=[skill], backend=backend)
 
         query, matched, preloaded = await agent._preload_explicit_skill("[use deploy_skill] prod")
         assert matched is not None
+        assert "[Linked files]" in query
         assert "scripts/deploy.sh" in query
-        assert "[This skill has supporting files" in query
         assert "prod" in query
 
     @pytest.mark.asyncio
@@ -532,79 +539,6 @@ class TestSkillDirTemplateVariable:
         query, matched, preloaded = await agent._preload_explicit_skill("[use mcp_skill] test")
         assert matched is not None
         assert "${SKILL_DIR}" in query
-
-
-# ---------------------------------------------------------------------------
-# Auxiliary file listing tests
-# ---------------------------------------------------------------------------
-
-
-class TestListSkillAuxiliaryFiles:
-    """Tests for SkillAgent._list_skill_auxiliary_files."""
-
-    def test_no_storage_path(self) -> None:
-        skill = _make_skill(storage_path=None)
-        result = SkillAgent._list_skill_auxiliary_files(skill)
-        assert result == ""
-
-    def test_nonexistent_directory(self) -> None:
-        skill = _make_skill(storage_path="/nonexistent/path/to/skill")
-        result = SkillAgent._list_skill_auxiliary_files(skill)
-        assert result == ""
-
-    def test_directory_with_no_subdirs(self, tmp_path: Path) -> None:
-        skill_dir = tmp_path / "test_skill"
-        skill_dir.mkdir()
-        skill = _make_skill(storage_path=str(skill_dir))
-        result = SkillAgent._list_skill_auxiliary_files(skill)
-        assert result == ""
-
-    def test_directory_with_files(self, tmp_path: Path) -> None:
-        skill_dir = tmp_path / "test_skill"
-        scripts_dir = skill_dir / "scripts"
-        scripts_dir.mkdir(parents=True)
-        (scripts_dir / "setup.py").write_text("# setup")
-        (scripts_dir / "run.sh").write_text("#!/bin/bash")
-
-        templates_dir = skill_dir / "templates"
-        templates_dir.mkdir()
-        (templates_dir / "config.yaml").write_text("key: value")
-
-        skill = _make_skill(name="test_skill", storage_path=str(skill_dir))
-        result = SkillAgent._list_skill_auxiliary_files(skill)
-
-        assert "[This skill has supporting files" in result
-        assert "scripts/setup.py" in result
-        assert "scripts/run.sh" in result
-        assert "templates/config.yaml" in result
-
-    def test_ignores_non_allowed_dirs(self, tmp_path: Path) -> None:
-        """Only scripts/, references/, templates/, assets/ should be scanned."""
-        skill_dir = tmp_path / "test_skill"
-        (skill_dir / "src").mkdir(parents=True)
-        (skill_dir / "src" / "main.py").write_text("pass")
-
-        (skill_dir / "scripts").mkdir()
-        (skill_dir / "scripts" / "ok.sh").write_text("echo hi")
-
-        skill = _make_skill(storage_path=str(skill_dir))
-        result = SkillAgent._list_skill_auxiliary_files(skill)
-
-        assert "scripts/ok.sh" in result
-        assert "src/main.py" not in result
-
-    def test_nested_files(self, tmp_path: Path) -> None:
-        """Nested files within allowed subdirs should be listed."""
-        skill_dir = tmp_path / "test_skill"
-        deep_dir = skill_dir / "assets" / "images" / "icons"
-        deep_dir.mkdir(parents=True)
-        (deep_dir / "logo.png").write_text("binary")
-
-        skill = _make_skill(storage_path=str(skill_dir))
-        result = SkillAgent._list_skill_auxiliary_files(skill)
-
-        assert "assets/images/icons/logo.png" in result
-
 
 # ---------------------------------------------------------------------------
 # Integration: run() method behavior

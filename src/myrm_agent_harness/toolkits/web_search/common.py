@@ -59,6 +59,13 @@ class SearchResult(BaseModel):
     citations: list[Citation] = Field(
         default_factory=list, description="Inline citations with positional info"
     )
+    site_name: str | None = Field(
+        default=None, description="Source site name (e.g. 'GitHub', 'Wikipedia')"
+    )
+    authority_description: str | None = Field(
+        default=None,
+        description="Authority info from search provider (e.g. '官方', '媒体')",
+    )
 
     @property
     def url(self) -> str:
@@ -83,6 +90,8 @@ class SearchResult(BaseModel):
             "is_error": data.get("is_error", False),
             "is_degraded": data.get("is_degraded", False),
             "engines": data.get("engines", []),
+            "site_name": data.get("site_name"),
+            "authority_description": data.get("authority_description"),
         }
 
         raw_citations = data.get("citations")

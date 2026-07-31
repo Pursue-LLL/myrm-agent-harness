@@ -11,12 +11,13 @@ from myrm_agent_harness.agent.tool_management.tool_layers import (
 
 class TestToolLayer:
     def test_layer_ordering(self):
-        assert ToolLayer.CORE < ToolLayer.COMMON < ToolLayer.EXTENDED
+        assert ToolLayer.CORE < ToolLayer.COMMON < ToolLayer.EXTENDED < ToolLayer.EXTERNAL
 
     def test_layer_values(self):
         assert ToolLayer.CORE == 1
         assert ToolLayer.COMMON == 2
         assert ToolLayer.EXTENDED == 3
+        assert ToolLayer.EXTERNAL == 4
 
 
 class TestGetToolLayer:
@@ -57,9 +58,9 @@ class TestGetToolLayer:
                 get_tool_layer(tool) == ToolLayer.EXTENDED
             ), f"{tool} should be EXTENDED"
 
-    def test_unknown_tool_defaults_to_extended(self):
-        assert get_tool_layer("totally_unknown_tool") == ToolLayer.EXTENDED
-        assert get_tool_layer("some_custom_mcp_tool") == ToolLayer.EXTENDED
+    def test_unknown_tool_defaults_to_external(self):
+        assert get_tool_layer("totally_unknown_tool") == ToolLayer.EXTERNAL
+        assert get_tool_layer("mcp__github__search") == ToolLayer.EXTERNAL
 
     def test_is_registered_action_tool(self):
         assert is_registered_action_tool("web_search_tool") is True

@@ -114,3 +114,80 @@ class TestSearchResultsEdgeCases:
         ]
         docs = search_results_to_documents(results)
         assert docs[0].metadata["title"] == "A Very Long Title " * 10
+
+
+class TestSiteNameAndAuthorityPassthrough:
+    """Verify site_name and authority_description are passed through."""
+
+    def test_site_name_and_authority_in_metadata(self) -> None:
+        results = [
+            SearchResult(
+                title="T",
+                link="https://a.com",
+                snippet="S",
+                site_name="GitHub",
+                authority_description="官方",
+            ),
+        ]
+        docs = search_results_to_documents(results)
+        assert docs[0].metadata["site_name"] == "GitHub"
+        assert docs[0].metadata["authority_description"] == "官方"
+
+    def test_none_site_name_omitted_from_metadata(self) -> None:
+        results = [
+            SearchResult(title="T", link="https://a.com", snippet="S"),
+        ]
+        docs = search_results_to_documents(results)
+        assert "site_name" not in docs[0].metadata
+        assert "authority_description" not in docs[0].metadata
+
+
+class TestCombineSearchResultsMetadataPreservation:
+    """Verify combine_search_results_unified preserves all metadata fields."""
+
+    def test_date_and_summary_survive_combine(self) -> None:
+        from langchain_core.documents import Document
+        from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+            combine_search_results_unified,
+        )
+
+        doc = Document(
+            page_content="Test content",
+            metadata={
+                "title": "T",
+                "url": "https://example.com/page",
+                "description": "Desc",
+                "date": "2026-07-15",
+                "summary": "Long summary",
+                "site_name": "Example",
+                "authority_description": "官方媒体",
+            },
+        )
+        _, unified = combine_search_results_unified([("q1", [doc], None)])
+        assert len(unified) == 1
+        m = unified[0].metadata
+        assert m["date"] == "2026-07-15"
+        assert m["summary"] == "Long summary"
+        assert m["site_name"] == "Example"
+        assert m["authority_description"] == "官方媒体"
+
+    def test_url_normalized_but_other_metadata_intact(self) -> None:
+        from langchain_core.documents import Document
+        from myrm_agent_harness.toolkits.web_search.search_results_processor import (
+            combine_search_results_unified,
+        )
+
+        doc = Document(
+            page_content="Content",
+            metadata={
+                "title": "T",
+                "url": "https://example.com/page?utm_source=x",
+                "description": "D",
+                "date": "2026-01-01",
+                "engines": ["volcengine"],
+            },
+        )
+        _, unified = combine_search_results_unified([("q", [doc], None)])
+        assert len(unified) == 1
+        assert unified[0].metadata["date"] == "2026-01-01"
+        assert unified[0].metadata["engines"] == ["volcengine"]

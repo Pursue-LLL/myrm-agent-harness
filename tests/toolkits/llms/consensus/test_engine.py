@@ -1376,3 +1376,50 @@ class TestChatHistory:
             m.additional_kwargs.get("tool_calls") for m in agg_msgs if hasattr(m, "additional_kwargs")
         )
         assert not has_tool_calls
+
+
+# -----------------------------------------------------------------------
+# ConsensusEngine.run_stream — privacy_filter
+# -----------------------------------------------------------------------
+
+
+class TestPrivacyFilterStream:
+    async def test_run_stream_display_redacts_ref_done_sse(self) -> None:
+        from unittest.mock import patch
+
+        ref = _make_llm("ref-a", "Contact alice@example.com")
+        engine = ConsensusEngine(
+            reference_llms=[ref],
+            aggregator_llm=_make_llm("agg", "Aggregated"),
+            config=ConsensusConfig(privacy_filter="display", min_successful=1),
+        )
+        with patch(
+            "myrm_agent_harness.toolkits.llms.consensus.advisor_fanout._redact_for_privacy",
+            return_value="REDACTED",
+        ):
+            events = [event async for event in engine.run_stream("question")]
+
+        ref_done = [event for event in events if event.kind == "ref_done"]
+        assert len(ref_done) == 1
+        assert ref_done[0].ref is not None
+        assert ref_done[0].ref.content == "REDACTED"
+
+    async def test_run_stream_full_redacts_single_ref_answer(self) -> None:
+        from unittest.mock import patch
+
+        ref = _make_llm("ref-a", "secret advice")
+        engine = ConsensusEngine(
+            reference_llms=[ref],
+            aggregator_llm=_make_llm("agg", "unused"),
+            config=ConsensusConfig(privacy_filter="full", min_successful=1),
+        )
+        with patch(
+            "myrm_agent_harness.toolkits.llms.consensus.advisor_fanout._redact_for_privacy",
+            return_value="REDACTED",
+        ):
+            events = [event async for event in engine.run_stream("question")]
+
+        done_events = [event for event in events if event.kind == "done"]
+        assert len(done_events) == 1
+        assert done_events[0].result is not None
+        assert done_events[0].result.final_answer == "REDACTED"

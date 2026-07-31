@@ -305,6 +305,7 @@ def create_file_read_tool(
                 )
             supports_vision = bool(ctx.get("supports_vision", False))
             vision_fallback_model_cfg = ctx.get("vision_fallback_model_cfg")
+            vision_fallback_model_cfgs = ctx.get("vision_fallback_model_cfgs")
 
             image_paths = [
                 p
@@ -341,7 +342,9 @@ def create_file_read_tool(
                 image_paths or pdf_paths or video_paths
             ) and executor is not None
             use_multimodal = has_multimodal and (
-                supports_vision or vision_fallback_model_cfg is not None
+                supports_vision
+                or vision_fallback_model_cfg is not None
+                or vision_fallback_model_cfgs is not None
             )
             has_documents = bool(document_paths) and executor is not None
 
@@ -358,6 +361,7 @@ def create_file_read_tool(
                     url_errors,
                     supports_vision=supports_vision,
                     vision_fallback_model_cfg=vision_fallback_model_cfg,
+                    vision_fallback_model_cfgs=vision_fallback_model_cfgs,
                     video_paths=video_paths,
                     parse_mode=parse_mode,
                     mode=mode,
@@ -378,6 +382,7 @@ def create_file_read_tool(
                 executor=executor,
                 supports_vision=supports_vision,
                 vision_fallback_model_cfg=vision_fallback_model_cfg,
+                vision_fallback_model_cfgs=vision_fallback_model_cfgs,
                 parse_mode=parse_mode,
             )
 

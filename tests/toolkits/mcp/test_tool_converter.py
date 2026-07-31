@@ -28,12 +28,12 @@ def test_field_required_string():
 
 
 def test_field_optional_integer():
-    py_type, default = _json_schema_to_pydantic_field({"type": "integer"}, required=False)
+    _py_type, default = _json_schema_to_pydantic_field({"type": "integer"}, required=False)
     assert default is None
 
 
 def test_field_boolean_type():
-    py_type, default = _json_schema_to_pydantic_field({"type": "boolean"}, required=True)
+    py_type, _default = _json_schema_to_pydantic_field({"type": "boolean"}, required=True)
     assert py_type is bool
 
 

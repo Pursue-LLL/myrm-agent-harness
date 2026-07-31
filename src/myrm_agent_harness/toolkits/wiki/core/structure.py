@@ -120,6 +120,10 @@ class WikiStructure:
         """Get path for the session hot cache (wiki/hot.md)."""
         return self.wiki_dir / "hot.md"
 
+    def get_schema_file_path(self) -> Path:
+        """Get path for the human-readable vault schema contract (wiki/SCHEMA.md)."""
+        return self.wiki_dir / "SCHEMA.md"
+
     def list_raw_files(self, pattern: str = "*.md") -> list[Path]:
         """List all raw documents matching the pattern from local sandbox (recursive)."""
         files = sorted(self.raw_dir.rglob(pattern))

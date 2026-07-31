@@ -54,6 +54,7 @@ async def read_video_as_content_blocks(
     supports_vision: bool,
     supports_video: bool = False,
     vision_fallback_model_cfg: object | None = None,
+    vision_fallback_model_cfgs: object | None = None,
 ) -> str | list[ContentBlock]:
     """读取视频文件并返回适当格式的内容
 
@@ -97,15 +98,20 @@ async def read_video_as_content_blocks(
         ]
 
     # 模型仅支持图像不支持视频 → 通过 VideoAnalysisEngine 帧提取分析
-    if vision_fallback_model_cfg:
-        from myrm_agent_harness.agent.config.llm import LLMConfig
+    if vision_fallback_model_cfg or vision_fallback_model_cfgs:
+        from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+            resolve_vision_fallback_llm_configs,
+        )
         from myrm_agent_harness.toolkits.llms.vision.video_analysis_engine import (
             VideoAnalysisEngine,
         )
 
         try:
-            fallback_config = LLMConfig.model_validate(vision_fallback_model_cfg, from_attributes=True)
-            engine = VideoAnalysisEngine(fallback_config)
+            fallback_configs = resolve_vision_fallback_llm_configs(
+                vision_fallback_model_cfg,
+                vision_fallback_model_cfgs,
+            )
+            engine = VideoAnalysisEngine(fallback_configs)
             description = await engine.analyze_local_video(path, executor, supports_video=False)
             return f"[Video: {path}] ({mime_type}, {size_display})\n[Video Analysis]:\n{description}"
         except Exception as e:

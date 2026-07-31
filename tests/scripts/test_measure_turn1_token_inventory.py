@@ -140,17 +140,19 @@ def test_main_table_mode(
 
 @pytest.mark.asyncio
 async def test_build_default_turn1_tools_resolves_default_profile() -> None:
-    """Smoke: default product profile resolves 15 Turn-1 tools (P3 baseline)."""
+    """Smoke: default product profile resolves 13 Turn-1 tools (P3 baseline)."""
     tools = await measure._build_default_turn1_tools()
     names = {tool.name for tool in tools}
-    assert len(tools) == 14
+    assert len(tools) == 13
     assert "web_search_tool" in names
     assert "bash_code_execute_tool" in names
+    assert "skill_select_tool" in names
+    assert "skill_manage_tool" not in names
     assert "dispatch_research" not in names
     assert "spawn_subagent" not in names
 
 
-# SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四
+# SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四 (measure_turn1 default profile)
 _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "web_fetch_tool": 119,
     "bash_code_execute_tool": 839,
@@ -161,11 +163,10 @@ _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "glob_tool": 263,
     "grep_tool": 224,
     "web_search_tool": 1175,
-    "memory_search_tool": 204,
+    "memory_search_tool": 230,
     "memory_save_tool": 688,
     "memory_manage_tool": 247,
-    "skill_select_tool": 295,
-    "skill_manage_tool": 251,
+    "skill_select_tool": 235,
 }
 
 
@@ -175,7 +176,7 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
     report = await measure.measure_turn1_inventory()
     measured = {row["name"]: int(row["tokens"]) for row in report["per_tool"]}
     assert measured == _DOC_TURN1_TOOL_TOKENS
-    assert report["tool_count"] == 14
+    assert report["tool_count"] == 13
     assert report["description_tokens"] == sum(_DOC_TURN1_TOOL_TOKENS.values())
     assert (
         report["tools_subtotal"]
@@ -183,6 +184,6 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
     )
     layer_totals = report["layer_totals"]
     assert layer_totals["CORE"] == 2286
-    assert layer_totals["COMMON"] == 2314
-    assert layer_totals["EXTENDED"] == 546
-    assert report["tools_subtotal"] == 6056
+    assert layer_totals["COMMON"] == 2340
+    assert layer_totals["EXTENDED"] == 235
+    assert report["tools_subtotal"] == 5706

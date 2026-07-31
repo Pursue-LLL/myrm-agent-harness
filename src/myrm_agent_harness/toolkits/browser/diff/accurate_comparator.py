@@ -32,13 +32,12 @@ Performance: ~100ms
 
 from __future__ import annotations
 
-import base64
 import logging
 import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypedDict
 
-from .types import AccurateComparisonResult
+from .types import AccurateComparisonResult, validate_screenshot_input
 
 if TYPE_CHECKING:
     from patchright.async_api import BrowserContext, Route
@@ -57,8 +56,6 @@ class _PixelDiffResult(TypedDict):
 logger = logging.getLogger(__name__)
 
 _DIFF_ROUTE_PREFIX = "https://agent-diff.localhost"
-_MAX_BASE64_SIZE = 10 * 1024 * 1024
-_MAX_IMAGE_DIMENSION = 4096
 
 
 def _load_pixel_diff_js() -> str:
@@ -72,52 +69,6 @@ def _load_pixel_diff_js() -> str:
 def _nonce() -> str:
     """Generate unique nonce for route URLs using UUID4."""
     return uuid.uuid4().hex[:8]
-
-
-def _validate_screenshot_input(screenshot_b64: str, param_name: str) -> bytes:
-    """Validate and decode screenshot base64 input.
-
-    Args:
-        screenshot_b64: Base64-encoded screenshot
-        param_name: Parameter name for error messages
-
-    Returns:
-        Decoded image bytes
-
-    Raises:
-        ValueError: If input is invalid (too large, invalid base64, invalid image)
-    """
-    if len(screenshot_b64) > _MAX_BASE64_SIZE:
-        raise ValueError(
-            f"{param_name} too large: {len(screenshot_b64)} bytes (max {_MAX_BASE64_SIZE // 1024 // 1024}MB)"
-        )
-
-    try:
-        image_bytes = base64.b64decode(screenshot_b64, validate=True)
-    except Exception as exc:
-        raise ValueError(f"{param_name} is not valid base64") from exc
-
-    try:
-        import io
-
-        from PIL import Image
-
-        img = Image.open(io.BytesIO(image_bytes))
-        width, height = img.size
-
-        if width > _MAX_IMAGE_DIMENSION or height > _MAX_IMAGE_DIMENSION:
-            raise ValueError(
-                f"{param_name} dimensions too large: {width}x{height} "
-                f"(max {_MAX_IMAGE_DIMENSION}x{_MAX_IMAGE_DIMENSION})"
-            )
-
-        img.verify()
-    except ValueError:
-        raise
-    except Exception as exc:
-        raise ValueError(f"{param_name} is not a valid image") from exc
-
-    return image_bytes
 
 
 @dataclass
@@ -184,8 +135,8 @@ class AccurateComparator:
         Raises:
             ValueError: If input is invalid (too large, invalid base64, invalid image)
         """
-        baseline_bytes = _validate_screenshot_input(baseline_b64, "baseline")
-        current_bytes = _validate_screenshot_input(current_b64, "current")
+        baseline_bytes = validate_screenshot_input(baseline_b64, "baseline")
+        current_bytes = validate_screenshot_input(current_b64, "current")
 
         nonce = _nonce()
         blank_url = f"{_DIFF_ROUTE_PREFIX}/{nonce}/index.html"

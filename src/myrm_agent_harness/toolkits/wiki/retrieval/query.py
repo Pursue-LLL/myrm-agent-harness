@@ -6,7 +6,7 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message typ
 ..core.config::WikiConfig, WikiQueryConfig (POS: Wiki configuration center)
 ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 ..core.types::QueryResult (POS: Wiki toolkit type definition center)
-..pipeline.cognitive_map::read_hot_context (POS: OKF hot.md reader for wiki_query prefix)
+..pipeline.cognitive_map::read_hot_context, read_log_context (POS: OKF hot.md / log.md readers for wiki_query prefix)
 ..pipeline.cognitive_map.index_routing::format_index_route_context, match_index_entries, read_index_entries (POS: OKF index-first routing)
 .best_first::RetrievalSeed, converge_retrieval_candidates (POS: budgeted best-first graph convergence + raw_claim rerank)
 
@@ -43,7 +43,7 @@ from ..core.types import (
     WikiRetrievalSeedTrace,
     WikiRetrievalTrace,
 )
-from ..pipeline.cognitive_map import read_hot_context
+from ..pipeline.cognitive_map import read_hot_context, read_log_context
 from ..pipeline.cognitive_map.index_routing import (
     IndexRouteEntry,
     INDEX_ROUTING_SECTION,
@@ -115,6 +115,7 @@ class WikiQueryEngine:
         logger.info(f"Querying wiki: {question[:100]}")
 
         hot_context = read_hot_context(self._structure)
+        log_context = read_log_context(self._structure)
 
         # Step 1: Search for related concepts
         search_result = await self._search_concepts(question, effective_query_config)
@@ -129,6 +130,7 @@ class WikiQueryEngine:
                 )
                 answer = self._compose_answer(
                     hot_context,
+                    log_context,
                     f"## Related images\n{asset_lines}",
                     question,
                 )
@@ -140,10 +142,10 @@ class WikiQueryEngine:
                     confidence_score=0.5,
                     source_snippets=asset_snippets,
                 )
-            if hot_context:
+            if hot_context or log_context:
                 return QueryResult(
                     question=question,
-                    answer=self._compose_hot_only_answer(hot_context),
+                    answer=self._compose_hot_only_answer(hot_context, log_context),
                     related_articles=[],
                     should_archive=False,
                     confidence_score=0.1,
@@ -170,7 +172,7 @@ class WikiQueryEngine:
             )
             asset_block = f"## Related images\n{asset_lines}"
             context = f"{context}\n\n{asset_block}" if context else asset_block
-        context = self._compose_answer(hot_context, context, question)
+        context = self._compose_answer(hot_context, log_context, context, question)
 
         confidence = self._derive_query_confidence(
             index_matches=search_result.index_matches,
@@ -200,23 +202,34 @@ class WikiQueryEngine:
         )
 
     @staticmethod
-    def _compose_hot_only_answer(hot_context: str) -> str:
-        """Return vault status when no articles match — do not pretend to answer the question."""
-        return (
-            "No matching wiki articles were found for this question.\n\n"
-            f"## Vault status\n{hot_context}"
-        )
+    def _format_vault_prefix(hot_context: str, log_context: str) -> str:
+        sections: list[str] = []
+        if hot_context:
+            sections.append(f"## Recent vault context\n{hot_context}")
+        if log_context:
+            sections.append(f"## Recent activity log\n{log_context}")
+        return "\n\n".join(sections)
 
     @staticmethod
-    def _compose_answer(hot_context: str, article_context: str, question: str) -> str:
-        """Prefix wiki_query responses with hot.md when available (zero LLM)."""
-        if hot_context and article_context:
+    def _compose_hot_only_answer(hot_context: str, log_context: str) -> str:
+        """Return vault status when no articles match — do not pretend to answer the question."""
+        prefix = WikiQueryEngine._format_vault_prefix(hot_context, log_context)
+        base = "No matching wiki articles were found for this question."
+        if prefix:
+            return f"{base}\n\n{prefix}"
+        return base
+
+    @staticmethod
+    def _compose_answer(hot_context: str, log_context: str, article_context: str, question: str) -> str:
+        """Prefix wiki_query responses with hot.md and recent log.md when available (zero LLM)."""
+        prefix = WikiQueryEngine._format_vault_prefix(hot_context, log_context)
+        if prefix and article_context:
             return (
-                f"## Recent vault context\n{hot_context}\n\n"
+                f"{prefix}\n\n"
                 f"## Retrieved articles for: {question}\n{article_context}"
             )
-        if hot_context:
-            return f"## Recent vault context\n{hot_context}"
+        if prefix:
+            return prefix
         return article_context
 
     @staticmethod

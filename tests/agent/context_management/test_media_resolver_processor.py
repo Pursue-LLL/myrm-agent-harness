@@ -190,3 +190,10 @@ class TestResolveLocalFile:
     def test_returns_none_for_directory(self) -> None:
         result = _resolve_local_file("/tmp")
         assert result is None
+
+
+def test_internal_api_origin_uses_port_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from myrm_agent_harness.agent.context_management.pipeline.processors import media_resolver
+
+    monkeypatch.setenv("PORT", "9099")
+    assert media_resolver._internal_api_origin() == "http://127.0.0.1:9099"

@@ -1,3 +1,5 @@
+import pytest
+
 from myrm_agent_harness.agent.skills.optimization.prometheus_metrics import (
     circuit_breaker_tripped,
     dlq_size,
@@ -16,6 +18,13 @@ from myrm_agent_harness.agent.skills.optimization.prometheus_metrics import (
     update_dlq_size,
     update_queue_size,
 )
+
+_skip_no_prometheus = pytest.mark.skipif(
+    optimization_total is None,
+    reason="prometheus_client not installed",
+)
+
+pytestmark = _skip_no_prometheus
 
 
 def test_record_optimization_start() -> None:

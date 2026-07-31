@@ -30,6 +30,7 @@ def test_build_default_processors_without_session_notes() -> None:
 
     assert names == [
         "ThinkingBlockCleaner",
+        "vision_fallback",
         "media_filter",
         "filter",
         "active_tool_result_prune",
@@ -37,6 +38,7 @@ def test_build_default_processors_without_session_notes() -> None:
         "compress",
         "summarize",
         "post_compaction_reread",
+        "post_compaction_refetch_guard",
         "normalize",
         "media_resolver",
         "explicit_cache",
@@ -109,6 +111,7 @@ def test_build_default_processors_with_session_notes() -> None:
 
     assert names == [
         "ThinkingBlockCleaner",
+        "vision_fallback",
         "media_filter",
         "filter",
         "active_tool_result_prune",
@@ -117,6 +120,7 @@ def test_build_default_processors_with_session_notes() -> None:
         "session_notes",
         "summarize",
         "post_compaction_reread",
+        "post_compaction_refetch_guard",
         "normalize",
         "media_resolver",
         "explicit_cache",
@@ -226,6 +230,7 @@ def test_extract_compression_intent_from_merged_context() -> None:
     assert intent == {
         "focus_files": ["a.py"],
         "focus_modules": ["agent.context_management"],
+        "pinned_files": [],
         "failed_tool_call_ids": ["call_1"],
         "user_goal_hint": "fix compression",
     }

@@ -145,7 +145,8 @@ def _format_report(
         f"Tool declarations found (deduplicated by name): {len(report.declared_names)}",
         f"Registered in _TOOL_LAYERS (harness static + server bootstrap): {len(report.registered_names)}",
         "",
-        f"Layer breakdown (registered): CORE={layer_counts['CORE']} COMMON={layer_counts['COMMON']} EXTENDED={layer_counts['EXTENDED']}",
+        f"Layer breakdown (registered): CORE={layer_counts['CORE']} COMMON={layer_counts['COMMON']} "
+        f"EXTENDED={layer_counts['EXTENDED']} EXTERNAL={layer_counts['EXTERNAL']}",
         "",
     ]
 
@@ -244,6 +245,7 @@ def _layer_counts(report: ScanReport) -> dict[str, int]:
         "CORE": counts.get("CORE", 0),
         "COMMON": counts.get("COMMON", 0),
         "EXTENDED": counts.get("EXTENDED", 0),
+        "EXTERNAL": counts.get("EXTERNAL", 0),
     }
 
 
@@ -257,10 +259,12 @@ def _build_doc_block(report: ScanReport) -> str:
     from scripts.tool_registry_config import PTC_RUNTIME_TOOL_NAMES
 
     ptc_names = ", ".join(f"`{n}`" for n in sorted(PTC_RUNTIME_TOOL_NAMES))
+    harness_total = counts["CORE"] + counts["COMMON"] + counts["EXTENDED"]
     return (
         f"{_BLOCK_BEGIN}\n"
         f"LLM tools: **{action_total}** "
-        f"(CORE {counts['CORE']} + COMMON {counts['COMMON']} + EXTENDED {counts['EXTENDED']}). "
+        f"(Harness {harness_total}: CORE {counts['CORE']} + COMMON {counts['COMMON']} + "
+        f"EXTENDED {counts['EXTENDED']}; External {counts['EXTERNAL']}: server vendor). "
         f"Orchestration signals: **{len(ORCHESTRATION_SIGNAL_NAMES)}**. "
         f"Runtime hooks: **{len(RUNTIME_HOOK_NAMES)}**. "
         f"PTC runtime tools: **{len(PTC_RUNTIME_TOOL_NAMES)}** ({ptc_names}). "

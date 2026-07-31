@@ -574,3 +574,44 @@ class TestShrinkOversizedImagesRealPillow:
         exc = _FakeError("image dimension exceeds the maximum allowed size of 2000")
         dim = _parse_image_max_dimension(exc)
         assert dim == 2000
+
+
+class TestHandleMediaRejected:
+    @pytest.mark.asyncio
+    async def test_applies_vision_fallback_before_strip(self, ctx: StreamContext) -> None:
+        ctx.merged_context = {
+            "supports_vision": False,
+            "vision_fallback_model_cfg": {"model": "gpt-4o-mini", "api_key": "k"},
+        }
+        ctx.agent_input["messages"] = [
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc123"}},
+                ]
+            ),
+        ]
+        exc = _FakeError("does not support image input", status_code=400)
+        executor = _make_executor(ctx)
+
+        from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.stream_recovery_oneshot.classify_failover_reason",
+                return_value=FailoverReason.MEDIA_REJECTED,
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.vision_fallback_processor.apply_vision_fallback_to_messages",
+                new_callable=AsyncMock,
+                return_value=1,
+            ) as mock_fallback,
+        ):
+            result = await executor._handle_media_rejected(exc, attempted=False)
+
+        assert result is True
+        mock_fallback.assert_awaited_once()
+        events = executor._compactor.events
+        assert any(
+            isinstance(e, dict) and e.get("step_key") == "vision_fallback_recovery"
+            for e in events
+        )

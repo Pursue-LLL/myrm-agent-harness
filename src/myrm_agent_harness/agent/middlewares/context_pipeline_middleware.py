@@ -83,6 +83,9 @@ from myrm_agent_harness.agent.context_management.pipeline import (
     ProcessorContext,
     build_default_processors,
 )
+from myrm_agent_harness.agent.context_management.pipeline.processors.media_resolver import (
+    FileContentReader,
+)
 from myrm_agent_harness.agent.context_management.strategies.integrity_guard import (
     ensure_tool_pair_integrity,
 )
@@ -132,6 +135,7 @@ def create_context_pipeline_middleware(
     cache_ttl_prune_config: CacheTtlPruneConfig | None = None,
     enable_active_tool_prune: bool = True,
     active_prune_threshold_tokens: int = 2048,
+    file_content_reader: FileContentReader | None = None,
 ) -> AgentMiddleware:
     """Create the context pipeline middleware.
 
@@ -218,6 +222,7 @@ def create_context_pipeline_middleware(
                 time_decay_half_life_days=time_decay_half_life_days,
                 cache_ttl_prune_config=cache_policy.config,
                 active_prune_threshold_tokens=active_prune_threshold_tokens,
+                file_content_reader=file_content_reader,
             )
 
             _pipelines[key] = ContextPipeline(processors)
@@ -323,6 +328,9 @@ def create_context_pipeline_middleware(
                     "compression_intent": extract_compression_intent(merged_ctx),
                     "eco_mode": eco_mode,
                     "supports_vision": merged_ctx.get("supports_vision", True),
+                    "vision_fallback_model_cfg": merged_ctx.get("vision_fallback_model_cfg"),
+                    "vision_fallback_model_cfgs": merged_ctx.get("vision_fallback_model_cfgs"),
+                    "file_content_reader": merged_ctx.get("file_content_reader") or file_content_reader,
                     "last_activity_time": _last_successful_call_time or None,
                     "cache_usage_feedback": resolve_cache_usage_feedback(merged_ctx),
                     "runnable_config": getattr(request, "config", None),

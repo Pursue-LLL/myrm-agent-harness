@@ -18,8 +18,8 @@
 | 文件 | 地位 | 职责 | I/O/P |
 |-----|------|------|-------|
 | __init__.py | Package | Vision toolkit package exports | — |
-| `fallback_engine.py` | 核心 | 提供 `VisionFallbackEngine`：使用辅助视觉模型将图像转换为文本描述，支持过大图片自适应降级压缩。 | ✅ |
-| `video_analysis_engine.py` | 核心 | 提供 `VideoAnalysisEngine`：视频分析引擎，双策略（支持视频的模型直传 + ffmpeg 帧提取降级）。 | ✅ |
+| `fallback_engine.py` | 核心 | `VisionFallbackEngine` / `create_vision_fallback_engine` / `should_vision_capacity_failover` / `VISION_ANALYSIS_FAILED_PREFIX`：辅助视觉模型图像转文本；413 Reactive Resize；容量型 provider 有序 failover 链（AUTH/MODEL_NOT_FOUND 不切换）；`last_success_model` 供 health 探活。 | ✅ |
+| `video_analysis_engine.py` | 核心 | `VideoAnalysisEngine`：视频直传 + ffmpeg 帧提取降级；共享容量 failover 判定。 | ✅ |
 
 ---
 
@@ -30,4 +30,4 @@ LLM 多模态**理解**层（与同级 `llms/image/` 生成、`llms/video/` 生�
 ## 依赖关系
 
 - **内部**：`myrm_agent_harness.core.config.llm`、`myrm_agent_harness.toolkits.llms.core.llm`、`myrm_agent_harness.utils.media.image_compressor`
-- **被依赖**：`myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool`、`myrm-agent-server/app/core/utils/chat_utils.py`、`myrm-agent-server/app/channels/media/sticker_vision.py`
+- **被依赖**：`myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool`、`myrm-agent-server/app/core/utils/chat_utils.py`、`myrm-agent-server/app/channels/media/sticker_vision.py`、`myrm-agent-server/app/services/wiki/asset_index_service.py`

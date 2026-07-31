@@ -110,7 +110,7 @@ def attenuate_tools(tool_names: list[str], active_skills: list[SkillMetadata]) -
     explanation = _build_explanation(min_trust, tool_names, trust_allowed, allowed_removed, removed)
 
     if removed:
-        logger.warning(f" Trust attenuation: {explanation}")
+        logger.warning(" Trust attenuation: %s", explanation)
 
     return AttenuationResult(
         tool_names=final_tools, min_trust=min_trust, explanation=explanation, removed_tools=removed

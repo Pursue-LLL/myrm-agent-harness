@@ -6,7 +6,6 @@ import pytest
 from langchain_core.tools import StructuredTool
 
 from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
-from myrm_agent_harness.toolkits.mcp.client import MCPServerConfigProtocol
 
 
 class DummyConfig:
@@ -16,7 +15,7 @@ class DummyConfig:
     type: str = "stdio"
     url: str | None = None
     command: str | None = "python"
-    args: list[str] | None = ["-m", "mcp_server"]
+    args: list[str] | None = ["-m", "mcp_server"]  # noqa: RUF012
     description: str = "test"
     headers: dict[str, str] | None = None
     extra_params: dict[str, object] | None = None
@@ -239,9 +238,8 @@ async def test_get_tools_single_server_error():
     config = DummyConfig()
     config.name = "fail_server"
 
-    with _patch_enumerate(agent, {"fail_server": []}):
-        with pytest.raises(RuntimeError, match="Failed to get tools from fail_server"):
-            await agent.get_tools([config])
+    with _patch_enumerate(agent, {"fail_server": []}), pytest.raises(RuntimeError, match="Failed to get tools from fail_server"):
+        await agent.get_tools([config])
 
 
 # ---------------------------------------------------------------------------
@@ -277,9 +275,8 @@ async def test_get_tools_parallel_task_exception():
     async def _explode(_cfg):
         raise RuntimeError("boom")
 
-    with patch.object(agent, "_enumerate_server_tools", side_effect=_explode):
-        with pytest.raises(RuntimeError, match="boom"):
-            await agent.get_tools([cfg1, cfg2])
+    with patch.object(agent, "_enumerate_server_tools", side_effect=_explode), pytest.raises(RuntimeError, match="boom"):
+        await agent.get_tools([cfg1, cfg2])
 
 
 # ---------------------------------------------------------------------------
@@ -293,9 +290,8 @@ async def test_get_tools_parallel_server_error():
     cfg_err = DummyConfig()
     cfg_err.name = "err_server"
 
-    with _patch_enumerate(agent, {"ok_server": [_make_tool()], "err_server": []}):
-        with pytest.raises(RuntimeError, match="Failed to get tools"):
-            await agent.get_tools([cfg_ok, cfg_err])
+    with _patch_enumerate(agent, {"ok_server": [_make_tool()], "err_server": []}), pytest.raises(RuntimeError, match="Failed to get tools"):
+        await agent.get_tools([cfg_ok, cfg_err])
 
 
 # ---------------------------------------------------------------------------
@@ -843,9 +839,8 @@ async def test_get_tools_parallel_gather_exception_object():
             return ("s1", [_make_tool()], None)
         raise RuntimeError("gather_boom")
 
-    with patch.object(agent, "_enumerate_server_tools", side_effect=_explode_on_second):
-        with pytest.raises(RuntimeError, match="gather_boom"):
-            await agent.get_tools([cfg1, cfg2])
+    with patch.object(agent, "_enumerate_server_tools", side_effect=_explode_on_second), pytest.raises(RuntimeError, match="gather_boom"):
+        await agent.get_tools([cfg1, cfg2])
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 """Extended tests for WikiCompiler - covering _filter_changed_files, compile_all,
-_extract_concepts_from_doc, parse_concepts_response, refresh_cognitive_map, generate_backlinks,
-save_metadata, purpose injection, visual element prompt guidance, parallel batch ingestion,
-worker loop, and edge cases."""
+_extract_concepts_from_doc (including index catalog prompt wiring), parse_concepts_response,
+refresh_cognitive_map, generate_backlinks, save_metadata, purpose injection, visual element
+prompt guidance, parallel batch ingestion, worker loop, and edge cases."""
 
 import asyncio
 import json
@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
@@ -146,6 +146,59 @@ async def test_extract_concepts_from_doc_file_not_found(wiki_structure: WikiStru
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
     concepts = await compiler._extract_concepts_from_doc(Path("/nonexistent.md"))
     assert concepts == []
+
+
+@pytest.mark.asyncio
+async def test_extract_concepts_from_doc_includes_index_catalog_when_index_exists(
+    wiki_structure: WikiStructure,
+    mock_llm: AsyncMock,
+) -> None:
+    """Compile extraction injects bounded wiki/index.md catalog into the LLM prompt."""
+    index_path = wiki_structure.get_index_file_path()
+    index_path.write_text(
+        "## Core concepts\n- [[transformer-architecture]] — attention-based sequence model\n",
+        encoding="utf-8",
+    )
+
+    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
+    raw = wiki_structure.raw_dir / "paper.md"
+    raw.write_text("A survey of transformer variants for NLP.")
+
+    mock_llm.ainvoke.return_value = AIMessage(
+        content='[{"name": "Transformer", "definition": "Sequence model architecture"}]'
+    )
+    concepts = await compiler._extract_concepts_from_doc(raw)
+
+    assert len(concepts) == 1
+    assert concepts[0].name == "Transformer"
+    mock_llm.ainvoke.assert_awaited_once()
+    messages = mock_llm.ainvoke.await_args.args[0]
+    human_messages = [msg for msg in messages if isinstance(msg, HumanMessage)]
+    assert len(human_messages) == 1
+    human_content = str(human_messages[0].content)
+    assert "Existing wiki catalog (reuse these concept names when applicable):" in human_content
+    assert "transformer-architecture" in human_content
+
+
+@pytest.mark.asyncio
+async def test_extract_concepts_from_doc_omits_index_catalog_when_index_missing(
+    wiki_structure: WikiStructure,
+    mock_llm: AsyncMock,
+) -> None:
+    index_path = wiki_structure.get_index_file_path()
+    if index_path.exists():
+        index_path.unlink()
+
+    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
+    raw = wiki_structure.raw_dir / "note.md"
+    raw.write_text("Standalone note without prior catalog.")
+
+    await compiler._extract_concepts_from_doc(raw)
+
+    mock_llm.ainvoke.assert_awaited_once()
+    messages = mock_llm.ainvoke.await_args.args[0]
+    human_content = str(next(msg for msg in messages if isinstance(msg, HumanMessage)).content)
+    assert "Existing wiki catalog" not in human_content
 
 
 # --- _refresh_cognitive_map ---

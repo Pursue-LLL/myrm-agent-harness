@@ -10,10 +10,14 @@ an aggregator LLM. Based on arXiv:2406.04692.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Re-exports ConsensusEngine, ConsensusStreamEvent, ConsensusConfig, ConsensusResult, ReferenceResponse | — |
-| types.py | Config | Immutable data types: ConsensusConfig, ReferenceResponse, ConsensusResult | ✅ |
+| `types.py` | Config | Immutable data types: `ConsensusConfig`, `ReferenceResponse`, `ConsensusResult`, `PrivacyFilterMode` | ✅ |
 | _prompts.py | Helper | Aggregation prompt: `AGGREGATOR_SYSTEM` + `build_aggregation_messages()` (stateless, persona-aware) | ✅ |
 | _streaming.py | Helper | `collect_stream()`: stream one model → string with reasoning fallback + per-call temperature + optional max_tokens + optional reasoning_effort; shared by references and aggregator | ✅ |
+| _history.py | Helper | `flatten_tool_free_history()` shared by consensus engine and agent-loop overlay | ✅ |
 | engine.py | Core | Stateless consensus orchestration: `run()` batch, `run_stream()` streaming; fan-out / retry / timeout / cancel, single-reference skip, graceful degradation. Delegates prompt building to `_prompts`, stream collection to `_streaming` | ✅ |
+| advisor_prompts.py | Helper | Agent-loop advisor system prompt + injection block builder | ✅ |
+| advisor_fanout.py | Core | Agent-loop reference fan-out with state cache and fanout policies | ✅ |
+| moa_overlay_types.py | Config | `MoAOverlayConfig` — separate SSOT from standalone consensus | ✅ |
 
 ## Key Design Decisions
 
@@ -27,6 +31,8 @@ an aggregator LLM. Based on arXiv:2406.04692.
 - **Per-role reasoning effort**: `reference_reasoning_effort` and `aggregator_reasoning_effort` (both default `None`) control how deeply reasoning models (o3, R1, etc.) think at each stage. References are advisors — setting them to `"low"` slashes thinking-token cost without meaningful quality loss. The aggregator is the decision-maker — `"high"` produces deeper synthesis. Bound per call via `llm.bind(reasoning_effort=…)`; `litellm.drop_params` silently ignores it for non-reasoning models. `None` omits the parameter entirely, preserving the provider's default behavior.
 - **Reasoning-content fallback**: both the per-call collector (`collect_stream` in `_streaming.py`, used by references and the batch aggregator) and the streaming aggregator (`_aggregate_stream`) fall back to a chunk's `reasoning_content` when `content` is empty, so reasoning models (DeepSeek-R1, GLM) that stream their answer there are not discarded as empty. `collect_stream` returns the buffered reasoning only when no `content` arrived; `_aggregate_stream` streams `content` token-by-token but, when a run yields no `content` at all, flushes the buffered reasoning once at the end. Without this the streaming aggregator would emit nothing and `run_stream` would silently degrade to the longest raw reference, losing the synthesis — the common case where a reasoning model is the default aggregator.
 - **Progressive reference yield**: `run_stream()` uses `asyncio.as_completed` to yield `ref_done` events as each reference model completes, rather than waiting for all references to finish. This enables front-end UIs to display progressive multi-model thinking status in real-time.
+- **Reference privacy filter**: `ConsensusConfig.privacy_filter` (`off` / `display` / `full`) redacts reference content in SSE `ref_done` events (`display`/`full`) and in aggregator input when `full`. Shared `PrivacyFilterMode` type lives in `types.py`; overlay and standalone consensus both consume it.
+- **Agent-loop overlay**: `advisor_fanout.py` + `moa_overlay_types.py` provide per-iteration reference fan-out with state cache, fanout policies, and progressive `on_ref_done` callbacks (including cache hits). `moa_advisor_middleware.py` injects advisor perspectives via transient HumanMessage tail — separate SSOT from `engineParams.consensus`.
 - **Cancel support**: `cancel_token` checked before each phase (references, aggregation) and within the `as_completed` loop to abort early at any point.
 - **Streaming aggregation**: `run_stream()` yields `ConsensusStreamEvent` with per-token aggregator output for real-time UX.
 - **Multi-turn chat history**: `run()` and `run_stream()` accept an optional `chat_history: list[BaseMessage]` placed between `SystemMessage` and `HumanMessage` so the stable prefix (system + growing history) maximises prompt-cache hits. `_flatten_history()` strips `ToolMessage` and `tool_calls` from the history at the entry point — neither reference nor aggregator models have tools defined, so raw tool messages would trigger provider-level validation errors (e.g. OpenAI 400). Both paths use the same flattened view, keeping the implementation DRY and consistent.

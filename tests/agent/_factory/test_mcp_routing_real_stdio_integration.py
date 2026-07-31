@@ -22,9 +22,9 @@ def _write_mega_mcp_server(
     script_path: Path, tool_count: int = _MEGA_TOOL_COUNT
 ) -> None:
     lines = [
-        "from mcp.server.fastmcp import FastMCP",
+        "from mcp.server import MCPServer",
         "",
-        'server = FastMCP("mega-routing-probe")',
+        'server = MCPServer("mega-routing-probe")',
         "",
     ]
     for i in range(tool_count):

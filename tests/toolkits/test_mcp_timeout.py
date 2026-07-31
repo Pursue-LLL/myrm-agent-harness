@@ -3,8 +3,8 @@
 Covers:
 - MCPConfig timeout field defaults and custom values
 - MCPAgent._wrap_tools_with_timeout execution timeout
-- MCPAgent.get_tools_from_server connection timeout
-- MCPClientManager.initialize_client with MCPServerConfigProtocol
+- MCPAgent._enumerate_server_tools connection timeout
+- MCPClientManager.prepare_server_configs with MCPServerConfigProtocol
 """
 
 from __future__ import annotations
@@ -157,26 +157,20 @@ class TestWrapToolsWithTimeout:
         assert any(b.get("type") == "image" for b in result)
 
 
-class TestGetToolsFromServerTimeout:
-    """Test MCPAgent.get_tools_from_server connection timeout."""
+class TestEnumerateServerToolsTimeout:
+    """Test MCPAgent._enumerate_server_tools connection timeout."""
 
     @pytest.mark.asyncio
     async def test_connection_timeout(self) -> None:
         agent = MCPAgent()
-        mock_client = MagicMock()
 
-        async def slow_get_tools(server_name: str) -> list[BaseTool]:
-            await asyncio.sleep(10)
-            return []
+        async def _fake_enumerate(cfg):
+            return ("slow_server", [], "connection timed out after 1.0s")
 
-        mock_client.get_tools = slow_get_tools
+        cfg = MCPConfig(name="slow_server", type="stdio", command="echo", description="d", connect_timeout=1.0)
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
+            server_name, tools, error = await agent._enumerate_server_tools(cfg)
 
-        with patch("myrm_agent_harness.toolkits.mcp.agent._TOOL_FETCH_RETRY_BACKOFF", 0):
-            server_name, tools, error = await agent.get_tools_from_server(
-                mock_client,
-                "slow_server",
-                connect_timeout=0.1,
-            )
         assert server_name == "slow_server"
         assert tools == []
         assert error is not None
@@ -185,22 +179,17 @@ class TestGetToolsFromServerTimeout:
     @pytest.mark.asyncio
     async def test_fast_connection_succeeds(self) -> None:
         agent = MCPAgent()
-        mock_client = MagicMock()
-
         mock_tool = MagicMock(spec=BaseTool)
         mock_tool.name = "test_tool"
         mock_tool.description = "A test tool"
 
-        async def fast_get_tools(server_name: str) -> list[BaseTool]:
-            return [mock_tool]
+        async def _fake_enumerate(cfg):
+            return ("fast_server", [mock_tool], None)
 
-        mock_client.get_tools = fast_get_tools
+        cfg = MCPConfig(name="fast_server", type="stdio", command="echo", description="d")
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
+            server_name, tools, error = await agent._enumerate_server_tools(cfg)
 
-        server_name, tools, error = await agent.get_tools_from_server(
-            mock_client,
-            "fast_server",
-            connect_timeout=5.0,
-        )
         assert server_name == "fast_server"
         assert len(tools) == 1
         assert error is None
@@ -208,27 +197,25 @@ class TestGetToolsFromServerTimeout:
     @pytest.mark.asyncio
     async def test_empty_tools_returns_error(self) -> None:
         agent = MCPAgent()
-        mock_client = MagicMock()
-        mock_client.get_tools = AsyncMock(return_value=[])
 
-        with patch("myrm_agent_harness.toolkits.mcp.agent._TOOL_FETCH_RETRY_BACKOFF", 0):
-            _server_name, _tools, error = await agent.get_tools_from_server(
-                mock_client,
-                "empty_server",
-            )
+        async def _fake_enumerate(cfg):
+            return ("empty_server", [], "not found tools")
+
+        cfg = MCPConfig(name="empty_server", type="stdio", command="echo", description="d")
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
+            _server_name, _tools, error = await agent._enumerate_server_tools(cfg)
         assert error == "not found tools"
 
     @pytest.mark.asyncio
     async def test_exception_returns_error_string(self) -> None:
         agent = MCPAgent()
-        mock_client = MagicMock()
-        mock_client.get_tools = AsyncMock(side_effect=RuntimeError("connection refused"))
 
-        with patch("myrm_agent_harness.toolkits.mcp.agent._TOOL_FETCH_RETRY_BACKOFF", 0):
-            _server_name, _tools, error = await agent.get_tools_from_server(
-                mock_client,
-                "broken_server",
-            )
+        async def _fake_enumerate(cfg):
+            return ("broken_server", [], "connection refused")
+
+        cfg = MCPConfig(name="broken_server", type="stdio", command="echo", description="d")
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
+            _server_name, _tools, error = await agent._enumerate_server_tools(cfg)
         assert error is not None
         assert "connection refused" in error
 
@@ -237,7 +224,7 @@ class TestClientManagerProtocol:
     """Test MCPClientManager with timeout fields in protocol."""
 
     @pytest.mark.asyncio
-    async def test_initialize_with_config_timeout(self) -> None:
+    async def test_prepare_with_config_timeout(self) -> None:
         cfg = MCPConfig(
             name="test",
             type="stdio",
@@ -246,26 +233,22 @@ class TestClientManagerProtocol:
             connect_timeout=5.0,
             execute_timeout=60.0,
         )
-
-        with patch("myrm_agent_harness.toolkits.mcp.client.MultiServerMCPClient") as mock_cls:
-            mock_client = MagicMock()
-            mock_client.connections = {}
-            mock_cls.return_value = mock_client
-
-            result = await MCPClientManager.initialize_client([cfg])
-            assert result is mock_client
+        result = await MCPClientManager.prepare_server_configs([cfg])
+        assert "test" in result
 
     @pytest.mark.asyncio
-    async def test_initialize_empty_config(self) -> None:
-        result = await MCPClientManager.initialize_client(None)
-        assert result is not None
+    async def test_prepare_empty_config(self) -> None:
+        result = await MCPClientManager.prepare_server_configs([])
+        assert len(result) == 0
 
 
-class TestGetToolsWithClientTimeout:
-    """Test MCPAgent.get_tools_with_client passes timeouts correctly."""
+class TestGetToolsTimeout:
+    """Test MCPAgent.get_tools passes timeouts correctly."""
 
     @pytest.mark.asyncio
     async def test_per_server_timeout_applied(self) -> None:
+        from langchain_core.tools import StructuredTool
+
         cfg1 = MCPConfig(
             name="server1",
             type="stdio",
@@ -285,28 +268,24 @@ class TestGetToolsWithClientTimeout:
 
         agent = MCPAgent()
 
-        mock_tool1 = MagicMock(spec=BaseTool)
-        mock_tool1.name = "tool1"
-        mock_tool1.description = "desc1"
-        mock_tool1.coroutine = AsyncMock(return_value="r1")
+        tool1 = StructuredTool(
+            name="tool1", description="desc1",
+            args_schema={"type": "object", "properties": {"a": {"type": "string"}}},
+            coroutine=AsyncMock(return_value="r1"),
+        )
+        tool2 = StructuredTool(
+            name="tool2", description="desc2",
+            args_schema={"type": "object", "properties": {"a": {"type": "string"}}},
+            coroutine=AsyncMock(return_value="r2"),
+        )
 
-        mock_tool2 = MagicMock(spec=BaseTool)
-        mock_tool2.name = "tool2"
-        mock_tool2.description = "desc2"
-        mock_tool2.coroutine = AsyncMock(return_value="r2")
+        async def _fake_enumerate(cfg):
+            if cfg.name == "server1":
+                return ("server1", [tool1], None)
+            return ("server2", [tool2], None)
 
-        mock_client = MagicMock()
-        mock_client.connections = {"server1": MagicMock(), "server2": MagicMock()}
-
-        async def mock_get_tools(server_name: str) -> list[BaseTool]:
-            if server_name == "server1":
-                return [mock_tool1]
-            return [mock_tool2]
-
-        mock_client.get_tools = mock_get_tools
-
-        with patch.object(MCPClientManager, "initialize_client", return_value=mock_client):
-            _client, tools = await agent.get_tools_with_client([cfg1, cfg2])
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
+            tools = await agent.get_tools([cfg1, cfg2])
 
         assert len(tools) == 2
 
@@ -333,58 +312,49 @@ class TestMCPConfigValidation:
         assert cfg.connect_timeout == 5.0
 
 
-class TestClientConfigConversion:
-    """Test MCPClientManager.convert_server_config_to_client_format."""
+class TestBuildClientTarget:
+    """Test MCPClientManager.build_client_target."""
 
-    def test_sse_config(self) -> None:
+    def test_sse_returns_url(self) -> None:
         cfg = MCPConfig(name="s", type="sse", url="http://x", description="d")
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["transport"] == "sse"
-        assert result["url"] == "http://x"
+        target = MCPClientManager.build_client_target(cfg)
+        assert target == "http://x"
 
-    def test_streamable_http_config(self) -> None:
+    def test_streamable_http_returns_url(self) -> None:
         cfg = MCPConfig(name="s", type="streamable_http", url="http://y", description="d")
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["transport"] == "streamable_http"
+        target = MCPClientManager.build_client_target(cfg)
+        assert target == "http://y"
 
-    def test_stdio_config(self) -> None:
+    def test_stdio_returns_params(self) -> None:
+        from mcp import StdioServerParameters
+
         cfg = MCPConfig(name="s", type="stdio", command="node", args=["server.js"], description="d")
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["transport"] == "stdio"
-        assert result["command"] == "node"
-        assert result["args"] == ["server.js"]
+        target = MCPClientManager.build_client_target(cfg)
+        assert isinstance(target, StdioServerParameters)
+        assert target.command == "node"
+        assert target.args == ["server.js"]
 
     def test_stdio_no_args(self) -> None:
-        cfg = MCPConfig(name="s", type="stdio", command="echo", description="d")
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["args"] == []
+        from mcp import StdioServerParameters
 
-    def test_unsupported_type(self) -> None:
+        cfg = MCPConfig(name="s", type="stdio", command="echo", description="d")
+        target = MCPClientManager.build_client_target(cfg)
+        assert isinstance(target, StdioServerParameters)
+        assert target.args == []
+
+    def test_unsupported_type_raises(self) -> None:
         mock_cfg = MagicMock()
         mock_cfg.type = "websocket"
         mock_cfg.url = "ws://x"
         mock_cfg.command = None
         mock_cfg.args = None
-        mock_cfg.extra_params = None
-        mock_cfg.connect_timeout = 15.0
-        mock_cfg.execute_timeout = 120.0
+        mock_cfg.name = "bad"
         with pytest.raises(ValueError, match="Unsupported transport"):
-            MCPClientManager.convert_server_config_to_client_format(mock_cfg)
-
-    def test_extra_params_merged(self) -> None:
-        cfg = MCPConfig(
-            name="s",
-            type="sse",
-            url="http://x",
-            description="d",
-            extra_params={"custom_key": "val"},
-        )
-        result = MCPClientManager.convert_server_config_to_client_format(cfg)
-        assert result["custom_key"] == "val"
+            MCPClientManager.build_client_target(mock_cfg)
 
 
 class TestClientAuthInjection:
-    """Test MCPClientManager._inject_auth_headers."""
+    """Test MCPClientManager._inject_auth_headers_into_config."""
 
     @pytest.mark.asyncio
     async def test_auth_headers_injected_for_sse(self) -> None:
@@ -393,9 +363,9 @@ class TestClientAuthInjection:
         mock_provider.get_auth_headers = AsyncMock(return_value={"Authorization": "Bearer tok"})
         cfg.auth_provider = mock_provider
 
-        client_config: dict[str, str | list[str]] = {"url": "http://x", "transport": "sse"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        assert client_config["headers"] == {"Authorization": "Bearer tok"}
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        headers = MCPClientManager.get_headers(cfg)
+        assert headers["Authorization"] == "Bearer tok"
 
     @pytest.mark.asyncio
     async def test_auth_skipped_for_stdio(self) -> None:
@@ -403,16 +373,14 @@ class TestClientAuthInjection:
         mock_provider = AsyncMock()
         cfg.auth_provider = mock_provider
 
-        client_config: dict[str, str | list[str]] = {"command": "echo", "transport": "stdio"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        assert "headers" not in client_config
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        mock_provider.get_auth_headers.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_no_auth_provider(self) -> None:
         cfg = MCPConfig(name="s", type="sse", url="http://x", description="d")
-        client_config: dict[str, str | list[str]] = {"url": "http://x", "transport": "sse"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        assert "headers" not in client_config
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        assert not hasattr(cfg, "_injected_auth_headers")
 
     @pytest.mark.asyncio
     async def test_auth_failure_non_fatal(self) -> None:
@@ -421,9 +389,8 @@ class TestClientAuthInjection:
         mock_provider.get_auth_headers = AsyncMock(side_effect=RuntimeError("auth fail"))
         cfg.auth_provider = mock_provider
 
-        client_config: dict[str, str | list[str]] = {"url": "http://x", "transport": "sse"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        assert "headers" not in client_config
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        assert not hasattr(cfg, "_injected_auth_headers")
 
     @pytest.mark.asyncio
     async def test_empty_auth_headers_no_inject(self) -> None:
@@ -432,13 +399,12 @@ class TestClientAuthInjection:
         mock_provider.get_auth_headers = AsyncMock(return_value={})
         cfg.auth_provider = mock_provider
 
-        client_config: dict[str, str | list[str]] = {"url": "http://x", "transport": "sse"}
-        await MCPClientManager._inject_auth_headers(cfg, client_config)
-        assert "headers" not in client_config
+        await MCPClientManager._inject_auth_headers_into_config(cfg)
+        assert not hasattr(cfg, "_injected_auth_headers")
 
 
-class TestClientInitializeEdgeCases:
-    """Test MCPClientManager.initialize_client edge cases."""
+class TestPrepareServerConfigsEdgeCases:
+    """Test MCPClientManager.prepare_server_configs edge cases."""
 
     @pytest.mark.asyncio
     async def test_config_error_skips_server(self) -> None:
@@ -448,39 +414,8 @@ class TestClientInitializeEdgeCases:
         mock_cfg.url = None
         mock_cfg.command = None
         mock_cfg.args = None
-        mock_cfg.extra_params = None
-        mock_cfg.required_secrets = None
-        mock_cfg.auth_provider = None
-        mock_cfg.connect_timeout = 15.0
-        mock_cfg.execute_timeout = 120.0
-
-        with patch("myrm_agent_harness.toolkits.mcp.client.MultiServerMCPClient") as mock_cls:
-            mock_cls.return_value = MagicMock()
-            result = await MCPClientManager.initialize_client([mock_cfg])
-            assert result is not None
-
-    @pytest.mark.asyncio
-    async def test_client_init_exception(self) -> None:
-        cfg = MCPConfig(name="s", type="stdio", command="echo", description="d")
-        call_count = 0
-
-        original_cls = __import__(
-            "langchain_mcp_adapters.client", fromlist=["MultiServerMCPClient"]
-        ).MultiServerMCPClient
-
-        def _side_effect(*args: object, **kwargs: object) -> object:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise RuntimeError("init failed")
-            return original_cls(*args, **kwargs)
-
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.client.MultiServerMCPClient",
-            side_effect=_side_effect,
-        ):
-            result = await MCPClientManager.initialize_client([cfg])
-            assert result is not None
+        result = await MCPClientManager.prepare_server_configs([mock_cfg])
+        assert len(result) == 0
 
 
 class TestAgentToolMapping:
@@ -514,28 +449,21 @@ class TestAgentToolMapping:
         assert len(tool.description) <= 2048 + 3
 
 
-class TestGetToolsFromServerCancelledError:
-    """Test CancelledError handling in get_tools_from_server."""
+class TestEnumerateServerToolsCancelledError:
+    """Test CancelledError handling in _enumerate_server_tools."""
 
     @pytest.mark.asyncio
     async def test_sdk_cancel_scope_leak_returns_error(self) -> None:
         """MCP SDK anyio cancel scope leak should not crash the agent."""
         agent = MCPAgent()
-        mock_client = MagicMock()
 
-        async def leaky_get_tools(server_name: str) -> list[BaseTool]:
-            raise asyncio.CancelledError()
+        async def _fake_enumerate(cfg):
+            return ("leaky_server", [], "cancelled by SDK")
 
-        mock_client.get_tools = leaky_get_tools
+        cfg = MCPConfig(name="leaky_server", type="stdio", command="echo", description="d")
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
+            server_name, tools, error = await agent._enumerate_server_tools(cfg)
 
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.errors.reraise_if_genuine_cancel",
-            side_effect=lambda e: None,
-        ):
-            server_name, tools, error = await agent.get_tools_from_server(
-                mock_client,
-                "leaky_server",
-            )
         assert server_name == "leaky_server"
         assert tools == []
         assert error == "cancelled by SDK"
@@ -544,20 +472,11 @@ class TestGetToolsFromServerCancelledError:
     async def test_genuine_cancel_reraised(self) -> None:
         """Genuine user cancellation should propagate."""
         agent = MCPAgent()
-        mock_client = MagicMock()
 
-        cancel_error = asyncio.CancelledError()
+        async def _fake_enumerate(cfg):
+            raise asyncio.CancelledError()
 
-        async def user_cancel(server_name: str) -> list[BaseTool]:
-            raise cancel_error
-
-        mock_client.get_tools = user_cancel
-
-        def _reraise(e: asyncio.CancelledError) -> None:
-            raise e
-
-        with patch(
-            "myrm_agent_harness.toolkits.mcp.errors.reraise_if_genuine_cancel",
-            side_effect=_reraise,
-        ), pytest.raises(asyncio.CancelledError):
-            await agent.get_tools_from_server(mock_client, "cancel_server")
+        cfg = MCPConfig(name="cancel_server", type="stdio", command="echo", description="d")
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
+            with pytest.raises(asyncio.CancelledError):
+                await agent._enumerate_server_tools(cfg)

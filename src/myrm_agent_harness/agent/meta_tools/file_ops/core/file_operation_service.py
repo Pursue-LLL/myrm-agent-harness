@@ -153,8 +153,8 @@ class FileOperationService:
         #  安全性:限制并发读取数量
         if len(self.context.paths) > self.io_config.max_concurrent_reads:
             logger.warning(
-                f"Concurrent read count ({len(self.context.paths)}) exceeds limit "
-                f"({self.io_config.max_concurrent_reads}). Processing in batches."
+                "Concurrent read count (%d) exceeds limit (%d). Processing in batches.",
+                len(self.context.paths), self.io_config.max_concurrent_reads,
             )
 
         # 获取当前事件循环的读取信号量
@@ -368,16 +368,15 @@ class FileOperationService:
             )
 
             logger.info(
-                f"Running verify_command on {resolved_path}: {self.context.verify_command}"
+                "Running verify_command on %s: %s", resolved_path, self.context.verify_command,
             )
             exec_ctx = ExecutionContext(code=self.context.verify_command, work_dir=".")
             result = await self.context.executor.execute_bash(exec_ctx)
 
             if not result.success:
-                # 校验失败,删除刚创建的文件
                 await strategy.delete_file(resolved_path)
                 logger.warning(
-                    f"Verification failed for {resolved_path}, file deleted. Error: {result.stderr}"
+                    "Verification failed for %s, file deleted. Error: %s", resolved_path, result.stderr,
                 )
                 raise ValueError(
                     f"File created but verification failed. The file has been deleted.\n"
@@ -404,7 +403,7 @@ class FileOperationService:
             final_content = "\n".join(await strategy.read_file(resolved_path))
             guard.record_write(resolved_path, final_content)
 
-        logger.info(f"Created file: {resolved_path}")
+        logger.info("Created file: %s", resolved_path)
 
         response = ResultFormatter.format_success("created", resolved_path)
         if conflict_warning:
@@ -483,7 +482,7 @@ class FileOperationService:
         except ValueError as e:
             await strategy.write_file(resolved_path, old_content)
             logger.warning(
-                f"Delta Syntax Validation failed for {resolved_path}, changes rolled back. Error: {e}"
+                "Delta Syntax Validation failed for %s, changes rolled back. Error: %s", resolved_path, e,
             )
             raise
 
@@ -497,7 +496,7 @@ class FileOperationService:
             )
 
             logger.info(
-                f"Running verify_command on {resolved_path}: {self.context.verify_command}"
+                "Running verify_command on %s: %s", resolved_path, self.context.verify_command,
             )
             exec_ctx = ExecutionContext(code=self.context.verify_command, work_dir=".")
             result = await self.context.executor.execute_bash(exec_ctx)
@@ -505,7 +504,7 @@ class FileOperationService:
             if not result.success:
                 await strategy.write_file(resolved_path, old_content)
                 logger.warning(
-                    f"Verification failed for {resolved_path}, changes rolled back. Error: {result.stderr}"
+                    "Verification failed for %s, changes rolled back. Error: %s", resolved_path, result.stderr,
                 )
                 raise ValueError(
                     f"File edited but verification failed. Changes have been rolled back.\n"
@@ -531,7 +530,7 @@ class FileOperationService:
             final_content = "\n".join(await strategy.read_file(resolved_path))
             guard.record_write(resolved_path, final_content)
 
-        logger.info(f"Replaced text in file: {resolved_path}")
+        logger.info("Replaced text in file: %s", resolved_path)
 
         response = ResultFormatter.format_success("replaced text in", resolved_path)
         if conflict_warning:

@@ -24,6 +24,7 @@
 │ memory_context_middleware               │  ← 用户记忆注入（编排）
 │   └─ memory_context_format.py         │  ← stable/learned 格式化纯函数
 │ progress_middleware / goal_focus_middleware │  ← todo 焦点 / active goal 提醒
+│ moa_advisor_middleware (opt-in)             │  ← agent 环轻量顾问 fan-out
 │ replan_middleware                         │  ← 动态重规划
 │ GuardrailMiddleware (guardrails/)       │  ← 技能边界等
 │ security_*_middleware                   │  ← 安全边界/护栏
@@ -78,6 +79,7 @@
 | `memory_context_format.py` | 记忆注入格式化纯函数（stable SystemMessage / learned UNTRUSTED HumanMessage） |
 | `progress_middleware.py` | 活跃 todo 焦点注入（末位 HumanMessage） |
 | `goal_focus_middleware.py` | ACTIVE goal objective 注入（末位 HumanMessage；跳过 continuation/wrap-up 轮） |
+| `moa_advisor_middleware.py` | Agent 环 MoA 顾问叠加（`moa_overlay_active` + 渐进 SSE `moa_ref_done` + 瞬态 HumanMessage 尾注入 + `privacy_filter` display/full 分流） |
 | `replan_middleware.py` | 动态重规划循环 |
 | `tool_call_dedup_middleware.py` | tool_call_id 去重 |
 | `rate_limit.py` | Provider 级主动 sleep |

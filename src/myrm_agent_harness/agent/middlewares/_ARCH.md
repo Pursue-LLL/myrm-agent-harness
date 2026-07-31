@@ -34,7 +34,8 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `plan_confirm_middleware.py` | Core | Plan-phase HITL: intercept first `todo_write(merge=False)` with 3+ items for user review via `interrupt()`. | ✅ |
 | `memory_context_format.py` | Core | Formatting helpers for memory context injection | ✅ |
 | `progress_middleware.py` | Core | Active todo focus injection into last HumanMessage. | ✅ |
-| `goal_focus_middleware.py` | Core | Active goal objective injection into last HumanMessage. | ✅ |
+| `goal_focus_middleware.py` | Core | ACTIVE goal objective injection into last HumanMessage. | ✅ |
+| `moa_advisor_middleware.py` | Core | Agent-loop MoA advisor overlay — ref fan-out + transient HumanMessage tail. | ✅ |
 | `rate_limit.py` | Core | Proactive provider 429 throttling. | ✅ |
 | `replan_middleware.py` | Core | Dynamic replan loop on tool errors. | ✅ |
 | `safety_dispatcher.py` | Core | safe→concurrent / unsafe→serial tool routing. | ✅ |

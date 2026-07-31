@@ -54,6 +54,8 @@ async def test_volcengine_search_parses_web_results() -> None:
     assert results[0].link == "https://example.com/news"
     assert results[0].summary == "Longer summary from NeedSummary."
     assert results[0].date == "2026-07-29"
+    assert results[0].site_name == "Example"
+    assert results[0].authority_description == "Very authoritative"
 
 
 @pytest.mark.asyncio

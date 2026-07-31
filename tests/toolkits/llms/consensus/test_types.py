@@ -21,6 +21,7 @@ class TestConsensusConfig:
         assert cfg.reference_max_tokens is None
         assert cfg.reference_reasoning_effort is None
         assert cfg.aggregator_reasoning_effort is None
+        assert cfg.privacy_filter == "off"
 
     def test_frozen(self):
         cfg = ConsensusConfig()

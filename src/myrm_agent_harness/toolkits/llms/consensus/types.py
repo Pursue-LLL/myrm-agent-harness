@@ -4,6 +4,7 @@
 - ConsensusConfig: immutable configuration for a consensus run
 - ReferenceResponse: single reference model's response
 - ConsensusResult: aggregated result of a consensus run
+- PrivacyFilterMode: shared privacy redaction mode for consensus and overlay
 
 [POS]
 Framework-level data types for multi-model consensus inference.
@@ -12,6 +13,9 @@ Framework-level data types for multi-model consensus inference.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
+
+PrivacyFilterMode = Literal["off", "display", "full"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +51,8 @@ class ConsensusConfig:
             ``litellm.drop_params``.
         aggregator_reasoning_effort: reasoning effort level for the aggregator
             call (e.g. ``"high"``).  ``None`` (default) = provider default.
+        privacy_filter: redact reference content in SSE (``display``) or in SSE
+            plus aggregator input (``full``).  ``off`` = no redaction.
     """
 
     reference_temperature: float = 0.6
@@ -58,6 +64,7 @@ class ConsensusConfig:
     reference_max_tokens: int | None = None
     reference_reasoning_effort: str | None = None
     aggregator_reasoning_effort: str | None = None
+    privacy_filter: PrivacyFilterMode = "off"
 
 
 @dataclass(slots=True)

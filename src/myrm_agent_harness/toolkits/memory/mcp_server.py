@@ -35,7 +35,7 @@ from collections.abc import Callable
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 from starlette.applications import Starlette
 
 from myrm_agent_harness.toolkits.memory.memory_recall_budget import (
@@ -145,7 +145,7 @@ class MemoryMCPServer:
     ) -> None:
         self._default_manager = memory_manager
         self._manager_resolver = manager_resolver
-        self._mcp = FastMCP(
+        self._mcp = MCPServer(
             server_name,
             instructions=(
                 "Memory service for storing, recalling, listing, and managing user "
@@ -645,8 +645,8 @@ class MemoryMCPServer:
     # ── Public API ───────────────────────────────────────────────────
 
     @property
-    def mcp(self) -> FastMCP:
-        """Access the underlying FastMCP instance for advanced configuration."""
+    def mcp(self) -> MCPServer:
+        """Access the underlying MCPServer instance for advanced configuration."""
         return self._mcp
 
     def get_streamable_http_app(self) -> Starlette:
