@@ -14,6 +14,7 @@
 - WebSearchTools: web search tools class providing basic/precise two search modes
 - SearchServiceConfig: search service config class (re-export)
 - SearchServiceType: search service type enum (re-export)
+- _normalize_explicit_params: Agent explicit params → provider-specific format normalizer
 
 Note: BM25/RRF parameters managed by RetrieverConfig; precise mode internal parameters are constants.
 
@@ -53,6 +54,66 @@ if TYPE_CHECKING:
 __all__ = ["SearchServiceConfig", "SearchServiceType", "WebSearchTools"]
 
 logger = logging.getLogger(__name__)
+
+# Unified time_range values → provider-specific mappings
+_TIME_RANGE_MAP_VOLCENGINE: dict[str, str] = {
+    "day": "OneDay",
+    "week": "OneWeek",
+    "month": "OneMonth",
+    "year": "OneYear",
+}
+
+
+def _normalize_explicit_params(
+    explicit_params: dict[str, object],
+    provider: str,
+) -> dict[str, str | int] | None:
+    """Normalize Agent-level explicit params to provider-specific format.
+
+    Three-priority fusion model:
+      1. explicit_params (highest) — from Agent tool call
+      2. intent_optimizer auto-detection — from keyword regex
+      3. config.extra_params (lowest) — user/admin default
+
+    This function only handles layer 1 → provider-specific format.
+
+    Args:
+        explicit_params: Raw params from Agent (time_range, source_authority)
+        provider: Current search service provider
+
+    Returns:
+        Provider-formatted params dict, or None if nothing to apply
+    """
+    if not explicit_params:
+        return None
+
+    result: dict[str, str | int] = {}
+    time_range = explicit_params.get("time_range")
+    source_authority = explicit_params.get("source_authority")
+
+    if provider == "volcengine_doubao":
+        if isinstance(time_range, str) and time_range:
+            mapped = _TIME_RANGE_MAP_VOLCENGINE.get(time_range)
+            if mapped:
+                result["TimeRange"] = mapped
+            elif ".." in time_range:
+                result["TimeRange"] = time_range
+        if source_authority == "high":
+            result["AuthInfoLevel"] = 1
+    elif provider == "searxng":
+        if isinstance(time_range, str) and time_range:
+            result["time_range"] = time_range
+    elif provider == "tavily":
+        if isinstance(time_range, str) and time_range:
+            result["days"] = _tavily_time_range_to_days(time_range)
+
+    return result or None
+
+
+def _tavily_time_range_to_days(time_range: str) -> str:
+    """Convert unified time_range to Tavily 'days' parameter."""
+    mapping = {"day": "1", "week": "7", "month": "30", "year": "365"}
+    return mapping.get(time_range, "7")
 
 
 class WebSearchTools:
@@ -113,6 +174,7 @@ class WebSearchTools:
         questions: list[str],
         search_results_per_query: int = 10,
         top_k: int = 10,
+        explicit_params: dict[str, object] | None = None,
     ) -> tuple[list[dict[str, object]], str]:
         """Multi-query parallel search + deduplication + ranking (auto-selects optimal mode).
 
@@ -131,6 +193,8 @@ class WebSearchTools:
             questions: Query list (rewritten)
             search_results_per_query: Number of search results per query
             top_k: Final number of documents to return
+            explicit_params: Agent-level explicit search parameters (highest priority).
+                Supported keys: time_range, source_authority.
 
         Raises:
             ValueError: When all queries return 0 results
@@ -144,13 +208,20 @@ class WebSearchTools:
         start_time = time.perf_counter()
 
         provider = self._searcher.config.search_service
-        per_query_overrides: list[dict[str, str] | None] = []
+        normalized_explicit = _normalize_explicit_params(explicit_params, provider) if explicit_params else None
+
+        per_query_overrides: list[dict[str, str | int | bool] | None] = []
         bilibili_queries: list[str] = []
         for q in questions:
             intent_result = detect_search_intent(q)
             if intent_result.intent == SearchIntent.PLATFORM_BILIBILI:
                 bilibili_queries.append(q)
             override = resolve_search_params(intent_result, provider)
+
+            # Fusion: explicit_params > intent_optimizer > config.extra_params
+            if normalized_explicit:
+                override = {**(override or {}), **normalized_explicit}
+
             per_query_overrides.append(override)
             if override:
                 logger.info(

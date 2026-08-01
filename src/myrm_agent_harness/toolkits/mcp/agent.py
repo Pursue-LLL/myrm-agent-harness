@@ -11,8 +11,8 @@ Provides MCP tool fetching capabilities:
 - Auto-truncates excessively long tool descriptions to prevent token waste
 - Content block coercion: ``_coerce_content_block`` ensures only LLM-safe types (text, image) reach the API — ``file``, ``audio``, and unknown blocks are gracefully degraded to text, preventing 400 errors and session history poisoning
 - Content boundary defense: ``_timeout_wrapper`` applies ``wrap_untrusted()`` to MCP tool string outputs, ensuring third-party server data receives the same 5-layer content boundary protection (Unicode folding, structural framing strip, marker sanitization, random boundary, pattern detection) as all built-in tools
-- Upstream fault tolerance: ``_timeout_wrapper`` catches adapter-layer exceptions (NotImplementedError for AudioContent, ValueError for unknown types), returning readable error messages instead of crashing
-- Auth error detection: ``_timeout_wrapper`` catches ``httpx2.HTTPStatusError(401)`` from the MCP transport, returns a clear re-authorization message to the Agent, and emits ``MCPAuthExpiredEvent`` to trigger the existing toast/SSE notification chain
+- Upstream fault tolerance: ``_timeout_wrapper`` catches adapter-layer exceptions (NotImplementedError for AudioContent, ValueError for unknown types), returning ``redact_sensitive_text``-sanitized error messages instead of crashing — prevents third-party exception messages from leaking credentials
+- Auth error detection: ``_timeout_wrapper`` catches ``httpx2.HTTPStatusError(401)`` from the MCP transport, returns a clear re-authorization message to the Agent, and emits ``MCPAuthExpiredEvent`` (with redacted error detail) to trigger the existing toast/SSE notification chain
 - Extracts MCP structuredContent from artifacts as supplementary text blocks
 - Detects ext-apps ``_meta.ui.resourceUri`` and emits MCP App view events via progress_sink
 
@@ -25,6 +25,7 @@ Provides MCP tool fetching capabilities:
 - agent.streaming.types::AgentEventType (POS: Framework-agnostic streaming event types)
 - utils.runtime.progress_sink::get_tool_progress_sink (POS: Runtime tool progress event sink)
 - core.security.detection.content_boundary::wrap_untrusted (POS: 5-layer content boundary defense for MCP tool outputs)
+- core.security.redact::redact_sensitive_text (POS: Regex-based secret redaction for API keys, tokens, passwords in exception messages)
 - runtime.events::get_event_bus (wired via auth_notify at runtime import)
 - runtime.events.system_events::MCPAuthExpiredEvent (published by runtime handler)
 - httpx2::HTTPStatusError (POS: HTTP status error for 401 auth detection)
@@ -355,6 +356,7 @@ class MCPAgent:
         raises, the existing head-truncation logic is used as fallback.
         """
         from myrm_agent_harness.core.security.detection.content_boundary import wrap_untrusted
+        from myrm_agent_harness.core.security.redact import redact_sensitive_text
 
         for tool in tools:
             original_coroutine = tool.coroutine
@@ -391,7 +393,7 @@ class MCPAgent:
                 except (NotImplementedError, ValueError, TypeError) as exc:
                     error_msg = f"MCP tool '{_name}' returned unsupported content: {exc}"
                     logger.warning(error_msg)
-                    return error_msg
+                    return redact_sensitive_text(error_msg)
                 except Exception as exc:
                     if _is_mcp_auth_error(exc):
                         server = parse_mcp_tool_name(_name)

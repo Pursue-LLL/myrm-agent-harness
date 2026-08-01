@@ -2,8 +2,7 @@
 
 Zero-LLM-cost query intent classification that dynamically adjusts search
 engine parameters (categories, engines, time_range) for improved result
-relevance. Designed for SearxNG's 70+ engine ecosystem but provider-aware
-for Tavily/Exa/etc.
+relevance. Provider-aware for SearxNG, Tavily, and Volcengine Doubao.
 
 [INPUT]
 - (none)
@@ -209,11 +208,17 @@ _TAVILY_INTENT_PARAMS: dict[SearchIntent, dict[str, str]] = {
     SearchIntent.FINANCE: {"topic": "finance"},
 }
 
+_VOLCENGINE_DOUBAO_INTENT_PARAMS: dict[SearchIntent, dict[str, str | bool]] = {
+    SearchIntent.NEWS: {"TimeRange": "OneDay", "QueryRewrite": True},
+    SearchIntent.FINANCE: {"TimeRange": "OneWeek"},
+    SearchIntent.SECURITY: {"TimeRange": "OneWeek"},
+}
+
 
 def resolve_search_params(
     intent_result: SearchIntentResult,
     provider: SearchServiceType,
-) -> dict[str, str] | None:
+) -> dict[str, str | bool] | None:
     """Resolve optimal search parameters based on detected intent and provider.
 
     Returns None when no adjustment should be made (GENERAL intent or low confidence).
@@ -234,6 +239,8 @@ def resolve_search_params(
         return _SEARXNG_INTENT_PARAMS.get(intent_result.intent)
     elif provider == "tavily":
         return _TAVILY_INTENT_PARAMS.get(intent_result.intent)
+    elif provider == "volcengine_doubao":
+        return _VOLCENGINE_DOUBAO_INTENT_PARAMS.get(intent_result.intent)
 
     return None
 

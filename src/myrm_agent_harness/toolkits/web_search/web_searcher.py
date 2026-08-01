@@ -250,7 +250,7 @@ class WebSearcher:
         self,
         query: str,
         num_results: int = 5,
-        extra_params_override: dict[str, str] | None = None,
+        extra_params_override: dict[str, str | int | bool] | None = None,
     ) -> list[SearchResult]:
         """Search using configured search engine
 
@@ -390,7 +390,7 @@ class WebSearcher:
         self,
         query: str,
         num_results: int,
-        extra_params_override: dict[str, str] | None = None,
+        extra_params_override: dict[str, str | int | bool] | None = None,
     ) -> tuple[str, list[Document], Exception | None]:
         """Execute single query and process results for compound search
 
@@ -489,7 +489,7 @@ class WebSearcher:
         self,
         queries: list[str],
         results_per_query: int,
-        per_query_overrides: list[dict[str, str] | None] | None = None,
+        per_query_overrides: list[dict[str, str | int | bool] | None] | None = None,
     ) -> list[tuple[str, list[Document], Exception | None]]:
         """Multi-query parallel search
 

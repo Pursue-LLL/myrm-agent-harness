@@ -25,7 +25,7 @@ Contains:
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field, field_validator
@@ -134,6 +134,16 @@ Example:
 
 """.strip()
 
+    tool_description += """
+
+## Optional Search Parameters (set only when user explicitly requests)
+
+- time_range: Limit results to a time window. Values: 'day', 'week', 'month', 'year', or 'YYYY-MM-DD..YYYY-MM-DD' for a custom date range. Only set when user mentions "recent", "this week", "past month", a specific date range, etc.
+- source_authority: Set to "high" only when user explicitly requests official or authoritative sources. Provider-dependent; not all providers support this filter.
+
+⚠️ If search results are insufficient (Retrieval Sufficiency Notice), consider retrying with a narrower time_range or source_authority="high" to improve result quality.
+"""
+
     class WebSearchInput(BaseModel):
         questions: list[str] = Field(
             description="Search query list (1-5), must follow query rewriting rules, ensuring independence, self-containment, and multi-dimensionality",
@@ -143,6 +153,14 @@ Example:
         reason: str = Field(
             default="",
             description="Search rationale, express key information in minimal tokens, max 100 chars",
+        )
+        time_range: str | None = Field(
+            default=None,
+            description="Time range filter. Values: 'day', 'week', 'month', 'year', or 'YYYY-MM-DD..YYYY-MM-DD' for custom range. Only set when user explicitly mentions time constraints.",
+        )
+        source_authority: Literal["any", "high"] | None = Field(
+            default=None,
+            description="Source authority filter. 'high' = only authoritative sources (official/media). Only set when user explicitly requests authoritative sources.",
         )
 
         @field_validator("questions", mode="before")
@@ -155,7 +173,12 @@ Example:
             return v
 
     @tool("web_search_tool", description=tool_description, args_schema=WebSearchInput)
-    async def web_search_func(questions: list[str], reason: str = "") -> dict:
+    async def web_search_func(
+        questions: list[str],
+        reason: str = "",
+        time_range: str | None = None,
+        source_authority: Literal["any", "high"] | None = None,
+    ) -> dict:
         """Execute web search and return structured results.
 
         Returns: {"content": "...", "metadata": {...}}
@@ -166,12 +189,21 @@ Example:
         """
         from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
 
+        explicit_params: dict[str, object] | None = None
+        if time_range or (source_authority and source_authority != "any"):
+            explicit_params = {}
+            if time_range:
+                explicit_params["time_range"] = time_range
+            if source_authority == "high":
+                explicit_params["source_authority"] = "high"
+
         web_search = WebSearchTools(search_service_cfg, reranker_config=reranker_config)
         sources_metadata, formatted_context = (
             await web_search.fast_search_with_questions(
                 questions=questions,
                 search_results_per_query=10,
                 top_k=10,
+                explicit_params=explicit_params,
             )
         )
 

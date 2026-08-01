@@ -19,6 +19,7 @@ from myrm_agent_harness.toolkits.web_search.intent_optimizer import (
     _CONFIDENCE_THRESHOLD,
     _SEARXNG_INTENT_PARAMS,
     _TAVILY_INTENT_PARAMS,
+    _VOLCENGINE_DOUBAO_INTENT_PARAMS,
     KeywordSearchIntentDetector,
     SearchIntent,
     SearchIntentResult,
@@ -330,6 +331,36 @@ class TestResolveSearchParams:
     def test_perplexity_provider_returns_none(self):
         intent_result = SearchIntentResult(intent=SearchIntent.NEWS, confidence=0.9)
         params = resolve_search_params(intent_result, "perplexity")
+        assert params is None
+
+    # --- Volcengine Doubao provider ---
+    def test_volcengine_news_params(self):
+        intent_result = SearchIntentResult(intent=SearchIntent.NEWS, confidence=0.9)
+        params = resolve_search_params(intent_result, "volcengine_doubao")
+        assert params == _VOLCENGINE_DOUBAO_INTENT_PARAMS[SearchIntent.NEWS]
+        assert params["TimeRange"] == "OneDay"
+        assert params["QueryRewrite"] is True
+
+    def test_volcengine_finance_params(self):
+        intent_result = SearchIntentResult(intent=SearchIntent.FINANCE, confidence=0.8)
+        params = resolve_search_params(intent_result, "volcengine_doubao")
+        assert params is not None
+        assert params["TimeRange"] == "OneWeek"
+
+    def test_volcengine_security_params(self):
+        intent_result = SearchIntentResult(intent=SearchIntent.SECURITY, confidence=0.8)
+        params = resolve_search_params(intent_result, "volcengine_doubao")
+        assert params is not None
+        assert params["TimeRange"] == "OneWeek"
+
+    def test_volcengine_code_returns_none(self):
+        intent_result = SearchIntentResult(intent=SearchIntent.CODE, confidence=0.9)
+        params = resolve_search_params(intent_result, "volcengine_doubao")
+        assert params is None
+
+    def test_volcengine_general_returns_none(self):
+        intent_result = SearchIntentResult(intent=SearchIntent.GENERAL, confidence=1.0)
+        params = resolve_search_params(intent_result, "volcengine_doubao")
         assert params is None
 
 

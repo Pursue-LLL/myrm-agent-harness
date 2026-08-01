@@ -54,7 +54,7 @@ async def search_provider_chain(
     num_results: int,
     *,
     metrics: WebSearchMetrics | None = None,
-    extra_params_override: dict[str, str] | None = None,
+    extra_params_override: dict[str, str | int | bool] | None = None,
 ) -> tuple[list[SearchResult], str]:
     """Search using a priority-ordered provider chain.
 
