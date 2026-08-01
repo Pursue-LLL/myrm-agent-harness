@@ -5,6 +5,7 @@ Public API:
 - Protocol: AgentExecutor
 - Assertions: ToolAssertion, evaluate_tool_assertions
 - Runner: EvalRunner
+- Matrix: MatrixRunner, MatrixResult, MatrixCellResult
 - Loader: load_cases, load_multi_turn_cases
 """
 
@@ -16,6 +17,7 @@ from .assertions import (
 )
 from .builder import build_skill_eval_cases, extract_case_from_trajectory
 from .loader import load_cases, load_multi_turn_cases
+from .matrix import MatrixCellResult, MatrixResult, MatrixRunner
 from .protocols import (
     AgentExecutor,
     AgentResponse,
@@ -43,6 +45,9 @@ __all__ = [
     "EvalTurnResult",
     "JsonlReporter",
     "MarkdownReporter",
+    "MatrixCellResult",
+    "MatrixResult",
+    "MatrixRunner",
     "MultiTurnEvalCase",
     "OnTurnFail",
     "SandboxAssertion",

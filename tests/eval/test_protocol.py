@@ -134,6 +134,29 @@ class TestEvalManifest:
         with pytest.raises(AttributeError):
             m.model_id = "other"  # type: ignore[misc]
 
+    def test_defaults_profile_and_benchmark(self) -> None:
+        m = self._make_manifest()
+        assert m.profile_id == "default"
+        assert m.benchmark_mode is False
+
+    def test_custom_profile_and_benchmark(self) -> None:
+        m = EvalManifest(
+            model_provider="openai",
+            model_id="gpt-4o",
+            harness_version="0.1.0",
+            tool_policy=(),
+            task_set_id="ds-1",
+            task_set_hash="abc",
+            prompt_fingerprint="sha256:00",
+            budget_max_tokens=2048,
+            timeout_seconds=60,
+            created_at="2026-08-01T00:00:00+00:00",
+            profile_id="my-agent",
+            benchmark_mode=True,
+        )
+        assert m.profile_id == "my-agent"
+        assert m.benchmark_mode is True
+
     def test_to_dict_structure(self) -> None:
         m = self._make_manifest()
         d = m.to_dict()
@@ -148,6 +171,27 @@ class TestEvalManifest:
         assert d["budget_max_tokens"] == 4096
         assert d["timeout_seconds"] == 120
         assert d["created_at"] == "2026-07-25T14:00:00+00:00"
+        assert d["profile_id"] == "default"
+        assert d["benchmark_mode"] is False
+
+    def test_to_dict_with_custom_profile(self) -> None:
+        m = EvalManifest(
+            model_provider="anthropic",
+            model_id="claude-4",
+            harness_version="0.2.0",
+            tool_policy=("web_search",),
+            task_set_id="ds-2",
+            task_set_hash="def",
+            prompt_fingerprint="sha256:ff",
+            budget_max_tokens=8192,
+            timeout_seconds=300,
+            created_at="2026-08-01T12:00:00+00:00",
+            profile_id="research-agent",
+            benchmark_mode=True,
+        )
+        d = m.to_dict()
+        assert d["profile_id"] == "research-agent"
+        assert d["benchmark_mode"] is True
 
     def test_eval_result_manifest_none_by_default(self) -> None:
         r = EvalResult()

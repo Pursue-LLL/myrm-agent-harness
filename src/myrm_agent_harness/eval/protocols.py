@@ -138,6 +138,8 @@ class EvalManifest:
     timeout_seconds: int
     created_at: str
     thinking_effort: str = "default"
+    profile_id: str = "default"
+    benchmark_mode: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -152,6 +154,8 @@ class EvalManifest:
             "budget_max_tokens": self.budget_max_tokens,
             "timeout_seconds": self.timeout_seconds,
             "created_at": self.created_at,
+            "profile_id": self.profile_id,
+            "benchmark_mode": self.benchmark_mode,
         }
 
 
