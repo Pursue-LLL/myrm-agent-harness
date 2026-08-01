@@ -297,47 +297,13 @@ class TestFilterProcessor:
             assert "stdout chunk" in str(tool_msg.content)
 
     @pytest.mark.asyncio
-    async def test_process_turn_aggregate_filters_latest_parallel_tools(self) -> None:
-        fp = FilterProcessor()
-        large_chunk = "word " * 8_000
-        ctx = _make_context(
-            [
-                HumanMessage(content="hi"),
-                AIMessage(
-                    content="parallel tools",
-                    tool_calls=[
-                        {"id": "t1", "name": "grep_tool", "args": {}},
-                        {"id": "t2", "name": "grep_tool", "args": {}},
-                    ],
-                ),
-                ToolMessage(content=large_chunk, tool_call_id="t1", name="grep_tool"),
-                ToolMessage(content=large_chunk, tool_call_id="t2", name="grep_tool"),
-            ]
-        )
+    async def test_aggregate_does_not_mutate_medium_messages(self) -> None:
+        """Medium tool results below single-message threshold stay intact.
 
-        with (
-            patch(
-                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.persist_large_tool_output",
-                new_callable=AsyncMock,
-                return_value="/tmp/saved.txt",
-            ),
-            patch(
-                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.create_filtered_result",
-                new_callable=AsyncMock,
-                return_value=type("R", (), {"estimated_tokens": 4000, "structured_summary": "summary"})(),
-            ),
-            patch(
-                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.format_filtered_message",
-                return_value="[Filtered] aggregate",
-            ),
-        ):
-            result = await fp.process(ctx)
-
-        assert result.tokens_saved > 0
-        assert "[Filtered]" in str(result.messages[-1].content)
-
-    @pytest.mark.asyncio
-    async def test_process_turn_aggregate_filters_medium_parallel_tools(self) -> None:
+        Ensures prefix cache stability: multiple medium ToolMessages whose
+        combined size exceeds 15k tokens must NOT be truncated, preserving
+        the prompt prefix for LLM cache hits.
+        """
         fp = FilterProcessor()
         medium_chunk = "word " * 3_500
         ctx = _make_context(
@@ -361,26 +327,12 @@ class TestFilterProcessor:
             ]
         )
 
-        with (
-            patch(
-                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.persist_large_tool_output",
-                new_callable=AsyncMock,
-                return_value="/tmp/saved.txt",
-            ),
-            patch(
-                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.create_filtered_result",
-                new_callable=AsyncMock,
-                return_value=type("R", (), {"estimated_tokens": 2000, "structured_summary": "summary"})(),
-            ),
-            patch(
-                "myrm_agent_harness.agent.context_management.pipeline.processors.filter_processor.format_filtered_message",
-                return_value="[Filtered] medium aggregate",
-            ),
-        ):
-            result = await fp.process(ctx)
+        result = await fp.process(ctx)
 
-        assert result.tokens_saved > 0
-        assert any("[Filtered]" in str(msg.content) for msg in result.messages if isinstance(msg, ToolMessage))
+        tool_msgs = [m for m in result.messages if isinstance(m, ToolMessage)]
+        for msg in tool_msgs:
+            assert msg.content == medium_chunk, "Medium message was mutated — prefix cache would break"
+        assert result.tokens_saved == 0
 
     @pytest.mark.asyncio
     async def test_process_skips_zero_savings_single_tool(self) -> None:

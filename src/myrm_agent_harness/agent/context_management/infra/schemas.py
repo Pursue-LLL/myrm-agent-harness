@@ -106,9 +106,6 @@ class ContextConfig:
     # Layer 1: single tool result truncation threshold (model-independent)
     tool_result_evict_threshold: int = 5000
 
-    # Layer 1.5: per-turn aggregate tool result threshold (prevents concurrent tools from blowing up)
-    turn_aggregate_evict_threshold: int = 15000
-
     # Minimum compression savings (Prompt Cache protection, model-independent)
     compress_min_save: int = 3000
 

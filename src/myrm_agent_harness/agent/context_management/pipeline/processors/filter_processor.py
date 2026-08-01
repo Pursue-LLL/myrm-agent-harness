@@ -27,7 +27,6 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import ToolMessage
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
-from myrm_agent_harness.utils.text_utils import get_token_count
 
 from ...infra.retention_helpers import (
     build_tool_call_group_by_id,
@@ -93,7 +92,6 @@ class FilterProcessor(BaseProcessor):
         return "filter"
 
     async def should_process(self, context: ProcessorContext) -> bool:
-        # Check single-tool limit
         for msg in context.messages:
             if isinstance(msg, ToolMessage):
                 content = msg.content if isinstance(msg.content, str) else ""
@@ -101,24 +99,7 @@ class FilterProcessor(BaseProcessor):
                     content, threshold=self.context_config.tool_result_evict_threshold
                 ):
                     return True
-
-        # Check aggregate limit for the latest turn
-        latest_turn_msgs = self._get_latest_turn_tool_messages(context.messages)
-        aggregate_tokens = sum(
-            get_token_count(msg.content if isinstance(msg.content, str) else "")
-            for msg in latest_turn_msgs
-        )
-        return aggregate_tokens > self.context_config.turn_aggregate_evict_threshold
-
-    def _get_latest_turn_tool_messages(self, messages: list) -> list[ToolMessage]:
-        """Get the contiguous block of ToolMessages at the end of the history."""
-        turn_msgs = []
-        for msg in reversed(messages):
-            if isinstance(msg, ToolMessage):
-                turn_msgs.append(msg)
-            else:
-                break
-        return turn_msgs[::-1]
+        return False
 
     async def process(self, context: ProcessorContext) -> ProcessorContext:
         # Prompt Cache preservation: Skip filter during Resume or HITL session
@@ -176,68 +157,6 @@ class FilterProcessor(BaseProcessor):
                         retained_count += 1
                     else:
                         filtered_count += 1
-
-        # 2. Turn-level aggregate filtering
-        latest_turn_msgs = self._get_latest_turn_tool_messages(context.messages)
-
-        # Filter out protected and retained messages from aggregate consideration
-        unprotected_turn_msgs = [
-            m
-            for m in latest_turn_msgs
-            if not (m.name and self.protection_config.is_protected(m.name))
-            and not should_retain_tool_message(
-                m,
-                failed_tool_call_ids,
-                focus_files=focus_files,
-                focus_modules=focus_modules,
-                user_goal_hint=user_goal_hint,
-                group=_tool_call_group(group_by_tool_call_id, m),
-            )
-        ]
-
-        # Calculate current aggregate tokens
-        def _get_tokens(m: ToolMessage) -> int:
-            return get_token_count(m.content if isinstance(m.content, str) else "")
-
-        aggregate_tokens = sum(_get_tokens(m) for m in unprotected_turn_msgs)
-
-        if aggregate_tokens > self.context_config.turn_aggregate_evict_threshold:
-            # Sort messages by size descending
-            unprotected_turn_msgs.sort(key=_get_tokens, reverse=True)
-
-            for msg in unprotected_turn_msgs:
-                if (
-                    aggregate_tokens
-                    <= self.context_config.turn_aggregate_evict_threshold
-                ):
-                    break
-
-                content = msg.content if isinstance(msg.content, str) else ""
-                # Skip if already filtered by single-tool limit
-                if "LARGE OUTPUT TRUNCATED" in content or "RETAINED TOOL OUTPUT" in content:
-                    continue
-
-                msg_tokens = _get_tokens(msg)
-
-                saved, _retained = await self._filter_tool_message(
-                    msg=msg,
-                    content=content,
-                    failed_tool_call_ids=failed_tool_call_ids,
-                    focus_files=focus_files,
-                    focus_modules=focus_modules,
-                    user_goal_hint=user_goal_hint,
-                    group=_tool_call_group(group_by_tool_call_id, msg),
-                    filter_llm=filter_llm,
-                    user_query=context.user_query,
-                )
-                if saved <= 0:
-                    continue
-
-                filtered_count += 1
-                total_saved += saved
-
-                # Update aggregate tokens (subtract original, add preview size)
-                aggregate_tokens = aggregate_tokens - msg_tokens + _get_tokens(msg)
 
         if filtered_count > 0 or protected_count > 0 or retained_count > 0:
             log_parts = []
