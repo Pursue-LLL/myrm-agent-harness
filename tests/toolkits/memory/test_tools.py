@@ -794,3 +794,81 @@ class TestParseStringList:
         from myrm_agent_harness.toolkits.memory.memory_agent_tools import _parse_string_list
 
         assert _parse_string_list("{not json}") == ["{not json}"]
+
+
+class TestSearchDescriptionConditionalization:
+    """Verify tool description conditionalizes web corpus based on policy."""
+
+    @staticmethod
+    def _get_search_tool(allow_web: bool):
+        from unittest.mock import DEFAULT, AsyncMock
+
+        from myrm_agent_harness.toolkits.memory.config import MemoryConfig
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+        from myrm_agent_harness.toolkits.memory.memory_search_policy import (
+            MemorySearchPolicy,
+        )
+
+        config = MemoryConfig(
+            embedding_model="test-model",
+            collection_prefix="test_desc",
+            bm25_top_k=50,
+            bm25_max_corpus_size=5000,
+        )
+        vector = AsyncMock()
+        vector.count = AsyncMock(return_value=0)
+        vector.scroll = AsyncMock(return_value=([], None))
+        vector.search = AsyncMock(return_value=[])
+        embedding = AsyncMock()
+        embedding.embed = AsyncMock(return_value=[0.1] * 768)
+        embedding.dimension = 768
+        manager = MemoryManager(config, user_id="test_user", vector=vector, embedding=embedding)
+        tools = create_memory_tools(
+            manager,
+            search_policy=MemorySearchPolicy(allow_web=allow_web),
+        )
+        return next(t for t in tools if t.name == "memory_search_tool")
+
+    def test_web_hidden_when_disabled(self):
+        tool = self._get_search_tool(allow_web=False)
+        desc = tool.description
+        assert "corpus=web" not in desc
+        assert "web corpus" not in desc
+        assert "previously fetched web pages" not in desc
+
+    def test_web_visible_when_enabled(self):
+        tool = self._get_search_tool(allow_web=True)
+        desc = tool.description
+        assert "corpus=web" in desc or "web:" in desc
+        assert "web corpus" in desc or "web pages" in desc
+
+    def test_all_corpus_always_present(self):
+        for allow_web in (True, False):
+            tool = self._get_search_tool(allow_web=allow_web)
+            assert "all:" in tool.description
+
+    def test_sessions_wiki_always_visible(self):
+        tool = self._get_search_tool(allow_web=False)
+        desc = tool.description
+        assert "sessions:" in desc
+        assert "wiki:" in desc
+
+    @pytest.mark.asyncio
+    async def test_web_corpus_rejected_at_runtime_when_disabled(self):
+        """Even if Agent bypasses description and passes corpus=web, runtime rejects."""
+        tool = self._get_search_tool(allow_web=False)
+        result = await tool.ainvoke({"query": "test", "corpus": "web"})
+        assert "not enabled" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_web_corpus_backend_none_returns_unavailable(self):
+        """When allow_web=True but no backend, graceful fallback."""
+        tool = self._get_search_tool(allow_web=True)
+        result = await tool.ainvoke({"query": "test", "corpus": "web"})
+        assert "not available" in result.lower()
+
+    def test_description_no_stray_web_references_when_disabled(self):
+        """Exhaustive check: no 'web' substring at all when disabled."""
+        tool = self._get_search_tool(allow_web=False)
+        desc_lower = tool.description.lower()
+        assert "web" not in desc_lower

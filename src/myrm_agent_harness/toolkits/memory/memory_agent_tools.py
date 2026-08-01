@@ -96,7 +96,41 @@ def create_memory_tools(
     backends = search_backends or MemorySearchBackends()
     tools: list[object] = []
 
-    @tool("memory_search_tool")
+    _corpus_lines = [
+        "- memory (default): durable facts, preferences, profile, learned rules",
+        "- sessions: prior chat snippets and summaries (when enabled)",
+        "- wiki: agent wiki vault content (when enabled)",
+    ]
+    _tip_lines = [
+        "- Be specific: \"user's Python framework preference\" not just \"Python\"",
+        "- Filter categories for memory corpus: knowledge, claim, event, preference, rule",
+        "- Use profile_key for instant attribute lookup (memory corpus only)",
+        "- Use since/until for time-scoped queries (7d, 2w, 1m, 24h, 1y, or ISO 8601)",
+        "- For recent chats without a query, use corpus=sessions with query=\"*\"",
+    ]
+    if policy.allow_web:
+        _corpus_lines.append(
+            "- web: previously fetched/searched web pages (when enabled)"
+        )
+        _tip_lines.append(
+            "- Use corpus=web to re-query pages you've already searched or fetched"
+        )
+    _corpus_lines.append("- all: search every corpus enabled for this agent")
+
+    _search_description = (
+        "Unified search across long-term memory, wiki, prior conversations"
+        + (", and web corpus" if policy.allow_web else "")
+        + ".\n\n"
+        "Use when the user's question relates to personal context, preferences, wiki docs"
+        + (", previously fetched web pages," if policy.allow_web else ",")
+        + " or earlier chat evidence.\n\n"
+        "**Corpus guide**:\n"
+        + "\n".join(_corpus_lines)
+        + "\n\n**Search tips**:\n"
+        + "\n".join(_tip_lines)
+    )
+
+    @tool("memory_search_tool", description=_search_description)
     async def memory_search(
         query: str,
         corpus: MemorySearchCorpus = "memory",
@@ -106,26 +140,7 @@ def create_memory_tools(
         since: str | None = None,
         until: str | None = None,
     ) -> str:
-        """Unified search across long-term memory, wiki, prior conversations, and web corpus.
-
-        Use when the user's question relates to personal context, preferences, wiki docs,
-        previously fetched web pages, or earlier chat evidence.
-
-        **Corpus guide**:
-        - memory (default): durable facts, preferences, profile, learned rules
-        - sessions: prior chat snippets and summaries (when enabled)
-        - wiki: agent wiki vault content (when enabled)
-        - web: previously fetched/searched web pages (when enabled)
-        - all: search every corpus enabled for this agent
-
-        **Search tips**:
-        - Be specific: "user's Python framework preference" not just "Python"
-        - Filter categories for memory corpus: knowledge, claim, event, preference, rule
-        - Use profile_key for instant attribute lookup (memory corpus only)
-        - Use since/until for time-scoped queries (7d, 2w, 1m, 24h, 1y, or ISO 8601)
-        - For recent chats without a query, use corpus=sessions with query="*"
-        - Use corpus=web to re-query pages you've already searched or fetched
-        """
+        """Search long-term memory."""
         if profile_key:
             if corpus not in ("memory", "all"):
                 return "profile_key lookup is only supported for corpus=memory."
