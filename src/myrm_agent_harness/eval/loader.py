@@ -29,6 +29,7 @@ Expected JSON format for multi-turn:
       {"message": "Hello", "expected_tools": []},
       {"message": "Search for X", "expected_tools": ["web_search"]}
     ],
+    "on_turn_fail": "abort",
     "metadata": {"scenario": "greeting_then_search"}
   }
 ]
@@ -54,12 +55,17 @@ def load_multi_turn_cases(path: str | Path) -> list[MultiTurnEvalCase]:
     result = []
     for item in data:
         if "turns" in item:
-            result.append(
-                MultiTurnEvalCase(
-                    turns=[_parse_case(t) for t in item["turns"]],
-                    metadata=item.get("metadata", {}),
-                )
-            )
+            kwargs: dict[str, object] = {
+                "turns": [_parse_case(t) for t in item["turns"]],
+                "metadata": item.get("metadata", {}),
+            }
+            if "on_turn_fail" in item:
+                otf = item["on_turn_fail"]
+                if otf not in ("continue", "skip_remaining", "abort"):
+                    msg = f"on_turn_fail must be 'continue', 'skip_remaining', or 'abort', got: {otf!r}"
+                    raise ValueError(msg)
+                kwargs["on_turn_fail"] = otf
+            result.append(MultiTurnEvalCase(**kwargs))
         else:
             result.append(
                 MultiTurnEvalCase(

@@ -9,8 +9,9 @@
 
 [POS]
 Orchestrates eval execution. Supports concurrent case execution via asyncio.Semaphore,
-optional progress callbacks, and graceful error handling (single case failure does not
-abort the entire run). Framework-only — no business-layer imports.
+optional progress callbacks, configurable multi-turn on_turn_fail strategy
+(continue/skip_remaining/abort), and graceful error handling (single case failure
+does not abort the entire run). Framework-only — no business-layer imports.
 """
 
 from __future__ import annotations
@@ -115,7 +116,11 @@ class EvalRunner:
         semaphore = self._yielding_strategy or asyncio.Semaphore(self._max_concurrency)
 
         async def _run_one_multi(mt_case: MultiTurnEvalCase) -> list[EvalTurnResult]:
+            if self._abort_requested:
+                return []
             async with semaphore:
+                if self._abort_requested:
+                    return []
                 return await self._execute_multi_turn(mt_case)
 
         nested_results = await asyncio.gather(
@@ -210,11 +215,22 @@ class EvalRunner:
         self,
         mt_case: MultiTurnEvalCase,
     ) -> list[EvalTurnResult]:
-        """Execute a multi-turn case — turns are sequential within a session."""
+        """Execute a multi-turn case — turns are sequential within a session.
+
+        Respects ``mt_case.on_turn_fail`` strategy when a turn's assertion
+        fails (``assertion_passed is False``):
+        - ``continue``       — run all remaining turns regardless (default).
+        - ``skip_remaining`` — mark unexecuted turns as skipped and stop.
+        - ``abort``          — stop immediately, do not emit skipped turns.
+
+        Execution errors (``result.error is not None``) always abort the
+        session regardless of the strategy setting.
+        """
         session_id = await self._executor.create_session()
         results: list[EvalTurnResult] = []
+        strategy = mt_case.on_turn_fail
 
-        for turn in mt_case.turns:
+        for idx, turn in enumerate(mt_case.turns):
             result = await self._execute_single(turn, session_id=session_id)
             results.append(result)
 
@@ -224,6 +240,27 @@ class EvalRunner:
                     session_id,
                     len(results),
                 )
+                break
+
+            if result.assertion_passed is False and strategy != "continue":
+                remaining = len(mt_case.turns) - idx - 1
+                logger.info(
+                    "Multi-turn session %s: turn %d assertion failed, "
+                    "strategy=%s, %d remaining turns",
+                    session_id,
+                    idx + 1,
+                    strategy,
+                    remaining,
+                )
+                if strategy == "skip_remaining":
+                    for skipped_turn in mt_case.turns[idx + 1 :]:
+                        skipped = EvalTurnResult(
+                            case=skipped_turn,
+                            response=AgentResponse(answer=""),
+                            assertion_details="skipped: prior turn assertion failed",
+                        )
+                        results.append(skipped)
+                        self._notify(skipped)
                 break
 
         return results

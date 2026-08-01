@@ -4,7 +4,8 @@
 
 [OUTPUT]
 - EvalCase: test case definition
-- MultiTurnEvalCase: multi-turn test case definition
+- MultiTurnEvalCase: multi-turn test case definition (with on_turn_fail strategy)
+- OnTurnFail: type alias for multi-turn failure strategy
 - EvalManifest: frozen environment snapshot for evaluation reproducibility
 - EvalTurnResult: single-turn result
 - EvalResult: aggregate result with reporting
@@ -25,7 +26,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
@@ -73,11 +74,15 @@ class EvalCase:
     metadata: dict[str, str] = field(default_factory=dict)
 
 
+OnTurnFail = Literal["continue", "skip_remaining", "abort"]
+
+
 @dataclass(frozen=True, slots=True)
 class MultiTurnEvalCase:
     """Multi-turn eval test case — ordered sequence of turns."""
 
     turns: list[EvalCase]
+    on_turn_fail: OnTurnFail = "continue"
     metadata: dict[str, str] = field(default_factory=dict)
 
 

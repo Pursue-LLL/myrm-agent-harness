@@ -118,6 +118,40 @@ class TestLoadMultiTurnCases:
         assert cases[0].turns[1].expected_tools == ["web_search"]
         assert cases[0].metadata == {"scenario": "greeting_search"}
 
+    def test_multi_turn_with_on_turn_fail(self, tmp_path: Path) -> None:
+        data = [
+            {
+                "turns": [
+                    {"message": "t1"},
+                    {"message": "t2", "expected_tools": ["web_search"]},
+                ],
+                "on_turn_fail": "abort",
+                "metadata": {"scenario": "early_stop"},
+            }
+        ]
+        path = tmp_path / "mt_abort.json"
+        path.write_text(json.dumps(data))
+
+        cases = load_multi_turn_cases(path)
+        assert len(cases) == 1
+        assert cases[0].on_turn_fail == "abort"
+
+    def test_multi_turn_invalid_on_turn_fail(self, tmp_path: Path) -> None:
+        data = [{"turns": [{"message": "t1"}], "on_turn_fail": "invalid"}]
+        path = tmp_path / "mt_bad.json"
+        path.write_text(json.dumps(data))
+
+        with pytest.raises(ValueError, match="on_turn_fail"):
+            load_multi_turn_cases(path)
+
+    def test_multi_turn_default_on_turn_fail(self, tmp_path: Path) -> None:
+        data = [{"turns": [{"message": "t1"}]}]
+        path = tmp_path / "mt_default.json"
+        path.write_text(json.dumps(data))
+
+        cases = load_multi_turn_cases(path)
+        assert cases[0].on_turn_fail == "continue"
+
     def test_empty_turns(self, tmp_path: Path) -> None:
         path = tmp_path / "mt.json"
         path.write_text(json.dumps([{"turns": []}]))

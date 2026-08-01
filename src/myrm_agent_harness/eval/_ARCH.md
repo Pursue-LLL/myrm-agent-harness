@@ -22,9 +22,9 @@ Business wiring (AgentFactory, background jobs, GUI flywheel) lives in **`myrm-a
 | assertions.py | Core | Multi-type assertion engine: tool, state (contains/not_contains/regex/json_valid/json_schema/custom_python/jaccard), sandbox, semantic (LLM-as-a-Judge with custom prompt/model + threshold soft-scoring). | ✅ |
 | builder.py | Core | Captures agent trajectories and transforms them into reusable EvalCases. Provides `build_skill_eval_cases` for lightweight regression test generation bound to SkillRecord. | ✅ |
 | loader.py | Core | Convenience utilities for loading eval cases from JSON files. | ✅ |
-| protocols.py | Core | Defines the eval framework's type system (EvalCase, MultiTurnEvalCase, EvalManifest for environment reproducibility snapshots, SemanticAssertion with judge_prompt/judge_model/threshold, AgentResponse with token_usage/cost) and the AgentExecutor protocol. | ✅ |
+| protocols.py | Core | Defines the eval framework's type system (EvalCase, MultiTurnEvalCase with on_turn_fail strategy, OnTurnFail, EvalManifest for environment reproducibility snapshots, SemanticAssertion with judge_prompt/judge_model/threshold, AgentResponse with token_usage/cost) and the AgentExecutor protocol. | ✅ |
 | reporters.py | Core | Out-of-the-box JSONL (with time_secs, usage, avg aggregates) and Markdown reporting. | ✅ |
-| runner.py | Core | Orchestrates eval execution. Supports concurrent case execution via asyncio.Semaphore, progress callbacks, single/multi-turn scenarios. | ✅ |
+| runner.py | Core | Orchestrates eval execution. Supports concurrent case execution via asyncio.Semaphore, progress callbacks, single/multi-turn scenarios with configurable `on_turn_fail` strategy (continue/skip_remaining/abort). | ✅ |
 | metrics.py | Core | Pure IR metric functions: recall@k, precision@k, ndcg@k, mrr, hit_rate, latency_percentile. Reusable across eval submodules. | ✅ |
 
 | Submodule | Description |

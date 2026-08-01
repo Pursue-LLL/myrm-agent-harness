@@ -103,10 +103,13 @@ class TestFormatRulesContent:
 
 
 class TestWorkspaceRulesMiddleware:
-    def test_sync_wrap_raises(self) -> None:
+    def test_sync_wrap_passes_through(self) -> None:
         mw = WorkspaceRulesMiddleware()
-        with pytest.raises(NotImplementedError):
-            mw.wrap_model_call(MagicMock(), MagicMock())
+        handler = MagicMock(return_value="response")
+        request = MagicMock()
+        result = mw.wrap_model_call(request, handler)
+        handler.assert_called_once_with(request)
+        assert result == "response"
 
     @pytest.mark.asyncio
     async def test_skips_when_already_injected(self) -> None:

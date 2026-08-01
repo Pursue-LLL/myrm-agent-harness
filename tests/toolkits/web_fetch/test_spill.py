@@ -40,7 +40,7 @@ async def test_spill_skips_small_content() -> None:
 @pytest.mark.asyncio
 async def test_spill_truncates_and_persists_large_content(tmp_path) -> None:
     workspace = tmp_path
-    chat_id = "chat_test_1"
+    chat_id = "spill_test_1"
     token = workspace_root_var.set(str(workspace))
     chat_token = chat_id_var.set(chat_id)
     try:
@@ -62,7 +62,7 @@ async def test_spill_persist_failure_still_returns_preview(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     workspace = tmp_path
-    chat_id = "chat_persist_fail"
+    chat_id = "persist_fail_test"
     token = workspace_root_var.set(str(workspace))
     chat_token = chat_id_var.set(chat_id)
 

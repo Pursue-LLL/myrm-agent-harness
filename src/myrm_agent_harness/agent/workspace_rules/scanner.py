@@ -131,9 +131,9 @@ def _check_content_safety(content: str, filepath: str) -> tuple[bool, list[str]]
 def _strip_yaml_frontmatter(text: str) -> str:
     """Remove optional YAML frontmatter (``---`` delimited) from rule content.
 
-    Frontmatter may contain structured config (model overrides, tool
-    settings) that is handled separately. Only the human-readable body
-    is injected into the system prompt.
+    Frontmatter is stripped to avoid injecting non-human-readable
+    structured metadata (e.g. IDE-specific globs, model overrides) into
+    the system prompt. Only the prose body is injected.
     """
     if text.startswith("---"):
         end = text.find("\n---", 3)

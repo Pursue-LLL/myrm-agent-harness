@@ -360,6 +360,133 @@ class TestFormatDocumentsWithMetadata:
         assert sources[0]["snippet"] == "短摘要"
         assert sources[0]["summary"] == "NeedSummary 长摘要内容"
 
+    def test_site_name_authority_passthrough(self):
+        """site_name and authority_description are forwarded to sources metadata for LinkPopover."""
+        doc = Document(
+            page_content="内容",
+            metadata={
+                "url": "https://example.com",
+                "snippet": "摘要",
+                "site_name": "GitHub",
+                "authority_description": "官方",
+            },
+        )
+        sources, _context, _ = format_documents_with_metadata([doc])
+        assert sources[0]["site_name"] == "GitHub"
+        assert sources[0]["authority_description"] == "官方"
+
+    def test_site_name_authority_absent(self):
+        """Missing site_name/authority_description should not appear in sources entry."""
+        doc = Document(
+            page_content="内容",
+            metadata={"url": "https://example.com", "snippet": "摘要"},
+        )
+        sources, _context, _ = format_documents_with_metadata([doc])
+        assert "site_name" not in sources[0]
+        assert "authority_description" not in sources[0]
+
+    def test_site_name_empty_string_excluded(self):
+        """Empty-string site_name/authority_description must not appear in entry."""
+        doc = Document(
+            page_content="内容",
+            metadata={
+                "url": "https://example.com",
+                "snippet": "摘要",
+                "site_name": "",
+                "authority_description": "",
+            },
+        )
+        sources, _context, _ = format_documents_with_metadata([doc])
+        assert "site_name" not in sources[0]
+        assert "authority_description" not in sources[0]
+
+    def test_site_name_preserved_on_url_dedup(self):
+        """URL dedup keeps the first doc's site_name (later docs with same URL ignored)."""
+        docs = [
+            Document(
+                page_content="片段1",
+                metadata={
+                    "url": "https://same.com",
+                    "snippet": "s",
+                    "site_name": "First",
+                    "authority_description": "官方",
+                },
+            ),
+            Document(
+                page_content="片段2",
+                metadata={
+                    "url": "https://same.com",
+                    "snippet": "s",
+                    "site_name": "Second",
+                },
+            ),
+        ]
+        sources, _context, _ = format_documents_with_metadata(docs)
+        assert len(sources) == 1
+        assert sources[0]["site_name"] == "First"
+        assert sources[0]["authority_description"] == "官方"
+
+    def test_mixed_site_name_presence(self):
+        """Some docs have site_name, others don't — each entry independent."""
+        docs = [
+            Document(
+                page_content="有site_name",
+                metadata={
+                    "url": "https://a.com",
+                    "snippet": "s",
+                    "site_name": "GitHub",
+                },
+            ),
+            Document(
+                page_content="无site_name",
+                metadata={"url": "https://b.com", "snippet": "s"},
+            ),
+            Document(
+                page_content="有authority",
+                metadata={
+                    "url": "https://c.com",
+                    "snippet": "s",
+                    "authority_description": "权威",
+                },
+            ),
+        ]
+        sources, _context, _ = format_documents_with_metadata(docs)
+        assert len(sources) == 3
+        assert sources[0]["site_name"] == "GitHub"
+        assert "authority_description" not in sources[0]
+        assert "site_name" not in sources[1]
+        assert "authority_description" not in sources[1]
+        assert "site_name" not in sources[2]
+        assert sources[2]["authority_description"] == "权威"
+
+    def test_site_name_survives_truncation(self):
+        """Under token budget truncation, remaining docs keep site_name."""
+        docs = [
+            Document(
+                page_content="重要内容 " * 50,
+                metadata={
+                    "url": "https://a.com",
+                    "snippet": "s",
+                    "site_name": "Official",
+                    "authority_description": "权威来源",
+                },
+            ),
+            Document(
+                page_content="次要内容 " * 50,
+                metadata={
+                    "url": "https://b.com",
+                    "snippet": "s",
+                    "site_name": "Blog",
+                },
+            ),
+        ]
+        sources, _context, stats = format_documents_with_metadata(
+            docs, total_max_tokens=500
+        )
+        assert len(sources) >= 1
+        assert sources[0]["site_name"] == "Official"
+        assert sources[0]["authority_description"] == "权威来源"
+
 
 class TestWrappers:
     """测试安全边界包装"""

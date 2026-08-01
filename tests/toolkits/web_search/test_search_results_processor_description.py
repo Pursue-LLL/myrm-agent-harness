@@ -141,6 +141,33 @@ class TestSiteNameAndAuthorityPassthrough:
         assert "site_name" not in docs[0].metadata
         assert "authority_description" not in docs[0].metadata
 
+    def test_full_chain_to_sources_metadata(self) -> None:
+        """End-to-end: SearchResult → Document → format_documents_with_metadata → sources_metadata."""
+        from myrm_agent_harness.utils.context_format import format_documents_with_metadata
+
+        results = [
+            SearchResult(
+                title="GitHub Docs",
+                link="https://docs.github.com",
+                snippet="GitHub documentation",
+                site_name="GitHub",
+                authority_description="官方",
+            ),
+            SearchResult(
+                title="Blog Post",
+                link="https://blog.example.com",
+                snippet="A blog post",
+            ),
+        ]
+        docs = search_results_to_documents(results)
+        sources, _context, _ = format_documents_with_metadata(docs)
+
+        assert len(sources) == 2
+        assert sources[0]["site_name"] == "GitHub"
+        assert sources[0]["authority_description"] == "官方"
+        assert "site_name" not in sources[1]
+        assert "authority_description" not in sources[1]
+
 
 class TestCombineSearchResultsMetadataPreservation:
     """Verify combine_search_results_unified preserves all metadata fields."""

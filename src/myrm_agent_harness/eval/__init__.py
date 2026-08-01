@@ -1,7 +1,7 @@
 """Eval Framework — Agent behavior quality evaluation.
 
 Public API:
-- Types: EvalCase, MultiTurnEvalCase, EvalResult, EvalTurnResult, AgentResponse, EvalTimings
+- Types: EvalCase, MultiTurnEvalCase, OnTurnFail, EvalResult, EvalTurnResult, AgentResponse, EvalTimings
 - Protocol: AgentExecutor
 - Assertions: ToolAssertion, evaluate_tool_assertions
 - Runner: EvalRunner
@@ -25,6 +25,7 @@ from .protocols import (
     EvalTimings,
     EvalTurnResult,
     MultiTurnEvalCase,
+    OnTurnFail,
     SandboxAssertion,
     StateAssertion,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "JsonlReporter",
     "MarkdownReporter",
     "MultiTurnEvalCase",
+    "OnTurnFail",
     "SandboxAssertion",
     "StateAssertion",
     "ToolAssertion",

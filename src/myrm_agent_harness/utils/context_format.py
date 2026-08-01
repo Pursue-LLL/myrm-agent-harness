@@ -131,6 +131,12 @@ def _collect_and_deduplicate_urls(
             }
             if summary:
                 entry["summary"] = summary
+            site_name = doc.metadata.get("site_name")
+            if site_name:
+                entry["site_name"] = site_name
+            authority_description = doc.metadata.get("authority_description")
+            if authority_description:
+                entry["authority_description"] = authority_description
             sources_metadata.append(entry)
 
             header = format_document_header(
