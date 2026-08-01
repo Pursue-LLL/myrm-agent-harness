@@ -9,6 +9,7 @@ None (zero-dependency pure functions)
 - ndcg_at_k: Normalized Discounted Cumulative Gain
 - mrr: Mean Reciprocal Rank (reciprocal rank of first gold hit)
 - hit_rate: whether ANY gold item appears in top-K (binary 0/1)
+- false_positive_rate: 1.0 if results returned for a negative probe (empty gold_ids)
 - latency_percentile: compute p-th percentile from latency list
 
 [POS]
@@ -75,6 +76,17 @@ def hit_rate(retrieved_ids: list[str], gold_ids: set[str], k: int) -> float:
         return 0.0
     top_k = set(retrieved_ids[:k])
     return 1.0 if top_k & gold_ids else 0.0
+
+
+def false_positive_rate(retrieved_ids: list[str], gold_ids: set[str], k: int) -> float:
+    """1.0 if results returned for a query that should match nothing, else 0.0.
+
+    Only meaningful when gold_ids is empty (negative/adversarial probe).
+    For positive cases (non-empty gold_ids), always returns 0.0.
+    """
+    if gold_ids or k <= 0:
+        return 0.0
+    return 1.0 if retrieved_ids[:k] else 0.0
 
 
 def latency_percentile(latencies_ms: list[float], percentile: float) -> float:

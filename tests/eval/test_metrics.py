@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from myrm_agent_harness.eval.metrics import (
+    false_positive_rate,
     hit_rate,
     latency_percentile,
     mrr,
@@ -116,3 +117,17 @@ class TestLatencyPercentile:
 
     def test_single_value(self) -> None:
         assert latency_percentile([42.0], 99.0) == 42.0
+
+
+class TestFalsePositiveRate:
+    def test_negative_probe_with_results(self) -> None:
+        assert false_positive_rate(["a", "b"], set(), k=5) == 1.0
+
+    def test_negative_probe_no_results(self) -> None:
+        assert false_positive_rate([], set(), k=5) == 0.0
+
+    def test_positive_case_ignored(self) -> None:
+        assert false_positive_rate(["a", "b"], {"a"}, k=5) == 0.0
+
+    def test_k_zero(self) -> None:
+        assert false_positive_rate(["a"], set(), k=0) == 0.0

@@ -1,7 +1,7 @@
 {
   "name": "coding_agent_life",
-  "version": "1.0.0",
-  "description": "Built-in memory retrieval eval dataset covering 8 categories with bilingual (EN/ZH) cases.",
+  "version": "1.1.0",
+  "description": "Built-in memory retrieval eval dataset covering 8 categories with bilingual (EN/ZH) cases plus adversarial negative probes.",
   "memories": [
     {"id": "mem_arch_01", "content": "The team decided to use PostgreSQL instead of MongoDB for the main database because relational constraints are critical for billing data integrity.", "category": "architecture_decision", "language": "en"},
     {"id": "mem_arch_02", "content": "团队决定使用 Redis 作为会话缓存层，因为 Memcached 不支持持久化，而我们需要在服务重启后恢复活跃会话。", "category": "architecture_decision", "language": "zh"},
@@ -36,6 +36,8 @@
     {"id": "q_update_01", "category": "knowledge_update", "query": "What happened to the REST API decision for mobile?", "gold_ids": ["mem_update_01"], "language": "en"},
     {"id": "q_update_02", "category": "knowledge_update", "query": "前端框架迁移到什么版本了？Vue 2 的决策还有效吗？", "gold_ids": ["mem_update_02"], "language": "zh"},
     {"id": "q_proc_01", "category": "procedural_skill", "query": "What is the correct order for production deployment steps?", "gold_ids": ["mem_proc_01"], "language": "en"},
-    {"id": "q_proc_02", "category": "procedural_skill", "query": "调试内存泄漏应该怎么做？步骤是什么？", "gold_ids": ["mem_proc_02"], "language": "zh"}
+    {"id": "q_proc_02", "category": "procedural_skill", "query": "调试内存泄漏应该怎么做？步骤是什么？", "gold_ids": ["mem_proc_02"], "language": "zh"},
+    {"id": "q_neg_01", "category": "adversarial_probe", "query": "What is the weather forecast for Tokyo tomorrow?", "gold_ids": [], "language": "en"},
+    {"id": "q_neg_02", "category": "adversarial_probe", "query": "帮我写一首关于春天的诗", "gold_ids": [], "language": "zh"}
   ]
 }

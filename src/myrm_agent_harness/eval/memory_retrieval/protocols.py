@@ -46,6 +46,7 @@ class MemoryRetrievalCaseResult:
     mrr_score: float = 0.0
     precision_at_5: float = 0.0
     hit_at_5: float = 0.0
+    false_positive_at_10: float = 0.0
     latency_ms: float = 0.0
 
 
@@ -61,6 +62,7 @@ class MemoryRetrievalCategorySummary:
     mrr_score: float = 0.0
     precision_at_5: float = 0.0
     hit_at_5: float = 0.0
+    false_positive_at_10: float = 0.0
 
 
 @dataclass(slots=True)
@@ -74,6 +76,7 @@ class MemoryRetrievalEvalSummary:
     mrr_score: float = 0.0
     precision_at_5: float = 0.0
     hit_at_5: float = 0.0
+    false_positive_at_10: float = 0.0
     latency_p50_ms: float = 0.0
     latency_p95_ms: float = 0.0
     by_category: list[MemoryRetrievalCategorySummary] = field(default_factory=list)
@@ -89,6 +92,7 @@ class MemoryRetrievalEvalSummary:
             "mrr": round(self.mrr_score, 4),
             "precision_at_5": round(self.precision_at_5, 4),
             "hit_at_5": round(self.hit_at_5, 4),
+            "false_positive_at_10": round(self.false_positive_at_10, 4),
             "latency_p50_ms": round(self.latency_p50_ms, 2),
             "latency_p95_ms": round(self.latency_p95_ms, 2),
             "by_category": [
@@ -99,6 +103,7 @@ class MemoryRetrievalEvalSummary:
                     "recall_at_10": round(c.recall_at_10, 4),
                     "ndcg_at_10": round(c.ndcg_at_10, 4),
                     "mrr": round(c.mrr_score, 4),
+                    "false_positive_at_10": round(c.false_positive_at_10, 4),
                 }
                 for c in self.by_category
             ],

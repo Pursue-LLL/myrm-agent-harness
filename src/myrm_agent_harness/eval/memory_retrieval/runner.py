@@ -22,6 +22,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from myrm_agent_harness.eval.metrics import (
+    false_positive_rate,
     hit_rate,
     latency_percentile,
     mrr,
@@ -134,6 +135,7 @@ class MemoryRetrievalEvalRunner:
             mrr_score=mrr(retrieved, gold),
             precision_at_5=precision_at_k(retrieved, gold, 5),
             hit_at_5=hit_rate(retrieved, gold, 5),
+            false_positive_at_10=false_positive_rate(retrieved, gold, 10),
             latency_ms=elapsed_ms,
         )
 
@@ -162,6 +164,7 @@ class MemoryRetrievalEvalRunner:
                     mrr_score=sum(r.mrr_score for r in cat_results) / cn,
                     precision_at_5=sum(r.precision_at_5 for r in cat_results) / cn,
                     hit_at_5=sum(r.hit_at_5 for r in cat_results) / cn,
+                    false_positive_at_10=sum(r.false_positive_at_10 for r in cat_results) / cn,
                 )
             )
 
@@ -173,6 +176,7 @@ class MemoryRetrievalEvalRunner:
             mrr_score=sum(r.mrr_score for r in results) / n,
             precision_at_5=sum(r.precision_at_5 for r in results) / n,
             hit_at_5=sum(r.hit_at_5 for r in results) / n,
+            false_positive_at_10=sum(r.false_positive_at_10 for r in results) / n,
             latency_p50_ms=latency_percentile(latencies, 50),
             latency_p95_ms=latency_percentile(latencies, 95),
             by_category=cat_summaries,

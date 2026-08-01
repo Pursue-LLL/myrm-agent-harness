@@ -41,7 +41,7 @@ class TestLoadEvalCases:
         for case in cases:
             assert case.id
             assert case.query
-            assert len(case.gold_ids) > 0
+            assert case.gold_ids is not None
             assert case.category
 
     def test_loads_custom_path(self, tmp_path: Path) -> None:
