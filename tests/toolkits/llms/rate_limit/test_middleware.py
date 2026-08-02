@@ -466,11 +466,13 @@ async def test_empty_response_result():
 
 
 @pytest.mark.asyncio
-async def test_sync_wrap_model_call_raises():
-    """Synchronous wrap_model_call raises NotImplementedError."""
+async def test_sync_wrap_model_call_passthrough():
+    """Synchronous wrap_model_call delegates to handler."""
     middleware = RateLimitMiddleware()
     request = _make_request()
-    handler = MagicMock()
+    sentinel = object()
+    handler = MagicMock(return_value=sentinel)
 
-    with pytest.raises(NotImplementedError):
-        middleware.wrap_model_call(request, handler)
+    result = middleware.wrap_model_call(request, handler)
+    handler.assert_called_once_with(request)
+    assert result is sentinel
