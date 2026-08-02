@@ -32,6 +32,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.sub_agents.manager import SubagentTask
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 logger = logging.getLogger(__name__)
 
@@ -256,6 +257,7 @@ class SubagentControlMixin:
         tool_registry_getter: Callable[[], list[BaseTool]],
         max_rounds: int = 2,
         verifier_task_template: str = "",
+        cancel_token: CancellationToken | None = None,
     ) -> SubAgentResult:
         """Execute a worker then verify via an adversarial verifier, retrying on failure."""
         from .orchestrator import run_with_verification
@@ -271,6 +273,7 @@ class SubagentControlMixin:
             tool_registry_getter=tool_registry_getter,
             max_rounds=max_rounds,
             verifier_task_template=verifier_task_template,
+            cancel_token=cancel_token,
         )
 
     def drain_notifications(self) -> str | None:

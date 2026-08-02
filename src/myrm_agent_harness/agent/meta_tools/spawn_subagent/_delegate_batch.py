@@ -76,7 +76,9 @@ class TaskRequest(BaseModel):
     )
     max_verification_rounds: int = Field(
         default=2,
-        description="Maximum number of retry rounds if the verifier rejects the output.",
+        ge=1,
+        le=5,
+        description="Maximum number of retry rounds if the verifier rejects the output (1-5).",
     )
 
 

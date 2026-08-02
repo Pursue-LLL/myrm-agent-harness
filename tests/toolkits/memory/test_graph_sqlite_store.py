@@ -298,3 +298,49 @@ async def test_concurrent_creates(store: SQLiteGraphStore) -> None:
 
     ids = await asyncio.gather(*[create(i) for i in range(20)])
     assert len(set(ids)) == 20
+
+
+# ── ORDER BY DESC + truncation ────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_find_nodes_returns_newest_when_truncated(store: SQLiteGraphStore) -> None:
+    """When limit < total nodes, find_nodes should return the most recently created nodes."""
+    conn = await store._get_connection()
+    for i in range(10):
+        await conn.execute(
+            "INSERT INTO graph_nodes (id, labels, properties, created_at) VALUES (?, ?, ?, ?)",
+            (f"n{i:02d}", '["Claim"]', f'{{"id":"n{i:02d}","seq":{i}}}', f"2025-01-{i+1:02d}T00:00:00"),
+        )
+    await conn.commit()
+
+    results = await store.find_nodes(["Claim"], {}, limit=5)
+    result_ids = [n.id for n in results]
+    assert len(result_ids) == 5
+    # DESC: should get n09, n08, n07, n06, n05 (newest first)
+    assert result_ids == ["n09", "n08", "n07", "n06", "n05"]
+
+
+@pytest.mark.asyncio
+async def test_find_nodes_limit_greater_than_total(store: SQLiteGraphStore) -> None:
+    """When limit > total, all nodes are returned."""
+    for i in range(3):
+        await store.create_node(["Tag"], {"id": f"t{i}"})
+
+    results = await store.find_nodes(["Tag"], {}, limit=100)
+    assert len(results) == 3
+
+
+@pytest.mark.asyncio
+async def test_find_nodes_labels_index_filters_correctly(store: SQLiteGraphStore) -> None:
+    """Labels index should allow efficient filtering without scanning other label groups."""
+    await store.create_node(["Claim"], {"id": "c1"})
+    await store.create_node(["Entity"], {"id": "e1"})
+    await store.create_node(["Memory"], {"id": "m1"})
+
+    claims = await store.find_nodes(["Claim"], {})
+    entities = await store.find_nodes(["Entity"], {})
+    memories = await store.find_nodes(["Memory"], {})
+    assert [n.id for n in claims] == ["c1"]
+    assert [n.id for n in entities] == ["e1"]
+    assert [n.id for n in memories] == ["m1"]

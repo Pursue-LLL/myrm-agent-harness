@@ -358,7 +358,7 @@ async def search_claim_graph(
     if not query_tokens:
         return []
 
-    candidate_limit = max(limit * 8, 24)
+    candidate_limit = max(limit * 8, 500)
     claim_nodes = await graph.find_nodes(
         ["Claim"],
         {},

@@ -353,12 +353,13 @@ async def run_alternatives(
     """Spawn N subagents in parallel for the same task; return all results without auto-merging.
 
     Each subagent runs in an isolated workspace copy (ISOLATED_COPY) with deferred
-    merge.  The caller (Server layer) picks one result and calls its
-    ``_workspace_sync_back`` to apply workspace changes — the others are discarded.
+    merge.  The caller picks one result and calls its ``_workspace_sync_back`` to
+    apply workspace changes — the others are discarded.
 
-    This primitive powers the "generate N alternative solutions → user picks one"
-    pattern.  The Server layer stores results as sibling messages so the existing
-    SiblingNav frontend component handles comparison and switching.
+    Results are returned to the calling LLM as a tool call response containing all
+    alternatives.  The LLM synthesises a comparative analysis and presents the best
+    option(s) to the user.  SubagentDashboard provides real-time visibility into
+    each alternative's progress during execution.
 
     Args:
         manager: SubagentManager instance.

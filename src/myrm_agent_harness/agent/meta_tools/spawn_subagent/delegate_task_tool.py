@@ -139,7 +139,9 @@ def create_delegate_task_tool(
         )
         max_verification_rounds: int = Field(
             default=2,
-            description="Maximum verification retry rounds (single mode).",
+            ge=1,
+            le=5,
+            description="Maximum verification retry rounds (single mode, 1-5).",
         )
         tasks: list[TaskRequest] | None = Field(
             default=None,
@@ -474,6 +476,7 @@ def create_delegate_task_tool(
                     tool_registry_getter=tool_registry_getter,
                     max_rounds=max_verification_rounds,
                     verifier_task_template=verifier_prompt,
+                    cancel_token=cancel_token,
                 )
             else:
                 result = await parent_agent._spawn_child(

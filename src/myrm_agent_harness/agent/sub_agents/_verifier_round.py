@@ -41,6 +41,8 @@ from myrm_agent_harness.agent.sub_agents.types import (
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+
     from .manager import SubagentManager
 
 logger = get_agent_logger(__name__)
@@ -88,6 +90,7 @@ async def _execute_verifier_round(
     max_rounds: int,
     verifier_task_template: str = "",
     pre_snapshot: dict[str, tuple[float, int]] | None = None,
+    cancel_token: CancellationToken | None = None,
 ) -> VerificationVerdict | None:
     """Spawn a verifier subagent for an existing worker output and return the parsed verdict."""
     from myrm_agent_harness.agent.skills.evolution.execution.executor_context import (
@@ -175,6 +178,7 @@ async def _execute_verifier_round(
             context=context,
             tool_registry_getter=verifier_tool_registry_getter,
             wait=True,
+            cancel_token=cancel_token,
         )
 
     tracked_executor = proxy_executor or current_executor

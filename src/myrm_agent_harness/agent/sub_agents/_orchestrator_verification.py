@@ -39,6 +39,8 @@ from myrm_agent_harness.agent.sub_agents.types import (
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+
     from .manager import SubagentManager
 
 logger = get_agent_logger(__name__)
@@ -57,9 +59,10 @@ async def run_with_verification(
     tool_registry_getter: Callable[[], list[BaseTool]],
     max_rounds: int = 2,
     verifier_task_template: str = "",
+    cancel_token: CancellationToken | None = None,
 ) -> SubAgentResult:
     """Execute a worker then verify via an adversarial verifier, retrying on failure."""
-    max_rounds = max(1, max_rounds)
+    max_rounds = max(1, min(max_rounds, 5))
     current_task = worker_task
     last_worker_result = SubAgentResult(
         success=False,
@@ -74,6 +77,11 @@ async def run_with_verification(
     workspace_path = context.get("workspace_path")
 
     for round_idx in range(max_rounds):
+        if cancel_token and cancel_token.is_cancelled:
+            last_worker_result.success = False
+            last_worker_result.error = "Cancelled"
+            return last_worker_result
+
         round_num = round_idx + 1
         worker_task_id = f"verify-worker-{round_num}-{worker_type}"
 
@@ -99,6 +107,7 @@ async def run_with_verification(
             context=context,
             tool_registry_getter=tool_registry_getter,
             wait=True,
+            cancel_token=cancel_token,
         )
         if isinstance(worker_result, dict):
             worker_result = SubAgentResult(
@@ -131,6 +140,7 @@ async def run_with_verification(
             max_rounds=max_rounds,
             verifier_task_template=verifier_task_template,
             pre_snapshot=pre_snapshot,
+            cancel_token=cancel_token,
         )
 
         if verdict is None:
