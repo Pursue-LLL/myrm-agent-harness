@@ -9,7 +9,7 @@
 
 [POS]
 Single entry point for memory-domain background work after a conversation
-session ends (proactive extraction, correction propagation, etc.).
+session ends (proactive extraction, implicit feedback detection, etc.).
 """
 
 from __future__ import annotations
