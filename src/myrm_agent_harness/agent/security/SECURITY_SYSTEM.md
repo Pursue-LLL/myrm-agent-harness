@@ -18,7 +18,7 @@
   │
   ▼
 ┌─────────────┐   SecurityGuardrailMiddleware.before_model
-│ Prompt Guard │ ← 输入侧：7+2 类中英双语注入模式检测 + 反混淆归一化（warn-only，不阻断）
+│ Prompt Guard │ ← 输入侧：7+2 类中英双语注入模式检测 + 反混淆归一化（log_only/fail_closed 双模式）
 └─────────────┘
   │
   ▼
@@ -966,7 +966,16 @@ do anything now | bypass safety | 忽略...之前...指令 | 你现在是...一�
 
 ### 行为模式
 
-**Warn-only（仅警告）**：检测到注入模式时只记录日志，不阻断用户输入。这提供了安全可观测性，同时避免误报影响用户体验。
+**双模式策略**：`GuardResult` 包含 `should_block` 属性（`max_score >= _BLOCK_THRESHOLD(0.7)`），行为由 `SecurityConfig.injection_policy` 控制：
+
+| 策略 | 行为 | 适用场景 |
+|------|------|---------|
+| `log_only`（默认） | 检测到注入仅记录日志，不阻断 | WEB_CHAT（用户可见上下文） |
+| `fail_closed` | 检测到高威胁注入（`should_block=True`）时替换消息为安全占位符，阻止 LLM 处理原始内容 | IM / CRON（不可信输入源） |
+
+**渠道默认策略**：IM 和 CRON 渠道在用户未显式配置时自动升级为 `fail_closed`（`channel_presets.py`）。
+
+**审计集成**：检测到注入时记录 `INJECTION_DETECTED`；阻断时额外记录 `INJECTION_BLOCKED`（`DecisionKind`）。
 
 返回 `GuardResult(safe, patterns, max_score)`，由 `SecurityGuardrailMiddleware.before_model` 集成。
 
@@ -1091,7 +1100,7 @@ ruleset = (
 )
 ```
 
-IM 渠道中浏览器操作被能力围栏排除（因为 IM 用户无法看到浏览器），桌面控制同样被能力围栏排除（IM 远程消息不得触发本机 GUI 操作），Shell 命令被完全禁止（IM 场景风险更高），代码执行和 MCP 需要审批，**文件写入与编辑（`file_write_tool` / `file_edit_tool`）需审批（ASK）**。
+IM 渠道中浏览器操作被能力围栏排除（因为 IM 用户无法看到浏览器），桌面控制同样被能力围栏排除（IM 远程消息不得触发本机 GUI 操作），Shell 命令被完全禁止（IM 场景风险更高），代码执行和 MCP 需要审批，**文件写入与编辑（`file_write_tool` / `file_edit_tool`）需审批（ASK）**。**Prompt injection 默认 `fail_closed`**（IM 输入来自不可信外部渠道）。
 
 ### Cron 渠道安全配置
 
@@ -1103,7 +1112,7 @@ ruleset = (
 )
 ```
 
-Cron 渠道采用 **fail-closed** 策略：`shell_exec`、`code_interpreter`、`mcp_invoke` 回落到 DEFAULT_RULESET 的 ASK，由 `batch_processor.py` 的 cron 分支处理——无声明式能力围栏时 DENY，有声明式能力围栏时 pre-approval ALLOW。桌面控制（GUI 快照与操作）在 Cron 渠道一律 DENY。用户可通过 YOLO 模式或 Smart Guard 显式授权。
+Cron 渠道采用 **fail-closed** 策略：`shell_exec`、`code_interpreter`、`mcp_invoke` 回落到 DEFAULT_RULESET 的 ASK，由 `batch_processor.py` 的 cron 分支处理——无声明式能力围栏时 DENY，有声明式能力围栏时 pre-approval ALLOW。桌面控制（GUI 快照与操作）在 Cron 渠道一律 DENY。**Prompt injection 默认 `fail_closed`**（Cron 抓取的网页内容可能包含注入攻击）。用户可通过 YOLO 模式或 Smart Guard 显式授权。
 
 ### 本地模式浏览器放宽
 
@@ -1263,6 +1272,8 @@ DecisionKind = Literal[
     "SKILL_HOOK_APPROVAL", # Skill 钩子审批
     "SSRF_BLOCKED",        # SSRF 防护阻断
     "SCAN_FINDING",        # 安全扫描发现
+    "INJECTION_DETECTED",  # Prompt Guard 检测到注入模式
+    "INJECTION_BLOCKED",   # Prompt Guard 阻断注入（fail_closed 模式）
 ]
 
 @dataclass(frozen=True, slots=True)
@@ -1371,6 +1382,7 @@ Agent security_overrides
 | network_allowlist | 并集（Agent 可授予额外域名） | 域名过滤白名单（browser + web_fetch + hooks） |
 | network_blocklist | 并集（Agent 可追加封禁域名） | URL hostname 硬拒绝（DENY，先于 domain HITL） |
 | domain_hitl_enabled | OR（任一方启用则启用） | URL 工具域名级审批开关 |
+| injection_policy | OR-严格（任一方 `fail_closed` 则 `fail_closed`） | Prompt injection 策略只能升级不能降级 |
 | ruleset | Agent merge 到用户上（Agent 优先级更高） | last-match-wins |
 | timeout | Agent 覆盖用户（如果非默认值） | Agent 特化 |
 

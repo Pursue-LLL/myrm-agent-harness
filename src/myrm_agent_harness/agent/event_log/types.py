@@ -336,8 +336,9 @@ class SessionAnalytics:
     duration_ms: float
     tool_breakdown: list[ToolBreakdown]
     events_timeline: list[SessionEvent]
-    task_metrics: dict[str, object]  # Extensible for future task metrics
+    task_metrics: dict[str, object]
     token_economics: dict[str, object] | None = None
+    security_audit: dict[str, object] | None = None
 
 
 # --- Trace Evidence (skill evolution input) ---

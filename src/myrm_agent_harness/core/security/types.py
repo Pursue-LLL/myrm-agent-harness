@@ -366,6 +366,7 @@ class SecurityConfig:
     transcript_window_size: int = 20
     plan_confirm_enabled: bool = False
     command_denylist: tuple[str, ...] = ()
+    injection_policy: Literal["log_only", "fail_closed"] = "log_only"
     yolo_mode_enabled: bool = False
     yolo_mode_enabled_at: float | None = None
     yolo_mode_timeout: int | None = None

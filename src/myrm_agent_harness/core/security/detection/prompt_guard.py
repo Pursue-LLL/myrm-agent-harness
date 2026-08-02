@@ -220,6 +220,9 @@ def _normalize_for_detection(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+_BLOCK_THRESHOLD: float = 0.7
+
+
 @dataclass
 class GuardResult:
     """Result of input-side injection scanning."""
@@ -227,6 +230,11 @@ class GuardResult:
     safe: bool
     patterns: list[str] = field(default_factory=list)
     max_score: float = 0.0
+
+    @property
+    def should_block(self) -> bool:
+        """Whether the detected patterns are severe enough to warrant blocking."""
+        return not self.safe and self.max_score >= _BLOCK_THRESHOLD
 
 
 def _scan_text(text: str, patterns: list[str], max_score: float) -> float:

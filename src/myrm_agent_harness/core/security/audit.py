@@ -67,6 +67,8 @@ DecisionKind = Literal[
     "FREQUENCY_WARN",
     "FREQUENCY_BREAK",
     "CANARY_LEAKED",
+    "INJECTION_DETECTED",
+    "INJECTION_BLOCKED",
 ]
 
 

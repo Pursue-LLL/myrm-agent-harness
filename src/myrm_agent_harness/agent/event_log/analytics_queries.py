@@ -322,6 +322,8 @@ async def get_session_summary(
         )
         for bucket in tool_calls.values()
     ]
+    security_audit = await _extract_security_audit_summary(backend, session_id)
+
     return SessionAnalytics(
         session_id=session_id,
         duration_ms=duration_ms,
@@ -329,7 +331,31 @@ async def get_session_summary(
         events_timeline=events_timeline,
         task_metrics=task_metrics,
         token_economics=token_economics,
+        security_audit=security_audit,
     )
+
+
+async def _extract_security_audit_summary(
+    backend: EventLogBackend, session_id: str
+) -> dict[str, object] | None:
+    """Extract security audit summary from persisted security_audit events."""
+    audit_events = await _collect_events(
+        backend.get_events(session_id, EventFilter(event_types=frozenset({"security_audit"}), limit=1))
+    )
+    if not audit_events:
+        return None
+    decisions = audit_events[0].data.get("decisions")
+    if not isinstance(decisions, list):
+        return None
+    decision_counts: dict[str, int] = {}
+    for d in decisions:
+        if isinstance(d, dict):
+            kind = d.get("decision", "UNKNOWN")
+            decision_counts[kind] = decision_counts.get(kind, 0) + 1
+    return {
+        "total": len(decisions),
+        "breakdown": decision_counts,
+    }
 
 
 async def get_global_tool_stability(

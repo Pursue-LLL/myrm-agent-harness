@@ -180,6 +180,9 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
 
     plan_confirm_enabled = bool(raw.get("planConfirmEnabled") or raw.get("plan_confirm_enabled", False))
 
+    injection_policy_raw = raw.get("injectionPolicy") or raw.get("injection_policy", "log_only")
+    injection_policy = str(injection_policy_raw) if injection_policy_raw in ("log_only", "fail_closed") else "log_only"
+
     yolo_mode_enabled = bool(raw.get("yoloModeEnabled") or raw.get("yolo_mode_enabled", False))
     yolo_mode_enabled_at_raw = raw.get("yolo_mode_enabled_at")
     yolo_mode_enabled_at = parse_float(yolo_mode_enabled_at_raw, 0.0) if yolo_mode_enabled_at_raw is not None else None
@@ -196,6 +199,7 @@ def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | Non
         network_blocklist=network_blocklist,
         command_denylist=command_denylist,
         domain_hitl_enabled=domain_hitl_enabled,
+        injection_policy=injection_policy,  # type: ignore[arg-type]
         auto_mode_enabled=auto_review_enabled,
         auto_review_model=auto_review_model,
         auto_review_timeout_seconds=auto_review_timeout,
@@ -229,6 +233,7 @@ def apply_remote_exposed_overlay(base: SecurityConfig) -> SecurityConfig:
         command_denylist=base.command_denylist,
         domain_hitl_enabled=base.domain_hitl_enabled,
         privacy_policy=base.privacy_policy,
+        injection_policy=base.injection_policy,
         auto_mode_enabled=base.auto_mode_enabled,
         auto_review_model=base.auto_review_model,
         auto_review_timeout_seconds=base.auto_review_timeout_seconds,
@@ -248,6 +253,7 @@ def security_config_to_dict(config: SecurityConfig) -> dict[str, object]:
     """Serialize SecurityConfig fields consumed by agent-server security_config_raw."""
     result: dict[str, object] = {
         "permissions": _ruleset_to_permissions(config.ruleset),
+        "injectionPolicy": config.injection_policy,
         "yoloModeEnabled": config.yolo_mode_enabled,
         "yolo_mode_enabled": config.yolo_mode_enabled,
     }

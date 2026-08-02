@@ -233,6 +233,7 @@ def build_channel_security_config(
     yolo_mode_enabled = False
     yolo_mode_enabled_at: float | None = None
     yolo_mode_timeout: int | None = None
+    injection_policy: str = "log_only"
     if effective:
         network_allowlist = effective.network_allowlist
         network_blocklist = effective.network_blocklist
@@ -245,9 +246,13 @@ def build_channel_security_config(
         yolo_mode_enabled = effective.yolo_mode_enabled
         yolo_mode_enabled_at = effective.yolo_mode_enabled_at
         yolo_mode_timeout = effective.yolo_mode_timeout
+        injection_policy = effective.injection_policy
 
     if channel_type == ChannelType.CRON:
         plan_confirm_enabled = False
+
+    if injection_policy == "log_only" and channel_type in (ChannelType.IM, ChannelType.CRON):
+        injection_policy = "fail_closed"
 
     result = SecurityConfig(
         capabilities=capabilities,
@@ -263,6 +268,7 @@ def build_channel_security_config(
         auto_review_model=auto_review_model,
         auto_review_timeout_seconds=auto_review_timeout,
         plan_confirm_enabled=plan_confirm_enabled,
+        injection_policy=injection_policy,  # type: ignore[arg-type]
         yolo_mode_enabled=yolo_mode_enabled,
         yolo_mode_enabled_at=yolo_mode_enabled_at,
         yolo_mode_timeout=yolo_mode_timeout,
@@ -359,6 +365,10 @@ def _merge_user_and_agent(
         yolo_at = None
         yolo_timeout = None
 
+    injection_policy: str = "log_only"
+    if user.injection_policy == "fail_closed" or agent.injection_policy == "fail_closed":
+        injection_policy = "fail_closed"
+
     return SecurityConfig(
         capabilities=caps,
         ruleset=ruleset,
@@ -369,6 +379,7 @@ def _merge_user_and_agent(
         network_blocklist=network_blocklist,
         command_denylist=command_denylist,
         domain_hitl_enabled=domain_hitl_enabled,
+        injection_policy=injection_policy,  # type: ignore[arg-type]
         auto_mode_enabled=auto_mode_enabled,
         auto_review_model=auto_review_model,
         auto_review_timeout_seconds=auto_review_timeout,
