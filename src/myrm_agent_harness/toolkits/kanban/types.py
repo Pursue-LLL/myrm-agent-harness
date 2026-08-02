@@ -234,6 +234,10 @@ class KanbanTask:
     workspace_path: str | None = None
     branch: str | None = None
 
+    # Goal loop — autonomous multi-turn execution until objective is met
+    goal_mode: bool = False
+    goal_max_turns: int | None = None
+
     # Execution tracking
     max_runtime_seconds: int | None = None
     extra_skill_ids: list[str] = field(default_factory=list)
@@ -286,6 +290,8 @@ class KanbanTask:
             "parent_task_id": self.parent_task_id,
             "workspace_path": self.workspace_path,
             "branch": self.branch,
+            "goal_mode": self.goal_mode,
+            "goal_max_turns": self.goal_max_turns,
             "retry_count": self.retry_count,
             "max_retries": self.max_retries,
             "consecutive_failures": self.consecutive_failures,

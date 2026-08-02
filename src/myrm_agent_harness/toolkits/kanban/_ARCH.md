@@ -220,10 +220,22 @@ Protocol-first architecture with strict framework-business separation.
     `SqlAlchemyKanbanStore`) it eliminates the post-restart "ghost RUNNING"
     window entirely.
 
+23. **Goal Loop Mode (goal_mode)**: Each `KanbanTask` carries optional `goal_mode: bool`
+    (default False) and `goal_max_turns: int | None` fields. When `goal_mode=True`, the
+    server's `TaskRunner` creates a `GoalProvider` (via `GoalRegistry`) and injects it
+    into the agent's `runtime_context`, enabling the harness `StreamExecutor` to drive
+    autonomous multi-turn execution until the objective is semantically met or the
+    budget is exhausted. The existing Goal infrastructure (4-dim budget, semantic judge,
+    convergence detection, WAIT state, acceptance criteria verification) is fully reused
+    — zero harness-layer changes required. Goal terminal status maps to Kanban outcomes:
+    `COMPLETE` → task success, `BUDGET_LIMITED` → task failure with budget info,
+    `PAUSED/NEEDS_HUMAN_REVIEW` → task failure with pause reason. The `GoalProvider`
+    is unregistered from `GoalRegistry` in the runner's `finally` block to prevent leaks.
+
 ## Domain Model
 
 - `KanbanBoard`: Top-level grouping with `BoardSettings` (includes `default_workdir` for board-level workspace default)
-- `KanbanTask`: Unit of work with 8-state lifecycle (TRIAGE → BACKLOG → READY → RUNNING → COMPLETED/FAILED/BLOCKED/ARCHIVED), with `block_kind` (HUMAN/SCHEDULED/EXTERNAL) and `scheduled_until` for semantic blocking, `block_cycle_count` for detecting block→unblock cycling, `attachments: list[TaskAttachment]` for multimodal file references, `workspace_path` and `branch` for worktree isolation
+- `KanbanTask`: Unit of work with 8-state lifecycle (TRIAGE → BACKLOG → READY → RUNNING → COMPLETED/FAILED/BLOCKED/ARCHIVED), with `block_kind` (HUMAN/SCHEDULED/EXTERNAL) and `scheduled_until` for semantic blocking, `block_cycle_count` for detecting block→unblock cycling, `attachments: list[TaskAttachment]` for multimodal file references, `workspace_path` and `branch` for worktree isolation, `goal_mode` and `goal_max_turns` for autonomous multi-turn goal loop execution
 - `TaskAttachment`: Immutable file attachment (file_id, filename, mime_type, size_bytes, content_ref) with polymorphic content_ref (HTTP URL / vault pointer / inline data)
 - `BlockKind`: Sub-type enum for BLOCKED tasks (HUMAN / SCHEDULED / EXTERNAL)
 - `TaskEdge`: Directed dependency edge (parent→child), forms a DAG with cycle rejection
