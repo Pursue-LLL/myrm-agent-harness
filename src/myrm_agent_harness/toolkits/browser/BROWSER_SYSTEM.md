@@ -547,8 +547,10 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 **Stealth Ladder 触发条件**：
 1. 默认 Patchright 导航
 2. HTTP 403/429：代理重试耗尽后 fallthrough 至 CAPTCHA 检测（页面已加载）
-3. CAPTCHA/反爬检测失败 → 自动升级 Camoufox + Progress SSE（`notify_category=browser`）
-4. 仍失败 → Terminal Challenge（10min TTL，0ms 快速失败，防 LLM 反复重试）
+3. 可解 CAPTCHA（Cloudflare/reCAPTCHA/hCaptcha）→ CaptchaSolver 尝试解决
+4. 行为式 WAF（DataDome/Kasada/Akamai/Imperva/PerimeterX）→ 即时 fast-fail（<1ms），跳过 solver 和 takeover UI，透明升级 Camoufox
+5. 其他 CAPTCHA/反爬检测失败 → 自动升级 Camoufox + Progress SSE（`notify_category=browser`）
+6. 仍失败 → Terminal Challenge（10min TTL，0ms 快速失败，防 LLM 反复重试）
 
 **生产验证域名**：
 - 微信公众号 (mp.weixin.qq.com)

@@ -237,6 +237,70 @@ class TestCoordinatorHandleCaptcha:
             await coord.handle_captcha(_make_info(), "not_a_page")  # type: ignore[arg-type]
 
 
+class TestCoordinatorBehavioralSkip:
+    """Behavioral WAF fast-fail tests."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("captcha_type", [
+        CaptchaType.DATADOME,
+        CaptchaType.KASADA,
+        CaptchaType.AKAMAI,
+        CaptchaType.IMPERVA,
+        CaptchaType.PERIMETERX,
+    ])
+    async def test_behavioral_waf_skips_solver(
+        self, captcha_type: CaptchaType,
+    ) -> None:
+        solver = _make_solver(success=True)
+        coord = CaptchaCoordinator(solver)
+        page = _make_mock_page()
+        info = CaptchaInfo(captcha_type=captcha_type, reason="WAF block")
+
+        result = await coord.handle_captcha(info, page)
+
+        assert result.success is False
+        assert result.method == "behavioral_skip"
+        assert result.elapsed_ms == 0.0
+        assert coord.status == CaptchaStatus.TIMEOUT
+        solver.solve.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_solvable_captcha_still_invokes_solver(self) -> None:
+        solver = _make_solver(success=True)
+        coord = CaptchaCoordinator(solver)
+        page = _make_mock_page()
+        info = CaptchaInfo(
+            captcha_type=CaptchaType.CLOUDFLARE_CHALLENGE,
+            reason="CF challenge",
+        )
+
+        with patch(
+            "myrm_agent_harness.toolkits.browser.captcha.coordinator.CaptchaCoordinator._publish_event",
+            new_callable=AsyncMock,
+        ):
+            result = await coord.handle_captcha(info, page)
+
+        assert result.success is True
+        solver.solve.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_behavioral_skip_does_not_fire_takeover_event(self) -> None:
+        solver = _make_solver()
+        coord = CaptchaCoordinator(solver)
+        page = _make_mock_page()
+        info = CaptchaInfo(captcha_type=CaptchaType.DATADOME, reason="DataDome")
+
+        with patch(
+            "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+            new_callable=AsyncMock,
+        ) as mock_dispatch:
+            await coord.handle_captcha(info, page)
+
+        dispatched_events = [c.args[0] for c in mock_dispatch.call_args_list]
+        assert "browser_takeover_requested" not in dispatched_events
+        assert "browser_takeover_completed" not in dispatched_events
+
+
 class TestCoordinatorReset:
     """reset() state tests."""
 

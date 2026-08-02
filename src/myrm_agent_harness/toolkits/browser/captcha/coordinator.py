@@ -5,7 +5,7 @@ using ``asyncio.Event`` to block the navigate call until the CAPTCHA is
 resolved or the timeout fires.
 
 [INPUT]
-- .protocols::CaptchaInfo, CaptchaSolveResult, CaptchaSolver, CaptchaStatus
+- .protocols::CaptchaInfo, CaptchaSolveResult, CaptchaSolver, CaptchaStatus, CaptchaType
 - utils.event_utils::dispatch_custom_event (POS: event dispatch)
 
 [OUTPUT]
@@ -22,7 +22,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from .protocols import CaptchaInfo, CaptchaSolveResult, CaptchaStatus
+from .protocols import CaptchaInfo, CaptchaSolveResult, CaptchaStatus, CaptchaType
 
 if TYPE_CHECKING:
     from .protocols import CaptchaSolver
@@ -30,6 +30,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SOLVE_TIMEOUT_S = 120.0
+
+# Behavioral WAFs that no API solver or human can resolve via CAPTCHA interaction.
+# These require engine-level escalation (e.g. Camoufox) rather than solve attempts.
+_BEHAVIORAL_UNSOLVABLE_TYPES: frozenset[CaptchaType] = frozenset({
+    CaptchaType.DATADOME,
+    CaptchaType.KASADA,
+    CaptchaType.AKAMAI,
+    CaptchaType.IMPERVA,
+    CaptchaType.PERIMETERX,
+})
 
 
 class CaptchaCoordinator:
@@ -94,6 +104,19 @@ class CaptchaCoordinator:
 
         self._status = CaptchaStatus.DETECTED
         self._last_info = captcha_info
+
+        if captcha_info.captcha_type in _BEHAVIORAL_UNSOLVABLE_TYPES:
+            self._status = CaptchaStatus.TIMEOUT
+            logger.info(
+                "Behavioral WAF detected (%s) — skipping solve, escalating to engine",
+                captcha_info.captcha_type.value,
+            )
+            return CaptchaSolveResult(
+                success=False,
+                method="behavioral_skip",
+                elapsed_ms=0.0,
+                message=f"Behavioral WAF ({captcha_info.captcha_type.value}) requires engine escalation",
+            )
 
         await self._publish_event("captcha_detected", captcha_info)
 
