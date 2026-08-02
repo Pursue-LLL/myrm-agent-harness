@@ -83,7 +83,7 @@ class CognitiveDeriver:
         try:
             raw = await self.llm_func(_DERIVER_PROMPT, prompt)
 
-            match = re.search(r"(\\[.*\\])", raw, re.DOTALL)
+            match = re.search(r"(\[.*\])", raw, re.DOTALL)
             if match:
                 raw = match.group(1)
             data = json.loads(raw)

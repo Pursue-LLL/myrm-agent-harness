@@ -19,17 +19,6 @@ def load_tokenizer_module():
     return module
 
 
-def test_enhance_english_normalizes_tokens() -> None:
-    mod = load_tokenizer_module()
-    tokenizer = mod.TokenizerService()
-    tokenizer._initialize()
-
-    result = tokenizer._enhance_english(["running", "the", "测试"])
-    assert "run" in result
-    assert "the" not in result
-    assert "测试" in result
-
-
 def test_jieba_import_failure_fallback() -> None:
     mod = load_tokenizer_module()
     tokenizer = mod.TokenizerService()

@@ -4,6 +4,7 @@
 - navigation::Navigator (POS: throttled page navigation)
 - captcha protocols and coordinator (POS: blocking CAPTCHA detection/handling)
 - web_fetch site experience store (POS: post-navigation experience injection)
+- domain_skills::DomainSkillStore (POS: executable-layer domain skill registry)
 
 [OUTPUT]
 - BrowserSessionNavigationMixin: new_tab, navigate, tab switch/close, CAPTCHA helpers
@@ -506,7 +507,9 @@ class BrowserSessionNavigationMixin:
         return f"Switched to tab {tab_id}"
     @staticmethod
     def _get_site_experience_hint(url: str) -> str:
-        """Query site experience and format as injected text (cross-validate with DomainMetrics)."""
+        """Query site experience and domain skill tools, format as injected text."""
+        parts: list[str] = []
+
         try:
             from urllib.parse import urlparse
 
@@ -523,9 +526,24 @@ class BrowserSessionNavigationMixin:
             metrics_manager = get_global_domain_metrics_manager()
             experience, possibly_stale = store.get(domain, domain_metrics_manager=metrics_manager)
 
-            if experience is None or experience.is_empty():
-                return ""
-
-            return experience.format_for_injection(possibly_stale=possibly_stale)
+            if experience is not None and not experience.is_empty():
+                parts.append(experience.format_for_injection(possibly_stale=possibly_stale))
         except Exception:
-            return ""
+            pass
+
+        try:
+            from ..domain_skills import get_global_domain_skill_store
+
+            skill_store = get_global_domain_skill_store()
+            matches = skill_store.match(url)
+            for manifest in matches:
+                sigs = manifest.tool_signatures()
+                if sigs:
+                    parts.append(
+                        f"Available domain tools (use browser_manage_tool "
+                        f"action='run_site_tool'): {sigs}"
+                    )
+        except Exception:
+            pass
+
+        return " | ".join(parts) if parts else ""

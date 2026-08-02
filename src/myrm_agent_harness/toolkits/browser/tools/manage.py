@@ -1,13 +1,13 @@
 """browser_manage tool for session management.
 
 [INPUT]
-- (none)
+- domain_skills::DomainSkillStore (POS: executable-layer domain skill registry)
 
 [OUTPUT]
 - create_manage_tool: Create browser_manage tool bound to session.
 
 [POS]
-browser_manage tool for session management.
+browser_manage tool for session management. Includes domain skill execution (run_site_tool/list_site_tools).
 """
 
 from __future__ import annotations
@@ -33,7 +33,8 @@ def create_manage_tool(session: BrowserSession):
             "save_session, restore_session, list_sessions, delete_session, "
             "trace_start, trace_stop, har_start, har_stop, recording_status, "
             "save_site_experience, list_site_experience, delete_site_experience, "
-            "download_url, list_downloads",
+            "download_url, list_downloads, "
+            "run_site_tool, list_site_tools",
         )
         value: str = Field(
             default="",
@@ -45,9 +46,11 @@ def create_manage_tool(session: BrowserSession):
             "request index number (network_detail/network_replay), "
             "JSON for save_site_experience (e.g. "
             '\'{"domain":"example.com","known_traps":["login wall"],"successful_flows":["direct URL"]}\'), '
-            "domain for delete_site_experience. "
+            "domain for delete_site_experience, "
+            "'skill_id:tool_name:{json_args}' for run_site_tool "
+            "(e.g. 'x-com:get_timeline_posts:{\"max_posts\":20}'). "
             "Omit for: close, list_tabs, list_sessions, list_site_experience, list_downloads, "
-            "back, forward, save_pdf, "
+            "list_site_tools, back, forward, save_pdf, "
             "wait_for_load, console_log, network_log, trace_start, trace_stop, har_start, har_stop, "
             "recording_status.",
         )
@@ -200,6 +203,10 @@ def create_manage_tool(session: BrowserSession):
                     auto_tag = " [auto]" if dl.auto_download else ""
                     lines.append(f" - {dl.file_name} ({dl.file_size} bytes){auto_tag}: {dl.path}")
                 return "\n".join(lines)
+            case "run_site_tool":
+                return await _handle_run_site_tool(session, value)
+            case "list_site_tools":
+                return _handle_list_site_tools()
             case _:
                 return (
                     f"Unknown action '{action}'. Supported: close, evaluate, new_tab, switch_tab, "
@@ -209,7 +216,8 @@ def create_manage_tool(session: BrowserSession):
                     "save_session, restore_session, list_sessions, delete_session, "
                     "trace_start, trace_stop, har_start, har_stop, recording_status, "
                     "save_site_experience, list_site_experience, delete_site_experience, "
-                    "download_url, list_downloads"
+                    "download_url, list_downloads, "
+                    "run_site_tool, list_site_tools"
                 )
 
     def _handle_save_site_experience(value: str) -> str:
@@ -271,5 +279,108 @@ def create_manage_tool(session: BrowserSession):
             store.save()
             return f"Deleted site experience for '{domain}'."
         return f"No site experience found for '{domain}'."
+
+    async def _handle_run_site_tool(browser_session: BrowserSession, value: str) -> str:
+        """Execute a domain skill tool in the browser session sandbox."""
+        if not value.strip():
+            return (
+                "Error: 'value' must be 'skill_id:tool_name' or "
+                "'skill_id:tool_name:{json_args}' "
+                "(e.g. 'x-com:get_timeline_posts:{\"max_posts\":20}')"
+            )
+
+        parts = value.split(":", 2)
+        if len(parts) < 2:
+            return "Error: value must contain at least 'skill_id:tool_name'"
+
+        skill_id = parts[0].strip()
+        tool_name = parts[1].strip()
+        tool_args: dict[str, str | int] = {}
+        if len(parts) == 3 and parts[2].strip():
+            try:
+                tool_args = json.loads(parts[2].strip())
+            except json.JSONDecodeError:
+                return f"Error: invalid JSON args: {parts[2].strip()}"
+
+        from ..domain_skills import get_global_domain_skill_store
+
+        store = get_global_domain_skill_store()
+        manifest = store.get(skill_id)
+        if manifest is None:
+            available = ", ".join(m.id for m in store.list_skills())
+            return f"Error: domain skill '{skill_id}' not found. Available: {available or 'none'}"
+
+        tool = manifest.python_tools.get(tool_name)
+        if tool is None:
+            available = ", ".join(manifest.python_tools.keys())
+            return f"Error: tool '{tool_name}' not found in '{skill_id}'. Available: {available or 'none'}"
+
+        script_path = store.get_tool_script_path(skill_id, tool_name)
+        if script_path is None or not script_path.exists():
+            return f"Error: script not found for '{skill_id}:{tool_name}'"
+
+        script_code = script_path.read_text(encoding="utf-8")
+
+        import importlib.util
+        import sys
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False, encoding="utf-8"
+        ) as tmp:
+            tmp.write(script_code)
+            tmp_path = tmp.name
+
+        try:
+            spec = importlib.util.spec_from_file_location(
+                f"_domain_tool_{skill_id}_{tool_name}", tmp_path
+            )
+            if spec is None or spec.loader is None:
+                return f"Error: failed to load script for '{skill_id}:{tool_name}'"
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[mod.__name__] = mod
+            spec.loader.exec_module(mod)
+
+            func = getattr(mod, tool.callable_name, None)
+            if func is None:
+                return f"Error: callable '{tool.callable_name}' not found in script"
+
+            import asyncio
+
+            result = await asyncio.wait_for(
+                func(browser_session, tool_args), timeout=30.0
+            )
+            return str(result)
+        except TimeoutError:
+            return f"Error: domain tool '{skill_id}:{tool_name}' timed out after 30s"
+        except Exception as e:
+            return f"Error executing domain tool '{skill_id}:{tool_name}': {e}"
+        finally:
+            import os as _os
+
+            with __import__("contextlib").suppress(OSError):
+                _os.unlink(tmp_path)
+            sys.modules.pop(f"_domain_tool_{skill_id}_{tool_name}", None)
+
+    def _handle_list_site_tools() -> str:
+        """List all available domain skill tools."""
+        from ..domain_skills import get_global_domain_skill_store
+
+        store = get_global_domain_skill_store()
+        skills = store.list_skills()
+        if not skills:
+            return "No domain skills available."
+
+        lines: list[str] = [f"Domain skills ({len(skills)}):"]
+        for skill in skills:
+            domains = ", ".join(skill.domains[:3])
+            lines.append(f"\n  [{skill.id}] {skill.name} ({domains})")
+            for tool in skill.python_tools.values():
+                args_str = ", ".join(
+                    f"{k}{'?' if a.get('required') != 'true' else ''}"
+                    for k, a in tool.args.items()
+                )
+                lines.append(f"    - {tool.name}({args_str}): {tool.description}")
+        return "\n".join(lines)
 
     return browser_manage
