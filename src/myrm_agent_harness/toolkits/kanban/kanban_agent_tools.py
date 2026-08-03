@@ -29,6 +29,7 @@ from langchain_core.tools import BaseTool, tool
 
 from myrm_agent_harness.toolkits.kanban.types import (
     BlockKind,
+    KANBAN_COMPLETION_INTENT_KEY,
     KANBAN_SOURCE_CHAT_METADATA_KEY,
     KanbanTask,
     TaskEventKind,
@@ -233,24 +234,28 @@ def _build_worker_tools(
                 return json.dumps({"error": f"Invalid metadata JSON: {e}"})
 
         old_status = task.status
-        task.status = TaskStatus.COMPLETED
-        task.completed_at = datetime.now(UTC)
-        task.progress_note = None
+        task.status = TaskStatus.RUNNING
+        task.progress_note = "Verifying completion"
         task.result = summary
+        merged_metadata: dict[str, object] = {
+            **task.metadata,
+            KANBAN_COMPLETION_INTENT_KEY: True,
+        }
         if parsed_metadata:
-            task.metadata = {**task.metadata, "handoff": parsed_metadata}
+            merged_metadata["handoff"] = parsed_metadata
+        task.metadata = merged_metadata
         saved = await store.save_task(task)
 
         await store.append_event(
             resolved_id,
-            TaskEventKind.COMPLETED,
-            payload={"from": old_status.value, "to": "completed", "summary": summary},
+            TaskEventKind.COMPLETION_REQUESTED,
+            payload={"from": old_status.value, "summary": summary},
         )
 
         if dispatcher:
             dispatcher.wake()
 
-        return json.dumps({"status": "completed", "task": saved.to_dict()})
+        return json.dumps({"status": "completion_requested", "task": saved.to_dict()})
 
     @tool("kanban_block")
     async def kanban_block(reason: str, until: str = "", task_id: str = "") -> str:
@@ -632,7 +637,43 @@ def _build_orchestrator_tools(
         if task.status != TaskStatus.BLOCKED:
             return json.dumps({"error": f"Task is not blocked (status={task.status.value})"})
 
+        board = await store.get_board(task.board_id)
+        block_limit = board.settings.block_recurrence_limit if board else 2
+
         old_status = task.status
+        if task.block_cycle_count >= block_limit:
+            task.status = TaskStatus.TRIAGE
+            task.blocked_reason = None
+            task.block_kind = None
+            task.scheduled_until = None
+            task.consecutive_failures = 0
+            task.error = (
+                f"Escalated to triage after {task.block_cycle_count} block cycles "
+                f"(limit {block_limit})"
+            )
+            saved = await store.save_task(task)
+            await store.append_event(
+                task_id,
+                TaskEventKind.UNBLOCKED,
+                payload={
+                    "from": old_status.value,
+                    "to": TaskStatus.TRIAGE.value,
+                    "source": "orchestrator",
+                    "outcome": "escalated_to_triage",
+                    "block_cycle_count": task.block_cycle_count,
+                    **({"reason": reason.strip()} if reason.strip() else {}),
+                },
+            )
+            if dispatcher:
+                dispatcher.wake()
+            return json.dumps(
+                {
+                    "status": "escalated_to_triage",
+                    "block_cycle_count": task.block_cycle_count,
+                    "task": saved.to_dict(),
+                }
+            )
+
         task.status = TaskStatus.READY
         task.blocked_reason = None
         task.block_kind = None

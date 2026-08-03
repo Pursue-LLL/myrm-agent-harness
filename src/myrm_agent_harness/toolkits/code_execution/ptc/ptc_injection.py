@@ -1,4 +1,4 @@
-"""PTC injection for bash Python execution.
+"""PTC injection for sandbox Python execution (Dynamic Workflow only).
 
 [INPUT]
 - .rpc_server::PtcRpcServer (POS: Ephemeral RPC server)
@@ -9,14 +9,11 @@
 - toolkits.code_execution.executors.base::CodeExecutor, ExecutionContext (POS: Executor protocol)
 
 [OUTPUT]
-- inject_ptc_for_python_execution: Wraps Python execution with full PTC tool access.
+- inject_ptc_for_python_execution: Ephemeral RPC execution for an explicit allowed tool list (Dynamic Workflow).
 
 [POS]
-Bridges the PTC infrastructure into bash's Python execution path. When bash detects
-Python code, this module starts a temporary PtcRpcServer, generates myrm_tools.py
-stubs, injects env vars into the ExecutionContext, and executes via the standard
-CodeExecutor. The child process gains access to all Agent tools through
-``import myrm_tools``. After execution, the server is stopped and temp files cleaned.
+Bridges PTC RPC into sandbox Python execution for callers that pass an explicit
+tool allowlist (Dynamic Workflow spawn/notify). Bash Turn1 does not call this path.
 """
 
 from __future__ import annotations
@@ -44,6 +41,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_PTC_NESTING_ERROR = (
+    "Nested PTC execution is not allowed. Dynamic Workflow orchestration "
+    "cannot start a second myrm_tools RPC session inside an active one."
+)
+_PTC_SERVER_START_ERROR = (
+    "Dynamic Workflow PTC RPC server failed to start. Orchestration cannot "
+    "execute myrm_tools.spawn_subagent / notify without an active RPC bridge."
+)
+
 
 async def inject_ptc_for_python_execution(
     context: ExecutionContext,
@@ -51,16 +57,17 @@ async def inject_ptc_for_python_execution(
     ptc_tools: list[BaseTool],
     override_allowed: frozenset[str] = frozenset(),
 ) -> ExecutionResult:
-    """Execute Python code with full PTC (all Agent tools accessible via RPC).
+    """Execute Python with an explicit PTC tool allowlist inside the sandbox.
 
     Lifecycle:
-    1. Start ephemeral PtcRpcServer + PtcDispatcher with provided tools
-    2. Generate myrm_tools.py stubs to a temp directory
-    3. Inject _MYRM_PTC_SOCKET and PYTHONPATH into context.env
-    4. Set ptc_nesting_guard=True to prevent nesting
-    5. Execute via CodeExecutor (which handles sandbox, wrapper, timeout)
+    1. Reject nested PTC sessions via ``ptc_nesting_guard``
+    2. Start ephemeral PtcRpcServer + PtcDispatcher with provided tools
+    3. Generate myrm_tools.py stubs to a temp directory
+    4. Inject _MYRM_PTC_SOCKET and PYTHONPATH into context.env
+    5. Execute via CodeExecutor (sandbox, wrapper, timeout)
     6. Stop server and clean up
     """
+    from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult
     from myrm_agent_harness.toolkits.code_execution.ptc.context import (
         ptc_nesting_guard,
     )
@@ -75,6 +82,16 @@ async def inject_ptc_for_python_execution(
         generate_stubs,
     )
 
+    if ptc_nesting_guard.get():
+        logger.warning("Blocked nested PTC injection attempt")
+        return ExecutionResult(
+            success=False,
+            stderr=_PTC_NESTING_ERROR,
+            error=_PTC_NESTING_ERROR,
+            error_category="guardrail_blocked",
+            error_hint=_PTC_NESTING_ERROR,
+        )
+
     config = PtcConfig(
         max_tool_calls=50,
         timeout_seconds=min(context.timeout or 300, 600),
@@ -84,9 +101,15 @@ async def inject_ptc_for_python_execution(
 
     try:
         await server.start()
-    except Exception as e:
-        logger.warning("PTC server start failed (%s), falling back to plain exec", e)
-        return await executor.execute(context)
+    except Exception as exc:
+        logger.error("PTC server start failed (%s); refusing plain exec fallback", exc)
+        return ExecutionResult(
+            success=False,
+            stderr=f"{_PTC_SERVER_START_ERROR} ({exc})",
+            error=_PTC_SERVER_START_ERROR,
+            error_category="execution_failure",
+            error_hint=_PTC_SERVER_START_ERROR,
+        )
 
     stub_dir: str | None = None
     token = ptc_nesting_guard.set(True)
@@ -104,7 +127,7 @@ async def inject_ptc_for_python_execution(
         patched_context = _patch_context_env(context, child_env)
 
         logger.info(
-            "PTC injected for bash Python: %d tools exposed, socket=%s",
+            "PTC injected for orchestration script: %d tools exposed, socket=%s",
             len(ptc_tools),
             server.socket_path or f"tcp:{server.tcp_port}",
         )

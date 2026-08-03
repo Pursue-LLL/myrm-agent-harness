@@ -8,10 +8,10 @@ Bash tool module.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Bash tool module. | — |
-| `_tool_description.py` | Internal | Static ~4.3k-char `TOOL_DESCRIPTION` (cache-stable across agents). Full dependency-analysis / OBSERVATION-RESULT contract, all `bash_process_tool` actions, PTC generic bind-name rules + compact `get_ptc_description()` builtins appendix. | ✅ |
+| `_tool_description.py` | Internal | Static ~3k-char `TOOL_DESCRIPTION` (cache-stable). Pure Script + MCP/tools.* batch + native-tool priority; forbids `myrm_tools` in bash. | ✅ |
 | _output_eviction.py | Internal | Large output eviction (save to file, return `EvictionResult(text, evicted_ref)` for SSE propagation to GUI viewer). | ✅ |
 | _event_logging.py | Internal | Event logging for bash command execution (redaction, classification). | ✅ |
-| `_preflight_checks.py` | Internal | Security preflight: URL exfiltration, sensitive paths, interactive detection (foreground only; skipped when ``run_in_background=True``), install package registry verification (anti-slopsquatting). | ✅ |
+| `_preflight_checks.py` | Internal | Security preflight: URL exfiltration, sensitive paths, myrm_tools guard (AST / bash `-c` / referenced `.py` scan; raises ``ToolError`` with ``MYRM_TOOLS_BLOCKED`` + ``guardrail_blocked`` for GUI Badge), interactive detection, install package registry verification. | ✅ |
 | output_compressor.py | Internal | Command-aware semantic compressor entry point (Dual-Engine: hardcoded + YAML-driven). Orchestrates compressor registry and DeclarativeFilterEngine. | ✅ |
 | _compressors.py | Internal | Concrete command-specific compressors (git, test, package install, docker, build, compiler, log). | ✅ |
 | bash_execution_error.py | Core | Structured BashExecutionError with diagnostic previews. | ✅ |
@@ -19,9 +19,9 @@ Bash tool module.
 | bash_executor.py | Core | BashExecutor aggregate root (DI-based orchestrator). MRO: Execute → Background → Prepare → Context. | ✅ |
 | bash_executor_execute_mixin.py | Core | Synchronous ``execute()`` orchestration; post-bash ``OfficeBashAudit`` fidelity warnings. | ✅ |
 | bash_executor_background_mixin.py | Core | ``spawn_background()`` via background process registry. | ✅ |
-| bash_executor_prepare_mixin.py | Core | MCP proxy, code-type detection, skill staging, PTC routing. | ✅ |
+| bash_executor_prepare_mixin.py | Core | MCP proxy, code-type detection, skill staging. | ✅ |
 | bash_executor_context_mixin.py | Core | ExecutionContext build, OAuth issuer scoping, event logging. | ✅ |
-| bash_code_execute_tool.py | Core | ``create_bash_code_execute_tool`` LangChain factory aggregate root; re-exports test helpers; appends ``office_warnings`` to tool output. | ✅ |
+| bash_code_execute_tool.py | Core | ``create_bash_code_execute_tool`` LangChain factory; static TOOL_DESCRIPTION + OS hint only. | ✅ |
 | bash_tool_exit_semantics.py | Core | Exit-code semantic interpretation (grep=1, git diff, signals). | ✅ |
 | bash_tool_formatting.py | Core | Output compression, truncation, redaction, tool_output wrapping. | ✅ |
 | bash_tool_background_listeners.py | Core | Background spawn ptc_notify listeners and exit classification; natural ``exited`` finish emits progress + optional server finish hook; ``killed`` (session cancel) is silent (no finish ptc_notify, no chat persistence). | ✅ |

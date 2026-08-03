@@ -8,6 +8,7 @@ pagination, priority ordering, and agent tool actions.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import pytest
 
@@ -1059,12 +1060,13 @@ class TestKanbanCompleteTools:
         )
         complete = self._get_tool(tools, "kanban_complete")
         result = json.loads(await complete.ainvoke({"summary": "All done"}))
-        assert result["status"] == "completed"
+        assert result["status"] == "completion_requested"
         assert result["task"]["result"] == "All done"
         task = await store.get_task("t1")
         assert task is not None
-        assert task.status == TaskStatus.COMPLETED
+        assert task.status == TaskStatus.RUNNING
         assert task.result == "All done"
+        assert task.metadata["completion_intent"] is True
 
     @pytest.mark.asyncio
     async def test_complete_with_metadata(self) -> None:
@@ -1080,7 +1082,7 @@ class TestKanbanCompleteTools:
         result = json.loads(await complete.ainvoke({
             "summary": "Fixed bug", "metadata": meta,
         }))
-        assert result["status"] == "completed"
+        assert result["status"] == "completion_requested"
         task = await store.get_task("t1")
         assert task is not None
         assert task.metadata["handoff"] == {"changed_files": ["a.py"], "tests_run": 3}
@@ -1148,7 +1150,7 @@ class TestKanbanCompleteTools:
 
     @pytest.mark.asyncio
     async def test_complete_emits_event_with_summary(self) -> None:
-        """COMPLETED event payload contains summary."""
+        """COMPLETION_REQUESTED event payload contains summary."""
         store = InMemoryKanbanStore()
         await _make_board(store)
         await _make_task(store, "t1", status=TaskStatus.RUNNING)
@@ -1158,12 +1160,12 @@ class TestKanbanCompleteTools:
         complete = self._get_tool(tools, "kanban_complete")
         await complete.ainvoke({"summary": "Implemented feature X"})
         events = await store.list_events("t1")
-        completed_events = [
-            e for e in events if e.kind.value == "completed"
+        requested_events = [
+            e for e in events if e.kind.value == "completion_requested"
         ]
-        assert len(completed_events) == 1
-        assert completed_events[0].payload is not None
-        assert completed_events[0].payload["summary"] == "Implemented feature X"
+        assert len(requested_events) == 1
+        assert requested_events[0].payload is not None
+        assert requested_events[0].payload["summary"] == "Implemented feature X"
 
     @pytest.mark.asyncio
     async def test_complete_without_metadata_no_handoff_key(self) -> None:
@@ -1472,7 +1474,13 @@ class TestHandoffEndToEnd:
             "summary": "Implemented feature X",
             "metadata": '{"changed_files": ["x.py"], "tests_passed": 12}',
         }))
-        assert result["status"] == "completed"
+        assert result["status"] == "completion_requested"
+
+        parent = await store.get_task("p-e2e")
+        assert parent is not None
+        parent.status = TaskStatus.COMPLETED
+        parent.completed_at = datetime.now(UTC)
+        await store.save_task(parent)
 
         ctx = await build_task_context(store, "c-e2e")
         assert "Handoff:" in ctx
@@ -1762,6 +1770,20 @@ class TestKanbanConsolidationTools:
         assert result["status"] == "unblocked"
         assert result["dependencies_met"] is True
         assert result["task"]["status"] == "ready"
+
+    @pytest.mark.asyncio
+    async def test_kanban_unblock_escalates_to_triage_at_block_limit(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        task = await _make_task(store, "t1", status=TaskStatus.BLOCKED)
+        task.blocked_reason = "waiting"
+        task.block_cycle_count = 2
+        await store.save_task(task)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        unblock = self._get_tool(tools, "kanban_unblock")
+        result = json.loads(await unblock.ainvoke({"task_id": "t1", "reason": "approved"}))
+        assert result["status"] == "escalated_to_triage"
+        assert result["task"]["status"] == "triage"
 
     @pytest.mark.asyncio
     async def test_kanban_unblock_waiting_when_dependencies_unmet(self) -> None:

@@ -267,9 +267,16 @@ async def handle_execution_error(
         error_content=f"{error_type}: {error_msg}"[:200],
     )
 
-    error_category: str | None = (
-        getattr(e, "diagnostic_info", {}).get("error_category") if hasattr(e, "diagnostic_info") else None
-    )
+    from myrm_agent_harness.utils.errors import ToolError
+
+    error_category: str | None = None
+    if isinstance(e, ToolError):
+        error_category = e.error_category
+    else:
+        diagnostic_info = getattr(e, "diagnostic_info", None)
+        if isinstance(diagnostic_info, dict):
+            raw_category = diagnostic_info.get("error_category")
+            error_category = raw_category if isinstance(raw_category, str) and raw_category else None
     return make_error_msg(
         tool_name,
         tool_call_id,

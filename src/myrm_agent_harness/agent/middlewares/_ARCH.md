@@ -44,7 +44,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `security_guardrail_middleware.py` | Core | Security guardrail enforcement. | ✅ |
 | `subagent_limit_middleware.py` | Core | Max concurrent subagents per turn. | ✅ |
 | `tool_call_dedup_middleware.py` | Core | tool_call_id deduplication. | ✅ |
-| `tool_executor.py` | Core | Tool execution with timeout/retry/backoff. | ✅ |
+| `tool_executor.py` | Core | Tool execution with timeout/retry/backoff; propagates ``ToolError.error_category`` into ToolMessage for SSE. | ✅ |
 | `tool_interceptor_middleware.py` | Core | Single interception point for all tool calls. | ✅ |
 
 | Submodule | Description |

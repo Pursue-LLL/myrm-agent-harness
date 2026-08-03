@@ -27,7 +27,7 @@
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
 | 4a | web_fetch_tool | 119 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 抓取/深读 | Turn1 基线 |
-| 6 | **bash_code_execute_tool** | **839** | `harness/agent/meta_tools/bash/_tool_description.py` | Shell/Python；静态 slim 描述 + OS hint + PTC stub | 通用 Agent 基线 |
+| 6 | **bash_code_execute_tool** | **1,567** | `harness/agent/meta_tools/bash/_tool_description.py` | Shell/Python；静态描述 + OS hint（Pure Script + MCP `skills.*/tools.*`；无动态 append） | 通用 Agent 基线 |
 | 6b | **bash_process_tool** | **79** | `harness/agent/meta_tools/bash/bash_process_tools.py` | 后台进程 list/output/kill（CORE；与 bash_code_execute 同挂） | enable_shell_tools |
 | 7 | file_edit_tool | 184 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 批量 edits[] 原子编辑 | 通用 Agent 基线 |
 | 8 | file_read_tool | 417 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件 | 通用 Agent 基线 |
@@ -35,7 +35,7 @@
 | 10 | glob_tool | 263 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符搜索 | 通用 Agent 基线 |
 | 11 | grep_tool | 224 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则搜索 | 通用 Agent 基线 |
 
-**CORE 描述小计（Turn1）**：**2,286 tokens**（8 工具；`scripts/measure_turn1_token_inventory.py` 实测）
+**CORE 描述小计（Turn1）**：**3,014 tokens**（8 工具；`scripts/measure_turn1_token_inventory.py` 实测）
 
 ---
 
@@ -263,7 +263,7 @@ Token 明细（历史 tiktoken 计量保留）：
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
 | **tiktoken 小计** | **~11,526** | |
 
-> bash Turn1 描述 token **~1,020**（静态 slim `_tool_description.py` + OS hint + PTC stub；2026-07-19 估算；compiled-core 可用时用 `scripts/measure_turn1_token_inventory.py` 复测）。
+> bash Turn1 描述 token **1,567**（静态 `_tool_description.py` + OS hint；`scripts/measure_turn1_token_inventory.py` 实测 2026-08-03）。
 
 ### 最小 Turn 1 场景（仅 CORE 8 工具，无 COMMON/EXTENDED）
 

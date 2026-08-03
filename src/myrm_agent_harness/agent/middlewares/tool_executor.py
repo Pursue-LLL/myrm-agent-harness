@@ -170,8 +170,8 @@ async def execute_with_retry(
                     ) from e
 
                 if isinstance(e, ToolError):
-                    category = getattr(e, "error_category", None)
-                    hint = getattr(e, "user_hint", None)
+                    category = e.error_category
+                    hint = e.user_hint or None
                     if category in ("network_blocked", "sandbox_ro"):
                         get_terminal_errors().add(category)
                         logger.info(f" Circuit breaker registered terminal error: {category}")

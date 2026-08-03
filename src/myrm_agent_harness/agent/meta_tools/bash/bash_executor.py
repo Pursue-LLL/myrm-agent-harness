@@ -34,8 +34,6 @@ from myrm_agent_harness.agent.meta_tools.bash.workspace_manager import Workspace
 from myrm_agent_harness.toolkits.code_execution import ExecutionConfig
 
 if TYPE_CHECKING:
-    from langchain_core.tools import BaseTool
-
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 
 _MCP_MIN_TIMEOUT = MCP_MIN_TIMEOUT
@@ -53,11 +51,9 @@ class BashExecutor(
         self,
         executor: CodeExecutor,
         enable_skill_execution: bool = True,
-        ptc_tools: list[BaseTool] | None = None,
     ) -> None:
         self._executor = executor
         self._enable_skill_execution = enable_skill_execution
-        self._ptc_tools: list[BaseTool] = ptc_tools or []
         self._skill_executor = None
         self._mcp_proxy_started = False
 

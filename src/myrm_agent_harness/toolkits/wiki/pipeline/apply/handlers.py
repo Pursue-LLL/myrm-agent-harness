@@ -31,6 +31,7 @@ from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
 )
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     WikiPageType,
+    WikiProvenance,
     ensure_frontmatter_type,
     load_frontmatter_metadata,
     serialize_frontmatter_block,
@@ -177,7 +178,7 @@ def apply_mutation_to_content(
             body,
             page_type,
             sources=sources,
-            provenance=request.provenance or "create_note",
+            provenance=request.provenance or WikiProvenance.CREATE_NOTE,
         )
         metadata, body_only = load_frontmatter_metadata(content)
         for key, value in request.metadata.items():

@@ -6,7 +6,7 @@
 - langchain_core.messages::BaseMessage (POS: LangChain 消息类型)
 
 [OUTPUT]
-- ToolError: Agent 工具执行错误（诊断信息 + 修复建议 + format_for_llm 协议）
+- ToolError: Agent 工具执行错误（诊断信息 + error_category property + format_for_llm 协议）
 - format_error_message(): 格式化异常信息
 - log_and_format_error(): 记录日志并格式化异常信息
 - ModelOutputValidator: 模型输出验证器
@@ -42,6 +42,7 @@ class ToolError(Exception):
         diagnostic_info: 诊断信息（错误分类、上下文、根因分析）
         recovery_suggestions: 修复建议列表（按优先级排序）
         error_code: 错误代码（用于分类和统计）
+        error_category: Structured category from ``diagnostic_info["error_category"]``
 
     Example:
         >>> raise ToolError(
@@ -75,6 +76,12 @@ class ToolError(Exception):
         self.diagnostic_info = diagnostic_info or {}
         self.recovery_suggestions = recovery_suggestions or []
         self.error_code = error_code
+
+    @property
+    def error_category(self) -> str | None:
+        """Structured error category for SSE, metrics, and frontend badges."""
+        raw = self.diagnostic_info.get("error_category")
+        return raw if isinstance(raw, str) and raw else None
 
     def format_for_llm(self) -> str:
         """Format error for LLM consumption with full diagnostic context."""

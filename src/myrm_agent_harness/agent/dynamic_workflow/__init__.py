@@ -6,11 +6,13 @@
 - dynamic_workflow.tools::SpawnSubagentTool (POS: PTC bridge tool)
 - toolkits.code_execution.ptc::inject_ptc_for_python_execution (POS: Sandbox execution)
 - utils.runtime.cancellation::CancellationToken
+- dynamic_workflow.preflight::WorkflowPlanReview, WorkflowApprovalGate (POS: Trust-layer preflight)
 - agent.sub_agents.types::SubagentCatalog (POS: Catalog protocol for type discovery)
 
 [OUTPUT]
 - run_dynamic_workflow_stream: AsyncIterable[dict] yielding AgentEventType-compatible SSE events
 - _build_available_types_hint: Generates dynamic agent_type listing for ORCHESTRATOR_PROMPT
+- Re-exports: WorkflowPlanReview, WorkflowApprovalGate (from preflight.py)
 
 [POS]
 Third-generation orchestration layer. Breaks context limits by having the LLM
@@ -32,10 +34,20 @@ from myrm_agent_harness.agent.dynamic_workflow.notify_stream import (
     drain_notify_queue_nowait,
     iter_notify_events_while_task_runs,
 )
+from myrm_agent_harness.agent.dynamic_workflow.preflight import (
+    WorkflowApprovalGate,
+    WorkflowPlanReview,
+    count_spawn_calls,
+    estimate_workflow_cost,
+    format_plan_preview,
+    resume_action,
+    strip_script_markdown,
+)
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
 from myrm_agent_harness.agent.dynamic_workflow.tools import (
     NotifyProgressTool,
     SpawnSubagentTool,
+    WorkflowRunGuard,
 )
 
 if TYPE_CHECKING:
@@ -248,6 +260,8 @@ async def run_dynamic_workflow_stream(
     message_id: str,
     cancel_token: CancellationToken | None = None,
     catalog: SubagentCatalog | None = None,
+    approval_gate: WorkflowApprovalGate | None = None,
+    resume_value: dict[str, object] | None = None,
 ) -> AsyncIterable[dict[str, object]]:
     """Core Dynamic Workflow Engine with full capability inheritance."""
     hash_input = f"{chat_id}:{message_id}".encode()
@@ -271,6 +285,7 @@ async def run_dynamic_workflow_stream(
         return list(parent_agent._cached_tools or parent_agent.user_tools) if parent_agent else []
 
     notify_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+    run_guard = WorkflowRunGuard()
 
     spawn_tool = SpawnSubagentTool(
         parent_agent=parent_agent,
@@ -281,6 +296,7 @@ async def run_dynamic_workflow_stream(
         cancel_token=cancel_token,
         event_queue=notify_queue,
         message_id=message_id,
+        run_guard=run_guard,
     )
     notify_tool = NotifyProgressTool(
         event_queue=notify_queue,
@@ -294,44 +310,120 @@ async def run_dynamic_workflow_stream(
         "data": {"message": "Engine initialized with Durable Execution (SQLite).", "workflow_id": workflow_id},
     }
 
-    # --- Phase 2: Generate orchestration script ---
+    # --- Phase 2: Generate orchestration script (or resume stored script) ---
     if cancel_token and cancel_token.is_cancelled:
         yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "cancelled"}
         return
 
-    yield {
-        "type": "status",
-        "step_key": "workflow_planning",
-        "status": "in_progress",
-        "data": {"message": "Generating orchestration script..."},
-    }
+    resume_action_val = resume_action(resume_value)
+    script_code: str | None = None
 
-    llm = parent_agent.llm
+    if resume_action_val == "skip":
+        yield {
+            "type": "message",
+            "messageId": message_id,
+            "data": "Dynamic Workflow cancelled — orchestration was not approved.",
+        }
+        yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "cancelled"}
+        return
 
-    orchestrator_prompt = ORCHESTRATOR_PROMPT
-    available_types = await _build_available_types_hint(catalog)
-    if available_types:
-        orchestrator_prompt = f"{orchestrator_prompt}\n\n{available_types}"
+    if resume_action_val in ("confirm", "edit"):
+        script_code = store.get_orchestration_script(workflow_id)
+        if script_code is None:
+            yield {
+                "type": "message",
+                "messageId": message_id,
+                "data": "Dynamic Workflow resume failed — stored orchestration script not found.",
+            }
+            yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "error"}
+            return
 
-    messages = [SystemMessage(content=orchestrator_prompt), *chat_history, HumanMessage(content=query)]
-    response = await llm.ainvoke(messages)
-    script_code = response.content
+    if script_code:
+        yield {
+            "type": "status",
+            "step_key": "workflow_planning",
+            "status": "success",
+            "data": {"message": "Resuming approved orchestration script."},
+        }
+    else:
+        yield {
+            "type": "status",
+            "step_key": "workflow_planning",
+            "status": "in_progress",
+            "data": {"message": "Generating orchestration script..."},
+        }
 
-    if isinstance(script_code, str):
-        if script_code.startswith("```python"):
-            script_code = script_code[9:]
-        if script_code.startswith("```"):
-            script_code = script_code[3:]
-        if script_code.endswith("```"):
-            script_code = script_code[:-3]
-        script_code = script_code.strip()
+        llm = parent_agent.llm
 
-    yield {
-        "type": "status",
-        "step_key": "workflow_planning",
-        "status": "success",
-        "data": {"message": "Orchestration script generated."},
-    }
+        orchestrator_prompt = ORCHESTRATOR_PROMPT
+        available_types = await _build_available_types_hint(catalog)
+        if available_types:
+            orchestrator_prompt = f"{orchestrator_prompt}\n\n{available_types}"
+
+        messages = [SystemMessage(content=orchestrator_prompt), *chat_history, HumanMessage(content=query)]
+        response = await llm.ainvoke(messages)
+        raw_script = response.content if isinstance(response.content, str) else str(response.content)
+        script_code = strip_script_markdown(raw_script)
+
+        yield {
+            "type": "status",
+            "step_key": "workflow_planning",
+            "status": "success",
+            "data": {"message": "Orchestration script generated."},
+        }
+
+    assert script_code is not None
+
+    spawn_count = count_spawn_calls(script_code)
+    estimated_cost_usd, remaining_budget_usd, cost_status = await estimate_workflow_cost(
+        parent_agent, catalog, spawn_count, query
+    )
+    plan_review = WorkflowPlanReview(
+        script_code=script_code,
+        spawn_count=spawn_count,
+        estimated_cost_usd=estimated_cost_usd,
+        remaining_budget_usd=remaining_budget_usd,
+        cost_status=cost_status,
+    )
+
+    needs_approval = spawn_count >= 1 and approval_gate is not None and resume_action_val not in ("confirm", "edit")
+    if needs_approval:
+        store.save_orchestration_script(workflow_id, script_code)
+        yield {
+            "type": "status",
+            "messageId": message_id,
+            "data": {
+                "phase": "plan_confirm",
+                "status": "waiting",
+                "plan": format_plan_preview(plan_review),
+                "source": "dynamic_workflow",
+                "spawn_count": spawn_count,
+                "estimated_cost_usd": estimated_cost_usd,
+                "remaining_budget_usd": remaining_budget_usd,
+                "cost_status": cost_status,
+            },
+        }
+
+        approved = await approval_gate(plan_review)
+        yield {
+            "type": "status",
+            "messageId": message_id,
+            "data": {
+                "phase": "plan_confirm",
+                "status": "resolved",
+                "modified": False,
+                "source": "dynamic_workflow",
+            },
+        }
+
+        if not approved:
+            yield {
+                "type": "message",
+                "messageId": message_id,
+                "data": "Dynamic Workflow cancelled — orchestration was not approved.",
+            }
+            yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "cancelled"}
+            return
 
     # --- Phase 3: Execute via PTC ---
     if cancel_token and cancel_token.is_cancelled:
@@ -407,7 +499,7 @@ async def run_dynamic_workflow_stream(
             ]
 
             try:
-                summary_response = await llm.ainvoke(summary_messages)
+                summary_response = await parent_agent.llm.ainvoke(summary_messages)
                 summary_text = (
                     summary_response.content
                     if isinstance(summary_response.content, str)

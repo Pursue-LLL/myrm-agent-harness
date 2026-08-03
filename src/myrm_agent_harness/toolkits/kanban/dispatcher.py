@@ -38,6 +38,8 @@ from myrm_agent_harness.toolkits.kanban.types import (
     TaskRunOutcome,
     TaskStatus,
     TaskTimeoutError,
+    clear_completion_intent,
+    has_completion_intent,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -336,18 +338,13 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin):
         if task is None:
             return
         if task.status != TaskStatus.RUNNING:
-            if task.status == TaskStatus.COMPLETED:
-                # Agent called kanban_complete directly — task already done.
-                # Finalize run as COMPLETED and ensure dependents are promoted.
+            if task.status == TaskStatus.BLOCKED:
                 await self._store.complete_run(
                     run_id,
-                    TaskRunOutcome.COMPLETED,
-                    summary=task.result or result,
+                    TaskRunOutcome.BLOCKED,
+                    error=task.blocked_reason or result,
                 )
-                self.emit("task_completed", task)
-                await self._promote_dependents(task_id)
-                self.wake()
-                logger.info("Task %s completed via kanban_complete tool", task_id[:8])
+                logger.info("Task %s blocked during execution", task_id[:8])
             else:
                 logger.warning(
                     "Task %s status changed to %s during execution, discarding success result",
@@ -360,6 +357,9 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin):
                     error="Status changed during execution",
                 )
             return
+
+        if has_completion_intent(task.metadata):
+            result = task.result or result
 
         if self._verifier:
             try:
@@ -415,6 +415,7 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin):
         task.consecutive_failures = 0
         task.block_cycle_count = 0
         task.progress_note = None
+        task.metadata = clear_completion_intent(dict(task.metadata))
         await self._store.save_task(task)
         await self._store.complete_run(
             run_id,
@@ -530,15 +531,23 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin):
     async def _wakeup_scheduled_tasks(self) -> None:
         """Auto-unblock tasks whose scheduled_until has passed."""
         due_tasks = await self._store.list_due_scheduled_tasks(self._board.board_id)
+        block_limit = self._board.settings.block_recurrence_limit
         for task in due_tasks:
             deps_met = await self._store.are_dependencies_met(task.task_id)
-            target = TaskStatus.READY if deps_met else TaskStatus.BACKLOG
+            if task.block_cycle_count >= block_limit:
+                target = TaskStatus.TRIAGE
+                task.error = (
+                    f"Escalated to triage after {task.block_cycle_count} block cycles "
+                    f"(limit {block_limit})"
+                )
+            else:
+                target = TaskStatus.READY if deps_met else TaskStatus.BACKLOG
+                task.error = ""
             task.status = target
             task.blocked_reason = None
             task.block_kind = None
             task.scheduled_until = None
             task.consecutive_failures = 0
-            task.error = ""
             await self._store.save_task(task)
             await self._store.append_event(
                 task.task_id,

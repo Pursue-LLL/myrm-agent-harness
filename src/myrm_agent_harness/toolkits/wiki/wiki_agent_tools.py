@@ -33,6 +33,7 @@ from langchain_core.tools import tool
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
+from .core.frontmatter_contract import WikiProvenance
 from .core.structure import WikiStructure
 from .maintenance.linter import WikiLinter
 from .pipeline.compiler import WikiCompiler
@@ -263,7 +264,7 @@ def create_wiki_agent_tools(
             aliases=_split_csv(aliases),
             sources=_split_csv(sources),
             clear_confidence=clear_confidence,
-            provenance="agent",
+            provenance=WikiProvenance.AGENT,
         )
         indexer = WikiIndexer(structure)
         try:

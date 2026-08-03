@@ -141,6 +141,12 @@ class TestTavilyTimeRangeToDays:
     def test_custom_date_range_span(self):
         assert tavily_time_range_to_days("2025-01-01..2025-06-30") == "181"
 
+    def test_invalid_custom_date_range_defaults_to_7(self):
+        assert tavily_time_range_to_days("not-a-date..also-bad") == "7"
+
+    def test_inverted_custom_date_range_defaults_to_7(self):
+        assert tavily_time_range_to_days("2025-06-30..2025-01-01") == "7"
+
 
 class TestTavilySiteConstraint:
     def test_extracts_domain_filter_and_cleans_query(self):
@@ -160,8 +166,24 @@ class TestTavilySiteConstraint:
         assert cleaned == "rust async"
         assert override == {"days": "7", "search_domain_filter": ["github.com"]}
 
+    def test_merges_existing_domain_filter_list(self):
+        cleaned, override = apply_tavily_site_constraint(
+            "site:gov.cn policy",
+            {"search_domain_filter": ["example.com"]},
+        )
+        assert cleaned == "policy"
+        assert override is not None
+        assert override["search_domain_filter"] == ["example.com", "gov.cn"]
+
     def test_no_site_operator_passthrough(self):
         query = "python asyncio tutorial"
         cleaned, override = apply_tavily_site_constraint(query, {"days": "30"})
         assert cleaned == query
         assert override == {"days": "30"}
+
+    def test_site_only_query_keeps_original(self):
+        query = "site:gov.cn"
+        cleaned, override = apply_tavily_site_constraint(query, None)
+        assert cleaned == query
+        assert override is not None
+        assert override["search_domain_filter"] == ["gov.cn"]

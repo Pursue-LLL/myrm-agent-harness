@@ -12,7 +12,7 @@ relevance. Provider-aware for SearxNG, Tavily, and Volcengine Doubao.
 - SearchIntentResult: Intent detection result with confidence score.
 - SearchIntentDetector: Protocol for intent detection strategies.
 - KeywordSearchIntentDetector: Default keyword-based implementation (zero LLM cost).
-- resolve_search_params: Maps intent + provider to optimal search parameters.
+- resolve_search_params: Maps intent + provider to optimal search parameters (incl. AUTHORITY→Volcengine AuthInfoLevel).
 
 [POS]
 Search intent detection and parameter optimization.
@@ -37,6 +37,7 @@ class SearchIntent(Enum):
     ACADEMIC = "academic"
     SOCIAL = "social"
     SECURITY = "security"
+    AUTHORITY = "authority"
     PLATFORM_BILIBILI = "platform_bilibili"
     GENERAL = "general"
 
@@ -105,6 +106,16 @@ _PRIORITY_PATTERNS: list[tuple[SearchIntent, list[str]]] = [
             r"(估值|股[价票权]|市[值场]|融资|营收|财报|基金|利率|汇率|投[资融])",
             r"\b(nasdaq|nyse|s&p|dow|bitcoin|btc|eth|crypto)\b",
             r"(a股|港股|美股|加密|币[价圈])",
+        ],
+    ),
+    # AUTHORITY (official / authoritative sources — Volcengine AuthInfoLevel)
+    (
+        SearchIntent.AUTHORITY,
+        [
+            r"\b(official\s+(?:site|website|docs?|documentation|source|announcement))\b",
+            r"\b(authoritative|government|gov\.|\.gov\b)\b",
+            r"(官方|权威|官网|政府|部委|白皮书|正规来源)",
+            r"\bsite:(?:gov|edu)\.",
         ],
     ),
     # SECURITY
@@ -208,10 +219,11 @@ _TAVILY_INTENT_PARAMS: dict[SearchIntent, dict[str, str]] = {
     SearchIntent.FINANCE: {"topic": "finance"},
 }
 
-_VOLCENGINE_DOUBAO_INTENT_PARAMS: dict[SearchIntent, dict[str, str | bool]] = {
+_VOLCENGINE_DOUBAO_INTENT_PARAMS: dict[SearchIntent, dict[str, str | bool | int]] = {
     SearchIntent.NEWS: {"TimeRange": "OneDay", "QueryRewrite": True},
     SearchIntent.FINANCE: {"TimeRange": "OneWeek"},
     SearchIntent.SECURITY: {"TimeRange": "OneWeek"},
+    SearchIntent.AUTHORITY: {"AuthInfoLevel": 1},
 }
 
 

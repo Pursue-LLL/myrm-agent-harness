@@ -25,8 +25,16 @@ class TestToolError:
         err = ToolError("technical failure", user_hint="Retry with smaller input.")
         assert err.user_hint == "Retry with smaller input."
 
+    def test_error_category_from_diagnostic_info(self) -> None:
+        err = ToolError(
+            "blocked",
+            diagnostic_info={"error_category": "guardrail_blocked"},
+        )
+        assert err.error_category == "guardrail_blocked"
 
-class TestFormatErrorMessage:
+    def test_error_category_missing_when_not_in_diagnostic_info(self) -> None:
+        err = ToolError("blocked")
+        assert err.error_category is None
     def test_basic(self) -> None:
         msg = format_error_message(ValueError("bad value"))
         assert "ValueError" in msg

@@ -56,6 +56,9 @@ if TYPE_CHECKING:
     from myrm_agent_harness.agent.event_log.logger import EventLogger
     from myrm_agent_harness.agent.goals.protocols import GoalProvider
     from myrm_agent_harness.agent.goals.types import Goal, GoalExecutionSummary
+    from myrm_agent_harness.agent.context_management.pipeline.processors.media_resolver import (
+        FileContentReader,
+    )
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
     from myrm_agent_harness.utils.runtime.steering import SteeringToken
     from myrm_agent_harness.utils.token_economics.tracker import TokenTracker
@@ -97,6 +100,7 @@ class StreamContext:
         | None
     ) = None
     on_loop_restart: Callable[[str, Goal], Awaitable[None]] | None = None
+    file_content_reader: FileContentReader | None = None
     escalation_target_llm: BaseChatModel | None = None
     llm: BaseChatModel | None = None
     token_tracker: "TokenTracker | None" = None

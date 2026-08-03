@@ -18,7 +18,8 @@ Consumed by dispatcher, store, tools, and application adapters.
 - TaskEventKind: Lifecycle event categories.
 - TaskEvent: Persistent lifecycle event.
 - TaskTimeoutError: Raised when a task exceeds its max_runtime_seconds.
-- KANBAN_SOURCE_CHAT_METADATA_KEY: Metadata key linking tasks to originating chat sessions.
+- KANBAN_COMPLETION_INTENT_KEY: Metadata flag set by kanban_complete before verifier runs.
+- has_completion_intent / clear_completion_intent: Completion gate helpers.
 - extract_source_chat_id: Read trimmed source_chat_id from task metadata.
 - inherit_source_chat_metadata: Build metadata patch for child task inheritance.
 
@@ -33,6 +34,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 
 KANBAN_SOURCE_CHAT_METADATA_KEY = "source_chat_id"
+KANBAN_COMPLETION_INTENT_KEY = "completion_intent"
 
 
 def extract_source_chat_id(metadata: dict[str, object] | None) -> str | None:
@@ -52,6 +54,20 @@ def inherit_source_chat_metadata(parent_metadata: dict[str, object] | None) -> d
     if source_chat_id is None:
         return None
     return {KANBAN_SOURCE_CHAT_METADATA_KEY: source_chat_id}
+
+
+def has_completion_intent(metadata: dict[str, object] | None) -> bool:
+    """True when the worker called kanban_complete and verification is pending."""
+    if not metadata:
+        return False
+    return metadata.get(KANBAN_COMPLETION_INTENT_KEY) is True
+
+
+def clear_completion_intent(metadata: dict[str, object]) -> dict[str, object]:
+    """Return metadata with completion_intent removed."""
+    if KANBAN_COMPLETION_INTENT_KEY not in metadata:
+        return metadata
+    return {key: value for key, value in metadata.items() if key != KANBAN_COMPLETION_INTENT_KEY}
 
 
 class TaskStatus(StrEnum):
@@ -175,6 +191,7 @@ class BoardSettings:
     specify_max_tokens: int = 6000
     auto_specify_on_create: bool = False
     default_workdir: str | None = None
+    block_recurrence_limit: int = 2
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +224,7 @@ class KanbanBoard:
                 "specify_max_tokens": self.settings.specify_max_tokens,
                 "auto_specify_on_create": self.settings.auto_specify_on_create,
                 "default_workdir": self.settings.default_workdir,
+                "block_recurrence_limit": self.settings.block_recurrence_limit,
             },
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
@@ -422,6 +440,7 @@ class TaskEventKind(StrEnum):
     SPECIFIED = "specified"
     DECOMPOSED = "decomposed"
     TIMED_OUT = "timed_out"
+    COMPLETION_REQUESTED = "completion_requested"
     EDITED = "edited"
 
 

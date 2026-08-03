@@ -36,6 +36,7 @@ class PendingWikiEdit(TypedDict):
     proposed_content: str
     status: Literal["pending", "approved", "rejected"]
     created_at: str
+    provenance: str | None
 
 
 class WikiPendingEditsManager:
@@ -68,10 +69,15 @@ class WikiPendingEditsManager:
                     concept_name TEXT NOT NULL,
                     proposed_content TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'pending',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    provenance TEXT
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON pending_edits(status)")
+            try:
+                conn.execute("ALTER TABLE pending_edits ADD COLUMN provenance TEXT")
+            except sqlite3.OperationalError:
+                pass
 
     async def stage_pending_edit(
         self,
@@ -79,6 +85,7 @@ class WikiPendingEditsManager:
         proposed_content: str,
         *,
         source_files: list[str] | None = None,
+        provenance: str | None = None,
     ) -> int:
         """Stage a pending draft and demote stale published articles from RAG."""
         from myrm_agent_harness.toolkits.wiki.pipeline.publication.stale_guard import (
@@ -93,23 +100,21 @@ class WikiPendingEditsManager:
             source_files=source_files,
         ):
             await demote_stale_published_article(self._structure, self._indexer, concept_name)
-        return self.add_pending_edit(concept_name, proposed_content)
+        return self.add_pending_edit(concept_name, proposed_content, provenance=provenance)
 
-    def add_pending_edit(self, concept_name: str, proposed_content: str) -> int:
+    def add_pending_edit(self, concept_name: str, proposed_content: str, *, provenance: str | None = None) -> int:
         """Add a new draft edit. If one exists for the same concept, overwrite it."""
         with self._get_conn() as conn:
-            # First, mark any existing pending edit for this concept as rejected to avoid duplicates
             conn.execute(
                 "UPDATE pending_edits SET status = 'rejected' WHERE concept_name = ? AND status = 'pending'",
                 (concept_name,),
             )
-            # Insert the new one
             cursor = conn.execute(
                 """
-                INSERT INTO pending_edits (concept_name, proposed_content, status, created_at)
-                VALUES (?, ?, 'pending', CURRENT_TIMESTAMP)
+                INSERT INTO pending_edits (concept_name, proposed_content, status, created_at, provenance)
+                VALUES (?, ?, 'pending', CURRENT_TIMESTAMP, ?)
                 """,
-                (concept_name, proposed_content),
+                (concept_name, proposed_content, provenance),
             )
             return cursor.lastrowid or 0
 

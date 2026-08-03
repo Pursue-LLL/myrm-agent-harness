@@ -36,6 +36,7 @@ from myrm_agent_harness.agent.meta_tools.bash._preflight_checks import (
     check_command_url_exfiltration,
     check_install_packages,
     check_interactive_command,
+    check_myrm_tools_import,
     check_sensitive_paths,
 )
 from myrm_agent_harness.agent.meta_tools.bash._tool_description import TOOL_DESCRIPTION
@@ -75,8 +76,6 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_tool_multimodal import (
 )
 
 if TYPE_CHECKING:
-    from langchain_core.tools.base import BaseTool
-
     from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 logger = logging.getLogger(__name__)
@@ -105,7 +104,6 @@ def create_bash_code_execute_tool(
     *,
     skill_env_map: dict[str, dict[str, str]] | None = None,
     global_env: dict[str, str] | None = None,
-    ptc_tools: list[BaseTool] | None = None,
 ) -> BaseTool:
     """Create the bash code execution LangChain tool."""
 
@@ -114,12 +112,7 @@ def create_bash_code_execute_tool(
         s.name: s.oauth_issuer for s in (skills or []) if s.oauth_issuer and s.name
     }
 
-    from myrm_agent_harness.agent.skills.mcp.builtin_registry import (
-        get_builtin_tool_registry,
-    )
-
-    ptc_desc = get_builtin_tool_registry().get_ptc_description()
-    description = TOOL_DESCRIPTION + get_os_hint() + ptc_desc
+    description = TOOL_DESCRIPTION + get_os_hint()
 
     @tool("bash_code_execute_tool", description=description, args_schema=BashInput)
     async def bash_func(
@@ -147,8 +140,12 @@ def create_bash_code_execute_tool(
                     logger.info("CONTEXT_ACCESS path=%s method=bash_command", path)
 
         try:
+            context = extract_context_from_runnable_config(config)
+            workspace_root = str(context.get("workspace_root", "")) or None
+
             check_command_url_exfiltration(command)
             check_sensitive_paths(command)
+            check_myrm_tools_import(command, workspace_root=workspace_root)
 
             interactive_msg = check_interactive_command(command)
             if interactive_msg is not None and not run_in_background:
@@ -162,7 +159,6 @@ def create_bash_code_execute_tool(
 
             await check_install_packages(command)
 
-            context = extract_context_from_runnable_config(config)
             session_id = str(context.get("session_id", "")) or None
 
             from myrm_agent_harness.agent.meta_tools.bash.bash_executor import (
@@ -174,7 +170,7 @@ def create_bash_code_execute_tool(
 
             executor = ensure_executor(config)
             restore_context_vars(context, executor)
-            bash_executor = BashExecutor(executor=executor, ptc_tools=ptc_tools)
+            bash_executor = BashExecutor(executor=executor)
             if skill_oauth_issuers:
                 bash_executor.set_skill_oauth_issuers(skill_oauth_issuers)
             if skill_env_map:

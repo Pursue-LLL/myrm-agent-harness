@@ -27,6 +27,12 @@ LLM generates Python Script (ORCHESTRATOR_PROMPT)
   - Partial failure handling guidance
   - Structured JSON output
        ↓
+Trust layer (preflight + HITL)
+  - Static count of `myrm_tools.spawn_subagent(` → `_estimate_batch_cost`
+  - SSE `phase=plan_confirm` + PhaseWaiter (`plan:{message_id}`)
+  - User confirm/skip via `/agents/plan-confirm-response`
+  - `WorkflowRunGuard`: max 50 spawns, concurrency semaphore 5
+       ↓
 PTC Sandbox Execution
        ↓
 SpawnSubagentTool (tools.py)
@@ -50,9 +56,10 @@ SSE events (message / message_end / status)
 
 | File | Role | Description |
 |------|------|-------------|
-| `__init__.py` | Engine | Core entry point (`run_dynamic_workflow_stream`). Dynamically discovers available subagent types via `_build_available_types_hint(catalog)` using the SubagentCatalog protocol, prompts the LLM to generate the orchestration script, executes via PTC, then summarizes results. |
-| `store.py` | Persistence | `WorkflowEventStore` provides SQLite-based Event Sourcing for durable execution and crash recovery. Uses the Harness unified SQLite hardening profile (`CACHE`). |
-| `tools.py` | PTC Tools | `SpawnSubagentTool` / `NotifyProgressTool` — PTC-only bridge（`PTC_RUNTIME_TOOL_NAMES`；不在 `_TOOL_LAYERS`；≠ LLM `delegate_task_tool`） |
+| `preflight.py` | Trust | Static spawn counting, batch cost estimate, plan preview formatting, approval gate protocol. |
+| `__init__.py` | Engine | Core entry point (`run_dynamic_workflow_stream`). Script generation, preflight, optional `approval_gate`, PTC execution, summarization. |
+| `store.py` | Persistence | `WorkflowEventStore` — sub-agent result cache + orchestration script persistence for approval resume. |
+| `tools.py` | PTC Tools | `SpawnSubagentTool` (with `WorkflowRunGuard`) / `NotifyProgressTool` |
 | `notify_stream.py` | Streaming | `iter_notify_events_while_task_runs` concurrently drains the notify queue while PTC execution runs; honors `cancel_token` cancellation. |
 | `_ARCH.md` | Doc | This architecture document. |
 

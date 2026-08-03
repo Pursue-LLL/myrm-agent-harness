@@ -39,6 +39,7 @@ class TestSearchIntentEnum:
             "academic",
             "social",
             "security",
+            "authority",
             "platform_bilibili",
             "general",
         }
@@ -127,6 +128,22 @@ class TestKeywordSearchIntentDetector:
     def test_security_intent(self, detector: KeywordSearchIntentDetector, query: str):
         result = detector.detect(query)
         assert result.intent == SearchIntent.SECURITY
+        assert result.confidence >= _CONFIDENCE_THRESHOLD
+
+    # --- AUTHORITY intent ---
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "Python official documentation 3.13",
+            "authoritative source on climate policy",
+            "site:gov.cn 数字经济政策",
+            "政府官方白皮书",
+            "权威来源 医学指南",
+        ],
+    )
+    def test_authority_intent(self, detector: KeywordSearchIntentDetector, query: str):
+        result = detector.detect(query)
+        assert result.intent == SearchIntent.AUTHORITY
         assert result.confidence >= _CONFIDENCE_THRESHOLD
 
     # --- ACADEMIC intent ---
@@ -352,6 +369,12 @@ class TestResolveSearchParams:
         params = resolve_search_params(intent_result, "volcengine_doubao")
         assert params is not None
         assert params["TimeRange"] == "OneWeek"
+
+    def test_volcengine_authority_params(self):
+        intent_result = SearchIntentResult(intent=SearchIntent.AUTHORITY, confidence=0.8)
+        params = resolve_search_params(intent_result, "volcengine_doubao")
+        assert params == _VOLCENGINE_DOUBAO_INTENT_PARAMS[SearchIntent.AUTHORITY]
+        assert params["AuthInfoLevel"] == 1
 
     def test_volcengine_code_returns_none(self):
         intent_result = SearchIntentResult(intent=SearchIntent.CODE, confidence=0.9)

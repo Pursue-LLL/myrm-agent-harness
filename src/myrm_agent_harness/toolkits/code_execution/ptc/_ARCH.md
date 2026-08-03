@@ -1,24 +1,22 @@
-# ptc/ — Programmatic Tool Calling
+# ptc/ — Programmatic Tool Calling (Workflow RPC)
 
 ## Overview
-Enables LLM-written Python scripts to call agent tools via RPC stubs without consuming LLM context for intermediate results. Dramatically reduces token usage for multi-step batch operations.
+RPC infrastructure for LLM-written Python scripts to call a **bounded** tool set without intermediate results entering the LLM context. Primary consumer: **Dynamic Workflow** (`spawn_subagent`, `notify`). Bash Turn1 uses Pure Script + MCP `skills.*/tools.*` IPC instead of Turn1 `myrm_tools` stubs.
 
 ## Architecture
 
 ```
-LLM → bash_code_execute_tool(Python code)
+Dynamic Workflow engine
          ↓
-    BashExecutor._execute_python_with_ptc()
+inject_ptc_for_python_execution(ptc_tools=[spawn, notify])
          ↓
-    ptc_injection.inject_ptc_for_python_execution()
+PtcRpcServer (asyncio UDS/TCP)
          ↓
-    PtcRpcServer (asyncio UDS/TCP) started
-         ↓
-    Child Process ← myrm_tools.py (generated stubs, injected via PYTHONPATH)
+Child Process ← myrm_tools.py (generated stubs for allowed tools only)
         ↓                     ↑
   script runs      ←→   _rpc_call() per tool
         ↓
-  stdout/stderr → returned to LLM
+  stdout/stderr → returned to workflow summarizer
 ```
 
 ## File Index
@@ -33,8 +31,8 @@ LLM → bash_code_execute_tool(Python code)
 | stub_generator.py | Codegen | Generates myrm_tools.py from enabled tool list |
 | rpc_server.py | Server | Asyncio UDS/TCP server (one per execution) |
 | dispatcher.py | Dispatch | Routes RPC requests to tool.ainvoke(), records trace |
-| context.py | Context | PTC nesting guard ContextVar (`ptc_nesting_guard`). | ✅ |
-| ptc_injection.py | Orchestrator | Bridges PTC into bash Python path (server lifecycle + env injection) |
+| context.py | Context | PTC nesting guard ContextVar (`ptc_nesting_guard`); read at inject entry to reject nested sessions. | ✅ |
+| ptc_injection.py | Orchestrator | Ephemeral RPC server lifecycle + env injection; fail-closed when RPC start fails (no plain exec fallback). |
 
 ## Key Design Decisions
 
@@ -44,7 +42,7 @@ LLM → bash_code_execute_tool(Python code)
 4. **Security-first** — Env scrubbing removes all secrets, recursive PTC blocked, terminal params filtered.
 5. **Middleware reuse** — Dispatcher calls tool.ainvoke() which flows through tool_interceptor_middleware guards.
 6. **Project mode** — When enabled, child process runs in user workspace with venv python, allowing import of project dependencies (pandas, numpy, etc.). Resolves paths at runtime from executor ContextVar.
-7. **Prompt contract** — Static bash `TOOL_DESCRIPTION` teaches PTC for multi-RPC-in-one-script only; single-step work stays native tool calls. PTC-only builtins (`session_store`, etc.) appear in the dynamic registry section.
+7. **Prompt contract** — Bash `TOOL_DESCRIPTION` teaches Pure Script + MCP `skills.*/tools.*` batch; single-step work uses native tools. DW orchestration uses inject_ptc with spawn/notify only.
 
 ## Dependencies
 

@@ -49,6 +49,14 @@ class KanbanDispatcherFailureMixin:
         if task is None:
             return
         if task.status != TaskStatus.RUNNING:
+            if task.status == TaskStatus.BLOCKED:
+                await self._store.complete_run(
+                    run_id,
+                    TaskRunOutcome.BLOCKED,
+                    error=task.blocked_reason or error,
+                )
+                logger.info("Task %s blocked during execution", task_id[:8])
+                return
             logger.warning(
                 "Task %s status changed to %s during execution, discarding failure",
                 task_id[:8],

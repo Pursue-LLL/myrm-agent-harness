@@ -48,6 +48,7 @@ async def run_contradiction_synthesis_pass(
         return SynthesisPassResult(pairs_considered=0, synthesis_staged=0)
 
     definitions = {concept.name: concept.definition for concept in filtered}
+    from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import WikiProvenance
     from myrm_agent_harness.toolkits.wiki.pipeline.pending import WikiPendingEditsManager
 
     pending_mgr = WikiPendingEditsManager(structure, indexer)
@@ -68,6 +69,7 @@ async def run_contradiction_synthesis_pass(
             concept_path,
             page_content,
             source_files=[pair.concept_a, pair.concept_b],
+            provenance=WikiProvenance.CONTRADICTION_SYNTHESIS,
         )
         staged += 1
         logger.info(

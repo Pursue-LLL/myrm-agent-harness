@@ -163,7 +163,7 @@ async def test_bash_tool_no_executor_fails():
     }
 
     with pytest.raises(ToolError) as exc_info:
-        await bash_tool.ainvoke({"command": "echo test", "reason": "testing"}, config=config)
+        await bash_tool.ainvoke({"command": "echo test", "reason": "testing echo output"}, config=config)
 
     assert "codeexecutor not available" in str(exc_info.value).lower()
 
@@ -178,7 +178,7 @@ async def test_bash_tool_handles_non_mapping_context_without_attribute_error():
 
     with pytest.raises(ToolError) as exc_info:
         await bash_tool.ainvoke(
-            {"command": "echo test", "reason": "testing"}, config={"configurable": {"context": "invalid-context-shape"}}
+            {"command": "echo test", "reason": "testing echo output"}, config={"configurable": {"context": "invalid-context-shape"}}
         )
 
     assert "session_id is required" in str(exc_info.value).lower()

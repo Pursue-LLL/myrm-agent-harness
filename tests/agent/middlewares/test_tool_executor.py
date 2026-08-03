@@ -91,8 +91,11 @@ class TestExecuteWithRetryTimeout:
 class TestExecuteWithRetryErrors:
     @pytest.mark.asyncio
     async def test_non_retryable_tool_error_returns_error_msg(self) -> None:
-        err = ToolError(message="sandbox blocked", user_hint="check network")
-        err.error_category = "network_blocked"  # type: ignore[attr-defined]
+        err = ToolError(
+            message="sandbox blocked",
+            user_hint="check network",
+            diagnostic_info={"error_category": "network_blocked"},
+        )
         handler = AsyncMock(side_effect=err)
         result = await execute_with_retry(
             _make_request(), handler, "my_tool", "tc_1", allowed_domains=None,
@@ -189,8 +192,10 @@ class TestExecuteWithRetryErrors:
     @pytest.mark.asyncio
     async def test_tool_error_with_terminal_category_registers(self) -> None:
         terminal_errors: set[str] = set()
-        err = ToolError(message="blocked")
-        err.error_category = "sandbox_ro"  # type: ignore[attr-defined]
+        err = ToolError(
+            message="blocked",
+            diagnostic_info={"error_category": "sandbox_ro"},
+        )
         handler = AsyncMock(side_effect=err)
         with patch(
             "myrm_agent_harness.agent.middlewares.tool_executor.get_terminal_errors",
@@ -202,8 +207,26 @@ class TestExecuteWithRetryErrors:
             assert isinstance(result, ToolMessage)
             assert "sandbox_ro" in terminal_errors
 
-
-class TestEmitEvents:
+    @pytest.mark.asyncio
+    async def test_bash_guardrail_tool_error_propagates_category(self) -> None:
+        err = ToolError(
+            message="Command blocked: import myrm_tools",
+            user_hint="Use skills.* imports instead.",
+            diagnostic_info={"error_category": "guardrail_blocked"},
+            error_code="MYRM_TOOLS_BLOCKED",
+        )
+        handler = AsyncMock(side_effect=err)
+        result = await execute_with_retry(
+            _make_request("bash_code_execute_tool"),
+            handler,
+            "bash_code_execute_tool",
+            "tc_1",
+            allowed_domains=None,
+        )
+        assert isinstance(result, ToolMessage)
+        assert result.status == "error"
+        assert result.additional_kwargs.get("error_category") == "guardrail_blocked"
+        assert result.additional_kwargs.get("error_hint") == "Use skills.* imports instead."
     @pytest.mark.asyncio
     async def test_emit_timeout_event_with_sink(self) -> None:
         from myrm_agent_harness.agent.middlewares.tool_executor import _emit_timeout_event

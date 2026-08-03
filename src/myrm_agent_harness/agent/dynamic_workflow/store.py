@@ -4,7 +4,7 @@
 - utils.db.sqlite::CACHE, harden_connection_sync (POS: Unified SQLite hardening profile)
 
 [OUTPUT]
-- WorkflowEventStore: Persistent cache for sub-agent spawn results
+- WorkflowEventStore: Persistent cache for sub-agent spawn results and orchestration scripts
 
 [POS]
 Provides L2 persistent caching for the Dynamic Workflow Engine. When a PTC script
@@ -63,6 +63,15 @@ class WorkflowEventStore:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS orchestration_scripts (
+                    workflow_id TEXT PRIMARY KEY,
+                    script_code TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
 
     def get_cached_result(self, workflow_id: str, task_id: str) -> dict[str, object] | None:
         """Retrieve a previously completed sub-agent result."""
@@ -93,3 +102,26 @@ class WorkflowEventStore:
                 """,
                 (workflow_id, task_id, agent_type, task_description, json.dumps(result)),
             )
+
+    def save_orchestration_script(self, workflow_id: str, script_code: str) -> None:
+        """Persist generated orchestration script for approval resume."""
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO orchestration_scripts (workflow_id, script_code)
+                VALUES (?, ?)
+                """,
+                (workflow_id, script_code),
+            )
+
+    def get_orchestration_script(self, workflow_id: str) -> str | None:
+        """Load a previously generated orchestration script."""
+        with self._connect() as conn:
+            cursor = conn.execute(
+                "SELECT script_code FROM orchestration_scripts WHERE workflow_id = ?",
+                (workflow_id,),
+            )
+            row = cursor.fetchone()
+            if row and isinstance(row[0], str):
+                return row[0]
+        return None

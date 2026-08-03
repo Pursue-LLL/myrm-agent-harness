@@ -92,3 +92,22 @@ async def test_guards_category_propagates() -> None:
 
     assert events[0]["error_category"] == "estop"
     assert "error_hint" not in events[0]
+
+
+@pytest.mark.asyncio
+async def test_myrm_tools_guardrail_blocked_propagates() -> None:
+    """bash myrm_tools preflight errors should surface guardrail_blocked in SSE."""
+    msg = ToolMessage(
+        content="ToolExecutionError: Command blocked: import myrm_tools",
+        name="bash_code_execute_tool",
+        tool_call_id="call_guardrail",
+        status="error",
+        additional_kwargs={
+            "error_category": ToolErrorCategory.GUARDRAIL_BLOCKED,
+            "error_hint": "Do not use myrm_tools in bash. For MCP scripts use skills.*/tools.* imports.",
+        },
+    )
+    events = await _collect_events(msg)
+
+    assert events[0]["error_category"] == "guardrail_blocked"
+    assert "myrm_tools" in events[0]["error_hint"]

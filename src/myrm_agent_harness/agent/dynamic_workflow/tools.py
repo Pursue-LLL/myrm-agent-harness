@@ -10,6 +10,7 @@
 [OUTPUT]
 - SpawnSubagentTool: PTC tool exposed as myrm_tools.spawn_subagent
 - NotifyProgressTool: PTC tool exposed as myrm_tools.notify — emits workflow stage events to the frontend
+- WorkflowRunGuard: Per-workflow spawn counter and concurrency semaphore
 
 [POS]
 Bridges the PTC Python script to the Harness delegate path. Each spawn_subagent()
@@ -35,6 +36,43 @@ from myrm_agent_harness.agent.skills.mcp.progress_payload import (
 )
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_MAX_SPAWN_PER_WORKFLOW = 50
+DEFAULT_MAX_CONCURRENT_SPAWNS = 5
+
+
+class WorkflowRunGuard:
+    """Hard cap on total spawns and concurrent in-flight sub-agents per workflow."""
+
+    __slots__ = ("_max_concurrent", "_max_spawns", "_semaphore", "_spawn_count")
+
+    def __init__(
+        self,
+        *,
+        max_spawns: int = DEFAULT_MAX_SPAWN_PER_WORKFLOW,
+        max_concurrent: int = DEFAULT_MAX_CONCURRENT_SPAWNS,
+    ) -> None:
+        self._max_spawns = max_spawns
+        self._max_concurrent = max_concurrent
+        self._spawn_count = 0
+        self._semaphore = asyncio.Semaphore(max_concurrent)
+
+    @property
+    def spawn_count(self) -> int:
+        return self._spawn_count
+
+    async def acquire_spawn_slot(self) -> str | None:
+        if self._spawn_count >= self._max_spawns:
+            return (
+                f"Workflow spawn limit reached ({self._max_spawns}). "
+                "Reduce parallel tasks or split the workflow."
+            )
+        self._spawn_count += 1
+        await self._semaphore.acquire()
+        return None
+
+    def release_spawn_slot(self) -> None:
+        self._semaphore.release()
 
 
 class SpawnSubagentInput(BaseModel):
@@ -67,6 +105,7 @@ class SpawnSubagentTool(BaseTool):
     cancel_token: object | None = None
     event_queue: asyncio.Queue[dict[str, object]] | None = None
     message_id: str = ""
+    run_guard: WorkflowRunGuard | None = None
 
     async def _emit_spawn_stage(
         self,
@@ -111,6 +150,22 @@ class SpawnSubagentTool(BaseTool):
                 await self._emit_spawn_stage(f"Using cached result for sub-agent `{task_id}`.")
                 return cached
 
+        guard_error: str | None = None
+        if self.run_guard is not None:
+            guard_error = await self.run_guard.acquire_spawn_slot()
+        if guard_error:
+            await self._emit_spawn_stage(
+                f"Sub-agent `{task_id}` blocked: {guard_error}",
+                level="warn",
+            )
+            return {
+                "success": False,
+                "task_id": task_id,
+                "agent_type": agent_type,
+                "result": None,
+                "error": guard_error,
+            }
+
         from dataclasses import replace
 
         from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, WorkspacePolicy
@@ -146,29 +201,33 @@ class SpawnSubagentTool(BaseTool):
         )
 
         try:
-            result = await self.parent_agent._spawn_child(
-                task_id=task_id,
-                agent_type=agent_type,
-                task_description=task_description,
-                config=config,
-                context={},
-                tool_registry_getter=self.tool_registry_getter,
-                wait=True,
-                cancel_token=self.cancel_token,
-            )
-        except Exception as e:
-            logger.error("DW spawn failed: task=%s error=%s", task_id, e)
-            await self._emit_spawn_stage(
-                f"Sub-agent `{task_id}` failed: {type(e).__name__}: {e}",
-                level="warn",
-            )
-            return {
-                "success": False,
-                "task_id": task_id,
-                "agent_type": agent_type,
-                "result": None,
-                "error": f"{type(e).__name__}: {e}",
-            }
+            try:
+                result = await self.parent_agent._spawn_child(
+                    task_id=task_id,
+                    agent_type=agent_type,
+                    task_description=task_description,
+                    config=config,
+                    context={},
+                    tool_registry_getter=self.tool_registry_getter,
+                    wait=True,
+                    cancel_token=self.cancel_token,
+                )
+            except Exception as e:
+                logger.error("DW spawn failed: task=%s error=%s", task_id, e)
+                await self._emit_spawn_stage(
+                    f"Sub-agent `{task_id}` failed: {type(e).__name__}: {e}",
+                    level="warn",
+                )
+                return {
+                    "success": False,
+                    "task_id": task_id,
+                    "agent_type": agent_type,
+                    "result": None,
+                    "error": f"{type(e).__name__}: {e}",
+                }
+        finally:
+            if self.run_guard is not None:
+                self.run_guard.release_spawn_slot()
 
         if isinstance(result, dict):
             final_result = result

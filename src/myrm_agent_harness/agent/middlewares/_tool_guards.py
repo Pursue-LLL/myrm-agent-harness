@@ -62,6 +62,7 @@ from myrm_agent_harness.agent.security.guards.frequency_guard import (
 from myrm_agent_harness.agent.security.guards.tool_turn_budget_guard import (
     TurnBudgetAction,
     get_tool_turn_budget_guard,
+    resolve_turn_budget_units,
 )
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
 from myrm_agent_harness.agent.security.guards.loop_guard_types import LoopAction
@@ -286,17 +287,26 @@ async def run_pre_call_guards(
         )
 
     turn_budget_guard = get_tool_turn_budget_guard()
+    turn_budget_units = resolve_turn_budget_units(tool_name, tool_args)
     turn_budget_verdict = turn_budget_guard.check(
-        tool_name, message_id=active_message_id
+        tool_name,
+        message_id=active_message_id,
+        units=turn_budget_units,
     )
     if turn_budget_verdict.action == TurnBudgetAction.BREAK:
         record_decision(tool_name, "TURN_BUDGET_BREAK", turn_budget_verdict.reason)
         logger.warning("Turn budget break: %s -- %s", tool_name, turn_budget_verdict.reason)
+        unit_label = (
+            "search queries"
+            if tool_name == "web_search_tool"
+            else "calls"
+        )
         return make_error_msg(
             tool_name,
             tool_call_id,
             f"Error: {turn_budget_verdict.reason}\n\n"
-            f"Tool: {turn_budget_verdict.tool_count}/{turn_budget_verdict.tool_limit} calls, "
+            f"Tool: {turn_budget_verdict.tool_count}/{turn_budget_verdict.tool_limit} "
+            f"{unit_label}, "
             f"{turn_budget_verdict.tool_remaining} remaining this turn.",
             error_category=ToolErrorCategory.TURN_BUDGET_GUARD,
         )
@@ -366,7 +376,11 @@ async def run_pre_call_guards(
             error_category=ToolErrorCategory.PII_GUARD,
         )
 
-    turn_budget_guard.record(tool_name, message_id=active_message_id)
+    turn_budget_guard.record(
+        tool_name,
+        message_id=active_message_id,
+        units=turn_budget_units,
+    )
 
     return PreCallResult(
         loop_guard,

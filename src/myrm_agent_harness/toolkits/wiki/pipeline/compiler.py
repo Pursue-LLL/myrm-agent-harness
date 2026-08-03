@@ -739,6 +739,7 @@ class WikiCompiler:
             )
 
             if self._compile_config.require_approval:
+                from ..core.frontmatter_contract import WikiProvenance
                 from .pending import WikiPendingEditsManager
 
                 pending_mgr = WikiPendingEditsManager(self._structure, self._indexer)
@@ -746,6 +747,7 @@ class WikiCompiler:
                     concept.name,
                     article_content,
                     source_files=concept.source_files,
+                    provenance=WikiProvenance.COMPILED,
                 )
                 logger.info(f"Generated pending draft for article: {concept.name}")
                 return "pending"

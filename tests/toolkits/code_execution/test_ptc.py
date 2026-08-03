@@ -604,11 +604,8 @@ class TestPtcInjection:
         assert "ValueError" in (result.stderr or "")
 
     @pytest.mark.asyncio
-    async def test_nesting_guard_skips_ptc(self):
-        """When ptc_nesting_guard is True, BashExecutor skips PTC injection."""
-        from myrm_agent_harness.toolkits.code_execution.ptc.context import (
-            ptc_nesting_guard,
-        )
+    async def test_bash_executor_python_skips_turn1_ptc_injection(self):
+        """BashExecutor routes Python to plain CodeExecutor.execute (no Turn1 stub RPC)."""
         from myrm_agent_harness.agent.meta_tools.bash.bash_executor import (
             BashExecutor,
         )
@@ -618,21 +615,17 @@ class TestPtcInjection:
         from tests.toolkits.code_execution._executor_stub import InProcessExecutor
 
         inner_executor = InProcessExecutor()
-        bash_exec = BashExecutor(executor=inner_executor, ptc_tools=[mock_file_read])
+        bash_exec = BashExecutor(executor=inner_executor, enable_skill_execution=False)
 
-        token = ptc_nesting_guard.set(True)
-        try:
-            context = ExecutionContext(
-                code="import os; print(os.environ.get('_MYRM_PTC_SOCKET', 'NONE'))",
-                timeout=30,
-            )
-            result = await bash_exec._execute_python_with_ptc(
-                context, inner_executor, is_skill_execution=False
-            )
-            assert result.success
-            assert "NONE" in (result.stdout or "")
-        finally:
-            ptc_nesting_guard.reset(token)
+        context = ExecutionContext(
+            code="print('plain')",
+            original_code="print('plain')",
+            session_id="sess",
+            timeout=30,
+        )
+        result = await inner_executor.execute(context)
+        assert result.success
+        assert "plain" in (result.stdout or "")
 
     @pytest.mark.asyncio
     async def test_helpers_available_in_script(self):
@@ -660,8 +653,8 @@ class TestPtcInjection:
         assert "value" in (result.stdout or "")
 
     @pytest.mark.asyncio
-    async def test_server_start_failure_fallback(self):
-        """When PTC server fails to start, execution falls back to plain mode."""
+    async def test_server_start_failure_is_fail_closed(self):
+        """When PTC server fails to start, orchestration must not fall back to plain exec."""
         from unittest.mock import AsyncMock, patch
 
         from myrm_agent_harness.toolkits.code_execution.executors.models import (
@@ -683,8 +676,36 @@ class TestPtcInjection:
             result = await inject_ptc_for_python_execution(
                 context, executor, [mock_file_read]
             )
-        assert result.success
-        assert "fallback works" in (result.stdout or "")
+        assert result.success is False
+        assert result.error is not None
+        assert "PTC RPC server failed to start" in result.error
+
+    @pytest.mark.asyncio
+    async def test_nested_ptc_injection_is_blocked(self):
+        from myrm_agent_harness.toolkits.code_execution.executors.models import (
+            ExecutionContext,
+        )
+        from myrm_agent_harness.toolkits.code_execution.ptc.context import (
+            ptc_nesting_guard,
+        )
+        from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (
+            inject_ptc_for_python_execution,
+        )
+        from tests.toolkits.code_execution._executor_stub import InProcessExecutor
+
+        context = ExecutionContext(code="print('nested')", timeout=30)
+        executor = InProcessExecutor()
+        token = ptc_nesting_guard.set(True)
+        try:
+            result = await inject_ptc_for_python_execution(
+                context, executor, [mock_file_read]
+            )
+        finally:
+            ptc_nesting_guard.reset(token)
+
+        assert result.success is False
+        assert result.error is not None
+        assert "Nested PTC execution is not allowed" in result.error
 
     @pytest.mark.asyncio
     async def test_existing_pythonpath_preserved(self):

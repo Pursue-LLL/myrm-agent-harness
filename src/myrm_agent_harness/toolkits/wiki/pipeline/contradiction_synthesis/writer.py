@@ -19,6 +19,7 @@ import re
 from myrm_agent_harness.toolkits.wiki.core.claims_contract import WikiClaim, WikiEvidence, merge_claims_into_content
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     WikiPageType,
+    WikiProvenance,
     ensure_frontmatter_type,
     load_frontmatter_metadata,
     serialize_frontmatter_block,
@@ -119,7 +120,7 @@ def build_synthesis_page(
         body,
         WikiPageType.COMPARISON,
         sources=[pair.concept_a, pair.concept_b],
-        provenance="contradiction_synthesis",
+        provenance=WikiProvenance.CONTRADICTION_SYNTHESIS,
     )
     metadata, body_only = load_frontmatter_metadata(content)
     metadata["synthesis_kind"] = _SYNTHESIS_KIND

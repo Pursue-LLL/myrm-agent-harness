@@ -60,8 +60,8 @@ class TestBuiltinToolRegistry:
         registry = BuiltinToolRegistry()
         registry.register("demo", AsyncMock(), "A demo tool", {"q": "str"}, return_type="list")
         desc = registry.get_ptc_description()
-        assert "myrm_tools.demo" in desc
-        assert "PTC" in desc
+        assert "tools.demo" in desc
+        assert "MCP builtins" in desc
 
     def test_overwrite_warning(self, caplog: pytest.LogCaptureFixture) -> None:
         registry = BuiltinToolRegistry()
@@ -107,8 +107,8 @@ class TestGetBuiltinToolRegistry:
         desc = registry.get_ptc_description()
         assert "myrm_tools.web_search" not in desc
         assert "myrm_tools.web_fetch" not in desc
-        assert "myrm_tools.session_store" in desc
-        assert "myrm_tools.notify" in desc
+        assert "tools.session_store" in desc
+        assert "tools.notify" in desc
         mod._registry = None
 
     def test_singleton_behavior(self) -> None:

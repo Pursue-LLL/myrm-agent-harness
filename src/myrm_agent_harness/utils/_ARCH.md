@@ -14,7 +14,7 @@ Utility library exports. Public interface for the utils module providing commonl
 | device_fingerprint.py | Legacy | Pure utility for device identification. Retained for migration only; superseded by encryption_key.py | ✅ |
 | encryption_key.py | Core | Local-mode encryption key resolution: env var → file → auto-generate. Portable, no hardware binding | ✅ |
 | document_utils.py | Core | Document object utilities. Provides LangChain Document front matter parsing, clean content extractio | ✅ |
-| errors.py | Core | Framework-level error handling. Defines ToolError (implementing format_for_llm protocol) and ModelOu | ✅ |
+| errors.py | Core | Framework-level error handling. ToolError exposes ``error_category`` from ``diagnostic_info`` for SSE/metrics; ``format_for_llm`` protocol. | ✅ |
 | event_utils.py | Core | Provides dispatch_custom_event. | ✅ |
 | files.py | Core | Pure file URL parsing utilities. No business logic dependencies. | ✅ |
 | fuzzy_match.py | Core | Generic fuzzy matching module. 8-strategy progressive chain (+Unicode preprocessing + escape-drift  + closest-line hint) for LLM-generated code variations. | ✅ |

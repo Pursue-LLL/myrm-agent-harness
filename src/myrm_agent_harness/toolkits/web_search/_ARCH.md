@@ -14,7 +14,7 @@ and the intent-aware search parameter optimizer.
 | _explicit_params.py | Core | Agent explicit param normalizer. Maps time_range to provider formats; Tavily site: → search_domain_filter. | ✅ |
 | error_handling.py | Core | Search failure classification and ErrorContext construction. Quota/rate-limit SSOT (`is_quota_or_rate_limit_error`) — non-retryable + chain hop. | ✅ |
 | exceptions.py | Core | Web Search exception hierarchy. All exceptions implement format_for_llm(). | ✅ |
-| intent_optimizer.py | Core | Search intent detection and parameter optimization. Zero-LLM-cost keyword-based intent classifier that dynamically adjusts SearxNG/Tavily/Volcengine search parameters per query. | ✅ |
+| intent_optimizer.py | Core | Search intent detection and parameter optimization. Zero-LLM-cost keyword-based intent classifier; includes AUTHORITY→Volcengine AuthInfoLevel. | ✅ |
 | litellm_search.py | Core | LiteLLM search adapter. Translates provider-agnostic search requests into LiteLLM API calls. | ✅ |
 | metrics.py | Core | In-process counters for web search operations (thread-safe, optional observability hook). | ✅ |
 | search_results_processor.py | Core | Search result post-processor. Two-layer deduplication (URL arbitration: same URL keeps longest content; content hash: mirror site dedup) + domain diversity sorting (same-domain decay). | ✅ |

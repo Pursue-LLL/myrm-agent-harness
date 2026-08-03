@@ -218,16 +218,11 @@ def get_meta_tools(
     else:
         logger.info("File tools disabled by caller configuration")
 
-    # Mutable container: filled after all tools are built so that
-    # bash Python PTC can access the full tool list via closure.
-    _ptc_tools_ref: list = []
-
     if enable_shell_tools:
         bash_code_execute = create_bash_code_execute_tool(
             skills=skills,
             skill_env_map=skill_env_map,
             global_env=global_env,
-            ptc_tools=_ptc_tools_ref,
         )
         tools.append(bash_code_execute)
         tools.append(create_bash_process_tool())
@@ -245,18 +240,6 @@ def get_meta_tools(
         )
     else:
         logger.info(" skill_search_tool 未加载(无可搜索技能)")
-
-    # PTC tools for bash Python execution — fill the mutable ref so that
-    # BashExecutor.ptc_tools is populated before any actual execution.
-    _ptc_tools_ref.extend(
-        t
-        for t in tools
-        if t.name not in ("bash_code_execute_tool", "request_answer_user_tool")
-    )
-    logger.info(
-        " PTC tools injected into bash_code_execute_tool (%d tools exposed via myrm_tools)",
-        len(_ptc_tools_ref),
-    )
 
     return tools
 

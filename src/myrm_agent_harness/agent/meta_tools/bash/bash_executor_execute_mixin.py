@@ -132,7 +132,7 @@ class BashExecutorExecuteMixin:
         )
 
         if use_python_execution:
-            result = await self._execute_python_with_ptc(context, executor, mcp_config_items is not None)
+            result = await executor.execute(context)
         else:
             result = await executor.execute_bash(context)
 

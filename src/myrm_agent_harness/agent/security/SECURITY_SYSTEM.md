@@ -946,23 +946,23 @@ OpenAI Assistants API 实现了类似的频率限制（40 requests/minute for ru
 |------|----------------|---------------------|
 | 计数窗口 | 滑动 60 秒 | 单条用户消息（turn） |
 | 典型场景 | 短时 burst / DoS | 长轮次内反复补搜 |
-| 默认 `web_search_tool` 上限 | 30 次 / 60s | 20 次 / turn |
+| 默认 `web_search_tool` 上限 | 30 次 / 60s | 20 search queries / turn |
 
 **检测维度**：
 
 | 工具 | 默认上限 | 说明 |
 |------|---------|------|
-| `web_search_tool` | 20 次 / turn | 其余工具默认不限 |
+| `web_search_tool` | 20 search queries / turn | 按 `questions` 条数计次（1–5）；其余工具默认按 invocation 计 1 |
 
 **响应级别**：仅 ALLOW / BREAK（无 WARN）。
 
 **工作机制**：
 
-1. **Pre-call 检查与计次**：LoopGuard 之后、FrequencyGuard 之前 `check()`；全部 pre-call guard 通过后 `record()`（按 invocation attempt 计次；工具实际执行失败仍计入，steering/frequency 等 pre-call 拦截不计入）
+1. **Pre-call 检查与计次**：LoopGuard 之后、FrequencyGuard 之前 `check(units=…)`；全部 pre-call guard 通过后 `record(units=…)`。`web_search_tool` 的 units = `len(questions)`（1–5）；其他工具 units=1。工具实际执行失败仍计入；steering/frequency 等 pre-call 拦截不计入。
 2. **Turn 切换**：`active_message_id` 变化时自动清零计数
 3. **Run 重置**：`reset_all_guards()` 调用 `reset_tool_turn_budget_guard()`
 
-**前端展示**：阻止时 `error_category=turn_budget_guard`，ProgressSteps badge 显示「Turn Budget / 本轮配额」（`progressSteps.errorCategories.turn_budget_guard`）。
+**前端展示**：阻止时 `error_category=turn_budget_guard`，ProgressSteps badge 显示「Search Quota / 搜索配额」（`progressSteps.errorCategories.turn_budget_guard`）。
 
 **集成点**：
 

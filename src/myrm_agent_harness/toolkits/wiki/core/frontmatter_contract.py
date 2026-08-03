@@ -4,10 +4,10 @@
 agent.meta_tools.file_ops.utils.markdown_frontmatter::parse_frontmatter (POS: YAML FM parse SSOT)
 
 [OUTPUT]
-WikiPageType, WikiPublishStatus, validate_wiki_frontmatter, infer_type_for_import, repair_missing_types,
-apply_compile_gate, load_frontmatter_metadata, serialize_frontmatter_block, ensure_frontmatter_type,
-ensure_published_frontmatter, ensure_draft_frontmatter, repair_publication_on_disk,
-PublicationOnDiskRepairResult, FrontmatterValidationError
+WikiPageType, WikiPublishStatus, WikiProvenance, validate_wiki_frontmatter, infer_type_for_import,
+repair_missing_types, apply_compile_gate, load_frontmatter_metadata, serialize_frontmatter_block,
+ensure_frontmatter_type, ensure_published_frontmatter, ensure_draft_frontmatter,
+repair_publication_on_disk, PublicationOnDiskRepairResult, FrontmatterValidationError
 
 [POS]
 Harness SSOT for wiki page type gate used by compile, import writeback, linter, pending approve,
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import StrEnum
+from enum import Enum, StrEnum
 from pathlib import Path
 import re
 
@@ -51,6 +51,18 @@ class WikiPublishStatus(StrEnum):
 
 WIKI_PUBLISH_STATUSES: frozenset[str] = frozenset(member.value for member in WikiPublishStatus)
 
+
+class WikiProvenance(StrEnum):
+    COMPILED = "compiled"
+    REPAIRED = "repaired"
+    AGENT = "agent"
+    CREATE_NOTE = "create_note"
+    CHAT_SAVE = "chat-save"
+    CONTRADICTION_SYNTHESIS = "contradiction_synthesis"
+    IMPORT = "import"
+    WEB_FETCH = "web_fetch"
+
+
 _FRONTMATTER_BLOCK_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
@@ -75,12 +87,24 @@ def _metadata_requires_yaml_dump(metadata: dict[str, object]) -> bool:
     return False
 
 
+def _coerce_enum_values(obj: object) -> object:
+    """Recursively convert Enum instances to their `.value` for YAML-safe serialization."""
+    if isinstance(obj, dict):
+        return {k: _coerce_enum_values(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_coerce_enum_values(item) for item in obj]
+    if isinstance(obj, Enum):
+        return obj.value
+    return obj
+
+
 def serialize_frontmatter_block(metadata: dict[str, object]) -> str:
     """Serialize metadata to a YAML frontmatter block."""
-    if _metadata_requires_yaml_dump(metadata):
-        dumped = yaml.safe_dump(metadata, allow_unicode=True, sort_keys=False, default_flow_style=False).strip()
+    safe_metadata: dict[str, object] = _coerce_enum_values(metadata)  # type: ignore[assignment]
+    if _metadata_requires_yaml_dump(safe_metadata):
+        dumped = yaml.safe_dump(safe_metadata, allow_unicode=True, sort_keys=False, default_flow_style=False).strip()
         return f"---\n{dumped}\n---\n"
-    return serialize_frontmatter(metadata)
+    return serialize_frontmatter(safe_metadata)
 
 
 class FrontmatterValidationError(ValueError):
@@ -276,7 +300,7 @@ def apply_compile_gate(content: str, concept_name: str, source_files: list[str])
         content,
         WikiPageType.CONCEPT,
         sources=source_files or [concept_name],
-        provenance="compiled",
+        provenance=WikiProvenance.COMPILED,
     )
 
 
@@ -308,7 +332,7 @@ def repair_file_frontmatter(
     page_type = infer_type_for_import(rel, metadata, is_raw_import=is_raw_import)
 
     sources: list[str] | None = [rel] if is_raw_import else None
-    repaired = ensure_frontmatter_type(content, page_type, sources=sources, provenance="repaired")
+    repaired = ensure_frontmatter_type(content, page_type, sources=sources, provenance=WikiProvenance.REPAIRED)
     path.write_text(repaired, encoding="utf-8")
     return True
 

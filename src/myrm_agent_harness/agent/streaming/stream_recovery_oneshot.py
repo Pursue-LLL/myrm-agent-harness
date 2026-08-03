@@ -209,8 +209,10 @@ class OneshotRecoveryMixin:
                 apply_vision_fallback_to_messages,
             )
 
-            file_content_reader: FileContentReader | None = None
-            if isinstance(merged_ctx, dict):
+            file_content_reader: FileContentReader | None = getattr(
+                ctx, "file_content_reader", None
+            )
+            if file_content_reader is None and isinstance(merged_ctx, dict):
                 reader = merged_ctx.get("file_content_reader")
                 if callable(reader):
                     file_content_reader = reader  # type: ignore[assignment]

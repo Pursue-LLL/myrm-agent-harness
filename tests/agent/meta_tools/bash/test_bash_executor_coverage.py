@@ -351,7 +351,6 @@ async def test_execute_python_path_and_generated_files() -> None:
         patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch.object(bash_exec, "_prepare_execution", return_value=(True, "print(1)", None)),
-        patch.object(bash_exec, "_execute_python_with_ptc", AsyncMock(side_effect=executor.execute)),
         patch.object(bash_exec, "_register_generated_files") as mock_register,
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
@@ -547,20 +546,6 @@ def test_validate_python_syntax_raises_bash_execution_error() -> None:
         bash_exec._validate_python_syntax("def broken(", "print bad")
     assert exc_info.value.error_category == "syntax"
 
-
-@pytest.mark.asyncio
-async def test_execute_python_with_ptc_injects_when_tools_available() -> None:
-    executor = _mock_code_executor()
-    bash_exec = BashExecutor(executor, ptc_tools=[MagicMock()])
-    context = MagicMock()
-
-    with patch(
-        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
-        AsyncMock(return_value=ExecutionResult(success=True, result=0)),
-    ) as mock_inject:
-        await bash_exec._execute_python_with_ptc(context, executor, is_skill_execution=False)
-
-    mock_inject.assert_awaited_once()
 
 
 def test_inject_resilience_script_prepends_when_present() -> None:

@@ -1436,9 +1436,8 @@ class TestAgentSelfComplete:
             async def run(self, task: KanbanTask) -> tuple[bool, str]:
                 t = await store.get_task(task.task_id)
                 assert t is not None
-                t.status = TaskStatus.COMPLETED
+                t.metadata = {**t.metadata, "completion_intent": True}
                 t.result = "Done via tool"
-                t.completed_at = datetime.now(UTC)
                 await store.save_task(t)
                 return (True, "Done via tool")
 
@@ -1474,9 +1473,8 @@ class TestAgentSelfComplete:
             async def run(self, t: KanbanTask) -> tuple[bool, str]:
                 stored = await store.get_task(t.task_id)
                 assert stored is not None
-                stored.status = TaskStatus.COMPLETED
+                stored.metadata = {**stored.metadata, "completion_intent": True}
                 stored.result = "self-completed"
-                stored.completed_at = datetime.now(UTC)
                 await store.save_task(stored)
                 return (True, "self-completed")
 

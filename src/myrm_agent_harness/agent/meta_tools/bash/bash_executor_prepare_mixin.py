@@ -3,15 +3,14 @@
 [INPUT]
 - toolkits.code_execution.code_detector::code_detector, CodeType (POS: Code type detector)
 - agent.skills.mcp.executor::skill_executor (POS: Skill MCP execution bridge)
-- toolkits.code_execution.ptc.context::ptc_nesting_guard (POS: PTC nesting guard)
 - .bash_execution_error::BashExecutionError (POS: Structured execution error)
 - .bash_executor_constants::MCP_MIN_TIMEOUT (POS: MCP timeout floor)
 
 [OUTPUT]
-- BashExecutorPrepareMixin: _prepare_execution, MCP proxy, skill path rewrite, PTC routing
+- BashExecutorPrepareMixin: _prepare_execution, MCP proxy, skill path rewrite
 
 [POS]
-Code-type detection, skill staging, MCP IPC startup, and Python PTC injection routing.
+Code-type detection, skill staging, MCP IPC startup, and Python execution preparation.
 """
 
 from __future__ import annotations
@@ -26,12 +25,10 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_executor_constants import MCP
 from myrm_agent_harness.agent.skills.runtime.env import rewrite_skill_paths
 from myrm_agent_harness.toolkits.code_execution import ExecutionContext
 from myrm_agent_harness.toolkits.code_execution.code_detector import CodeType, code_detector
-from myrm_agent_harness.toolkits.code_execution.ptc.context import ptc_nesting_guard
 from myrm_agent_harness.toolkits.code_execution.utils import WorkspacePathResolver
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.code_execution import Workspace
-    from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor, ExecutionResult
     from myrm_agent_harness.toolkits.code_execution.executors.models import MCPConfigItem
 
 logger = logging.getLogger(__name__)
@@ -160,22 +157,6 @@ class BashExecutorPrepareMixin:
             error_hint=hint,
             error_category="syntax",
         )
-
-    async def _execute_python_with_ptc(
-        self,
-        context: ExecutionContext,
-        executor: CodeExecutor,
-        is_skill_execution: bool,
-    ) -> ExecutionResult:
-        """Execute Python with full PTC injection when not nested and not skill mode."""
-        if is_skill_execution or ptc_nesting_guard.get() or not self._ptc_tools:
-            return await executor.execute(context)
-
-        from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (
-            inject_ptc_for_python_execution,
-        )
-
-        return await inject_ptc_for_python_execution(context, executor, self._ptc_tools)
 
     def _inject_resilience_script(self, prepared_code: str) -> str:
         """Prepend the bash resilience init script if available."""

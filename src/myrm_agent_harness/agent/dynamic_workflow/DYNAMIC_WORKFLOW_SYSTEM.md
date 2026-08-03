@@ -22,7 +22,9 @@ run_dynamic_workflow_stream (__init__.py)
        ↓
 LLM → Python 编排脚本 (ORCHESTRATOR_PROMPT + SubagentCatalog hint)
        ↓
-PTC Sandbox
+preflight.py — 静态 spawn 计数 + `_estimate_batch_cost` + HITL plan_confirm
+       ↓
+PTC Sandbox (WorkflowRunGuard: max 50 spawns, concurrency 5)
        ↓
 SpawnSubagentTool / NotifyProgressTool (tools.py)
        ↓
@@ -39,10 +41,11 @@ Summarization LLM → 用户可读 Markdown
 
 | 文件 | 职责 |
 |------|------|
-| `__init__.py` | `run_dynamic_workflow_stream` 入口；类型发现；阶段 cancel 检查 |
+| `__init__.py` | `run_dynamic_workflow_stream` 入口；脚本生成；approval_gate 注入；PTC 执行；汇总 |
+| `preflight.py` | 静态 spawn 分析；费用预估；`WorkflowPlanReview` / `WorkflowApprovalGate` |
 | `notify_stream.py` | PTC 执行期间并发 drain notify queue |
-| `store.py` | SQLite Event Sourcing；`harden_connection_sync(CACHE)` |
-| `tools.py` | `SpawnSubagentTool`（含 readonly 双保护、stage 事件）、`NotifyProgressTool` |
+| `store.py` | SQLite Event Sourcing；子任务 cache + orchestration script 持久化 |
+| `tools.py` | `SpawnSubagentTool`（含 `WorkflowRunGuard`、readonly 双保护、stage 事件）、`NotifyProgressTool` |
 
 ---
 
@@ -71,6 +74,7 @@ Summarization LLM → 用户可读 Markdown
 2. **Cancel 传播**：每阶段边界 + 每次 spawn 检查 `cancel_token`
 3. **Readonly 模式**：`disallowed_tools` + `WorkspacePolicy.READ_ONLY_SANDBOX`
 4. **汇总层**：原始 stdout 经 SUMMARIZATION_PROMPT 转为 Markdown + 置信度前缀
+5. **Trust 层**：spawn ≥ 1 时 SSE `plan_confirm`（literal spawn 数 + 运行时 hard cap 文案）+ PhaseWaiter；RunGuard 硬上限 50 spawn / 5 并发
 
 ---
 

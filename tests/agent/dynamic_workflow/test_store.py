@@ -23,6 +23,10 @@ def test_store_init(temp_db_path):
     try:
         cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='subagent_events'")
         assert cursor.fetchone() is not None
+        cursor = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='orchestration_scripts'"
+        )
+        assert cursor.fetchone() is not None
 
         journal = conn.execute("PRAGMA journal_mode").fetchone()[0]
         assert journal.lower() == "wal"
@@ -74,3 +78,15 @@ def test_connect_rollback_on_error(temp_db_path):
 
     cached = store.get_cached_result("wf_err", "t1")
     assert cached == {"ok": True}
+
+
+def test_store_orchestration_script_roundtrip(temp_db_path):
+    store = WorkflowEventStore(temp_db_path)
+    script = "import myrm_tools\nprint('ok')"
+
+    store.save_orchestration_script("wf_script", script)
+    assert store.get_orchestration_script("wf_script") == script
+    assert store.get_orchestration_script("wf_missing") is None
+
+    store.save_orchestration_script("wf_script", "print('updated')")
+    assert store.get_orchestration_script("wf_script") == "print('updated')"

@@ -113,9 +113,9 @@ Protocol-first architecture with strict framework-business separation.
       Exception: `kanban_comment` is intentionally unrestricted — workers can comment on
       any task (own or sibling) for cross-task coordination. Comments are consumed by
       `context_builder._gather_comments()` and injected into the worker's context.
-      `kanban_complete` writes `summary` to `task.result` for downstream context
-      propagation, and accepts optional `metadata` JSON for structured machine-readable
-      handoff data stored at `task.metadata["handoff"]`.
+      `kanban_complete` sets `metadata.completion_intent=True`, writes `summary` to
+      `task.result`, and keeps the task RUNNING until the dispatcher's CompletionVerifier
+      passes. Optional `metadata` JSON stores structured handoff at `task.metadata["handoff"]`.
     - `orchestrator` (3 tools): kanban_add_task, kanban_list_tasks (board list or
       single-task read via `task_id`; optional `include_stats`; board list defaults to 50 rows,
       max 200, with `truncated` metadata), kanban_unblock (returns ``dependencies_met``;
@@ -158,13 +158,11 @@ Protocol-first architecture with strict framework-business separation.
 
 17. **Post-execution status guard (reclaim race protection)**: `_handle_success`,
     `_handle_failure`, and `_handle_timeout` all re-read the task from the store and
-    verify `task.status == RUNNING` before writing results. Special case: when
-    `_handle_success` finds `task.status == COMPLETED` (agent called `kanban_complete`
-    tool during execution), it finalizes the run as COMPLETED and triggers
-    `_promote_dependents` — ensuring downstream DAG tasks are correctly unlocked.
-    For all other non-RUNNING statuses (e.g. user reclaim during execution), the run
-    is closed as `RECLAIMED`. This prevents a race condition where a user reclaims a
-    task but the old runner's late completion overwrites the reclaim.
+    verify `task.status == RUNNING` before writing results. When the agent called
+    `kanban_block`, `_handle_failure` finalizes the run as BLOCKED. For all other
+    non-RUNNING statuses (e.g. user reclaim during execution), the run is closed as
+    `RECLAIMED`. Completion gate: only `_handle_success` + verifier may set COMPLETED;
+    stream text alone never completes a task.
 
 18. **Manual reclaim (operator-driven task abort)**: `KanbanDispatcher.reclaim_task(task_id, reason)`
     enables external callers (e.g. REST API, GUI) to immediately cancel a RUNNING task's
@@ -234,7 +232,7 @@ Protocol-first architecture with strict framework-business separation.
 
 ## Domain Model
 
-- `KanbanBoard`: Top-level grouping with `BoardSettings` (includes `default_workdir` for board-level workspace default)
+- `KanbanBoard`: Top-level grouping with `BoardSettings` (includes `default_workdir`, `block_recurrence_limit` for block→unblock→TRIAGE escalation)
 - `KanbanTask`: Unit of work with 8-state lifecycle (TRIAGE → BACKLOG → READY → RUNNING → COMPLETED/FAILED/BLOCKED/ARCHIVED), with `block_kind` (HUMAN/SCHEDULED/EXTERNAL) and `scheduled_until` for semantic blocking, `block_cycle_count` for detecting block→unblock cycling, `attachments: list[TaskAttachment]` for multimodal file references, `workspace_path` and `branch` for worktree isolation, `goal_mode` and `goal_max_turns` for autonomous multi-turn goal loop execution
 - `TaskAttachment`: Immutable file attachment (file_id, filename, mime_type, size_bytes, content_ref) with polymorphic content_ref (HTTP URL / vault pointer / inline data)
 - `BlockKind`: Sub-type enum for BLOCKED tasks (HUMAN / SCHEDULED / EXTERNAL)

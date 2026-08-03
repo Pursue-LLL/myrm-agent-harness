@@ -15,7 +15,7 @@ Detailed design: [META_TOOLS_SYSTEM.md](META_TOOLS_SYSTEM.md)
 
 | Submodule | Description |
 |-----------|-------------|
-| bash/ | Bash tool module (includes PTC — Python scripts invoke all Agent tools via `import myrm_tools`). |
+| bash/ | Bash tool module (Pure Script + MCP `skills.*/tools.*` batch; bash preflight blocks `myrm_tools`). |
 | discover_capability/ | Unified Capability Discovery gateway. |
 | file_ops/ | File operations tool module (Claude Code compatible). |
 | file_search/ | File search tool module (Claude Code compatible). |

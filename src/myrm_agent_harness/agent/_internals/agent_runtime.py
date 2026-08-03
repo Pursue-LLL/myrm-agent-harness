@@ -591,6 +591,7 @@ async def run_agent_loop(
         goal_provider = merged_context.pop("goal_provider", None)
         on_goal_terminal = merged_context.pop("on_goal_terminal", None)
         on_loop_restart = merged_context.pop("on_loop_restart", None)
+        file_content_reader = merged_context.pop("file_content_reader", None)
         from myrm_agent_harness.agent.middlewares._session_context import (
             set_goal_provider,
         )
@@ -704,6 +705,7 @@ async def run_agent_loop(
             goal_provider=goal_provider,
             on_goal_terminal=on_goal_terminal,
             on_loop_restart=on_loop_restart,
+            file_content_reader=file_content_reader,  # type: ignore[arg-type]
             escalation_target_llm=getattr(agent_state, "escalation_target_llm", None),
             llm=agent_state.llm,
             token_tracker=_run_tracker,

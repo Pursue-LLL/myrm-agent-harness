@@ -17,9 +17,9 @@
 - get_builtin_tool_registry: Lazy singleton accessor (registers session_store/load/keys, notify).
 
 [POS]
-PTC builtin tool registry & dispatcher. Sole entry point for PTC-only builtins
-(session persistence, notify) exposed under the ``myrm_tools`` namespace in bash
-Python scripts. Web search/fetch use native LLM tools + PTC RPC stubs instead.
+PTC builtin tool registry & dispatcher. Routes ``__builtin__`` IPC calls for
+session_store / notify. Bash Turn1 uses ``from tools.* import ...`` (MCP IPC);
+Dynamic Workflow uses ``inject_ptc`` with ``myrm_tools`` spawn/notify only.
 """
 
 import logging
@@ -69,7 +69,7 @@ class BuiltinToolRegistry:
             handler: async handler，接收 dict 参数，返回 JSON-serialisable 结果
                      (handlers needing session context can call
                      ``get_ipc_call_context()`` to retrieve session_id / workspace_root).
-            description: 工具描述（注入 bash_code_execute_tool 描述供 LLM 感知）
+            description: 工具描述（registry 自省 / 单测；不注入 bash Turn1 description）
             parameters: 参数签名描述 {param_name: type_desc}
             return_type: 返回值类型说明（用于 PTC 描述生成，默认 str）
         """
@@ -112,20 +112,19 @@ class BuiltinToolRegistry:
         return name in self._tools
 
     def get_ptc_description(self) -> str:
-        """生成 PTC 内置工具描述（注入 bash_code_execute_tool description）
+        """Format registered MCP builtin names for docs/tests (not bash Turn1 append).
 
         Returns:
-            格式化的工具描述字符串，供 LLM 感知可用的 myrm_tools 命名空间
+            Short ``tools.*`` import hint, or empty when no builtins are registered.
         """
         if not self._tools:
             return ""
 
-        names = ", ".join(f"`myrm_tools.{name}`" for name in sorted(self._tools.keys()))
+        names = ", ".join(f"`tools.{name}`" for name in sorted(self._tools.keys()))
         return (
-            "\n## PTC (Python only)\n"
-            f"Builtins: {names}. "
-            "Turn1-bound tools: `myrm_tools.{tool_name}(...)` (stubs generated at runtime). "
-            "Single native tool calls — do not use PTC."
+            "\n## MCP builtins (Python only)\n"
+            f"Cross-call/session builtins via `from tools.<name> import ...`: {names}. "
+            "Use skills.*/tools.* for MCP batch scripts; single calls use native tools."
         )
 
     @property
