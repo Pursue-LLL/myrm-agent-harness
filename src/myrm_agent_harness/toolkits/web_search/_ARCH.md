@@ -17,7 +17,8 @@ and the intent-aware search parameter optimizer.
 | litellm_search.py | Core | LiteLLM search adapter. Translates provider-agnostic search requests into LiteLLM API calls. | ✅ |
 | metrics.py | Core | In-process counters for web search operations (thread-safe, optional observability hook). | ✅ |
 | search_results_processor.py | Core | Search result post-processor. Two-layer deduplication (URL arbitration: same URL keeps longest content; content hash: mirror site dedup) + domain diversity sorting (same-domain decay). | ✅ |
-| web_search_agent_tools.py | Core | Web search meta-tool. Integrates web search capability as a meta-tool (high frequency, 80%+ queries). Supports explicit search params: time_range, source_authority. | ✅ |
+| web_search_agent_tools.py | Core | Web search meta-tool. Integrates web search capability as a meta-tool (high frequency, 80%+ queries). Supports explicit search param: time_range. | ✅ |
+| _web_search_tool_description.py | Core | LLM-visible `web_search_tool` description SSOT (prompt/cache). Imported by `web_search_agent_tools.py` and static tests. | ✅ |
 | citation_resolver.py | Core | SSRF-safe citation redirect resolution. Normalizes `metadata.sources` so `url` is the final clickable destination; preserves provider redirect in `redirect_url`. | ✅ |
 | web_searcher.py | Core | Web search orchestrator. Unified interface for querying search providers with caching, retry, per-query parameter override, and optional priority provider chain (`provider_chain`). Dispatches native slugs (`volcengine_doubao`) or LiteLLM providers. | ✅ |
 | volcengine_doubao_search.py | Core | Volcengine Search Infinity native adapter (API Key → Torchlight WebSearch). Preserves SiteName and AuthInfoDes from API response. | ✅ |
@@ -56,7 +57,7 @@ User query → LLM Query Rewriting → questions: list[str]
 ## Three-Priority Parameter Fusion
 
 Search parameters are merged with highest-priority-wins:
-1. **Agent explicit_params** (highest) — from tool call (time_range, source_authority)
+1. **Agent explicit_params** (highest) — from tool call (time_range)
 2. **Intent optimizer auto-detection** — keyword-based regex classification
 3. **config.extra_params** (lowest) — user/admin search service defaults
 

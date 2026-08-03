@@ -78,7 +78,7 @@ def _normalize_explicit_params(
     This function only handles layer 1 → provider-specific format.
 
     Args:
-        explicit_params: Raw params from Agent (time_range, source_authority)
+        explicit_params: Raw params from Agent (time_range)
         provider: Current search service provider
 
     Returns:
@@ -89,7 +89,6 @@ def _normalize_explicit_params(
 
     result: dict[str, str | int] = {}
     time_range = explicit_params.get("time_range")
-    source_authority = explicit_params.get("source_authority")
 
     if provider == "volcengine_doubao":
         if isinstance(time_range, str) and time_range:
@@ -98,8 +97,6 @@ def _normalize_explicit_params(
                 result["TimeRange"] = mapped
             elif ".." in time_range:
                 result["TimeRange"] = time_range
-        if source_authority == "high":
-            result["AuthInfoLevel"] = 1
     elif provider == "searxng":
         if isinstance(time_range, str) and time_range:
             result["time_range"] = time_range
@@ -194,7 +191,7 @@ class WebSearchTools:
             search_results_per_query: Number of search results per query
             top_k: Final number of documents to return
             explicit_params: Agent-level explicit search parameters (highest priority).
-                Supported keys: time_range, source_authority.
+                Supported keys: time_range.
 
         Raises:
             ValueError: When all queries return 0 results

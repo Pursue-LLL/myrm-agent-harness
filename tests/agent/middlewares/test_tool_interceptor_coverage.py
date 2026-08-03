@@ -195,8 +195,20 @@ async def test_handle_execution_error():
 
             mock_loop_verdict = MagicMock()
             mock_steering_token = MagicMock()
+            mock_freq_guard = MagicMock()
+            mock_freq_verdict = MagicMock()
 
-            res = await _run_post_call_guards(result, "test_tool", "call_123", {}, mock_guard_inst, mock_loop_verdict, mock_steering_token)
+            res = await _run_post_call_guards(
+                result,
+                "test_tool",
+                "call_123",
+                {},
+                mock_guard_inst,
+                mock_loop_verdict,
+                mock_freq_guard,
+                mock_freq_verdict,
+                mock_steering_token,
+            )
             assert res == result
 
 @pytest.mark.asyncio
@@ -487,7 +499,17 @@ async def test_run_post_call_guards_full():
             mock_freq_guard = MagicMock()
             mock_freq_verdict = MagicMock()
 
-            res = await _run_post_call_guards(result, "bash_code_execute_tool", "call_123", {}, mock_guard_inst, mock_loop_verdict, mock_freq_guard, mock_freq_verdict, mock_steering_token)
+            res = await _run_post_call_guards(
+                result,
+                "bash_code_execute_tool",
+                "call_123",
+                {},
+                mock_guard_inst,
+                mock_loop_verdict,
+                mock_freq_guard,
+                mock_freq_verdict,
+                mock_steering_token,
+            )
 
             # Since hook blocked is True, it returns the hook blocked message
             assert "hook blocked" in res.content
@@ -536,7 +558,17 @@ async def test_run_post_call_guards_budget_persisted():
         mock_freq_guard = MagicMock()
         mock_freq_verdict = MagicMock()
 
-        res = await _run_post_call_guards(result, "test_tool", "call_123", {}, mock_guard_inst, mock_loop_verdict, mock_freq_guard, mock_freq_verdict, None)
+        res = await _run_post_call_guards(
+            result,
+            "test_tool",
+            "call_123",
+            {},
+            mock_guard_inst,
+            mock_loop_verdict,
+            mock_freq_guard,
+            mock_freq_verdict,
+            None,
+        )
         assert res.content == "persisted"
 
 @pytest.mark.asyncio

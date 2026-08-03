@@ -76,6 +76,9 @@ def reset_all_guards(*, is_resume: bool = False, graph_recursion_limit: int = 10
     from myrm_agent_harness.agent.security.guards.frequency_guard import (
         reset_frequency_guard,
     )
+    from myrm_agent_harness.agent.security.guards.tool_turn_budget_guard import (
+        reset_tool_turn_budget_guard,
+    )
     from myrm_agent_harness.agent.security.guards.privacy_tracker import (
         reset_privacy_tracker,
     )
@@ -88,6 +91,7 @@ def reset_all_guards(*, is_resume: bool = False, graph_recursion_limit: int = 10
         graph_recursion_limit=graph_recursion_limit,
     )
     reset_frequency_guard()
+    reset_tool_turn_budget_guard()
     reset_replan_attempts()
     reset_plan_confirm_state()
     reset_terminal_errors()

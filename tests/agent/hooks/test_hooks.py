@@ -908,6 +908,76 @@ Content
         _, tools = parse_hooks_from_skill_md(content)
         assert tools == ["Read", "Write"]
 
+    def test_parse_http_hook_secret_and_fire_and_forget(self):
+        from myrm_agent_harness.agent.hooks.skill_parser import parse_hooks_from_skill_md
+
+        content = """---
+name: test
+hooks:
+  SessionEnd:
+    - description: CI notify
+      url: https://ci.example.com/trigger
+      secret: my-webhook-secret
+      fire_and_forget: true
+---
+
+Content
+"""
+        hooks, _ = parse_hooks_from_skill_md(content)
+        assert len(hooks) == 1
+        hook_def = hooks[0][1]
+        assert isinstance(hook_def, HttpHookDefinition)
+        assert hook_def.secret == "my-webhook-secret"
+        assert hook_def.fire_and_forget is True
+
+    def test_parse_http_hook_secret_env_var(self):
+        import os
+
+        from myrm_agent_harness.agent.hooks.skill_parser import parse_hooks_from_skill_md
+
+        os.environ["TEST_WEBHOOK_SECRET"] = "env-secret-value"
+        try:
+            content = """---
+name: test
+hooks:
+  PostToolUse:
+    - description: SIEM audit
+      url: https://siem.corp.com/events
+      secret: ${TEST_WEBHOOK_SECRET}
+      fire_and_forget: true
+---
+
+Content
+"""
+            hooks, _ = parse_hooks_from_skill_md(content)
+            assert len(hooks) == 1
+            hook_def = hooks[0][1]
+            assert isinstance(hook_def, HttpHookDefinition)
+            assert hook_def.secret == "env-secret-value"
+            assert hook_def.fire_and_forget is True
+        finally:
+            del os.environ["TEST_WEBHOOK_SECRET"]
+
+    def test_parse_http_hook_defaults_no_secret_no_fire_and_forget(self):
+        from myrm_agent_harness.agent.hooks.skill_parser import parse_hooks_from_skill_md
+
+        content = """---
+name: test
+hooks:
+  BeforeToolUse:
+    - description: Validate
+      url: https://api.example.com/hook
+---
+
+Content
+"""
+        hooks, _ = parse_hooks_from_skill_md(content)
+        assert len(hooks) == 1
+        hook_def = hooks[0][1]
+        assert isinstance(hook_def, HttpHookDefinition)
+        assert hook_def.secret is None
+        assert hook_def.fire_and_forget is False
+
 
 class TestCommandHookTimeout:
     @pytest.mark.asyncio
@@ -1046,6 +1116,164 @@ class TestHttpHookExecution:
             result = await executor.execute(HookEvent.SESSION_START, {})
         assert len(result.results) == 1
         assert not result.results[0].success
+
+
+class TestHttpHookHMAC:
+    """Verify HMAC-SHA256 signature is included when secret is set."""
+
+    @pytest.mark.asyncio
+    async def test_hmac_signature_header_sent(self):
+        import hashlib
+        import hmac as _hmac
+        import types
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        secret = "test-webhook-secret"
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_START,
+            HttpHookDefinition(url="https://api.example.com/hook", secret=secret),
+        )
+        executor = HookExecutor(registry)
+
+        mock_response = MagicMock()
+        mock_response.is_success = True
+        mock_response.status_code = 200
+        mock_response.text = "ok"
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx = types.ModuleType("httpx")
+        mock_httpx.AsyncClient = MagicMock(return_value=mock_client)
+
+        captured_kwargs: dict = {}
+
+        async def capture_request(*args, **kwargs):
+            captured_kwargs.update(kwargs)
+            return mock_response
+
+        with (
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+                new_callable=AsyncMock,
+                side_effect=capture_request,
+            ),
+            patch.dict("sys.modules", {"httpx": mock_httpx}),
+        ):
+            result = await executor.execute(HookEvent.SESSION_START, {"key": "val"})
+
+        assert result.all_succeeded
+        headers = captured_kwargs.get("headers", {})
+        assert "X-Webhook-Signature" in headers
+        sig_header = headers["X-Webhook-Signature"]
+        assert sig_header.startswith("sha256=")
+
+        body = captured_kwargs.get("content", "")
+        expected_sig = _hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+        assert sig_header == f"sha256={expected_sig}"
+
+    @pytest.mark.asyncio
+    async def test_no_signature_without_secret(self):
+        import types
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_START,
+            HttpHookDefinition(url="https://api.example.com/hook"),
+        )
+        executor = HookExecutor(registry)
+
+        mock_response = MagicMock()
+        mock_response.is_success = True
+        mock_response.status_code = 200
+        mock_response.text = "ok"
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx = types.ModuleType("httpx")
+        mock_httpx.AsyncClient = MagicMock(return_value=mock_client)
+
+        captured_kwargs: dict = {}
+
+        async def capture_request(*args, **kwargs):
+            captured_kwargs.update(kwargs)
+            return mock_response
+
+        with (
+            patch(
+                "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+                new_callable=AsyncMock,
+                side_effect=capture_request,
+            ),
+            patch.dict("sys.modules", {"httpx": mock_httpx}),
+        ):
+            result = await executor.execute(HookEvent.SESSION_START, {})
+
+        assert result.all_succeeded
+        headers = captured_kwargs.get("headers", {})
+        assert "X-Webhook-Signature" not in headers
+
+
+class TestHttpHookFireAndForget:
+    """Verify fire-and-forget mode dispatches without blocking."""
+
+    @pytest.mark.asyncio
+    async def test_fire_and_forget_returns_immediately(self):
+        import asyncio as _asyncio
+
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_END,
+            HttpHookDefinition(url="https://api.example.com/hook", fire_and_forget=True),
+        )
+        executor = HookExecutor(registry)
+
+        result = await executor.execute(HookEvent.SESSION_END, {"session_id": "s1"})
+        assert result.all_succeeded
+        assert result.results[0].output == "fire-and-forget dispatched"
+        await _asyncio.sleep(0.05)
+
+    @pytest.mark.asyncio
+    async def test_fire_and_forget_error_logged_not_raised(self):
+        import asyncio as _asyncio
+        from unittest.mock import AsyncMock, patch
+
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_END,
+            HttpHookDefinition(url="https://api.example.com/hook", fire_and_forget=True),
+        )
+        executor = HookExecutor(registry)
+
+        with patch(
+            "myrm_agent_harness.agent.hooks.executor.HookExecutor._http_send",
+            new_callable=AsyncMock,
+            side_effect=ConnectionError("refused"),
+        ):
+            result = await executor.execute(HookEvent.SESSION_END, {})
+            assert result.all_succeeded
+            await _asyncio.sleep(0.05)
+
+    @pytest.mark.asyncio
+    async def test_fire_and_forget_with_hmac(self):
+        import asyncio as _asyncio
+
+        registry = HookRegistry()
+        registry.register(
+            HookEvent.SESSION_END,
+            HttpHookDefinition(
+                url="https://api.example.com/hook",
+                secret="my-secret",
+                fire_and_forget=True,
+            ),
+        )
+        executor = HookExecutor(registry)
+
+        result = await executor.execute(HookEvent.SESSION_END, {})
+        assert result.all_succeeded
+        assert result.results[0].output == "fire-and-forget dispatched"
+        await _asyncio.sleep(0.05)
 
 
 class TestDispatchUnknownHookType:

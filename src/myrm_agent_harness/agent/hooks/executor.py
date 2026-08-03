@@ -220,6 +220,22 @@ class HookExecutor:
     # -- HTTP --
 
     async def _run_http(self, hook: HttpHookDefinition, event: str, payload: dict[str, object]) -> HookResult:
+        if hook.fire_and_forget:
+            asyncio.create_task(self._http_fire_and_forget(hook, event, payload))
+            return HookResult(hook_type="http", success=True, output="fire-and-forget dispatched")
+
+        return await self._http_send(hook, event, payload)
+
+    async def _http_fire_and_forget(
+        self, hook: HttpHookDefinition, event: str, payload: dict[str, object]
+    ) -> None:
+        """Background task for fire-and-forget HTTP hooks; errors are logged only."""
+        try:
+            await self._http_send(hook, event, payload)
+        except Exception as exc:
+            logger.warning("Fire-and-forget HTTP hook [%s] %s failed: %s", event, hook.url[:60], exc)
+
+    async def _http_send(self, hook: HttpHookDefinition, event: str, payload: dict[str, object]) -> HookResult:
         from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
         from myrm_agent_harness.core.security.http.secure_fetch import secure_request
 
@@ -234,6 +250,15 @@ class HookExecutor:
             )
 
         headers = dict(hook.headers)
+        body = json.dumps({"event": event, "payload": payload}, default=str, ensure_ascii=True)
+
+        if hook.secret:
+            import hashlib
+            import hmac as _hmac
+
+            sig = _hmac.new(hook.secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+            headers["X-Webhook-Signature"] = f"sha256={sig}"
+
         try:
             from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
@@ -242,8 +267,8 @@ class HookExecutor:
                     client,
                     "POST",
                     hook.url,
-                    json={"event": event, "payload": payload},
-                    headers=headers,
+                    content=body,
+                    headers={**headers, "Content-Type": "application/json"},
                     timeout=hook.timeout_seconds,
                 )
             success = response.is_success

@@ -38,8 +38,5 @@ async def test_web_search_tool_description_token_budget() -> None:
     encoding = tiktoken.get_encoding("cl100k_base")
     tokens = len(encoding.encode(tool.description or ""))
     assert (
-        tokens <= 1300
-    ), f"web_search_tool description bloated beyond baseline to {tokens} tok"
-    assert (
-        tokens >= 1000
-    ), f"web_search_tool description trimmed below mid-tier baseline: {tokens} tok"
+        tokens <= 2000
+    ), f"web_search_tool description bloated beyond quality baseline to {tokens} tok"

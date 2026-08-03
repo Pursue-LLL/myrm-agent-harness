@@ -99,6 +99,7 @@
 | `security/guards/loop_suggestions/` | 循环检测上下文建议生成 | Layer 5 |
 | `security/guards/loop_guard_stats.py` | 循环检测持久化统计 | Layer 5 |
 | `security/guards/frequency_guard.py` | 工具调用频率异常检测（FrequencyGuard）| Layer 5 |
+| `security/guards/tool_turn_budget_guard.py` | 单轮工具调用配额（ToolTurnBudgetGuard）| Layer 5 |
 
 ---
 
@@ -756,9 +757,10 @@ elif decision_type == "edit":
 
 ## 六、Layer 5 — Anti-Abuse（循环检测与频率控制）
 
-Layer 5 包含两个并列的防滥用机制：
+Layer 5 包含三个并列的防滥用机制：
 - **LoopGuard**（循环检测）— 检测逻辑循环模式
 - **FrequencyGuard**（频率检测）— 检测时间窗口内的高频调用
+- **ToolTurnBudgetGuard**（单轮配额）— 检测单条用户消息内的工具调用总量
 
 两者通过 `tool_interceptor_middleware` 集成，互为补充。
 
@@ -924,13 +926,50 @@ Consider reducing call frequency to avoid hitting the limit.
 
 - `tool_interceptor_middleware._run_pre_call_guards()`：在 LoopGuard 之后、Invalid tool 检查之前
 - `tool_interceptor_middleware._run_post_call_guards()`：在 LoopGuard 记录之后记录成功调用
-- `agent_runtime.reset_session_state()`：每次 Agent run 开始时调用 `reset_frequency_guard()`
+- `agent_runtime.reset_session_state()`：每次 Agent run 开始时调用 `reset_frequency_guard()` 与 `reset_tool_turn_budget_guard()`
 
 **竞品对比**：
 
 OpenAI Assistants API 实现了类似的频率限制（40 requests/minute for run creation），验证了该功能的必要性。FrequencyGuard 提供了更细粒度的控制（全局 + 单工具双重限制）和更灵活的配置（豁免列表、可配置阈值）。
 
 使用 `ContextVar` 实现每个 Agent run 的隔离实例。
+
+### 6.3 ToolTurnBudgetGuard — 单轮工具调用配额
+
+**位置**：`security/guards/tool_turn_budget_guard.py`（通过 `tool_interceptor_middleware` 集成）
+
+**防御目标**：限制单条用户消息（`active_message_id`）内的高成本工具调用次数，防止长轮次内搜索失控；与 FrequencyGuard 的 60 秒滑动窗口互补。
+
+**与 FrequencyGuard 的区别**：
+
+| 维度 | FrequencyGuard | ToolTurnBudgetGuard |
+|------|----------------|---------------------|
+| 计数窗口 | 滑动 60 秒 | 单条用户消息（turn） |
+| 典型场景 | 短时 burst / DoS | 长轮次内反复补搜 |
+| 默认 `web_search_tool` 上限 | 30 次 / 60s | 20 次 / turn |
+
+**检测维度**：
+
+| 工具 | 默认上限 | 说明 |
+|------|---------|------|
+| `web_search_tool` | 20 次 / turn | 其余工具默认不限 |
+
+**响应级别**：仅 ALLOW / BREAK（无 WARN）。
+
+**工作机制**：
+
+1. **Pre-call 检查与计次**：LoopGuard 之后、FrequencyGuard 之前 `check()`；全部 pre-call guard 通过后 `record()`（按 invocation attempt 计次；工具实际执行失败仍计入，steering/frequency 等 pre-call 拦截不计入）
+2. **Turn 切换**：`active_message_id` 变化时自动清零计数
+3. **Run 重置**：`reset_all_guards()` 调用 `reset_tool_turn_budget_guard()`
+
+**前端展示**：阻止时 `error_category=turn_budget_guard`，ProgressSteps badge 显示「Turn Budget / 本轮配额」（`progressSteps.errorCategories.turn_budget_guard`）。
+
+**集成点**：
+
+- `tool_interceptor_middleware.run_pre_call_guards()`：LoopGuard 之后、FrequencyGuard 之前（check + record）
+- `agent_runtime.reset_all_guards()`：每次 Agent run 开始时调用 `reset_tool_turn_budget_guard()`
+
+---
 
 ---
 

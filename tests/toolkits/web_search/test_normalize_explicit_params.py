@@ -1,7 +1,7 @@
 """Unit tests for _normalize_explicit_params in engine.py.
 
 Covers:
-- Volcengine Doubao: time_range mapping, custom date range, AuthInfoLevel
+- Volcengine Doubao: time_range mapping, custom date range
 - SearxNG: time_range passthrough
 - Tavily: time_range → days conversion
 - Edge cases: empty params, None values, unknown providers
@@ -46,31 +46,6 @@ class TestNormalizeExplicitParamsVolcengine:
         assert result is not None
         assert result["TimeRange"] == "2025-01-01..2025-06-30"
 
-    def test_source_authority_high(self):
-        result = _normalize_explicit_params(
-            {"source_authority": "high"},
-            "volcengine_doubao",
-        )
-        assert result is not None
-        assert result["AuthInfoLevel"] == 1
-        assert isinstance(result["AuthInfoLevel"], int)
-
-    def test_combined_time_range_and_authority(self):
-        result = _normalize_explicit_params(
-            {"time_range": "week", "source_authority": "high"},
-            "volcengine_doubao",
-        )
-        assert result is not None
-        assert result["TimeRange"] == "OneWeek"
-        assert result["AuthInfoLevel"] == 1
-
-    def test_source_authority_any_not_applied(self):
-        result = _normalize_explicit_params(
-            {"source_authority": "any"},
-            "volcengine_doubao",
-        )
-        assert result is None
-
     def test_unknown_time_range_without_dots_ignored(self):
         result = _normalize_explicit_params(
             {"time_range": "unknown_value"},
@@ -89,13 +64,6 @@ class TestNormalizeExplicitParamsSearxng:
         )
         assert result is not None
         assert result["time_range"] == "week"
-
-    def test_source_authority_not_supported(self):
-        result = _normalize_explicit_params(
-            {"source_authority": "high"},
-            "searxng",
-        )
-        assert result is None
 
 
 class TestNormalizeExplicitParamsTavily:
@@ -136,7 +104,7 @@ class TestNormalizeExplicitParamsEdgeCases:
 
     def test_none_values_returns_none(self):
         result = _normalize_explicit_params(
-            {"time_range": None, "source_authority": None},
+            {"time_range": None},
             "volcengine_doubao",
         )
         assert result is None

@@ -87,6 +87,22 @@ class TestMemoryMCPServerInit:
         app = mcp_server.get_streamable_http_app()
         assert isinstance(app, Starlette)
 
+    def test_get_streamable_http_app_stateless(self, mcp_server):
+        from starlette.applications import Starlette
+        app = mcp_server.get_streamable_http_app(stateless=True)
+        assert isinstance(app, Starlette)
+        sm = mcp_server.mcp.session_manager
+        assert sm is not None
+        assert sm.stateless is True
+
+    def test_get_streamable_http_app_stateful_default(self, mcp_server):
+        from starlette.applications import Starlette
+        app = mcp_server.get_streamable_http_app()
+        assert isinstance(app, Starlette)
+        sm = mcp_server.mcp.session_manager
+        assert sm is not None
+        assert sm.stateless is False
+
 
 class TestMemoryListTool:
     @pytest.mark.asyncio

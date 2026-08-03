@@ -76,11 +76,23 @@ class CommandHookDefinition(_HookBase):
 
 
 class HttpHookDefinition(_HookBase):
-    """Webhook POST hook for SaaS audit integration."""
+    """Webhook POST hook for SaaS audit integration.
+
+    When *secret* is set, every request includes an ``X-Webhook-Signature``
+    header (``sha256=<hex-digest>``) computed over the raw JSON body — the
+    same convention used by GitHub / Stripe / Hermes webhooks.
+
+    When *fire_and_forget* is ``True`` the HTTP call is scheduled via
+    ``asyncio.create_task`` and never awaited by the executor, so
+    notification-type events (SESSION_END, SUBAGENT_STOP, …) do not
+    block the main flow.
+    """
 
     type: Literal["http"] = "http"
     url: str
     headers: dict[str, str] = Field(default_factory=dict)
+    secret: str | None = Field(default=None, description="HMAC-SHA256 signing secret for X-Webhook-Signature")
+    fire_and_forget: bool = Field(default=False, description="If true, send without awaiting the response")
 
 
 class LLMHookDefinition(_HookBase):

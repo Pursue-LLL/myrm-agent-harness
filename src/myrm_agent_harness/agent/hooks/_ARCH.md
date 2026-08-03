@@ -19,6 +19,7 @@ User-configurable lifecycle hook system. Complements middlewares (framework-inte
 | types.py | Core | Hook type definitions. Defines all Hook-related data structures, consumed by executor.py and integra | ✅ |
 
 HTTP hooks use `core/security/http/secure_fetch.py` (`secure_request`) for SSRF protection — not a local duplicate.
+HTTP hooks support optional HMAC-SHA256 signing (`secret` field → `X-Webhook-Signature: sha256=…` header) and fire-and-forget mode (`fire_and_forget` field → `asyncio.create_task`, notification events don't block the main flow).
 
 ## Key Dependencies
 

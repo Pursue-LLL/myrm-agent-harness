@@ -8,7 +8,7 @@ Bash tool module.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Bash tool module. | — |
-| `_tool_description.py` | Internal | Static ~1.4k-char `TOOL_DESCRIPTION` (cache-stable across agents). PTC generic bind-name rules + compact `get_ptc_description()` builtins appendix. | ✅ |
+| `_tool_description.py` | Internal | Static ~4.3k-char `TOOL_DESCRIPTION` (cache-stable across agents). Full dependency-analysis / OBSERVATION-RESULT contract, all `bash_process_tool` actions, PTC generic bind-name rules + compact `get_ptc_description()` builtins appendix. | ✅ |
 | _output_eviction.py | Internal | Large output eviction (save to file, return `EvictionResult(text, evicted_ref)` for SSE propagation to GUI viewer). | ✅ |
 | _event_logging.py | Internal | Event logging for bash command execution (redaction, classification). | ✅ |
 | `_preflight_checks.py` | Internal | Security preflight: URL exfiltration, sensitive paths, interactive detection (foreground only; skipped when ``run_in_background=True``), install package registry verification (anti-slopsquatting). | ✅ |

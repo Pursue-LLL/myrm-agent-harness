@@ -1,4 +1,4 @@
-"""Regression gate: preserve mid-tier-tuned web_search tool description."""
+"""Regression gate: preserve compact web_search query guardrails."""
 
 from __future__ import annotations
 
@@ -38,16 +38,16 @@ class TestWebSearchDescriptionBaseline:
     def test_golden_intent_catalog_has_twenty_entries(self) -> None:
         assert len(GOLDEN_SEARCH_INTENTS) == 20
 
-    def test_tool_description_retains_mid_tier_rewrite_rules(self) -> None:
+    def test_tool_description_retains_compact_rewrite_rules(self) -> None:
         tool = create_web_search_tool(
             search_service_cfg=SearchServiceConfig(
                 search_service="tavily", api_key="test-key"
             ),
         )
         description = tool.description or ""
-        assert "Query Rewriting Rules" in description
-        assert "rewrite_rules" in description
-        assert "Aggregation and Decomposition" in description
+        assert "Query 改写规则" in description
+        assert "每条 query 脱离会话和其他 query 后都必须可理解" in description
+        assert "复杂问题可额外加入一条综合 query" in description
 
     def test_rewrite_rules_not_in_execution_discipline(self) -> None:
         from unittest.mock import MagicMock

@@ -4,7 +4,7 @@ Parses hook definitions and allowed-tools from skill YAML frontmatter,
 producing new-style HookDefinition objects that can be registered with HookRegistry.
 
 [INPUT]
-- (none)
+- hooks.types::CommandHookDefinition, HttpHookDefinition, HookEvent (POS: Hook type definitions)
 
 [OUTPUT]
 - parse_hooks_from_skill_md: Parse hooks and allowed-tools from SKILL.md frontmatter.
@@ -95,6 +95,8 @@ def _parse_hooks(hooks_data: object) -> list[tuple[HookEvent, HookDefinition]]:
             tool_matcher = _build_matcher(config.get("tools"))
 
             if url:
+                raw_secret = config.get("secret")
+                secret = _resolve_env_or_literal(raw_secret) if raw_secret else None
                 hooks.append(
                     (
                         event,
@@ -104,6 +106,8 @@ def _parse_hooks(hooks_data: object) -> list[tuple[HookEvent, HookDefinition]]:
                             matcher=tool_matcher,
                             block_on_failure=config.get("failure_mode", "").lower() in ("fail_closed", "closed"),
                             timeout_seconds=float(config.get("timeout", 10)),
+                            secret=secret or None,
+                            fire_and_forget=bool(config.get("fire_and_forget", False)),
                         ),
                     )
                 )
@@ -147,13 +151,21 @@ _ENV_VAR_PATTERN = re.compile(r"^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$")
 
 
 def _resolve_auth(raw: str) -> str:
-    match = _ENV_VAR_PATTERN.match(raw)
+    return _resolve_env_or_literal(raw, warn_missing=True)
+
+
+def _resolve_env_or_literal(raw: object, *, warn_missing: bool = False) -> str:
+    """Resolve ``$VAR`` / ``${VAR}`` to env value, or return literal string."""
+    text = str(raw).strip()
+    if not text:
+        return ""
+    match = _ENV_VAR_PATTERN.match(text)
     if match:
         env_val = os.environ.get(match.group(1), "")
-        if not env_val:
-            logger.warning("Hook auth env var '%s' not set", match.group(1))
+        if not env_val and warn_missing:
+            logger.warning("Hook env var '%s' not set", match.group(1))
         return env_val
-    return raw
+    return text
 
 
 def _parse_allowed_tools(raw: object) -> list[str] | None:

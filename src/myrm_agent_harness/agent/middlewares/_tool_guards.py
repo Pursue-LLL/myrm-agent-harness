@@ -10,6 +10,7 @@ detection, steering, trust, PII).  Post-call guards process the result
 - agent.security.guards.loop_guard (POS: Session-level loop detection guard)
 - agent.security.guards.context_budget (POS: Session-level context budget guard)
 - agent.security.guards.frequency_guard (POS: Session-level frequency guard)
+- agent.security.guards.tool_turn_budget_guard (POS: Per-user-turn call budget for high-cost tools)
 - agent.security.audit (POS: Cross-cutting security audit)
 - agent.middlewares._tool_helpers (POS: Stateless helper functions)
 - agent.middlewares._session_context (POS: Middleware session context)
@@ -57,6 +58,10 @@ from myrm_agent_harness.agent.security.guards.estop import EStopLevel, check_est
 from myrm_agent_harness.agent.security.guards.frequency_guard import (
     FrequencyAction,
     get_frequency_guard,
+)
+from myrm_agent_harness.agent.security.guards.tool_turn_budget_guard import (
+    TurnBudgetAction,
+    get_tool_turn_budget_guard,
 )
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
 from myrm_agent_harness.agent.security.guards.loop_guard_types import LoopAction
@@ -280,6 +285,22 @@ async def run_pre_call_guards(
             "loop_guard_warn", tool_name, loop_verdict.reason, "warning"
         )
 
+    turn_budget_guard = get_tool_turn_budget_guard()
+    turn_budget_verdict = turn_budget_guard.check(
+        tool_name, message_id=active_message_id
+    )
+    if turn_budget_verdict.action == TurnBudgetAction.BREAK:
+        record_decision(tool_name, "TURN_BUDGET_BREAK", turn_budget_verdict.reason)
+        logger.warning("Turn budget break: %s -- %s", tool_name, turn_budget_verdict.reason)
+        return make_error_msg(
+            tool_name,
+            tool_call_id,
+            f"Error: {turn_budget_verdict.reason}\n\n"
+            f"Tool: {turn_budget_verdict.tool_count}/{turn_budget_verdict.tool_limit} calls, "
+            f"{turn_budget_verdict.tool_remaining} remaining this turn.",
+            error_category=ToolErrorCategory.TURN_BUDGET_GUARD,
+        )
+
     freq_guard = get_frequency_guard()
     freq_verdict = freq_guard.check(tool_name)
 
@@ -345,8 +366,14 @@ async def run_pre_call_guards(
             error_category=ToolErrorCategory.PII_GUARD,
         )
 
+    turn_budget_guard.record(tool_name, message_id=active_message_id)
+
     return PreCallResult(
-        loop_guard, loop_verdict, freq_guard, freq_verdict, steering_token
+        loop_guard,
+        loop_verdict,
+        freq_guard,
+        freq_verdict,
+        steering_token,
     )
 
 

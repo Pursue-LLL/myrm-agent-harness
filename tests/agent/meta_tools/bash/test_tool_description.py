@@ -15,7 +15,7 @@ from myrm_agent_harness.agent.skills.mcp.builtin_registry import (
 
 def test_ptc_section_uses_generic_rules_not_web_search() -> None:
     assert "函数名/参数与 Agent tool schema 一致" in TOOL_DESCRIPTION
-    assert "单次任务仍用 native tool" in TOOL_DESCRIPTION
+    assert "单次调用仍用 native tool" in TOOL_DESCRIPTION
     assert "myrm_tools.web_search_tool" not in TOOL_DESCRIPTION
     assert "myrm_tools.file_read_tool" not in TOOL_DESCRIPTION
     assert "myrm_tools.session_store(key" in TOOL_DESCRIPTION
@@ -25,7 +25,7 @@ def test_tool_description_module_exports() -> None:
     from myrm_agent_harness.agent.meta_tools.bash import _tool_description as mod
 
     assert mod.__all__ == ["TOOL_DESCRIPTION"]
-    assert 400 < len(TOOL_DESCRIPTION) < 3500
+    assert 3500 < len(TOOL_DESCRIPTION) < 5000
 
 
 def test_create_bash_tool_merges_static_os_hint_and_ptc_registry() -> None:
@@ -66,4 +66,28 @@ def test_legacy_misleading_ptc_examples_removed() -> None:
 
 def test_cross_call_persistence_mentions_session_store_separately() -> None:
     assert "session_load(key=...)" in TOOL_DESCRIPTION
-    assert "Python 每次独立进程" in TOOL_DESCRIPTION
+    assert "每次执行独立进程" in TOOL_DESCRIPTION
+
+
+def test_reason_requirement_documented() -> None:
+    assert "reason" in TOOL_DESCRIPTION
+    assert "≥10" in TOOL_DESCRIPTION
+
+
+def test_background_submit_stdin_documented() -> None:
+    assert "submit_stdin" in TOOL_DESCRIPTION
+    assert "data=..." in TOOL_DESCRIPTION
+
+
+def test_workspace_path_hint_documented() -> None:
+    assert "/workspace/..." in TOOL_DESCRIPTION
+
+
+def test_all_bash_process_actions_documented() -> None:
+    for action in ("list", "output", "wait", "kill", "write_stdin", "submit_stdin", "close_stdin"):
+        assert f"action='{action}'" in TOOL_DESCRIPTION
+
+
+def test_python_c_guidance_matches_auto_rewrite_behavior() -> None:
+    assert "auto-rewrite" in TOOL_DESCRIPTION
+    assert "file-mode" in TOOL_DESCRIPTION
