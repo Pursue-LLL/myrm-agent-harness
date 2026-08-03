@@ -16,13 +16,15 @@ into the last HumanMessage tail without persisting to checkpoint history.
 [POS]
 Transient advisor injection for agent tool loops. Mount after context_pipeline
 (server factory) so compression runs before fan-out. Skips unattended runs,
-budget pressure, and when overlay is disabled.
+budget pressure (emits moa_overlay_skipped when fan-out would run), and when
+overlay is disabled.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
 
 from langchain.agents.middleware import ModelRequest, ModelResponse, wrap_model_call
@@ -52,6 +54,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MOA_OVERLAY_SKIP_BUDGET_PRESSURE = "budget_pressure"
+MOA_OVERLAY_SKIP_INSUFFICIENT_REFS = "insufficient_refs"
+
+_moa_budget_skip_notified_var: ContextVar[bool] = ContextVar(
+    "moa_budget_skip_notified", default=False
+)
 
 
 def _budget_pressure_active() -> bool:
@@ -67,7 +74,9 @@ def _budget_pressure_active() -> bool:
         return False
 
 
-async def _emit_ref_done(ref_model: str, *, success: bool, elapsed: float, content: str | None) -> None:
+async def _emit_ref_done(
+    ref_model: str, *, success: bool, elapsed: float, content: str | None
+) -> None:
     from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
 
     sink = get_tool_progress_sink()
@@ -131,7 +140,6 @@ def create_moa_advisor_middleware(
     *,
     config: MoAOverlayConfig | None = None,
     unattended: bool = False,
-    action_mode: str = "agent",
 ) -> Any:
     """Build MoA advisor overlay middleware bound to pre-resolved reference LLMs."""
     overlay_cfg = config or MoAOverlayConfig()
@@ -145,8 +153,6 @@ def create_moa_advisor_middleware(
     ) -> ModelResponse:
         if unattended:
             return await handler(request)
-        if action_mode == "consensus":
-            return await handler(request)
 
         messages = list(request.messages)
         next_iteration = runner.iteration + 1
@@ -158,8 +164,9 @@ def create_moa_advisor_middleware(
         )
 
         if _budget_pressure_active():
-            if fanout_this_call:
+            if fanout_this_call and not _moa_budget_skip_notified_var.get():
                 await _emit_overlay_skipped(MOA_OVERLAY_SKIP_BUDGET_PRESSURE)
+                _moa_budget_skip_notified_var.set(True)
             logger.debug("MoA overlay skipped: budget pressure active")
             return await handler(request)
 
@@ -182,6 +189,8 @@ def create_moa_advisor_middleware(
 
         successful = [r for r in ref_responses if r.success and r.content.strip()]
         if len(successful) < overlay_cfg.min_successful:
+            if fanout_this_call:
+                await _emit_overlay_skipped(MOA_OVERLAY_SKIP_INSUFFICIENT_REFS)
             logger.info(
                 "MoA overlay: insufficient refs (%d/%d), skipping injection",
                 len(successful),
@@ -190,7 +199,8 @@ def create_moa_advisor_middleware(
             return await handler(request)
 
         inject_refs = [
-            apply_privacy_to_ref(r, inject_privacy_mode(privacy_mode)) for r in successful
+            apply_privacy_to_ref(r, inject_privacy_mode(privacy_mode))
+            for r in successful
         ]
         injection = build_advisor_injection_block(inject_refs)
         if not injection:
@@ -204,5 +214,6 @@ def create_moa_advisor_middleware(
 
 __all__ = [
     "MOA_OVERLAY_SKIP_BUDGET_PRESSURE",
+    "MOA_OVERLAY_SKIP_INSUFFICIENT_REFS",
     "create_moa_advisor_middleware",
 ]
