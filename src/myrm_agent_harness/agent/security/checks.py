@@ -2,17 +2,6 @@
 
 Path policy evaluation, URL scheme validation, and shell threat analysis.
 All checks are pure functions — no side effects, no I/O, trivially testable.
-
-[INPUT]
-
-[OUTPUT]
-- check_path_policy(): evaluate file path against PathPolicy (Layer 2.5)
-- check_navigate_scheme(): validate browser_navigate URL scheme (Layer 2)
-- check_shell_threats(): analyze shell commands for injection vectors (Layer 2)
-
-[POS]
-All check functions return ``(action_or_None, reason)`` tuples. ``None`` action
-means the check does not apply (pass-through). Called by ``engine.evaluate_tool_call``.
 """
 
 from __future__ import annotations
@@ -25,7 +14,7 @@ from myrm_agent_harness.agent.security.path_security import is_sensitive_file
 from myrm_agent_harness.agent.security.types import PathPolicy, PermissionAction
 
 # ---------------------------------------------------------------------------
-# Path Policy — forbidden/allowed path zones for file operations (Layer 2.5)
+# Path Policy — forbidden/access path zones for file operations (Layer 2.5)
 # ---------------------------------------------------------------------------
 
 
@@ -40,12 +29,20 @@ def _is_subpath(child: str, parent: str) -> bool:
 
 
 def check_path_policy(
-    raw_path: str, policy: PathPolicy, workspace_root: str | None
+    raw_path: str,
+    policy: PathPolicy,
+    workspace_root: str | None,
+    *,
+    require_write: bool = False,
 ) -> tuple[PermissionAction, str]:
     """Evaluate a file path against the PathPolicy.
 
-    Returns (DENY, reason) if blocked by forbidden paths, (ALLOW, "") if in allowed roots or workspace.
-    Returns (ASK, reason) if outside allowed zones, requiring user approval.
+    Returns (DENY, reason) if blocked by forbidden paths.
+    Returns (ALLOW, "") if in a writable access root or workspace (when writing).
+    Returns (ALLOW, "") for read-only roots when require_write is False.
+    Returns (DENY, reason) for write attempts on read-only roots.
+    Returns (ASK, reason) if outside allowed zones, requiring user approval or
+    request_directory_tool.
     Relative paths are resolved against workspace_root when available.
     """
     if workspace_root and not os.path.isabs(os.path.expanduser(raw_path)):
@@ -57,27 +54,39 @@ def check_path_policy(
         if _is_subpath(normalized, _normalize_path(fp)):
             return PermissionAction.DENY, f"Path in forbidden zone: {raw_path}"
 
-    in_allowed_zone = False
+    matched_writable = False
+    matched_readonly = False
 
-    for ar in policy.allowed_roots:
-        if _is_subpath(normalized, _normalize_path(ar)):
-            in_allowed_zone = True
-            break
+    for root in policy.access_roots:
+        root_norm = _normalize_path(root.path)
+        if _is_subpath(normalized, root_norm):
+            if root.writable:
+                matched_writable = True
+            else:
+                matched_readonly = True
 
     if (
-        not in_allowed_zone
-        and workspace_root
+        workspace_root
         and _is_subpath(normalized, _normalize_path(workspace_root))
     ):
-        in_allowed_zone = True
+        matched_writable = True
 
-    if not in_allowed_zone:
-        return PermissionAction.ASK, f"Path outside allowed zones: {raw_path}"
+    if matched_writable:
+        if is_sensitive_file(raw_path):
+            return PermissionAction.ASK, f"Sensitive file: {os.path.basename(raw_path)}"
+        return PermissionAction.ALLOW, ""
 
-    if is_sensitive_file(raw_path):
-        return PermissionAction.ASK, f"Sensitive file: {os.path.basename(raw_path)}"
+    if matched_readonly:
+        if require_write:
+            return (
+                PermissionAction.DENY,
+                f"Path is read-only: {raw_path} (use request_directory_tool for write access)",
+            )
+        if is_sensitive_file(raw_path):
+            return PermissionAction.ASK, f"Sensitive file: {os.path.basename(raw_path)}"
+        return PermissionAction.ALLOW, ""
 
-    return PermissionAction.ALLOW, ""
+    return PermissionAction.ASK, f"Path outside allowed zones: {raw_path}"
 
 
 # ---------------------------------------------------------------------------

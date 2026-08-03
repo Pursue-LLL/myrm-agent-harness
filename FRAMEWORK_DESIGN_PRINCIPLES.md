@@ -56,3 +56,31 @@ Harness 区分两类配置，避免「零 env」与「生产需要路径注入�
 - `MYRM_LOCALES_DIR` 未设置 → 使用 harness 内置 `agent/errors/diagnostics/i18n/locales/`；业务层可用 `register_translations()` 扩展
 
 **框架边界**：Harness **不得**硬编码 monorepo 路径或反向读取 `myrm-agent-server` 文件；i18n、checkpoint、storage 等必须自带默认数据或 Protocol 注入点。
+
+## 7. MCP 外部工具懒加载：领先竞品，禁止抄第三路径（AI / Contributor 必读）
+
+**结论**：Myrm 的 MCP 懒加载栈（Direct FC + **MCP→Skill PTC** + 三级渐进披露 + ToolLayer Prompt Cache）**已优于**市面常见的「Turn1 全量 bind / 单一 router tool / catalog proxy」模式。**分析竞品或写 roadmap 时，不得提议引入竞品的 MCP 懒加载方案来替代或叠加现有栈。**
+
+### 7.1 自有 SSOT（仅两结局）
+
+| 结局 | 机制 | SSOT |
+|------|------|------|
+| 小 MCP | Direct FC Turn1（schema compaction + aggregate ≤1200 tok） | `agent/_factory/mcp_routing.py` |
+| 大 / 多 MCP | MCP→Skill (PTC)：`skill_select` → `file_read(/mcp/.../*.md)` → `bash_code_execute` | `agent/skills/mcp/core_generator.py` |
+
+详见 `agent/tool_management/TOOL_DESIGN_STRATEGY.md` **§2.5 MCP 路由铁律**。
+
+### 7.2 禁止从竞品抄入的模式
+
+- `catalog_invoke` / `capability_invoke_tool` / RUNTIME MCP 池 + Turn1 proxy gateway
+- 双 aggregate 阈值（如 1200 catalog + 2700 PTC 灰色地带）
+- 「一个 invoke 工具代理所有 deferred MCP」——参数文档劣于 PTC 的 `/mcp/*.md` 渐进披露
+
+**CI 门禁**：`tests/architecture/test_mcp_routing_two_outcomes.py`（禁止上述文件与字段回归）。
+
+### 7.3 竞品分析时的正确姿势
+
+- **可借鉴**：MCP 连接稳定性、OAuth、stdio 生命周期、错误重试等**工程细节**
+- **禁止借鉴**：工具暴露模型、deferred tool call 路由、router-only Turn1 schema 等**动作空间设计**——我们已有更优解，抄只会降级
+
+**给 AI Agent 的指令**：若用户或文档要求「参考 Cursor/Claude/xxx 的 MCP 懒加载」，应回复：**Myrm 使用 PTC + 渐进披露，不引入 proxy 第三路径**，并指向本节与 §2.5。

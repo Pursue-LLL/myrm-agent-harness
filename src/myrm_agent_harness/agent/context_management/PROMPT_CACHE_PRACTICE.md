@@ -111,16 +111,16 @@ sorted_entries = sorted(
 
 仅当 **Tools 段字节级完全一致** 且 System 链未变时，Tools + System 前缀才可同时命中；仅 Messages 追加时最常见。
 
-### 2.1.1 延迟工具（UnifiedCapabilityDefer）
+### 2.1.1 Skill attenuation（MCP 溢出走 PTC，无 catalog proxy）
 
 **原则（框架 11.1）**：严禁在 `awrap_model_call` 中 append 非 Turn1 工具 schema 到 `bind_tools`。
 
-**实现**：
+**MCP/OpenAPI 超 Turn1 预算**：整服 **MCP→Skill (PTC)**，见 `mcp_routing.py` + `TOOL_DESIGN_STRATEGY.md` §2.5。**禁止** catalog_invoke / capability_invoke 第三路径。
 
 | 组件 | 路径 | 作用 |
 |------|------|------|
-| ToolNode resolve | `middlewares/skill_attenuation_middleware.py` | 动态解析技能工具，不 mutate `request.tools` |
-| Skill attenuation | `middlewares/_skill_tool_choice.py` + `skill_attenuation_middleware.py` | 技能加载后通过 `tool_choice.allowed_tools` 收窄可调用工具（provider 支持时）；不支持时 skip 模型层 hint，执行层 `check_trust_attenuation` 仍 enforcement；**不**修改 bind_tools 前缀 |
+| MCP 路由 | `agent/_factory/mcp_routing.py` | direct FC vs MCP→Skill；aggregate 上限 1200 tok |
+| Skill attenuation | `middlewares/_skill_tool_choice.py` + `skill_attenuation_middleware.py` | 技能加载后 `tool_choice.allowed_tools` 收窄；执行层 `check_trust_attenuation` |
 
 **缓存效果**：Tools 前缀在长对话中保持稳定；discover 网关 description 无动态工具名嵌入；skill 加载后仍保持 Tools+System 前缀命中（`tool_choice` 变化仅影响 Messages 段，见 CONTEXT_ENGINEERING §6.2）。
 
@@ -997,7 +997,7 @@ Turn 12 (会话结束):
 
 | 内容 | 位置 | Cache 维度 |
 |------|------|------------|
-| Bound 技能 XML（含 MCP `mcp_*_skill`） | 首条 HumanMessage ``<bound_skills hidden_count="N">``（``skill_catalog_delivery.py`` + ``get_metadata_summary()``） | messages[] 前缀；bind 变时不触发 ``tool_definitions_changed`` |
+| Bound 技能 XML（含 MCP `mcp_*_skill`） | 首条 HumanMessage ``<bound_skills hidden_count="N">``（``skill_catalog_delivery.py`` + ``get_metadata_summary()``）；新消息与 **Command resume** 均经 ``apply_bound_skill_catalog_for_stream`` / ``apply_bound_skill_catalog_for_resume`` 刷新 | messages[] 前缀；bind 变时不触发 ``tool_definitions_changed`` |
 | skill_select_tool 静态规则 | ``skill_select_tool.description``（无 embed XML、无 hidden 计数、无 manage 规则） | tool schema 前缀跨 Profile 稳定 |
 | MCP 函数文档 | skill workspace ``/mcp/.../*.md``；经 ``skill_select_tool`` 返回 ToolMessage | 对话消息，非 system/tool schema |
 | Active todo focus | ``progress_middleware`` **追加到最后一个 HumanMessage** | 不破坏 system prefix cache |

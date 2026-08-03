@@ -17,7 +17,8 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `_tool_execution_lifecycle.py` | Internal | Tool execution lifecycle hooks. | ✅ |
 | `_tool_guards.py` | Internal | Guard modules orchestrated by tool_interceptor. | ✅ |
 | `_tool_helpers.py` | Internal | Stateless helpers for tool_interceptor_middleware. | ✅ |
-| `completion_guard.py` | Core | Finish gate + Mixed Message Guard + Independent Re-run for code tasks. Temporal ordering enforcement: blocks completion when code is modified after last verification, independently re-runs the verification command in the sandbox before allowing completion. Also gates freshness-sensitive completions when no successful external evidence tools were used. Exports `is_mutating_tool()` SSOT for side-effect tool detection. | ✅ |
+| `deliverable_write_verifier.py` | Internal | Zero-call deliverable write claim detection for CompletionGuard. | ✅ |
+| `completion_guard.py` | Core | Finish gate + Mixed Message Guard + Independent Re-run for code tasks. Temporal ordering enforcement: blocks completion when code is modified after last verification, independently re-runs the verification command in the sandbox before allowing completion. Also gates freshness-sensitive completions when no successful external evidence tools were used, and deliverable write claims without successful file_write/file_edit tool evidence. Exports `is_mutating_tool()` SSOT for side-effect tool detection. | ✅ |
 | `clarification_guard_middleware.py` | Core | Enforces single `ask_question_tool` call per turn; blocks coexisting tool calls with synthetic errors. | ✅ |
 | `completion_guard_checklist.py` | Internal | Verification command classification + checklist builder + temporal ordering analysis + verification command extraction for CompletionGuard. | ✅ |
 | `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |

@@ -104,6 +104,17 @@ class SkillRegistry:
     def list_storage_skills(self) -> list[SkillMetadata]:
         return [skill for skill in self._skills.values() if skill.is_storage_skill]
 
+    def clear_mcp_skills(self) -> None:
+        """Remove MCP-routed skills before a fresh routing pass.
+
+        Storage-backed skills registered here are preserved.
+        """
+        removed = [name for name, skill in self._skills.items() if skill.is_mcp_skill]
+        for name in removed:
+            del self._skills[name]
+        if removed:
+            logger.info("Cleared %d MCP skill(s) from registry: %s", len(removed), removed)
+
     def clear(self) -> None:
         self._skills.clear()
 

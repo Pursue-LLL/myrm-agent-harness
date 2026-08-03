@@ -34,6 +34,7 @@ class ArtifactInfo:
     language: str | None = None
     created_at: str | None = None
     file_path: str | None = None
+    short_file_id: str | None = None
 
     def to_dict(self) -> dict[str, str | int | None]:
         """转换为字典，ArtifactType 序列化为 str。"""
@@ -41,6 +42,8 @@ class ArtifactInfo:
         d["type"] = self.type.value
         if d.get("file_path") is None:
             d.pop("file_path", None)
+        if d.get("short_file_id") is None:
+            d.pop("short_file_id", None)
         return d
 
 

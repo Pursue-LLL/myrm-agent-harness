@@ -109,6 +109,16 @@ class StreamDispatcherMixin:
                             },
                             ctx,
                         )
+                    elif interrupt_type == "directory_request":
+                        logger.warning(" Agent execution suspended for directory grant")
+                        await self._emit_event(
+                            {
+                                "type": AgentEventType.DIRECTORY_REQUEST_REQUIRED.value,
+                                "data": interrupt_val,
+                                "messageId": ctx.message_id,
+                            },
+                            ctx,
+                        )
                     elif action_type == "swarm_fission":
                         logger.warning(" Agent execution yielded for Swarm Fission")
                         await self._emit_event(

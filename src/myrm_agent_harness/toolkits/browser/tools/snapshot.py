@@ -1,13 +1,14 @@
 """browser_snapshot tool for ARIA tree capture.
 
 [INPUT]
-- (none)
+- session.browser_session::BrowserSession (POS: browser session aggregate root; snapshot + extractor visual content detection)
 
 [OUTPUT]
 - create_snapshot_tool: Create browser_snapshot tool bound to session.
 
 [POS]
-browser_snapshot tool for ARIA tree capture.
+browser_snapshot tool for ARIA tree capture. Auto-detects canvas/rich-editor visual content via
+Extractor.detect_significant_visual_content() and appends [VISUAL_CONTENT_DETECTED] hint.
 """
 
 from __future__ import annotations
@@ -174,16 +175,27 @@ def create_snapshot_tool(session: BrowserSession):
             # Fail silently if computer_use is not configured or fails
             pass
 
-        # parsesnapshotresult
+        # Visual content detection: hint agent to use coordinate mode
+        visual_hint = ""
+        try:
+            if session._extractor and await session._extractor.detect_significant_visual_content():
+                visual_hint = (
+                    "\n[VISUAL_CONTENT_DETECTED: This page contains canvas/rich-editor content (e.g. Google Docs, "
+                    "Figma, Sheets). DOM refs may not map to visible elements. Prefer using screenshot + coordinate "
+                    "interactions (browser_interact with x/y parameters) for accurate targeting.]\n\n"
+                )
+        except Exception:
+            pass
+
         if isinstance(result, str):
-            final_str = dialog_msg + warning_msg + result
+            final_str = dialog_msg + warning_msg + visual_hint + result
             return mark_untrusted(final_str)
         if isinstance(result, tuple):
             aria_tree, _ = result
-            final_str = dialog_msg + warning_msg + aria_tree
+            final_str = dialog_msg + warning_msg + visual_hint + aria_tree
             return mark_untrusted(final_str)
         else:
-            final_str = dialog_msg + warning_msg + result.aria_tree
+            final_str = dialog_msg + warning_msg + visual_hint + result.aria_tree
             return mark_untrusted(final_str)
 
     return browser_snapshot

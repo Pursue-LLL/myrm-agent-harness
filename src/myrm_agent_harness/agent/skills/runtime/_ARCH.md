@@ -15,7 +15,7 @@ Skill execution runtime: registry, loader, env prep, trust attenuation. **`get_m
 | loader.py | Core | Skill document loader and trap injection. | ✅ |
 | registry.py | Core | SkillRegistry + get_metadata_summary (XML for HumanMessage catalog, not tool schema). | ✅ |
 | catalog_display.py | Core | resolve_catalog_display_skills SSOT (inline vs hidden). | ✅ |
-| skill_catalog_delivery.py | Core | strip/reinject `<bound_skills hidden_count="N">` on first HumanMessage each stream. | ✅ |
+| skill_catalog_delivery.py | Core | strip/reinject `<bound_skills hidden_count="N">` on first HumanMessage (stream prep + resume checkpoint refresh via `agent_runtime.apply_bound_skill_catalog_for_*`). | ✅ |
 
 ## Key Dependencies
 

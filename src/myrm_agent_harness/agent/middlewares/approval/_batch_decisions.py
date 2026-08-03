@@ -295,18 +295,68 @@ async def apply_approval_decisions(
             extensions = decision.get("extensions", {})
             allow_always = extensions.get("allowAlways", False)
             allow_domain = extensions.get("allowDomain", False)
+            grant_directory = extensions.get("grantDirectory", False)
             guidance_text = decision.get("guidance", "").strip() if isinstance(decision.get("guidance"), str) else ""
 
             logger.info(
-                "[APPROVAL] Tool %s decision: type=%s, allow_always=%s, allow_domain=%s",
+                "[APPROVAL] Tool %s decision: type=%s, allow_always=%s, allow_domain=%s, grant_directory=%s",
                 tool_name,
                 decision_type,
                 allow_always,
                 allow_domain,
+                grant_directory,
             )
 
             if decision_type == "approve":
                 record_decision(tool_name, "USER_APPROVED", reason)
+
+                if grant_directory and "Path outside allowed zones" in reason:
+                    from myrm_agent_harness.agent.middlewares._session_context import (
+                        get_workspace_root,
+                    )
+                    from myrm_agent_harness.agent.security.session_access import (
+                        get_session_access_roots,
+                        grant_session_access_root,
+                        resolve_grant_directory_path,
+                    )
+                    from myrm_agent_harness.agent.security.types import (
+                        AccessRoot,
+                        _default_path_policy,
+                    )
+
+                    tool_input_grant: dict[str, object] = tool_call.get("args", {})
+                    raw_path = str(
+                        tool_input_grant.get("path")
+                        or tool_input_grant.get("file_path")
+                        or tool_input_grant.get("target_path")
+                        or ""
+                    ).strip()
+                    if raw_path:
+                        workspace_root = get_workspace_root() or None
+                        policy = config.path_policy if config else _default_path_policy()
+                        grant_path = resolve_grant_directory_path(raw_path, workspace_root)
+                        if grant_path:
+                            requires_write = permission_type in (
+                                "file_write",
+                                "file_edit",
+                                "file_delete",
+                            )
+                            roots_before = get_session_access_roots()
+                            grant_session_access_root(
+                                AccessRoot(
+                                    path=grant_path,
+                                    writable=requires_write,
+                                    source="path_ask_grant",
+                                ),
+                                policy=policy,
+                                workspace_root=workspace_root,
+                            )
+                            if len(get_session_access_roots()) > len(roots_before):
+                                record_decision(
+                                    tool_name,
+                                    "DIRECTORY_GRANTED",
+                                    f"path: {grant_path}",
+                                )
 
                 if allow_domain and config and config.domain_hitl_enabled:
                     tool_input: dict[str, object] = tool_call.get("args", {})

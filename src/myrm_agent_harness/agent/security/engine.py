@@ -303,8 +303,17 @@ def evaluate_tool_call(
     if permission in _PATH_CHECKED_PERMISSIONS:
         raw_path = str(tool_input.get("path", ""))
         if raw_path:
+            from myrm_agent_harness.agent.security.session_access import (
+                merge_path_policy_with_session_access,
+            )
+
+            effective_policy = merge_path_policy_with_session_access(config.path_policy)
+            require_write = permission == "file_write"
             path_action, path_reason = check_path_policy(
-                raw_path, config.path_policy, workspace_root
+                raw_path,
+                effective_policy,
+                workspace_root,
+                require_write=require_write,
             )
             if path_action in (PermissionAction.DENY, PermissionAction.ASK):
                 return path_action, path_reason

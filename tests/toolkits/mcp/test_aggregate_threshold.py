@@ -84,4 +84,4 @@ class TestEstimateSchemaTokens:
         assert estimate_schema_tokens([]) == 0
 
     def test_default_budget_constant(self) -> None:
-        assert AGGREGATE_DIRECT_TOKEN_BUDGET == 2700
+        assert AGGREGATE_DIRECT_TOKEN_BUDGET == 1200

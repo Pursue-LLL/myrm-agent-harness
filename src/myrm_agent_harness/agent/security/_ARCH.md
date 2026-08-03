@@ -26,6 +26,7 @@ Detailed design: [SECURITY_SYSTEM.md](SECURITY_SYSTEM.md)
 | transcript_classifier.py | Core | Layer 5.5 — Reasoning-Blind Transcript Classifier for auto-mode. Evaluates tool calls using user intent, tool call sequence, taint labels, and trust context (trusted domains). No assistant reasoning. Forces deterministic output (temperature=0, max_tokens=200) regardless of upstream LLM config. | ✅ |
 | trust_context.py | Core | RequestTrustContext protocol for remote admission path → tool restriction flags (consumed by agent-server overlay). | ✅ |
 | path_security.py | Core | Path security — single source of truth for dangerous paths, boundary checks, and safe path joining. | ✅ |
+| session_access.py | Core | Session-scoped HITL directory grants (ContextVar); grant/revoke; merge into PathPolicy at runtime; workspace-relative path resolve. | ✅ |
 | ptc_verifier.py | Core | AST-based static analysis for PTC (Programmatic Tool Calling) scripts. Extracts MCP intent and enables Fast-Path Auto-Approve for read-only tools. | ✅ |
 | rate_limiter.py | Core | Agent security rate limiter. Prevents brute-force attacks (e.g., WebUI login) with configurable rate | ✅ |
 | redact.py | Core | Agent output redaction layer. Complements sanitize_env (source-level dangerous env var removal) with | ✅ |

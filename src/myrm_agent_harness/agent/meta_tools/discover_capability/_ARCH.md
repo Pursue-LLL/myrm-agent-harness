@@ -5,6 +5,17 @@ Unified Capability Discovery gateway. Indexes agent-bound searchable skills (MCP
 
 **Boundary**: searches the **agent-bound skill library**. External marketplace install uses ``skill_market_tool`` when **product Turn1-mount** enables it (`enable_skill_market` / market backend wired in server `tool_setup.py`); otherwise the discovery tool description points users to Settings → Skills → Discover.
 
+## MCP / OpenAPI overflow policy (SSOT)
+
+**Only two harness outcomes** — see ``TOOL_DESIGN_STRATEGY.md`` §MCP 路由铁律:
+
+| Outcome | When |
+|---------|------|
+| **Direct FC Turn1** | Per-server schema ≤ threshold **and** aggregate direct pool ≤ `AGGREGATE_DIRECT_TOKEN_BUDGET` (1200 tok) |
+| **MCP→Skill (PTC)** | Per-server schema > threshold **or** aggregate overflow (largest servers demoted first) |
+
+**Forbidden**: catalog_invoke, capability_invoke_tool, RUNTIME-only MCP proxy gateways, or any third routing band between direct and PTC.
+
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |

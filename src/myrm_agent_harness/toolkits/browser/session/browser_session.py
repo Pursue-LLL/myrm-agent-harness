@@ -29,6 +29,8 @@
 [OUTPUT]
 - BrowserSession: browser session manager (aggregate root)
   - snapshot(...) -> SnapshotResult: generate ARIA snapshot (frozen dataclass, immutable)
+  - interact(action, ref, text, verify_goal) -> str: ref-based element interaction
+  - interact_at(action, x, y, text, target_x, target_y, verify_goal) -> str: coordinate-based interaction for canvas/rich-editor pages
   - extract_text(...) -> str: extract page text with pagination support
   - extract_structured(...) -> str: extract structured JSON data via LLM + JSON Schema
   - extract_media(...) -> str: extract high-value media resource URLs (images/videos/audio)
@@ -323,7 +325,7 @@ class BrowserSession(
         return self._session_hash_cache.get(domain)
 
     async def interact(self, action: str, ref: str, text: str = "", verify_goal: str | None = None) -> str:
-        """Element interaction (13 operation types) with optional visual verification."""
+        """Ref-based element interaction (15 action types) with optional visual verification."""
         await self._ensure_components()
         interactor = self._require_interactor()
         page = self._tab_controller.get_active_page()
@@ -373,6 +375,49 @@ class BrowserSession(
             result = f"{result}\n\n{verify_msg}"
             # We append the failure to the result so the LLM can reflect on it.
             # The tool call itself doesn't raise an exception, it just reports the failure.
+
+        return result
+
+    async def interact_at(
+        self,
+        action: str,
+        x: float,
+        y: float,
+        text: str = "",
+        target_x: float | None = None,
+        target_y: float | None = None,
+        verify_goal: str | None = None,
+    ) -> str:
+        """Coordinate-based interaction for canvas/rich-editor pages.
+
+        Bypasses ref resolution — operates directly at viewport (x, y).
+        Supports optional visual verification identical to ref-based interact().
+        """
+        await self._ensure_components()
+        interactor = self._require_interactor()
+        page = self._tab_controller.get_active_page()
+
+        baseline_screenshot = None
+        if verify_goal:
+            try:
+                from myrm_agent_harness.toolkits.browser.utils.selectors import PASSWORD_FIELD_SELECTOR
+
+                password_locator = page.locator(PASSWORD_FIELD_SELECTOR)
+                baseline_screenshot = await page.screenshot(type="png", full_page=False, mask=[password_locator])
+            except Exception as e:
+                logger.warning("Failed to take baseline screenshot for coord verification: %s", e)
+
+        result = await interactor.interact_at(action, x, y, text, target_x, target_y)
+        self._tab_controller.clear_text_snapshot()
+
+        if verify_goal and baseline_screenshot:
+            await self.notify_progress(f"Verifying action goal: '{verify_goal}'...")
+            _success, verify_msg = await self._vision_verifier.verify_action(
+                page=page,
+                baseline_screenshot=baseline_screenshot,
+                verify_goal=verify_goal,
+            )
+            result = f"{result}\n\n{verify_msg}"
 
         return result
 

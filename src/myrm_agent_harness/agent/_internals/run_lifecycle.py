@@ -473,6 +473,13 @@ async def post_run_events(
             if processed:
                 yield processed
 
+        from myrm_agent_harness.agent.streaming.artifact_events import (
+            emit_artifact_focus_event,
+        )
+
+        async for focus_event in emit_artifact_focus_event(message_id):
+            yield focus_event
+
     from myrm_agent_harness.agent.streaming.artifact_events import collect_ui_artifacts
     from myrm_agent_harness.agent.streaming.types import AgentEventType
 

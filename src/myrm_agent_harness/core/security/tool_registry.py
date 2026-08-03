@@ -522,6 +522,9 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "ask_question_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=False, is_idempotent=True
     ),
+    "request_directory_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=False, is_idempotent=True
+    ),
 }
 
 

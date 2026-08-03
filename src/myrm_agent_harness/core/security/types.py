@@ -241,11 +241,32 @@ def _default_dangerous_paths() -> frozenset[str]:
 
 
 @dataclass(frozen=True, slots=True)
+class AccessRoot:
+    """A directory root granted for file operations within a session."""
+
+    path: str
+    writable: bool = True
+    label: str = ""
+    source: str = "declared"
+
+
+def access_roots_from_paths(
+    paths: tuple[str, ...],
+    *,
+    writable: bool = True,
+    source: str = "declared",
+) -> tuple[AccessRoot, ...]:
+    return tuple(
+        AccessRoot(path=p, writable=writable, source=source) for p in paths
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class PathPolicy:
     """Path-level access control for file operations.
 
-    Three-layer check: forbidden → allowed_roots → workspace.
-    forbidden_paths always wins (cannot be overridden by allowed_roots).
+    Three-layer check: forbidden → access_roots → workspace.
+    forbidden_paths always wins (cannot be overridden by access_roots).
 
     Default forbidden_paths comes from ``security.path_security.DANGEROUS_PATHS``
     (single source of truth for all path-based security).
@@ -255,8 +276,13 @@ class PathPolicy:
     """
 
     forbidden_paths: frozenset[str] = field(default_factory=_default_dangerous_paths)
-    allowed_roots: tuple[str, ...] = ()
+    access_roots: tuple[AccessRoot, ...] = ()
     workspace_label: str | None = None
+
+    @property
+    def allowed_roots(self) -> tuple[str, ...]:
+        """Normalized path strings for access roots (read-only view)."""
+        return tuple(r.path for r in self.access_roots)
 
 
 def _default_path_policy() -> PathPolicy:
@@ -406,7 +432,10 @@ class SecurityConfig:
         return cls(
             capabilities=frozenset({Capability("*", "*")}),
             ruleset=read_only_rules,
-            path_policy=PathPolicy(allowed_roots=allowed_roots, workspace_label=workspace_label),
+            path_policy=PathPolicy(
+                access_roots=access_roots_from_paths(allowed_roots),
+                workspace_label=workspace_label,
+            ),
         )
 
     @classmethod
@@ -438,7 +467,10 @@ class SecurityConfig:
         return cls(
             capabilities=frozenset({Capability("*", "*")}),
             ruleset=workspace_rules,
-            path_policy=PathPolicy(allowed_roots=allowed_roots, workspace_label=workspace_label),
+            path_policy=PathPolicy(
+                access_roots=access_roots_from_paths(allowed_roots),
+                workspace_label=workspace_label,
+            ),
         )
 
     @classmethod

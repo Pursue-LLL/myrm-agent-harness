@@ -27,6 +27,7 @@ Example:
 [OUTPUT]
 - FileIdRegistry: short-ID ↔ path bidirectional registry dataclass
 - register_file: module-level register helper (returns None if context unset)
+- lookup_short_file_id: resolve workspace path → @file_NNN when registered
 - resolve_file_id: module-level resolve helper
 - resolve_file_ids_in_text: replace all @file_* tokens in text with paths
 - is_file_id: predicate for @file_NNN pattern
@@ -38,6 +39,7 @@ File ID registry. Maps short @file_* aliases to workspace paths for token-effici
 import logging
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,13 @@ FILE_ID_PREFIX = "@file_"
 
 # 文件 ID 正则表达式（匹配 @file_001, @file_002 等）
 FILE_ID_PATTERN = re.compile(r"@file_(\d+)")
+
+
+def _normalize_registry_path(full_path: str) -> str:
+    try:
+        return str(Path(full_path).resolve())
+    except OSError:
+        return full_path
 
 
 @dataclass
@@ -75,6 +84,8 @@ class FileIdRegistry:
         Returns:
             短 ID，如 @file_001
         """
+        full_path = _normalize_registry_path(full_path)
+
         # 检查是否已注册
         if full_path in self.path_to_id:
             return self.path_to_id[full_path]
@@ -104,6 +115,21 @@ class FileIdRegistry:
     def get_all_mappings(self) -> dict[str, str]:
         """获取所有映射（用于调试）"""
         return dict(self.id_to_path)
+
+
+def lookup_short_file_id(full_path: str) -> str | None:
+    """Return @file_NNN alias for a workspace path when registered."""
+    registry = _get_registry()
+    if registry is None:
+        return None
+    normalized = _normalize_registry_path(full_path)
+    hit = registry.path_to_id.get(normalized)
+    if hit is not None:
+        return hit
+    for path, file_id in registry.path_to_id.items():
+        if _normalize_registry_path(path) == normalized:
+            return file_id
+    return None
 
 
 def _get_registry() -> FileIdRegistry | None:

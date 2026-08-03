@@ -9,9 +9,11 @@ import pytest
 from myrm_agent_harness.agent._factory.mcp_routing import (
     MCPRoutingResult,
     _compress_direct_tools,
+    demote_direct_servers_over_budget,
     estimate_single_tool_tokens,
     route_mcp_servers,
 )
+from myrm_agent_harness.agent._factory.mcp_surface import MCPSurfaceMode
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 
@@ -97,6 +99,24 @@ async def test_route_mcp_servers_ptc_path() -> None:
 
 
 @pytest.mark.asyncio
+async def test_route_mcp_servers_clears_mcp_registry_before_routing() -> None:
+    with patch(
+        "myrm_agent_harness.agent.skills.runtime.registry.skill_registry.clear_mcp_skills"
+    ) as clear_mock:
+        manager = MagicMock()
+        manager.get_connection = AsyncMock(
+            return_value=_mock_connection({}),
+        )
+        with patch(
+            "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
+            AsyncMock(return_value=manager),
+        ):
+            await route_mcp_servers([])
+
+    clear_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_route_mcp_servers_skips_failed_connection() -> None:
     cfg = MCPConfig(name="broken", type="stdio", command="echo")
     manager = MagicMock()
@@ -165,8 +185,8 @@ async def test_route_mcp_servers_aggregate_demotion() -> None:
             return_value=10000,
         ),
         patch(
-            "myrm_agent_harness.agent._factory.mcp_routing.AGGREGATE_DIRECT_TOKEN_BUDGET",
-            1500,
+            "myrm_agent_harness.agent._factory.mcp_routing.demote_direct_servers_over_budget",
+            lambda bundles: demote_direct_servers_over_budget(bundles, budget=1500),
         ),
         patch(
             "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
@@ -180,9 +200,53 @@ async def test_route_mcp_servers_aggregate_demotion() -> None:
             "myrm_agent_harness.agent.skills.runtime.registry.skill_registry.register"
         ),
     ):
-        result = await route_mcp_servers([cfg_a, cfg_b])
+        result = await route_mcp_servers(
+            [cfg_a, cfg_b],
+            surface_mode=MCPSurfaceMode.AUTO,
+        )
 
     assert len(result.direct_tools) > 0
+    assert len(result.skills) == 1
+
+
+@pytest.mark.asyncio
+async def test_route_mcp_servers_aggregate_over_budget_demotes_to_ptc() -> None:
+    """Aggregate direct schema over budget demotes to MCP→Skill (no catalog_invoke)."""
+    cfg = MCPConfig(name="medium", type="stdio", command="echo")
+    tools = [_make_mock_tool(f"tool_{i}", schema_size=200, param_props=3) for i in range(8)]
+    manager = MagicMock()
+    manager.get_connection = AsyncMock(return_value=_mock_connection({"medium": tools}))
+
+    skill_meta = SkillMetadata(
+        name="mcp_medium_skill",
+        description="Medium MCP",
+        mcp=MCPSkillData(
+            server="medium",
+            tools=["tool_0"],
+            config=[{"name": "medium", "type": "stdio", "command": "echo"}],
+        ),
+    )
+
+    with (
+        patch(
+            "myrm_agent_harness.agent._factory.mcp_routing.compute_direct_threshold",
+            return_value=10000,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.mcp.connection_manager.get_mcp_connection_manager",
+            AsyncMock(return_value=manager),
+        ),
+        patch(
+            "myrm_agent_harness.agent.skills.mcp.core_generator.mcp_skill_generator.generate_metadata_only",
+            AsyncMock(return_value=[skill_meta]),
+        ),
+        patch(
+            "myrm_agent_harness.agent.skills.runtime.registry.skill_registry.register"
+        ),
+    ):
+        result = await route_mcp_servers([cfg], surface_mode=MCPSurfaceMode.AUTO)
+
+    assert result.direct_tools == []
     assert len(result.skills) == 1
 
 

@@ -11,7 +11,9 @@ from myrm_agent_harness.agent.sub_agents.types import DelegationCapabilityManife
 
 def test_default_policy_registers_ask_question_tool() -> None:
     policy = HitlToolPolicy.default()
-    assert policy.registered_tools == frozenset({"ask_question_tool"})
+    assert policy.registered_tools == frozenset(
+        {"ask_question_tool", "request_directory_tool"}
+    )
     assert policy.subagent_blocked == policy.registered_tools
 
 

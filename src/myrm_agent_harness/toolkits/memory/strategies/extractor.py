@@ -200,6 +200,9 @@ class ExtractionConfig:
     Conversations exceeding this are truncated using head-tail preservation."""
     wiki_boundary_enabled: bool = False
     """When True, extraction prompt skips document-like semantic/episodic facts (wiki owns those)."""
+    domain_preset: str = "none"
+    """Domain extraction preset injecting priority attribute hints into the extraction prompt.
+    Valid values: 'none', 'persona', 'work_assistant', 'research', or 'auto'."""
 
 
 class ExtractedMemory(BaseModel):
@@ -439,6 +442,15 @@ def _build_system_prompt(
 
     if config.extract_semantic:
         parts.append(_PREFERENCE_SECTION)
+
+    if config.domain_preset and config.domain_preset != "none":
+        from myrm_agent_harness.toolkits.memory.strategies.extraction_domain import (
+            build_domain_hints_section,
+        )
+
+        domain_section = build_domain_hints_section(config.domain_preset)
+        if domain_section:
+            parts.append(domain_section)
 
     if config.enable_task_digest:
         parts.append(_TASK_DIGEST_SECTION)

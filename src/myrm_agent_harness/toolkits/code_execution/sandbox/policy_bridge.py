@@ -1,43 +1,22 @@
-"""Bridge between the permission engine's PathPolicy and OS-level SandboxPolicy.
-
-Ensures consistent security rules across software and OS layers:
-PathPolicy.allowed_roots are automatically propagated as writable paths
-in the sandbox, providing a single source of truth.
-
-[INPUT]
-- (none)
-
-[OUTPUT]
-- build_sandbox_policy_from_path_policy: Create a SandboxPolicy that mirrors PathPolicy.allowed_ro...
-
-[POS]
-Bridge between the permission engine's PathPolicy and OS-level SandboxPolicy.
-"""
+"""Bridge between the permission engine's PathPolicy and OS-level SandboxPolicy."""
 
 from __future__ import annotations
 
+from myrm_agent_harness.agent.security.types import AccessRoot
 from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import SandboxPolicy
 
 
 def build_sandbox_policy_from_path_policy(
     work_dir: str,
-    allowed_roots: tuple[str, ...] = (),
+    access_roots: tuple[AccessRoot, ...] = (),
     allow_network: bool = True,
     extra_writable: tuple[str, ...] = (),
 ) -> SandboxPolicy:
-    """Create a SandboxPolicy that mirrors PathPolicy.allowed_roots.
-
-    Args:
-        work_dir: Current workspace directory (always writable).
-        allowed_roots: From ``PathPolicy.allowed_roots`` — propagated to writable_paths.
-        allow_network: Whether outbound network is allowed.
-        extra_writable: Additional writable paths beyond allowed_roots.
-
-    Returns:
-        SandboxPolicy with consistent writable paths.
-    """
+    """Create a SandboxPolicy that mirrors writable PathPolicy.access_roots."""
     writable = {work_dir}
-    writable.update(allowed_roots)
+    for root in access_roots:
+        if root.writable:
+            writable.add(root.path)
     writable.update(extra_writable)
 
     return SandboxPolicy(

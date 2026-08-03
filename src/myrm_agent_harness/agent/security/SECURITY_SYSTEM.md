@@ -368,37 +368,50 @@ DANGEROUS_PATHS: frozenset[str] = _build_dangerous_paths()  # normalised at impo
 @dataclass(frozen=True, slots=True)
 class PathPolicy:
     forbidden_paths: frozenset[str] = DANGEROUS_PATHS  # from path_security
-    allowed_roots: tuple[str, ...] = ()
+    access_roots: tuple[AccessRoot, ...] = ()  # declared + session HITL grants (merged at runtime)
 ```
+
+`AccessRoot` carries `path`, `writable`, optional `label`, and `source` (`declared` | `hitl_grant` | `path_ask_grant` | `persisted`).
+
+Session-scoped HITL grants live in `agent/security/session_access.py` (ContextVar) and persist on the chat row (`session_access_roots` JSON) in the product server.
 
 ### 三层检查逻辑
 
 ```
-_check_path_policy(raw_path, policy, workspace_root)
+check_path_policy(raw_path, policy, workspace_root, require_write)
   │
   ├─ Layer 1: forbidden_paths → DENY（绝对优先，不可覆盖）
   │
-  ├─ Layer 2: allowed_roots → ALLOW（显式白名单）
+  ├─ Layer 2: access_roots（writable）→ ALLOW
   │
-  ├─ Layer 3: workspace_root → ALLOW（工作区基础白名单）
+  ├─ Layer 2b: access_roots（read-only）→ ALLOW read / DENY write
   │
-  └─ 其他路径 → DENY
+  ├─ Layer 3: workspace_root → ALLOW（读写）
+  │
+  └─ 其他路径 → ASK（Permission Engine 触发 HITL；用户可通过 path-ASK「Grant directory」或 `request_directory_tool` 授予）
 ```
 
 ### 关键设计决策
 
-1. **只返回 ALLOW/DENY，不返回 ASK** — 路径安全是基础策略，不可被临时审批绕过
-2. **forbidden_paths 不可被 allowed_roots 覆盖** — 即使配置了 `allowed_roots: ["~"]`，`~/.ssh` 仍然被拒绝
+1. **Layer 3 外路径返回 ASK，不是 DENY** — 由 Permission Engine 弹出审批；用户可勾选「Grant directory」或 Agent 调用 `request_directory_tool`
+2. **forbidden_paths 不可被 access_roots 覆盖** — 即使授予 `~`，`~/.ssh` 仍然被拒绝
 3. **路径归一化** — 所有路径经过 `expanduser` + `expandvars` + `realpath` 处理，防止符号链接逃逸
-4. **只对 file_read/file_write 生效** — shell_exec 的路径检查由 Sandbox Validator 层负责
+4. **只对 file_read/file_write 等 file ops 生效** — shell_exec 的路径检查由 Sandbox Validator 层负责
+5. **子 Agent 禁止 `request_directory_tool`** — `HitlToolPolicy` L1 block；沙箱 worktree 模式不挂载该工具
+6. **Web Chat only mount** — 产品层 `_should_mount_request_directory_tool` 仅在 `ChannelType.WEB_CHAT` 挂载；IM/Cron 不暴露 session directory grant（单次 tool approval 仍可用）
+7. **Grant 前 forbidden 校验** — `grant_session_access_root(..., policy=...)` 对 DENY 路径拒绝授予；path-ASK 勾选默认 **false**
+8. **Revoke 对称** — `revoke_session_access_root` + server `revoke_chat_session_access_root` 持久化到 `session_access_roots`
+9. **云卷部署边界** — `/persistent` 真实挂载时，grant 仅限卷内或 chat workspace；本地桌面允许主机路径（仍受 forbidden/dangerous 约束）
+10. **Directory HITL 900s 超时** — 与 clarify 对称，`{granted:false}` auto-resume，避免挂死
+11. **FE SSOT 刷新** — grant/revoke 后 `refreshSessionAccessRoots` 同步 `SessionAccessRootsBar`；path-ASK 带 optimistic fallback
 
 ### 渠道行为
 
-| 渠道 | forbidden | allowed_roots | workspace 内 | 其他路径 |
+| 渠道 | forbidden | access_roots | workspace 内 | 其他路径 |
 |------|-----------|--------------|-------------|---------|
-| WEB_CHAT | DENY | ALLOW | ALLOW | DENY |
-| IM | DENY | ALLOW | ALLOW | DENY |
-| CRON | DENY | ALLOW（声明式） | ALLOW | DENY |
+| WEB_CHAT | DENY | ALLOW | ALLOW | ASK |
+| IM | DENY | ALLOW | ALLOW | ASK |
+| CRON | DENY | ALLOW（声明式） | ALLOW | ASK |
 
 ### 纵深防御
 

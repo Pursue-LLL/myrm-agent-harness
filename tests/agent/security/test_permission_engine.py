@@ -38,6 +38,7 @@ from myrm_agent_harness.agent.security.types import (
     PermissionRule,
     PermissionRuleset,
     SecurityConfig,
+    access_roots_from_paths,
 )
 
 
@@ -241,22 +242,25 @@ class TestCheckShellThreats:
 
 class TestCheckPathPolicy:
     def test_forbidden_path_denied(self) -> None:
-        policy = PathPolicy(forbidden_paths=frozenset({"/etc"}), allowed_roots=())
+        policy = PathPolicy(forbidden_paths=frozenset({"/etc"}), access_roots=())
         action, _ = check_path_policy("/etc/passwd", policy, None)
         assert action == PermissionAction.DENY
 
     def test_allowed_root(self) -> None:
-        policy = PathPolicy(forbidden_paths=frozenset(), allowed_roots=("/home/user",))
+        policy = PathPolicy(
+            forbidden_paths=frozenset(),
+            access_roots=access_roots_from_paths(("/home/user",)),
+        )
         action, _ = check_path_policy("/home/user/file.txt", policy, None)
         assert action == PermissionAction.ALLOW
 
     def test_workspace_root_allowed(self) -> None:
-        policy = PathPolicy(forbidden_paths=frozenset(), allowed_roots=())
+        policy = PathPolicy(forbidden_paths=frozenset(), access_roots=())
         action, _ = check_path_policy("/workspace/file.txt", policy, "/workspace")
         assert action == PermissionAction.ALLOW
 
     def test_outside_all_zones_asks(self) -> None:
-        policy = PathPolicy(forbidden_paths=frozenset(), allowed_roots=())
+        policy = PathPolicy(forbidden_paths=frozenset(), access_roots=())
         action, _ = check_path_policy("/random/path", policy, "/workspace")
         assert action == PermissionAction.ASK
 
@@ -381,7 +385,7 @@ class TestEvaluateToolCall:
         assert action == PermissionAction.DENY
 
     def test_path_policy_denied(self) -> None:
-        config = SecurityConfig(path_policy=PathPolicy(forbidden_paths=frozenset({"/etc"}), allowed_roots=()))
+        config = SecurityConfig(path_policy=PathPolicy(forbidden_paths=frozenset({"/etc"}), access_roots=()))
         action, _ = evaluate_tool_call("file_read", {"path": "/etc/shadow"}, config)
         assert action == PermissionAction.DENY
 
@@ -391,7 +395,7 @@ class TestEvaluateToolCall:
         assert action == PermissionAction.ALLOW
 
     def test_path_policy_ask_outside_workspace(self) -> None:
-        config = SecurityConfig(path_policy=PathPolicy(forbidden_paths=frozenset(), allowed_roots=()))
+        config = SecurityConfig(path_policy=PathPolicy(forbidden_paths=frozenset(), access_roots=()))
         action, _ = evaluate_tool_call("file_read", {"path": "/random/path"}, config, workspace_root="/workspace")
         assert action == PermissionAction.ASK
 

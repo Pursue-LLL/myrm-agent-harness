@@ -167,33 +167,115 @@ async def create_skill_agent(
     mcp_skills: list[SkillMetadata] = []
     mcp_direct_tools: list[BaseTool] = []
     if spec.mcp_servers:
-        routing_result = await route_mcp_servers(spec.mcp_servers)
+        routing_result = await route_mcp_servers(
+            spec.mcp_servers,
+            surface_mode=spec.mcp_surface_mode,
+        )
         mcp_skills = routing_result.skills
         mcp_direct_tools = routing_result.direct_tools
+    else:
+        from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
 
-    openapi_tools: list[BaseTool] = []
+        skill_registry.clear_mcp_skills()
+
+    openapi_direct_tools: list[BaseTool] = []
     if spec.openapi_services:
         from myrm_agent_harness.toolkits.openapi_bridge import (
             OpenAPIBridge,
             OpenAPIServiceConfig,
         )
+        from myrm_agent_harness.agent.config.exceptions import (
+            ConfigIncompleteError,
+        )
 
         bridge = OpenAPIBridge()
+        openapi_all: list[BaseTool] = []
+        enabled_openapi_count = 0
         for svc_dict in spec.openapi_services:
             try:
                 svc_config = OpenAPIServiceConfig.model_validate(svc_dict)
                 if svc_config.enabled:
+                    enabled_openapi_count += 1
                     svc_tools = await bridge.get_tools(svc_config)
-                    openapi_tools.extend(svc_tools)
+                    openapi_all.extend(svc_tools)
             except Exception as e:
                 logger.warning(f"Failed to load OpenAPI service: {e}")
 
-        if openapi_tools:
-            logger.info(f"OpenAPI Bridge: generated {len(openapi_tools)} tools")
+        if enabled_openapi_count > 0 and not openapi_all:
+            raise ConfigIncompleteError(
+                user_friendly_message={
+                    "en": (
+                        "OpenAPI services are enabled but no tools were loaded. "
+                        "Check spec URL/content, authentication, and selected endpoints."
+                    ),
+                    "zh": (
+                        "已启用 OpenAPI 服务但未加载任何工具。"
+                        "请检查 spec URL/内容、认证配置及已选 endpoint。"
+                    ),
+                },
+                technical_details=(
+                    f"{enabled_openapi_count} enabled OpenAPI service(s) produced 0 tools"
+                ),
+                resolution_steps=[
+                    "Open Agent settings → OpenAPI services",
+                    "Verify spec URL or inline spec content loads correctly",
+                    "Check auth credentials and selected endpoints",
+                    "Save the agent and retry",
+                ],
+                error_code="openapi_load_failed",
+            )
+
+        if openapi_all:
+            from myrm_agent_harness.agent._factory.mcp_routing import (
+                AGGREGATE_DIRECT_TOKEN_BUDGET,
+                estimate_schema_tokens,
+            )
+            from myrm_agent_harness.agent._factory.mcp_surface import (
+                MCPSurfaceMode,
+                parse_mcp_surface_mode,
+            )
+
+            openapi_tokens = estimate_schema_tokens(openapi_all)
+            surface = parse_mcp_surface_mode(spec.mcp_surface_mode)
+            if (
+                surface != MCPSurfaceMode.DIRECT_FC
+                and openapi_tokens > AGGREGATE_DIRECT_TOKEN_BUDGET
+            ):
+                raise ConfigIncompleteError(
+                    user_friendly_message={
+                        "en": (
+                            f"OpenAPI tool schemas (~{openapi_tokens} tokens) exceed the "
+                            f"Turn1 direct budget ({AGGREGATE_DIRECT_TOKEN_BUDGET}). "
+                            "Reduce selected endpoints in Agent settings."
+                        ),
+                        "zh": (
+                            f"OpenAPI 工具 schema（约 {openapi_tokens} tokens）超出 Turn1 "
+                            f"直接绑定预算（{AGGREGATE_DIRECT_TOKEN_BUDGET}）。"
+                            "请在 Agent 设置中减少已选 endpoint。"
+                        ),
+                    },
+                    technical_details=(
+                        f"OpenAPI schema ~{openapi_tokens} tokens exceeds direct budget "
+                        f"{AGGREGATE_DIRECT_TOKEN_BUDGET}"
+                    ),
+                    resolution_steps=[
+                        "Open Agent settings → OpenAPI services",
+                        "Reduce selected endpoints per service",
+                        "Save the agent and retry",
+                    ],
+                    error_code="openapi_direct_budget_exceeded",
+                )
+            else:
+                openapi_direct_tools = openapi_all
+                logger.info(
+                    "OpenAPI Bridge: generated %d direct tools (~%d tokens)",
+                    len(openapi_all),
+                    openapi_tokens,
+                )
 
     if tools is None:
         tools = []
-    tools = list(tools) + openapi_tools + mcp_direct_tools
+    tools = list(tools) + openapi_direct_tools + mcp_direct_tools
 
     final_skill_backend: SkillBackendProtocol | None = skill_backend
     if mcp_skills:

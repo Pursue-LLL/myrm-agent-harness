@@ -70,6 +70,9 @@ from myrm_agent_harness.agent.middlewares.completion_guard_checklist import (
     classify_verification,
     find_last_successful_verification_command,
 )
+from myrm_agent_harness.agent.middlewares.deliverable_write_verifier import (
+    check_deliverable_write_claim,
+)
 from myrm_agent_harness.agent.orchestration.hooks import COMPLETION_CHECK_TOOL_NAME
 from myrm_agent_harness.agent.security.guards.loop_guard_types import (
     ToolGroup,
@@ -132,6 +135,7 @@ def _completion_check_tool(
     workspace_root: str = "",
     force_fail: bool = False,
     evidence_reason: str = "",
+    deliverable_write_reason: str = "",
 ) -> str:
     """Internal verification checkpoint — generates a task-aware checklist.
 
@@ -155,6 +159,14 @@ def _completion_check_tool(
             f"Reason: {evidence_reason}\n"
             "Before finishing, run at least one successful evidence step (web_search_tool, "
             "web_fetch_tool, or browser evidence tools), then synthesize the answer."
+        )
+
+    if deliverable_write_reason.strip():
+        return (
+            " CRITICAL COMPLETION CHECK: Deliverable write claim without tool evidence.\n"
+            f"Reason: {deliverable_write_reason}\n"
+            "Before finishing, call file_write_tool or file_edit_tool to persist the file, "
+            "or revise the response to remove the false write claim."
         )
 
     from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
@@ -466,7 +478,17 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             messages=messages,
             records=filtered_records,
         )
+        deliverable_write_reason: str | None = None
+        if last_ai_msg.content:
+            content_str = (
+                last_ai_msg.content
+                if isinstance(last_ai_msg.content, str)
+                else str(last_ai_msg.content)
+            )
+            deliverable_write_reason = check_deliverable_write_claim(content_str, filtered_records)
         if evidence_reason is not None:
+            has_critical_errors = True
+        if deliverable_write_reason is not None:
             has_critical_errors = True
 
         if not has_critical_errors:
@@ -508,6 +530,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             }
             if evidence_reason is not None:
                 forced_args["evidence_reason"] = evidence_reason
+            if deliverable_write_reason is not None:
+                forced_args["deliverable_write_reason"] = deliverable_write_reason
             last_ai_msg.tool_calls = [
                 {
                     "name": COMPLETION_CHECK_TOOL_NAME,
@@ -532,6 +556,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         }
         if evidence_reason is not None:
             tool_args["evidence_reason"] = evidence_reason
+        if deliverable_write_reason is not None:
+            tool_args["deliverable_write_reason"] = deliverable_write_reason
         last_ai_msg.tool_calls = [
             {
                 "name": COMPLETION_CHECK_TOOL_NAME,

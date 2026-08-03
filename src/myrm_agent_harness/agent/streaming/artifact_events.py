@@ -63,16 +63,20 @@ async def emit_artifacts_ready_event(message_id: str, context: dict[str, object]
         return
 
     artifacts_data: list[dict[str, str]] = []
+    from myrm_agent_harness.agent.artifacts.file_id_registry import lookup_short_file_id
+
     for f in registry.get_all_files():
         filename = Path(f.path).name
         artifact_type = infer_artifact_type(filename)
-        artifacts_data.append(
-            {
-                "filename": filename,
-                "path": f.path,
-                "type": artifact_type.value,
-            }
-        )
+        entry: dict[str, str] = {
+            "filename": filename,
+            "path": f.path,
+            "type": artifact_type.value,
+        }
+        short_file_id = lookup_short_file_id(f.path)
+        if short_file_id:
+            entry["short_file_id"] = short_file_id
+        artifacts_data.append(entry)
 
     if not artifacts_data:
         return
@@ -85,6 +89,38 @@ async def emit_artifacts_ready_event(message_id: str, context: dict[str, object]
         "type": AgentEventType.ARTIFACTS_READY.value,
         "data": artifacts_data,
         "read_content": read_content,
+        "message_id": message_id,
+    }
+
+
+async def emit_artifact_focus_event(message_id: str) -> AsyncGenerator[dict[str, object]]:
+    """Emit artifact_focus for the primary deliverable after a successful run."""
+    registry = get_artifact_registry()
+    if not registry or len(registry) == 0:
+        return
+
+    from myrm_agent_harness.agent.artifacts.file_id_registry import lookup_short_file_id
+
+    focus_path: str | None = None
+    focus_short_id: str | None = None
+    for generated in reversed(registry.get_all_files()):
+        path = generated.path
+        short_id = lookup_short_file_id(path)
+        if short_id:
+            focus_path = path
+            focus_short_id = short_id
+            break
+
+    if not focus_short_id:
+        return
+
+    logger.info("Emitting artifact_focus for %s", focus_short_id)
+    yield {
+        "type": AgentEventType.ARTIFACT_FOCUS.value,
+        "data": {
+            "short_file_id": focus_short_id,
+            "path": focus_path,
+        },
         "message_id": message_id,
     }
 

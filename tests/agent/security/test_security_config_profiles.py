@@ -7,6 +7,7 @@ from myrm_agent_harness.agent.security.types import (
     PathPolicy,
     PermissionAction,
     SecurityConfig,
+    access_roots_from_paths,
 )
 
 
@@ -251,7 +252,10 @@ class TestPathPolicyWorkspaceLabel:
         assert pp.workspace_label == "My Projects"
 
     def test_workspace_label_with_allowed_roots(self) -> None:
-        pp = PathPolicy(allowed_roots=("/home/user",), workspace_label="Home")
+        pp = PathPolicy(
+            access_roots=access_roots_from_paths(("/home/user",)),
+            workspace_label="Home",
+        )
         assert pp.workspace_label == "Home"
         assert pp.allowed_roots == ("/home/user",)
 

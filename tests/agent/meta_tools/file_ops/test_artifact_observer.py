@@ -25,11 +25,15 @@ async def test_on_file_created_registers_without_executor(
         patch(
             "myrm_agent_harness.agent.artifacts.registry.register_generated_files",
         ) as mock_register,
+        patch(
+            "myrm_agent_harness.agent.artifacts.file_id_registry.register_file",
+        ) as mock_file_id,
         patch.object(observer, "_push_realtime_content") as mock_push,
     ):
         await observer.on_file_created("notes/meeting.md", "# Meeting\n")
 
     mock_register.assert_called_once_with(["notes/meeting.md"])
+    mock_file_id.assert_called_once_with("notes/meeting.md")
     mock_push.assert_called_once_with("notes/meeting.md", "# Meeting\n")
 
 
@@ -97,12 +101,18 @@ async def test_on_file_created_swallows_registration_errors(
 
 @pytest.mark.asyncio
 async def test_on_file_modified_registers_artifact(observer: ArtifactObserver) -> None:
-    with patch(
-        "myrm_agent_harness.agent.artifacts.registry.register_generated_files",
-    ) as mock_register:
+    with (
+        patch(
+            "myrm_agent_harness.agent.artifacts.registry.register_generated_files",
+        ) as mock_register,
+        patch(
+            "myrm_agent_harness.agent.artifacts.file_id_registry.register_file",
+        ) as mock_file_id,
+    ):
         await observer.on_file_modified("a.md", "old", "new")
 
     mock_register.assert_called_once_with(["a.md"])
+    mock_file_id.assert_called_once_with("a.md")
 
 
 @pytest.mark.asyncio

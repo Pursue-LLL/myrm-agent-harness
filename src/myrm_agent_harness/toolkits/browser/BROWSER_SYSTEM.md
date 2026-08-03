@@ -602,6 +602,20 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 
 可选 `steps[]` 在同一页面、同一 snapshot ref 集上顺序执行多步交互，减少 LLM 往返。单步模式仍用 `action` + `ref`；批量模式省略顶层 `action`/`ref`，每步独立指定。语义 DOM HITL 对每一步独立生效。
 
+#### browser_interact_tool — 坐标模式 (Visual Mode)
+
+当 `browser_snapshot_tool` 输出中包含 `[VISUAL_CONTENT_DETECTED]` 提示时，表示当前页面包含 canvas/rich-editor 内容（如 Google Docs、Figma、Google Sheets），DOM ref 可能无法映射到可见元素。此时 Agent 应切换到坐标模式：
+
+1. 调用 `browser_extract_tool(action="screenshot")` 获取截图
+2. 从截图识别目标元素的 viewport 坐标 (x, y)
+3. 调用 `browser_interact_tool(action="click", x=480, y=350)` 进行坐标操作
+
+**坐标模式支持的 action**：`click`, `dblclick`, `type`, `press`, `hover`, `scroll`, `drag`
+**参数**：`x`/`y`（必填，viewport 坐标）、`target_x`/`target_y`（drag 时必填）、`text`（type/press/scroll 时必填）
+**互斥**：`ref` 和 `x`/`y` 互斥，不能同时提供
+
+坐标模式复用 `humanize.py` 的 Bézier 鼠标轨迹和 `vision_verifier.py` 的视觉验证，与 ref 模式保持一致的反检测和验证能力。
+
 #### browser_navigate_tool — 导航后 compact refs 摘要
 
 导航成功后自动附加最多 20 行 `scope=interactive` 的 compact ARIA refs（`browser_session_navigation_mixin._append_navigate_interactive_summary`），帮助 Agent 跳过首轮 snapshot。失败时静默降级，不影响导航结果。
@@ -1046,7 +1060,7 @@ browser/
 │   ├── browser_session_recording_mixin.py — trace/HAR 录制控制
 │   ├── tab_controller.py — TabController
 │   ├── snapshot_manager.py — SnapshotManager（委托 FrameRegistry）
-│   ├── interactor.py — Interactor
+│   ├── interactor.py — Interactor（15 ref 操作 + 7 坐标操作 via interact_at）
 │   ├── extractor.py — Extractor
 │   ├── structured_extractor.py — LLM + JSON Schema 结构化提取
 │   ├── page_analyzer.py — 两阶段快照架构

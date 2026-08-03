@@ -20,31 +20,34 @@ from .base import FileOperationObserver
 logger = logging.getLogger(__name__)
 
 
+def _resolve_actual_workspace_path(path: str) -> str:
+    from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
+
+    actual_path = path
+    executor = get_executor()
+    if executor:
+        from pathlib import Path as _Path
+
+        wp = _Path(executor.workspace_path).resolve()
+        clean = path
+        if clean.startswith("/workspace"):
+            clean = clean[len("/workspace") :].lstrip("/") or "."
+        if not _Path(clean).is_absolute():
+            actual_path = str((wp / clean).resolve())
+    return actual_path
+
+
 class ArtifactObserver(FileOperationObserver):
     """Registers generated files to ArtifactRegistry and pushes realtime content updates."""
 
     async def on_file_created(self, path: str, content: str) -> None:
         try:
-            from myrm_agent_harness.agent.artifacts.registry import (
-                register_generated_files,
-            )
-            from myrm_agent_harness.toolkits.code_execution.executors.base import (
-                get_executor,
-            )
+            from myrm_agent_harness.agent.artifacts.file_id_registry import register_file
+            from myrm_agent_harness.agent.artifacts.registry import register_generated_files
 
-            actual_path = path
-            executor = get_executor()
-            if executor:
-                from pathlib import Path as _Path
-
-                wp = _Path(executor.workspace_path).resolve()
-                clean = path
-                if clean.startswith("/workspace"):
-                    clean = clean[len("/workspace") :].lstrip("/") or "."
-                if not _Path(clean).is_absolute():
-                    actual_path = str((wp / clean).resolve())
-
+            actual_path = _resolve_actual_workspace_path(path)
             register_generated_files([actual_path])
+            register_file(actual_path)
             self._push_realtime_content(path, content)
             logger.info(f"Registered artifact: {actual_path}")
         except Exception as e:
@@ -54,26 +57,12 @@ class ArtifactObserver(FileOperationObserver):
         self, path: str, old_content: str, new_content: str
     ) -> None:
         try:
-            from myrm_agent_harness.agent.artifacts.registry import (
-                register_generated_files,
-            )
-            from myrm_agent_harness.toolkits.code_execution.executors.base import (
-                get_executor,
-            )
+            from myrm_agent_harness.agent.artifacts.file_id_registry import register_file
+            from myrm_agent_harness.agent.artifacts.registry import register_generated_files
 
-            actual_path = path
-            executor = get_executor()
-            if executor:
-                from pathlib import Path as _Path
-
-                wp = _Path(executor.workspace_path).resolve()
-                clean = path
-                if clean.startswith("/workspace"):
-                    clean = clean[len("/workspace") :].lstrip("/") or "."
-                if not _Path(clean).is_absolute():
-                    actual_path = str((wp / clean).resolve())
-
+            actual_path = _resolve_actual_workspace_path(path)
             register_generated_files([actual_path])
+            register_file(actual_path)
             logger.info(f"Updated artifact: {actual_path}")
         except Exception as e:
             logger.debug(f"Failed to update artifact: {e}")

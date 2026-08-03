@@ -329,6 +329,37 @@ async def test_dispatch_updates_interrupt_clarification(ctx):
 
 
 @pytest.mark.asyncio
+async def test_dispatch_updates_interrupt_directory_request(ctx):
+    """__interrupt__ with type='directory_request' dispatches DIRECTORY_REQUEST_REQUIRED."""
+    executor = _make_executor(ctx)
+
+    interrupt_obj = MagicMock()
+    interrupt_obj.value = {
+        "type": "directory_request",
+        "request": {
+            "reason": "Need Downloads folder",
+            "path": "/Users/test/Downloads",
+            "writable": False,
+        },
+    }
+    data = {"__interrupt__": (interrupt_obj,)}
+    chunk = ("updates", data)
+
+    await executor._dispatch_chunk(chunk, ctx, [])
+
+    events = executor._compactor.events
+    directory_events = [
+        e
+        for e in events
+        if isinstance(e, AgentStreamEvent)
+        and e.type == AgentEventType.DIRECTORY_REQUEST_REQUIRED
+    ]
+    assert len(directory_events) == 1
+    event_data = directory_events[0].to_dict().get("data", {})
+    assert event_data.get("type") == "directory_request"
+
+
+@pytest.mark.asyncio
 async def test_dispatch_updates_interrupt_empty_tuple(ctx):
     """Empty __interrupt__ tuple is silently ignored."""
     executor = _make_executor(ctx)

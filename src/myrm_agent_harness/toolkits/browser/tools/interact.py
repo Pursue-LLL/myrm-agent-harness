@@ -7,8 +7,9 @@
 - create_interact_tool: Create browser_interact tool bound to session.
 
 [POS]
-browser_interact tool for element interactions. Semantic DOM HITL runs in
-BrowserSession.interact (shared with execute_script); this tool adds download detection.
+browser_interact tool for element interactions. Two modes: ref-based (via BrowserSession.interact
+with Semantic DOM HITL) and coordinate-based (via BrowserSession.interact_at for canvas/rich-editor
+pages). This tool adds download detection for ref-based click/dblclick.
 """
 
 from __future__ import annotations
@@ -53,7 +54,8 @@ def _build_interact_input_model(*, labels_str: str) -> type[BaseModel]:
         )
         ref: str = Field(
             default="",
-            description="Element ref from browser_snapshot (e.g. 'e0', 'e3', 'f1_e2' for iframe elements)",
+            description="Element ref from browser_snapshot (e.g. 'e0', 'e3', 'f1_e2' for iframe elements). "
+            "Required for ref-based mode. Omit when using coordinate mode (x/y).",
         )
         text: str = Field(
             default="",
@@ -71,6 +73,24 @@ def _build_interact_input_model(*, labels_str: str) -> type[BaseModel]:
             default=None,
             description="Optional declarative batch: run multiple interact steps in one call (same page, same snapshot refs). "
             "When provided, omit top-level action/ref/text. Each step still runs Semantic Guard.",
+        )
+        x: float | None = Field(
+            default=None,
+            description="Viewport X coordinate (CSS pixels) for coordinate mode. "
+            "Use when snapshot shows [VISUAL_CONTENT_DETECTED] (canvas/rich-editor pages like Google Docs, Figma). "
+            "Identify coordinates from a screenshot. Mutually exclusive with ref.",
+        )
+        y: float | None = Field(
+            default=None,
+            description="Viewport Y coordinate (CSS pixels) for coordinate mode. Must be provided together with x.",
+        )
+        target_x: float | None = Field(
+            default=None,
+            description="Drag endpoint X coordinate (CSS pixels). Required when action='drag' in coordinate mode.",
+        )
+        target_y: float | None = Field(
+            default=None,
+            description="Drag endpoint Y coordinate (CSS pixels). Required when action='drag' in coordinate mode.",
         )
 
     return InteractInput
@@ -108,15 +128,38 @@ def create_interact_tool(session: BrowserSession):
         text: str = "",
         verify_goal: str | None = None,
         steps: list[InteractStep] | None = None,
+        x: float | None = None,
+        y: float | None = None,
+        target_x: float | None = None,
+        target_y: float | None = None,
     ) -> str:
-        """Perform an action on a page element identified by its ref ID.
+        """Perform an action on a page element identified by its ref ID or viewport coordinates.
 
-        Workflow: browser_snapshot -> pick ref -> browser_interact.
+        Two modes (mutually exclusive):
+        1. Ref mode: browser_snapshot -> pick ref -> browser_interact(action, ref).
+        2. Coordinate mode: screenshot -> identify position -> browser_interact(action, x=..., y=...).
+           Use coordinate mode when snapshot shows [VISUAL_CONTENT_DETECTED] (canvas/rich-editor).
+
         Works across iframes (refs like 'f1_e2' target iframe elements).
-        Use steps[] to batch multiple actions without extra LLM rounds.
+        Use steps[] to batch multiple ref-based actions without extra LLM rounds.
         If click triggers a file download, it's auto-captured; use list_downloads to check.
-        Use verify_goal to automatically verify the visual result of your action without needing to call a separate vision tool.
+        Use verify_goal to automatically verify the visual result of your action.
         """
+        # Coordinate mode
+        if x is not None and y is not None:
+            if ref.strip():
+                return "Error: ref and x/y are mutually exclusive. Use ref OR coordinates, not both."
+            if not action.strip():
+                return "Error: action is required for coordinate mode"
+            return await session.interact_at(
+                action=action, x=x, y=y, text=text,
+                target_x=target_x, target_y=target_y,
+                verify_goal=verify_goal,
+            )
+        if (x is not None) != (y is not None):
+            return "Error: both x and y must be provided together for coordinate mode"
+
+        # Batch mode
         if steps is not None:
             if len(steps) == 0:
                 return "Error: steps must contain at least one action when batch mode is used"
@@ -126,10 +169,11 @@ def create_interact_tool(session: BrowserSession):
                 lines.append(f"Step {index} ({step.action} {step.ref}): {step_result}")
             return "\n".join(lines)
 
+        # Ref mode
         if not action.strip():
             return "Error: action is required when steps is omitted"
         if not ref.strip():
-            return "Error: ref is required when steps is omitted"
+            return "Error: ref is required when steps is omitted (or use x/y for coordinate mode)"
 
         return await _run_single(action, ref, text, verify_goal)
 

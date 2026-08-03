@@ -15,11 +15,13 @@
 
 [POS]
 Element interaction manager. Responsibilities:
-1. Element operations (14 actions: click/dblclick/type/fill/press/hover/focus/select/scroll/scroll_to_bottom/upload_file/drag/check/uncheck)
-2. Ref resolution (from ref ID to Locator, supports iframe refs)
-3. Interaction timeout control (10s)
-4. Ref failure diagnosis (URL change detection + smart suggestion generation + context refs sampling)
-5. Failure monitoring (failure rate, hot refs, hot actions statistics + periodic log output)
+1. Ref-based operations (15 actions: click/dblclick/type/fill/fill_credential/press/hover/focus/select/scroll/scroll_to_bottom/upload_file/drag/check/uncheck)
+2. Coordinate-based operations (7 actions via interact_at: click/dblclick/type/press/hover/scroll/drag — for canvas/rich-editor pages)
+3. Ref resolution (from ref ID to Locator, supports iframe refs)
+4. Viewport bounds validation (coordinate mode)
+5. Interaction timeout control (10s)
+6. Ref failure diagnosis (URL change detection + smart suggestion generation + context refs sampling)
+7. Failure monitoring (failure rate, hot refs, hot actions statistics + periodic log output)
 
 Single responsibility: only handles element interaction logic; does not handle navigation, snapshot, extraction, etc. Tab-level URL state is managed by TabController.
 """
@@ -203,11 +205,13 @@ class Interactor:
     """Element interaction manager — single responsibility.
 
     Responsibilities:
-    1. Element actions (14 types: click/dblclick/type/fill/press/hover/focus/select/scroll/scroll_to_bottom/upload_file/drag/check/uncheck)
-    2. Ref resolution (ref ID -> Locator, including iframe refs)
-    3. Interaction timeout control (10 s)
-    4. Ref-not-found diagnosis (URL change detection + smart suggestion generation + context ref sampling)
-    5. Failure monitoring (failure rate, hot refs/actions statistics + periodic log output)
+    1. Ref-based actions (15 types: click/dblclick/type/fill/fill_credential/press/hover/focus/select/scroll/scroll_to_bottom/upload_file/drag/check/uncheck)
+    2. Coordinate-based actions (7 types via interact_at: click/dblclick/type/press/hover/scroll/drag)
+    3. Ref resolution (ref ID -> Locator, including iframe refs)
+    4. Viewport bounds validation (coordinate mode)
+    5. Interaction timeout control (10 s)
+    6. Ref-not-found diagnosis (URL change detection + smart suggestion generation + context ref sampling)
+    7. Failure monitoring (failure rate, hot refs/actions statistics + periodic log output)
 
     Not responsible for: navigation, snapshot generation, content extraction, etc.
     """
@@ -646,3 +650,147 @@ class Interactor:
         await self._page.mouse.up()
 
         return f"Clicked {ref}{healed_msg}"
+
+    # ------------------------------------------------------------------
+    # Coordinate-based interaction (Visual Mode)
+    # ------------------------------------------------------------------
+
+    _COORD_ACTIONS = frozenset({"click", "dblclick", "type", "press", "hover", "scroll", "drag"})
+
+    async def interact_at(
+        self,
+        action: str,
+        x: float,
+        y: float,
+        text: str = "",
+        target_x: float | None = None,
+        target_y: float | None = None,
+    ) -> str:
+        """Execute a coordinate-based interaction at viewport position (x, y).
+
+        Used for canvas/rich-editor pages (Google Docs, Figma, Sheets) where
+        DOM refs do not map to visible elements.
+
+        Args:
+            action: One of click/dblclick/type/press/hover/scroll/drag.
+            x: Viewport X coordinate (CSS pixels).
+            y: Viewport Y coordinate (CSS pixels).
+            text: Text for type, key combo for press, signed pixel delta for scroll.
+            target_x: Drag endpoint X (required when action='drag').
+            target_y: Drag endpoint Y (required when action='drag').
+
+        Returns:
+            Description of the interaction result.
+
+        Raises:
+            ValueError: If action is unsupported or coordinates are out of bounds.
+        """
+        if action not in self._COORD_ACTIONS:
+            raise ValueError(
+                f"Invalid coordinate action: {action}. "
+                f"Supported: {sorted(self._COORD_ACTIONS)}"
+            )
+
+        viewport = self._page.viewport_size or {"width": 1280, "height": 720}
+        vw, vh = viewport["width"], viewport["height"]
+        if not (0 <= x <= vw and 0 <= y <= vh):
+            raise ValueError(
+                f"Coordinates ({x}, {y}) out of viewport bounds ({vw}×{vh}). "
+                "Use coordinates within the visible viewport area."
+            )
+
+        from myrm_agent_harness.toolkits.browser.wait_strategies import (
+            WaitStrategy,
+            wait_for_page_ready,
+        )
+
+        async def _wait_after() -> None:
+            try:
+                await wait_for_page_ready(self._page, strategy=WaitStrategy.SPA_STABLE, max_ms=3000)
+            except Exception as exc:
+                logger.debug("Interactor: post-coord-action SPA wait failed: %s", exc)
+
+        if action == "click":
+            if self._humanize.enable_bezier_mouse:
+                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
+            else:
+                await self._page.mouse.move(x, y)
+            delay_ms = click_delay(self._humanize)
+            await self._page.mouse.down()
+            await self._page.wait_for_timeout(delay_ms)
+            await self._page.mouse.up()
+            self._mouse_x, self._mouse_y = x, y
+            await _wait_after()
+            return f"Clicked at ({x}, {y})"
+
+        if action == "dblclick":
+            await self._page.mouse.dblclick(x, y)
+            self._mouse_x, self._mouse_y = x, y
+            await _wait_after()
+            return f"Double-clicked at ({x}, {y})"
+
+        if action == "type":
+            if not text:
+                raise ValueError("'text' is required for type action")
+            if self._humanize.enable_bezier_mouse:
+                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
+            else:
+                await self._page.mouse.move(x, y)
+            await self._page.mouse.click(x, y)
+            self._mouse_x, self._mouse_y = x, y
+            delay_per_char = type_delay(self._humanize)
+            await self._page.keyboard.type(text, delay=delay_per_char)
+            await _wait_after()
+            return f"Typed '{text}' at ({x}, {y})"
+
+        if action == "press":
+            if not text:
+                raise ValueError("'text' (key combo) is required for press action")
+            await self._page.mouse.click(x, y)
+            self._mouse_x, self._mouse_y = x, y
+            await self._page.keyboard.press(text)
+            await _wait_after()
+            return f"Pressed '{text}' at ({x}, {y})"
+
+        if action == "hover":
+            if self._humanize.enable_bezier_mouse:
+                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
+            else:
+                await self._page.mouse.move(x, y)
+            self._mouse_x, self._mouse_y = x, y
+            return f"Hovered at ({x}, {y})"
+
+        if action == "scroll":
+            if not text:
+                raise ValueError("'text' (signed pixel delta) is required for scroll action")
+            try:
+                delta = int(text)
+            except ValueError as exc:
+                raise ValueError(f"Scroll requires numeric text (pixel delta), got: {text}") from exc
+            await self._page.mouse.move(x, y)
+            self._mouse_x, self._mouse_y = x, y
+            await self._page.mouse.wheel(0, delta)
+            return f"Scrolled {delta}px at ({x}, {y})"
+
+        if action == "drag":
+            if target_x is None or target_y is None:
+                raise ValueError("'target_x' and 'target_y' are required for drag action")
+            if not (0 <= target_x <= vw and 0 <= target_y <= vh):
+                raise ValueError(
+                    f"Drag target ({target_x}, {target_y}) out of viewport bounds ({vw}×{vh})."
+                )
+            if self._humanize.enable_bezier_mouse:
+                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
+            else:
+                await self._page.mouse.move(x, y)
+            await self._page.mouse.down()
+            if self._humanize.enable_bezier_mouse:
+                await bezier_move(self._page, x, y, target_x, target_y, self._humanize)
+            else:
+                await self._page.mouse.move(target_x, target_y, steps=10)
+            await self._page.mouse.up()
+            self._mouse_x, self._mouse_y = target_x, target_y
+            await _wait_after()
+            return f"Dragged from ({x}, {y}) to ({target_x}, {target_y})"
+
+        return f"Unknown coordinate action: {action}"

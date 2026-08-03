@@ -213,12 +213,17 @@ def build_channel_security_config(
         capabilities = _build_declared_capability_set(declared_capabilities)
 
     if declared_allowed_roots:
-        merged_roots = tuple(
-            sorted(set(path_policy.allowed_roots) | set(declared_allowed_roots))
+        from myrm_agent_harness.core.security.types import access_roots_from_paths
+
+        existing_paths = {r.path for r in path_policy.access_roots}
+        extra = tuple(p for p in declared_allowed_roots if p not in existing_paths)
+        merged_access = (
+            *path_policy.access_roots,
+            *access_roots_from_paths(extra),
         )
         path_policy = PathPolicy(
             forbidden_paths=path_policy.forbidden_paths,
-            allowed_roots=merged_roots,
+            access_roots=merged_access,
             workspace_label=path_policy.workspace_label,
         )
 
@@ -310,15 +315,17 @@ def _merge_user_and_agent(
 
     ruleset = merge(user.ruleset, agent.ruleset)
 
-    allowed = tuple(
-        sorted(
-            set(user.path_policy.allowed_roots) | set(agent.path_policy.allowed_roots)
-        )
-    )
+    from myrm_agent_harness.core.security.types import AccessRoot, access_roots_from_paths
+
+    path_set: dict[str, AccessRoot] = {
+        r.path: r for r in user.path_policy.access_roots
+    }
+    for root in agent.path_policy.access_roots:
+        path_set.setdefault(root.path, root)
     label = agent.path_policy.workspace_label or user.path_policy.workspace_label
     pp = PathPolicy(
         forbidden_paths=user.path_policy.forbidden_paths,
-        allowed_roots=allowed,
+        access_roots=tuple(path_set.values()),
         workspace_label=label,
     )
 

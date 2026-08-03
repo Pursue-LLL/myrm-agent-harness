@@ -27,6 +27,7 @@ and helper functions that ``BaseAgent`` delegates to.
 
 [OUTPUT]
 - apply_bound_skill_catalog_for_stream: Reinject ``<bound_skills>`` on SkillAgent stream prep.
+- apply_bound_skill_catalog_for_resume: Refresh checkpoint ``<bound_skills>`` before Command resume.
 - build_middlewares: Build the full middleware chain for a BaseAgent.
 - create_registry: Create a fresh ToolRegistry for one build cycle.
 - build_tools: Build the resolved tool list via ToolRegistry.
@@ -115,6 +116,7 @@ logger = get_agent_logger(__name__)
 
 # Re-export for backward compatibility
 __all__ = [
+    "apply_bound_skill_catalog_for_resume",
     "apply_bound_skill_catalog_for_stream",
     "build_middlewares",
     "build_tools",
@@ -159,6 +161,61 @@ async def apply_bound_skill_catalog_for_stream(
         " Bound skill catalog reinjected on first HumanMessage (%d skills)",
         len(bound_skills),
     )
+
+
+async def apply_bound_skill_catalog_for_resume(
+    agent_state: BaseAgent,
+    command: Command[Any],
+    thread_id: str,
+) -> Command[Any]:
+    """Refresh ``<bound_skills>`` on checkpoint messages before LangGraph resume."""
+    from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+    if not isinstance(agent_state, SkillAgent) or agent_state.skill_backend is None:
+        return command
+
+    agent_graph = agent_state._agent
+    if agent_graph is None:
+        return command
+
+    config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
+    try:
+        state_snapshot = await agent_graph.aget_state(config)
+    except Exception as exc:
+        logger.warning(
+            "Failed to load checkpoint for bound skill catalog refresh: %s", exc
+        )
+        return command
+
+    if not state_snapshot or not state_snapshot.values:
+        return command
+
+    raw_messages = state_snapshot.values.get("messages")
+    if not isinstance(raw_messages, list) or not raw_messages:
+        return command
+
+    messages = list(raw_messages)
+    content_before = _first_human_content(messages)
+    await apply_bound_skill_catalog_for_stream(messages, agent_state)
+    content_after = _first_human_content(messages)
+
+    if content_before == content_after:
+        return command
+
+    logger.debug(
+        " Bound skill catalog refreshed on checkpoint before resume (thread=%s)",
+        thread_id,
+    )
+    return Command(resume=command.resume, update={"messages": messages})
+
+
+def _first_human_content(messages: list[object]) -> object | None:
+    from langchain_core.messages import HumanMessage
+
+    for message in messages:
+        if isinstance(message, HumanMessage):
+            return message.content
+    return None
 
 
 # ============================================================================
@@ -444,9 +501,15 @@ async def run_agent_loop(
         agent_input: Command[Any] | AgentState[Any]
 
         if is_resume:
-            agent_input = cast("Command[Any] | AgentState[Any]", query)
+            resume_command = cast("Command[Any]", query)
+            resume_command = await apply_bound_skill_catalog_for_resume(
+                agent_state,
+                resume_command,
+                thread_id,
+            )
+            agent_input = cast("Command[Any] | AgentState[Any]", resume_command)
             logger.info(
-                f" Resume: {query.resume if hasattr(query, 'resume') else query}"
+                f" Resume: {resume_command.resume if hasattr(resume_command, 'resume') else resume_command}"
             )
             # Prompt Cache preservation: Mark as Resume
             merged_context["is_resume"] = True

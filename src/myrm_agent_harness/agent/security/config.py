@@ -90,6 +90,8 @@ def _parse_path_policy(raw: dict[str, object]) -> PathPolicy:
     if isinstance(forbidden_raw, list):
         forbidden = frozenset(str(p) for p in forbidden_raw) | _default_dangerous_paths()
 
+    from myrm_agent_harness.core.security.types import access_roots_from_paths
+
     allowed: tuple[str, ...] = ()
     allowed_raw = raw.get("allowedRoots")
     if isinstance(allowed_raw, list):
@@ -98,7 +100,11 @@ def _parse_path_policy(raw: dict[str, object]) -> PathPolicy:
     workspace_label_raw = raw.get("workspaceLabel")
     workspace_label = str(workspace_label_raw) if workspace_label_raw else None
 
-    return PathPolicy(forbidden_paths=forbidden, allowed_roots=allowed, workspace_label=workspace_label)
+    return PathPolicy(
+        forbidden_paths=forbidden,
+        access_roots=access_roots_from_paths(allowed),
+        workspace_label=workspace_label,
+    )
 
 
 def parse_security_config(raw: dict[str, object] | None) -> SecurityConfig | None:

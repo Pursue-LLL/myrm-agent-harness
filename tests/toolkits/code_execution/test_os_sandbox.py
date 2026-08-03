@@ -625,18 +625,22 @@ class TestPolicyBridge:
         assert "/workspace" in policy.writable_paths
 
     def test_allowed_roots_propagated(self) -> None:
+        from myrm_agent_harness.core.security.types import access_roots_from_paths
+
         policy = build_sandbox_policy_from_path_policy(
             "/workspace",
-            allowed_roots=("/home/user/data", "/opt/tools"),
+            access_roots=access_roots_from_paths(("/home/user/data", "/opt/tools")),
         )
         assert "/home/user/data" in policy.writable_paths
         assert "/opt/tools" in policy.writable_paths
         assert "/workspace" in policy.writable_paths
 
     def test_dedup(self) -> None:
+        from myrm_agent_harness.core.security.types import access_roots_from_paths
+
         policy = build_sandbox_policy_from_path_policy(
             "/workspace",
-            allowed_roots=("/workspace",),
+            access_roots=access_roots_from_paths(("/workspace",)),
             extra_writable=("/workspace",),
         )
         assert policy.writable_paths.count("/workspace") == 1

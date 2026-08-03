@@ -146,6 +146,7 @@ class AgentRuntimeSpec:
     skill_configs: dict[str, dict] | None = None
     mcp_servers: list[MCPConfig] = field(default_factory=list)
     openapi_services: list[dict[str, object]] = field(default_factory=list)
+    mcp_surface_mode: str = "auto"
 
     # --- Runtime Policies ---
     memory_namespaces: list[str] = field(default_factory=list)

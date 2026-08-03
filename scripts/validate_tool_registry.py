@@ -65,26 +65,57 @@ _FORBIDDEN_BINDMODE_PATTERNS = (
     re.compile(r"\bToolBindMode\.DISCOVERABLE\b"),
     re.compile(r"\bDISCOVERABLE\s*="),
 )
+_FORBIDDEN_CATALOG_INVOKE_PATTERNS = (
+    re.compile(r"\bcapability_invoke_tool\b"),
+    re.compile(r"\bsync_capability_invoke_tool\b"),
+    re.compile(r"\bbind_economics\b"),
+    re.compile(r"\bCapabilityCatalogMiddleware\b"),
+    re.compile(r"\bcatalog_invoke_active\b"),
+    re.compile(r"\bCATALOG_INVOKE\b"),
+    re.compile(r"\bshould_use_catalog_invoke\b"),
+    re.compile(r"\bshould_bind_capability_invoke\b"),
+    re.compile(r"\bget_runtime_capability_catalog\b"),
+    re.compile(r"\bbuild_runtime_catalog_overlay\b"),
+)
 _FORBIDDEN_TERM_SCAN_ROOTS = (
     HARNESS_SRC / "agent",
     _harness_root / "tests" / "agent",
+    _harness_root / "tests" / "architecture",
 )
 _FORBIDDEN_TERM_PATH_EXCLUDES = ("context_management",)
+_FORBIDDEN_TERM_FILE_EXCLUDES = frozenset(
+    {
+        "test_mcp_routing_two_outcomes.py",
+    }
+)
 
 
 def _scan_forbidden_bindmode_terms() -> list[tuple[Path, int, str]]:
     """Detect legacy deferred API names in agent tool-management code paths."""
+    return _scan_forbidden_patterns(_FORBIDDEN_BINDMODE_PATTERNS)
+
+
+def _scan_forbidden_catalog_invoke_terms() -> list[tuple[Path, int, str]]:
+    """Detect removed catalog_invoke / capability_invoke gateway code paths."""
+    return _scan_forbidden_patterns(_FORBIDDEN_CATALOG_INVOKE_PATTERNS)
+
+
+def _scan_forbidden_patterns(
+    patterns: tuple[re.Pattern[str], ...],
+) -> list[tuple[Path, int, str]]:
     violations: list[tuple[Path, int, str]] = []
     for root in _FORBIDDEN_TERM_SCAN_ROOTS:
         if not root.is_dir():
             continue
         for path in sorted(root.rglob("*.py")):
+            if path.name in _FORBIDDEN_TERM_FILE_EXCLUDES:
+                continue
             if any(part in _FORBIDDEN_TERM_PATH_EXCLUDES for part in path.parts):
                 continue
             for line_no, line in enumerate(
                 path.read_text(encoding="utf-8").splitlines(), 1
             ):
-                if any(pat.search(line) for pat in _FORBIDDEN_BINDMODE_PATTERNS):
+                if any(pat.search(line) for pat in patterns):
                     violations.append((path, line_no, line.strip()))
     return violations
 
@@ -425,6 +456,9 @@ def main() -> int:
         else report.ghost_registry_metadata_keys(_load_registry_metadata_keys())
     )
     bindmode_violations = [] if args.incremental else _scan_forbidden_bindmode_terms()
+    catalog_invoke_violations = (
+        [] if args.incremental else _scan_forbidden_catalog_invoke_terms()
+    )
     from myrm_agent_harness.agent.tool_management.tool_catalog import (
         validate_tool_catalog,
     )
@@ -442,6 +476,7 @@ def main() -> int:
         or duplicates
         or metadata_ghosts
         or bindmode_violations
+        or catalog_invoke_violations
         or catalog_errors
         or parity_errors
     )
@@ -485,6 +520,20 @@ def main() -> int:
                 print(f"  - {display}:{line_no}: {line}")
             print(
                 "  Fix: use Turn1 registration + get_runtime_tools() for RUNTIME_ONLY hooks."
+            )
+        if catalog_invoke_violations:
+            print(
+                f"FAIL - {len(catalog_invoke_violations)} forbidden catalog_invoke legacy term(s):"
+            )
+            for path, line_no, line in catalog_invoke_violations:
+                try:
+                    display = path.relative_to(_repo_root)
+                except ValueError:
+                    display = path
+                print(f"  - {display}:{line_no}: {line}")
+            print(
+                "  Fix: MCP overflow must use Direct FC or MCP→Skill (PTC) only; "
+                "see FRAMEWORK_DESIGN_PRINCIPLES.md §7."
             )
         if catalog_errors:
             print(f"FAIL - {len(catalog_errors)} tool catalog metadata issue(s):")

@@ -10,6 +10,18 @@ from langchain_core.tools import tool
 from myrm_agent_harness.agent.tool_management.types import ToolBindMode, ToolSource
 
 
+def _unwrap_middleware(middleware: object) -> object:
+    from myrm_agent_harness.agent.middlewares.sync_hook_parity import SyncHookParityAdapter
+
+    if isinstance(middleware, SyncHookParityAdapter):
+        return object.__getattribute__(middleware, "_inner")
+    return middleware
+
+
+def _middleware_class_names(middlewares: list[object]) -> list[str]:
+    return [type(_unwrap_middleware(middleware)).__name__ for middleware in middlewares]
+
+
 class TestExtractQueryText:
     """Tests for extract_query_text — converts various input types to readable strings."""
 
@@ -92,7 +104,7 @@ class TestBuildMiddlewares:
         from myrm_agent_harness.agent.middlewares import debug_logger_middleware
 
         result = build_middlewares(create_registry(), [])
-        assert result[-1] is debug_logger_middleware
+        assert _unwrap_middleware(result[-1]) is debug_logger_middleware
 
     def test_deferred_normalizer_runs_before_after_model_policies(self):
         from myrm_agent_harness.agent._internals.agent_runtime import (
@@ -101,9 +113,11 @@ class TestBuildMiddlewares:
         )
 
         result = build_middlewares(create_registry(), [])
-        class_names = [type(middleware).__name__ for middleware in result]
+        class_names = _middleware_class_names(result)
         assert class_names[-2] == "SkillAttenuationMiddleware"
-        assert class_names.index("SkillAttenuationMiddleware") > class_names.index("ToolApprovalMiddleware")
+        assert class_names.index("SkillAttenuationMiddleware") > class_names.index(
+            "ToolApprovalMiddleware"
+        )
 
     def test_contains_core_middlewares(self):
         from myrm_agent_harness.agent._internals.agent_runtime import (
@@ -112,7 +126,7 @@ class TestBuildMiddlewares:
         )
 
         result = build_middlewares(create_registry(), [])
-        class_names = {type(mw).__name__ for mw in result}
+        class_names = {type(_unwrap_middleware(mw)).__name__ for mw in result}
         assert "ToolApprovalMiddleware" in class_names
         assert "CompletionGuard" in class_names
         assert "SecurityBoundaryMiddleware" in class_names
@@ -399,3 +413,317 @@ class TestApplyBoundSkillCatalogForStream:
         )
         assert hook_idx > inject_idx
         assert hook_idx - inject_idx < 200
+
+
+class TestApplyBoundSkillCatalogForResume:
+    """Resume path must refresh stale checkpoint catalog before LangGraph continue."""
+
+    @pytest.mark.asyncio
+    async def test_resume_updates_command_when_skill_bind_changes(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from langchain_core.messages import HumanMessage
+        from langgraph.types import Command
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_resume,
+        )
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+        from myrm_agent_harness.agent.skills.runtime.skill_catalog_delivery import (
+            build_bound_skills_block,
+        )
+        from myrm_agent_harness.backends.skills.types import SkillMetadata
+
+        old_skill = SkillMetadata(
+            name="old_skill",
+            description="old",
+            model_invocable=True,
+            available=True,
+        )
+        new_skill = SkillMetadata(
+            name="new_skill",
+            description="new",
+            model_invocable=True,
+            available=True,
+        )
+        stale_block = build_bound_skills_block([old_skill])
+        messages = [HumanMessage(content=f"{stale_block}\n\nfirst question")]
+
+        mock_backend = AsyncMock()
+        mock_backend.load_skills = AsyncMock(return_value=[new_skill])
+
+        agent = SkillAgent(llm=AsyncMock(), skill_backend=mock_backend)
+        agent._desired_skill_ids = ["new_skill"]
+
+        state_snapshot = MagicMock()
+        state_snapshot.values = {"messages": messages}
+
+        mock_graph = AsyncMock()
+        mock_graph.aget_state = AsyncMock(return_value=state_snapshot)
+        agent._agent = mock_graph
+
+        command = Command(resume={"decision": "approve"})
+        refreshed = await apply_bound_skill_catalog_for_resume(
+            agent, command, thread_id="thread-1"
+        )
+
+        assert refreshed is not command
+        assert refreshed.update is not None
+        updated_messages = refreshed.update.get("messages")
+        assert isinstance(updated_messages, list)
+        first = updated_messages[0]
+        assert isinstance(first.content, str)
+        assert "new_skill" in first.content
+        assert "old_skill" not in first.content
+        assert refreshed.resume == {"decision": "approve"}
+
+    @pytest.mark.asyncio
+    async def test_resume_no_op_when_catalog_already_current(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from langchain_core.messages import HumanMessage
+        from langgraph.types import Command
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_resume,
+        )
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+        from myrm_agent_harness.agent.skills.runtime.skill_catalog_delivery import (
+            build_bound_skills_block,
+        )
+        from myrm_agent_harness.backends.skills.types import SkillMetadata
+
+        skill = SkillMetadata(
+            name="alpha_skill",
+            description="alpha",
+            model_invocable=True,
+            available=True,
+        )
+        block = build_bound_skills_block([skill])
+        messages = [HumanMessage(content=f"{block}\n\nhello")]
+
+        mock_backend = AsyncMock()
+        mock_backend.list_skills = AsyncMock(return_value=[skill])
+
+        agent = SkillAgent(llm=AsyncMock(), skill_backend=mock_backend)
+
+        state_snapshot = MagicMock()
+        state_snapshot.values = {"messages": messages}
+
+        mock_graph = AsyncMock()
+        mock_graph.aget_state = AsyncMock(return_value=state_snapshot)
+        agent._agent = mock_graph
+
+        command = Command(resume="continue")
+        refreshed = await apply_bound_skill_catalog_for_resume(
+            agent, command, thread_id="thread-2"
+        )
+
+        assert refreshed is command
+        assert refreshed.update is None
+
+    @pytest.mark.asyncio
+    async def test_resume_updates_multimodal_human_message_content(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from langchain_core.messages import HumanMessage
+        from langgraph.types import Command
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_resume,
+        )
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+        from myrm_agent_harness.agent.skills.runtime.skill_catalog_delivery import (
+            build_bound_skills_block,
+        )
+        from myrm_agent_harness.backends.skills.types import SkillMetadata
+
+        stale_skill = SkillMetadata(
+            name="stale_skill",
+            description="stale",
+            model_invocable=True,
+            available=True,
+        )
+        fresh_skill = SkillMetadata(
+            name="fresh_skill",
+            description="fresh",
+            model_invocable=True,
+            available=True,
+        )
+        stale_block = build_bound_skills_block([stale_skill])
+        messages = [
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": f"{stale_block}\n\nquestion with image"},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc"}},
+                ]
+            )
+        ]
+
+        mock_backend = AsyncMock()
+        mock_backend.list_skills = AsyncMock(return_value=[fresh_skill])
+        agent = SkillAgent(llm=AsyncMock(), skill_backend=mock_backend)
+
+        state_snapshot = MagicMock()
+        state_snapshot.values = {"messages": messages}
+
+        mock_graph = AsyncMock()
+        mock_graph.aget_state = AsyncMock(return_value=state_snapshot)
+        agent._agent = mock_graph
+
+        command = Command(resume={"decision": "approve"})
+        refreshed = await apply_bound_skill_catalog_for_resume(
+            agent, command, thread_id="thread-multimodal"
+        )
+
+        assert refreshed is not command
+        updated_messages = refreshed.update.get("messages")
+        first_content = updated_messages[0].content
+        assert isinstance(first_content, list)
+        text_part = next(part for part in first_content if part.get("type") == "text")
+        assert "fresh_skill" in text_part["text"]
+        assert "stale_skill" not in text_part["text"]
+
+    @pytest.mark.asyncio
+    async def test_resume_no_op_when_skill_backend_missing(self) -> None:
+        from unittest.mock import AsyncMock
+
+        from langgraph.types import Command
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_resume,
+        )
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+        agent = SkillAgent(llm=AsyncMock(), skill_backend=None)
+        command = Command(resume="continue")
+        refreshed = await apply_bound_skill_catalog_for_resume(
+            agent, command, thread_id="t-no-backend"
+        )
+        assert refreshed is command
+
+    @pytest.mark.asyncio
+    async def test_resume_no_op_for_non_skill_agent(self) -> None:
+        from unittest.mock import MagicMock
+
+        from langgraph.types import Command
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_resume,
+        )
+        from myrm_agent_harness.agent.base_agent import BaseAgent
+
+        agent = MagicMock(spec=BaseAgent)
+        command = Command(resume="continue")
+        refreshed = await apply_bound_skill_catalog_for_resume(
+            agent, command, thread_id="t-non-skill"
+        )
+        assert refreshed is command
+
+    @pytest.mark.asyncio
+    async def test_resume_no_op_when_agent_graph_missing(self) -> None:
+        from unittest.mock import AsyncMock
+
+        from langgraph.types import Command
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_resume,
+        )
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+        agent = SkillAgent(llm=AsyncMock(), skill_backend=AsyncMock())
+        agent._agent = None
+        command = Command(resume="continue")
+        refreshed = await apply_bound_skill_catalog_for_resume(
+            agent, command, thread_id="t-no-graph"
+        )
+        assert refreshed is command
+
+    @pytest.mark.asyncio
+    async def test_resume_no_op_when_aget_state_fails(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from langgraph.types import Command
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_resume,
+        )
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+        agent = SkillAgent(llm=AsyncMock(), skill_backend=AsyncMock())
+        mock_graph = AsyncMock()
+        mock_graph.aget_state = AsyncMock(side_effect=RuntimeError("checkpoint down"))
+        agent._agent = mock_graph
+
+        command = Command(resume="continue")
+        refreshed = await apply_bound_skill_catalog_for_resume(
+            agent, command, thread_id="t-fail-state"
+        )
+        assert refreshed is command
+
+    @pytest.mark.asyncio
+    async def test_resume_no_op_when_checkpoint_has_no_messages(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from langgraph.types import Command
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_resume,
+        )
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+        agent = SkillAgent(llm=AsyncMock(), skill_backend=AsyncMock())
+        state_snapshot = MagicMock()
+        state_snapshot.values = {"messages": []}
+        mock_graph = AsyncMock()
+        mock_graph.aget_state = AsyncMock(return_value=state_snapshot)
+        agent._agent = mock_graph
+
+        command = Command(resume="continue")
+        refreshed = await apply_bound_skill_catalog_for_resume(
+            agent, command, thread_id="t-empty-msgs"
+        )
+        assert refreshed is command
+
+    @pytest.mark.asyncio
+    async def test_resume_no_op_when_checkpoint_values_empty(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock
+
+        from langgraph.types import Command
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            apply_bound_skill_catalog_for_resume,
+        )
+        from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+        agent = SkillAgent(llm=AsyncMock(), skill_backend=AsyncMock())
+        state_snapshot = MagicMock()
+        state_snapshot.values = {}
+        mock_graph = AsyncMock()
+        mock_graph.aget_state = AsyncMock(return_value=state_snapshot)
+        agent._agent = mock_graph
+
+        command = Command(resume="continue")
+        refreshed = await apply_bound_skill_catalog_for_resume(
+            agent, command, thread_id="t-empty-values"
+        )
+        assert refreshed is command
+
+    @pytest.mark.asyncio
+    async def test_first_human_content_returns_none_without_human_message(self) -> None:
+        from langchain_core.messages import AIMessage
+
+        from myrm_agent_harness.agent._internals.agent_runtime import (
+            _first_human_content,
+        )
+
+        assert _first_human_content([AIMessage(content="assistant only")]) is None
+
+    def test_run_agent_loop_wires_resume_catalog_helper(self) -> None:
+        from pathlib import Path
+
+        source = (
+            Path(__file__).resolve().parents[3]
+            / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
+        ).read_text(encoding="utf-8")
+        assert "await apply_bound_skill_catalog_for_resume(" in source

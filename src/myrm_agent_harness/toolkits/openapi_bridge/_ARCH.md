@@ -64,3 +64,18 @@ OpenAPIServiceConfig (user config)
    the context-bound user token matching the service name, and perform preemptive and
    reactive (on 401 response) token refresh using the bound refresh callback.
 
+7. **Turn1 direct budget**: When generated tool schemas exceed `AGGREGATE_DIRECT_TOKEN_BUDGET`
+   (1200 tokens, shared with MCP direct routing), `create_skill_agent` raises
+   `ConfigIncompleteError` (`openapi_direct_budget_exceeded`). Reduce selected endpoints in
+   Agent settings — no silent skip.
+
+8. **Turn1 load failure**: When one or more OpenAPI services are enabled but loading produces
+   zero tools (bad spec, auth, or endpoint selection), `create_skill_agent` raises
+   `ConfigIncompleteError` (`openapi_load_failed`) — no silent zero-tool agent.
+
+## Verification
+
+| Layer | Tests |
+| --- | --- |
+| Unit / integration | `tests/agent/_factory/test_builder_openapi_*.py`, `tests/integration/test_openapi_fail_loud_integration.py` |
+| Chrome E2E | `myrm-agent-server/tests/e2e/test_openapi_fail_loud_chrome_e2e.py` |

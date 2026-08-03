@@ -11,9 +11,10 @@
 - _compact_description/_compress_direct_tools: direct MCP tool description compaction for token-noise control
 
 [POS]
-MCP schema-token routing for SkillAgent factory. Two-outcome co-existence:
-- Direct: small servers fit per-server threshold AND aggregate budget → native FC with full schema
-- PTC/Skill: mega server OR aggregate overflow → converted to Skill SOP (skill_search → skill_select → PTC)
+MCP schema-token routing for SkillAgent factory. **Two outcomes only** (see
+``TOOL_DESIGN_STRATEGY.md`` §MCP 路由铁律 — 禁止 catalog_invoke / proxy 第三路径):
+- Direct FC: per-server and aggregate within budget → native Turn1 FC with full schema
+- PTC/Skill: per-server schema over threshold OR aggregate overflow → MCP→Skill SOP
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
+from myrm_agent_harness.agent._factory.mcp_surface import MCPSurfaceMode, parse_mcp_surface_mode
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 
 if TYPE_CHECKING:
@@ -45,12 +47,14 @@ when actual overhead tools are not available for measurement."""
 
 CHARS_PER_TOKEN = 4.0
 
-AGGREGATE_DIRECT_TOKEN_BUDGET = 2700
+AGGREGATE_DIRECT_TOKEN_BUDGET = 1200
 """Maximum total schema tokens for all MCP direct tools combined.
 
 When multiple lightweight MCP servers individually pass the per-server threshold
 but their aggregate schema exceeds this budget, whole servers (largest first) are
 demoted to PTC/Skill until the remaining direct pool fits within budget.
+
+Single aggregate threshold — overflow demotes whole servers to PTC/Skill (largest first).
 """
 
 DIRECT_MCP_DESCRIPTION_SOFT_LIMIT = 180
@@ -234,7 +238,7 @@ def _config_to_dict(cfg: MCPServerConfigProtocol) -> dict[str, object]:
 
 @dataclass(frozen=True, slots=True)
 class MCPRoutingResult:
-    """Result of MCP two-path routing."""
+    """Result of MCP hybrid routing (direct Turn1 FC or PTC Skill only)."""
 
     skills: list[SkillMetadata]
     direct_tools: list[BaseTool]
@@ -242,11 +246,23 @@ class MCPRoutingResult:
 
 async def route_mcp_servers(
     mcp_servers: Sequence[MCPServerConfigProtocol],
+    *,
+    surface_mode: MCPSurfaceMode | str | None = MCPSurfaceMode.AUTO,
 ) -> MCPRoutingResult:
-    """Route MCP servers into direct-tool or PTC-skill paths based on schema token cost."""
+    """Route MCP servers into direct Turn1 tools or MCP→Skill (PTC) paths."""
+    resolved_surface = (
+        surface_mode
+        if isinstance(surface_mode, MCPSurfaceMode)
+        else parse_mcp_surface_mode(
+            str(surface_mode) if surface_mode is not None else None
+        )
+    )
+    from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
     from myrm_agent_harness.toolkits.mcp.connection_manager import (
         get_mcp_connection_manager,
     )
+
+    skill_registry.clear_mcp_skills()
 
     ptc_servers: list[MCPConfig] = []
     direct_bundles: list[_DirectServerBundle] = []
@@ -300,8 +316,15 @@ async def route_mcp_servers(
                 direct_threshold,
             )
 
-    kept_bundles, demoted_configs = demote_direct_servers_over_budget(direct_bundles)
-    ptc_servers.extend(demoted_configs)
+    if resolved_surface == MCPSurfaceMode.DIRECT_FC:
+        kept_bundles = direct_bundles
+        logger.info(
+            "MCP direct_fc override: skipping aggregate demotion (%d direct candidate bundles)",
+            len(kept_bundles),
+        )
+    else:
+        kept_bundles, demoted_configs = demote_direct_servers_over_budget(direct_bundles)
+        ptc_servers.extend(demoted_configs)
 
     mcp_direct_tools: list[BaseTool] = []
     for bundle in kept_bundles:

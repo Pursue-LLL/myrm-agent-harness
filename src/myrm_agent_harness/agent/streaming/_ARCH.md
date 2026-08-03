@@ -10,7 +10,7 @@ Detailed design: [STREAMING_SYSTEM.md](STREAMING_SYSTEM.md)
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | BaseAgent event processing pipeline. | — |
-| artifact_events.py | Core | Artifact event handler. `collect_ui_artifacts` yields `ui_artifact` before `data_update` so downstream collectors can merge surface data. | ✅ |
+| artifact_events.py | Core | Artifact SSE: `emit_artifacts_ready_event`, `emit_artifact_focus_event` (run-end deliverable focus), `collect_ui_artifacts`. | ✅ |
 | channel_output_hints.py | Config | Per-channel output format hints. Resolves channel-specific prompt guidance (e.g. Telegram: no tables; WhatsApp: plain text only; voice: conversational). Symmetric with model_discipline.py. | ✅ |
 | escalation_scrubber.py | Core | Model self-escalation marker scrubber. Detects <<<NEEDS_PRO>>> markers in streaming output, buffers content to prevent marker display, and signals stream_recovery to switch to a stronger model. | ✅ |
 | event_handlers.py | Core | LangGraph stream event to business event transformer. Emits TOOL_IMAGE_OUTPUT for multimodal ToolMessage content; emits `tasks_steps` from todo_write progress events + reviewing_sources; routes `plan_confirm` interrupts to STATUS SSE (phase=plan_confirm); enforces unified sanitize+scrub pipeline for both `message` and `reasoning` stream text. | ✅ |
