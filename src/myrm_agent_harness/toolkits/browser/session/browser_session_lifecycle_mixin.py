@@ -134,34 +134,23 @@ class BrowserSessionLifecycleMixin:
         # Migrate storage state to the new context
         if current_storage_state:
             with contextlib.suppress(Exception):
+                from ..checkpoint.session_state import _build_localstorage_script, normalize_cookies
+
                 new_page = self._tab_controller.get_active_page()
 
-                # 1. Add cookies
-                cookies = current_storage_state.get("cookies", [])
+                cookies = normalize_cookies(current_storage_state.get("cookies", []))
                 if cookies:
                     await new_page.context.add_cookies(cookies)
                     logger.info(f"Successfully migrated {len(cookies)} cookies to new engine.")
 
-                # 2. Inject localStorage using add_init_script (Zero network delay, 100% concurrency safe)
                 local_storage_origins = current_storage_state.get("origins", [])
                 if local_storage_origins:
-                    import json
-
                     injected_count = 0
                     for origin_data in local_storage_origins:
                         origin = origin_data.get("origin")
                         local_storage = origin_data.get("localStorage", [])
                         if local_storage and origin:
-                            # Create a self-executing JS script that only runs on the matching origin
-                            ls_json = json.dumps(local_storage)
-                            script = f"""
-                            (() => {{
-                                if (window.location.origin === '{origin}') {{
-                                    const items = {ls_json};
-                                    items.forEach(({{name, value}}) => localStorage.setItem(name, value));
-                                }}
-                            }})();
-                            """
+                            script = _build_localstorage_script(local_storage, origin)
                             await new_page.context.add_init_script(script)
                             injected_count += len(local_storage)
 
@@ -311,7 +300,7 @@ class BrowserSessionLifecycleMixin:
             self._auto_restored = True
             for domain in self._auto_restore_domains:
                 try:
-                    await self._persistence.restore(page.context, page, domain)
+                    await self._persistence.restore(page.context, domain)
                     logger.info(f"Auto-restored session for domain: {domain}")
                 except Exception as e:
                     logger.error(f"Failed to auto-restore domain {domain}: {e}")

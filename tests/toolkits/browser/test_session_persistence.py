@@ -67,28 +67,14 @@ class TestSessionPersistence:
         mock_context = MagicMock()
         mock_context.add_cookies = AsyncMock()
 
-        mock_temp_page = MagicMock()
-        mock_temp_page.route = AsyncMock()
-        mock_temp_page.goto = AsyncMock()
-        mock_temp_page.evaluate = AsyncMock()
-        mock_temp_page.unroute = AsyncMock()
-        mock_temp_page.close = AsyncMock()
-
-        mock_context.new_page = AsyncMock(return_value=mock_temp_page)
-
-        mock_page = MagicMock() # no longer directly used for evaluation
+        mock_context.add_init_script = AsyncMock()
 
         persistence = SessionPersistence(mock_vault)
-        result = await persistence.restore(mock_context, mock_page, "example.com")
+        result = await persistence.restore(mock_context, "example.com")
 
         assert "Restored encrypted session" in result
         mock_context.add_cookies.assert_called_once()
-        mock_context.new_page.assert_called_once()
-        mock_temp_page.route.assert_called_once()
-        mock_temp_page.goto.assert_called_once()
-        mock_temp_page.evaluate.assert_called_once()
-        mock_temp_page.unroute.assert_called_once()
-        mock_temp_page.close.assert_called_once()
+        mock_context.add_init_script.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_restore_not_found(self):
@@ -97,10 +83,9 @@ class TestSessionPersistence:
         mock_vault.load = AsyncMock(return_value=None)
 
         mock_context = MagicMock()
-        mock_page = MagicMock()
 
         persistence = SessionPersistence(mock_vault)
-        result = await persistence.restore(mock_context, mock_page, "example.com")
+        result = await persistence.restore(mock_context, "example.com")
 
         assert "No saved session found" in result
 
@@ -229,29 +214,19 @@ class TestSessionPersistence:
         mock_vault.load = AsyncMock(return_value=mock_entry)
 
         mock_context = MagicMock()
-        # Trigger an exception during cookie injection
         mock_context.add_cookies = AsyncMock(side_effect=Exception("Cookie error"))
-        mock_page = MagicMock()
 
         persistence = SessionPersistence(mock_vault)
-        result = await persistence.restore(mock_context, mock_page, "example.com")
+        result = await persistence.restore(mock_context, "example.com")
 
         assert "Error: Failed to inject cookies" in result
 
-        # Test local storage inner exception
-        mock_context.add_cookies = AsyncMock() # Reset to succeed
-        mock_temp_page = MagicMock()
-        mock_temp_page.route = AsyncMock()
-        mock_temp_page.goto = AsyncMock(side_effect=Exception("Goto error"))
-        mock_temp_page.unroute = AsyncMock()
-        mock_temp_page.close = AsyncMock()
+        # Test localStorage injection exception (via add_init_script)
+        mock_context.add_cookies = AsyncMock()
+        mock_context.add_init_script = AsyncMock(side_effect=Exception("Script error"))
 
-        mock_context.new_page = AsyncMock(return_value=mock_temp_page)
-
-        result2 = await persistence.restore(mock_context, mock_page, "example.com")
+        result2 = await persistence.restore(mock_context, "example.com")
         assert "Restored encrypted session" in result2
-        mock_temp_page.goto.assert_called_once()
-        mock_temp_page.evaluate.assert_not_called()
 
     def test_is_cookie_for_domain_exact_match(self):
         """测试 Cookie 域名精确匹配"""

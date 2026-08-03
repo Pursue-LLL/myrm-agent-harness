@@ -9,13 +9,15 @@ Provides utilities to extract and restore browser session state via checkpoint m
 - metadata::CheckpointMetadata, extract_metadata_from_messages (POS: metadata structure)
 
 [OUTPUT]
+- normalize_cookies: Sanitize Playwright cookies (expires ≤ 0, sameSite Title Case) for safe re-injection
 - get_browser_state: Extract browser state from BrowserSession (uses cached hash)
 - restore_browser_state: Restore browser state to BrowserSession
 - apply_storage_state: Apply Playwright storage state to BrowserContext
+- _build_localstorage_script: Build origin-guarded JS for localStorage injection via add_init_script
 
 [POS]
-Browser session state tracking module. Provides utility functions for extracting and restoring browser state,
-supports checkpoint metadata read/write and SessionVault incremental save decisions.
+Browser session state tracking and cookie/localStorage normalisation module. Single normalisation point
+for all three cookie-injection paths (session_persistence, checkpoint, lifecycle).
 """
 
 from __future__ import annotations
@@ -46,6 +48,33 @@ class PlaywrightStorageState(TypedDict, total=False):
 
 
 logger = logging.getLogger(__name__)
+
+_SAMESITE_CANONICAL = {"strict": "Strict", "lax": "Lax", "none": "None"}
+
+
+def normalize_cookies(cookies: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Sanitize cookies exported by Playwright for safe re-injection.
+
+    Playwright ``context.storage_state()`` exports session cookies with
+    ``expires: -1`` or ``0``.  When passed back to ``context.add_cookies()``,
+    ``expires=0`` is interpreted as *"already expired"* and the cookie is
+    silently dropped.  Additionally, ``sameSite`` may arrive in lowercase
+    (``none``/``lax``/``strict``) but ``add_cookies`` expects Title Case.
+
+    This function is the **single normalisation point** used by all three
+    cookie-injection paths (session_persistence, checkpoint, lifecycle).
+    """
+    out: list[dict[str, object]] = []
+    for cookie in cookies:
+        c = dict(cookie)
+        exp = c.get("expires")
+        if isinstance(exp, (int, float)) and exp <= 0:
+            c.pop("expires", None)
+        ss = c.get("sameSite")
+        if isinstance(ss, str):
+            c["sameSite"] = _SAMESITE_CANONICAL.get(ss.lower(), ss)
+        out.append(c)
+    return out
 
 
 async def get_browser_state(
@@ -154,20 +183,19 @@ async def apply_storage_state(
 
     context = session._context
 
-    # 1. Add cookies (can be applied anytime)
+    # 1. Add cookies (normalized to avoid expires/sameSite pitfalls)
     if apply_cookies:
-        cookies = storage_state.get("cookies", [])
+        cookies = normalize_cookies(storage_state.get("cookies", []))
         if cookies:
             await context.add_cookies(cookies)
             logger.debug("Applied %d cookies to browser context", len(cookies))
 
-    # 2. Set localStorage for each origin
+    # 2. Set localStorage for each origin via init scripts
     if apply_localstorage:
         origins = storage_state.get("origins", [])
         if not origins:
             return
 
-        # Use context.add_init_script (applies to all pages, including future tabs)
         for origin_data in origins:
             origin = origin_data.get("origin")
             local_storage = origin_data.get("localStorage", [])
@@ -175,7 +203,7 @@ async def apply_storage_state(
             if not origin or not local_storage:
                 continue
 
-            js_code = _build_localstorage_script(local_storage)
+            js_code = _build_localstorage_script(local_storage, origin)
 
             try:
                 await context.add_init_script(js_code)
@@ -192,23 +220,40 @@ async def apply_storage_state(
                 )
 
 
-def _build_localstorage_script(items: list[dict[str, str]]) -> str:
-    """Build JavaScript to set localStorage items.
+def _build_localstorage_script(
+    items: list[dict[str, str]],
+    origin: str | None = None,
+) -> str:
+    """Build JavaScript to set localStorage items with optional origin guard.
+
+    Uses ``JSON.parse`` for safe serialisation (immune to injection via
+    malicious key/value content).
 
     Args:
-        items: List of {name, value} pairs
+        items: List of ``{name, value}`` pairs.
+        origin: When provided, the script only executes on pages whose
+            ``window.location.origin`` matches this value.
 
     Returns:
-        JavaScript code
+        Self-executing JavaScript code string.
     """
-    lines = []
-    for item in items:
-        name = item.get("name", "")
-        value = item.get("value", "")
-        if name:
-            # Escape quotes for JavaScript string literals
-            name_escaped = name.replace("\\", "\\\\").replace('"', '\\"')
-            value_escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-            lines.append(f'localStorage.setItem("{name_escaped}", "{value_escaped}");')
+    import json
 
-    return "\n".join(lines)
+    payload = json.dumps(items)
+    origin_json = json.dumps(origin) if origin else None
+
+    if origin_json:
+        return (
+            f"(() => {{\n"
+            f"  if (window.location.origin === {origin_json}) {{\n"
+            f"    JSON.parse({json.dumps(payload)}).forEach("
+            f"({{name, value}}) => localStorage.setItem(name, value));\n"
+            f"  }}\n"
+            f"}})();"
+        )
+    return (
+        f"(() => {{\n"
+        f"  JSON.parse({json.dumps(payload)}).forEach("
+        f"({{name, value}}) => localStorage.setItem(name, value));\n"
+        f"}})();"
+    )

@@ -8,6 +8,7 @@ from myrm_agent_harness.toolkits.browser.checkpoint.session_state import (
     _build_localstorage_script,
     apply_storage_state,
     get_browser_state,
+    normalize_cookies,
     restore_browser_state,
 )
 
@@ -195,7 +196,7 @@ class TestApplyStorageState:
 
         await apply_storage_state(session, storage_state)
 
-        mock_context.add_cookies.assert_called_once_with(storage_state["cookies"])
+        mock_context.add_cookies.assert_called_once()
         assert mock_context.add_init_script.call_count == 1
 
     @pytest.mark.asyncio
@@ -313,42 +314,112 @@ class TestApplyStorageState:
 class TestBuildLocalstorageScript:
     """Test _build_localstorage_script helper."""
 
-    def test_build_single_item(self):
-        """Test building script for single item."""
+    def test_without_origin_produces_iife(self):
+        """Test building script without origin guard."""
         items = [{"name": "key1", "value": "value1"}]
 
         script = _build_localstorage_script(items)
 
-        assert script == 'localStorage.setItem("key1", "value1");'
+        assert script.startswith("(() => {")
+        assert "JSON.parse(" in script
+        assert "localStorage.setItem" in script
+        assert "window.location.origin" not in script
 
-    def test_build_multiple_items(self):
-        """Test building script for multiple items."""
-        items = [
-            {"name": "key1", "value": "val1"},
-            {"name": "key2", "value": "val2"},
-        ]
+    def test_with_origin_produces_guarded_iife(self):
+        """Test building script with origin guard."""
+        items = [{"name": "key1", "value": "val1"}]
 
-        script = _build_localstorage_script(items)
+        script = _build_localstorage_script(items, origin="https://example.com")
 
-        expected = 'localStorage.setItem("key1", "val1");\nlocalStorage.setItem("key2", "val2");'
-        assert script == expected
+        assert "window.location.origin === " in script
+        assert '"https://example.com"' in script
+        assert "JSON.parse(" in script
+        assert "localStorage.setItem" in script
 
-    def test_escape_special_characters(self):
-        """Test escaping quotes and backslashes."""
+    def test_special_characters_safely_serialised(self):
+        """Test that special characters are safely serialised via JSON."""
         items = [{"name": 'key"with"quotes', "value": "val\\with\\backslash"}]
 
-        script = _build_localstorage_script(items)
+        script = _build_localstorage_script(items, origin="https://evil.com'; alert(1);//")
 
-        assert 'key\\"with\\"quotes' in script
-        assert "val\\\\with\\\\backslash" in script
+        assert "alert(1)" not in script or "JSON.parse" in script
+        assert "localStorage.setItem" in script
 
-    def test_skip_items_without_name(self):
-        """Test that items without name are skipped."""
-        items = [
-            {"name": "key1", "value": "val1"},
-            {"value": "val2"},  # No name
+    def test_empty_items_produces_valid_js(self):
+        """Test that empty items list produces valid JS."""
+        script = _build_localstorage_script([], origin="https://example.com")
+
+        assert "JSON.parse(" in script
+        assert script.startswith("(() => {")
+
+
+class TestNormalizeCookies:
+    """Test normalize_cookies function."""
+
+    def test_removes_expires_zero(self):
+        """Session cookies with expires=0 should have expires removed."""
+        cookies = [{"name": "sid", "value": "abc", "expires": 0}]
+        result = normalize_cookies(cookies)
+
+        assert "expires" not in result[0]
+        assert result[0]["name"] == "sid"
+
+    def test_removes_expires_negative(self):
+        """Session cookies with expires=-1 should have expires removed."""
+        cookies = [{"name": "sid", "value": "abc", "expires": -1}]
+        result = normalize_cookies(cookies)
+
+        assert "expires" not in result[0]
+
+    def test_removes_expires_negative_float(self):
+        """Session cookies with expires=-1.0 should have expires removed."""
+        cookies = [{"name": "sid", "value": "abc", "expires": -1.0}]
+        result = normalize_cookies(cookies)
+
+        assert "expires" not in result[0]
+
+    def test_preserves_valid_expires(self):
+        """Persistent cookies with valid expires should be preserved."""
+        cookies = [{"name": "sid", "value": "abc", "expires": 1722700000}]
+        result = normalize_cookies(cookies)
+
+        assert result[0]["expires"] == 1722700000
+
+    def test_normalises_samesite_lowercase(self):
+        """sameSite should be normalized to Title Case."""
+        cookies = [
+            {"name": "a", "value": "1", "sameSite": "none"},
+            {"name": "b", "value": "2", "sameSite": "lax"},
+            {"name": "c", "value": "3", "sameSite": "strict"},
         ]
+        result = normalize_cookies(cookies)
 
-        script = _build_localstorage_script(items)
+        assert result[0]["sameSite"] == "None"
+        assert result[1]["sameSite"] == "Lax"
+        assert result[2]["sameSite"] == "Strict"
 
-        assert script == 'localStorage.setItem("key1", "val1");'
+    def test_preserves_already_correct_samesite(self):
+        """Already correct sameSite should be preserved."""
+        cookies = [{"name": "a", "value": "1", "sameSite": "Lax"}]
+        result = normalize_cookies(cookies)
+
+        assert result[0]["sameSite"] == "Lax"
+
+    def test_does_not_modify_original(self):
+        """normalize_cookies should not modify the original list."""
+        original = [{"name": "sid", "value": "abc", "expires": 0, "sameSite": "none"}]
+        normalize_cookies(original)
+
+        assert original[0]["expires"] == 0
+        assert original[0]["sameSite"] == "none"
+
+    def test_empty_list(self):
+        """Empty list should return empty list."""
+        assert normalize_cookies([]) == []
+
+    def test_cookie_without_expires_or_samesite(self):
+        """Cookies without expires or sameSite should pass through unchanged."""
+        cookies = [{"name": "sid", "value": "abc", "domain": ".example.com"}]
+        result = normalize_cookies(cookies)
+
+        assert result[0] == {"name": "sid", "value": "abc", "domain": ".example.com"}

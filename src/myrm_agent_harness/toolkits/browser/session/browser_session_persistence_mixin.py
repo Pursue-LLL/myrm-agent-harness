@@ -100,9 +100,8 @@ class BrowserSessionPersistenceMixin:
 
         await self._ensure_components()
         page = self._tab_controller.get_active_page()
-        context = page.context
 
-        return await self._persistence.restore(context, page, domain)
+        return await self._persistence.restore(page.context, domain)
 
     @require_persistence
     async def list_sessions(self) -> str:

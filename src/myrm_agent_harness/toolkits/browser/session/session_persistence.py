@@ -4,20 +4,20 @@
 [INPUT]
 - session_vault::SessionVault (POS: AES-256-GCM encrypted session storage)
 - patchright.async_api::BrowserContext (POS: browser context)
-- patchright.async_api::Page (POS: page instance)
+- checkpoint.session_state::normalize_cookies, _build_localstorage_script (POS: cookie/localStorage normalisation)
 
 [OUTPUT]
-- SessionPersistence: session persistence helper class
-  - save(context, domain) -> str: save encrypted session
-  - restore(context, page, domain) -> str: restore encrypted session
+- SessionPersistence: encrypted session persistence helper
+  - save(context, domain) -> str: save encrypted session (domain-filtered cookies)
+  - restore(context, domain) -> str: restore encrypted session (normalised cookies + origin-guarded localStorage)
   - list_domains() -> str: list all sessions
   - delete(domain) -> str: delete session
   - cleanup_expired() -> int: clean up expired sessions
   - compute_hash(domain) -> str | None: compute session state hash
 
 [POS]
-Session persistence helper class. Single responsibility: handles session save/restore/list/delete operations.
-Includes cookie domain filtering, localStorage injection, and expired session cleanup logic.
+Encrypted session persistence. Handles save/restore/list/delete with cookie domain filtering,
+normalised cookie injection (expires/sameSite), and origin-guarded localStorage via add_init_script.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from patchright.async_api import BrowserContext, Page
+    from patchright.async_api import BrowserContext
 
     from ..session_vault import SessionVault
 
@@ -111,14 +111,15 @@ class SessionPersistence:
             f"({len(filtered_cookies)} cookies, {local_storage_count} localStorage items)"
         )
 
-    async def restore(self, context: BrowserContext, page: Page, domain: str) -> str:
+    async def restore(self, context: BrowserContext, domain: str) -> str:
         """Restore session state from encrypted storage.
 
         Auto-filters expired sessions (default 30-day TTL).
+        Cookies are normalised (expires/sameSite) before injection.
+        localStorage is injected via ``add_init_script`` (zero network I/O).
 
         Args:
             context: Browser context to inject state into.
-            page: Page instance for localStorage injection.
             domain: Target domain.
 
         Returns:
@@ -137,7 +138,9 @@ class SessionPersistence:
         if entry is None:
             return f"No saved session found for domain: {domain} (or session expired)"
 
-        cookies = entry.storage_state.get("cookies", [])
+        from ..checkpoint.session_state import _build_localstorage_script, normalize_cookies
+
+        cookies = normalize_cookies(entry.storage_state.get("cookies", []))
         try:
             await context.add_cookies(cookies)
         except Exception as exc:
@@ -146,27 +149,16 @@ class SessionPersistence:
 
         local_storage_count = 0
         local_storage_origins = entry.storage_state.get("origins", [])
-        if local_storage_origins:
-            try:
-                temp_page = await context.new_page()
-                await temp_page.route("**/*", lambda route: route.fulfill(status=200, body=""))
-                for origin_data in local_storage_origins:
-                    origin = origin_data.get("origin")
-                    local_storage = origin_data.get("localStorage", [])
-                    if local_storage and origin:
-                        try:
-                            await temp_page.goto(origin, timeout=5000)
-                            await temp_page.evaluate(
-                                "(items) => items.forEach(({name, value}) => localStorage.setItem(name, value))",
-                                local_storage,
-                            )
-                            local_storage_count += len(local_storage)
-                        except Exception as exc:
-                            logger.warning("Failed to inject localStorage for %s (origin %s): %s", domain, origin, exc)
-                await temp_page.unroute("**/*")
-                await temp_page.close()
-            except Exception as exc:
-                logger.warning("Failed to process localStorage injection for %s: %s", domain, exc)
+        for origin_data in local_storage_origins:
+            origin = origin_data.get("origin")
+            local_storage = origin_data.get("localStorage", [])
+            if local_storage and origin:
+                try:
+                    js_code = _build_localstorage_script(local_storage, origin)
+                    await context.add_init_script(js_code)
+                    local_storage_count += len(local_storage)
+                except Exception as exc:
+                    logger.warning("Failed to inject localStorage for %s (origin %s): %s", domain, origin, exc)
 
         elapsed_ms = (time.time() - start_time) * 1000
         logger.info(

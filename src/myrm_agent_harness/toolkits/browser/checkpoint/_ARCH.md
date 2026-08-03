@@ -16,6 +16,6 @@ Task-level checkpoint/resume module for the browser toolkit. Fully reuses LangGr
 | metrics.py | Core | Checkpoint monitoring metrics. Provides observability for checkpoint operations, supporting performa | ✅ |
 | orchestrator.py | Core | Startup auto-recovery module. Scans incomplete checkpoints, rebuilds browser sessions, supports para | ✅ |
 | protocols.py | Core | Browser checkpoint thread storage protocol. Defines unified interface for thread registration, updat | ✅ |
-| session_state.py | Core | Browser session state tracking module. Provides utility functions for extracting and restoring brows | ✅ |
+| session_state.py | Core | Browser session state tracking. Provides get/restore/apply_storage_state, normalize_cookies (expires/sameSite sanitisation), _build_localstorage_script (origin-guarded init_script) | ✅ |
 | thread_models.py | Core | Thread Registry data models. Defines thread record structures and database table schema. | ✅ |
 | thread_registry.py | Core | Thread Registry storage layer. Operates on checkpoint_threads table, providing thread | ✅ |
