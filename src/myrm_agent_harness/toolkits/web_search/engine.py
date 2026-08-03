@@ -5,6 +5,7 @@
 - retriever.autocut::AutocutConfig (POS: score-discontinuity autocut configuration)
 - retriever_tools::RetrieverManager, RetrieverConfig (POS: retrieval tools providing BM25 / Reranker with index cache)
 - web_search.common::SearchResult (POS: search result type)
+- web_search._explicit_params::normalize_explicit_params, apply_tavily_site_constraint (POS: Agent explicit param normalizer)
 - web_search.search_results_processor::combine_search_results_unified, apply_domain_diversity_sort (POS: search result merger and domain diversity sorting)
 - web_search.web_searcher::WebSearcher, SearchServiceConfig, SearchServiceType (POS: web searcher supporting multiple engines)
 - utils.context_format::format_documents_with_metadata (POS: document formatting utility)
@@ -14,7 +15,6 @@
 - WebSearchTools: web search tools class providing basic/precise two search modes
 - SearchServiceConfig: search service config class (re-export)
 - SearchServiceType: search service type enum (re-export)
-- _normalize_explicit_params: Agent explicit params → provider-specific format normalizer
 
 Note: BM25/RRF parameters managed by RetrieverConfig; precise mode internal parameters are constants.
 
@@ -37,6 +37,10 @@ from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.retriever.autocut import AutocutConfig
 from myrm_agent_harness.toolkits.retriever.splitter.splitter import TextChunker
+from myrm_agent_harness.toolkits.web_search._explicit_params import (
+    apply_tavily_site_constraint,
+    normalize_explicit_params,
+)
 from myrm_agent_harness.toolkits.web_search.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.metrics import web_search_metrics
 from myrm_agent_harness.toolkits.web_search.search_results_processor import (
@@ -54,63 +58,6 @@ if TYPE_CHECKING:
 __all__ = ["SearchServiceConfig", "SearchServiceType", "WebSearchTools"]
 
 logger = logging.getLogger(__name__)
-
-# Unified time_range values → provider-specific mappings
-_TIME_RANGE_MAP_VOLCENGINE: dict[str, str] = {
-    "day": "OneDay",
-    "week": "OneWeek",
-    "month": "OneMonth",
-    "year": "OneYear",
-}
-
-
-def _normalize_explicit_params(
-    explicit_params: dict[str, object],
-    provider: str,
-) -> dict[str, str | int] | None:
-    """Normalize Agent-level explicit params to provider-specific format.
-
-    Three-priority fusion model:
-      1. explicit_params (highest) — from Agent tool call
-      2. intent_optimizer auto-detection — from keyword regex
-      3. config.extra_params (lowest) — user/admin default
-
-    This function only handles layer 1 → provider-specific format.
-
-    Args:
-        explicit_params: Raw params from Agent (time_range)
-        provider: Current search service provider
-
-    Returns:
-        Provider-formatted params dict, or None if nothing to apply
-    """
-    if not explicit_params:
-        return None
-
-    result: dict[str, str | int] = {}
-    time_range = explicit_params.get("time_range")
-
-    if provider == "volcengine_doubao":
-        if isinstance(time_range, str) and time_range:
-            mapped = _TIME_RANGE_MAP_VOLCENGINE.get(time_range)
-            if mapped:
-                result["TimeRange"] = mapped
-            elif ".." in time_range:
-                result["TimeRange"] = time_range
-    elif provider == "searxng":
-        if isinstance(time_range, str) and time_range:
-            result["time_range"] = time_range
-    elif provider == "tavily":
-        if isinstance(time_range, str) and time_range:
-            result["days"] = _tavily_time_range_to_days(time_range)
-
-    return result or None
-
-
-def _tavily_time_range_to_days(time_range: str) -> str:
-    """Convert unified time_range to Tavily 'days' parameter."""
-    mapping = {"day": "1", "week": "7", "month": "30", "year": "365"}
-    return mapping.get(time_range, "7")
 
 
 class WebSearchTools:
@@ -205,9 +152,10 @@ class WebSearchTools:
         start_time = time.perf_counter()
 
         provider = self._searcher.config.search_service
-        normalized_explicit = _normalize_explicit_params(explicit_params, provider) if explicit_params else None
+        normalized_explicit = normalize_explicit_params(explicit_params, provider) if explicit_params else None
 
         per_query_overrides: list[dict[str, str | int | bool] | None] = []
+        effective_questions: list[str] = []
         bilibili_queries: list[str] = []
         for q in questions:
             intent_result = detect_search_intent(q)
@@ -219,6 +167,11 @@ class WebSearchTools:
             if normalized_explicit:
                 override = {**(override or {}), **normalized_explicit}
 
+            search_query = q
+            if provider == "tavily":
+                search_query, override = apply_tavily_site_constraint(q, override)
+
+            effective_questions.append(search_query)
             per_query_overrides.append(override)
             if override:
                 logger.info(
@@ -258,7 +211,7 @@ class WebSearchTools:
                 search_time_ms = (time.perf_counter() - start_time) * 1000
         else:
             search_results = await self._searcher.multi_query_parallel_search(
-                questions, search_results_per_query, per_query_overrides
+                effective_questions, search_results_per_query, per_query_overrides
             )
             _, unified_docs = combine_search_results_unified(search_results)
             unified_docs = apply_domain_diversity_sort(unified_docs)

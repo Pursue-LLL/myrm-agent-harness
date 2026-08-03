@@ -11,6 +11,7 @@ and the intent-aware search parameter optimizer.
 | __init__.py | Package | Web search toolkit entry point. Aggregates and re-exports search tools, result types. | ✅ |
 | common.py | Core | Provides SearchResult (title, link, snippet, summary, date, site_name, authority_description, engines, citations). | ✅ |
 | engine.py | Core | Web search tools wrapper. Two modes: basic (BM25) and precision (BM25+Reranker+Autocut). Integrates intent detection. | ✅ |
+| _explicit_params.py | Core | Agent explicit param normalizer. Maps time_range to provider formats; Tavily site: → search_domain_filter. | ✅ |
 | error_handling.py | Core | Search failure classification and ErrorContext construction. Quota/rate-limit SSOT (`is_quota_or_rate_limit_error`) — non-retryable + chain hop. | ✅ |
 | exceptions.py | Core | Web Search exception hierarchy. All exceptions implement format_for_llm(). | ✅ |
 | intent_optimizer.py | Core | Search intent detection and parameter optimization. Zero-LLM-cost keyword-based intent classifier that dynamically adjusts SearxNG/Tavily/Volcengine search parameters per query. | ✅ |
@@ -37,10 +38,11 @@ and the intent-aware search parameter optimizer.
 ```
 User query → LLM Query Rewriting → questions: list[str]
   → engine.fast_search_with_questions(questions, explicit_params?)
-    → _normalize_explicit_params(explicit_params, provider)  [Agent → provider format]
+    → normalize_explicit_params(explicit_params, provider)  [Agent → provider format]
     → intent_optimizer.detect_search_intent(query) per query
     → intent_optimizer.resolve_search_params(intent, provider) per query
     → Fusion: explicit_params > intent_override > config.extra_params
+    → IF provider=tavily AND query contains site: → map to search_domain_filter (LiteLLM)
     → IF all queries = PLATFORM_BILIBILI:
          bilibili_search.search_bilibili() → structured results
          (on failure → fallback: site:bilibili.com via generic search)
@@ -61,8 +63,9 @@ Search parameters are merged with highest-priority-wins:
 2. **Intent optimizer auto-detection** — keyword-based regex classification
 3. **config.extra_params** (lowest) — user/admin search service defaults
 
-`_normalize_explicit_params()` in `engine.py` converts unified Agent params to
-provider-specific formats (e.g. "week" → "OneWeek" for Volcengine, "2025-01-01..2025-06-30" → direct passthrough as custom date range).
+`normalize_explicit_params()` in `_explicit_params.py` converts unified Agent params to
+provider-specific formats (e.g. "week" → "OneWeek" for Volcengine; Tavily maps
+relative ranges to `days` and custom `YYYY-MM-DD..YYYY-MM-DD` spans to day count capped at 365).
 
 When intent confidence is below threshold (0.6), no adjustment is made and
 the search behaves identically to before (GENERAL intent = user's default config).
