@@ -115,7 +115,8 @@ Protocol-first architecture with strict framework-business separation.
       `context_builder._gather_comments()` and injected into the worker's context.
       `kanban_complete` sets `metadata.completion_intent=True`, writes `summary` to
       `task.result`, and keeps the task RUNNING until the dispatcher's CompletionVerifier
-      passes. Optional `metadata` JSON stores structured handoff at `task.metadata["handoff"]`.
+      passes. Frontend shows `status.verifying` when intent is set. Optional `metadata`
+      JSON stores structured handoff at `task.metadata["handoff"]`.
     - `orchestrator` (3 tools): kanban_add_task, kanban_list_tasks (board list or
       single-task read via `task_id`; optional `include_stats`; board list defaults to 50 rows,
       max 200, with `truncated` metadata), kanban_unblock (returns ``dependencies_met``;

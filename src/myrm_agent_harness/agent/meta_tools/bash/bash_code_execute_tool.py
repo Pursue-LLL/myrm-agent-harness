@@ -347,6 +347,9 @@ def create_bash_code_execute_tool(
             )
             from myrm_agent_harness.utils.errors import ToolError
 
+            if isinstance(e, ToolError):
+                raise
+
             hint: str | None = None
             diagnostic: dict[str, object] | None = None
 

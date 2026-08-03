@@ -51,6 +51,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+MOA_OVERLAY_SKIP_BUDGET_PRESSURE = "budget_pressure"
+
 
 def _budget_pressure_active() -> bool:
     try:
@@ -100,6 +102,22 @@ async def _emit_overlay_active(reference_models: list[str]) -> None:
     )
 
 
+async def _emit_overlay_skipped(reason: str) -> None:
+    from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
+
+    sink = get_tool_progress_sink()
+    if sink is None:
+        return
+    await sink.emit(
+        {
+            "type": "status",
+            "step_key": "moa_overlay_skipped",
+            "status": "warning",
+            "data": {"reason": reason},
+        }
+    )
+
+
 def _model_name(llm: BaseChatModel) -> str:
     for attr in ("model_name", "model", "name"):
         val = getattr(llm, attr, None)
@@ -129,19 +147,23 @@ def create_moa_advisor_middleware(
             return await handler(request)
         if action_mode == "consensus":
             return await handler(request)
-        if _budget_pressure_active():
-            logger.debug("MoA overlay skipped: budget pressure active")
-            return await handler(request)
 
         messages = list(request.messages)
-
         next_iteration = runner.iteration + 1
-        if should_run_fanout(
+        fanout_this_call = should_run_fanout(
             messages=messages,
             fanout=overlay_cfg.fanout,
             every_n=overlay_cfg.every_n,
             iteration=next_iteration,
-        ):
+        )
+
+        if _budget_pressure_active():
+            if fanout_this_call:
+                await _emit_overlay_skipped(MOA_OVERLAY_SKIP_BUDGET_PRESSURE)
+            logger.debug("MoA overlay skipped: budget pressure active")
+            return await handler(request)
+
+        if fanout_this_call:
             ref_names = [_model_name(llm) for llm in reference_llms]
             await _emit_overlay_active(ref_names)
 
@@ -180,4 +202,7 @@ def create_moa_advisor_middleware(
     return _middleware
 
 
-__all__ = ["create_moa_advisor_middleware"]
+__all__ = [
+    "MOA_OVERLAY_SKIP_BUDGET_PRESSURE",
+    "create_moa_advisor_middleware",
+]

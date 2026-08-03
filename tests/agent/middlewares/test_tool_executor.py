@@ -227,6 +227,7 @@ class TestExecuteWithRetryErrors:
         assert result.status == "error"
         assert result.additional_kwargs.get("error_category") == "guardrail_blocked"
         assert result.additional_kwargs.get("error_hint") == "Use skills.* imports instead."
+
     @pytest.mark.asyncio
     async def test_emit_timeout_event_with_sink(self) -> None:
         from myrm_agent_harness.agent.middlewares.tool_executor import _emit_timeout_event

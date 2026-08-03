@@ -235,7 +235,7 @@ def _build_worker_tools(
 
         old_status = task.status
         task.status = TaskStatus.RUNNING
-        task.progress_note = "Verifying completion"
+        task.progress_note = None
         task.result = summary
         merged_metadata: dict[str, object] = {
             **task.metadata,

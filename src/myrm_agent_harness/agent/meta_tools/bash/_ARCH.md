@@ -21,7 +21,7 @@ Bash tool module.
 | bash_executor_background_mixin.py | Core | ``spawn_background()`` via background process registry. | ✅ |
 | bash_executor_prepare_mixin.py | Core | MCP proxy, code-type detection, skill staging. | ✅ |
 | bash_executor_context_mixin.py | Core | ExecutionContext build, OAuth issuer scoping, event logging. | ✅ |
-| bash_code_execute_tool.py | Core | ``create_bash_code_execute_tool`` LangChain factory; static TOOL_DESCRIPTION + OS hint only. | ✅ |
+| bash_code_execute_tool.py | Core | ``create_bash_code_execute_tool`` LangChain factory; static TOOL_DESCRIPTION + OS hint; preflight ``ToolError`` re-raised (preserves ``guardrail_blocked`` for SSE); ``BashExecutionError`` wrapped. | ✅ |
 | bash_tool_exit_semantics.py | Core | Exit-code semantic interpretation (grep=1, git diff, signals). | ✅ |
 | bash_tool_formatting.py | Core | Output compression, truncation, redaction, tool_output wrapping. | ✅ |
 | bash_tool_background_listeners.py | Core | Background spawn ptc_notify listeners and exit classification; natural ``exited`` finish emits progress + optional server finish hook; ``killed`` (session cancel) is silent (no finish ptc_notify, no chat persistence). | ✅ |

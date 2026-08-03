@@ -94,6 +94,9 @@ content = f"{tool_name} execution failed: {e}"   # fallback
 | `diagnostic_info` | dict | 诊断上下文（可选，复杂场景使用） |
 | `recovery_suggestions` | list[str] | 恢复建议列表（可选，复杂场景使用） |
 | `error_code` | str | 错误分类码（可选，用于统计） |
+| `error_category` | property → `diagnostic_info["error_category"]` | SSE / ProgressSteps Badge（如 `guardrail_blocked` →「安全拦截」） |
+
+`bash_code_execute_tool` preflight 抛出的 `ToolError` 会原样重抛（保留 `diagnostic_info`），经 `tool_executor` → `ToolMessage.additional_kwargs` → SSE `error_category` 到达前端。
 
 ### 2. BrowserError（浏览器异常树）
 
