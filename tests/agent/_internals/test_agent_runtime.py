@@ -727,3 +727,55 @@ class TestApplyBoundSkillCatalogForResume:
             / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
         ).read_text(encoding="utf-8")
         assert "await apply_bound_skill_catalog_for_resume(" in source
+
+
+class TestPopCheckpointIncompatibleMergedContext:
+    """Regression: callables must not remain in merged_context for LangGraph checkpoint."""
+
+    def test_file_content_reader_stripped_from_merged_context(self) -> None:
+        from myrm_agent_harness.agent._internals._agent_helpers import (
+            pop_checkpoint_incompatible_merged_context,
+        )
+
+        async def reader(_file_id: str) -> bytes:
+            return b""
+
+        merged: dict[str, object] = {
+            "workspace_root": "/tmp",
+            "session_id": "sess-1",
+            "file_content_reader": reader,
+        }
+
+        stripped = pop_checkpoint_incompatible_merged_context(merged)
+
+        assert "file_content_reader" not in merged
+        assert callable(stripped["file_content_reader"])
+        assert merged == {"workspace_root": "/tmp", "session_id": "sess-1"}
+
+    def test_all_checkpoint_callbacks_stripped(self) -> None:
+        from myrm_agent_harness.agent._internals._agent_helpers import (
+            pop_checkpoint_incompatible_merged_context,
+        )
+
+        goal_provider = MagicMock()
+        on_terminal = MagicMock()
+        on_restart = MagicMock()
+
+        merged: dict[str, object] = {
+            "goal_provider": goal_provider,
+            "on_goal_terminal": on_terminal,
+            "on_loop_restart": on_restart,
+            "file_content_reader": lambda _fid: b"",
+            "keep": "value",
+        }
+
+        stripped = pop_checkpoint_incompatible_merged_context(merged)
+
+        assert set(stripped.keys()) == {
+            "goal_provider",
+            "on_goal_terminal",
+            "on_loop_restart",
+            "file_content_reader",
+        }
+        assert merged == {"keep": "value"}
+        assert stripped["goal_provider"] is goal_provider

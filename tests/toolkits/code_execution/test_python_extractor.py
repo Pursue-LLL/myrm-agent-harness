@@ -2,6 +2,7 @@
 
 from myrm_agent_harness.toolkits.code_execution.python_extractor import (
     extract_python_from_bash,
+    extract_python_from_pipe_stdin,
     validate_python_syntax,
 )
 
@@ -39,6 +40,26 @@ class TestExtractPythonFromBash:
     def test_unclosed_quote_returns_partial_or_none(self):
         result = extract_python_from_bash('python3 -c "unclosed')
         assert result is None or isinstance(result, str)
+
+
+class TestExtractPythonFromPipeStdin:
+    def test_printf_pipe_python3(self):
+        result = extract_python_from_pipe_stdin('printf "import myrm_tools" | python3')
+        assert result == "import myrm_tools"
+
+    def test_echo_skills_pipe_allowed_extraction(self):
+        result = extract_python_from_pipe_stdin('echo "from skills.x import y" | python3')
+        assert result == "from skills.x import y"
+
+    def test_python_c_not_pipe_stdin_surface(self):
+        assert extract_python_from_pipe_stdin('python -c "print(1)"') is None
+
+    def test_pipe_to_grep_not_python_stdin(self):
+        assert extract_python_from_pipe_stdin('echo "import myrm_tools" | grep x') is None
+
+    def test_echo_unquoted_pipe_python3(self):
+        result = extract_python_from_pipe_stdin("echo import myrm_tools | python3")
+        assert result == "import myrm_tools"
 
 
 class TestValidatePythonSyntax:

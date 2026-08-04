@@ -1,10 +1,7 @@
-"""Web Search Tools 单元测试
+"""WebSearchTools (engine.py) unit tests.
 
-测试 web_search_tools 模块的核心功能：
-- WebSearchTools 类的基本搜索
-- 多查询并行搜索
-- BM25 + Reranker 排序
-- 异常处理
+Covers WebSearchTools basic search, multi-query parallel search,
+BM25/reranker ranking, and error handling.
 """
 
 from __future__ import annotations
@@ -53,7 +50,9 @@ class TestWebSearchToolsBasic:
             )
         ]
 
-        with patch.object(tools._searcher, "search", new_callable=AsyncMock, return_value=mock_results):
+        with patch.object(
+            tools._searcher, "search", new_callable=AsyncMock, return_value=mock_results
+        ):
             results = await tools.search(query="test query", num_results=5)
 
             assert results is not None
@@ -65,10 +64,23 @@ class TestWebSearchToolsBasic:
         config = SearchServiceConfig(search_service="perplexity", api_key="test-key")
         tools = WebSearchTools(config=config)
 
-        mock_results = [("query1", [Document(page_content="content", metadata={"url": "https://example.com"})], None)]
+        mock_results = [
+            (
+                "query1",
+                [
+                    Document(
+                        page_content="content", metadata={"url": "https://example.com"}
+                    )
+                ],
+                None,
+            )
+        ]
 
         with patch.object(
-            tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
+            tools._searcher,
+            "multi_query_parallel_search",
+            new_callable=AsyncMock,
+            return_value=mock_results,
         ):
             sources, formatted = await tools.fast_search_with_questions(
                 questions=["test query"],
@@ -90,27 +102,47 @@ class TestWebSearchToolsBasic:
             (
                 "query1",
                 [
-                    Document(page_content="Python programming", metadata={"url": "https://example.com/1"}),
-                    Document(page_content="Java programming", metadata={"url": "https://example.com/2"}),
+                    Document(
+                        page_content="Python programming",
+                        metadata={"url": "https://example.com/1"},
+                    ),
+                    Document(
+                        page_content="Java programming",
+                        metadata={"url": "https://example.com/2"},
+                    ),
                 ],
                 None,
             ),
             (
                 "query2",
                 [
-                    Document(page_content="Python tutorial", metadata={"url": "https://example.com/3"}),
+                    Document(
+                        page_content="Python tutorial",
+                        metadata={"url": "https://example.com/3"},
+                    ),
                 ],
                 None,
             ),
         ]
 
-        with patch.object(
-            tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
-        ), patch.object(
-            tools._retriever_manager,
-            "bm25_retrieval_only",
-            new_callable=AsyncMock,
-            return_value=[Document(page_content="Python programming", metadata={"url": "https://example.com/1"})],
+        with (
+            patch.object(
+                tools._searcher,
+                "multi_query_parallel_search",
+                new_callable=AsyncMock,
+                return_value=mock_results,
+            ),
+            patch.object(
+                tools._retriever_manager,
+                "bm25_retrieval_only",
+                new_callable=AsyncMock,
+                return_value=[
+                    Document(
+                        page_content="Python programming",
+                        metadata={"url": "https://example.com/1"},
+                    )
+                ],
+            ),
         ):
             sources, _formatted = await tools.fast_search_with_questions(
                 questions=["python", "tutorial"],
@@ -126,27 +158,56 @@ class TestWebSearchToolsBasic:
         config = SearchServiceConfig(search_service="perplexity", api_key="test-key")
         reranker_cfg = RerankerConfig(model="cohere/rerank-v3.5", api_key="test-key")
 
-        with patch("myrm_agent_harness.toolkits.retriever.reranker.get_reranker_service") as mock_get:
+        with patch(
+            "myrm_agent_harness.toolkits.retriever.reranker.get_reranker_service"
+        ) as mock_get:
             mock_get.return_value = Mock()
             tools = WebSearchTools(config=config, reranker_config=reranker_cfg)
 
         mock_results = [
-            ("query1", [Document(page_content="content1", metadata={"url": "https://example.com/1"})], None),
-            ("query2", [Document(page_content="content2", metadata={"url": "https://example.com/2"})], None),
+            (
+                "query1",
+                [
+                    Document(
+                        page_content="content1",
+                        metadata={"url": "https://example.com/1"},
+                    )
+                ],
+                None,
+            ),
+            (
+                "query2",
+                [
+                    Document(
+                        page_content="content2",
+                        metadata={"url": "https://example.com/2"},
+                    )
+                ],
+                None,
+            ),
         ]
 
-        with patch.object(
-            tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
-        ), patch.object(
-            tools._retriever_manager,
-            "bm25_retrieval_with_mapping",
-            new_callable=AsyncMock,
-            return_value={"query1": [(Document(page_content="c1", metadata={}), 0.9)]},
-        ), patch.object(
-            tools._retriever_manager,
-            "rerank_with_mapping",
-            new_callable=AsyncMock,
-            return_value=[Document(page_content="c1", metadata={})],
+        with (
+            patch.object(
+                tools._searcher,
+                "multi_query_parallel_search",
+                new_callable=AsyncMock,
+                return_value=mock_results,
+            ),
+            patch.object(
+                tools._retriever_manager,
+                "bm25_retrieval_with_mapping",
+                new_callable=AsyncMock,
+                return_value={
+                    "query1": [(Document(page_content="c1", metadata={}), 0.9)]
+                },
+            ),
+            patch.object(
+                tools._retriever_manager,
+                "rerank_with_mapping",
+                new_callable=AsyncMock,
+                return_value=[Document(page_content="c1", metadata={})],
+            ),
         ):
             sources, _formatted = await tools.fast_search_with_questions(
                 questions=["q1", "q2"],
@@ -180,7 +241,9 @@ class TestWebSearcher:
 
         # Mock search 方法
         mock_result = [SearchResult(title="T", link="https://e.com", snippet="S")]
-        with patch.object(searcher, "search", new_callable=AsyncMock, return_value=mock_result):
+        with patch.object(
+            searcher, "search", new_callable=AsyncMock, return_value=mock_result
+        ):
             results = await searcher.multi_query_parallel_search(
                 queries=["q1", "q2"],
                 results_per_query=5,  # 修正参数名
@@ -192,7 +255,10 @@ class TestWebSearcher:
 
     async def test_search_caching(self) -> None:
         """测试搜索缓存机制存在"""
-        from myrm_agent_harness.toolkits.web_search.web_searcher import WebSearcher, _search_cache
+        from myrm_agent_harness.toolkits.web_search.web_searcher import (
+            WebSearcher,
+            _search_cache,
+        )
 
         config = SearchServiceConfig(search_service="perplexity", api_key="key")
         WebSearcher(config=config)
@@ -243,16 +309,28 @@ class TestSearchResultsProcessor:
             (
                 "query1",
                 [
-                    Document(page_content="content1", metadata={"url": "https://example.com/1"}),
-                    Document(page_content="content2", metadata={"url": "https://example.com/2"}),
+                    Document(
+                        page_content="content1",
+                        metadata={"url": "https://example.com/1"},
+                    ),
+                    Document(
+                        page_content="content2",
+                        metadata={"url": "https://example.com/2"},
+                    ),
                 ],
                 None,
             ),
             (
                 "query2",
                 [
-                    Document(page_content="content1", metadata={"url": "https://example.com/1"}),  # 重复
-                    Document(page_content="content3", metadata={"url": "https://example.com/3"}),
+                    Document(
+                        page_content="content1",
+                        metadata={"url": "https://example.com/1"},
+                    ),  # 重复
+                    Document(
+                        page_content="content3",
+                        metadata={"url": "https://example.com/3"},
+                    ),
                 ],
                 None,
             ),
@@ -271,7 +349,11 @@ class TestSearchResultsProcessor:
         )
 
         search_results = [
-            ("query1", [Document(page_content="c1", metadata={"url": "https://e.com/1"})], None),
+            (
+                "query1",
+                [Document(page_content="c1", metadata={"url": "https://e.com/1"})],
+                None,
+            ),
             ("query2", [], Exception("Search failed")),
         ]
 
@@ -326,7 +408,9 @@ class TestLiteLLMSearch:
         with patch(
             "myrm_agent_harness.toolkits.web_search.litellm_search.search",
             new_callable=AsyncMock,
-            return_value={"results": [{"title": "R1", "link": "https://e.com/1", "snippet": "S1"}]},
+            return_value={
+                "results": [{"title": "R1", "link": "https://e.com/1", "snippet": "S1"}]
+            },
         ):
             results = await engine.search(query="test query", num_results=5)
 

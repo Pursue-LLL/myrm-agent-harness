@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from collections import Counter
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -16,7 +17,13 @@ from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
 from myrm_agent_harness.toolkits.web_search.web_searcher import SearchServiceConfig
 from myrm_agent_harness.utils.url_utils import extract_domain
 
-_ENV_TEST = Path(__file__).resolve().parents[3] / ".." / "myrm-agent" / "myrm-agent-server" / ".env.test"
+_ENV_TEST = (
+    Path(__file__).resolve().parents[3]
+    / ".."
+    / "myrm-agent"
+    / "myrm-agent-server"
+    / ".env.test"
+)
 
 
 def _load_env_test() -> None:
@@ -66,7 +73,9 @@ class TestDomainDiversityIntegration:
 
         domains = [extract_domain(r["url"]) for r in results]
         unique_domains = len(set(domains))
-        assert unique_domains >= 2, f"Expected >=2 unique domains, got {unique_domains}: {domains}"
+        assert (
+            unique_domains >= 2
+        ), f"Expected >=2 unique domains, got {unique_domains}: {domains}"
 
     @pytest.mark.asyncio
     async def test_multi_query_dedup_and_diversity(self) -> None:
@@ -134,6 +143,40 @@ class TestDomainDiversityIntegration:
 
         top5_domains = [extract_domain(r["url"]) for r in results[:5]]
         unique_in_top5 = len(set(top5_domains))
-        assert unique_in_top5 >= 2, (
-            f"Top 5 results all from same domain(s): {top5_domains}"
-        )
+        assert (
+            unique_in_top5 >= 2
+        ), f"Top 5 results all from same domain(s): {top5_domains}"
+
+    @pytest.mark.asyncio
+    async def test_explicit_time_range_month_wires_tavily_days(self) -> None:
+        """WSG-Lean: explicit_params.time_range must reach Tavily as days=30 (live API)."""
+        tools = _make_search_tools()
+        captured_overrides: list[dict[str, str | int | bool] | None] = []
+        original_search = tools._searcher.multi_query_parallel_search
+
+        async def capture_overrides(
+            questions: list[str],
+            search_results_per_query: int,
+            per_query_overrides: list[dict[str, str | int | bool] | None] | None,
+        ) -> list[list[dict[str, object]]]:
+            captured_overrides.extend(per_query_overrides or [])
+            return await original_search(
+                questions, search_results_per_query, per_query_overrides
+            )
+
+        with patch.object(
+            tools._searcher,
+            "multi_query_parallel_search",
+            side_effect=capture_overrides,
+        ):
+            results, _ = await tools.fast_search_with_questions(
+                questions=["Python programming language"],
+                search_results_per_query=5,
+                top_k=5,
+                explicit_params={"time_range": "month"},
+            )
+
+        assert len(results) >= 1, "Expected at least one Tavily result"
+        assert captured_overrides, "Expected per-query overrides to be captured"
+        assert captured_overrides[0] is not None
+        assert captured_overrides[0].get("days") == "30"

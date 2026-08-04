@@ -11,8 +11,8 @@
 - agent.types::AgentEventType, AgentRunStatistics (POS: 类型定义)
 
 [OUTPUT]
-- StreamContext: 执行上下文 dataclass (含 drain_subagent_notifications, on_loop_restart 等可选回调)
-- StreamExecutor: 流式执行引擎
+- StreamContext: execution context dataclass (optional callbacks: drain_subagent_notifications, on_loop_restart, file_content_reader for media/vision recovery)
+- StreamExecutor: streaming execution engine
 
 [POS]
 Stream execution engine. Encapsulates the complete lifecycle of Agent.astream().

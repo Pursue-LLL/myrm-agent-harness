@@ -30,7 +30,7 @@ from .search_results_processor import (
 
 if TYPE_CHECKING:
     from .litellm_search import LiteLLMSearch
-    from .web_search_tools import WebSearchTools
+    from .engine import WebSearchTools
     from .web_searcher import SearchServiceConfig
 
 __all__ = [

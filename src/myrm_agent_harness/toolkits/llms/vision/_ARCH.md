@@ -18,7 +18,7 @@
 | 文件 | 地位 | 职责 | I/O/P |
 |-----|------|------|-------|
 | __init__.py | Package | Vision toolkit package exports | — |
-| `fallback_engine.py` | 核心 | `VisionFallbackEngine` / `create_vision_fallback_engine` / `should_vision_capacity_failover` / `VISION_ANALYSIS_FAILED_PREFIX`：辅助视觉模型图像转文本；413 Reactive Resize；容量型 provider 有序 failover 链（AUTH/MODEL_NOT_FOUND 不切换）；`last_success_model` 供 health 探活。 | ✅ |
+| `fallback_engine.py` | 核心 | `VisionFallbackEngine` / `VisionDescriptionError` / `create_vision_fallback_engine` / `should_vision_capacity_failover`：辅助视觉模型图像转文本（三段式 prompt + anti-injection）；失败 raise `VisionDescriptionError`（fail-closed）；413 Reactive Resize；容量型 provider 有序 failover 链（AUTH/MODEL_NOT_FOUND 不切换）；`build_vision_prompt(hint, source)` 静态构建 prompt。 | ✅ |
 | `video_analysis_engine.py` | 核心 | `VideoAnalysisEngine`：视频直传 + ffmpeg 帧提取降级；共享容量 failover 判定。 | ✅ |
 
 ---

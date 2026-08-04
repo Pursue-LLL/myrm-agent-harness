@@ -14,9 +14,10 @@ usage ledger initialization.
 - extract_query_text: Extract human-readable query string from various input types.
 - schedule_post_run_idle_tasks: Enqueue background idle tasks after a successful agent run.
 - init_usage_ledger: Attach a UsageLedger to the current request scope.
+- pop_checkpoint_incompatible_merged_context: Strip non-serializable callbacks from merged_context before LangGraph checkpoint.
 
 [POS]
-Agent runtime helper functions — guard resets, query extraction, idle tasks, usage ledger.
+Agent runtime helper functions — guard resets, query extraction, idle tasks, usage ledger, checkpoint-safe context stripping.
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ logger = get_agent_logger(__name__)
 __all__ = [
     "extract_query_text",
     "init_usage_ledger",
+    "pop_checkpoint_incompatible_merged_context",
     "reset_all_guards",
     "schedule_post_run_idle_tasks",
 ]
@@ -232,3 +234,22 @@ def init_usage_ledger(context: dict[str, object] | None) -> None:
         set_usage_ledger(UsageLedger(session_dir=session_dir))
     except Exception:
         logger.debug("Failed to initialize UsageLedger", exc_info=True)
+
+
+_CHECKPOINT_INCOMPATIBLE_CONTEXT_KEYS: tuple[str, ...] = (
+    "goal_provider",
+    "on_goal_terminal",
+    "on_loop_restart",
+    "file_content_reader",
+)
+
+
+def pop_checkpoint_incompatible_merged_context(
+    merged_context: dict[str, object],
+) -> dict[str, object]:
+    """Strip non-serializable callbacks before LangGraph checkpoint persistence."""
+    stripped: dict[str, object] = {}
+    for key in _CHECKPOINT_INCOMPATIBLE_CONTEXT_KEYS:
+        if key in merged_context:
+            stripped[key] = merged_context.pop(key)
+    return stripped

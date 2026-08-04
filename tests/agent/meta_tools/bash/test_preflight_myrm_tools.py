@@ -89,3 +89,40 @@ def test_myrm_tools_referenced_python_file_skips_outside_workspace(tmp_path: Pat
     outside.write_text("import myrm_tools\n", encoding="utf-8")
 
     check_myrm_tools_import(f"python {outside}", workspace_root=str(tmp_path))
+
+
+def test_myrm_tools_pipe_stdin_import_blocked() -> None:
+    with pytest.raises(ToolError, match="myrm_tools") as exc_info:
+        check_myrm_tools_import('printf "import myrm_tools" | python3')
+    assert exc_info.value.error_code == "MYRM_TOOLS_BLOCKED"
+    assert exc_info.value.diagnostic_info.get("error_category") == ToolErrorCategory.GUARDRAIL_BLOCKED.value
+
+
+def test_myrm_tools_pipe_stdin_echo_blocked() -> None:
+    with pytest.raises(ToolError, match="myrm_tools"):
+        check_myrm_tools_import("echo 'from myrm_tools import x' | python3")
+
+
+def test_myrm_tools_pipe_stdin_skills_import_allowed() -> None:
+    check_myrm_tools_import('echo "from skills.mcp_x import foo" | python3')
+
+
+def test_myrm_tools_pipe_stdin_python_c_still_blocked() -> None:
+    with pytest.raises(ToolError, match="myrm_tools"):
+        check_myrm_tools_import('python -c "import myrm_tools"')
+
+
+def test_myrm_tools_pipe_stdin_unquoted_echo_blocked() -> None:
+    with pytest.raises(ToolError, match="myrm_tools"):
+        check_myrm_tools_import("echo import myrm_tools | python3")
+
+
+def test_myrm_tools_block_hint_routes_to_correct_apis() -> None:
+    with pytest.raises(ToolError) as exc_info:
+        check_myrm_tools_import("import myrm_tools")
+    hint = exc_info.value.user_hint
+    assert hint is not None
+    assert "MYRM_PROGRESS" in hint
+    assert "session_store" in hint
+    assert "skills" in hint
+    assert "file_read_tool" in hint

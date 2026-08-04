@@ -201,7 +201,9 @@ class OneshotRecoveryMixin:
             else None
         )
 
-        if (vision_fallback_cfg is not None or vision_fallback_cfgs is not None) and not supports_vision:
+        if (
+            vision_fallback_cfg is not None or vision_fallback_cfgs is not None
+        ) and not supports_vision:
             from myrm_agent_harness.agent.context_management.pipeline.processors.media_resolver import (
                 FileContentReader,
             )
@@ -212,14 +214,14 @@ class OneshotRecoveryMixin:
             file_content_reader: FileContentReader | None = getattr(
                 ctx, "file_content_reader", None
             )
-            if file_content_reader is None and isinstance(merged_ctx, dict):
-                reader = merged_ctx.get("file_content_reader")
-                if callable(reader):
-                    file_content_reader = reader  # type: ignore[assignment]
 
             converted = await apply_vision_fallback_to_messages(
                 messages,
-                vision_fallback_cfg if vision_fallback_cfg is not None else vision_fallback_cfgs,
+                (
+                    vision_fallback_cfg
+                    if vision_fallback_cfg is not None
+                    else vision_fallback_cfgs
+                ),
                 supports_vision=supports_vision,
                 file_content_reader=file_content_reader,
                 vision_fallback_model_cfgs=vision_fallback_cfgs,

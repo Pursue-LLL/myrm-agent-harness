@@ -344,6 +344,11 @@ async def test_anthropic_model_via_slash_prefix():
     assert _is_anthropic_model("openrouter/anthropic/claude-3-opus")
     assert _is_anthropic_model("bedrock/claude-sonnet")
     assert not _is_anthropic_model("deepseek/deepseek-v4")
+    # Bedrock dot-notation format (enterprise deployment)
+    assert _is_anthropic_model("bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0")
+    assert _is_anthropic_model("bedrock/us.anthropic.claude-3-7-sonnet-20250219-v1:0")
+    # Vertex AI
+    assert _is_anthropic_model("vertex_ai/claude-3-5-sonnet@20241022")
 
 
 # ── _has_tool_calls edge cases ──────────────────────────────────────
@@ -448,3 +453,97 @@ async def test_no_cleaning_no_log_no_tokens_saved():
     ctx.tokens_saved = 99
     result = await cleaner.process(ctx)
     assert result.tokens_saved == 99
+
+
+# ── Bug fix: model switch thinking block leak ────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_model_switch_strips_latest_ai_thinking_blocks():
+    """Claude→GPT-4o switch: latest AI msg's thinking blocks must be stripped."""
+    cleaner = ThinkingBlockCleaner()
+    messages = [
+        HumanMessage(content="hello"),
+        AIMessage(
+            content=[
+                {"type": "thinking", "thinking": "deep thought x400"},
+                {"type": "text", "text": "reply"},
+            ]
+        ),
+        HumanMessage(content="switch to gpt-4o now"),
+    ]
+    ctx = _ctx(messages, model_name="openai/gpt-4o")
+    result = await cleaner.process(ctx)
+    ai_msg = result.messages[1]
+    assert isinstance(ai_msg.content, list)
+    for block in ai_msg.content:
+        if isinstance(block, dict):
+            assert block.get("type") not in ("thinking", "redacted_thinking")
+
+
+@pytest.mark.asyncio
+async def test_anthropic_keeps_latest_thinking_blocks():
+    """When current model is Anthropic, latest AI thinking blocks are preserved."""
+    cleaner = ThinkingBlockCleaner()
+    messages = [
+        HumanMessage(content="hello"),
+        AIMessage(
+            content=[
+                {"type": "thinking", "thinking": "preserved reasoning"},
+                {"type": "text", "text": "reply"},
+            ]
+        ),
+    ]
+    ctx = _ctx(messages, model_name="anthropic/claude-3-5-sonnet-20241022")
+    result = await cleaner.process(ctx)
+    ai_msg = result.messages[1]
+    assert isinstance(ai_msg.content, list)
+    thinking_blocks = [
+        b for b in ai_msg.content if isinstance(b, dict) and b.get("type") == "thinking"
+    ]
+    assert len(thinking_blocks) == 1
+
+
+@pytest.mark.asyncio
+async def test_bedrock_anthropic_keeps_latest_thinking_blocks():
+    """Bedrock Anthropic model keeps latest AI thinking blocks (dot-notation format)."""
+    cleaner = ThinkingBlockCleaner()
+    messages = [
+        HumanMessage(content="hello"),
+        AIMessage(
+            content=[
+                {"type": "thinking", "thinking": "bedrock reasoning"},
+                {"type": "text", "text": "reply"},
+            ]
+        ),
+    ]
+    ctx = _ctx(messages, model_name="bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0")
+    result = await cleaner.process(ctx)
+    ai_msg = result.messages[1]
+    thinking_blocks = [
+        b for b in ai_msg.content if isinstance(b, dict) and b.get("type") == "thinking"
+    ]
+    assert len(thinking_blocks) == 1
+
+
+@pytest.mark.asyncio
+async def test_model_switch_deepseek_strips_claude_thinking():
+    """Claude→DeepSeek switch: Claude thinking blocks in latest AI msg stripped."""
+    cleaner = ThinkingBlockCleaner()
+    messages = [
+        HumanMessage(content="first question"),
+        AIMessage(
+            content=[
+                {"type": "thinking", "thinking": "claude reasoning"},
+                {"type": "text", "text": "answer"},
+            ]
+        ),
+        HumanMessage(content="switch to deepseek"),
+    ]
+    ctx = _ctx(messages, model_name="deepseek/deepseek-v4")
+    result = await cleaner.process(ctx)
+    ai_msg = result.messages[1]
+    assert isinstance(ai_msg.content, list)
+    for block in ai_msg.content:
+        if isinstance(block, dict):
+            assert block.get("type") not in ("thinking", "redacted_thinking")

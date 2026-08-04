@@ -82,11 +82,11 @@ class TestApplyVisionFallbackToMessages:
         assert content[0]["type"] == "text"
         assert content[1]["type"] == "text"
         assert "[Image Analysis]" in str(content[1]["text"])
-        mock_engine.describe_image_b64.assert_awaited_once_with(
-            "abc123",
-            "image/png",
-            prompt="what is this diagram",
-        )
+        call_args = mock_engine.describe_image_b64.await_args
+        assert call_args.args == ("abc123", "image/png")
+        prompt = call_args.kwargs["prompt"]
+        assert "what is this diagram" in prompt
+        assert "text-only assistant" in prompt
 
     @pytest.mark.asyncio
     async def test_converts_tool_message_with_adjacent_prompt(self) -> None:
@@ -108,11 +108,11 @@ class TestApplyVisionFallbackToMessages:
         tool_content = msgs[1].content
         assert isinstance(tool_content, list)
         assert tool_content[1]["type"] == "text"
-        mock_engine.describe_image_b64.assert_awaited_once_with(
-            "def456",
-            "image/png",
-            prompt="user question",
-        )
+        call_args = mock_engine.describe_image_b64.await_args
+        assert call_args.args == ("def456", "image/png")
+        prompt = call_args.kwargs["prompt"]
+        assert "user question" in prompt
+        assert "text-only assistant" in prompt
 
     @pytest.mark.asyncio
     async def test_converts_api_media_url_via_resolver(self) -> None:
@@ -154,14 +154,38 @@ class TestApplyVisionFallbackToMessages:
             "/api/media/files/file_abc/content",
             file_content_reader=reader,
         )
-        mock_engine.describe_image_b64.assert_awaited_once_with(
-            "resolvedb64",
-            "image/png",
-            prompt="describe",
-        )
+        call_args = mock_engine.describe_image_b64.await_args
+        assert call_args.args == ("resolvedb64", "image/png")
+        prompt = call_args.kwargs["prompt"]
+        assert "describe" in prompt
+        assert "text-only assistant" in prompt
 
 
 class TestVisionFallbackProcessor:
+    def test_resolve_file_content_reader_prefers_metadata_over_merged_context(
+        self,
+    ) -> None:
+        """metadata is SSOT; merged_context must not carry file_content_reader (checkpoint pop)."""
+        metadata_reader = lambda _fid: b"meta"  # noqa: E731
+        merged_reader = lambda _fid: b"merged"  # noqa: E731
+        ctx = ProcessorContext(
+            messages=[],
+            user_query="test",
+            metadata={"file_content_reader": metadata_reader},
+            merged_context={"file_content_reader": merged_reader},
+        )
+        resolved = VisionFallbackProcessor._resolve_file_content_reader(ctx)
+        assert resolved is metadata_reader
+
+    def test_resolve_file_content_reader_ignores_merged_context_only(self) -> None:
+        merged_reader = lambda _fid: b"merged"  # noqa: E731
+        ctx = ProcessorContext(
+            messages=[],
+            user_query="test",
+            merged_context={"file_content_reader": merged_reader},
+        )
+        assert VisionFallbackProcessor._resolve_file_content_reader(ctx) is None
+
     @pytest.mark.asyncio
     async def test_should_process_when_text_only_and_cfg_present(self) -> None:
         proc = VisionFallbackProcessor()

@@ -37,6 +37,10 @@ class TestNeedsExplicitPreheat:
         [
             ("anthropic/claude-3-5-sonnet", True),
             ("claude-3-opus", True),
+            ("bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0", True),
+            ("bedrock/us.anthropic.claude-3-7-sonnet-20250219-v1:0", True),
+            ("vertex_ai/claude-3-5-sonnet@20241022", True),
+            ("openrouter/anthropic/claude-3-opus", True),
             ("qwen-max", True),
             ("dashscope/qwen-turbo", True),
             ("openai/qwen-plus", True),

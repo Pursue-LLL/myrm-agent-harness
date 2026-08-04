@@ -2,7 +2,7 @@
 
 
 [INPUT]
-- toolkits.web_search_tools::SearchServiceConfig (POS: search service configuration)
+- toolkits.web_search.web_searcher::SearchServiceConfig (POS: search service configuration)
 - toolkits.retriever.sufficiency (POS: Retrieval Sufficiency Guard for quality evaluation)
 - langchain.tools::tool (POS: LangChain tool decorator)
 - pydantic::BaseModel, Field, field_validator (POS: parameter validation)

@@ -188,8 +188,7 @@ class ExplicitCacheProcessor(BaseProcessor):
             return False
 
         model_lower = model_name.lower()
-        prefixes = ("anthropic/", "claude-", "qwen", "dashscope/", "openai/qwen")
-        return any(model_lower.startswith(p) for p in prefixes)
+        return any(s in model_lower for s in ("anthropic", "claude", "qwen", "dashscope"))
 
     def _calculate_breakpoints(self, context: ProcessorContext) -> list[int]:
         """计算缓存断点位置（官方最佳实践）

@@ -16,7 +16,7 @@ Detailed design: [EXECUTION_SYSTEM.md](EXECUTION_SYSTEM.md)
 | factory.py | Core | Code executor factory. Creates LocalExecutor for in-container code execution based on configuration. | ✅ |
 | interceptor.py | Core | ExecutionInterceptor Protocol — hooks before destructive sandbox actions (file write, rm, sed) | ✅ |
 | platform.py | Core | Cross-platform runtime detection, shell configuration, and unified `<environment>` system prompt tag (OS + Shell + Python toolchain + VNC visual desktop). | ✅ |
-| python_extractor.py | Core | Quote-aware Python extraction from bash commands; SSOT for code_detector, SkillExecutor, PTC verifier. | ✅ |
+| python_extractor.py | Core | Quote-aware Python extraction from bash commands; SSOT for code_detector, SkillExecutor, PTC verifier, preflight pipe-stdin guard. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

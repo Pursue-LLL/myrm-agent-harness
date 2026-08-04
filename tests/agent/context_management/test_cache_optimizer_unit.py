@@ -464,5 +464,36 @@ class TestCoverageGaps:
         assert not await processor.should_process(ctx)
 
 
+# ── _needs_explicit_caching Bedrock/Vertex AI coverage ───────────────
+
+
+class TestNeedsExplicitCachingProviderFormats:
+    """Verify _needs_explicit_caching handles all LiteLLM model naming formats."""
+
+    @pytest.fixture
+    def processor(self):
+        return ExplicitCacheProcessor()
+
+    @pytest.mark.parametrize(
+        "model_name,expected",
+        [
+            ("anthropic/claude-3-5-sonnet-20241022", True),
+            ("claude-3-5-sonnet-20241022", True),
+            ("bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0", True),
+            ("bedrock/us.anthropic.claude-3-7-sonnet-20250219-v1:0", True),
+            ("vertex_ai/claude-3-5-sonnet@20241022", True),
+            ("openrouter/anthropic/claude-3-opus", True),
+            ("qwen-max", True),
+            ("openai/qwen-max", True),
+            ("dashscope/qwen-max", True),
+            ("openai/gpt-4o", False),
+            ("deepseek/deepseek-v4", False),
+            ("gemini/gemini-2.0-flash", False),
+        ],
+    )
+    def test_provider_format_coverage(self, processor, model_name, expected):
+        assert processor._needs_explicit_caching(model_name) is expected
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

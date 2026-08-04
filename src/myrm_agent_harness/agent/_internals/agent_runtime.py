@@ -32,10 +32,10 @@ and helper functions that ``BaseAgent`` delegates to.
 - create_registry: Create a fresh ToolRegistry for one build cycle.
 - build_tools: Build the resolved tool list via ToolRegistry.
 - emit_tools_snapshot: Return a serialisable tools snapshot or ``None`` if empty.
-- init_usage_ledger: Attach a ``UsageLedger`` to the current request scope.
+- run_agent_loop: Core agent execution loop.
 
 [POS]
-Agent runtime — core execution loop, middleware chain, tool building.
+Agent runtime — core execution loop, middleware chain, tool building. Re-exports selected helpers from ``_agent_helpers`` for backward compatibility.
 """
 
 from __future__ import annotations
@@ -93,6 +93,7 @@ from ._agent_helpers import (
     _fire_and_forget,
     extract_query_text,
     init_usage_ledger,
+    pop_checkpoint_incompatible_merged_context,
     reset_all_guards,
     schedule_post_run_idle_tasks,
 )
@@ -124,6 +125,7 @@ __all__ = [
     "emit_tools_snapshot",
     "extract_query_text",
     "init_usage_ledger",
+    "pop_checkpoint_incompatible_merged_context",
     "reset_all_guards",
     "run_agent_loop",
     "schedule_post_run_idle_tasks",
@@ -588,10 +590,11 @@ async def run_agent_loop(
             agent_input = cast("AgentState[Any]", {"messages": messages})
 
         # Strip non-serializable callbacks before LangGraph checkpoint (passed via StreamContext).
-        goal_provider = merged_context.pop("goal_provider", None)
-        on_goal_terminal = merged_context.pop("on_goal_terminal", None)
-        on_loop_restart = merged_context.pop("on_loop_restart", None)
-        file_content_reader = merged_context.pop("file_content_reader", None)
+        stripped_callbacks = pop_checkpoint_incompatible_merged_context(merged_context)
+        goal_provider = stripped_callbacks.get("goal_provider")
+        on_goal_terminal = stripped_callbacks.get("on_goal_terminal")
+        on_loop_restart = stripped_callbacks.get("on_loop_restart")
+        file_content_reader = stripped_callbacks.get("file_content_reader")
         from myrm_agent_harness.agent.middlewares._session_context import (
             set_goal_provider,
         )

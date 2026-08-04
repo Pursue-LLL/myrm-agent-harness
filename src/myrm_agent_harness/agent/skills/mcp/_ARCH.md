@@ -3,6 +3,14 @@
 ## Overview
 MCP Skills — Agent-layer MCP skill transformation.
 
+## `tools.*` builtins routing (SSOT)
+
+| Builtin | Purpose | Turn1 docs | Notes |
+|---------|---------|------------|-------|
+| `tools.session_store` / `session_load` / `session_keys` | Cross-bash KV persistence | `TOOL_DESCRIPTION` § persistence | Max 256 KiB/value; file at `<workspace>/.session_store/<sid>.json` |
+| `tools.notify` | Python IPC progress → `ptc_notify` SSE | Not appended Turn1; optional in scripts | Rate limit 10 rps; prefer `MYRM_PROGRESS` echo for bash |
+| `myrm_tools.notify` | DW orchestration progress | Dynamic Workflow prompt only | Via `inject_ptc`, not regular bash |
+
 ## File & Submodule Index
 
 | File | Role | Description | I/O/P |

@@ -7,7 +7,7 @@ utils.errors::ToolError (POS: Agent tool error with format_for_llm protocol)
 [OUTPUT]
 check_command_url_exfiltration: Block commands with URL data exfiltration.
 check_sensitive_paths: Block commands accessing sensitive directories.
-check_myrm_tools_import: Block myrm_tools in bash via AST, shell `-c`, and referenced `.py` files.
+check_myrm_tools_import: Block myrm_tools in bash via AST, shell `-c`, pipe stdin, and referenced `.py` files.
 check_interactive_command: Detect commands requiring interactive stdin.
 check_install_packages: Verify install package names exist on public registries.
 
@@ -58,9 +58,9 @@ _MYRM_TOOLS_BLOCK_MESSAGE = (
     "use `from tools.session_store import session_store` for cross-call persistence."
 )
 _MYRM_TOOLS_BLOCK_HINT = (
-    "Do not use myrm_tools in bash. For one-off work use native tools "
-    "(file_read_tool, web_search_tool, …). For multi-call MCP scripts use "
-    "skills.*/tools.* imports. For session persistence use tools.session_store."
+    "Do not use myrm_tools in bash. Single calls: native tools "
+    "(file_read_tool, web_search_tool, …). MCP batch: from skills.* import …. "
+    "Cross-bash data: tools.session_store. Long-script progress: MYRM_PROGRESS echo."
 )
 
 
@@ -207,7 +207,8 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
 
     Python snippets: AST inspects imports and attribute access.
     Shell commands: line-leading ``import`` / ``from myrm_tools import``, plus
-    ``bash|sh -c '…'`` inline payloads; ``python *.py`` references scan file AST.
+    ``bash|sh -c '…'`` inline payloads, ``quoted | python3`` stdin payloads,
+    and ``python *.py`` references scan file AST.
     Incidental ``myrm_tools`` in ``echo``/``grep`` allowed.
 
     Raises:
@@ -223,6 +224,15 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
         return
 
     if detection.code_type == CodeType.BASH and _shell_command_references_myrm_tools(command):
+        _raise_myrm_tools_blocked(command)
+        return
+
+    from myrm_agent_harness.toolkits.code_execution.python_extractor import (
+        extract_python_from_pipe_stdin,
+    )
+
+    pipe_stdin_code = extract_python_from_pipe_stdin(command)
+    if pipe_stdin_code is not None and _python_ast_references_myrm_tools(pipe_stdin_code):
         _raise_myrm_tools_blocked(command)
         return
 

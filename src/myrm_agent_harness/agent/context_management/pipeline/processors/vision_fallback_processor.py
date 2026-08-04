@@ -20,9 +20,14 @@ Runs immediately before MediaFilterProcessor in the default pipeline chain.
 
 from __future__ import annotations
 
-from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
+import re
 
-from myrm_agent_harness.toolkits.llms.vision.fallback_engine import create_vision_fallback_engine
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+
+from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+    VisionFallbackEngine,
+    create_vision_fallback_engine,
+)
 from myrm_agent_harness.utils.image_utils import (
     content_has_media,
     get_image_url,
@@ -63,16 +68,47 @@ def _find_adjacent_user_prompt(messages: list[BaseMessage], index: int) -> str |
     return None
 
 
+def _last_paragraph(text: str | None) -> str:
+    """Extract the closing paragraph — the assistant's stated reason for viewing."""
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text or "") if p.strip()]
+    return paragraphs[-1] if paragraphs else ""
+
+
+def _find_adjacent_assistant_hint(
+    messages: list[BaseMessage], index: int
+) -> str | None:
+    """Find the closing paragraph of the nearest preceding AIMessage."""
+    for i in range(index - 1, -1, -1):
+        msg = messages[i]
+        if isinstance(msg, AIMessage):
+            text = _message_text_snippet(msg.content)
+            if text:
+                return _last_paragraph(text)
+    return None
+
+
 def _resolve_vision_prompt(
     messages: list[BaseMessage],
     index: int,
     msg: BaseMessage,
-) -> str | None:
-    adjacent = _find_adjacent_user_prompt(messages, index)
-    if isinstance(msg, ToolMessage) and adjacent:
-        return adjacent
+) -> tuple[str | None, str]:
+    """Resolve the best hint and its source for the vision prompt.
+
+    Returns (hint_text, source) where source is 'assistant' or 'user'.
+    """
+    if isinstance(msg, ToolMessage):
+        assistant_hint = _find_adjacent_assistant_hint(messages, index)
+        if assistant_hint:
+            return assistant_hint, "assistant"
+        user_hint = _find_adjacent_user_prompt(messages, index)
+        if user_hint:
+            return user_hint, "user"
+        return None, "user"
     same_message = _message_text_snippet(getattr(msg, "content", None))
-    return same_message or adjacent
+    if same_message:
+        return same_message, "user"
+    adjacent = _find_adjacent_user_prompt(messages, index)
+    return adjacent, "user"
 
 
 def _data_url_to_b64_mime(data_url: str) -> tuple[str, str] | None:
@@ -147,7 +183,8 @@ async def apply_vision_fallback_to_messages(
         if not isinstance(content, list) or not content_has_media(content):
             continue
 
-        user_prompt = _resolve_vision_prompt(messages, index, msg)
+        hint, source = _resolve_vision_prompt(messages, index, msg)
+        vision_prompt = VisionFallbackEngine.build_vision_prompt(hint, source)
         new_items: list[str | dict[str, object]] = []
         changed = False
 
@@ -163,7 +200,7 @@ async def apply_vision_fallback_to_messages(
                         description = await engine.describe_image_b64(
                             b64_data,
                             mime_type,
-                            prompt=user_prompt,
+                            prompt=vision_prompt,
                         )
                         new_items.append(
                             {
@@ -194,13 +231,12 @@ class VisionFallbackProcessor(BaseProcessor):
         self._file_content_reader = file_content_reader
 
     @staticmethod
-    def _resolve_file_content_reader(context: ProcessorContext) -> FileContentReader | None:
+    def _resolve_file_content_reader(
+        context: ProcessorContext,
+    ) -> FileContentReader | None:
         reader = context.metadata.get("file_content_reader")
         if callable(reader):
             return reader  # type: ignore[return-value]
-        merged_reader = context.merged_context.get("file_content_reader")
-        if callable(merged_reader):
-            return merged_reader  # type: ignore[return-value]
         return None
 
     @property
@@ -232,7 +268,9 @@ class VisionFallbackProcessor(BaseProcessor):
             return context
 
         supports_vision = bool(context.metadata.get("supports_vision", True))
-        file_content_reader = self._file_content_reader or self._resolve_file_content_reader(context)
+        file_content_reader = (
+            self._file_content_reader or self._resolve_file_content_reader(context)
+        )
         converted = await apply_vision_fallback_to_messages(
             context.messages,
             vision_cfg if vision_cfg is not None else vision_cfgs,

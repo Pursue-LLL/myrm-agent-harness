@@ -20,9 +20,9 @@
 [POS]
 Programmatic Tool Calling enables LLM-generated Python scripts to invoke
 agent tools via RPC without consuming LLM context window for intermediate
-results. Integrated into bash_code_execute_tool: when Python code is detected,
-PTC starts an ephemeral RPC server, generates myrm_tools.py stubs, and injects
-them into the subprocess so that ``import myrm_tools`` exposes all Agent tools.
+results. ``inject_ptc_for_python_execution`` is used by **Dynamic Workflow**
+only; regular ``bash_code_execute_tool`` does not inject ``myrm_tools`` stubs
+(Turn1 uses Pure Script + ``skills.*`` / ``tools.*`` IPC instead).
 """
 
 from myrm_agent_harness.toolkits.code_execution.ptc.dispatcher import PtcDispatcher

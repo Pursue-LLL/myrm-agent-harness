@@ -4,8 +4,8 @@
 
 清理范围（按优先级）：
 1. content blocks 中的 thinking/redacted_thinking（Anthropic 格式）
-   - 非最新 assistant turn 的 content thinking blocks 被安全剥离
-   - 最新 assistant turn 保留（Anthropic API 要求重播时签名完整）
+   - 非最新 assistant turn：始终剥离
+   - 最新 assistant turn：当前模型为 Anthropic 时保留（API 要求），否则剥离（防模型切换泄漏）
 2. additional_kwargs 中的 reasoning_content / thinking_blocks
    - Anthropic 模型：清理 reasoning_content，保留 thinking_blocks
    - DeepSeek/MiMo/Kimi 等：有 tool_calls 时保留 reasoning_content（API 要求），否则清理
@@ -29,14 +29,14 @@ from ..base import BaseProcessor, ProcessorContext
 
 logger = get_agent_logger(__name__)
 
-_ANTHROPIC_PREFIXES = ("anthropic/", "claude")
+_ANTHROPIC_SUBSTRINGS = ("anthropic", "claude")
 _THINKING_CONTENT_TYPES = frozenset(("thinking", "redacted_thinking"))
 _OMITTED_PLACEHOLDER = "[assistant reasoning omitted]"
 
 
 def _is_anthropic_model(model_name: str) -> bool:
     lower = model_name.lower()
-    return any(lower.startswith(p) or f"/{p}" in lower for p in _ANTHROPIC_PREFIXES)
+    return any(s in lower for s in _ANTHROPIC_SUBSTRINGS)
 
 
 def _has_tool_calls(msg: AIMessage) -> bool:
@@ -118,8 +118,10 @@ class ThinkingBlockCleaner(BaseProcessor):
 
             is_latest_ai = i == last_ai_idx
 
-            # --- Phase 1: Strip content thinking blocks from non-latest assistant ---
-            if not is_latest_ai:
+            # --- Phase 1: Strip content thinking blocks ---
+            # Non-latest: always strip. Latest: strip only when current model is non-Anthropic
+            # (prevents Claude thinking blocks leaking to OpenAI/DeepSeek after model switch).
+            if not is_latest_ai or not is_anthropic:
                 content = msg.content
                 if isinstance(content, list):
                     new_content = [

@@ -62,6 +62,26 @@ async def test_bash_tool_myrm_tools_preflight_blocks_before_executor() -> None:
 
 
 @pytest.mark.asyncio
+async def test_bash_tool_myrm_tools_pipe_preflight_blocks_before_executor() -> None:
+    """Pipe stdin myrm_tools must not reach BashExecutor."""
+    mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
+
+    with p_ctx, p_get, p_be, p_scope:
+        tool = create_bash_code_execute_tool()
+        with pytest.raises(ToolError, match="myrm_tools") as exc_info:
+            await tool.ainvoke(
+                {
+                    "command": 'printf "import myrm_tools" | python3',
+                    "reason": "verify pipe stdin myrm_tools preflight blocks before sandbox execution",
+                }
+            )
+
+    mock_bash_exec.execute.assert_not_called()
+    assert exc_info.value.error_code == "MYRM_TOOLS_BLOCKED"
+    assert exc_info.value.error_category == ToolErrorCategory.GUARDRAIL_BLOCKED.value
+
+
+@pytest.mark.asyncio
 async def test_bash_tool_git_clone_hint():
     mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
     mock_bash_exec.execute.side_effect = BashExecutionError(

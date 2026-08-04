@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 _KEEPALIVE_INTERVAL_SECONDS = 4 * 60
 
-_EXPLICIT_CACHE_PREFIXES = ("anthropic/", "claude-", "qwen", "dashscope/", "openai/qwen")
+_EXPLICIT_CACHE_SUBSTRINGS = ("anthropic", "claude", "qwen", "dashscope")
 
 # Anthropic minimum cacheable prefix length (Sonnet 4 family)
 _MIN_PREHEAT_TOKENS = 1024
@@ -65,7 +65,7 @@ def needs_explicit_preheat(model_name: str) -> bool:
     if not model_name:
         return False
     model_lower = model_name.lower()
-    return any(model_lower.startswith(p) for p in _EXPLICIT_CACHE_PREFIXES)
+    return any(s in model_lower for s in _EXPLICIT_CACHE_SUBSTRINGS)
 
 
 async def preheat_prefix_cache(

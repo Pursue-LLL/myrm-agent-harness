@@ -12,8 +12,13 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
-from myrm_agent_harness.agent.streaming.stream_executor import StreamContext, StreamExecutor
-from myrm_agent_harness.agent.streaming.stream_recovery_oneshot import _shrink_oversized_images
+from myrm_agent_harness.agent.streaming.stream_executor import (
+    StreamContext,
+    StreamExecutor,
+)
+from myrm_agent_harness.agent.streaming.stream_recovery_oneshot import (
+    _shrink_oversized_images,
+)
 from myrm_agent_harness.agent.types import AgentRunStatistics
 
 
@@ -53,7 +58,10 @@ def ctx():
 
 def _make_executor(ctx: StreamContext) -> StreamExecutor:
     executor = StreamExecutor(
-        ctx=ctx, fallback_llm=None, safety_fallback_llm=None, rebuild_agent_fn=MagicMock()
+        ctx=ctx,
+        fallback_llm=None,
+        safety_fallback_llm=None,
+        rebuild_agent_fn=MagicMock(),
     )
     executor._compactor = FakeCompactor()
     return executor
@@ -69,10 +77,12 @@ class TestHandleThinkingSignature:
     async def test_strips_thinking_blocks(self, ctx: StreamContext) -> None:
         ctx.agent_input["messages"] = [
             HumanMessage(content="hello"),
-            AIMessage(content=[
-                {"type": "thinking", "thinking": "reasoning..."},
-                {"type": "text", "text": "answer"},
-            ]),
+            AIMessage(
+                content=[
+                    {"type": "thinking", "thinking": "reasoning..."},
+                    {"type": "text", "text": "answer"},
+                ]
+            ),
         ]
         exc = _FakeError("thinking block signature invalid", status_code=400)
         executor = _make_executor(ctx)
@@ -103,7 +113,9 @@ class TestHandleThinkingSignature:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_returns_false_for_non_matching_error(self, ctx: StreamContext) -> None:
+    async def test_returns_false_for_non_matching_error(
+        self, ctx: StreamContext
+    ) -> None:
         exc = _FakeError("generic error", status_code=400)
         executor = _make_executor(ctx)
         result = await executor._handle_thinking_signature(exc, attempted=False)
@@ -118,7 +130,9 @@ class TestHandleThinkingSignature:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_returns_false_when_no_thinking_blocks(self, ctx: StreamContext) -> None:
+    async def test_returns_false_when_no_thinking_blocks(
+        self, ctx: StreamContext
+    ) -> None:
         ctx.agent_input["messages"] = [
             HumanMessage(content="q"),
             AIMessage(content="no thinking here"),
@@ -133,11 +147,13 @@ class TestHandleThinkingSignature:
         """redacted_thinking blocks must also be stripped to prevent retry failure."""
         ctx.agent_input["messages"] = [
             HumanMessage(content="hello"),
-            AIMessage(content=[
-                {"type": "thinking", "thinking": "visible reasoning"},
-                {"type": "redacted_thinking", "data": "encrypted_payload_base64"},
-                {"type": "text", "text": "answer"},
-            ]),
+            AIMessage(
+                content=[
+                    {"type": "thinking", "thinking": "visible reasoning"},
+                    {"type": "redacted_thinking", "data": "encrypted_payload_base64"},
+                    {"type": "text", "text": "answer"},
+                ]
+            ),
         ]
         exc = _FakeError("thinking block signature invalid", status_code=400)
         executor = _make_executor(ctx)
@@ -153,10 +169,12 @@ class TestHandleThinkingSignature:
         """When only redacted_thinking blocks are present (no regular thinking)."""
         ctx.agent_input["messages"] = [
             HumanMessage(content="hello"),
-            AIMessage(content=[
-                {"type": "redacted_thinking", "data": "encrypted_data"},
-                {"type": "text", "text": "answer"},
-            ]),
+            AIMessage(
+                content=[
+                    {"type": "redacted_thinking", "data": "encrypted_data"},
+                    {"type": "text", "text": "answer"},
+                ]
+            ),
         ]
         exc = _FakeError("thinking block signature invalid", status_code=400)
         executor = _make_executor(ctx)
@@ -185,11 +203,13 @@ class TestHandleThinkingSignature:
     @pytest.mark.asyncio
     async def test_strips_all_thinking_artifacts(self, ctx: StreamContext) -> None:
         """Combined: content blocks + reasoning_content + thinking_blocks all stripped."""
-        ai_msg = AIMessage(content=[
-            {"type": "thinking", "thinking": "visible"},
-            {"type": "redacted_thinking", "data": "encrypted"},
-            {"type": "text", "text": "answer"},
-        ])
+        ai_msg = AIMessage(
+            content=[
+                {"type": "thinking", "thinking": "visible"},
+                {"type": "redacted_thinking", "data": "encrypted"},
+                {"type": "text", "text": "answer"},
+            ]
+        )
         ai_msg.additional_kwargs["reasoning_content"] = "deep thinking..."
         ai_msg.additional_kwargs["thinking_blocks"] = [
             {"type": "thinking", "thinking": "r", "signature": "s"},
@@ -209,7 +229,12 @@ class TestHandleThinkingSignature:
     async def test_emits_recovery_event(self, ctx: StreamContext) -> None:
         ctx.agent_input["messages"] = [
             HumanMessage(content="q"),
-            AIMessage(content=[{"type": "thinking", "thinking": "..."}, {"type": "text", "text": "a"}]),
+            AIMessage(
+                content=[
+                    {"type": "thinking", "thinking": "..."},
+                    {"type": "text", "text": "a"},
+                ]
+            ),
         ]
         exc = _FakeError("thinking block signature invalid", status_code=400)
         executor = _make_executor(ctx)
@@ -241,7 +266,9 @@ class TestHandleImageShrink:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_returns_false_for_non_matching_error(self, ctx: StreamContext) -> None:
+    async def test_returns_false_for_non_matching_error(
+        self, ctx: StreamContext
+    ) -> None:
         exc = _FakeError("some other error", status_code=400)
         executor = _make_executor(ctx)
         result = await executor._handle_image_shrink(exc, attempted=False)
@@ -269,9 +296,11 @@ class TestHandleImageShrink:
     async def test_shrinks_and_returns_true(self, ctx: StreamContext) -> None:
         large_url = _make_large_base64_image(5 * 1024 * 1024)
         ctx.agent_input["messages"] = [
-            HumanMessage(content=[
-                {"type": "image_url", "image_url": {"url": large_url}},
-            ]),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": large_url}},
+                ]
+            ),
         ]
         exc = _FakeError("image exceeds 5 MB maximum", status_code=400)
         executor = _make_executor(ctx)
@@ -289,9 +318,11 @@ class TestHandleImageShrink:
     async def test_emits_recovery_event(self, ctx: StreamContext) -> None:
         large_url = _make_large_base64_image(5 * 1024 * 1024)
         ctx.agent_input["messages"] = [
-            HumanMessage(content=[
-                {"type": "image_url", "image_url": {"url": large_url}},
-            ]),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": large_url}},
+                ]
+            ),
         ]
         exc = _FakeError("image exceeds 5 MB maximum", status_code=400)
         executor = _make_executor(ctx)
@@ -317,7 +348,9 @@ class TestHandleImageShrink:
 
 class TestHandleLongContextTier:
     @pytest.mark.asyncio
-    async def test_returns_false_for_non_matching_error(self, ctx: StreamContext) -> None:
+    async def test_returns_false_for_non_matching_error(
+        self, ctx: StreamContext
+    ) -> None:
         exc = _FakeError("rate limit exceeded", status_code=429)
         executor = _make_executor(ctx)
         result = await executor._handle_long_context_tier(exc)
@@ -326,7 +359,9 @@ class TestHandleLongContextTier:
     @pytest.mark.asyncio
     async def test_returns_false_in_command_mode(self, ctx: StreamContext) -> None:
         ctx.agent_input = Command(resume="test")
-        exc = _FakeError("Extra usage is required for long context requests", status_code=429)
+        exc = _FakeError(
+            "Extra usage is required for long context requests", status_code=429
+        )
         executor = _make_executor(ctx)
         result = await executor._handle_long_context_tier(exc)
         assert result is False
@@ -337,7 +372,9 @@ class TestHandleLongContextTier:
             HumanMessage(content="q"),
             AIMessage(content="a" * 50000),
         ]
-        exc = _FakeError("Extra usage is required for long context requests", status_code=429)
+        exc = _FakeError(
+            "Extra usage is required for long context requests", status_code=429
+        )
         executor = _make_executor(ctx)
 
         with patch(
@@ -354,7 +391,9 @@ class TestHandleLongContextTier:
             HumanMessage(content="q"),
             AIMessage(content="answer"),
         ]
-        exc = _FakeError("Extra usage is required for long context requests", status_code=429)
+        exc = _FakeError(
+            "Extra usage is required for long context requests", status_code=429
+        )
         executor = _make_executor(ctx)
 
         with (
@@ -377,7 +416,9 @@ class TestHandleLongContextTier:
             HumanMessage(content="q"),
             AIMessage(content="a"),
         ]
-        exc = _FakeError("Extra usage is required for long context requests", status_code=429)
+        exc = _FakeError(
+            "Extra usage is required for long context requests", status_code=429
+        )
         executor = _make_executor(ctx)
 
         with patch(
@@ -407,26 +448,35 @@ class TestShrinkOversizedImages:
     def test_skips_small_images(self) -> None:
         small_url = f"data:image/png;base64,{base64.b64encode(b'tiny').decode()}"
         messages = [
-            HumanMessage(content=[
-                {"type": "image_url", "image_url": {"url": small_url}},
-            ]),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": small_url}},
+                ]
+            ),
         ]
         assert _shrink_oversized_images(messages) == 0
 
     def test_skips_http_urls(self) -> None:
         messages = [
-            HumanMessage(content=[
-                {"type": "image_url", "image_url": {"url": "https://example.com/image.png"}},
-            ]),
+            HumanMessage(
+                content=[
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/image.png"},
+                    },
+                ]
+            ),
         ]
         assert _shrink_oversized_images(messages) == 0
 
     def test_shrinks_large_image(self) -> None:
         large_url = _make_large_base64_image(5 * 1024 * 1024)
         messages = [
-            HumanMessage(content=[
-                {"type": "image_url", "image_url": {"url": large_url}},
-            ]),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": large_url}},
+                ]
+            ),
         ]
         with patch(
             "myrm_agent_harness.utils.media.image_compressor.ImageCompressor"
@@ -443,9 +493,11 @@ class TestShrinkOversizedImages:
     def test_handles_compress_exception(self) -> None:
         large_url = _make_large_base64_image(5 * 1024 * 1024)
         messages = [
-            HumanMessage(content=[
-                {"type": "image_url", "image_url": {"url": large_url}},
-            ]),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": large_url}},
+                ]
+            ),
         ]
         with patch(
             "myrm_agent_harness.utils.media.image_compressor.ImageCompressor"
@@ -483,9 +535,11 @@ class TestShrinkOversizedImagesRealPillow:
         """Retina screenshot: large pixels, small bytes."""
         url = _make_real_base64_image(2880, 1800)
         messages = [
-            HumanMessage(content=[
-                {"type": "image_url", "image_url": {"url": url}},
-            ]),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": url}},
+                ]
+            ),
         ]
         count = _shrink_oversized_images(messages, max_dimension=2000)
         assert count == 1
@@ -496,9 +550,11 @@ class TestShrinkOversizedImagesRealPillow:
         """Image within dimension limit should not be modified."""
         url = _make_real_base64_image(1920, 1080)
         messages = [
-            HumanMessage(content=[
-                {"type": "image_url", "image_url": {"url": url}},
-            ]),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": url}},
+                ]
+            ),
         ]
         count = _shrink_oversized_images(messages, max_dimension=2000)
         assert count == 0
@@ -511,9 +567,11 @@ class TestShrinkOversizedImagesRealPillow:
 
         url = _make_real_base64_image(3840, 2160)
         messages = [
-            HumanMessage(content=[
-                {"type": "image_url", "image_url": {"url": url}},
-            ]),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": url}},
+                ]
+            ),
         ]
         count = _shrink_oversized_images(messages, max_dimension=2000)
         assert count == 1
@@ -541,9 +599,11 @@ class TestShrinkOversizedImagesRealPillow:
         url = f"data:image/jpeg;base64,{b64}"
 
         messages = [
-            HumanMessage(content=[
-                {"type": "image_url", "image_url": {"url": url}},
-            ]),
+            HumanMessage(
+                content=[
+                    {"type": "image_url", "image_url": {"url": url}},
+                ]
+            ),
         ]
         count = _shrink_oversized_images(messages, max_dimension=8000)
         assert count >= 0  # may be 0 if unshrinkable (padded bytes)
@@ -561,9 +621,9 @@ class TestShrinkOversizedImagesRealPillow:
         ]
         for err_msg in dimension_errors:
             exc = _FakeError(err_msg, status_code=400)
-            assert classify_failover_reason(exc) == FailoverReason.IMAGE_TOO_LARGE, (
-                f"Failed to classify: {err_msg}"
-            )
+            assert (
+                classify_failover_reason(exc) == FailoverReason.IMAGE_TOO_LARGE
+            ), f"Failed to classify: {err_msg}"
 
     def test_parse_max_dimension_from_error(self) -> None:
         """Verify max_dimension parsing from error messages."""
@@ -578,7 +638,9 @@ class TestShrinkOversizedImagesRealPillow:
 
 class TestHandleMediaRejected:
     @pytest.mark.asyncio
-    async def test_applies_vision_fallback_before_strip(self, ctx: StreamContext) -> None:
+    async def test_applies_vision_fallback_before_strip(
+        self, ctx: StreamContext
+    ) -> None:
         ctx.merged_context = {
             "supports_vision": False,
             "vision_fallback_model_cfg": {"model": "gpt-4o-mini", "api_key": "k"},
@@ -586,7 +648,10 @@ class TestHandleMediaRejected:
         ctx.agent_input["messages"] = [
             HumanMessage(
                 content=[
-                    {"type": "image_url", "image_url": {"url": "data:image/png;base64,abc123"}},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:image/png;base64,abc123"},
+                    },
                 ]
             ),
         ]
@@ -615,3 +680,50 @@ class TestHandleMediaRejected:
             isinstance(e, dict) and e.get("step_key") == "vision_fallback_recovery"
             for e in events
         )
+
+    @pytest.mark.asyncio
+    async def test_vision_fallback_prefers_stream_context_file_content_reader(
+        self, ctx: StreamContext
+    ) -> None:
+        """StreamContext.file_content_reader is SSOT when merged_context was checkpoint-stripped."""
+
+        async def reader(_file_id: str) -> bytes:
+            return b"payload"
+
+        ctx.file_content_reader = reader  # type: ignore[assignment]
+        ctx.merged_context = {
+            "supports_vision": False,
+            "vision_fallback_model_cfg": {"model": "gpt-4o-mini", "api_key": "k"},
+        }
+        ctx.agent_input["messages"] = [
+            HumanMessage(
+                content=[
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:image/png;base64,abc123"},
+                    },
+                ]
+            ),
+        ]
+        exc = _FakeError("does not support image input", status_code=400)
+        executor = _make_executor(ctx)
+
+        from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.stream_recovery_oneshot.classify_failover_reason",
+                return_value=FailoverReason.MEDIA_REJECTED,
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.vision_fallback_processor.apply_vision_fallback_to_messages",
+                new_callable=AsyncMock,
+                return_value=1,
+            ) as mock_fallback,
+        ):
+            result = await executor._handle_media_rejected(exc, attempted=False)
+
+        assert result is True
+        mock_fallback.assert_awaited_once()
+        assert mock_fallback.await_args is not None
+        assert mock_fallback.await_args.kwargs.get("file_content_reader") is reader
