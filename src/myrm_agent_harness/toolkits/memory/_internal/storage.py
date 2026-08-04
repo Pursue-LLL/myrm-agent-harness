@@ -227,7 +227,7 @@ async def store_episodic(
             for entity in memory.related_entities:
                 entity_node = await graph.get_or_create_node(
                     labels=["Entity"],
-                    match_keys=["name", "user_id"],
+                    match_keys=["name"],
                     properties={"name": entity},
                 )
                 await graph.create_relationship(mem_node.id, entity_node.id, "MENTIONS")
@@ -266,7 +266,7 @@ async def store_episodics_batch(
                 for entity in m.related_entities:
                     entity_node = await graph.get_or_create_node(
                         labels=["Entity"],
-                        match_keys=["name", "user_id"],
+                        match_keys=["name"],
                         properties={"name": entity},
                     )
                     await graph.create_relationship(mem_node.id, entity_node.id, "MENTIONS")

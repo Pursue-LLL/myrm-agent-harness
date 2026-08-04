@@ -180,10 +180,15 @@ def _build_worker_tools(
 ) -> list[BaseTool]:
     """Build worker-scoped tools (6 tools)."""
 
-    async def _validate_task_ownership(task_id: str) -> tuple[KanbanTask | None, str | None]:
+    async def _validate_task_ownership(
+        task_id: str,
+    ) -> tuple[KanbanTask | None, str | None]:
         """Validate task exists and worker has ownership."""
         if current_task_id and task_id != current_task_id:
-            return None, f"Permission denied: you can only operate on your assigned task ({current_task_id})"
+            return (
+                None,
+                f"Permission denied: you can only operate on your assigned task ({current_task_id})",
+            )
         task = await store.get_task(task_id)
         if task is None:
             return None, f"Task {task_id} not found"
@@ -202,7 +207,9 @@ def _build_worker_tools(
         return json.dumps({"task": task.to_dict()})
 
     @tool("kanban_complete")
-    async def kanban_complete(summary: str, metadata: str = "", task_id: str = "") -> str:
+    async def kanban_complete(
+        summary: str, metadata: str = "", task_id: str = ""
+    ) -> str:
         """Mark your task as completed with a structured handoff.
 
         Args:
@@ -212,7 +219,9 @@ def _build_worker_tools(
             task_id: Defaults to your assigned task.
         """
         if not summary:
-            return json.dumps({"error": "summary is required — describe what was accomplished"})
+            return json.dumps(
+                {"error": "summary is required — describe what was accomplished"}
+            )
         resolved_id = task_id or current_task_id or ""
         if not resolved_id:
             return json.dumps({"error": "task_id is required"})
@@ -222,7 +231,9 @@ def _build_worker_tools(
         assert task is not None
 
         if task.is_terminal:
-            return json.dumps({"error": f"Task already in terminal state ({task.status})"})
+            return json.dumps(
+                {"error": f"Task already in terminal state ({task.status})"}
+            )
 
         parsed_metadata: dict[str, object] | None = None
         if metadata:
@@ -279,7 +290,9 @@ def _build_worker_tools(
         assert task is not None
 
         if task.is_terminal:
-            return json.dumps({"error": f"Task already in terminal state ({task.status})"})
+            return json.dumps(
+                {"error": f"Task already in terminal state ({task.status})"}
+            )
 
         scheduled_until: datetime | None = None
         if until:
@@ -309,7 +322,11 @@ def _build_worker_tools(
                 "from": old_status.value,
                 "reason": reason,
                 "block_kind": block_kind.value,
-                **({"scheduled_until": scheduled_until.isoformat()} if scheduled_until else {}),
+                **(
+                    {"scheduled_until": scheduled_until.isoformat()}
+                    if scheduled_until
+                    else {}
+                ),
             },
         )
 
@@ -382,7 +399,9 @@ def _build_worker_tools(
         )
 
     @tool("kanban_attach")
-    async def kanban_attach(source: Literal["path", "url"], value: str, task_id: str = "") -> str:
+    async def kanban_attach(
+        source: Literal["path", "url"], value: str, task_id: str = ""
+    ) -> str:
         """Attach a sandbox file path or HTTPS URL to your task for downstream workers.
 
         Args:
@@ -393,7 +412,9 @@ def _build_worker_tools(
         if not value or not value.strip():
             return json.dumps({"error": "value is required"})
         if attach_task_file is None:
-            return json.dumps({"error": "Task attachments are not configured for this agent run"})
+            return json.dumps(
+                {"error": "Task attachments are not configured for this agent run"}
+            )
         resolved_id = task_id or current_task_id or ""
         if not resolved_id:
             return json.dumps({"error": "task_id is required"})
@@ -412,7 +433,14 @@ def _build_worker_tools(
 
         return json.dumps({"status": "attached", "task_id": resolved_id, **payload})
 
-    return [kanban_show, kanban_complete, kanban_block, kanban_heartbeat, kanban_comment, kanban_attach]
+    return [
+        kanban_show,
+        kanban_complete,
+        kanban_block,
+        kanban_heartbeat,
+        kanban_comment,
+        kanban_attach,
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -473,7 +501,9 @@ def _build_orchestrator_tools(
                 idempotency_key,
             )
             if existing:
-                return json.dumps({"status": "already_exists", "task": existing.to_dict()})
+                return json.dumps(
+                    {"status": "already_exists", "task": existing.to_dict()}
+                )
 
         board = await store.get_board(resolved_board_id)
         if board is None:
@@ -484,11 +514,17 @@ def _build_orchestrator_tools(
         except ValueError:
             task_priority = TaskPriority.NORMAL
 
-        dep_ids = [d.strip() for d in depends_on.split(",") if d.strip()] if depends_on else []
+        dep_ids = (
+            [d.strip() for d in depends_on.split(",") if d.strip()]
+            if depends_on
+            else []
+        )
         initial_status = TaskStatus.BACKLOG if dep_ids else TaskStatus.READY
 
         parsed_skills: list[str] = (
-            list(dict.fromkeys(s for raw in skills.split(",") if (s := raw.strip()))) if skills else []
+            list(dict.fromkeys(s for raw in skills.split(",") if (s := raw.strip())))
+            if skills
+            else []
         )
 
         task = KanbanTask(
@@ -500,7 +536,9 @@ def _build_orchestrator_tools(
             priority=task_priority,
             agent_id=assign_agent_id or agent_id,
             parent_task_id=parent_task_id or None,
-            max_runtime_seconds=max_runtime_seconds if max_runtime_seconds > 0 else None,
+            max_runtime_seconds=(
+                max_runtime_seconds if max_runtime_seconds > 0 else None
+            ),
             max_retries=max_retries,
             extra_skill_ids=parsed_skills,
         )
@@ -523,14 +561,20 @@ def _build_orchestrator_tools(
             for parent_id in dep_ids:
                 parent = await store.get_task(parent_id)
                 if parent is None:
-                    logger.warning("Skipped dependency %s -> %s (parent not found)", parent_id, saved.task_id)
+                    logger.warning(
+                        "Skipped dependency %s -> %s (parent not found)",
+                        parent_id,
+                        saved.task_id,
+                    )
                     continue
                 valid_deps.append(parent_id)
             for parent_id in valid_deps:
                 try:
                     await store.add_edge(parent_id, saved.task_id)
                 except ValueError as exc:
-                    logger.warning("Skipped dependency %s -> %s: %s", parent_id, saved.task_id, exc)
+                    logger.warning(
+                        "Skipped dependency %s -> %s: %s", parent_id, saved.task_id, exc
+                    )
             if not valid_deps and dep_ids:
                 saved.status = TaskStatus.READY
                 await store.save_task(saved)
@@ -635,7 +679,9 @@ def _build_orchestrator_tools(
         if task is None:
             return json.dumps({"error": f"Task {task_id} not found"})
         if task.status != TaskStatus.BLOCKED:
-            return json.dumps({"error": f"Task is not blocked (status={task.status.value})"})
+            return json.dumps(
+                {"error": f"Task is not blocked (status={task.status.value})"}
+            )
 
         board = await store.get_board(task.board_id)
         block_limit = board.settings.block_recurrence_limit if board else 2
@@ -685,7 +731,11 @@ def _build_orchestrator_tools(
 
         saved = await store.save_task(task)
         dependencies_met = await store.are_dependencies_met(task_id)
-        outcome = "unblocked" if saved.status == TaskStatus.READY else "waiting_on_dependencies"
+        outcome = (
+            "unblocked"
+            if saved.status == TaskStatus.READY
+            else "waiting_on_dependencies"
+        )
         event_payload: dict[str, object] = {
             "from": old_status.value,
             "to": saved.status.value,
@@ -695,7 +745,9 @@ def _build_orchestrator_tools(
         }
         if reason.strip():
             event_payload["reason"] = reason.strip()
-        await store.append_event(task_id, TaskEventKind.UNBLOCKED, payload=event_payload)
+        await store.append_event(
+            task_id, TaskEventKind.UNBLOCKED, payload=event_payload
+        )
 
         if dispatcher:
             dispatcher.wake()

@@ -15,7 +15,7 @@ Internal implementation details — not part of the public API.
 | maintenance.py | Core | Stateless background maintenance operations. Handles dedup, forgetting, access tracking, Task Digest evaporation, and Blob GC. | ✅ |
 | maintenance_claim_support.py | Internal | Claim graph helper utilities (parsing, scope, relation classification, search). | ✅ |
 | maintenance_claim_compile.py | Internal | Claim graph compilation from evaporated L2 digests. | ✅ |
-| maintenance_enrichment.py | Internal | Graph-enriched retrieval (sibling scoring + claim recall). | ✅ |
+| maintenance_enrichment.py | Internal | Graph-enriched retrieval (sibling scoring + claim recall + namespace filtering). | ✅ |
 | maintenance_service.py | Core | Maintenance-side orchestration. Handles health assessment, snapshot collection, and triggers Blob GC. | ✅ |
 | memory_scanner.py | Core | Memory write-path security scanner. Scans content, raw_exchange, trigger/action fields for prompt injection (7+2 patterns), credential leaks (25+ patterns), and invisible Unicode. Three-tier verdict: BLOCKED/REDACTED/WARN/CLEAN. | ✅ |
 | scope.py | Core | Scope helper functions. Handles namespace derivation, MemoryScope binding, write target trimming, namespace validation, and channel affinity. | ✅ |

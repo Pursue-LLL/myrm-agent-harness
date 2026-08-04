@@ -185,6 +185,13 @@ async def enrich_with_graph(
             ) or doc.metadata.get("archived"):
                 continue
 
+            if namespaces:
+                doc_ns = doc.metadata.get("namespaces")
+                if isinstance(doc_ns, list) and not any(
+                    ns in namespaces for ns in doc_ns if isinstance(ns, str)
+                ):
+                    continue
+
             # Content-level dedup
             content_hash = _content_hash(doc.content)
             if content_hash in existing_hashes:
