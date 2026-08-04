@@ -250,7 +250,8 @@ async def _handle_patch(
     except FileNotFoundError:
         return f"Error: Skill '{name}' not found. Use 'save' action to create it first."
     except Exception as e:
-        return f"Error: Failed to read skill '{name}': {e}"
+        logger.error("Failed to read skill '%s': %s", name, e)
+        return f"Error: Failed to read skill '{name}'"
 
     patched = _apply_patch(current_content, old_content, new_content)
     if patched is None:
@@ -348,8 +349,9 @@ async def _handle_evolution_lock(name: str, *, locked: bool) -> str:
             f"{'Auto-evolution is now disabled for this skill.' if locked else 'Auto-evolution is now re-enabled.'}"
         )
     except Exception as e:
+        logger.error("Failed to %s skill '%s': %s", "lock" if locked else "unlock", name, e)
         action_word = "lock" if locked else "unlock"
-        return f"Error: Failed to {action_word} skill '{name}': {e}"
+        return f"Error: Failed to {action_word} skill '{name}'"
 
 
 # ---------------------------------------------------------------------------

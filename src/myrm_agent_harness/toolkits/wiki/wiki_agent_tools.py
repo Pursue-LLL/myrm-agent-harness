@@ -175,7 +175,7 @@ def create_wiki_agent_tools(
 
         except Exception as e:
             logger.error(f"Failed to ingest {source}: {e}")
-            return f"Failed to ingest document: {e}"
+            return "Failed to ingest document"
 
     @tool("wiki_query_tool")
     async def wiki_query(question: Annotated[str, "Question to ask the wiki"]) -> dict | str:
@@ -216,7 +216,7 @@ def create_wiki_agent_tools(
 
         except Exception as e:
             logger.error(f"Query failed: {e}")
-            return f"Query failed: {e}"
+            return "Query failed"
 
     @tool("wiki_apply_tool")
     async def wiki_apply(
@@ -318,7 +318,7 @@ def create_wiki_admin_tools(
 
         except Exception as e:
             logger.error(f"Compilation failed: {e}")
-            return f"Compilation failed: {e}"
+            return "Compilation failed"
 
     @tool("wiki_maintain_tool")
     async def wiki_maintain() -> str:
@@ -358,7 +358,7 @@ def create_wiki_admin_tools(
 
         except Exception as e:
             logger.error(f"Maintenance failed: {e}")
-            return f"Maintenance failed: {e}"
+            return "Maintenance failed"
 
     return [wiki_compile, wiki_maintain]
 

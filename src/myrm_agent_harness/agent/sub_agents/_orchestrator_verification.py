@@ -11,7 +11,7 @@ Worker -> Verifier -> Retry loop with structured verdict parsing.
 
 [OUTPUT]
 - VerificationVerdict: Parsed verdict from a Verifier agent's structured JSON output.
-- run_with_verification: Execute a worker then verify via adversarial verifier with workspace diff injection and verdict event emission.
+- run_with_verification: Execute a worker then verify via adversarial verifier with workspace diff injection and verdict event emission. Preserves dict worker results (isolation merge metadata) while appending verification evidence to `_verification_summary`.
 
 [POS]
 Adversarial verification orchestration — Worker -> Verifier -> Retry loop with workspace diff injection and structured verdict events.
@@ -19,6 +19,7 @@ Adversarial verification orchestration — Worker -> Verifier -> Retry loop with
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -47,6 +48,66 @@ logger = get_agent_logger(__name__)
 
 __all__ = ["VerificationVerdict", "run_with_verification", "verify_worker_output", "_parse_verdict"]
 
+
+def _format_worker_output_for_verifier(result: object) -> str:
+    """Render worker output for the verifier prompt without dropping structured fields."""
+    if isinstance(result, dict):
+        text = result.get("text")
+        if isinstance(text, str):
+            return text
+        filtered = {
+            key: value
+            for key, value in result.items()
+            if key
+            not in (
+                "_workspace_sync_back",
+                "_isolated_child_workspace",
+                "_isolated_parent_workspace",
+                "_verification_summary",
+            )
+        }
+        if filtered:
+            return json.dumps(filtered, ensure_ascii=False)
+        return str(result)
+    return str(result)
+
+
+def _append_verification_block(result: object, block: str) -> object:
+    """Append verification evidence while preserving dict merge metadata."""
+    if isinstance(result, dict):
+        updated = dict(result)
+        prior = updated.get("_verification_summary")
+        if isinstance(prior, str) and prior:
+            updated["_verification_summary"] = f"{prior}\n\n{block}"
+        else:
+            updated["_verification_summary"] = block
+        text = updated.get("text")
+        if isinstance(text, str):
+            updated["text"] = f"{text}\n\n{block}"
+        return updated
+    return f"{result}\n\n{block}"
+
+
+def _spawn_dict_to_subagent_result(
+    payload: dict[str, object],
+    *,
+    task_id: str,
+    agent_type: str,
+) -> SubAgentResult:
+    raw_result = payload.get("result", "")
+    if not isinstance(raw_result, (dict, str)):
+        raw_result = str(raw_result)
+    status_raw = payload.get("status", SubAgentStatus.COMPLETED)
+    status = status_raw if isinstance(status_raw, SubAgentStatus) else SubAgentStatus.COMPLETED
+    return SubAgentResult(
+        success=bool(payload.get("success", False)),
+        task_id=task_id,
+        agent_type=agent_type,
+        result=raw_result,
+        error=str(payload["error"]) if payload.get("error") is not None else None,
+        completed_at=time.time(),
+        status=status,
+    )
 
 async def run_with_verification(
     manager: SubagentManager,
@@ -110,13 +171,10 @@ async def run_with_verification(
             cancel_token=cancel_token,
         )
         if isinstance(worker_result, dict):
-            worker_result = SubAgentResult(
-                success=bool(worker_result.get("success", False)),
+            worker_result = _spawn_dict_to_subagent_result(
+                worker_result,
                 task_id=worker_task_id,
                 agent_type=worker_type,
-                result=str(worker_result.get("result", "")),
-                completed_at=time.time(),
-                status=SubAgentStatus.COMPLETED,
             )
         last_worker_result = worker_result
 
@@ -130,7 +188,7 @@ async def run_with_verification(
 
         verdict = await _execute_verifier_round(
             manager,
-            worker_output=worker_result.result,
+            worker_output=_format_worker_output_for_verifier(worker_result.result),
             worker_type=worker_type,
             verifier_type=verifier_type,
             verifier_config=verifier_config,
@@ -147,12 +205,12 @@ async def run_with_verification(
             break
 
         if verdict.passed:
-            last_worker_result.result = (
-                f"{last_worker_result.result}\n\n"
+            pass_block = (
                 f"---\n[Verification: PASS (round {round_num}/{max_rounds}, "
                 f"confidence={verdict.confidence})]\n"
                 f"<verification_evidence>\n{verdict.raw}\n</verification_evidence>"
             )
+            last_worker_result.result = _append_verification_block(last_worker_result.result, pass_block)
             return last_worker_result
 
         if round_idx < max_rounds - 1:
@@ -176,7 +234,6 @@ async def run_with_verification(
 
     evidence_str = f"\n<verification_evidence>\n{verdict.raw}\n</verification_evidence>" if verdict else ""
     last_worker_result.success = False
-    last_worker_result.result = (
-        f"{last_worker_result.result}\n\n---\n[Verification: FAIL after {max_rounds} round(s)]{evidence_str}"
-    )
+    fail_block = f"---\n[Verification: FAIL after {max_rounds} round(s)]{evidence_str}"
+    last_worker_result.result = _append_verification_block(last_worker_result.result, fail_block)
     return last_worker_result

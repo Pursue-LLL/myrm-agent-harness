@@ -1,6 +1,7 @@
 """Tests that skill_market_tool is NOT created by get_meta_tools (server/user_tools SSOT)."""
 
 from __future__ import annotations
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 from unittest.mock import MagicMock
 
@@ -25,7 +26,7 @@ class TestSkillMarketNotInGetMetaTools:
             [],
             skill_backend,
             registry=registry,
-            enable_file_tools=False,
+            file_access_mode=FileAccessMode.NONE,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
@@ -54,7 +55,7 @@ class TestSkillMarketNotInGetMetaTools:
             skill_backend,
             registry=registry,
             has_manage_tool=False,
-            enable_file_tools=False,
+            file_access_mode=FileAccessMode.NONE,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
@@ -63,7 +64,7 @@ class TestSkillMarketNotInGetMetaTools:
             skill_backend,
             registry=registry,
             has_manage_tool=True,
-            enable_file_tools=False,
+            file_access_mode=FileAccessMode.NONE,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )

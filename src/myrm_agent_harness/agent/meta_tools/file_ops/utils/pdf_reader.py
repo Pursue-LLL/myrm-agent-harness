@@ -158,7 +158,7 @@ async def read_pdf_as_content_blocks(
         raise
     except Exception as e:
         logger.warning("Failed to read PDF bytes: %s, error: %s", path, e)
-        return f"[PDF file: {path}] (Failed to read: {e})"
+        return f"[PDF file: {path}] (Failed to read)"
 
     try:
         from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
@@ -179,7 +179,7 @@ async def read_pdf_as_content_blocks(
         return f"[PDF file: {path}] (PDF extraction module not available)"
     except Exception as e:
         logger.warning("PDF extraction failed for %s: %s", path, e)
-        return f"[PDF file: {path}] (Extraction failed: {e})"
+        return f"[PDF file: {path}] (Extraction failed)"
 
     text = result.text
     if not text.strip() and not result.images:

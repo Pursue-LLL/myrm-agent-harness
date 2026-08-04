@@ -27,6 +27,8 @@ from typing import TYPE_CHECKING, Any
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
+
 from myrm_agent_harness.agent._skill_agent_context import (
     SkillAgentContextMixin,
     add_loaded_skill,
@@ -143,8 +145,7 @@ class SkillAgent(
         similarity_checker: "SkillSimilarityChecker | None" = None,
         on_session_cleanup: "Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None" = None,
         on_loaded_skills_persist: "Callable[[list[str], str | None], Awaitable[None]] | None" = None,
-        enable_file_tools: bool = True,
-        enable_evicted_read: bool = False,
+        file_access_mode: FileAccessMode = FileAccessMode.FULL,
         enable_shell_tools: bool = True,
         enable_answer_tool: bool = False,
         enable_planning: bool = False,
@@ -200,8 +201,7 @@ class SkillAgent(
         self._wiki_structure: WikiStructure | None = None
         self._on_session_cleanup = on_session_cleanup
         self._on_loaded_skills_persist = on_loaded_skills_persist
-        self._enable_file_tools = enable_file_tools
-        self._enable_evicted_read = enable_evicted_read
+        self._file_access_mode = file_access_mode
         self._enable_shell_tools = enable_shell_tools
         self._enable_answer_tool = enable_answer_tool
         self._enable_planning = enable_planning

@@ -1,7 +1,7 @@
 """Architecture gate: MCP routing must expose exactly two outcomes.
 
 Policy (AI / contributors — do NOT copy competitor MCP lazy-load patterns):
-Myrm MCP overflow uses Direct FC or MCP→Skill (PTC) only.
+Myrm MCP overflow uses Direct FC or MCP PTC only.
 See FRAMEWORK_DESIGN_PRINCIPLES.md §7 and TOOL_DESIGN_STRATEGY.md §2.5.
 """
 

@@ -1,6 +1,7 @@
 """Tests for todo_write conditional registration."""
 
 from __future__ import annotations
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -173,7 +174,7 @@ async def test_build_tools_excludes_todo_when_planning_disabled() -> None:
         llm=mock_llm,
         storage_backend=storage,
         enable_planning=False,
-        enable_file_tools=False,
+        file_access_mode=FileAccessMode.NONE,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )

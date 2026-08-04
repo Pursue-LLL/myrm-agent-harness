@@ -12,6 +12,8 @@
 
 对外文档与沟通中，**「工具」仅指 LLM 工具**。编排信号、runtime hook、toolkits 引擎、Skill 文档、PTC 等实现细节属于代码层，**不称为工具**。
 
+**PTC 家族**（Programmatic Tool Calling）：**MCP PTC**（bash + skills IPC）与 **DW PTC**（Workflow RPC）同属一族，SSOT 见 [EXECUTION_SYSTEM.md](../../toolkits/code_execution/EXECUTION_SYSTEM.md) § PTC 家族。
+
 下文 **Action Tool** 与 **LLM 工具** 同义（代码与 `validate_tool_registry.py` 沿用 Action Tool 命名）。
 
 ---
@@ -77,7 +79,7 @@ Server `_tool_layer_bootstrap.py` 将 server vendor 工具注册为 EXTERNAL 层
 |----------|------|------|
 | **Orchestration Signal** | 专用 orchestrator 会话中的 JSON schema；Python 截获 tool_call | `agent/orchestration/signals/` |
 | **Runtime Hook** | 中间件注入的 RUNTIME_ONLY 伪 tool_call | `agent/orchestration/hooks.py` |
-| **PTC Runtime Tool** | Dynamic Workflow PTC 沙箱内 `myrm_tools.spawn_subagent` / `myrm_tools.notify`；零 Turn1 bind | `agent/dynamic_workflow/tools.py` · `scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES` |
+| **DW PTC Runtime Tool** | DW PTC 沙箱内 `myrm_tools.spawn_subagent` / `myrm_tools.notify`；零 Turn1 bind | `agent/dynamic_workflow/tools.py` · `scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES` |
 | **非 LLM 实现** | 引擎、Skill 文档、REST 等普通代码 | `toolkits/`、`app/services/` 等 |
 
 **只有 LLM 工具（Action Tool）使用 CORE / COMMON / EXTENDED / EXTERNAL 四层。**
@@ -96,7 +98,7 @@ Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration si
 | `bash_code_execute_tool` | CORE | user_capability | — | Agent baseline file_ops+code_execute; Turn1 |
 | `bash_process_tool` | CORE | user_capability | — | Turn1 when shell enabled (CORE; co-mounted with bash_code_execute) |
 | `file_edit_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
-| `file_read_tool` | CORE | user_capability | — | Agent baseline file_ops; or UECD read-only when enable_evicted_read (WEB_FAST) |
+| `file_read_tool` | CORE | user_capability | — | Agent baseline file_ops; or UECD read-only when `FileAccessMode.SPILL_AND_UPLOADS` (WEB_FAST) |
 | `file_write_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `glob_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
 | `grep_tool` | CORE | user_capability | — | Agent baseline file_ops; Turn1 |
@@ -189,10 +191,10 @@ python scripts/validate_tool_registry.py --generate-docs  # 刷新 TOOL_COUNT + 
 
 **典型映射**：
 
-- 所有 LLM Action Tool → `TURN1`（按 profile 条件装配；MCP 超标整服降级 PTC Skill）
+- 所有 LLM Action Tool → `TURN1`（按 profile 条件装配；MCP 超标整服降级 **MCP PTC**）
 - `_completion_check`（CompletionGuard）→ `RUNTIME_ONLY`（名称 `_` 前缀自动推断）
 
-**Profile 装配**：EXTENDED 层工具通过 `enabled_builtin_tools` 与运行时 gate 在 Agent 构建时决定是否 Turn1 绑定；MCP 超预算时整服降级为 PTC Skill；保留 direct 的 MCP 工具会做 description compaction 以降低 Turn1 token 噪音；存在可搜索技能时挂载 `skill_search_tool`。
+**Profile 装配**：EXTENDED 层工具通过 `enabled_builtin_tools` 与运行时 gate 在 Agent 构建时决定是否 Turn1 绑定；MCP 超预算时整服降级为 **MCP PTC**；保留 direct 的 MCP 工具会做 description compaction 以降低 Turn1 token 噪音；存在可搜索技能时挂载 `skill_search_tool`。
 
 **命名约束**：不得使用 `deferred_tools`、`discoverable_tools`、`get_deferred_tools()` 等废弃 API 名（CI 门禁见 `validate_tool_registry.py`）。
 

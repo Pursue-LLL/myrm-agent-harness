@@ -37,7 +37,12 @@ from myrm_agent_harness.utils.token_estimation import estimate_content_tokens
 
 from ...infra.archive_reference import build_tool_result_archive_reference
 from ...infra.retention_helpers import effective_keep_recent_calls, find_keep_recent_prune_cutoff
-from ...infra.schemas import BUILTIN_PROTECTED_TOOLS, normalize_context_offload_result
+from ...infra.schemas import (
+    ContextCompressOffloadCallback,
+    ContextOffloadResult,
+    normalize_context_offload_result,
+    TOOL_PROTECTION_CONFIG,
+)
 from ...tracking.task_metrics import get_task_metrics
 from ..base import BaseProcessor, ProcessorContext
 
@@ -74,6 +79,7 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
         self._threshold_tokens = max(threshold_tokens, 256)
         self._keep_recent_calls = max(keep_recent_calls, 0)
         self._on_prune_offload = on_prune_offload
+        self._protection_config = TOOL_PROTECTION_CONFIG
         self._placeholder_cache: dict[str, str] = {}
 
     @property
@@ -106,7 +112,7 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
             if not isinstance(msg, ToolMessage):
                 continue
             tool_name = msg.name or "unknown"
-            if tool_name in BUILTIN_PROTECTED_TOOLS:
+            if self._protection_config.is_active_prune_never(tool_name):
                 continue
 
             content_str = _content_text(msg.content)

@@ -532,7 +532,7 @@ def main() -> int:
                     display = path
                 print(f"  - {display}:{line_no}: {line}")
             print(
-                "  Fix: MCP overflow must use Direct FC or MCP→Skill (PTC) only; "
+                "  Fix: MCP overflow must use Direct FC or MCP PTC only; "
                 "see FRAMEWORK_DESIGN_PRINCIPLES.md §7."
             )
         if catalog_errors:

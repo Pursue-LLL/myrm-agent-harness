@@ -2,7 +2,10 @@
 
 [INPUT]
 - base_agent::BaseAgent (POS: Parent agent with _spawn_child capability)
+- agent.sub_agents.orchestrator::run_with_verification (POS: Adversarial worker+verifier retry loop)
+- agent.sub_agents.spawn_prep (POS: Shared spawn prep SSOT with delegate path)
 - dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache)
+- dynamic_workflow.spawn_cache::SpawnCacheParams (POS: Cache fingerprint)
 - agent.skills.mcp.progress_payload::build_workflow_stage_event (POS: Shared notify field SSOT)
 - sub_agents.types::SubagentCatalog, SubagentConfig, WorkspacePolicy (POS: Agent configuration and workspace isolation)
 - utils.runtime.cancellation::CancellationToken
@@ -10,12 +13,12 @@
 [OUTPUT]
 - SpawnSubagentTool: PTC tool exposed as myrm_tools.spawn_subagent
 - NotifyProgressTool: PTC tool exposed as myrm_tools.notify — emits workflow stage events to the frontend
-- WorkflowRunGuard: Per-workflow spawn counter and concurrency semaphore
+- WorkflowRunGuard: Per-workflow spawn counter, concurrency semaphore, parallel writer tracking
 
 [POS]
-Bridges the PTC Python script to the Harness delegate path. Each spawn_subagent()
-call goes through parent_agent._spawn_child(), inheriting the full tool registry,
-catalog config, cancel_token, and budget from the parent agent.
+Bridges the PTC Python script to the Harness delegate path. spawn_subagent() uses
+parent_agent._spawn_child() or run_with_verification() when verification_mode is
+adversarial. Shares spawn prep with delegate_task_tool via spawn_prep.py.
 WorkflowEventStore provides L2 persistent caching beyond the delegate's 60s TTL.
 NotifyProgressTool provides real-time workflow stage notifications from PTC scripts.
 """
@@ -25,14 +28,27 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from dataclasses import replace
+from enum import StrEnum
+from typing import Literal
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field
 
+from myrm_agent_harness.agent.dynamic_workflow.spawn_cache import SpawnCacheParams
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
 from myrm_agent_harness.agent.skills.mcp.progress_payload import (
     build_workflow_stage_event,
     normalize_dw_message,
+)
+from myrm_agent_harness.agent.sub_agents.spawn_prep import (
+    apply_readonly_to_config,
+    apply_spawn_workspace_isolation,
+    build_child_context_from_parent_agent,
+    enforce_spawn_policy_on_config,
+    memory_isolation_scope,
+    merge_candidate_from_spawn_dict,
+    sanitize_spawn_result_for_store,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,10 +57,15 @@ DEFAULT_MAX_SPAWN_PER_WORKFLOW = 50
 DEFAULT_MAX_CONCURRENT_SPAWNS = 5
 
 
-class WorkflowRunGuard:
-    """Hard cap on total spawns and concurrent in-flight sub-agents per workflow."""
+class DwVerificationMode(StrEnum):
+    NONE = "none"
+    ADVERSARIAL = "adversarial"
 
-    __slots__ = ("_max_concurrent", "_max_spawns", "_semaphore", "_spawn_count")
+
+class WorkflowRunGuard:
+    """Hard cap on total spawns, concurrent in-flight sub-agents, and merge result collection."""
+
+    __slots__ = ("_max_concurrent", "_max_spawns", "_merge_results", "_semaphore", "_spawn_count")
 
     def __init__(
         self,
@@ -55,13 +76,18 @@ class WorkflowRunGuard:
         self._max_spawns = max_spawns
         self._max_concurrent = max_concurrent
         self._spawn_count = 0
+        self._merge_results: list[dict[str, object]] = []
         self._semaphore = asyncio.Semaphore(max_concurrent)
 
     @property
     def spawn_count(self) -> int:
         return self._spawn_count
 
-    async def acquire_spawn_slot(self) -> str | None:
+    @property
+    def merge_results(self) -> list[dict[str, object]]:
+        return list(self._merge_results)
+
+    async def acquire_spawn_slot(self, *, readonly: bool = False) -> str | None:
         if self._spawn_count >= self._max_spawns:
             return (
                 f"Workflow spawn limit reached ({self._max_spawns}). "
@@ -71,8 +97,33 @@ class WorkflowRunGuard:
         await self._semaphore.acquire()
         return None
 
-    def release_spawn_slot(self) -> None:
+    def release_spawn_slot(self, *, readonly: bool = False) -> None:
         self._semaphore.release()
+
+    def record_merge_candidate(self, result: dict[str, object]) -> None:
+        if not merge_candidate_from_spawn_dict(result):
+            return
+        task_id = result.get("task_id")
+        if isinstance(task_id, str):
+            for existing in self._merge_results:
+                if existing.get("task_id") == task_id:
+                    return
+        self._merge_results.append(result)
+
+
+def _normalize_spawn_result(result: object, *, task_id: str, agent_type: str) -> dict[str, object]:
+    if isinstance(result, dict):
+        return result
+
+    status_val = getattr(result, "status", None)
+    return {
+        "success": getattr(result, "success", False),
+        "task_id": getattr(result, "task_id", task_id),
+        "agent_type": getattr(result, "agent_type", agent_type),
+        "result": getattr(result, "result", None),
+        "error": getattr(result, "error", None),
+        "status": status_val.value if hasattr(status_val, "value") else str(status_val or "unknown"),
+    }
 
 
 class SpawnSubagentInput(BaseModel):
@@ -85,6 +136,20 @@ class SpawnSubagentInput(BaseModel):
     readonly: bool = Field(
         default=False,
         description="If true, sub-agent cannot write files or run bash commands. Use for analysis-only tasks.",
+    )
+    verification_mode: Literal["none", "adversarial"] = Field(
+        default="none",
+        description='Verification: "none" (default) or "adversarial" (worker+verifier retry loop).',
+    )
+    verifier_agent_type: str | None = Field(
+        default=None,
+        description="Optional verifier agent type when verification_mode is adversarial.",
+    )
+    max_verification_rounds: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        description="Max adversarial verification rounds (1-5).",
     )
 
 
@@ -124,7 +189,16 @@ class SpawnSubagentTool(BaseTool):
         )
         await self.event_queue.put(event)
 
-    def _run(self, task_id: str, agent_type: str, task_description: str, readonly: bool = False) -> object:
+    def _run(
+        self,
+        task_id: str,
+        agent_type: str,
+        task_description: str,
+        readonly: bool = False,
+        verification_mode: Literal["none", "adversarial"] = "none",
+        verifier_agent_type: str | None = None,
+        max_verification_rounds: int = 2,
+    ) -> object:
         raise NotImplementedError("SpawnSubagentTool only supports async execution.")
 
     async def _arun(
@@ -133,6 +207,9 @@ class SpawnSubagentTool(BaseTool):
         agent_type: str = "generalPurpose",
         task_description: str = "",
         readonly: bool = False,
+        verification_mode: Literal["none", "adversarial"] = "none",
+        verifier_agent_type: str | None = None,
+        max_verification_rounds: int = 2,
     ) -> object:
         if self.cancel_token and self.cancel_token.is_cancelled:
             return {
@@ -143,16 +220,41 @@ class SpawnSubagentTool(BaseTool):
                 "error": "Workflow cancelled by user.",
             }
 
+        cache_params = SpawnCacheParams(
+            agent_type=agent_type,
+            task_description=task_description,
+            readonly=readonly,
+            verification_mode=verification_mode,
+            verifier_agent_type=verifier_agent_type,
+            max_verification_rounds=max_verification_rounds,
+        )
+
         if self.store:
-            cached = self.store.get_cached_result(self.workflow_id, task_id)
+            cached = self.store.get_cached_result(
+                self.workflow_id,
+                task_id,
+                expected=cache_params,
+            )
+            if cached and cached.get("workspace_merge_status") == "pending":
+                logger.info(
+                    "DW cache miss (pending merge): workflow=%s task=%s",
+                    self.workflow_id,
+                    task_id,
+                )
+                cached = None
             if cached:
                 logger.info("DW cache hit: workflow=%s task=%s", self.workflow_id, task_id)
                 await self._emit_spawn_stage(f"Using cached result for sub-agent `{task_id}`.")
+                if (
+                    self.run_guard is not None
+                    and cached.get("workspace_merge_status") != "merged"
+                ):
+                    self.run_guard.record_merge_candidate(cached)
                 return cached
 
         guard_error: str | None = None
         if self.run_guard is not None:
-            guard_error = await self.run_guard.acquire_spawn_slot()
+            guard_error = await self.run_guard.acquire_spawn_slot(readonly=readonly)
         if guard_error:
             await self._emit_spawn_stage(
                 f"Sub-agent `{task_id}` blocked: {guard_error}",
@@ -165,8 +267,6 @@ class SpawnSubagentTool(BaseTool):
                 "result": None,
                 "error": guard_error,
             }
-
-        from dataclasses import replace
 
         from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, WorkspacePolicy
 
@@ -184,34 +284,90 @@ class SpawnSubagentTool(BaseTool):
                 model_resolver=parent_resolver,
             )
 
-        if readonly:
-            _readonly_blocked = frozenset(
-                {"write_file", "execute_terminal_command", "bash_run_command", "git_commit"}
-            )
-            config = replace(
-                config,
-                workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX,
-                disallowed_tools=config.disallowed_tools | _readonly_blocked,
-                system_prompt=config.system_prompt
-                + "\n\n[READONLY MODE] You are in read-only mode. You can only read and analyze — do NOT attempt file writes, terminal commands, or git commits.",
-            )
+        config = apply_readonly_to_config(config, readonly)
+        config = enforce_spawn_policy_on_config(config)
 
-        await self._emit_spawn_stage(
-            f"Spawning sub-agent `{task_id}` ({agent_type})...",
+        # DW non-readonly spawns always use ISOLATED_COPY; batch_merge runs after PTC execution.
+        parallel_batch = not readonly and self.run_guard is not None
+        child_context = build_child_context_from_parent_agent(self.parent_agent)
+        workspace_prep = apply_spawn_workspace_isolation(
+            config=config,
+            child_context=child_context,
+            readonly=readonly,
+            parallel_write_batch=parallel_batch,
         )
+        config = workspace_prep.config
+        child_context = workspace_prep.child_context
+
+        use_adversarial = verification_mode == DwVerificationMode.ADVERSARIAL
+        stage_label = (
+            f"Spawning sub-agent `{task_id}` ({agent_type}) with adversarial verification..."
+            if use_adversarial
+            else f"Spawning sub-agent `{task_id}` ({agent_type})..."
+        )
+        await self._emit_spawn_stage(stage_label)
 
         try:
             try:
-                result = await self.parent_agent._spawn_child(
-                    task_id=task_id,
-                    agent_type=agent_type,
-                    task_description=task_description,
-                    config=config,
-                    context={},
-                    tool_registry_getter=self.tool_registry_getter,
-                    wait=True,
-                    cancel_token=self.cancel_token,
-                )
+                with memory_isolation_scope(parent_agent=self.parent_agent, config=config):
+                    if use_adversarial:
+                        if not hasattr(self.parent_agent, "_subagent_manager"):
+                            logger.warning(
+                                "DW adversarial verify unavailable (no SubagentManager); "
+                                "falling back to direct spawn"
+                            )
+                            await self._emit_spawn_stage(
+                                f"Sub-agent `{task_id}`: adversarial verify unavailable, using direct spawn.",
+                                level="warn",
+                            )
+                            result = await self.parent_agent._spawn_child(
+                                task_id=task_id,
+                                agent_type=agent_type,
+                                task_description=task_description,
+                                config=config,
+                                context=child_context,
+                                tool_registry_getter=self.tool_registry_getter,
+                                wait=True,
+                                cancel_token=self.cancel_token,
+                            )
+                        else:
+                            manager = self.parent_agent._subagent_manager
+                            from myrm_agent_harness.agent.sub_agents.orchestrator import run_with_verification
+
+                            v_type = verifier_agent_type or agent_type
+                            verifier_config = config
+                            if self.catalog:
+                                resolved_verifier = await self.catalog.resolve(v_type)
+                                if resolved_verifier is not None:
+                                    verifier_config = resolved_verifier
+                            verifier_config = replace(
+                                verifier_config,
+                                workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX,
+                            )
+
+                            result = await run_with_verification(
+                                manager=manager,
+                                worker_type=agent_type,
+                                worker_config=config,
+                                worker_task=task_description,
+                                verifier_type=v_type,
+                                verifier_config=verifier_config,
+                                context=child_context,
+                                tool_registry_getter=self.tool_registry_getter,
+                                max_rounds=max_verification_rounds,
+                                cancel_token=self.cancel_token,
+                            )
+                    else:
+                        result = await self.parent_agent._spawn_child(
+                            task_id=task_id,
+                            agent_type=agent_type,
+                            task_description=task_description,
+                            config=config,
+                            context=child_context,
+                            tool_registry_getter=self.tool_registry_getter,
+                            wait=True,
+                            cancel_token=self.cancel_token,
+                        )
             except Exception as e:
                 logger.error("DW spawn failed: task=%s error=%s", task_id, e)
                 await self._emit_spawn_stage(
@@ -227,20 +383,12 @@ class SpawnSubagentTool(BaseTool):
                 }
         finally:
             if self.run_guard is not None:
-                self.run_guard.release_spawn_slot()
+                self.run_guard.release_spawn_slot(readonly=readonly)
 
-        if isinstance(result, dict):
-            final_result = result
-        else:
-            status_val = getattr(result, "status", None)
-            final_result = {
-                "success": getattr(result, "success", False),
-                "task_id": getattr(result, "task_id", task_id),
-                "agent_type": getattr(result, "agent_type", agent_type),
-                "result": getattr(result, "result", None),
-                "error": getattr(result, "error", None),
-                "status": status_val.value if hasattr(status_val, "value") else str(status_val or "unknown"),
-            }
+        final_result = _normalize_spawn_result(result, task_id=task_id, agent_type=agent_type)
+
+        if self.run_guard is not None:
+            self.run_guard.record_merge_candidate(final_result)
 
         if self.store:
             self.store.save_result(
@@ -248,7 +396,8 @@ class SpawnSubagentTool(BaseTool):
                 task_id=task_id,
                 agent_type=agent_type,
                 task_description=task_description,
-                result=final_result,
+                result=sanitize_spawn_result_for_store(final_result),
+                spawn_params=cache_params,
             )
 
         if final_result.get("success"):

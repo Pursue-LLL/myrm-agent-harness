@@ -230,7 +230,8 @@ async def _revert_single(snap: FileSnapshot, executor: object | None) -> _Single
         return _SingleRevertResult(success=True)
 
     except OSError as e:
-        return _SingleRevertResult(success=False, warning=f"I/O error reverting {snap.path}: {e}")
+        logger.error("I/O error reverting %s: %s", snap.path, e)
+        return _SingleRevertResult(success=False, warning=f"I/O error reverting {snap.path}")
 
 
 def _cleanup_artifact(path: str) -> None:

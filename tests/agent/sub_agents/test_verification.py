@@ -10,6 +10,7 @@ import pytest
 
 from myrm_agent_harness.agent.sub_agents._orchestrator_verification import (
     VerificationVerdict,
+    _append_verification_block,
     _parse_verdict,
     run_with_verification,
 )
@@ -187,6 +188,19 @@ class TestParseVerdict:
         v = _parse_verdict('{"verdict": "PASS", "confidence": "HIGH", "findings": [], "STDOUT": "here"}')
         assert v.summary == ""
 
+
+class TestVerificationResultShape:
+    def test_append_verification_preserves_isolation_dict(self):
+        payload = {
+            "text": "implemented",
+            "_isolated_child_workspace": "/tmp/child",
+            "_isolated_parent_workspace": "/tmp/parent",
+        }
+        updated = _append_verification_block(payload, "[Verification: PASS]")
+        assert isinstance(updated, dict)
+        assert updated["_isolated_child_workspace"] == "/tmp/child"
+        assert updated["_isolated_parent_workspace"] == "/tmp/parent"
+        assert "[Verification: PASS]" in updated["_verification_summary"]
 
 # ---------------------------------------------------------------------------
 # run_with_verification

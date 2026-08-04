@@ -62,7 +62,7 @@ async def read_image_as_content_blocks(
         raise
     except Exception as e:
         logger.warning("Failed to read image bytes: %s, error: %s", path, e)
-        return f"[Image file: {path}] (Failed to read: {e})"
+        return f"[Image file: {path}] (Failed to read)"
 
     size_bytes = len(raw_bytes)
     size_display = _format_size(size_bytes)

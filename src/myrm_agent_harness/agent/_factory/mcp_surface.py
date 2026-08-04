@@ -4,7 +4,7 @@
 Shared enum for server profile → harness MCP routing without import cycles.
 
 Only two routing outcomes exist at the harness layer: Direct FC Turn1 bind or
-MCP→Skill (PTC). Profile value ``catalog_invoke`` parses as ``auto`` with warning.
+MCP PTC. Profile value ``catalog_invoke`` parses as ``auto`` with warning.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ def parse_mcp_surface_mode(raw: str | None) -> MCPSurfaceMode:
     normalized = str(raw).strip().lower()
     if normalized in {"catalog_invoke", "catalog-invoke"}:
         logger.warning(
-            "mcp_surface_mode=%r is obsolete; using auto (direct vs MCP→Skill only)",
+            "mcp_surface_mode=%r is obsolete; using auto (direct vs MCP PTC only)",
             raw,
         )
         return MCPSurfaceMode.AUTO

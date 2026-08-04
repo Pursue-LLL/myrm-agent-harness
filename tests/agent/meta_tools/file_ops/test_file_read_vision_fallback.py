@@ -71,5 +71,4 @@ async def test_build_multimodal_result_vision_fallback_failure():
         )
 
         assert len(blocks) == 1
-        assert "Vision fallback failed" in blocks[0]["text"]
-        assert "Fallback API Error" in blocks[0]["text"]
+        assert "Vision analysis unavailable" in blocks[0]["text"]

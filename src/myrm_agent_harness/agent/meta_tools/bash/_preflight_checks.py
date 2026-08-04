@@ -7,7 +7,7 @@ utils.errors::ToolError (POS: Agent tool error with format_for_llm protocol)
 [OUTPUT]
 check_command_url_exfiltration: Block commands with URL data exfiltration.
 check_sensitive_paths: Block commands accessing sensitive directories.
-check_myrm_tools_import: Block myrm_tools in bash via AST, shell `-c`, pipe stdin, and referenced `.py` files.
+check_myrm_tools_import: Block myrm_tools in bash via AST, shell `-c`, `-m`, pipe stdin, cat|pipe `.py`, and referenced `.py` files.
 check_interactive_command: Detect commands requiring interactive stdin.
 check_install_packages: Verify install package names exist on public registries.
 
@@ -47,6 +47,11 @@ _SHELL_C_CMD_RE = re.compile(
 _PYTHON_SCRIPT_INVOCATION_RE = re.compile(
     r"(?:^|[\s;&|])python3?(?:\s+-[^\s]+)*\s+([^\s;&|]+\.py)\b",
     re.IGNORECASE | re.MULTILINE,
+)
+
+_PYTHON_M_MYRM_TOOLS_RE = re.compile(
+    r"\bpython3?\s+(?:-[^\s]+\s+)*-m\s+myrm_tools(?:[.\s]|$)",
+    re.IGNORECASE,
 )
 
 _MAX_REFERENCED_PY_SCAN_BYTES = 512 * 1024
@@ -145,6 +150,28 @@ def _raise_myrm_tools_blocked(command: str) -> None:
     )
 
 
+def _scan_python_file_path(script_path: Path, command: str) -> None:
+    if not script_path.is_file():
+        return
+    if script_path.stat().st_size > _MAX_REFERENCED_PY_SCAN_BYTES:
+        logger.warning(
+            "Skipping myrm_tools scan for oversized script reference: %s",
+            script_path,
+        )
+        return
+    try:
+        source = script_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.warning("Unable to read referenced python script %s: %s", script_path, exc)
+        return
+    if _python_ast_references_myrm_tools(source):
+        _raise_myrm_tools_blocked(command)
+
+
+def _command_runs_myrm_tools_module(command: str) -> bool:
+    return _PYTHON_M_MYRM_TOOLS_RE.search(command) is not None
+
+
 def _extract_referenced_python_scripts(command: str) -> list[str]:
     return list(dict.fromkeys(_PYTHON_SCRIPT_INVOCATION_RE.findall(command)))
 
@@ -185,21 +212,21 @@ def _resolve_referenced_python_path(script_ref: str, workspace_root: str | None)
 def _scan_referenced_python_files(command: str, workspace_root: str | None) -> None:
     for script_ref in _extract_referenced_python_scripts(command):
         script_path = _resolve_referenced_python_path(script_ref, workspace_root)
-        if script_path is None or not script_path.is_file():
+        if script_path is None:
             continue
-        if script_path.stat().st_size > _MAX_REFERENCED_PY_SCAN_BYTES:
-            logger.warning(
-                "Skipping myrm_tools scan for oversized script reference: %s",
-                script_path,
-            )
+        _scan_python_file_path(script_path, command)
+
+
+def _scan_cat_pipe_feeder_python_files(command: str, workspace_root: str | None) -> None:
+    from myrm_agent_harness.toolkits.code_execution.python_extractor import (
+        extract_cat_py_paths_from_pipe_feeders,
+    )
+
+    for script_ref in extract_cat_py_paths_from_pipe_feeders(command):
+        script_path = _resolve_referenced_python_path(script_ref, workspace_root)
+        if script_path is None:
             continue
-        try:
-            source = script_path.read_text(encoding="utf-8")
-        except OSError as exc:
-            logger.warning("Unable to read referenced python script %s: %s", script_path, exc)
-            continue
-        if _python_ast_references_myrm_tools(source):
-            _raise_myrm_tools_blocked(command)
+        _scan_python_file_path(script_path, command)
 
 
 def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) -> None:
@@ -208,6 +235,7 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
     Python snippets: AST inspects imports and attribute access.
     Shell commands: line-leading ``import`` / ``from myrm_tools import``, plus
     ``bash|sh -c '…'`` inline payloads, ``quoted | python3`` stdin payloads,
+    ``python -m myrm_tools``, ``cat *.py | python3`` feeder scans,
     and ``python *.py`` references scan file AST.
     Incidental ``myrm_tools`` in ``echo``/``grep`` allowed.
 
@@ -220,6 +248,10 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
     code = detection.extracted_code if detection.code_type == CodeType.PYTHON else command
 
     if _python_ast_references_myrm_tools(code):
+        _raise_myrm_tools_blocked(command)
+        return
+
+    if _command_runs_myrm_tools_module(command):
         _raise_myrm_tools_blocked(command)
         return
 
@@ -236,6 +268,7 @@ def check_myrm_tools_import(command: str, *, workspace_root: str | None = None) 
         _raise_myrm_tools_blocked(command)
         return
 
+    _scan_cat_pipe_feeder_python_files(command, workspace_root)
     _scan_referenced_python_files(command, workspace_root)
 
 

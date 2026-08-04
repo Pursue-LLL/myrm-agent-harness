@@ -62,6 +62,30 @@ class TestExtractPythonFromPipeStdin:
         assert result == "import myrm_tools"
 
 
+class TestExtractCatPyPathsFromPipeFeeders:
+    def test_cat_py_pipe_python3(self):
+        from myrm_agent_harness.toolkits.code_execution.python_extractor import (
+            extract_cat_py_paths_from_pipe_feeders,
+        )
+
+        paths = extract_cat_py_paths_from_pipe_feeders("cat /workspace/run.py | python3")
+        assert paths == ["/workspace/run.py"]
+
+    def test_cat_py_pipe_grep_not_extracted(self):
+        from myrm_agent_harness.toolkits.code_execution.python_extractor import (
+            extract_cat_py_paths_from_pipe_feeders,
+        )
+
+        assert extract_cat_py_paths_from_pipe_feeders("cat run.py | grep x") == []
+
+    def test_python_c_not_cat_pipe_surface(self):
+        from myrm_agent_harness.toolkits.code_execution.python_extractor import (
+            extract_cat_py_paths_from_pipe_feeders,
+        )
+
+        assert extract_cat_py_paths_from_pipe_feeders('python3 -c "print(1)"') == []
+
+
 class TestValidatePythonSyntax:
     def test_valid_code_returns_none(self):
         assert validate_python_syntax("print(1)") is None

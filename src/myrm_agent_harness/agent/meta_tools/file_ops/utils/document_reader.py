@@ -88,7 +88,7 @@ async def read_document_as_text(
         raise
     except Exception as e:
         logger.warning("Failed to read document bytes: %s, error: %s", path, e)
-        return f"[Document: {path}] (Failed to read: {e})"
+        return f"[Document: {path}] (Failed to read)"
 
     tmp_path: str | None = None
     try:
@@ -143,10 +143,10 @@ async def read_document_as_text(
 
     except ImportError as e:
         logger.warning("Document parser dependency not available for %s: %s", path, e)
-        return f"[Document: {path}] (Parser dependency not installed: {e})"
+        return f"[Document: {path}] (Parser dependency not installed)"
     except Exception as e:
         logger.warning("Document parsing failed for %s: %s", path, e)
-        return f"[Document: {path}] (Parsing failed: {e})"
+        return f"[Document: {path}] (Parsing failed)"
     finally:
         if tmp_path:
             with contextlib.suppress(OSError):

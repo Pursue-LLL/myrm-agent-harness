@@ -279,8 +279,9 @@ class PersistentSession(ABC):
             await self._transit_state(SessionState.ACTIVE)
             return await self._execute_core(command, timeout)
         except Exception as e:
+            logger.error("Session recovery failed: %s", e)
             await self._transit_state(SessionState.TERMINATED)
-            return SessionExecutionResult(False, "", "", 1, error=f"Recovery failed: {e}")
+            return SessionExecutionResult(False, "", "", 1, error="Recovery failed")
 
     async def _execute_core(self, command: str, timeout: int) -> SessionExecutionResult:
         if not self.process or not self.process.stdin or not self.process.stdout:
@@ -294,8 +295,9 @@ class PersistentSession(ABC):
             self.process.stdin.write(full_cmd.encode())
             await self.process.stdin.drain()
         except Exception as e:
+            logger.error("IPC write failure: %s", e)
             self._consecutive_failures += 1
-            return SessionExecutionResult(False, "", str(e), 1, error=f"IPC write failure: {e}")
+            return SessionExecutionResult(False, "", "", 1, error="IPC write failure")
 
         import aiofiles
 

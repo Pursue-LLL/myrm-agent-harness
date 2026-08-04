@@ -354,7 +354,7 @@ def create_manage_tool(session: BrowserSession):
         except TimeoutError:
             return f"Error: domain tool '{skill_id}:{tool_name}' timed out after 30s"
         except Exception as e:
-            return f"Error executing domain tool '{skill_id}:{tool_name}': {e}"
+            return f"Error executing domain tool '{skill_id}:{tool_name}'"
         finally:
             import os as _os
 

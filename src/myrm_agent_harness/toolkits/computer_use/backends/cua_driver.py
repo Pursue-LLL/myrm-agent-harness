@@ -282,7 +282,7 @@ class CuaDriverBackend:
         try:
             secret_text = vault.get_totp_token(label) if is_totp else vault.get_password(label)
         except Exception as exc:
-            return ActionResult(success=False, error=f"Failed to retrieve credential '{label}': {exc}")
+            return ActionResult(success=False, error=f"Failed to retrieve credential '{label}'")
 
         try:
             await self._ensure_session()

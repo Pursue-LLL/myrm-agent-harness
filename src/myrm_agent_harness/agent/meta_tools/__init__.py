@@ -22,6 +22,8 @@ Bash, File Ops, File Search, and Skill system.
 
 from __future__ import annotations
 
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -76,8 +78,7 @@ def get_meta_tools(
     skill_configs: dict[str, dict[str, object]] | None = None,
     global_env: dict[str, str] | None = None,
     registry: ToolRegistry | None = None,
-    enable_file_tools: bool = True,
-    enable_evicted_read: bool = False,
+    file_access_mode: FileAccessMode = FileAccessMode.FULL,
     enable_shell_tools: bool = True,
     enable_answer_tool: bool = False,
     has_manage_tool: bool = False,
@@ -120,6 +121,8 @@ def get_meta_tools(
     from myrm_agent_harness.backends.skills.types import skill_visible_for_tools
 
     logger = logging.getLogger(__name__)
+
+    resolved_file_access = file_access_mode
 
     if registry is None:
         raise TypeError(
@@ -198,7 +201,7 @@ def get_meta_tools(
     else:
         logger.info(" request_answer_user_tool 已跳过 (enable_answer_tool=False)")
 
-    if enable_file_tools:
+    if resolved_file_access == FileAccessMode.FULL:
         file_read_tool = create_file_read_tool(skills=skills)
         file_write_tool = create_file_write_tool(skills=skills)
         file_edit_tool = create_file_edit_tool(skills=skills)
@@ -207,7 +210,7 @@ def get_meta_tools(
         tools.extend(
             [file_read_tool, file_write_tool, file_edit_tool, glob_tool, grep_tool]
         )
-    elif enable_evicted_read:
+    elif resolved_file_access == FileAccessMode.SPILL_AND_UPLOADS:
         file_read_tool = create_file_read_tool(
             skills=skills, path_policy="evicted_uploaded"
         )
@@ -260,6 +263,7 @@ __all__ = [
     "create_select_skill_tool",
     "create_skill_market_tool",
     "create_skill_manage_tool",
+    "FileAccessMode",
     "get_meta_tools",
     "request_answer_user_tool",
 ]

@@ -125,7 +125,8 @@ def apply_skill_patch(
     except PatchError as e:
         return SkillPatchResult(success=False, error_message=str(e))
     except Exception as e:
-        return SkillPatchResult(success=False, error_message=f"Unexpected error: {e}")
+        logger.error("Skill patch failed: %s", e)
+        return SkillPatchResult(success=False, error_message="Unexpected error")
 
 
 def parse_multi_file_full(llm_output: str) -> dict[str, str]:

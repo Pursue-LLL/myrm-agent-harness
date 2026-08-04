@@ -100,7 +100,7 @@ async def get_skill_document(
                 skill_meta.storage_skill_id
             )
         except Exception as e:
-            return f"# {skill_meta.name}\n\nError: failed to load skill document - {e}"
+            return f"# {skill_meta.name}\n\nError: failed to load skill document"
 
         if skill_doc and skill_meta.storage_path:
             skill_path_info = (
@@ -249,7 +249,8 @@ async def _resolve_dynamic_context(content: str) -> str:
         except TimeoutError:
             return f"[command timed out after {_DYNAMIC_CMD_TIMEOUT}s]"
         except Exception as e:
-            return f"[command error: {e}]"
+            logger.warning("Dynamic command execution failed: %s", e)
+            return "[command error]"
 
     matches = list(_DYNAMIC_CMD_PATTERN.finditer(content))
     if not matches:

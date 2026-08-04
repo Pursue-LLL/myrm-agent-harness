@@ -1,7 +1,12 @@
-# ptc/ — Programmatic Tool Calling (Workflow RPC)
+# ptc/ — Workflow RPC（DW PTC 基础设施）
 
 ## Overview
-RPC infrastructure for LLM-written Python scripts to call a **bounded** tool set without intermediate results entering the LLM context. Primary consumer: **Dynamic Workflow** (`spawn_subagent`, `notify`). Bash Turn1 uses Pure Script + MCP `skills.*/tools.*` IPC instead of Turn1 `myrm_tools` stubs.
+
+**PTC 家族 SSOT**：见 [EXECUTION_SYSTEM.md § PTC 家族](../EXECUTION_SYSTEM.md#ptc-家族programmatic-tool-calling)。
+
+本目录实现 **DW PTC** 分支：RPC 基础设施，供 LLM 编写的 Python 脚本通过 **有界工具集**（`spawn_subagent`、`notify`）调用 Harness 能力，中间结果不进 LLM context。
+
+**MCP PTC**（脚本批量调 MCP）走 bash + `skills.*/tools.*` IPC，**不经过**本目录 RpcServer。两分支同属 PTC，实现路径不同。
 
 ## Architecture
 

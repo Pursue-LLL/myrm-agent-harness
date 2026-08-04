@@ -117,6 +117,79 @@ def test_myrm_tools_pipe_stdin_unquoted_echo_blocked() -> None:
         check_myrm_tools_import("echo import myrm_tools | python3")
 
 
+def test_myrm_tools_python_m_module_blocked() -> None:
+    with pytest.raises(ToolError, match="myrm_tools") as exc_info:
+        check_myrm_tools_import("python3 -m myrm_tools")
+    assert exc_info.value.error_code == "MYRM_TOOLS_BLOCKED"
+    assert exc_info.value.error_category == "guardrail_blocked"
+
+
+def test_myrm_tools_python_m_submodule_blocked() -> None:
+    with pytest.raises(ToolError, match="myrm_tools"):
+        check_myrm_tools_import("python3 -m myrm_tools.notify")
+
+
+def test_myrm_tools_python_m_pip_allowed() -> None:
+    check_myrm_tools_import("python3 -m pip install requests")
+
+
+def test_myrm_tools_cat_pipe_python_file_blocked(tmp_path: Path) -> None:
+    script_path = tmp_path / "merge.py"
+    script_path.write_text("import myrm_tools\nprint('x')\n", encoding="utf-8")
+    with pytest.raises(ToolError, match="myrm_tools") as exc_info:
+        check_myrm_tools_import(f"cat {script_path} | python3", workspace_root=str(tmp_path))
+    assert exc_info.value.error_code == "MYRM_TOOLS_BLOCKED"
+
+
+def test_myrm_tools_env_cat_pipe_python_file_blocked(tmp_path: Path) -> None:
+    script_path = tmp_path / "merge.py"
+    script_path.write_text("import myrm_tools\n", encoding="utf-8")
+    with pytest.raises(ToolError, match="myrm_tools"):
+        check_myrm_tools_import(
+            f"env cat {script_path} | python3",
+            workspace_root=str(tmp_path),
+        )
+
+
+def test_myrm_tools_cat_pipe_clean_file_allowed(tmp_path: Path) -> None:
+    script_path = tmp_path / "clean.py"
+    script_path.write_text("print('ok')\n", encoding="utf-8")
+    check_myrm_tools_import(f"cat {script_path} | python3", workspace_root=str(tmp_path))
+
+
+def test_myrm_tools_cat_pipe_to_grep_not_scanned(tmp_path: Path) -> None:
+    script_path = tmp_path / "evil.py"
+    script_path.write_text("import myrm_tools\n", encoding="utf-8")
+    check_myrm_tools_import(f"cat {script_path} | grep myrm_tools", workspace_root=str(tmp_path))
+
+
+def test_myrm_tools_oversized_referenced_python_file_skipped(tmp_path: Path) -> None:
+    from myrm_agent_harness.agent.meta_tools.bash._preflight_checks import (
+        _MAX_REFERENCED_PY_SCAN_BYTES,
+    )
+
+    script_path = tmp_path / "big.py"
+    script_path.write_bytes(b"import myrm_tools\n" + b"#" * (_MAX_REFERENCED_PY_SCAN_BYTES + 1))
+    check_myrm_tools_import(f"python3 {script_path.name}", workspace_root=str(tmp_path))
+
+
+def test_myrm_tools_cat_pipe_missing_file_allowed() -> None:
+    check_myrm_tools_import("cat /tmp/nonexistent_myrm_guard_test.py | python3")
+
+
+def test_myrm_tools_referenced_python_file_read_error_skipped(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script_path = tmp_path / "unreadable.py"
+    script_path.write_text("import myrm_tools\n", encoding="utf-8")
+
+    def _raise_os_error(*_args: object, **_kwargs: object) -> str:
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(Path, "read_text", _raise_os_error)
+    check_myrm_tools_import(f"python3 {script_path.name}", workspace_root=str(tmp_path))
+
+
 def test_myrm_tools_block_hint_routes_to_correct_apis() -> None:
     with pytest.raises(ToolError) as exc_info:
         check_myrm_tools_import("import myrm_tools")

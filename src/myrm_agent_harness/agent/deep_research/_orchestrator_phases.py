@@ -332,9 +332,9 @@ class DeepResearchPhasesMixin:
                                     {"task": task_text, "result": partial, "partial": True}
                                 )
                                 _push_status(idx, task_text, "error", result_length=len(partial), partial=True)
-                                return f"{partial}\n\n[Partial — agent encountered error: {err}]"
+                                return f"{partial}\n\n[Partial — agent encountered error]"
                             _push_status(idx, task_text, "error")
-                            return f"[Research error: {err}]"
+                            return "[Research error]"
 
                     result_text = "".join(messages)
                     self._result.agent_results.append(  # type: ignore[attr-defined]
@@ -352,9 +352,9 @@ class DeepResearchPhasesMixin:
                             {"task": task_text, "result": partial, "partial": True}
                         )
                         _push_status(idx, task_text, "error", result_length=len(partial), partial=True)
-                        return f"{partial}\n\n[Partial — agent failed: {e}]"
+                        return f"{partial}\n\n[Partial — agent failed]"
                     _push_status(idx, task_text, "error")
-                    return f"[Research agent failed: {e}]"
+                    return "[Research agent failed]"
 
         coros = [run_one(t["task"], i) for i, t in enumerate(tasks)]
         return list(await asyncio.gather(*coros))

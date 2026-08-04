@@ -110,11 +110,18 @@ def _clone_workspace(
     return file_count
 
 
-def _merge_tree_additive(src: Path, dst: Path) -> None:
+def _merge_tree_additive(
+    src: Path,
+    dst: Path,
+    *,
+    before_copy: Callable[[Path, Path], None] | None = None,
+) -> None:
     """Merge src into dst without deleting files that exist only in dst.
 
     Used when multiple isolated subagents merge back into the same parent workspace.
     Skips the same directories excluded during clone (_CLONE_IGNORE_DIRS).
+
+    Optional ``before_copy`` runs immediately before each file copy (src_file, dst_file).
     """
     ignore_dirs = _CLONE_IGNORE_DIRS
     for src_dir, dirs, files in os.walk(src):
@@ -126,16 +133,25 @@ def _merge_tree_additive(src: Path, dst: Path) -> None:
             src_file = Path(src_dir) / f
             dst_file = dst_dir / f
             if not dst_file.exists() or not filecmp.cmp(src_file, dst_file, shallow=True):
+                if before_copy is not None:
+                    before_copy(src_file, dst_file)
                 shutil.copy2(src_file, dst_file)
 
 
-def _sync_tree(src: Path, dst: Path) -> None:
+def _sync_tree(
+    src: Path,
+    dst: Path,
+    *,
+    before_copy: Callable[[Path, Path], None] | None = None,
+) -> None:
     """Perfectly mirror src directory to dst directory.
 
     Handles additions, modifications, and deletions.
     Optimized with shallow=True (stat-based compare) for performance.
     Safeguards directories that were excluded during clone (_CLONE_IGNORE_DIRS)
     so that sync-back never deletes or overwrites them in the parent workspace.
+
+    Optional ``before_copy`` runs immediately before each file copy (src_file, dst_file).
     """
     ignore_dirs = _CLONE_IGNORE_DIRS
 
@@ -155,6 +171,8 @@ def _sync_tree(src: Path, dst: Path) -> None:
             dst_file = dst_dir / f
             # Copy if destination doesn't exist, or if stat signatures differ (shallow=True)
             if not dst_file.exists() or not filecmp.cmp(src_file, dst_file, shallow=True):
+                if before_copy is not None:
+                    before_copy(src_file, dst_file)
                 shutil.copy2(src_file, dst_file)
 
     # 2. Traverse dst and delete things not in src (Deletions)
@@ -189,6 +207,7 @@ async def isolated_workspace(
     parent_workspace: str | Path,
     *,
     max_bytes: int = _DEFAULT_MAX_CLONE_BYTES,
+    cleanup_policy: dict[str, bool] | None = None,
 ) -> AsyncGenerator[tuple[Path, Callable[[], Coroutine[None, None, None]]]]:
     """Context manager that creates an isolated workspace copy.
 
@@ -205,6 +224,7 @@ async def isolated_workspace(
     parent_path = Path(parent_workspace)
     tmp_dir = tempfile.mkdtemp(prefix="subagent_ws_", suffix=f"_{parent_path.name}")
     child_path = Path(tmp_dir)
+    policy = cleanup_policy if cleanup_policy is not None else {"on_exit": True}
 
     try:
         loop = asyncio.get_running_loop()
@@ -219,8 +239,9 @@ async def isolated_workspace(
         yield child_path, _sync_back
 
     finally:
-        try:
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-            logger.debug("Cleaned up isolated workspace: %s", tmp_dir)
-        except Exception as e:
-            logger.warning("Failed to clean up isolated workspace %s: %s", tmp_dir, e)
+        if policy.get("on_exit", True):
+            try:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+                logger.debug("Cleaned up isolated workspace: %s", tmp_dir)
+            except Exception as e:
+                logger.warning("Failed to clean up isolated workspace %s: %s", tmp_dir, e)

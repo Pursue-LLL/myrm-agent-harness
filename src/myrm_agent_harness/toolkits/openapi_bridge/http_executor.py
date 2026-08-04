@@ -230,7 +230,8 @@ class OpenAPIExecutor:
                     )
 
             except SSRFSecurityError as exc:
-                return f"Error: Blocked by SSRF policy: {exc}"
+                logger.warning("SSRF policy blocked request: %s", exc)
+                return "Error: Blocked by SSRF policy"
             except httpx.RequestError as e:
                 last_error = e
                 if attempt < self._max_retries:
@@ -243,7 +244,7 @@ class OpenAPIExecutor:
                         self._max_retries,
                     )
 
-        return f"Error after {self._max_retries + 1} attempts: {last_error}"
+        return f"Error after {self._max_retries + 1} attempts"
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""

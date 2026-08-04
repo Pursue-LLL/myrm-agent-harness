@@ -93,7 +93,7 @@ async def build_multimodal_result(
                 blocks.append(create_text_block(f"[Image Analysis for {img_path}]:\n{fallback_text}"))
             except Exception as e:
                 logger.warning("Vision fallback failed for %s: %s", img_path, e)
-                blocks.append(create_text_block(f"[Image file: {img_path}] (Vision fallback failed: {e})"))
+                blocks.append(create_text_block(f"[Image file: {img_path}] (Vision analysis unavailable)"))
         else:
             result = await read_image_as_content_blocks(img_path, executor, supports_vision=False)
             if isinstance(result, list):
@@ -185,7 +185,7 @@ async def append_media_text_parts(
                     text_parts.append(f"[Image Analysis for {img_path}]:\n{fallback_text}")
                 except Exception as e:
                     logger.warning("Vision fallback failed for %s: %s", img_path, e)
-                    text_parts.append(f"[Image file: {img_path}] (Vision fallback failed: {e})")
+                    text_parts.append(f"[Image file: {img_path}] (Vision analysis unavailable)")
             else:
                 img_result = await read_image_as_content_blocks(img_path, executor, supports_vision=False)
                 if isinstance(img_result, str):

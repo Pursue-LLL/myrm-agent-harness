@@ -440,7 +440,7 @@ async def test_append_media_vision_fallback_failure() -> None:
             vision_fallback_model_cfg={"model": "gpt-4o-mini", "api_key": "k"},
             parse_mode=None,
         )
-    assert "Vision fallback failed" in parts[0]
+    assert "Vision analysis unavailable" in parts[0]
 
 
 @pytest.mark.asyncio

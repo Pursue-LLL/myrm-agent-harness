@@ -223,7 +223,7 @@ class VideoAnalysisEngine:
                     )
                     continue
                 raise VisionProviderCapacityError(str(exc)) from exc
-        return f"[Video Analysis Failed: {last_error or 'unknown error'}]"
+        return "[Video could not be analyzed]"
 
     async def analyze_video_b64(
         self,
@@ -264,10 +264,10 @@ class VideoAnalysisEngine:
                 return await self._invoke_with_failover(msg)
             except VisionProviderCapacityError as exc:
                 logger.error("Video URL analysis failed: %s", exc)
-                return f"[Video Analysis Failed: {exc}]"
+                return "[Video could not be analyzed]"
             except Exception as e:
                 logger.error("Video URL analysis failed: %s", e)
-                return f"[Video Analysis Failed: {e}]"
+                return "[Video could not be analyzed]"
         return "[Video analysis requires a video-capable model or ffmpeg for frame extraction]"
 
     async def analyze_local_video(
@@ -285,7 +285,7 @@ class VideoAnalysisEngine:
             try:
                 raw_bytes = await executor.read_file_bytes(path)
             except Exception as e:
-                return f"[Failed to read video {path}: {e}]"
+                return f"[Video file could not be read: {path}]"
 
             if len(raw_bytes) > MAX_VIDEO_BYTES:
                 return (
@@ -324,10 +324,10 @@ class VideoAnalysisEngine:
             return await self._invoke_with_failover(msg)
         except VisionProviderCapacityError as exc:
             logger.error("Video direct analysis failed: %s", exc)
-            return f"[Video Analysis Failed: {exc}]"
+            return "[Video could not be analyzed]"
         except Exception as e:
             logger.error("Video direct analysis failed: %s", e)
-            return f"[Video Analysis Failed: {e}]"
+            return "[Video could not be analyzed]"
 
     async def _frame_extraction_analyze_b64(
         self,
@@ -364,7 +364,7 @@ class VideoAnalysisEngine:
             frames = await _extract_frames_ffmpeg(video_path)
         except Exception as e:
             logger.error("Frame extraction failed: %s", e)
-            return f"[Video frame extraction failed: {e}]"
+            return "[Video frames could not be extracted]"
 
         if not frames:
             return "[No frames could be extracted from the video]"
@@ -387,7 +387,7 @@ class VideoAnalysisEngine:
             return await self._invoke_with_failover(msg)
         except VisionProviderCapacityError as exc:
             logger.error("Frame analysis failed: %s", exc)
-            return f"[Video Frame Analysis Failed: {exc}]"
+            return "[Video frames could not be analyzed]"
         except Exception as e:
             logger.error("Frame analysis failed: %s", e)
-            return f"[Video Frame Analysis Failed: {e}]"
+            return "[Video frames could not be analyzed]"

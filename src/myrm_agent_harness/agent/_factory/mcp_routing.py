@@ -14,7 +14,7 @@
 MCP schema-token routing for SkillAgent factory. **Two outcomes only** (see
 ``TOOL_DESIGN_STRATEGY.md`` §MCP 路由铁律 — 禁止 catalog_invoke / proxy 第三路径):
 - Direct FC: per-server and aggregate within budget → native Turn1 FC with full schema
-- PTC/Skill: per-server schema over threshold OR aggregate overflow → MCP→Skill SOP
+- MCP PTC: per-server schema over threshold OR aggregate overflow → skill_select + bash SOP
 """
 
 from __future__ import annotations
@@ -238,7 +238,7 @@ def _config_to_dict(cfg: MCPServerConfigProtocol) -> dict[str, object]:
 
 @dataclass(frozen=True, slots=True)
 class MCPRoutingResult:
-    """Result of MCP hybrid routing (direct Turn1 FC or PTC Skill only)."""
+    """Result of MCP hybrid routing (direct Turn1 FC or MCP PTC only)."""
 
     skills: list[SkillMetadata]
     direct_tools: list[BaseTool]
@@ -249,7 +249,7 @@ async def route_mcp_servers(
     *,
     surface_mode: MCPSurfaceMode | str | None = MCPSurfaceMode.AUTO,
 ) -> MCPRoutingResult:
-    """Route MCP servers into direct Turn1 tools or MCP→Skill (PTC) paths."""
+    """Route MCP servers into direct Turn1 tools or MCP PTC paths."""
     resolved_surface = (
         surface_mode
         if isinstance(surface_mode, MCPSurfaceMode)

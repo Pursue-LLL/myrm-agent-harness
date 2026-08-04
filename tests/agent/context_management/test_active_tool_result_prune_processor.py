@@ -166,10 +166,12 @@ class TestProcess:
         offload.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_skip_protected_tools(self):
+    async def test_recent_file_read_not_pruned(self):
         offload = AsyncMock(return_value="/archive/test.gz")
         proc = ActiveToolResultPruneProcessor(
-            threshold_tokens=100, on_prune_offload=offload
+            threshold_tokens=100,
+            keep_recent_calls=5,
+            on_prune_offload=offload,
         )
         large = _large_content(3000)
         messages = [
@@ -383,6 +385,36 @@ class TestProcess:
         assert result.tokens_saved > 0
         assert len(fake_metrics.calls) == 1
         assert fake_metrics.calls[0]["compression_type"] == "active_tool_prune"
+
+    @pytest.mark.asyncio
+    async def test_stale_file_read_can_be_pruned(self):
+        offload = AsyncMock(return_value="/archive/test.gz")
+        proc = ActiveToolResultPruneProcessor(
+            threshold_tokens=100,
+            keep_recent_calls=1,
+            on_prune_offload=offload,
+        )
+        large = _large_content(3000)
+        messages = [HumanMessage(content="hi")]
+        for i in range(3):
+            tc_id = f"tc{i}"
+            messages.extend(
+                [
+                    _make_ai_msg([{"id": tc_id, "name": "file_read_tool", "args": {}}]),
+                    _make_tool_msg(
+                        large if i == 0 else "small",
+                        name="file_read_tool",
+                        tool_call_id=tc_id,
+                    ),
+                ]
+            )
+        ctx = _build_context(messages)
+        result = await proc.process(ctx)
+
+        assert result.tokens_saved > 0
+        assert isinstance(result.messages[2].content, str)
+        assert "file_read_tool" in result.messages[2].content
+        offload.assert_called_once()
 
 
 class TestProcessorName:

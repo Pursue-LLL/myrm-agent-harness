@@ -538,7 +538,7 @@ class MemoryMCPServer:
 
             except Exception as e:
                 logger.warning("MCP memory_store failed: %s", e)
-                return f"Failed to store memory: {e}"
+                return "Failed to store memory"
 
             return f"Unknown category: {category}"
 
@@ -638,7 +638,7 @@ class MemoryMCPServer:
 
             except Exception as e:
                 logger.warning("MCP memory_manage failed: %s", e)
-                return f"Failed to manage memory: {e}"
+                return "Failed to manage memory"
 
             return f"Unknown action: {action}"
 

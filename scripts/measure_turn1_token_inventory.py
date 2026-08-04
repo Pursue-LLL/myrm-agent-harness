@@ -13,6 +13,7 @@ Usage:
 """
 
 from __future__ import annotations
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 import argparse
 import asyncio
@@ -80,7 +81,7 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
         [sample_skill],
         skill_backend,
         registry=registry,
-        enable_file_tools=True,
+        file_access_mode=FileAccessMode.FULL,
         enable_shell_tools=True,
         enable_answer_tool=False,
     )

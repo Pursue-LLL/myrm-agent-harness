@@ -102,7 +102,7 @@ class BrowserSessionExtractionMixin:
         try:
             schema = json_mod.loads(schema_json)
         except json_mod.JSONDecodeError as e:
-            return f"[Error] Invalid JSON Schema: {e}"
+            return "[Error] Invalid JSON Schema"
 
         already_collected: list[dict] | None = None
         if already_collected_json:
@@ -201,7 +201,7 @@ class BrowserSessionExtractionMixin:
             return content if content else "[Error] Vision extraction returned invalid JSON."
         except Exception as e:
             logger.warning("BrowserSession: Vision structured fallback failed: %s", e)
-            return f"[Error] Vision structured extraction failed: {e}"
+            return "[Error] Vision structured extraction failed"
 
     async def extract_screenshot(self, scale: float = 1.0) -> str:
         """ExtractScreenshot(Base64 JPEG)"""

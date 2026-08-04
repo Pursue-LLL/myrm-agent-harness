@@ -17,7 +17,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | config_loader.py | Config | External config loader. YAML validation (Pydantic + Action Tool SSOT + regex tool names). | ✅ |
 | event_forwarder.py | Core | Subagent event forwarder. Translates subagent events into progress and log events. Includes staleness detection (`is_stale`, `_check_and_emit_stale`) with configurable thresholds and in-tool multiplier. | ✅ |
 | executor.py | Core | SubagentExecutor aggregate root (mixin MRO: Retry → Attempt → Delegation). Re-exports helper functions for tests and notifications. | ✅ |
-| executor_retry_mixin.py | Internal | Retry loop, workspace isolation, hooks, and graceful cancellation (`run_with_retry`). | ✅ |
+| executor_retry_mixin.py | Internal | Retry loop, workspace isolation (immediate sync_back → `apply_isolated_sync_back_with_snapshots` before return; merge fail → merge_warning + result metadata), hooks, graceful cancellation (`run_with_retry`). | ✅ |
 | executor_attempt_mixin.py | Internal | Single child-agent attempt: fork context, event forwarding, handover parsing, taint propagation (`_inherit_parent_context`, `_run_single_attempt`). | ✅ |
 | executor_delegation_mixin.py | Internal | Orchestrator-role delegation meta-tool attachment (`_attach_child_delegation_tools`). | ✅ |
 | executor_helpers.py | Internal | Pure helpers: fork filter, error compaction, `_auto_vault_or_truncate` (vault + inline artifact + file_read hint), handover parse, cascade cancel. | ✅ |
@@ -27,7 +27,8 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | session_tree.py | Core | Merge gateway + ACTIVE_SUBAGENTS rows; match REST uuid against `chat_` / `chat_chat_` session ids; registry cancel-all helper. | ✅ |
 | notifications.py | Core | Push-based notification formatting for subagent completion events and active subagent context injection. | ✅ |
 | SUBAGENT_NOTIFICATION_STRATEGY.md | L2 | Cache-safe subagent notification delivery (SSE + wakeup user message) | — |
-| orchestrator.py | Core | Subagent composition patterns — chain, batch, alternatives, council, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, Swarm Fission yield-resume, Optional Path Guard via `allow_failure` on PlanStep, `run_alternatives` for parallel multi-solution generation with deferred workspace merge, and `run_council` for multi-expert cross-review). Delegates verification to `_orchestrator_verification` and council to `_orchestrator_council`. | ✅ |
+| orchestrator.py | Core | Subagent composition patterns — chain, batch, alternatives (text compare; deferred isolated workspaces discarded), council, and DAG execution (with Declarative Dependency Context Filtering, Auto-Vaulting, Swarm Fission yield-resume, Optional Path Guard via `allow_failure` on PlanStep, and `run_council` for multi-expert cross-review). Delegates verification to `_orchestrator_verification` and council to `_orchestrator_council`. | ✅ |
+| spawn_prep.py | Core | Shared spawn prep SSOT (readonly, isolation, sanitize store via merge_metadata). | ✅ |
 | _orchestrator_council.py | Internal | Council orchestration — multi-expert parallel analysis with cross-review debate and chair synthesis, COUNCIL_PHASE event emission. | ✅ |
 | _orchestrator_verification.py | Internal | Adversarial verification retry loop (`run_with_verification`). Delegates single-round verifier spawn to `_verifier_round.py`. | ✅ |
 | _verifier_round.py | Internal | Single-round verifier spawn + `verify_worker_output()` (Cron post-run and delegate paths). | ✅ |

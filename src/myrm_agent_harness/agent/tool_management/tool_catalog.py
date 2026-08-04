@@ -49,7 +49,7 @@ _PRODUCT_ID_TOOL_OVERRIDES: dict[str, str] = {}
 _LOAD_CONDITION_OVERRIDES: dict[str, str] = {
     "web_fetch_tool": "Agent baseline; Turn1 when enable_web_fetch (Fast mode may omit file/bash only)",
     "bash_code_execute_tool": "Agent baseline file_ops+code_execute; Turn1",
-    "file_read_tool": "Agent baseline file_ops; or UECD read-only when enable_evicted_read (WEB_FAST)",
+    "file_read_tool": "Agent baseline file_ops; or UECD read-only when FileAccessMode.SPILL_AND_UPLOADS (WEB_FAST)",
     "file_write_tool": "Agent baseline file_ops; Turn1",
     "file_edit_tool": "Agent baseline file_ops; Turn1",
     "glob_tool": "Agent baseline file_ops; Turn1",

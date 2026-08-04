@@ -2,6 +2,7 @@
 
 [INPUT]
 - utils.db.sqlite::CACHE, harden_connection_sync (POS: Unified SQLite hardening profile)
+- dynamic_workflow.spawn_cache::SpawnCacheParams (POS: Cache fingerprint SSOT)
 
 [OUTPUT]
 - WorkflowEventStore: Persistent cache for sub-agent spawn results and orchestration scripts
@@ -9,16 +10,21 @@
 [POS]
 Provides L2 persistent caching for the Dynamic Workflow Engine. When a PTC script
 crashes or the network reconnects, completed sub-agent results are replayed from
-cache rather than re-executed. Connections use harden_connection_sync(CACHE) for
-WAL journaling, concurrent write safety, and filesystem fallback.
+cache rather than re-executed. Cache hits require matching spawn parameters
+(readonly, verification_mode, task_description, etc.).
 """
 
 import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import asdict
 from pathlib import Path
 
+from myrm_agent_harness.agent.dynamic_workflow.spawn_cache import (
+    SpawnCacheParams,
+    spawn_cache_params_from_json,
+)
 from myrm_agent_harness.utils.db.sqlite import CACHE, harden_connection_sync
 
 
@@ -72,17 +78,77 @@ class WorkflowEventStore:
                 )
                 """
             )
+            columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()
+            }
+            if "spawn_params_json" not in columns:
+                conn.execute(
+                    "ALTER TABLE subagent_events ADD COLUMN spawn_params_json TEXT NOT NULL DEFAULT ''"
+                )
 
-    def get_cached_result(self, workflow_id: str, task_id: str) -> dict[str, object] | None:
-        """Retrieve a previously completed sub-agent result."""
+    def get_cached_result(
+        self,
+        workflow_id: str,
+        task_id: str,
+        *,
+        expected: SpawnCacheParams,
+    ) -> dict[str, object] | None:
+        """Retrieve a cached result only when spawn parameters match."""
         with self._connect() as conn:
             cursor = conn.execute(
-                "SELECT result_json FROM subagent_events WHERE workflow_id = ? AND task_id = ?", (workflow_id, task_id)
+                """
+                SELECT result_json, spawn_params_json, agent_type, task_description
+                FROM subagent_events
+                WHERE workflow_id = ? AND task_id = ?
+                """,
+                (workflow_id, task_id),
             )
             row = cursor.fetchone()
-            if row:
-                return json.loads(row[0])
-        return None
+            if not row:
+                return None
+
+            result_json, spawn_params_json, stored_agent_type, stored_task_description = row
+            if not self._params_match(
+                expected=expected,
+                spawn_params_json=str(spawn_params_json or ""),
+                _stored_agent_type=str(stored_agent_type),
+                _stored_task_description=str(stored_task_description),
+            ):
+                return None
+            return json.loads(result_json)
+
+    def update_stored_result(
+        self,
+        workflow_id: str,
+        task_id: str,
+        result: dict[str, object],
+    ) -> None:
+        """Update cached spawn result JSON after post-execution merge."""
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE subagent_events
+                SET result_json = ?
+                WHERE workflow_id = ? AND task_id = ?
+                """,
+                (json.dumps(result), workflow_id, task_id),
+            )
+
+    @staticmethod
+    def _params_match(
+        *,
+        expected: SpawnCacheParams,
+        spawn_params_json: str,
+        _stored_agent_type: str,
+        _stored_task_description: str,
+    ) -> bool:
+        if spawn_params_json:
+            stored = spawn_cache_params_from_json(spawn_params_json)
+            if stored is None:
+                return False
+            return stored.fingerprint() == expected.fingerprint()
+
+        return False
 
     def save_result(
         self,
@@ -91,16 +157,26 @@ class WorkflowEventStore:
         agent_type: str,
         task_description: str,
         result: dict[str, object],
+        *,
+        spawn_params: SpawnCacheParams,
     ) -> None:
-        """Save a completed sub-agent result."""
+        """Save a completed sub-agent result with spawn parameter fingerprint."""
+        params_json = json.dumps(asdict(spawn_params), ensure_ascii=False)
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO subagent_events
-                (workflow_id, task_id, agent_type, task_description, result_json)
-                VALUES (?, ?, ?, ?, ?)
+                (workflow_id, task_id, agent_type, task_description, result_json, spawn_params_json)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (workflow_id, task_id, agent_type, task_description, json.dumps(result)),
+                (
+                    workflow_id,
+                    task_id,
+                    agent_type,
+                    task_description,
+                    json.dumps(result),
+                    params_json,
+                ),
             )
 
     def save_orchestration_script(self, workflow_id: str, script_code: str) -> None:

@@ -11,7 +11,7 @@ Higher-level execution patterns built on top of SubagentManager.spawn_child.
 [OUTPUT]
 - execute_dag_plan: Execute a Plan using DAG concurrency with optional node-level fault tolerance (allow_failure).
 - run_chain: Execute subagents in chain: A -> B -> C, each receiving previous result.
-- run_alternatives: Spawn N subagents in parallel for the same task; return all results without auto-merging, so the caller can let the user choose.
+- run_alternatives: Spawn N subagents in parallel for the same task; return text results without merging isolated workspaces (discarded after completion).
 - run_council: Multi-expert council orchestration with cross-review rounds and chair synthesis.
 - wait_children: Wait for multiple child tasks to complete and aggregate results.
 - run_with_verification: Execute a worker then verify via an adversarial verifier, retrying on failure.
@@ -353,8 +353,8 @@ async def run_alternatives(
     """Spawn N subagents in parallel for the same task; return all results without auto-merging.
 
     Each subagent runs in an isolated workspace copy (ISOLATED_COPY) with deferred
-    merge.  The caller picks one result and calls its ``_workspace_sync_back`` to
-    apply workspace changes — the others are discarded.
+    workspace cleanup. Outputs are compared as text in the tool response; isolated
+    child workspaces are discarded after completion (not merged into the parent).
 
     Results are returned to the calling LLM as a tool call response containing all
     alternatives.  The LLM synthesises a comparative analysis and presents the best
@@ -371,9 +371,8 @@ async def run_alternatives(
         cancel_token: Propagated to each spawned child.
 
     Returns:
-        List of SubAgentResult in the same order as *configs*.  Successful results
-        with workspace changes carry ``result["_workspace_sync_back"]`` for
-        on-demand merge.
+        List of SubAgentResult in the same order as *configs*.  Merge metadata is
+        stripped; deferred isolated child workspaces are removed before return.
     """
     if not configs:
         return []
@@ -409,7 +408,7 @@ async def run_alternatives(
         batch = {"results": [], "failures": []}
 
     # Collect SubAgentResult from manager (wait_children returns to_dict() snapshots,
-    # but we need the original objects which carry _workspace_sync_back callables).
+    # but we need the original objects for deferred workspace cleanup).
     results_map: dict[str, SubAgentResult] = dict(early_failures)
     for item in (*batch.get("results", []), *batch.get("failures", [])):
         if isinstance(item, SubAgentResult):
@@ -429,6 +428,15 @@ async def run_alternatives(
         len(configs),
         success_count,
     )
+
+    from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
+        discard_deferred_isolated_workspaces,
+    )
+
+    discarded = discard_deferred_isolated_workspaces(ordered)
+    if discarded:
+        logger.info("[alternatives] Discarded %d deferred isolated workspace(s)", discarded)
+
     return ordered
 
 

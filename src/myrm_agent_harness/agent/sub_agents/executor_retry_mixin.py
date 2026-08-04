@@ -5,9 +5,11 @@
 - .types::SubagentBudgetExceededError, SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy (POS: Subagent subsystem core type definitions.)
 - toolkits.llms.errors.exceptions::MyrmLLMError (POS: Standardized LLM Error thrown by the Harness framework.)
 - agent.hooks.executor::fire_hook (POS: Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation.)
+- workspace_coordination.merge_snapshots::apply_isolated_sync_back_with_snapshots (POS: Revert snapshot registration + immediate ISOLATED_COPY sync_back)
+- workspace_coordination.merge_warning::record_workspace_merge_failure (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
 
 [OUTPUT]
-- SubagentExecutorRetryMixin.run_with_retry
+- SubagentExecutorRetryMixin.run_with_retry: immediate ISOLATED_COPY sync_back before return; merge failure records `{task_id}: {error}` turn warning + workspace_merge_status on result
 
 [POS]
 Retry loop with workspace isolation, hooks, and graceful cancellation.
@@ -18,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
@@ -44,6 +47,47 @@ if TYPE_CHECKING:
     from myrm_agent_harness.utils import CancellationToken
 
 logger = get_agent_logger(__name__)
+
+
+async def _apply_immediate_isolated_sync_back(
+    *,
+    result: SubAgentResult,
+    context: dict[str, object],
+    isolated_parent_ws: str | None,
+    pending_sync_back: object,
+    parent_agent: BaseAgent,
+) -> SubAgentResult:
+    """Run immediate ISOLATED_COPY sync_back; surface merge failure on result + turn warning."""
+    from dataclasses import replace as dc_replace
+
+    from myrm_agent_harness.agent.workspace_coordination.merge_snapshots import (
+        apply_isolated_sync_back_with_snapshots,
+    )
+    from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+        record_workspace_merge_failure,
+    )
+
+    child_path = Path(str(context.get("workspace_path", "")))
+    parent_path = Path(str(isolated_parent_ws or context.get("_isolated_parent_workspace", "")))
+    try:
+        await apply_isolated_sync_back_with_snapshots(
+            child_workspace=child_path,
+            parent_workspace=parent_path,
+            sync_back=pending_sync_back,
+            parent_agent=parent_agent,
+        )
+        return result
+    except Exception as exc:
+        logger.error(
+            "[subagent:%s] Immediate ISOLATED_COPY sync_back failed: %s",
+            result.task_id,
+            exc,
+        )
+        record_workspace_merge_failure(f"{result.task_id}: {exc}")
+        extra = dict(result.result) if isinstance(result.result, dict) else {"text": result.result}
+        extra["workspace_merge_status"] = "error"
+        extra["workspace_merge_error"] = str(exc)
+        return dc_replace(result, result=extra)
 
 
 class SubagentExecutorRetryMixin:
@@ -85,6 +129,7 @@ class SubagentExecutorRetryMixin:
 
         isolation_ctx = None
         isolated_parent_ws: str | None = None
+        isolation_cleanup_policy: dict[str, bool] = {"on_exit": True}
         if config.workspace_policy == WorkspacePolicy.ISOLATED_COPY:
             parent_ws = context.get("workspace_path")
             if parent_ws:
@@ -93,7 +138,12 @@ class SubagentExecutorRetryMixin:
                 )
 
                 isolated_parent_ws = str(parent_ws)
-                isolation_ctx = isolated_workspace(isolated_parent_ws)
+                if context.get("_defer_workspace_merge"):
+                    isolation_cleanup_policy["on_exit"] = False
+                isolation_ctx = isolated_workspace(
+                    isolated_parent_ws,
+                    cleanup_policy=isolation_cleanup_policy,
+                )
                 child_ws, sync_back = await isolation_ctx.__aenter__()
                 context["workspace_path"] = str(child_ws)
                 context["_workspace_sync_back"] = sync_back
@@ -158,6 +208,14 @@ class SubagentExecutorRetryMixin:
                                 if isolated_parent_ws:
                                     extra["_isolated_parent_workspace"] = isolated_parent_ws
                                 result = dc_replace(result, result=extra)
+                            else:
+                                result = await _apply_immediate_isolated_sync_back(
+                                    result=result,
+                                    context=context,
+                                    isolated_parent_ws=isolated_parent_ws,
+                                    pending_sync_back=pending_sync_back,
+                                    parent_agent=parent_agent,
+                                )
                     return result
                 except TimeoutError as timeout_exc:
                     retries_left -= 1
@@ -337,14 +395,8 @@ class SubagentExecutorRetryMixin:
         finally:
             if isolation_ctx:
                 try:
-                    if (
-                        isolation_succeeded
-                        and pending_sync_back is not None
-                        and not context.get("_defer_workspace_merge")
-                    ):
-                        sync_outcome = pending_sync_back()
-                        if asyncio.iscoroutine(sync_outcome):
-                            await sync_outcome
+                    if not isolation_succeeded:
+                        isolation_cleanup_policy["on_exit"] = True
                     await isolation_ctx.__aexit__(None, None, None)
                 except Exception as e:
                     logger.warning(

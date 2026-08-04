@@ -332,8 +332,12 @@ async def run_agent_loop(
         from myrm_agent_harness.agent.middlewares._mutation_verifier import (
             reset_mutation_state,
         )
+        from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+            reset_workspace_merge_warning,
+        )
 
         reset_mutation_state()
+        reset_workspace_merge_warning()
 
         # Add locale to merged_context for diagnostic generation
         if agent_state.config.locale:

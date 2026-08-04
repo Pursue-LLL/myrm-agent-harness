@@ -109,7 +109,7 @@ class WindowsBackend:
             else:
                 secret_text = vault.get_password(label)
         except Exception as e:
-            return ActionResult(success=False, error=f"Failed to retrieve credential for label '{label}': {e}")
+            return ActionResult(success=False, error=f"Failed to retrieve credential for label '{label}'")
 
         try:
             if secret_text.isascii():

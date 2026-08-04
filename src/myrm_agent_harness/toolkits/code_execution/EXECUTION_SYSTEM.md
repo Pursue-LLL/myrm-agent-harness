@@ -6,6 +6,40 @@
 
 ---
 
+## PTC 家族（Programmatic Tool Calling）
+
+**PTC** = 用 Python 脚本在沙箱里程序化调用工具/能力，**中间结果不灌回 LLM context**。
+
+Myrm 有两个 PTC 分支（同族、不同实现路径）：
+
+```
+PTC（程序化工具调用）
+├── MCP PTC — MCP schema 超出 Turn1 预算时，脚本批量调 MCP
+│     路径：skill_select → file_read(/mcp/...) → bash_code_execute → skills.*/tools.* IPC
+│     触发：普通聊天（用户无感）
+│
+└── DW PTC — 单会话大任务，脚本并行 spawn 子 agent
+      路径：Dynamic Workflow → inject_ptc → ptc/ Workflow RPC（spawn_subagent + notify）
+      触发：用户开「工作流」模式
+```
+
+| 分支 | 脚本调什么 | 实现 | 代码锚点 |
+|------|-----------|------|----------|
+| **MCP PTC** | MCP 工具（经 Skill 文档） | bash 沙箱 + `skills.*/tools.*` IPC | `mcp_routing.py`, `bash_code_execute` |
+| **DW PTC** | 子 agent 编排 + 进度 | `ptc/` Workflow RPC 桥 | `dynamic_workflow/`, `inject_ptc_for_python_execution` |
+
+**实现边界**：
+
+- `bash_code_execute` Turn1 **不** inject `myrm_tools` stub（CI：`test_bash_native_ptc_removed.py`）。
+- `ptc/` RpcServer **仅**服务 DW PTC（`inject_ptc_for_python_execution`）。
+- MCP PTC 与 DW PTC 同族，实现路径分离。
+
+**产品对外**：仅暴露 **动态工作流（DW PTC）**；MCP PTC 为引擎内部能力。
+
+详细 RPC 设计见 [ptc/_ARCH.md](ptc/_ARCH.md)。
+
+---
+
 ## 系统架构
 
 ```

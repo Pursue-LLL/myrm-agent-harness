@@ -7,6 +7,7 @@ post-processing event emission.
 [INPUT]
 - agent.streaming.types::ContextBudgetSnapshot (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
 - agent.types::AgentRunStatistics, (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
+- workspace_coordination.merge_warning::has_workspace_merge_warning (POS: Per-turn tracker bridging batch_merge failures to post_run_events warning SSE)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 - toolkits.code_execution.workspace.storage_root_bind (POS: ContextVar binding for aggregate workspace filesystem roots during a single agent Task.)
 - utils.runtime.steering::SteeringToken (POS: Steering  Agent  Agent)
@@ -15,7 +16,7 @@ post-processing event emission.
 - setup_workspace: Create workspace under host ``workspaces_storage_root``, bind executor, set context vars. The storage-root ContextVar undo token is stashed in a ContextVar (not in ``merged_context``) so checkpoints/msgpack never serialize it.
 - cleanup_run: Run-end cleanup: cancel children, reset context vars, col...
 - compute_context_budget_snapshot: Compute a lightweight context budget snapshot from token ...
-- post_run_events: Yield post-processing events: artifacts and MESSAGE_END.
+- post_run_events: Yield post-processing events: artifacts, FILE_MUTATION_FAILED, WORKSPACE_MERGE_FAILED, and MESSAGE_END (upgrade completion_status to warning on workspace merge failure when LLM status is complete).
 - serialize_message: Serialize a LangChain message to a plain dict.
 
 [POS]
@@ -41,8 +42,12 @@ from myrm_agent_harness.agent.middlewares.approval import set_workspace_root
 from myrm_agent_harness.agent.streaming.types import ContextBudgetSnapshot
 from myrm_agent_harness.agent.types import (
     AgentRunStatistics,
+    CompletionStatus,
     WorkspaceBinding,
     map_to_completion_status,
+)
+from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+    has_workspace_merge_warning,
 )
 from myrm_agent_harness.toolkits.code_execution import create_workspace_service
 from myrm_agent_harness.toolkits.code_execution.workspace.storage_root_bind import (
@@ -499,11 +504,30 @@ async def post_run_events(
             "messageId": message_id,
         }
 
+    from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+        format_workspace_merge_failures,
+    )
+
+    merge_payload = format_workspace_merge_failures()
+    if merge_payload:
+        yield {
+            "type": AgentEventType.WORKSPACE_MERGE_FAILED.value,
+            "data": merge_payload,
+            "messageId": message_id,
+        }
+
+    completion_status = stats.completion_status.value
+    if (
+        has_workspace_merge_warning()
+        and completion_status == CompletionStatus.COMPLETE.value
+    ):
+        completion_status = "warning"
+
     message_end_event: dict[str, object] = {
         "type": AgentEventType.MESSAGE_END.value,
         "data": "",
         "messageId": message_id,
-        "completion_status": stats.completion_status.value,
+        "completion_status": completion_status,
     }
     if stats.token_usage:
         usage_dict = stats.token_usage.to_dict()

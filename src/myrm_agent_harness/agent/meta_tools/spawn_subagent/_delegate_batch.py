@@ -374,7 +374,14 @@ async def _run_tournament_bracket(
     from myrm_agent_harness.agent.workspace_coordination.batch_merge import (
         merge_batch_workspace_sync_backs,
     )
+    from myrm_agent_harness.agent.workspace_coordination.merge_snapshots import (
+        build_merge_snapshot_context,
+    )
 
-    merge_info = await merge_batch_workspace_sync_backs([winner])
+    merge_snapshot_ctx = build_merge_snapshot_context(parent_agent=parent_agent)
+    merge_info = await merge_batch_workspace_sync_backs(
+        [winner],
+        snapshot_context=merge_snapshot_ctx,
+    )
 
     return {"success": True, "status": "completed", "tournament_winner": True, "result": winner, **merge_info}

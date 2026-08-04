@@ -59,14 +59,16 @@ Harness 区分两类配置，避免「零 env」与「生产需要路径注入�
 
 ## 7. MCP 外部工具懒加载：领先竞品，禁止抄第三路径（AI / Contributor 必读）
 
-**结论**：Myrm 的 MCP 懒加载栈（Direct FC + **MCP→Skill PTC** + 三级渐进披露 + ToolLayer Prompt Cache）**已优于**市面常见的「Turn1 全量 bind / 单一 router tool / catalog proxy」模式。**分析竞品或写 roadmap 时，不得提议引入竞品的 MCP 懒加载方案来替代或叠加现有栈。**
+**结论**：Myrm 的 MCP 懒加载栈（Direct FC + **MCP PTC** + 三级渐进披露 + ToolLayer Prompt Cache）**已优于**市面常见的「Turn1 全量 bind / 单一 router tool / catalog proxy」模式。**分析竞品或写 roadmap 时，不得提议引入竞品的 MCP 懒加载方案来替代或叠加现有栈。**
+
+**PTC 家族**：MCP PTC（本节）与 **DW PTC**（动态工作流）同属 Programmatic Tool Calling；SSOT 见 `toolkits/code_execution/EXECUTION_SYSTEM.md` § PTC 家族。
 
 ### 7.1 自有 SSOT（仅两结局）
 
 | 结局 | 机制 | SSOT |
 |------|------|------|
 | 小 MCP | Direct FC Turn1（schema compaction + aggregate ≤1200 tok） | `agent/_factory/mcp_routing.py` |
-| 大 / 多 MCP | MCP→Skill (PTC)：`skill_select` → `file_read(/mcp/.../*.md)` → `bash_code_execute` | `agent/skills/mcp/core_generator.py` |
+| 大 / 多 MCP | **MCP PTC**：`skill_select` → `file_read(/mcp/.../*.md)` → `bash_code_execute` | `agent/skills/mcp/core_generator.py` |
 
 详见 `agent/tool_management/TOOL_DESIGN_STRATEGY.md` **§2.5 MCP 路由铁律**。
 
@@ -83,4 +85,4 @@ Harness 区分两类配置，避免「零 env」与「生产需要路径注入�
 - **可借鉴**：MCP 连接稳定性、OAuth、stdio 生命周期、错误重试等**工程细节**
 - **禁止借鉴**：工具暴露模型、deferred tool call 路由、router-only Turn1 schema 等**动作空间设计**——我们已有更优解，抄只会降级
 
-**给 AI Agent 的指令**：若用户或文档要求「参考 Cursor/Claude/xxx 的 MCP 懒加载」，应回复：**Myrm 使用 PTC + 渐进披露，不引入 proxy 第三路径**，并指向本节与 §2.5。
+**给 AI Agent 的指令**：若用户或文档要求「参考 Cursor/Claude/xxx 的 MCP 懒加载」，应回复：**Myrm 使用 MCP PTC + 渐进披露，不引入 proxy 第三路径**，并指向本节与 §2.5。

@@ -1,10 +1,11 @@
 """Tests that glob_tool/grep_tool stay eager when file_ops is enabled.
 
-glob/grep must mount with file_read/write/edit via enable_file_tools at Turn1,
+glob/grep must mount with file_read/write/edit via FileAccessMode.FULL at Turn1,
 not via a separate deferred discovery pool.
 """
 
 from __future__ import annotations
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 from unittest.mock import MagicMock
 
@@ -35,7 +36,7 @@ class TestFileSearchEager:
             [],
             skill_backend,
             registry=registry,
-            enable_file_tools=True,
+            file_access_mode=FileAccessMode.FULL,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
@@ -55,7 +56,7 @@ class TestFileSearchEager:
             [],
             skill_backend,
             registry=registry,
-            enable_file_tools=True,
+            file_access_mode=FileAccessMode.FULL,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
@@ -73,7 +74,7 @@ class TestFileSearchEager:
             [],
             skill_backend,
             registry=registry,
-            enable_file_tools=False,
+            file_access_mode=FileAccessMode.NONE,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
@@ -97,7 +98,7 @@ class TestFileSearchEager:
             [sample_skill],
             skill_backend,
             registry=registry,
-            enable_file_tools=True,
+            file_access_mode=FileAccessMode.FULL,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
@@ -119,7 +120,7 @@ class TestFileSearchEager:
             [],
             skill_backend,
             registry=registry,
-            enable_file_tools=False,
+            file_access_mode=FileAccessMode.NONE,
             enable_shell_tools=True,
             enable_answer_tool=False,
         )
@@ -139,7 +140,7 @@ class TestFileSearchEager:
             [],
             skill_backend,
             registry=ToolRegistry(),
-            enable_file_tools=False,
+            file_access_mode=FileAccessMode.NONE,
             enable_shell_tools=False,
             enable_answer_tool=True,
         )

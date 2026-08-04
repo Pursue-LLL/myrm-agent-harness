@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pathlib import Path
 
 from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutionError
@@ -79,6 +80,45 @@ async def test_bash_tool_myrm_tools_pipe_preflight_blocks_before_executor() -> N
     mock_bash_exec.execute.assert_not_called()
     assert exc_info.value.error_code == "MYRM_TOOLS_BLOCKED"
     assert exc_info.value.error_category == ToolErrorCategory.GUARDRAIL_BLOCKED.value
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_myrm_tools_python_m_preflight_blocks_before_executor() -> None:
+    mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
+
+    with p_ctx, p_get, p_be, p_scope:
+        tool = create_bash_code_execute_tool()
+        with pytest.raises(ToolError, match="myrm_tools") as exc_info:
+            await tool.ainvoke(
+                {
+                    "command": "python3 -m myrm_tools",
+                    "reason": "verify python -m myrm_tools preflight blocks before sandbox execution",
+                }
+            )
+
+    mock_bash_exec.execute.assert_not_called()
+    assert exc_info.value.error_code == "MYRM_TOOLS_BLOCKED"
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_myrm_tools_cat_pipe_preflight_blocks_before_executor(tmp_path: Path) -> None:
+    script_path = tmp_path / "merge.py"
+    script_path.write_text("import myrm_tools\n", encoding="utf-8")
+    mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
+
+    with p_ctx as mock_ctx, p_get, p_be, p_scope:
+        mock_ctx.return_value = {"session_id": "test-session", "workspace_root": str(tmp_path)}
+        tool = create_bash_code_execute_tool()
+        with pytest.raises(ToolError, match="myrm_tools") as exc_info:
+            await tool.ainvoke(
+                {
+                    "command": f"cat {script_path} | python3",
+                    "reason": "verify cat pipe myrm_tools preflight blocks before sandbox execution",
+                }
+            )
+
+    mock_bash_exec.execute.assert_not_called()
+    assert exc_info.value.error_code == "MYRM_TOOLS_BLOCKED"
 
 
 @pytest.mark.asyncio

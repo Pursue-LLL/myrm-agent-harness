@@ -70,3 +70,18 @@ async def test_run_guard_semaphore_limits_concurrency():
     )
 
     assert max_seen == 1
+
+
+def test_record_merge_candidate_dedupes_task_id():
+    guard = WorkflowRunGuard()
+    payload = {
+        "success": True,
+        "task_id": "task_a",
+        "result": {
+            "_isolated_child_workspace": "/tmp/child",
+            "_isolated_parent_workspace": "/tmp/parent",
+        },
+    }
+    guard.record_merge_candidate(payload)
+    guard.record_merge_candidate(payload)
+    assert len(guard.merge_results) == 1

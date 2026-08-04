@@ -19,6 +19,8 @@ from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
+
 if TYPE_CHECKING:
     from langchain.agents.middleware import AgentMiddleware
     from langchain_core.language_models import BaseChatModel
@@ -98,8 +100,7 @@ async def create_skill_agent(
     on_loaded_skills_persist: (
         Callable[[list[str], str | None], Awaitable[None]] | None
     ) = None,
-    enable_file_tools: bool = True,
-    enable_evicted_read: bool = False,
+    file_access_mode: FileAccessMode = FileAccessMode.FULL,
     enable_shell_tools: bool = True,
     enable_answer_tool: bool = False,
     enable_planning: bool = False,
@@ -110,6 +111,8 @@ async def create_skill_agent(
 ) -> SkillAgent:
     """Create a SkillAgent instance (framework assembly entry)."""
     from myrm_agent_harness.distribution.probe import assert_distribution_ready
+
+    resolved_file_access = file_access_mode
 
     assert_distribution_ready()
 
@@ -444,8 +447,7 @@ async def create_skill_agent(
         similarity_checker=similarity_checker,
         on_session_cleanup=on_session_cleanup,
         on_loaded_skills_persist=on_loaded_skills_persist,
-        enable_file_tools=enable_file_tools,
-        enable_evicted_read=enable_evicted_read,
+        file_access_mode=resolved_file_access,
         enable_shell_tools=enable_shell_tools,
         enable_answer_tool=enable_answer_tool,
         enable_planning=enable_planning,

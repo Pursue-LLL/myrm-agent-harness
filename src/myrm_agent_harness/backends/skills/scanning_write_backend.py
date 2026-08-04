@@ -153,7 +153,7 @@ class ScanningSkillWriteBackend:
             result = await self._inner.delete_skill(name=name, user_id=user_id)
         except Exception as e:
             logger.error("Failed to delete skill '%s': %s", name, e)
-            return SkillDeleteResult(success=False, skill_name=name, error=f"Storage error: {e}")
+            return SkillDeleteResult(success=False, skill_name=name, error="Storage error")
 
         if result.success:
             self._invalidate_cache(name)

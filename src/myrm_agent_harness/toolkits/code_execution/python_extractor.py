@@ -9,6 +9,7 @@ Quote-aware parsing prevents greedy-regex extraction errors.
 [OUTPUT]
 - extract_python_from_bash: Extract Python code from bash commands (quote-aware).
 - extract_python_from_pipe_stdin: Extract Python fed via ``quoted_payload | python3`` stdin.
+- extract_cat_py_paths_from_pipe_feeders: Resolve ``.py`` paths from ``cat`` pipe feeder segments.
 - validate_python_syntax: Pre-check extracted Python via ast.parse.
 - SKILL_IMPORT_RE: Compiled pattern for ``from skills.xxx_skill import`` detection.
 - TOOLS_IMPORT_RE: Compiled pattern for ``from tools.xxx import`` detection.
@@ -71,6 +72,23 @@ def extract_python_from_pipe_stdin(command: str) -> str | None:
     return None
 
 
+def extract_cat_py_paths_from_pipe_feeders(command: str) -> list[str]:
+    """Return ``.py`` file refs from ``cat path.py | python3``-style pipe feeders.
+
+    Only applies when the final segment is bare stdin ``python3`` / ``python``
+    (no ``-c``, ``-m``, or ``.py`` path on the receiver).
+    """
+    segments = _split_pipe_segments(command)
+    if len(segments) < 2 or not _is_bare_stdin_python_receiver(segments[-1]):
+        return []
+    paths: list[str] = []
+    for feeder in segments[:-1]:
+        match = _CAT_PY_PATH_RE.search(feeder)
+        if match is not None:
+            paths.append(match.group(1))
+    return list(dict.fromkeys(paths))
+
+
 def validate_python_syntax(code: str) -> str | None:
     """Return ``None`` if *code* is valid Python, otherwise a human-readable error."""
     try:
@@ -98,6 +116,8 @@ _HEREDOC_RE = re.compile(
 )
 
 _BARE_PYTHON_BIN_RE = re.compile(r"^python3?\b", re.IGNORECASE)
+
+_CAT_PY_PATH_RE = re.compile(r"\bcat\s+([^\s|]+\.py)\b", re.IGNORECASE)
 
 
 def _extract_python_c(command: str) -> str | None:

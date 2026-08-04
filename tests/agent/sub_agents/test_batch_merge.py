@@ -111,6 +111,22 @@ class TestBatchMerge:
         assert (workspace / "from_iso.txt").read_text() == "isolated result"
 
     @pytest.mark.asyncio()
+    async def test_missing_isolated_child_workspace_fails_loud(self) -> None:
+        results: list[dict[str, object]] = [
+            {
+                "success": True,
+                "task_id": "missing",
+                "result": {
+                    "_isolated_child_workspace": "/tmp/does_not_exist_child",
+                    "_isolated_parent_workspace": "/tmp/does_not_exist_parent",
+                },
+            }
+        ]
+        summary = await merge_batch_workspace_sync_backs(results)
+        assert summary["workspace_merge_ok"] is False
+        assert summary["workspace_merge_merged_count"] == 0
+
+    @pytest.mark.asyncio()
     async def test_metadata_cleanup_after_merge(self) -> None:
         async def noop_sync() -> None:
             pass

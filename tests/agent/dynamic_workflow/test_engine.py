@@ -716,3 +716,304 @@ async def test_notify_events_yielded_during_ptc_execution(tmp_path, monkeypatch,
         if c.get("step_key") == "workflow_execution" and c.get("status") == "success"
     )
     assert stage_idx < exec_success_idx
+
+
+@pytest.mark.asyncio
+async def test_post_exec_merge_called_when_guard_has_isolated_results(tmp_path, monkeypatch, mock_parent_agent):
+    """O1: After PTC execution, engine must call batch_merge when run_guard recorded isolated spawns."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    merge_calls: list[list[dict[str, object]]] = []
+
+    async def fake_merge(
+        results: list[dict[str, object]],
+        *,
+        snapshot_context: object | None = None,
+    ) -> dict[str, object]:
+        merge_calls.append(results)
+        return {"workspace_merge_ok": True, "workspace_merge_merged_count": len(results)}
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs",
+        fake_merge,
+    )
+
+    child_ws = tmp_path / "child"
+    parent_ws = tmp_path / "parent"
+    child_ws.mkdir()
+    parent_ws.mkdir()
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        spawn_tool = next(t for t in ptc_tools if getattr(t, "name", None) == "spawn_subagent")
+        assert spawn_tool.run_guard is not None
+        spawn_tool.run_guard.record_merge_candidate(
+            {
+                "success": True,
+                "result": {
+                    "_isolated_child_workspace": str(child_ws),
+                    "_isolated_parent_workspace": str(parent_ws),
+                },
+            }
+        )
+
+        class Result:
+            stdout = "ok"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="parallel implement",
+            chat_history=[],
+            chat_id="merge_c",
+            message_id="merge_m",
+        )
+    ]
+
+    assert merge_calls, "merge_batch_workspace_sync_backs should run when merge_results non-empty"
+    assert merge_calls[0][0]["success"] is True
+    assert any(c.get("step_key") == "workflow_execution" and c.get("status") == "success" for c in chunks)
+
+
+@pytest.mark.asyncio
+async def test_post_exec_merge_runs_when_ptc_raises(tmp_path, monkeypatch, mock_parent_agent):
+    """Pending merge candidates must flush even when inject_ptc raises."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    merge_calls: list[list[dict[str, object]]] = []
+
+    async def fake_merge(
+        results: list[dict[str, object]],
+        *,
+        snapshot_context: object | None = None,
+    ) -> dict[str, object]:
+        merge_calls.append(results)
+        return {"workspace_merge_ok": True, "workspace_merge_merged_count": len(results)}
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs",
+        fake_merge,
+    )
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        spawn_tool = next(t for t in ptc_tools if getattr(t, "name", None) == "spawn_subagent")
+        assert spawn_tool.run_guard is not None
+        spawn_tool.run_guard.record_merge_candidate(
+            {
+                "success": True,
+                "result": {
+                    "_isolated_child_workspace": str(tmp_path / "child"),
+                    "_isolated_parent_workspace": str(tmp_path / "parent"),
+                },
+            }
+        )
+        raise RuntimeError("PTC failed after spawn")
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="parallel implement",
+            chat_history=[],
+            chat_id="merge_exc_c",
+            message_id="merge_exc_m",
+        )
+    ]
+
+    assert merge_calls, "merge must run in finally even when PTC raises"
+    assert any(c.get("step_key") == "workflow_execution" and c.get("status") == "error" for c in chunks)
+
+
+@pytest.mark.asyncio
+async def test_merge_failure_surfaces_warn_status(tmp_path, monkeypatch, mock_parent_agent):
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    async def fake_merge(
+        results: list[dict[str, object]],
+        *,
+        snapshot_context: object | None = None,
+    ) -> dict[str, object]:
+        return {
+            "workspace_merge_ok": False,
+            "workspace_merge_merged_count": 0,
+            "workspace_merge_errors": ["task_index=0: merge failed"],
+        }
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs",
+        fake_merge,
+    )
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        spawn_tool = next(t for t in ptc_tools if getattr(t, "name", None) == "spawn_subagent")
+        assert spawn_tool.run_guard is not None
+        spawn_tool.run_guard.record_merge_candidate(
+            {
+                "success": True,
+                "result": {
+                    "_isolated_child_workspace": str(tmp_path / "child"),
+                    "_isolated_parent_workspace": str(tmp_path / "parent"),
+                },
+            }
+        )
+
+        class Result:
+            stdout = "ok"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    captured_summary: list[str] = []
+
+    class TrackSummarizationLLM:
+        async def ainvoke(self, messages, config=None):
+            captured_summary.append(messages[1].content)
+            from langchain_core.messages import AIMessage
+
+            return AIMessage(content="Summary")
+
+    mock_parent_agent.llm = TrackSummarizationLLM()
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test merge warn",
+            chat_history=[],
+            chat_id="merge_warn_c",
+            message_id="merge_warn_m",
+        )
+    ]
+
+    assert any(
+        c.get("step_key") == "workflow_execution" and c.get("status") == "warning" for c in chunks
+    )
+    end_chunks = [c for c in chunks if c.get("type") == "message_end"]
+    assert end_chunks
+    assert end_chunks[-1].get("completion_status") == "warning"
+    assert any("Workspace merge errors" in item for item in captured_summary)
+
+
+@pytest.mark.asyncio
+async def test_summary_includes_workspace_changes_after_merge(
+    tmp_path, monkeypatch, mock_parent_agent
+) -> None:
+    """G4: DW summary must append Workspace Changes when batch merge writes files."""
+    from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
+        SnapshotStore,
+    )
+
+    SnapshotStore.reset()
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    parent_ws = tmp_path / "parent"
+    child_ws = tmp_path / "child"
+    parent_ws.mkdir()
+    child_ws.mkdir()
+    (child_ws / "output.txt").write_text("merged content", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.utils.workspace_path.WorkspacePathResolver.resolve_workspace_root",
+        lambda: parent_ws,
+    )
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        spawn_tool = next(t for t in ptc_tools if getattr(t, "name", None) == "spawn_subagent")
+        assert spawn_tool.run_guard is not None
+        spawn_tool.run_guard.record_merge_candidate(
+            {
+                "success": True,
+                "task_id": "t1",
+                "result": {
+                    "_isolated_child_workspace": str(child_ws),
+                    "_isolated_parent_workspace": str(parent_ws),
+                },
+            }
+        )
+
+        class Result:
+            stdout = "ok"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="parallel write",
+            chat_history=[],
+            chat_id="diff_c",
+            message_id="diff_m",
+        )
+    ]
+
+    messages = [c for c in chunks if c.get("type") == "message"]
+    assert messages
+    summary = str(messages[-1].get("data", ""))
+    assert "## Workspace Changes" in summary
+    assert "output.txt" in summary
+    assert (parent_ws / "output.txt").is_file()

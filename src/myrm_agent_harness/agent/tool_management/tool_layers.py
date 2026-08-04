@@ -19,7 +19,7 @@ Tool layer priority registry. Defines CORE/COMMON/EXTENDED/EXTERNAL four-tier to
 
 Tool loading dual-track (SSOT):
 - General track (Web non-fast, Channel/IM, Cron/Kanban): CORE tools always Turn1 eager via tool_mount.resolve_agent_mount → get_meta_tools(enable_shell_tools=True).
-- Search/Fast track: Web `action_mode=fast` only — no write/shell; UECD read-only `file_read_tool` via `enable_evicted_read` (server `tool_mount.resolve_agent_mount`).
+- Search/Fast track: Web `action_mode=fast` only — no write/shell; UECD read-only `file_read_tool` via `FileAccessMode.SPILL_AND_UPLOADS` (server `tool_mount.resolve_agent_mount`).
 - Channel/IM binds General agents only; prompt_mode=search agents rejected at bind API.
 
 """

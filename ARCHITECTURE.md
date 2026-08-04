@@ -285,7 +285,7 @@ agent/ (运行时核心层)
 | [MEMORY_SYSTEM.md](src/myrm_agent_harness/toolkits/memory/MEMORY_SYSTEM.md) | 记忆系统 |
 | [BROWSER_SYSTEM.md](src/myrm_agent_harness/toolkits/browser/BROWSER_SYSTEM.md) | 浏览器自动化 |
 | [DESKTOP_SYSTEM.md](src/myrm_agent_harness/toolkits/computer_use/DESKTOP_SYSTEM.md) | Semantic Desktop Control |
-| [EXECUTION_SYSTEM.md](src/myrm_agent_harness/toolkits/code_execution/EXECUTION_SYSTEM.md) | 沙箱代码执行 |
+| [EXECUTION_SYSTEM.md](src/myrm_agent_harness/toolkits/code_execution/EXECUTION_SYSTEM.md) | 沙箱代码执行 · **PTC 家族 SSOT**（MCP PTC + DW PTC） |
 | [STORAGE_SYSTEM.md](src/myrm_agent_harness/toolkits/storage/STORAGE_SYSTEM.md) | 存储与缓存 |
 | [RETRIEVER_SYSTEM.md](src/myrm_agent_harness/toolkits/retriever/RETRIEVER_SYSTEM.md) | 检索系统 |
 | [CONTEXT_BUNDLE_SYSTEM.md](src/myrm_agent_harness/toolkits/context_bundle/CONTEXT_BUNDLE_SYSTEM.md) | ContextBundle |

@@ -1846,16 +1846,14 @@ class TestRunAlternatives:
         assert "runtime error" in results[1].error
 
     @pytest.mark.asyncio
-    async def test_result_carries_workspace_sync_back(self):
+    async def test_alternatives_discards_deferred_isolated_workspaces(self, tmp_path):
         mgr = MagicMock()
         mgr.children = {}
         mgr.child_results = {}
 
-        sync_called = False
-
-        async def _mock_sync_back():
-            nonlocal sync_called
-            sync_called = True
+        child_ws = tmp_path / "alt_child"
+        child_ws.mkdir()
+        (child_ws / "draft.txt").write_text("draft", encoding="utf-8")
 
         async def _spawn(**kwargs):
             tid = kwargs["task_id"]
@@ -1865,8 +1863,9 @@ class TestRunAlternatives:
                 agent_type=kwargs["agent_type"],
                 result={
                     "text": "solution",
-                    "_workspace_sync_back": _mock_sync_back,
-                    "_isolated_child_workspace": "/tmp/child",
+                    "_workspace_sync_back": AsyncMock(),
+                    "_isolated_child_workspace": str(child_ws),
+                    "_isolated_parent_workspace": str(tmp_path / "parent"),
                 },
                 status=SubAgentStatus.COMPLETED,
                 completed_at=time.time(),
@@ -1886,6 +1885,7 @@ class TestRunAlternatives:
         assert results[0].success
         result_dict = results[0].result
         assert isinstance(result_dict, dict)
-        assert callable(result_dict["_workspace_sync_back"])
-        await result_dict["_workspace_sync_back"]()
-        assert sync_called
+        assert "_workspace_sync_back" not in result_dict
+        assert "_isolated_child_workspace" not in result_dict
+        assert result_dict.get("text") == "solution"
+        assert not child_ws.exists()

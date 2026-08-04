@@ -263,7 +263,7 @@ class DesktopSession(ComputerSession):
                     else:
                         effective_text = vault.get_password(text)
                 except Exception as e:
-                    return f"Failed to retrieve credential for label '{text}': {e}"
+                    return f"Failed to retrieve credential for label '{text}'"
                 effective_action = "fill"
             elif action == "set_value":
                 effective_action = "set_value"

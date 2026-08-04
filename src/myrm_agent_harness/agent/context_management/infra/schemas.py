@@ -208,13 +208,23 @@ DEFAULT_CONTEXT_CONFIG = ContextConfig(max_context_tokens=128000)
 
 
 # ============ Tool protection configuration ============
-BUILTIN_PROTECTED_TOOLS: frozenset[str] = frozenset(
+BUILTIN_FILTER_PROTECTED_TOOLS: frozenset[str] = frozenset(
     {
         "skill_select_tool",
         "todo_write",
         "file_read_tool",
     }
 )
+
+BUILTIN_ACTIVE_PRUNE_NEVER_TOOLS: frozenset[str] = frozenset(
+    {
+        "skill_select_tool",
+        "todo_write",
+    }
+)
+
+# FilterProcessor + legacy references use the filter-exempt set (includes file_read).
+BUILTIN_PROTECTED_TOOLS: frozenset[str] = BUILTIN_FILTER_PROTECTED_TOOLS
 
 DEFAULT_BUSINESS_PROTECTED_TOOLS: set[str] = {
     "memory_search",
@@ -230,10 +240,10 @@ class ToolProtectionConfig:
     """Tool protection configuration.
 
     Architecture: built-in + business tool protection.
-    - Built-in: framework-level tools (skill_select_tool, todo_write, file_read_tool) are always protected
+    - Filter-protected: skill_select, todo_write, file_read (no UECD re-spill / read loop)
+    - Active-prune-never: skill_select, todo_write (never archive placeholders)
     - Business: application-level tools (memory_search, etc.) are user-configurable
     - Soft-only: tools that can be trimmed but should not be fully archived
-    - Final protected set = built-in tools union business tools
 
     Cache-TTL pruning uses prune_mode(): protected tools are never touched,
     soft-only tools can retain visible anchors, and the rest may be archived.
@@ -243,10 +253,18 @@ class ToolProtectionConfig:
     soft_only_tools: set[str] = field(default_factory=lambda: DEFAULT_SOFT_ONLY_TOOLS.copy())
     enable_protection: bool = True
 
-    def is_protected(self, tool_name: str) -> bool:
+    def is_filter_protected(self, tool_name: str) -> bool:
         if not self.enable_protection:
             return False
-        return tool_name in BUILTIN_PROTECTED_TOOLS or tool_name in self.business_protected
+        return tool_name in BUILTIN_FILTER_PROTECTED_TOOLS or tool_name in self.business_protected
+
+    def is_active_prune_never(self, tool_name: str) -> bool:
+        if not self.enable_protection:
+            return False
+        return tool_name in BUILTIN_ACTIVE_PRUNE_NEVER_TOOLS or tool_name in self.business_protected
+
+    def is_protected(self, tool_name: str) -> bool:
+        return self.is_filter_protected(tool_name)
 
     def get_all_protected(self) -> set[str]:
         return set(BUILTIN_PROTECTED_TOOLS) | self.business_protected

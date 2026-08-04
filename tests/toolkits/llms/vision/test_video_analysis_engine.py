@@ -83,7 +83,7 @@ class TestVideoAnalysisEngineDirectAnalyze:
         result = await video_engine.analyze_video_b64(
             "dummyb64data", "video/mp4", supports_video=True
         )
-        assert "[Video Analysis Failed:" in result
+        assert "[Video could not be analyzed]" in result
 
     @pytest.mark.asyncio
     async def test_analyze_video_url_supported(self, video_engine):
@@ -175,7 +175,7 @@ class TestVideoAnalysisEngineLocalVideo:
         result = await video_engine.analyze_local_video(
             "/path/video.mp4", mock_executor, supports_video=True
         )
-        assert "Failed to read video" in result
+        assert "Video file could not be read" in result
 
     @pytest.mark.asyncio
     async def test_local_video_direct_success(self, video_engine):
@@ -228,7 +228,7 @@ class TestVideoAnalysisEngineAdditionalPaths:
 
         result = await video_engine.analyze_video_url("https://example.com/v.mp4", supports_video=True)
 
-        assert "[Video Analysis Failed:" in result
+        assert "[Video could not be analyzed]" in result
 
     @pytest.mark.asyncio
     async def test_local_video_uses_frame_extraction_when_no_video_support(self, video_engine):
@@ -259,7 +259,7 @@ class TestVideoAnalysisEngineAdditionalPaths:
         ):
             result = await video_engine._frame_extraction_analyze_path("/path/video.mp4")
 
-        assert "[Video frame extraction failed:" in result
+        assert "[Video frames could not be extracted]" in result
 
     @pytest.mark.asyncio
     async def test_frame_extraction_analyze_path_model_failure(self, video_engine):
@@ -273,7 +273,7 @@ class TestVideoAnalysisEngineAdditionalPaths:
         ):
             result = await video_engine._frame_extraction_analyze_path("/path/video.mp4")
 
-        assert "[Video Frame Analysis Failed:" in result
+        assert "[Video frames could not be analyzed]" in result
 
     @pytest.mark.asyncio
     async def test_analyze_video_b64_uses_quicktime_suffix_for_matching_mime(self, video_engine):

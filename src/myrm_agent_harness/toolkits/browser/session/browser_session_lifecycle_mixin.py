@@ -164,7 +164,7 @@ class BrowserSessionLifecycleMixin:
                 await self.navigate(current_url)
                 return f"Successfully restarted browser session with engine '{engine or 'default'}' and restored URL."
             except Exception as e:
-                return f"Restarted browser session, but failed to restore URL: {e}"
+                return "Restarted browser session, but failed to restore URL"
 
         return f"Successfully restarted browser session with engine '{engine or 'default'}'."
 

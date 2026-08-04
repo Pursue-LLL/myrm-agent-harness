@@ -115,11 +115,11 @@ sorted_entries = sorted(
 
 **原则（框架 11.1）**：严禁在 `awrap_model_call` 中 append 非 Turn1 工具 schema 到 `bind_tools`。
 
-**MCP/OpenAPI 超 Turn1 预算**：整服 **MCP→Skill (PTC)**，见 `mcp_routing.py` + `TOOL_DESIGN_STRATEGY.md` §2.5。**禁止** catalog_invoke / capability_invoke 第三路径。
+**MCP/OpenAPI 超 Turn1 预算**：整服 **MCP PTC**，见 `mcp_routing.py` + `TOOL_DESIGN_STRATEGY.md` §2.5。**禁止** catalog_invoke / capability_invoke 第三路径。PTC 家族见 `toolkits/code_execution/EXECUTION_SYSTEM.md` § PTC 家族。
 
 | 组件 | 路径 | 作用 |
 |------|------|------|
-| MCP 路由 | `agent/_factory/mcp_routing.py` | direct FC vs MCP→Skill；aggregate 上限 1200 tok |
+| MCP 路由 | `agent/_factory/mcp_routing.py` | direct FC vs MCP PTC；aggregate 上限 1200 tok |
 | Skill attenuation | `middlewares/_skill_tool_choice.py` + `skill_attenuation_middleware.py` | 技能加载后 `tool_choice.allowed_tools` 收窄；执行层 `check_trust_attenuation` |
 
 **缓存效果**：Tools 前缀在长对话中保持稳定；discover 网关 description 无动态工具名嵌入；skill 加载后仍保持 Tools+System 前缀命中（`tool_choice` 变化仅影响 Messages 段，见 CONTEXT_ENGINEERING §6.2）。

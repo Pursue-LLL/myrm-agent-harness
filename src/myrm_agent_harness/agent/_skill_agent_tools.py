@@ -44,7 +44,7 @@ class SkillAgentToolsMixin:
     Requires the following attributes from SkillAgent:
     - skill_backend, market_backend, write_backend
     - _embedding_config, skill_configs, _similarity_checker
-    - _enable_file_tools, _enable_shell_tools
+    - _file_access_mode, _enable_shell_tools
     - _skill_env_map, _default_skill_instances, state_manager
     - storage_backend, llm, config
     - _task_workspace_root (chat sandbox path for progress persistence)
@@ -137,8 +137,7 @@ class SkillAgentToolsMixin:
             skill_env_map=skill_env_map,
             skill_configs=self.skill_configs,  # type: ignore[attr-defined]
             registry=registry,
-            enable_file_tools=self._enable_file_tools,  # type: ignore[attr-defined]
-            enable_evicted_read=self._enable_evicted_read,  # type: ignore[attr-defined]
+            file_access_mode=self._file_access_mode,  # type: ignore[attr-defined]
             enable_shell_tools=self._enable_shell_tools,  # type: ignore[attr-defined]
             enable_answer_tool=self._enable_answer_tool,  # type: ignore[attr-defined]
             has_manage_tool=has_manage_tool,

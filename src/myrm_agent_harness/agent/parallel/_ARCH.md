@@ -15,8 +15,14 @@ Detailed design: see [sub_agents/SUB_AGENT_SYSTEM.md](../sub_agents/SUB_AGENT_SY
 | `schemas.py` | Types | `ParallelTaskResults` resume contract. | — |
 | `summary.py` | Core | Public `batch_summary` / `inject_capacity_signal`. | — |
 | `resume_compact.py` | Utility | Vault/truncate oversized resume payloads. | — |
-| `runner.py` | Core | `run_parallel_task_requests` — concurrent `_delegate.coroutine` with semaphore. | — |
+| `runner.py` | Core | `run_parallel_task_requests` — concurrent `_delegate.coroutine`; batch + race merge pass `build_merge_snapshot_context` for Revert. | — |
 | `fission.py` | Core | `execute_swarm_fission` — parse interrupt payload `tasks[]`, resume dict. | — |
+
+## Tests
+
+| File | Role |
+|------|------|
+| `tests/agent/parallel/test_runner_merge_snapshots.py` | Runner batch + race merge registers Revert snapshots |
 
 ## Module Dependencies
 

@@ -203,9 +203,9 @@ context and capabilities.
                     continue
 
                 logger.error("acp_delegate_error agent=%s error=%s", agent_name, exc, exc_info=True)
-                return f"[error] Delegation to '{agent_name}' failed: {type(exc).__name__}: {exc}"
+                return f"[error] Delegation to '{agent_name}' failed"
 
-        return f"[error] Delegation to '{agent_name}' failed after {_MAX_RETRIES + 1} attempts: {last_error}"
+        return f"[error] Delegation to '{agent_name}' failed after {_MAX_RETRIES + 1} attempts"
 
     return delegate_to_agent_func
 

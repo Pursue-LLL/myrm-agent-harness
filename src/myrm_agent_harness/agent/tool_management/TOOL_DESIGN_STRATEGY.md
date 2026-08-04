@@ -168,12 +168,12 @@ class ToolLayer(IntEnum):
 
 ### 2.5 MCP 路由铁律（禁止第三路径）
 
-**Harness 层 MCP/OpenAPI 溢出只能二选一** — 证据：`agent/_factory/mcp_routing.py` · CI：`tests/architecture/test_mcp_routing_two_outcomes.py`
+**Harness 层 MCP/OpenAPI 溢出只能二选一** — 证据：`agent/_factory/mcp_routing.py` · CI：`tests/architecture/test_mcp_routing_two_outcomes.py` · PTC 家族 SSOT：`toolkits/code_execution/EXECUTION_SYSTEM.md` § PTC 家族
 
 | 结局 | 条件 | LLM 如何调用 |
 |------|------|-------------|
 | **Direct FC** | 单服 schema ≤ `compute_direct_threshold()` 且 aggregate direct ≤ **1200 tok** | Turn1 完整 JSON Schema，`tool_call` |
-| **MCP→Skill (PTC)** | 单服超大 **或** aggregate 超标（最大服优先 demote） | `skill_select` → `file_read(/mcp/...)` → `bash_code_execute` Python |
+| **MCP PTC** | 单服超大 **或** aggregate 超标（最大服优先 demote） | `skill_select` → `file_read(/mcp/...)` → `bash_code_execute` Python |
 | **OpenAPI direct** | 选中 endpoint 生成 schema ≤ **1200 tok** | Turn1 direct tools |
 | **OpenAPI 拒绝** | enabled 但 0 tools 加载失败 | `ConfigIncompleteError`（`openapi_load_failed`）；检查 spec/认证/endpoint |
 | **OpenAPI 拒绝** | schema > **1200 tok**（非 `direct_fc`） | `ConfigIncompleteError`（`openapi_direct_budget_exceeded`）；Agent 设置减少 endpoint |
@@ -186,8 +186,8 @@ class ToolLayer(IntEnum):
 
 **新增 MCP 集成前自问**：
 
-- 能否走现有 **Direct** 或 **MCP→Skill**？若否，先改阈值或 Skill 文档，**不要**新建 proxy 工具。
-- 是否为了 Prompt Cache 牺牲参数 schema 可见性？若是，用 **PTC**（按需读 doc），不要用 blind invoke。
+- 能否走现有 **Direct** 或 **MCP PTC**？若否，先改阈值或 Skill 文档，**不要**新建 proxy 工具。
+- 是否为了 Prompt Cache 牺牲参数 schema 可见性？若是，用 **MCP PTC**（按需读 doc），不要用 blind invoke。
 
 **Profile 兼容**：`mcp_surface_mode=catalog_invoke` 解析为 `auto` 并打 WARNING（`mcp_surface.py`）。
 
@@ -438,7 +438,7 @@ def get_tool_layer(tool_name: str) -> ToolLayer:
 | 核心/外围技能分层 | ✅ 按需加载，认知负载减半 | ❌ 全部常驻或全部按需 |
 | 工具层级体系 | ✅ CORE/COMMON/EXTENDED/EXTERNAL 四层 | ❌ 扁平结构 |
 | Prompt Cache 优化 | ✅ 工具分层排序保证 harness 前缀稳定 | ❌ 无优化 |
-| MCP 工具路由 | ✅ Direct FC + MCP→Skill PTC + 三级 `/mcp/*.md` 渐进披露 | ❌ Turn1 全量 bind 或单一 router/proxy tool |
+| MCP 工具路由 | ✅ Direct FC + MCP PTC + 三级 `/mcp/*.md` 渐进披露 | ❌ Turn1 全量 bind 或单一 router/proxy tool |
 | Prompt Cache 优化 | ✅ 工具分层排序保证 harness 前缀稳定 | ❌ 无优化 |
 
 ### 10.2 竞品 MCP 懒加载：禁止抄（AI / Roadmap 必读）

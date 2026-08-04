@@ -111,7 +111,7 @@ Layer 4: Fine-grained Sandboxing (readonly)
 | **MemoryIsolationPolicy** | `EPHEMERAL_SESSION` | 临时会话 | 默认，独立记忆空间 |
 |  | `READ_ONLY_GLOBAL` | 只读全局 | 阻止 memory write tools（memory_save/memory_manage_tool） |
 | **WorkspacePolicy** | `INHERIT` | 继承 | 默认，共享父工作空间 |
-|  | `ISOLATED_COPY` | 隔离副本 | `shutil.copytree` COW 克隆工作空间 + `_sync_tree` 完美镜像同步 |
+|  | `ISOLATED_COPY` | 隔离副本 | `shutil.copytree` COW 克隆工作空间 + `_sync_tree` 完美镜像同步；单 delegate 成功后在 `executor_retry_mixin` 经 `apply_isolated_sync_back_with_snapshots` 逐文件登记 SnapshotStore（Revert 可用）；merge 失败时 `record_workspace_merge_failure` + result 标记 `workspace_merge_status=error`，turn 结束 `WORKSPACE_MERGE_FAILED` SSE + `completion_status=warning` + 前端 `WorkspaceMergeWarning` 可折叠面板 |
 
 ### 2. Token 用量追踪与预算
 
@@ -172,9 +172,9 @@ Level 4: parent LLM (继承父 agent 的 LLM，兜底)
 |:--|:--|:--|
 | 同步 | `spawn_child(wait=True)` | 等待子 agent 完成后返回结果 |
 | 异步 | `spawn_child(wait=False)` + `wait_children()` | 启动子任务返回 Task ID，可随时查询结果 |
-| 并行批量 | `delegate_task_tool(mode=batch)` | `asyncio.gather` 并行执行多个子任务（`max_concurrent` 可调并发度，race 模式 Speculative Execution first-winner） |
+| 并行批量 | `delegate_task_tool(mode=batch)` | `asyncio.gather` 并行执行多个子任务（`max_concurrent` 可调并发度，race 模式 Speculative Execution first-winner）；多写者 batch 结束后 `batch_merge` 串行合并 ISOLATED_COPY workspace 并登记 SnapshotStore（Revert 可用）；merge 失败时 `WORKSPACE_MERGE_FAILED` SSE + `message_end.completion_status=warning`，前端 MessageBox 显示 amber 警告条与 `WorkspaceMergeWarning` 错误列表 |
 | 链式 | `run_chain(configs)` | A → B → C，`{previous}` 模板传递 |
-| 替代方案 | `run_alternatives(task, configs)` | 并行派发 N 个子 agent 执行相同任务（各自 ISOLATED_COPY 隔离工作区），收集全部结果但不自动合并。上层按需调用选中结果的 `_workspace_sync_back` 合并工作区 |
+| 替代方案 | `run_alternatives(task, configs)` | 并行派发 N 个子 agent 执行相同任务（各自 ISOLATED_COPY 隔离工作区），收集全部结果供 LLM 文本比较；隔离目录在返回前丢弃，不合并进 parent workspace。要落盘文件请用 single/batch delegate |
 | 验证式 | `run_with_verification(worker, verifier, ...)` | Worker → Verifier 对抗验证，FAIL 则注入反馈重试，最多 max_rounds 轮。支持 `WorkspacePolicy.READ_ONLY_SANDBOX` 模式，通过 `ReadonlyExecutorProxy` 强制 Verifier 必须执行代码验证，防止 LLM 幻觉。 |
 
 ### 5.1 Worker / Coordinator 运行时角色

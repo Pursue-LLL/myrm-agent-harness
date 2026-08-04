@@ -1,9 +1,11 @@
 # dynamic_workflow/ — Dynamic Workflow Engine
 
 ## Overview
-The Dynamic Workflow Engine is the third-generation orchestration layer in Harness. It breaks the context limits of single-agent execution by dynamically generating Python orchestration scripts. These scripts run in the PTC (Programmatic Tool Calling) sandbox and spawn multiple sub-agents concurrently through the delegate path.
+The Dynamic Workflow Engine is the **DW PTC** branch of the PTC family (Programmatic Tool Calling). It breaks single-agent context limits by generating Python orchestration scripts that run in the Workflow RPC sandbox (`ptc/`) and spawn sub-agents concurrently through the delegate path.
 
-PTC tool classification SSOT: [../tool_management/TOOL_MANAGEMENT_SYSTEM.md](../tool_management/TOOL_MANAGEMENT_SYSTEM.md) §内部分类.
+**PTC 家族 SSOT**：`toolkits/code_execution/EXECUTION_SYSTEM.md` § PTC 家族。MCP PTC（bash + skills IPC）为同族另一分支，用户无感。
+
+PTC tool classification: [../tool_management/TOOL_MANAGEMENT_SYSTEM.md](../tool_management/TOOL_MANAGEMENT_SYSTEM.md) §内部分类.
 
 Detailed design: [DYNAMIC_WORKFLOW_SYSTEM.md](DYNAMIC_WORKFLOW_SYSTEM.md)
 
@@ -36,17 +38,18 @@ Trust layer (preflight + HITL)
 PTC Sandbox Execution
        ↓
 SpawnSubagentTool (tools.py)
-  - Delegates to parent_agent._spawn_child()
+  - spawn_prep.py → parent_agent._spawn_child()
   - Full tool registry inherited from parent
   - cancel_token checked before each spawn
-  - readonly=True → dual write protection (disallowed_tools + READ_ONLY_SANDBOX)
+  - readonly=True → READ_ONLY_SANDBOX; non-readonly → ISOLATED_COPY
        ↓
-WorkflowEventStore (store.py) — L2 persistent cache
-  - Cache hit → skip spawn
-  - Cache miss → spawn → save result
+WorkflowEventStore (store.py) — L2 persistent cache (SpawnCacheParams fingerprint)
+  - Matching params → cache hit
+  - Param mismatch → re-spawn
        ↓
-Summarization LLM (SUMMARIZATION_PROMPT)
-  - Aggregates stdout into user-readable Markdown
+batch_merge — post-PTC finally workspace merge; `build_merge_snapshot_context` → Revert snapshots + summary diff
+       ↓
+Summarization LLM (SUMMARIZATION_PROMPT) + append `_workspace_diff` when workspace changed
        ↓
 SSE events (message / message_end / status)
   - Frontend renders progress steps + final Markdown
@@ -58,8 +61,9 @@ SSE events (message / message_end / status)
 |------|------|-------------|
 | `preflight.py` | Trust | Static spawn counting, batch cost estimate, plan preview formatting, approval gate protocol. |
 | `__init__.py` | Engine | Core entry point (`run_dynamic_workflow_stream`). Script generation, preflight, optional `approval_gate`, PTC execution, summarization. |
-| `store.py` | Persistence | `WorkflowEventStore` — sub-agent result cache + orchestration script persistence for approval resume. |
-| `tools.py` | PTC Tools | `SpawnSubagentTool` (with `WorkflowRunGuard`) / `NotifyProgressTool` |
+| `store.py` | Persistence | `WorkflowEventStore` — fingerprinted sub-agent cache + orchestration script persistence. |
+| `spawn_cache.py` | Cache SSOT | `SpawnCacheParams` fingerprint for durable replay. |
+| `tools.py` | PTC Tools | `SpawnSubagentTool` (WorkflowRunGuard, cache fingerprint, ISOLATED_COPY + merge) / `NotifyProgressTool` |
 | `notify_stream.py` | Streaming | `iter_notify_events_while_task_runs` concurrently drains the notify queue while PTC execution runs; honors `cancel_token` cancellation. |
 | `_ARCH.md` | Doc | This architecture document. |
 
@@ -68,8 +72,8 @@ SSE events (message / message_end / status)
 1. **Code-as-Orchestrator**: Complex logic (loops, branches, parallelism) is pushed to Python code, keeping the LLM context clean.
 2. **Dynamic Type Discovery**: At script-generation time, `_build_available_types_hint(catalog)` queries the `SubagentCatalog` protocol (which includes YAML presets, JIT configs, AND user-defined database agents) and appends a listing of available `agent_type` values to `ORCHESTRATOR_PROMPT`. This is the same discovery path used by `delegate_task_tool`, ensuring DW and normal delegation see identical agent types. Falls back to the global `SUBAGENT_CONFIGS` registry when no catalog is provided.
 3. **Delegate Path Integration**: Sub-agents are spawned through `parent_agent._spawn_child()`, the same path used by `delegate_task_tool`. This inherits the full tool registry, catalog config, cancel_token, and budget. When no catalog config is found for the requested agent_type, the fallback `SubagentConfig` inherits the parent agent's `model_resolver`, enabling intelligent model routing (cost-saving auto-routing to lighter models for simple tasks). The `SpawnSubagentTool` returns a dict including `status` (SubAgentStatus value) so the generated script can distinguish failure modes (e.g., `timed_out` vs `failed` vs `cancelled_by_budget`).
-4. **Durable Execution**: The SQLite Event Store guarantees that if the Python script crashes, restarting it will instantly replay completed sub-agent tasks from cache. This is powered by a deterministic `workflow_id` derived from the HTTP session's `chat_id` and `message_id`, ensuring absolute idempotency during network retries. Connections are hardened via the unified `harden_connection_sync(CACHE)` profile for WAL journaling, concurrent write safety, and proper fallback on filesystems that cannot host WAL.
-5. **PTC Integration**: Leverages existing PTC infrastructure to expose the `spawn_subagent` capability to the generated script securely.
+4. **Durable Execution**: The SQLite Event Store replays when `SpawnCacheParams` match. Writable rows are JSON-safe; `merged` skips re-spawn/re-merge; `pending` forces re-spawn. Defer keeps child workspaces until `batch_merge`. Merge registers revert snapshots and appends workspace diff to the summary message.
+5. **PTC Integration**: Leverages existing PTC infrastructure to expose `spawn_subagent` (optional adversarial verification via `run_with_verification`) to the generated script securely. Spawn prep shared with delegate via `agent/sub_agents/spawn_prep.py`. Non-readonly DW spawns use ISOLATED_COPY + post-execution `batch_merge`.
 6. **Aggregation Layer**: Raw stdout is summarized by a dedicated LLM call into user-readable Markdown, preventing raw script output from reaching users. The `SUMMARIZATION_PROMPT` includes confidence classification instructions that direct the LLM to prefix each major finding with a reliability indicator (✅ Verified / ⚠️ Unverified / ❌ Refuted / 💥 Failed) based on execution evidence such as tool output, test results, and `[Verification: PASS/FAIL]` markers from the adversarial verification system.
 7. **Cancel Propagation**: `cancel_token` is checked at every phase boundary and passed to every `spawn_child()` call, ensuring the "Stop" button works.
 8. **Budget & Cost Tracking**: Server brackets the DW execution with `should_block_execution()` (budget gate) and `init_token_tracker()` / `reset_token_tracker()` (cost tracking), matching the normal agent and consensus stream patterns.

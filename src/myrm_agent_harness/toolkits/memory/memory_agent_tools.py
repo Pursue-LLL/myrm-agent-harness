@@ -355,7 +355,7 @@ def create_memory_tools(
             return f"Unknown category: {category}"
         except Exception as e:
             logger.warning("memory_save failed: %s", e)
-            return f"Failed to store memory: {e}"
+            return "Failed to store memory"
 
     tools.append(memory_save)
 
@@ -459,7 +459,7 @@ def create_memory_tools(
             return f"Unknown action: {action}"
         except Exception as e:
             logger.warning("memory_manage failed: %s", e)
-            return f"Failed to manage memory: {e}"
+            return "Failed to manage memory"
 
     tools.append(memory_manage)
     return tools

@@ -317,6 +317,88 @@ class TestPostRunEvents:
         assert "usage" in end_event
         assert "model_usage" in end_event["usage"]
 
+    @pytest.mark.asyncio
+    async def test_workspace_merge_warning_sets_completion_status(self) -> None:
+        from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+            record_workspace_merge_failure,
+            reset_workspace_merge_warning,
+        )
+
+        reset_workspace_merge_warning()
+        record_workspace_merge_failure("task_a: disk full")
+        stats = AgentRunStatistics()
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
+                return_value=_async_gen([]),
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                return_value=None,
+            ),
+        ):
+            events = [e async for e in post_run_events(stats, "msg1", {}, False, None)]
+
+        end_event = events[-1]
+        assert end_event["completion_status"] == "warning"
+
+    @pytest.mark.asyncio
+    async def test_workspace_merge_failed_sse_emitted(self) -> None:
+        from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+            record_workspace_merge_failure,
+            reset_workspace_merge_warning,
+        )
+
+        reset_workspace_merge_warning()
+        record_workspace_merge_failure("task_a: disk full")
+        stats = AgentRunStatistics()
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
+                return_value=_async_gen([]),
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                return_value=None,
+            ),
+        ):
+            events = [e async for e in post_run_events(stats, "msg1", {}, False, None)]
+
+        merge_events = [e for e in events if e.get("type") == "workspace_merge_failed"]
+        assert len(merge_events) == 1
+        payload = merge_events[0]["data"]
+        assert payload["failed_count"] == 1
+        assert payload["errors"] == [{"message": "task_a: disk full"}]
+
+    @pytest.mark.asyncio
+    async def test_workspace_merge_warning_does_not_override_truncated(self) -> None:
+        from myrm_agent_harness.agent.types import CompletionStatus
+        from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
+            record_workspace_merge_failure,
+            reset_workspace_merge_warning,
+        )
+
+        reset_workspace_merge_warning()
+        record_workspace_merge_failure("task_a: disk full")
+        stats = AgentRunStatistics(completion_status=CompletionStatus.TRUNCATED)
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
+                return_value=_async_gen([]),
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                return_value=None,
+            ),
+        ):
+            events = [e async for e in post_run_events(stats, "msg1", {}, False, None)]
+
+        end_event = events[-1]
+        assert end_event["completion_status"] == CompletionStatus.TRUNCATED.value
+
 
 class TestComputeContextBudgetSnapshot:
     """Tests for compute_context_budget_snapshot."""

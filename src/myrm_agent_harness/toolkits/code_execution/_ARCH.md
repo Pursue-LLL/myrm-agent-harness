@@ -1,7 +1,7 @@
 # code_execution/
 
 ## Overview
-Code execution toolkit entry point. Aggregates execution configuration, executor implementations,
+Code execution toolkit entry point. Aggregates execution configuration, executor implementations, and the **PTC family SSOT** (MCP PTC + DW PTC — see [EXECUTION_SYSTEM.md § PTC 家族](EXECUTION_SYSTEM.md#ptc-家族programmatic-tool-calling)).
 
 Detailed design: [EXECUTION_SYSTEM.md](EXECUTION_SYSTEM.md)
 
@@ -16,12 +16,12 @@ Detailed design: [EXECUTION_SYSTEM.md](EXECUTION_SYSTEM.md)
 | factory.py | Core | Code executor factory. Creates LocalExecutor for in-container code execution based on configuration. | ✅ |
 | interceptor.py | Core | ExecutionInterceptor Protocol — hooks before destructive sandbox actions (file write, rm, sed) | ✅ |
 | platform.py | Core | Cross-platform runtime detection, shell configuration, and unified `<environment>` system prompt tag (OS + Shell + Python toolchain + VNC visual desktop). | ✅ |
-| python_extractor.py | Core | Quote-aware Python extraction from bash commands; SSOT for code_detector, SkillExecutor, PTC verifier, preflight pipe-stdin guard. | ✅ |
+| python_extractor.py | Core | Quote-aware Python extraction from bash commands; pipe stdin + ``cat *.py | python3`` feeder path extraction; SSOT for code_detector, SkillExecutor, PTC verifier, preflight guards. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
 | executors/ | Executors module for Agent-in-Sandbox mode. |
-| ptc/ | Programmatic Tool Calling — LLM scripts invoke agent tools via UDS/TCP RPC. |
+| ptc/ | **DW PTC** — Workflow RPC；LLM 脚本经 UDS/TCP 调 spawn/notify。MCP PTC 见 EXECUTION_SYSTEM § PTC 家族。 |
 | sandbox/ | OS-level process sandbox for local/desktop execution. |
 | security/ | Execution security — shell command analysis, blacklists, and validators. |
 | session/ | Persistent Session Module (with Auto-Tee, OOM & Disk Quota protection) |

@@ -6,6 +6,7 @@ Key path uses real ToolRegistry and stub protocol backends (no MagicMock on regi
 """
 
 from __future__ import annotations
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 from unittest.mock import AsyncMock
 
@@ -104,7 +105,7 @@ def test_registry_wiring_exposes_skill_tools_with_boundary_descriptions() -> Non
         skills,
         skill_backend,
         registry=registry,
-        enable_file_tools=False,
+        file_access_mode=FileAccessMode.NONE,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
@@ -134,7 +135,7 @@ async def test_skill_agent_build_tools_wires_boundary_descriptions() -> None:
         llm=AsyncMock(),
         skill_backend=_StubSkillBackend(skills),
         market_backend=_StubMarketBackend(),
-        enable_file_tools=False,
+        file_access_mode=FileAccessMode.NONE,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
@@ -161,7 +162,7 @@ def test_discover_description_omits_market_tool_when_market_not_mounted() -> Non
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        enable_file_tools=False,
+        file_access_mode=FileAccessMode.NONE,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
@@ -182,7 +183,7 @@ def test_registry_omits_marketplace_tool_without_user_mount() -> None:
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        enable_file_tools=False,
+        file_access_mode=FileAccessMode.NONE,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
@@ -202,7 +203,7 @@ def test_registry_omits_discover_tool_when_no_searchable_skills() -> None:
         [],
         _StubSkillBackend([]),
         registry=registry,
-        enable_file_tools=False,
+        file_access_mode=FileAccessMode.NONE,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
@@ -225,7 +226,7 @@ async def test_discover_runtime_returns_bound_skills_xml() -> None:
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        enable_file_tools=False,
+        file_access_mode=FileAccessMode.NONE,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
@@ -254,7 +255,7 @@ async def test_discover_runtime_bm25_synonym_expansion_finds_skill() -> None:
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        enable_file_tools=False,
+        file_access_mode=FileAccessMode.NONE,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )
@@ -291,7 +292,7 @@ async def test_skill_select_static_description_and_catalog_delivery_wiring() -> 
         skills,
         _StubSkillBackend(skills),
         registry=registry,
-        enable_file_tools=False,
+        file_access_mode=FileAccessMode.NONE,
         enable_shell_tools=False,
         enable_answer_tool=False,
     )

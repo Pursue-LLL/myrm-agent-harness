@@ -336,7 +336,8 @@ class AcpCallbackHandler:
                 content = "".join(lines[max(0, line - 1) : line - 1 + limit])
             return {"content": content}
         except OSError as exc:
-            return {"content": f"[error] Cannot read file: {exc}"}
+            logger.warning("ACP file read failed: %s", exc)
+            return {"content": "[error] Cannot read file"}
 
     async def write_text_file(
         self,

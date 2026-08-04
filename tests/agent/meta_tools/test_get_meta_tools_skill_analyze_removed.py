@@ -1,6 +1,7 @@
 """Tests that skill_analyze_tool stays removed from get_meta_tools and discover."""
 
 from __future__ import annotations
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 from unittest.mock import MagicMock
 
@@ -44,7 +45,7 @@ class TestSkillAnalyzeRemoved:
             [sample_skill],
             skill_backend,
             registry=registry,
-            enable_file_tools=False,
+            file_access_mode=FileAccessMode.NONE,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
@@ -67,7 +68,7 @@ class TestSkillAnalyzeRemoved:
             [sample_skill],
             skill_backend,
             registry=registry,
-            enable_file_tools=True,
+            file_access_mode=FileAccessMode.FULL,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )

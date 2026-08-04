@@ -117,7 +117,7 @@ def format_filtered_message(result: FilteredResult, *, saved_path: str | None = 
 
 
 FILTERED_RESULT_MSG = """╔══════════════════════════════════════════════════════════════╗
-║   LARGE OUTPUT TRUNCATED - RE-EXECUTE TO GET FULL RESULT    ║
+║   LARGE OUTPUT TRUNCATED - USE file_read_tool TO RECOVER    ║
 ╚══════════════════════════════════════════════════════════════╝
 
  Content Info:
@@ -133,7 +133,8 @@ FILTERED_RESULT_MSG = """╔═════════════════�
 {read_suggestions_text}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Re-execute the tool to retrieve the full output when needed.
+Use file_read_tool on the saved path below when a full copy is needed.
+Re-execute the tool only when the output cannot be recovered from disk.
 """
 
 _SAVED_PATH_HINT = """

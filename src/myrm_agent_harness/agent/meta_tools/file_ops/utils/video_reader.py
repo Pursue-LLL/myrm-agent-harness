@@ -74,7 +74,7 @@ async def read_video_as_content_blocks(
         raise
     except Exception as e:
         logger.warning("Failed to read video bytes: %s, error: %s", path, e)
-        return f"[Video file: {path}] (Failed to read: {e})"
+        return f"[Video file: {path}] (Failed to read)"
 
     size_bytes = len(raw_bytes)
     size_display = _format_size(size_bytes)
@@ -116,7 +116,7 @@ async def read_video_as_content_blocks(
             return f"[Video: {path}] ({mime_type}, {size_display})\n[Video Analysis]:\n{description}"
         except Exception as e:
             logger.warning("Video analysis fallback failed: %s", e)
-            return f"[Video file: {path}] ({mime_type}, {size_display}. Video analysis failed: {e})"
+            return f"[Video file: {path}] ({mime_type}, {size_display}. Video analysis unavailable)"
 
     return (
         f"[Video file: {path}] ({mime_type}, {size_display}. "

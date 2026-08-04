@@ -18,11 +18,11 @@
 - inject_ptc_for_python_execution
 
 [POS]
-Programmatic Tool Calling enables LLM-generated Python scripts to invoke
+Programmatic Tool Calling (PTC) subsystem — **DW PTC** branch infrastructure.
+``inject_ptc_for_python_execution`` enables LLM-generated Python scripts to invoke
 agent tools via RPC without consuming LLM context window for intermediate
-results. ``inject_ptc_for_python_execution`` is used by **Dynamic Workflow**
-only; regular ``bash_code_execute_tool`` does not inject ``myrm_tools`` stubs
-(Turn1 uses Pure Script + ``skills.*`` / ``tools.*`` IPC instead).
+results. **MCP PTC** uses bash + ``skills.*`` / ``tools.*`` IPC instead; see
+EXECUTION_SYSTEM.md § PTC 家族.
 """
 
 from myrm_agent_harness.toolkits.code_execution.ptc.dispatcher import PtcDispatcher

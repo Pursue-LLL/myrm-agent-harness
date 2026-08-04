@@ -7,15 +7,15 @@ SkillAgent factory assembly — MCP routing, surface mode, OpenAPI direct bind, 
 
 | File | Role | Description |
 |------|------|-------------|
-| `mcp_routing.py` | Core | **Direct FC** vs **MCP→Skill (PTC)** by per-server schema + aggregate budget (`AGGREGATE_DIRECT_TOKEN_BUDGET=1200`). Clears MCP entries in `skill_registry` before routing. Returns `MCPRoutingResult(skills, direct_tools)`. |
+| `mcp_routing.py` | Core | **Direct FC** vs **MCP PTC** by per-server schema + aggregate budget (`AGGREGATE_DIRECT_TOKEN_BUDGET=1200`). Clears MCP entries in `skill_registry` before routing. Returns `MCPRoutingResult(skills, direct_tools)`. |
 | `mcp_surface.py` | Core | `MCPSurfaceMode`: `auto` \| `direct_fc`. Legacy `catalog_invoke` profile values parse as `auto` with warning. |
-| `builder.py` | Core | Wires routing into `create_skill_agent`. Clears MCP registry when `mcp_servers` is empty. OpenAPI direct bind raises `ConfigIncompleteError` when enabled services produce zero tools or schema exceeds aggregate budget. |
+| `builder.py` | Core | Wires routing into `create_skill_agent`. Turn1 mount via `file_access_mode` (FileAccessMode SSOT). Clears MCP registry when `mcp_servers` is empty. OpenAPI direct bind raises `ConfigIncompleteError` when enabled services produce zero tools or schema exceeds aggregate budget. |
 
 ```
 route_mcp_servers()
   ├─ clear_mcp_skills() in skill_registry
-  ├─ per-server schema > direct_threshold → MCP→Skill (PTC)
-  ├─ aggregate direct pool > 1200 tok (auto) → demote largest servers → MCP→Skill
+  ├─ per-server schema > direct_threshold → MCP PTC
+  ├─ aggregate direct pool > 1200 tok (auto) → demote largest servers → MCP PTC
   └─ else → Direct FC Turn1 bind
 
 create_skill_agent() OpenAPI path

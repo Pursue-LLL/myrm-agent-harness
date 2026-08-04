@@ -944,7 +944,7 @@ async def _do_resume(mgr: CronManager, user_id: str, job_id: str) -> str:
     try:
         job = await mgr.resume_job(job_id, user_id)
     except ValueError as exc:
-        return f"Cannot resume task {job_id}: {exc}"
+        return f"Cannot resume task {job_id}"
     if not job:
         return f"Task {job_id} not found."
     next_run = job.next_run_at.strftime("%Y-%m-%d %H:%M UTC") if job.next_run_at else "N/A"

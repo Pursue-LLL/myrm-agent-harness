@@ -53,7 +53,6 @@ from myrm_agent_harness.agent.parallel.summary import (
 from myrm_agent_harness.agent.sub_agents.types import (
     ControlScope,
     DelegateRole,
-    MemoryIsolationPolicy,
     SubagentCatalog,
     SubagentConfig,
     SubAgentResult,
@@ -374,49 +373,33 @@ def create_delegate_task_tool(
                 delegation_allowed_types=None,
             )
 
-        if readonly:
-            readonly_blocked = frozenset(
-                {
-                    "write_file",
-                    "execute_terminal_command",
-                    "bash_run_command",
-                    "git_commit",
-                }
-            )
-            readonly_hint = "\n\n[READONLY MODE] You are in read-only mode. You can only read and analyze — do NOT attempt file writes, terminal commands, or git commits."
-            config = replace(
-                config,
-                disallowed_tools=config.disallowed_tools | readonly_blocked,
-                system_prompt=config.system_prompt + readonly_hint,
-            )
+        from myrm_agent_harness.agent.sub_agents.spawn_prep import (
+            apply_readonly_to_config,
+            apply_spawn_workspace_isolation,
+            build_spawn_child_context,
+            enforce_spawn_policy_on_config,
+            memory_isolation_scope,
+            resolve_delegate_parallel_write_batch,
+        )
 
-        # Enforce LEAF control scope: subagents cannot spawn further subagents
-        if config.control_scope == ControlScope.LEAF:
-            config = replace(config, max_spawn_depth=0)
-
-        # Enforce memory isolation: block memory write tools for READ_ONLY_GLOBAL
-        if config.memory_isolation == MemoryIsolationPolicy.READ_ONLY_GLOBAL:
-            memory_write_tools = frozenset({"memory_save_tool", "memory_manage_tool"})
-            config = replace(config, disallowed_tools=config.disallowed_tools | memory_write_tools)
+        config = apply_readonly_to_config(config, readonly)
+        config = enforce_spawn_policy_on_config(config)
 
         cancel_token = get_cancel_token()
 
-        child_context = dict(context or {})
-        child_context["subagent_payload_hashes"] = history_hashes
-        for _ctx_key in ("workspace_binding", "workspaces_storage_root", "user_id", "session_id"):
-            if _ctx_key in parent_ctx:
-                child_context[_ctx_key] = parent_ctx[_ctx_key]
-
-        from myrm_agent_harness.agent.workspace_coordination.policy import (
-            apply_parallel_write_isolation,
+        child_context = build_spawn_child_context(
+            parent_ctx=parent_ctx,
+            base_context=dict(context or {}),
+            payload_hashes=history_hashes,
         )
-
-        config, child_context = apply_parallel_write_isolation(
+        workspace_prep = apply_spawn_workspace_isolation(
             config=config,
             child_context=child_context,
             readonly=readonly,
-            parallel_write_batch=bool(getattr(parent_agent, "_parallel_write_batch_active", False)),
+            parallel_write_batch=resolve_delegate_parallel_write_batch(parent_agent),
         )
+        config = workspace_prep.config
+        child_context = workspace_prep.child_context
 
         logger.info(
             "Spawning subagent: type=%s, task_id=%s, wait=%s, scope=%s",
@@ -426,120 +409,40 @@ def create_delegate_task_tool(
             config.control_scope,
         )
 
-        reset_token = None
         try:
-            from myrm_agent_harness.agent._skill_agent_context import (
-                _memory_manager_var,
-                get_memory_manager,
-            )
-            from myrm_agent_harness.toolkits.memory.ephemeral import (
-                EphemeralMemoryManager,
-                ReadOnlyMemoryView,
-            )
+            with memory_isolation_scope(parent_agent=parent_agent, config=config):
+                if verifier_prompt and single_wait:
+                    logger.info(f"Running adversarial verification for subagent {task_id}")
+                    from myrm_agent_harness.agent.sub_agents.orchestrator import run_with_verification
+                    from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
 
-            global_mem = get_memory_manager()
-            if global_mem:
-                if config.memory_isolation == MemoryIsolationPolicy.COLLABORATIVE_SESSION:
-                    if not hasattr(parent_agent, "_collaborative_memory"):
-                        parent_agent._collaborative_memory = EphemeralMemoryManager(global_mem)
-                    reset_token = _memory_manager_var.set(parent_agent._collaborative_memory)
-                elif config.memory_isolation == MemoryIsolationPolicy.READ_ONLY_GLOBAL:
-                    reset_token = _memory_manager_var.set(ReadOnlyMemoryView(global_mem))
-                else:
-                    ephemeral_mem = EphemeralMemoryManager(global_mem)
-                    reset_token = _memory_manager_var.set(ephemeral_mem)
+                    v_type = verifier_agent_type or agent_type
+                    v_config = await catalog.resolve(v_type)
+                    if not v_config:
+                        logger.warning(
+                            "Verifier agent type '%s' not found, falling back to worker type '%s'",
+                            v_type,
+                            agent_type,
+                        )
+                        v_type = agent_type
+                        v_config = config
 
-            if verifier_prompt and single_wait:
-                logger.info(f"Running adversarial verification for subagent {task_id}")
-                from myrm_agent_harness.agent.sub_agents.orchestrator import run_with_verification
-                from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
+                    verifier_config = replace(v_config, workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
 
-                v_type = verifier_agent_type or agent_type
-                v_config = await catalog.resolve(v_type)
-                if not v_config:
-                    logger.warning(
-                        "Verifier agent type '%s' not found, falling back to worker type '%s'", v_type, agent_type
+                    result = await run_with_verification(
+                        manager=parent_manager,
+                        worker_type=agent_type,
+                        worker_config=config,
+                        worker_task=task,
+                        verifier_type=v_type,
+                        verifier_config=verifier_config,
+                        context=child_context,
+                        tool_registry_getter=tool_registry_getter,
+                        max_rounds=max_verification_rounds,
+                        verifier_task_template=verifier_prompt,
+                        cancel_token=cancel_token,
                     )
-                    v_type = agent_type
-                    v_config = config
-
-                verifier_config = replace(v_config, workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
-
-                result = await run_with_verification(
-                    manager=parent_manager,
-                    worker_type=agent_type,
-                    worker_config=config,
-                    worker_task=task,
-                    verifier_type=v_type,
-                    verifier_config=verifier_config,
-                    context=child_context,
-                    tool_registry_getter=tool_registry_getter,
-                    max_rounds=max_verification_rounds,
-                    verifier_task_template=verifier_prompt,
-                    cancel_token=cancel_token,
-                )
-            else:
-                result = await parent_agent._spawn_child(
-                    task_id=task_id,
-                    agent_type=agent_type,
-                    task_description=task,
-                    config=config,
-                    context=child_context,
-                    tool_registry_getter=tool_registry_getter,
-                    wait=single_wait,
-                    parent_type=parent_type,
-                    cancel_token=cancel_token,
-                    complexity_tier=complexity_tier,
-                )
-
-            if isinstance(result, SubAgentResult):
-                from myrm_agent_harness.agent.sub_agents.types import SubAgentStatus
-
-                while result.status == SubAgentStatus.PENDING_APPROVAL:
-                    # 1. Subagent suspended via GraphInterrupt. Prepare payload for Parent's interrupt.
-                    interrupt_payload: dict[str, object] = {
-                        "action_type": "subagent_approval",
-                        "subagent_task_id": task_id,
-                    }
-                    if result.payload and isinstance(result.payload, dict):
-                        interrupt_payload.update(result.payload)
-
-                        # Adapt payload for frontend PolymorphicApprovalCard
-                        # Frontend expects `tool_calls` array with {name, args}
-                        action_requests = result.payload.get("actionRequests", [])
-                        tool_calls: list[dict[str, object]] = []
-                        if not isinstance(action_requests, list):
-                            action_requests = []
-                        for req in action_requests:
-                            if isinstance(req, dict):
-                                raw_args = req.get("args", {})
-                                args: dict[str, object] = dict(raw_args) if isinstance(raw_args, dict) else {}
-                                command_spans = req.get("command_spans")
-                                if command_spans:
-                                    args["command_spans"] = command_spans
-                                command_span_risks = req.get("command_span_risks")
-                                if command_span_risks:
-                                    args["command_span_risks"] = command_span_risks
-                                command_span_reasons = req.get("command_span_reasons")
-                                if command_span_reasons:
-                                    args["command_span_reasons"] = command_span_reasons
-                                tool_calls.append(
-                                    {
-                                        "name": req.get("action", "unknown"),
-                                        "args": args,
-                                    }
-                                )
-                        if tool_calls:
-                            interrupt_payload["tool_calls"] = tool_calls
-
-                    else:
-                        interrupt_payload["payload"] = result.payload
-
-                    # Suspend parent graph (releases concurrency, avoids 300s timeout)
-                    from langgraph.types import Command, interrupt
-
-                    decisions = interrupt(interrupt_payload)
-                    logger.info("Resuming subagent %s after UI approval", task_id)
+                else:
                     result = await parent_agent._spawn_child(
                         task_id=task_id,
                         agent_type=agent_type,
@@ -550,22 +453,79 @@ def create_delegate_task_tool(
                         wait=single_wait,
                         parent_type=parent_type,
                         cancel_token=cancel_token,
-                        resume_command=Command(resume=decisions),
                         complexity_tier=complexity_tier,
                     )
 
-            if isinstance(result, SubAgentResult):
-                result_dict = result.to_dict()
-                if single_wait:
-                    if result_dict.get("success"):
-                        _put_cache(key, result_dict.get("result", {}))
-                    return _inject_capacity_signal(result_dict, parent_agent)
+                if isinstance(result, SubAgentResult):
+                    from myrm_agent_harness.agent.sub_agents.types import SubAgentStatus
 
-            if isinstance(result, dict) and wait and result.get("success"):
-                _put_cache(key, result.get("result", {}))
+                    while result.status == SubAgentStatus.PENDING_APPROVAL:
+                        interrupt_payload: dict[str, object] = {
+                            "action_type": "subagent_approval",
+                            "subagent_task_id": task_id,
+                        }
+                        if result.payload and isinstance(result.payload, dict):
+                            interrupt_payload.update(result.payload)
 
-            final_result = result if isinstance(result, dict) else {"success": False, "error": str(result)}
-            return _inject_capacity_signal(final_result, parent_agent)
+                            action_requests = result.payload.get("actionRequests", [])
+                            tool_calls: list[dict[str, object]] = []
+                            if not isinstance(action_requests, list):
+                                action_requests = []
+                            for req in action_requests:
+                                if isinstance(req, dict):
+                                    raw_args = req.get("args", {})
+                                    args: dict[str, object] = dict(raw_args) if isinstance(raw_args, dict) else {}
+                                    command_spans = req.get("command_spans")
+                                    if command_spans:
+                                        args["command_spans"] = command_spans
+                                    command_span_risks = req.get("command_span_risks")
+                                    if command_span_risks:
+                                        args["command_span_risks"] = command_span_risks
+                                    command_span_reasons = req.get("command_span_reasons")
+                                    if command_span_reasons:
+                                        args["command_span_reasons"] = command_span_reasons
+                                    tool_calls.append(
+                                        {
+                                            "name": req.get("action", "unknown"),
+                                            "args": args,
+                                        }
+                                    )
+                            if tool_calls:
+                                interrupt_payload["tool_calls"] = tool_calls
+
+                        else:
+                            interrupt_payload["payload"] = result.payload
+
+                        from langgraph.types import Command, interrupt
+
+                        decisions = interrupt(interrupt_payload)
+                        logger.info("Resuming subagent %s after UI approval", task_id)
+                        result = await parent_agent._spawn_child(
+                            task_id=task_id,
+                            agent_type=agent_type,
+                            task_description=task,
+                            config=config,
+                            context=child_context,
+                            tool_registry_getter=tool_registry_getter,
+                            wait=single_wait,
+                            parent_type=parent_type,
+                            cancel_token=cancel_token,
+                            resume_command=Command(resume=decisions),
+                            complexity_tier=complexity_tier,
+                        )
+
+                if isinstance(result, SubAgentResult):
+                    result_dict = result.to_dict()
+                    if single_wait:
+                        if result_dict.get("success"):
+                            _put_cache(key, result_dict.get("result", {}))
+                        return _inject_capacity_signal(result_dict, parent_agent)
+
+                if isinstance(result, dict) and wait and result.get("success"):
+                    _put_cache(key, result.get("result", {}))
+
+                final_result = result if isinstance(result, dict) else {"success": False, "error": str(result)}
+                return _inject_capacity_signal(final_result, parent_agent)
 
         except TimeoutError:
             timeout_msg = f"after {config.timeout_seconds}s" if config.timeout_seconds is not None else ""
@@ -596,14 +556,6 @@ def create_delegate_task_tool(
                 "error": f"{type(e).__name__}: {e}",
                 "task_id": task_id,
             }
-        finally:
-            if reset_token:
-                try:
-                    from myrm_agent_harness.agent._skill_agent_context import _memory_manager_var
-
-                    _memory_manager_var.reset(reset_token)
-                except Exception as e:
-                    logger.warning("Failed to reset memory manager context var: %s", e)
 
     _delegate_tool_holder["tool"] = delegate_task_func
     return delegate_task_func

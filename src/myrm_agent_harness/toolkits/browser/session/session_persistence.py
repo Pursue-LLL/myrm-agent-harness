@@ -74,7 +74,7 @@ class SessionPersistence:
             storage_state = await context.storage_state()
         except Exception as exc:
             logger.error("Failed to get storage state for %s: %s", domain, exc)
-            return f"Error: Failed to retrieve browser storage state: {exc}"
+            return "Error: Failed to retrieve browser storage state"
 
         total_cookies = len(storage_state.get("cookies", []))
         filtered_cookies = [
@@ -93,7 +93,7 @@ class SessionPersistence:
             )
         except Exception as exc:
             logger.error("Failed to save session for %s: %s", domain, exc)
-            return f"Error: Failed to save session: {exc}"
+            return "Error: Failed to save session"
 
         elapsed_ms = (time.time() - start_time) * 1000
         logger.info(
@@ -133,7 +133,7 @@ class SessionPersistence:
             entry = await self._vault.load(domain)
         except Exception as exc:
             logger.error("Failed to load session for %s: %s", domain, exc)
-            return f"Error: Failed to load session: {exc}"
+            return "Error: Failed to load session"
 
         if entry is None:
             return f"No saved session found for domain: {domain} (or session expired)"
@@ -145,7 +145,7 @@ class SessionPersistence:
             await context.add_cookies(cookies)
         except Exception as exc:
             logger.error("Failed to inject cookies for %s: %s", domain, exc)
-            return f"Error: Failed to inject cookies: {exc}"
+            return "Error: Failed to inject cookies"
 
         local_storage_count = 0
         local_storage_origins = entry.storage_state.get("origins", [])
