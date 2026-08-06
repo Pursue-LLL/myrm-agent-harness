@@ -157,7 +157,7 @@ _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "web_search_tool": 1001,
     "memory_search_tool": 137,
     "memory_save_tool": 640,
-    "memory_manage_tool": 251,
+    "memory_manage_tool": 282,
     "skill_select_tool": 188,
 }
 
@@ -176,6 +176,6 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
     )
     layer_totals = report["layer_totals"]
     assert layer_totals["CORE"] == 2940
-    assert layer_totals["COMMON"] == 2029
+    assert layer_totals["COMMON"] == 2060
     assert layer_totals["EXTENDED"] == 188
-    assert report["tools_subtotal"] == 6002
+    assert report["tools_subtotal"] == 6033

@@ -168,8 +168,8 @@ def _save_description(
 
 
 class TestMemoryToolDecisionGolden:
-    def test_golden_catalog_has_fifteen_scenarios(self) -> None:
-        assert len(GOLDEN_MEMORY_DECISIONS) == 15
+    def test_golden_catalog_has_sixteen_scenarios(self) -> None:
+        assert len(GOLDEN_MEMORY_DECISIONS) == 16
 
     def test_each_scenario_save_guardrails_en(self) -> None:
         for scenario in GOLDEN_MEMORY_DECISIONS:

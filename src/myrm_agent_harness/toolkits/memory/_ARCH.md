@@ -25,7 +25,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | memory_agent_tools.py    | Core     | Agent memory tools factory: memory_search_tool, save, manage. Wires descriptions from `_memory_agent_tool_descriptions.py`. | ✅    |
 | _memory_agent_tool_descriptions.py | Core | LLM-visible memory tool description SSOT (English + Chinese; locale via `is_chinese`). `build_memory_search_tool_description` / `build_memory_save_tool_description` (policy + approval dynamic fragments). Imported by `memory_agent_tools.py` and static tests. | ✅    |
 | wiki_memory_boundary.py  | Core     | Wiki vs memory write boundary heuristics; memory_save rejection counter; persist vector filter. | ✅    |
-| tests/toolkits/memory/test_memory_tool_decision_golden.py | Test | 15-scenario save/manage/search routing guardrail golden (EN/ZH prompt SSOT). | ✅ |
+| tests/toolkits/memory/test_memory_tool_decision_golden.py | Test | 16-scenario save/manage/search routing guardrail golden (EN/ZH prompt SSOT). | ✅ |
 | memory_search_policy.py  | Core     | Corpus ACL and optional wiki/sessions/web backends for memory_search_tool; `query_wiki` + optional `wiki_structure` / `wiki_agent_id` for citation URI parity with wiki_query_tool. | ✅    |
 | memory_search_execution.py | Core   | Memory/wiki/sessions search execution; wiki corpus emits sources + UNTRUSTED wrap on answers. | ✅    |
 | memory_citations.py      | Core     | Citation/source bridge that converts recalled memories, retrieval traces, and conversation sources into UI-safe SSE metadata. | ✅    |

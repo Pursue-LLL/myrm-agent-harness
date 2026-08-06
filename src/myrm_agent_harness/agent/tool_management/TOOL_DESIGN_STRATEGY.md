@@ -106,8 +106,8 @@ class ToolLayer(IntEnum):
 | 子类 | 加载条件 | 典型工具 | Token 消耗 |
 |------|---------|---------|----------:|
 | 能力发现网关（**TURN1**，条件绑定） | `hidden_skill_count > 0` 且存在 model_invocable bound skills | skill_search_tool | 203（条件绑定；tiktoken measured woven desc） |
-| 记忆工具（COMMON） | 启用记忆系统 | memory_search_tool, memory_save_tool, memory_manage_tool | ~2,029（见 `DEFAULT_AGENT_TOKEN_INVENTORY.md` §三） |
-| 会话搜索（opt-in） | `memoryEnableConversationSearch=true` 且非无痕 | `memory_search_tool`（corpus=sessions ACL；无额外 Turn1 schema） | 含于 memory×3 ~2,029 |
+| 记忆工具（COMMON） | 启用记忆系统 | memory_search_tool, memory_save_tool, memory_manage_tool | ~2,060（见 `DEFAULT_AGENT_TOKEN_INVENTORY.md` §三） |
+| 会话搜索（opt-in） | `memoryEnableConversationSearch=true` 且非无痕 | `memory_search_tool`（corpus=sessions ACL；无额外 Turn1 schema） | 含于 memory×3 ~2,060 |
 | 技能工具（Turn1） | 有技能后端 | skill_select_tool, skill_manage_tool | ~343 |
 | 浏览器工具 | `enabled_builtin_tools: browser` | browser_navigate_tool, browser_snapshot_tool, ... (8个) | ~535 |
 | 定时任务工具 | cron 能力 wired；勾选 cron 时 Turn1 | cron_manage_tool | ~827 |
