@@ -85,6 +85,7 @@ def _apply_tool_surface_names(
         result = result.replace(old, new)
     return result
 
+
 # =============================================================================
 # English (default LLM-facing)
 # =============================================================================

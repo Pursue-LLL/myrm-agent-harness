@@ -231,9 +231,9 @@ def test_memory_search_description_includes_enabled_corpora() -> None:
 
 
 def test_memory_tool_descriptions_support_zh_cn_locale() -> None:
-    assert resolve_memory_save_tool_description("zh-CN") == build_memory_save_tool_description(
-        MemorySearchPolicy(), locale="zh-CN"
-    )
+    assert resolve_memory_save_tool_description(
+        "zh-CN"
+    ) == build_memory_save_tool_description(MemorySearchPolicy(), locale="zh-CN")
     assert (
         resolve_memory_manage_tool_description("zh-CN")
         == MEMORY_MANAGE_TOOL_DESCRIPTION_ZH

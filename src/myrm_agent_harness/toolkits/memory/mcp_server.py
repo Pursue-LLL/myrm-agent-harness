@@ -95,7 +95,9 @@ _request_wiki_boundary_enabled: ContextVar[bool] = ContextVar(
 )
 
 
-def set_request_memory_manager(manager: MemoryManager | None) -> Token[MemoryManager | None]:
+def set_request_memory_manager(
+    manager: MemoryManager | None,
+) -> Token[MemoryManager | None]:
     """Bind the MemoryManager used by MCP tool handlers for the current request."""
     return _request_memory_manager.set(manager)
 
@@ -118,6 +120,7 @@ def reset_request_wiki_boundary_enabled(token: Token[bool]) -> None:
 def get_request_wiki_boundary_enabled() -> bool:
     """Return the active wiki boundary flag for the current MCP request."""
     return _request_wiki_boundary_enabled.get()
+
 
 _CATEGORY_TO_TYPE: dict[str, MemoryType] = {
     "knowledge": MemoryType.SEMANTIC,
@@ -261,7 +264,9 @@ class MemoryMCPServer:
             parsed_cats = _parse_string_list(categories)
             types: list[MemoryType] | None = None
             if parsed_cats:
-                valid = [_CATEGORY_TO_TYPE[c] for c in parsed_cats if c in _CATEGORY_TO_TYPE]
+                valid = [
+                    _CATEGORY_TO_TYPE[c] for c in parsed_cats if c in _CATEGORY_TO_TYPE
+                ]
                 types = valid or None
 
             parsed_since = _parse_time_bound(since)
@@ -288,27 +293,40 @@ class MemoryMCPServer:
             truncated_by_budget = False
 
             for r in results:
-                cat = next((k for k, v in _CATEGORY_TO_TYPE.items() if v == r.memory_type), r.memory_type.value)
+                cat = next(
+                    (k for k, v in _CATEGORY_TO_TYPE.items() if v == r.memory_type),
+                    r.memory_type.value,
+                )
                 mem = r.memory
                 age = memory_age_label(mem.created_at)
                 provenance = _channel_label(mem.scope.channel_id)
-                prefix = f"{provenance}[{cat}] (id: {mem.id}, score: {r.score:.2f}, {age}) "
+                prefix = (
+                    f"{provenance}[{cat}] (id: {mem.id}, score: {r.score:.2f}, {age}) "
+                )
                 suffix = ""
                 if isinstance(mem, ClaimMemory):
                     freshness = mem.freshness
                     contradiction = mem.contradiction_status
                     evidence_count = mem.evidence_count
-                    relation_type = str(mem.metadata.get("latest_relationship_type", "")).strip().lower()
-                    relation_suffix = f" relation={relation_type}" if relation_type else ""
+                    relation_type = (
+                        str(mem.metadata.get("latest_relationship_type", ""))
+                        .strip()
+                        .lower()
+                    )
+                    relation_suffix = (
+                        f" relation={relation_type}" if relation_type else ""
+                    )
                     suffix += (
                         f" [claim_graph freshness={freshness} contradiction={contradiction} "
                         f"evidence={evidence_count}{relation_suffix}]"
                     )
                 if isinstance(mem, SemanticMemory) and mem.source_error:
                     suffix += f" (avoid: {mem.source_error})"
-                if r.memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CLAIM) and _is_stale(
-                    mem.created_at
-                ):
+                if r.memory_type in (
+                    MemoryType.SEMANTIC,
+                    MemoryType.EPISODIC,
+                    MemoryType.CLAIM,
+                ) and _is_stale(mem.created_at):
                     suffix += " (may be outdated — verify before citing)"
 
                 budgeted = budget_recall_line(
@@ -379,7 +397,11 @@ class MemoryMCPServer:
                     valid = ", ".join(_CATEGORY_TO_TYPE)
                     return f"Error: invalid category '{category}'. Valid: {valid}"
                 return await self._list_category(
-                    mgr, mem_type, category, page=page, page_size=page_size,
+                    mgr,
+                    mem_type,
+                    category,
+                    page=page,
+                    page_size=page_size,
                     include_archived=include_archived,
                 )
 
@@ -406,7 +428,9 @@ class MemoryMCPServer:
                 lines.append("  (empty)")
                 continue
             items = await mgr.list_memories(
-                mem_type, limit=preview_limit, include_archived=include_archived,
+                mem_type,
+                limit=preview_limit,
+                include_archived=include_archived,
             )
             for mem in items:
                 age = memory_age_label(mem.created_at)
@@ -414,7 +438,9 @@ class MemoryMCPServer:
                 snippet = safe_content[:80] + ("…" if len(safe_content) > 80 else "")
                 lines.append(f"  - [{age}] (id: {mem.id}) {snippet}")
             if count > preview_limit:
-                lines.append(f"  ... and {count - preview_limit} more — use memory_list(category=\"{cat}\") to browse")
+                lines.append(
+                    f'  ... and {count - preview_limit} more — use memory_list(category="{cat}") to browse'
+                )
 
         lines.insert(1, f"Total memories: {total}")
         lines.append("")
@@ -440,10 +466,16 @@ class MemoryMCPServer:
             return f"Page {page} is beyond the last page ({total_pages}). Use page=1..{total_pages}."
 
         items = await mgr.list_memories(
-            mem_type, limit=page_size, offset=offset, include_archived=include_archived,
+            mem_type,
+            limit=page_size,
+            offset=offset,
+            include_archived=include_archived,
         )
 
-        lines: list[str] = [f"# {category} — page {page}/{total_pages} ({count} total)", ""]
+        lines: list[str] = [
+            f"# {category} — page {page}/{total_pages} ({count} total)",
+            "",
+        ]
         max_body = (
             MAX_RECALL_OUTPUT_CHARS
             - recall_drift_defense_footer_chars()
@@ -456,8 +488,11 @@ class MemoryMCPServer:
             age = memory_age_label(mem.created_at)
             prefix = f"[{age}] (id: {mem.id}) "
             budgeted = budget_recall_line(
-                prefix=prefix, content=mem.content, suffix="",
-                output_chars=char_count, max_body_chars=max_body,
+                prefix=prefix,
+                content=mem.content,
+                suffix="",
+                output_chars=char_count,
+                max_body_chars=max_body,
             )
             if budgeted.line is None:
                 truncated = True
@@ -467,10 +502,12 @@ class MemoryMCPServer:
             truncated = truncated or budgeted.truncated
 
         if truncated:
-            lines.append("[list_budget] Some entries truncated. Reduce page_size for full content.")
+            lines.append(
+                "[list_budget] Some entries truncated. Reduce page_size for full content."
+            )
 
         if page < total_pages:
-            lines.append(f"\nNext: memory_list(category=\"{category}\", page={page + 1})")
+            lines.append(f'\nNext: memory_list(category="{category}", page={page + 1})')
 
         lines.append(RECALL_DRIFT_DEFENSE_FOOTER)
         return finalize_recall_tool_output("\n".join(lines))
@@ -509,7 +546,13 @@ class MemoryMCPServer:
             if not content or not content.strip():
                 return "Error: content cannot be empty."
 
-            valid_categories = ("knowledge", "event", "preference", "rule", "instruction")
+            valid_categories = (
+                "knowledge",
+                "event",
+                "preference",
+                "rule",
+                "instruction",
+            )
             if category not in valid_categories:
                 return f"Error: invalid category '{category}'. Valid: {', '.join(valid_categories)}"
             if write_target not in ("bound", "shared"):
@@ -533,14 +576,21 @@ class MemoryMCPServer:
                     if not mgr.has_vector:
                         return "Knowledge memory is not enabled."
                     mem = await mgr.add_knowledge(
-                        content, importance=importance, tags=parsed_tags, write_target=write_target
+                        content,
+                        importance=importance,
+                        tags=parsed_tags,
+                        write_target=write_target,
                     )
                     return f"Knowledge {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 
                 if category == "event":
                     if not mgr.has_vector:
                         return "Event memory is not enabled."
-                    mem = await mgr.add_event(content, event_type="agent_observation", write_target=write_target)
+                    mem = await mgr.add_event(
+                        content,
+                        event_type="agent_observation",
+                        write_target=write_target,
+                    )
                     return f"Event {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 
                 if category == "preference":
@@ -558,14 +608,22 @@ class MemoryMCPServer:
                         return "Procedural memory is not enabled."
                     if not rule_trigger:
                         return "Rule requires 'rule_trigger'."
-                    mem = await mgr.add_rule(rule_trigger, content, priority=rule_priority, trigger_keywords=parsed_kw)
+                    mem = await mgr.add_rule(
+                        rule_trigger,
+                        content,
+                        priority=rule_priority,
+                        trigger_keywords=parsed_kw,
+                    )
                     return f"Rule {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 
                 if category == "instruction":
                     if not mgr.has_relational:
                         return "Procedural memory is not enabled."
                     mem = await mgr.add_rule(
-                        "always", content, priority=max(rule_priority, 10), source=RuleSource.AGENT_SELF
+                        "always",
+                        content,
+                        priority=max(rule_priority, 10),
+                        source=RuleSource.AGENT_SELF,
                     )
                     return f"Instruction {'submitted for approval' if pending else 'stored'} (ID: {mem.id})"
 
@@ -633,19 +691,29 @@ class MemoryMCPServer:
                             else mgr.config.episodic_collection
                         )
                         n = await mgr.delete_memory(coll, [memory_id])
-                        return f"Memory deleted (ID: {memory_id})" if n > 0 else f"Memory not found (ID: {memory_id})"
+                        return (
+                            f"Memory deleted (ID: {memory_id})"
+                            if n > 0
+                            else f"Memory not found (ID: {memory_id})"
+                        )
                     if mem_type == MemoryType.PROFILE:
                         return "Profile attributes cannot be deleted via memory_manage."
                     if mem_type == MemoryType.PROCEDURAL:
                         if not mgr.has_relational:
                             return "Procedural memory is not enabled."
                         ok = await mgr.delete_rule(memory_id)
-                        return f"Rule deleted (ID: {memory_id})" if ok else f"Rule not found (ID: {memory_id})"
+                        return (
+                            f"Rule deleted (ID: {memory_id})"
+                            if ok
+                            else f"Rule not found (ID: {memory_id})"
+                        )
 
                 if action == "update":
                     if not new_content:
                         return "Update requires 'new_content'."
-                    updated = await mgr.update_memory(memory_id, content=new_content, importance=new_importance)
+                    updated = await mgr.update_memory(
+                        memory_id, content=new_content, importance=new_importance
+                    )
                     return f"Memory updated (ID: {updated.id})"
 
                 if action == "correct":

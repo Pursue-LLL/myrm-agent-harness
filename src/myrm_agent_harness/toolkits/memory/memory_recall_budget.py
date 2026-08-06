@@ -51,7 +51,9 @@ def normalize_recall_limit(value: object) -> int:
     return min(max(raw_limit, MIN_RECALL_LIMIT), MAX_RECALL_LIMIT)
 
 
-def truncate_recall_content(content: str, max_chars: int = MAX_RECALL_CONTENT_CHARS) -> tuple[str, bool]:
+def truncate_recall_content(
+    content: str, max_chars: int = MAX_RECALL_CONTENT_CHARS
+) -> tuple[str, bool]:
     """Return recall content truncated to fit a tool-output budget."""
     if max_chars < MIN_RECALL_CONTENT_CHARS:
         return _OMITTED_CONTENT, bool(content)
@@ -83,11 +85,15 @@ def budget_recall_line(
     remaining = max_body_chars - output_chars - line_cost(prefix + suffix)
     content_limit = min(max_content_chars, remaining)
     safe_content = sanitize_recalled_content(content)
-    truncated_content, was_truncated = truncate_recall_content(safe_content, content_limit)
+    truncated_content, was_truncated = truncate_recall_content(
+        safe_content, content_limit
+    )
     line = f"{prefix}{truncated_content}{suffix}"
     if output_chars + line_cost(line) > max_body_chars:
         return BudgetedRecallLine(line=None, next_chars=output_chars, truncated=True)
-    return BudgetedRecallLine(line=line, next_chars=output_chars + line_cost(line), truncated=was_truncated)
+    return BudgetedRecallLine(
+        line=line, next_chars=output_chars + line_cost(line), truncated=was_truncated
+    )
 
 
 def _parse_limit_string(value: str) -> int:

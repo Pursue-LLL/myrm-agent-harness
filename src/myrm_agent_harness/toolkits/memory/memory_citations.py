@@ -28,7 +28,9 @@ logger = logging.getLogger(__name__)
 MAX_CITATION_CONTENT_CHARS = 1500
 
 
-def cited_memory_ref(memory: object, memory_type: MemoryType, score: float) -> dict[str, object]:
+def cited_memory_ref(
+    memory: object, memory_type: MemoryType, score: float
+) -> dict[str, object]:
     """Build a UI-safe citation reference from a recalled memory."""
     scope = getattr(memory, "scope", None)
     namespaces = getattr(scope, "namespaces", []) if scope is not None else []
@@ -38,13 +40,19 @@ def cited_memory_ref(memory: object, memory_type: MemoryType, score: float) -> d
         "memory_type": memory_type.value,
         "content": _bounded_text(getattr(memory, "content", "")),
         "score": round(score, 4),
-        "primary_namespace": str(getattr(scope, "primary_namespace", "")) if scope is not None else "",
-        "namespaces": [namespace for namespace in namespaces if isinstance(namespace, str)]
-        if isinstance(namespaces, list)
-        else [],
+        "primary_namespace": (
+            str(getattr(scope, "primary_namespace", "")) if scope is not None else ""
+        ),
+        "namespaces": (
+            [namespace for namespace in namespaces if isinstance(namespace, str)]
+            if isinstance(namespaces, list)
+            else []
+        ),
     }
     _copy_optional_str(ref, "source_chat_id", getattr(memory, "source_chat_id", None))
-    _copy_optional_str(ref, "source_message_id", getattr(memory, "source_message_id", None))
+    _copy_optional_str(
+        ref, "source_message_id", getattr(memory, "source_message_id", None)
+    )
     if isinstance(created_at, datetime):
         ref["created_at"] = created_at.isoformat()
     return ref
@@ -60,7 +68,9 @@ async def emit_cited_memory_ids(
     """Push cited memory metadata to the SSE output queue for frontend consumption."""
     try:
         from myrm_agent_harness.core.events.types import AgentEventType
-        from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
+        from myrm_agent_harness.utils.runtime.progress_sink import (
+            get_tool_progress_sink,
+        )
 
         sink = get_tool_progress_sink()
         if sink is None:
@@ -84,7 +94,9 @@ async def emit_sources(sources: list[dict[str, object]]) -> None:
         return
     try:
         from myrm_agent_harness.core.events.types import AgentEventType
-        from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
+        from myrm_agent_harness.utils.runtime.progress_sink import (
+            get_tool_progress_sink,
+        )
 
         sink = get_tool_progress_sink()
         if sink is None:

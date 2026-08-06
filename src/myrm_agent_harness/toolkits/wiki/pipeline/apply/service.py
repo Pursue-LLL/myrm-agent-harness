@@ -39,6 +39,13 @@ from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
 _VAULT_LOCKS: dict[str, asyncio.Lock] = {}
 _SETTINGS_ONLY_OPS = frozenset({WikiApplyOp.REPLACE_FULL_DOCUMENT})
+_CHAT_FORBIDDEN_OPS = frozenset(
+    {
+        WikiApplyOp.CREATE_NOTE,
+        WikiApplyOp.PATCH_COMPILED_TRUTH,
+        WikiApplyOp.APPEND_TIMELINE,
+    }
+)
 
 
 def _vault_lock(base_dir: Path) -> asyncio.Lock:
@@ -69,6 +76,11 @@ async def apply_wiki_mutation(
         raise WikiApplyError(
             "forbidden_for_caller",
             "Full-document replace is settings-only; use narrow wiki apply operations.",
+        )
+    if request.op in _CHAT_FORBIDDEN_OPS and caller == "chat":
+        raise WikiApplyError(
+            "forbidden_for_caller",
+            "Chat wiki capture must use POST /wiki/compound; direct publish is forbidden.",
         )
 
     async with _vault_lock(structure.base_dir):

@@ -58,6 +58,7 @@ class WikiProvenance(StrEnum):
     AGENT = "agent"
     CREATE_NOTE = "create_note"
     CHAT_SAVE = "chat-save"
+    CHAT_COMPOUND = "chat-compound"
     CONTRADICTION_SYNTHESIS = "contradiction_synthesis"
     IMPORT = "import"
     WEB_FETCH = "web_fetch"

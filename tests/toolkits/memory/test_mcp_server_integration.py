@@ -29,7 +29,9 @@ from myrm_agent_harness.toolkits.memory.mcp_server import MemoryMCPServer
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
 
 
-def _make_vector_doc(doc_id: str, content: str, mem_type: str = "semantic") -> VectorDocument:
+def _make_vector_doc(
+    doc_id: str, content: str, mem_type: str = "semantic"
+) -> VectorDocument:
     return VectorDocument(
         id=doc_id,
         content=content,
@@ -108,7 +110,12 @@ class TestMCPToolRegistration:
     def test_four_tools_registered(self, mcp_server: MemoryMCPServer):
         tools = mcp_server.mcp._tool_manager.list_tools()
         names = {t.name for t in tools}
-        assert names == {"memory_recall", "memory_list", "memory_store", "memory_manage"}
+        assert names == {
+            "memory_recall",
+            "memory_list",
+            "memory_store",
+            "memory_manage",
+        }
 
     def test_memory_list_has_parameters(self, mcp_server: MemoryMCPServer):
         tools = mcp_server.mcp._tool_manager.list_tools()
@@ -124,7 +131,9 @@ class TestMemoryListOverviewIntegration:
     """Integration: overview mode goes through real MemoryManager."""
 
     @pytest.mark.asyncio
-    async def test_overview_returns_all_categories(self, mcp_server: MemoryMCPServer, _mock_ctx):
+    async def test_overview_returns_all_categories(
+        self, mcp_server: MemoryMCPServer, _mock_ctx
+    ):
         tm = mcp_server.mcp._tool_manager
         result = await tm.call_tool("memory_list", {}, _mock_ctx)
         assert "Memory Overview" in result
@@ -132,7 +141,9 @@ class TestMemoryListOverviewIntegration:
         assert "preference" in result.lower()
 
     @pytest.mark.asyncio
-    async def test_overview_shows_correct_counts(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_overview_shows_correct_counts(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         vector, relational, _ = _stores
         vector.count.return_value = 10
         relational.count_profiles.return_value = 5
@@ -143,7 +154,9 @@ class TestMemoryListOverviewIntegration:
         assert "10" in result or "preference" in result
 
     @pytest.mark.asyncio
-    async def test_overview_includes_drift_defense(self, mcp_server: MemoryMCPServer, _mock_ctx):
+    async def test_overview_includes_drift_defense(
+        self, mcp_server: MemoryMCPServer, _mock_ctx
+    ):
         tm = mcp_server.mcp._tool_manager
         result = await tm.call_tool("memory_list", {}, _mock_ctx)
         assert "memory_manage" in result
@@ -153,7 +166,9 @@ class TestMemoryListCategoryIntegration:
     """Integration: category mode paginates through real MemoryManager."""
 
     @pytest.mark.asyncio
-    async def test_knowledge_listing_returns_content(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_knowledge_listing_returns_content(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         vector, _, _ = _stores
         docs = [_make_vector_doc(f"k{i}", f"Knowledge fact {i}") for i in range(3)]
         vector.scroll.return_value = (docs, None)
@@ -181,24 +196,36 @@ class TestMemoryListCategoryIntegration:
         assert "Stored key" in result
 
     @pytest.mark.asyncio
-    async def test_pagination_respects_page_param(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_pagination_respects_page_param(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         vector, _, _ = _stores
         vector.count.return_value = 10
         docs = [_make_vector_doc(f"p{i}", f"Page two item {i}") for i in range(5)]
         vector.scroll.return_value = (docs, None)
 
         tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "knowledge", "page": 2, "page_size": 5}, _mock_ctx)
+        result = await tm.call_tool(
+            "memory_list",
+            {"category": "knowledge", "page": 2, "page_size": 5},
+            _mock_ctx,
+        )
         assert "Page 2" in result or "page_size" in result or "Page two item" in result
 
     @pytest.mark.asyncio
-    async def test_invalid_category_returns_error(self, mcp_server: MemoryMCPServer, _mock_ctx):
+    async def test_invalid_category_returns_error(
+        self, mcp_server: MemoryMCPServer, _mock_ctx
+    ):
         tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "nonexistent_cat"}, _mock_ctx)
+        result = await tm.call_tool(
+            "memory_list", {"category": "nonexistent_cat"}, _mock_ctx
+        )
         assert "invalid category" in result.lower()
 
     @pytest.mark.asyncio
-    async def test_empty_category_returns_no_items(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_empty_category_returns_no_items(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         vector, _, _ = _stores
         vector.count.return_value = 0
         vector.scroll.return_value = ([], None)
@@ -208,32 +235,44 @@ class TestMemoryListCategoryIntegration:
         assert "0 items" in result or "empty" in result.lower() or "No" in result
 
     @pytest.mark.asyncio
-    async def test_include_archived_propagated(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_include_archived_propagated(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         vector, _, _ = _stores
         vector.count.return_value = 1
         docs = [_make_vector_doc("a1", "Archived item")]
         vector.scroll.return_value = (docs, None)
 
         tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {
-            "category": "knowledge",
-            "include_archived": True,
-        }, _mock_ctx)
+        result = await tm.call_tool(
+            "memory_list",
+            {
+                "category": "knowledge",
+                "include_archived": True,
+            },
+            _mock_ctx,
+        )
         assert "Archived item" in result
 
     @pytest.mark.asyncio
-    async def test_page_size_clamped_to_max(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_page_size_clamped_to_max(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         vector, _, _ = _stores
         vector.count.return_value = 100
         docs = [_make_vector_doc(f"c{i}", f"Clamped {i}") for i in range(50)]
         vector.scroll.return_value = (docs, None)
 
         tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "knowledge", "page_size": 999}, _mock_ctx)
+        result = await tm.call_tool(
+            "memory_list", {"category": "knowledge", "page_size": 999}, _mock_ctx
+        )
         assert "Clamped" in result
 
     @pytest.mark.asyncio
-    async def test_category_includes_drift_defense(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_category_includes_drift_defense(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         vector, _, _ = _stores
         vector.count.return_value = 1
         docs = [_make_vector_doc("d1", "Drift test")]
@@ -248,17 +287,27 @@ class TestMemoryListEdgeCases:
     """Integration: edge cases and error paths."""
 
     @pytest.mark.asyncio
-    async def test_page_beyond_total_shows_message(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_page_beyond_total_shows_message(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         vector, _, _ = _stores
         vector.count.return_value = 3
         vector.scroll.return_value = ([], None)
 
         tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "knowledge", "page": 100}, _mock_ctx)
-        assert "beyond" in result.lower() or "0 items" in result or "empty" in result.lower()
+        result = await tm.call_tool(
+            "memory_list", {"category": "knowledge", "page": 100}, _mock_ctx
+        )
+        assert (
+            "beyond" in result.lower()
+            or "0 items" in result
+            or "empty" in result.lower()
+        )
 
     @pytest.mark.asyncio
-    async def test_budget_truncation_with_large_content(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_budget_truncation_with_large_content(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         vector, _, _ = _stores
         huge_content = "x" * 30000
         vector.count.return_value = 5
@@ -266,11 +315,15 @@ class TestMemoryListEdgeCases:
         vector.scroll.return_value = (docs, None)
 
         tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "knowledge", "page_size": 5}, _mock_ctx)
+        result = await tm.call_tool(
+            "memory_list", {"category": "knowledge", "page_size": 5}, _mock_ctx
+        )
         assert "h0" in result or "list_budget" in result or len(result) < 150000
 
     @pytest.mark.asyncio
-    async def test_preference_category_uses_relational(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_preference_category_uses_relational(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         _, relational, _ = _stores
         from myrm_agent_harness.toolkits.memory.types import ProfileEntry
 
@@ -282,16 +335,25 @@ class TestMemoryListEdgeCases:
         relational.count_profiles.return_value = 2
 
         tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "preference"}, _mock_ctx)
+        result = await tm.call_tool(
+            "memory_list", {"category": "preference"}, _mock_ctx
+        )
         assert "color_0" in result or "blue_0" in result
 
     @pytest.mark.asyncio
-    async def test_rule_category_uses_relational(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
+    async def test_rule_category_uses_relational(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ):
         _, relational, _ = _stores
         from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
 
         rules = [
-            ProceduralMemory(id="rule-1", content="Always greet", trigger="new chat", action="say hello")
+            ProceduralMemory(
+                id="rule-1",
+                content="Always greet",
+                trigger="new chat",
+                action="say hello",
+            )
         ]
         relational.list_rules.return_value = rules
         relational.count_rules.return_value = 1

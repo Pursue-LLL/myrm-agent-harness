@@ -127,14 +127,14 @@ def create_memory_tools(
         content: str = Field(
             description="Declarative fact text; concise and standalone."
         )
-        category: Literal[
-            "knowledge", "event", "preference", "rule", "instruction"
-        ] = Field(
-            default="knowledge",
-            description=(
-                "knowledge | event | preference | rule | instruction — "
-                "see tool description for category guide"
-            ),
+        category: Literal["knowledge", "event", "preference", "rule", "instruction"] = (
+            Field(
+                default="knowledge",
+                description=(
+                    "knowledge | event | preference | rule | instruction — "
+                    "see tool description for category guide"
+                ),
+            )
         )
         importance: float = Field(
             default=0.5,
@@ -146,7 +146,7 @@ def create_memory_tools(
         )
         write_target: Literal["bound", "shared"] = Field(
             default="bound",
-            description='bound (default) or shared cross-agent facts — use shared sparingly.',
+            description="bound (default) or shared cross-agent facts — use shared sparingly.",
         )
         preference_key: str | None = Field(
             default=None,
@@ -172,9 +172,7 @@ def create_memory_tools(
                 "delete; rate — see tool description"
             ),
         )
-        memory_id: str = Field(
-            description="Memory ID from memory_search_tool results."
-        )
+        memory_id: str = Field(description="Memory ID from memory_search_tool results.")
         category: Literal["knowledge", "event", "preference", "rule"] = Field(
             description=(
                 "knowledge | event | preference | rule — "
@@ -280,7 +278,9 @@ def create_memory_tools(
 
     tools.append(memory_search)
 
-    @tool("memory_save_tool", description=_save_description, args_schema=MemorySaveInput)
+    @tool(
+        "memory_save_tool", description=_save_description, args_schema=MemorySaveInput
+    )
     async def memory_save(
         content: str,
         category: Literal[
@@ -410,7 +410,11 @@ def create_memory_tools(
 
     tools.append(memory_save)
 
-    @tool("memory_manage_tool", description=_manage_description, args_schema=MemoryManageInput)
+    @tool(
+        "memory_manage_tool",
+        description=_manage_description,
+        args_schema=MemoryManageInput,
+    )
     async def memory_manage(
         action: Literal["update", "delete", "correct", "rate"],
         memory_id: str,
