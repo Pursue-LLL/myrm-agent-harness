@@ -1,27 +1,28 @@
-"""Internal storage operations for MemoryManager.
+"""Internal storage facade.
 
 [INPUT]
 - storage_converters::{doc_to_*, semantic_to_doc, episodic_to_doc, _user_filter, ...} (POS: stateless conversion layer)
 - storage_search::{search_profile, search_semantic, search_episodic, ...} (POS: search-specific storage operations)
+- storage_conversation::{store_conversations_batch} (POS: dual-embedding conversation storage)
+- storage_context::{load_context, WORKING_STATE_*} (POS: context loading for agent prompt)
 - memory.types::{SemanticMemory, EpisodicMemory, ConversationMemory, ...} (POS: memory data models)
 
 [OUTPUT]
-- store_semantic, store_episodic, store_conversation: Vector storage write functions
+- store_semantic, store_episodic, store_conversations_batch: Vector storage write functions
 - doc_to_semantic, doc_to_episodic, doc_to_conversation: Vector → memory model converters
 - get_from_vector, delete_from_vector, list_by_type, count_by_type, load_context: Read/query functions
 - MemoryError, MemoryNotFoundError: Error types
 
 [POS]
 Internal storage facade. Coordinates embedding generation, vector store CRUD,
-inline compression, external BLOB storage, and re-exports converters/search.
+and re-exports converters/search/context/conversation submodules.
 Not part of the public API.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
@@ -38,6 +39,15 @@ from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
     episodic_to_doc,
     semantic_to_doc,
 )
+from myrm_agent_harness.toolkits.memory._internal.storage_context import (
+    WORKING_STATE_PROFILE_KEY,
+    WORKING_STATE_TTL_DAYS,
+    WORKING_STATE_UPDATED_AT_KEY,
+    load_context,
+)
+from myrm_agent_harness.toolkits.memory._internal.storage_conversation import (
+    store_conversations_batch,
+)
 from myrm_agent_harness.toolkits.memory._internal.storage_search import (
     _get_adaptive_threshold,
     search_bm25,
@@ -52,8 +62,6 @@ from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
     MemoryType,
     ProceduralMemory,
-    ProfileEntry,
-    RuleSource,
     SemanticMemory,
 )
 
@@ -275,134 +283,6 @@ async def store_episodics_batch(
     return memories
 
 
-async def store_conversations_batch(
-    memories: list[ConversationMemory],
-    vector: VectorStoreProtocol,
-    config: MemoryConfig,
-    embedding: EmbeddingProtocol,
-    cache: EmbeddingCacheProtocol | None,
-) -> list[ConversationMemory]:
-    """Store conversation memories with dual-embeddings (raw + summary).
-
-    Uses Qdrant named vectors to store both raw_embedding and summary_embedding
-    in a single point. For non-Qdrant backends, fallback to summary_embedding only.
-    """
-    from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
-        _lifecycle_payload as lc_payload,
-        _scope_payload as sc_payload,
-    )
-    from myrm_agent_harness.toolkits.vector.base import VectorStore
-
-    raw_texts = [m.raw_exchange for m in memories if m.raw_embedding is None]
-    summary_texts = [m.content for m in memories if m.summary_embedding is None]
-
-    raw_vecs: list[list[float]] = []
-    summary_vecs: list[list[float]] = []
-
-    if raw_texts:
-        raw_vecs = await embed_batch(raw_texts, embedding, cache)
-    if summary_texts:
-        summary_vecs = await embed_batch(summary_texts, embedding, cache)
-
-    raw_idx = 0
-    summary_idx = 0
-    for m in memories:
-        if m.raw_embedding is None:
-            m.raw_embedding = raw_vecs[raw_idx]
-            raw_idx += 1
-        if m.summary_embedding is None:
-            m.summary_embedding = summary_vecs[summary_idx]
-            summary_idx += 1
-
-    if isinstance(vector, VectorStore) and hasattr(vector, "_client"):
-        try:
-            from qdrant_client.models import PointStruct
-
-            collection = config.conversation_collection
-
-            import base64
-
-            from myrm_agent_harness.toolkits.memory.compression import (
-                externalize_payload,
-            )
-
-            points = []
-            for m in memories:
-                if config.blob_storage_enabled:
-                    raw_exchange_value = externalize_payload(
-                        m.raw_exchange,
-                        threshold=config.blob_storage_threshold,
-                        blob_dir=config.blob_storage_path,
-                    )
-                    was_compressed = False
-                else:
-                    from myrm_agent_harness.toolkits.memory.compression import (
-                        compress_if_needed,
-                        is_compressed,
-                    )
-
-                    compressed_raw = compress_if_needed(m.raw_exchange)
-                    was_compressed = (
-                        compressed_raw is not None
-                        and isinstance(compressed_raw, bytes)
-                        and is_compressed(compressed_raw)
-                    )
-
-                    if was_compressed and compressed_raw:
-                        raw_exchange_value = base64.b64encode(compressed_raw).decode("utf-8")
-                    else:
-                        raw_exchange_value = m.raw_exchange
-
-                payload: dict[str, str | int | float | bool | list[str]] = {
-                    "memory_type": MemoryType.CONVERSATION.value,
-                    "content": m.content,
-                    "raw_exchange": raw_exchange_value,
-                    "raw_exchange_compressed": was_compressed,
-                    "timestamp": m.timestamp.isoformat(),
-                    "user_turn_only": m.user_turn_only,
-                    "related_entities": m.related_entities,
-                    "source_chat_id": m.source_chat_id or "",
-                    "source_message_id": m.source_message_id or "",
-                    "project_id": m.project_id or "",
-                    "topic_id": m.topic_id or "",
-                    "importance": m.importance,
-                    "language": m.language,
-                    "status": m.status,
-                    "archived": m.status == "archived",
-                    "created_at": m.created_at.isoformat(),
-                    "updated_at": m.updated_at.isoformat(),
-                    **sc_payload(m.scope),
-                    **lc_payload(m.lifecycle),
-                }
-                for k, v in m.metadata.items():
-                    if k not in payload:
-                        payload[k] = v
-
-                point = PointStruct(
-                    id=m.id,
-                    vector={"raw": m.raw_embedding, "summary": m.summary_embedding},
-                    payload=payload,
-                )
-                points.append(point)
-
-            await vector._with_retry(  # type: ignore[attr-defined]
-                vector._client.upsert,  # type: ignore[attr-defined]
-                collection_name=collection,
-                points=points,
-            )
-            logger.debug("Stored %d conversation memories with dual-embeddings", len(memories))
-            return memories
-        except Exception as e:
-            logger.error("Failed to store conversations with named vectors: %s", e)
-            raise RuntimeError(
-                "ConversationMemory requires Qdrant with named vectors. "
-                "Ensure collection is created with both 'raw' and 'summary' vector configs."
-            ) from e
-    else:
-        raise NotImplementedError(
-            "ConversationMemory storage requires Qdrant backend with named vectors support. "
-            "Other vector stores are not currently supported for dual-embedding storage."
-        )
 
 
 # ======================================================================
@@ -455,97 +335,6 @@ async def delete_from_vector(collection: str, ids: list[str], vector: VectorStor
     return await vector.delete(collection, ids)
 
 
-# ======================================================================
-# Context loading
-# ======================================================================
-
-
-WORKING_STATE_PROFILE_KEY = "__working_state"
-WORKING_STATE_UPDATED_AT_KEY = "__working_state_updated_at"
-WORKING_STATE_TTL_DAYS = 7
-
-
-async def load_context(
-    relational: RelationalStoreProtocol,
-    *,
-    include_profile: bool = True,
-    include_rules: bool = True,
-    include_agent_instructions: bool = True,
-    namespaces: list[str] | None = None,
-) -> dict[str, object]:
-    ctx: dict[str, object] = {"global_profile": {}, "peer_profile": {}, "rules": [], "agent_instructions": []}
-
-    tasks: dict[str, asyncio.Task[object]] = {}
-    if include_profile:
-        tasks["profile"] = asyncio.create_task(relational.list_profiles(namespaces=namespaces))
-    if include_rules:
-        tasks["rules"] = asyncio.create_task(relational.list_rules(active_only=True, namespaces=namespaces))
-
-    results = dict(
-        zip(
-            tasks.keys(),
-            await asyncio.gather(*tasks.values(), return_exceptions=True),
-            strict=True,
-        )
-    )
-
-    if "profile" in results and not isinstance(results["profile"], Exception):
-        entries = results["profile"]
-        if isinstance(entries, list):
-            global_profile = {}
-            peer_profile = {}
-            working_state: str | None = None
-            working_state_updated_at: str | None = None
-            for e in entries:
-                if not isinstance(e, ProfileEntry):
-                    continue
-                if e.key == WORKING_STATE_PROFILE_KEY:
-                    working_state = e.value
-                    continue
-                if e.key == WORKING_STATE_UPDATED_AT_KEY:
-                    working_state_updated_at = e.value
-                    continue
-                if e.scope.primary_namespace == "global":
-                    global_profile[e.key] = e.value
-                else:
-                    peer_profile[e.key] = e.value
-            ctx["global_profile"] = global_profile
-            ctx["peer_profile"] = peer_profile
-
-            if working_state and working_state_updated_at:
-                try:
-                    updated_at = datetime.fromisoformat(working_state_updated_at)
-                    if updated_at.tzinfo is None:
-                        updated_at = updated_at.replace(tzinfo=UTC)
-                    if (datetime.now(UTC) - updated_at).days < WORKING_STATE_TTL_DAYS:
-                        ctx["working_state"] = working_state
-                except (ValueError, TypeError):
-                    ctx["working_state"] = working_state
-            elif working_state:
-                ctx["working_state"] = working_state
-
-    if "rules" in results and not isinstance(results["rules"], Exception):
-        rules_raw = results["rules"]
-        user_rules: list[dict[str, str | int]] = []
-        agent_instrs: list[dict[str, str | int]] = []
-        if isinstance(rules_raw, list):
-            for r in rules_raw:
-                if isinstance(r, ProceduralMemory):
-                    if r.source == RuleSource.AGENT_SELF:
-                        agent_instrs.append({"instruction": r.action, "priority": r.priority})
-                    else:
-                        user_rules.append(
-                            {
-                                "trigger": r.trigger,
-                                "action": r.action,
-                                "priority": r.priority,
-                            }
-                        )
-        ctx["rules"] = user_rules
-        if include_agent_instructions:
-            ctx["agent_instructions"] = agent_instrs
-
-    return ctx
 
 
 # ======================================================================
