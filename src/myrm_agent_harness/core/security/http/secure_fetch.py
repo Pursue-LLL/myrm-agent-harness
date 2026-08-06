@@ -14,10 +14,11 @@ Shared outbound HTTP primitive for all harness and server paths that must not by
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 from dataclasses import dataclass
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -82,6 +83,33 @@ def _next_redirect(
     return next_url, next_method
 
 
+def _https_pin_extensions(request_url: str, pin_headers: dict[str, str]) -> dict[str, object]:
+    """Return httpx transport extensions for DNS-pinned HTTPS hops.
+
+    DNS pinning connects to a resolved IP while preserving the logical Host header.
+    TLS SNI must still use the original hostname or CDNs (e.g. OpenCode Go) reject the
+    handshake with SSLV3_ALERT_HANDSHAKE_FAILURE.
+    """
+    host_header = pin_headers.get("Host", "").strip()
+    if not host_header:
+        return {}
+
+    parsed = urlparse(request_url)
+    if parsed.scheme.lower() != "https":
+        return {}
+
+    hop_host = (parsed.hostname or "").strip()
+    if not hop_host:
+        return {}
+
+    try:
+        ipaddress.ip_address(hop_host)
+    except ValueError:
+        return {}
+
+    return {"sni_hostname": host_header}
+
+
 async def resolve_secure_http_target(
     client: httpx.AsyncClient,
     url: str,
@@ -114,12 +142,14 @@ async def resolve_secure_http_target(
             raise
 
         hop_headers = {**request_headers, **pin_headers}
+        pin_extensions = _https_pin_extensions(request_url, pin_headers)
         response = await client.send(
             client.build_request(
                 current_method,
                 request_url,
                 headers=hop_headers,
                 params=params if redirect_count == 0 else None,
+                extensions=pin_extensions,
             ),
             stream=True,
         )
@@ -185,6 +215,7 @@ async def secure_request(
             raise
 
         hop_headers = {**request_headers, **pin_headers}
+        pin_extensions = _https_pin_extensions(request_url, pin_headers)
         response = await client.request(
             current_method,
             request_url,
@@ -194,6 +225,7 @@ async def secure_request(
             content=content if redirect_count == 0 else None,
             timeout=timeout,
             follow_redirects=False,
+            extensions=pin_extensions,
         )
 
         redirected = _next_redirect(

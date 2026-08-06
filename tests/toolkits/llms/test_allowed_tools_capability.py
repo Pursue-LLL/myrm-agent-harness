@@ -125,6 +125,18 @@ def test_openai_api_base_remains_supported() -> None:
     )
 
 
+def test_opencode_go_api_base_blocks_even_after_openai_normalization() -> None:
+    learner = get_capability_learner()
+    learner.clear()
+    assert (
+        model_supports_allowed_tools_tool_choice(
+            "openai/deepseek-v4-flash",
+            api_base="https://opencode.ai/zen/go/v1",
+        )
+        is False
+    )
+
+
 def test_agnes_api_base_blocks_even_after_openai_like_normalization() -> None:
     learner = get_capability_learner()
     learner.clear()

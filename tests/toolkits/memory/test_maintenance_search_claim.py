@@ -72,13 +72,11 @@ async def test_search_claim_graph_no_nodes():
 
 
 @pytest.mark.asyncio
-async def test_search_claim_graph_namespace_filtering():
-    """Nodes whose primary_namespace not in requested namespaces should be excluded."""
+async def test_search_claim_graph_namespace_pre_filtering():
+    """With namespaces, find_nodes is called per-namespace with primary_namespace filter."""
     graph = AsyncMock()
     graph.find_nodes.return_value = [
         _make_claim_node("n1", "Python coding", namespace="work"),
-        _make_claim_node("n2", "Python tutorial", namespace="personal"),
-        _make_claim_node("n3", "Python framework", namespace="work"),
     ]
 
     results = await _search_claim_graph(
@@ -89,15 +87,42 @@ async def test_search_claim_graph_namespace_filtering():
         limit=10,
     )
 
+    graph.find_nodes.assert_called_once_with(
+        ["Claim"], {"primary_namespace": "work"}, limit=500,
+    )
+    assert len(results) == 1
+    assert results[0].id == "n1"
+
+
+@pytest.mark.asyncio
+async def test_search_claim_graph_multi_namespace_dedup():
+    """Multiple namespaces: find_nodes called per-namespace, results deduped by ID."""
+    graph = AsyncMock()
+    shared_node = _make_claim_node("shared", "Python topic", namespace="ns_a")
+    graph.find_nodes.side_effect = [
+        [_make_claim_node("a1", "Python coding", namespace="ns_a"), shared_node],
+        [_make_claim_node("b1", "Python tutorial", namespace="ns_b"), shared_node],
+    ]
+
+    results = await _search_claim_graph(
+        graph,
+        query="Python",
+        current_channel_id="ch1",
+        namespaces=["ns_a", "ns_b"],
+        limit=10,
+    )
+
+    assert graph.find_nodes.call_count == 2
     result_ids = {r.id for r in results}
-    assert "n2" not in result_ids
-    assert "n1" in result_ids
-    assert "n3" in result_ids
+    assert "a1" in result_ids
+    assert "b1" in result_ids
+    assert "shared" in result_ids
+    assert len(result_ids) == 3
 
 
 @pytest.mark.asyncio
 async def test_search_claim_graph_namespace_none_returns_all():
-    """When namespaces is None, all nodes are visible regardless of primary_namespace."""
+    """When namespaces is None, find_nodes is called with empty filters."""
     graph = AsyncMock()
     graph.find_nodes.return_value = [
         _make_claim_node("n1", "Task Alpha", namespace="ns_a"),
@@ -112,7 +137,28 @@ async def test_search_claim_graph_namespace_none_returns_all():
         limit=10,
     )
 
+    graph.find_nodes.assert_called_once_with(["Claim"], {}, limit=500)
     assert len(results) == 2
+
+
+@pytest.mark.asyncio
+async def test_search_claim_graph_empty_namespace_list_returns_all():
+    """When namespaces is empty list, falls back to unfiltered query."""
+    graph = AsyncMock()
+    graph.find_nodes.return_value = [
+        _make_claim_node("n1", "Task item", namespace="any"),
+    ]
+
+    results = await _search_claim_graph(
+        graph,
+        query="Task",
+        current_channel_id="ch1",
+        namespaces=[],
+        limit=10,
+    )
+
+    graph.find_nodes.assert_called_once_with(["Claim"], {}, limit=500)
+    assert len(results) == 1
 
 
 @pytest.mark.asyncio

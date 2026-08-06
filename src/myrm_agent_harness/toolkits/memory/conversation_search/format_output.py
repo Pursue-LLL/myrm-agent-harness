@@ -24,7 +24,9 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
 from myrm_agent_harness.toolkits.memory.memory_citations import emit_sources
 
 
-async def format_conversation_search_response(response: ConversationSearchResponse) -> str:
+async def format_conversation_search_response(
+    response: ConversationSearchResponse,
+) -> str:
     """Format provider response and emit conversation_history sources."""
     if not response.hits:
         if response.mode == "recent":
@@ -55,7 +57,9 @@ async def format_conversation_search_response(response: ConversationSearchRespon
         sources.append(source_ref(len(sources) + 1, hit))
 
     if truncated:
-        lines.append("[conversation_search_budget] Results were truncated. Refine the query for more detail.")
+        lines.append(
+            "[conversation_search_budget] Results were truncated. Refine the query for more detail."
+        )
 
     await emit_sources(sources)
     return "\n\n".join(lines)
@@ -65,6 +69,8 @@ def format_conversation_hit(index: int, hit: ConversationSearchHit) -> str:
     title = hit.title or "Untitled conversation"
     when = format_time(hit.updated_at or hit.created_at)
     header = f"{index}. {title} (conversation_id: {hit.conversation_id}, score: {hit.score:.2f}, source: {hit.source}"
+    if hit.message_id:
+        header += f", message_id: {hit.message_id}"
     if when:
         header += f", {when}"
     header += ")"

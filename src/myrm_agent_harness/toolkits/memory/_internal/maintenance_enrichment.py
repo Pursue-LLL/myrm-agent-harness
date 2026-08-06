@@ -170,12 +170,12 @@ async def enrich_with_graph(
     if not related_with_depth:
         return results
 
-    # Sort by depth (prefer direct siblings) and apply limit
+    # Over-fetch candidates so namespace filtering doesn't starve the result set
     sorted_ids = sorted(related_with_depth.keys(), key=lambda x: related_with_depth[x])
-    limited_ids = sorted_ids[:sibling_limit]
+    candidate_ids = sorted_ids[: sibling_limit * 3] if namespaces else sorted_ids[:sibling_limit]
 
     try:
-        docs = await vector.get(config.episodic_collection, limited_ids)
+        docs = await vector.get(config.episodic_collection, candidate_ids)
         query_tokens = set(_QUERY_TOKEN_PATTERN.findall(query.lower()))
         now = datetime.now(UTC)
         for doc in docs:

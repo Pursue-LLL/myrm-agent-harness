@@ -344,3 +344,21 @@ async def test_find_nodes_labels_index_filters_correctly(store: SQLiteGraphStore
     assert [n.id for n in claims] == ["c1"]
     assert [n.id for n in entities] == ["e1"]
     assert [n.id for n in memories] == ["m1"]
+
+
+@pytest.mark.asyncio
+async def test_find_nodes_filter_by_primary_namespace(store: SQLiteGraphStore) -> None:
+    """find_nodes with primary_namespace filter should only return matching nodes."""
+    await store.create_node(["Claim"], {"primary_namespace": "agent:alice", "claim_text": "a"})
+    await store.create_node(["Claim"], {"primary_namespace": "agent:bob", "claim_text": "b"})
+    await store.create_node(["Claim"], {"primary_namespace": "agent:alice", "claim_text": "c"})
+
+    alice_claims = await store.find_nodes(["Claim"], {"primary_namespace": "agent:alice"})
+    bob_claims = await store.find_nodes(["Claim"], {"primary_namespace": "agent:bob"})
+    all_claims = await store.find_nodes(["Claim"], {})
+
+    assert len(alice_claims) == 2
+    assert len(bob_claims) == 1
+    assert len(all_claims) == 3
+    assert all(n.properties.get("primary_namespace") == "agent:alice" for n in alice_claims)
+    assert bob_claims[0].properties.get("primary_namespace") == "agent:bob"

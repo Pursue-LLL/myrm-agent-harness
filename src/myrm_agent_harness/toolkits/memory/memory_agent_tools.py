@@ -126,6 +126,8 @@ def create_memory_tools(
         profile_key: str | None = None,
         since: str | None = None,
         until: str | None = None,
+        expand_conversation_id: str | None = None,
+        expand_message_id: str | None = None,
     ) -> str:
         """Search long-term memory."""
         if profile_key:
@@ -167,12 +169,16 @@ def create_memory_tools(
                 wiki_text = await search_wiki_corpus(backends, query)
                 sections.append(f"## Wiki\n{wiki_text}")
             elif target == "sessions":
+                if expand_message_id and not expand_conversation_id:
+                    return "expand_message_id requires expand_conversation_id when corpus=sessions."
                 session_text = await search_sessions_corpus(
                     backends,
                     query=query,
                     limit=recall_limit,
                     since=parsed_since,
                     until=parsed_until,
+                    expand_conversation_id=expand_conversation_id,
+                    expand_message_id=expand_message_id,
                 )
                 sections.append(f"## Sessions\n{session_text}")
             elif target == "web":

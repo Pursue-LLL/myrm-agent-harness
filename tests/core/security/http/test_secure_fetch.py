@@ -9,6 +9,7 @@ import pytest
 
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
 from myrm_agent_harness.core.security.http.secure_fetch import (
+    _https_pin_extensions,
     resolve_secure_http_target,
     secure_get,
     secure_request,
@@ -117,3 +118,41 @@ async def test_secure_get_reads_response_body() -> None:
         response = await secure_get("https://example.com")
         assert response.text == "payload"
         mock_secure_request.assert_awaited_once()
+
+
+def test_https_pin_extensions_sets_sni_for_pinned_https_ip() -> None:
+    extensions = _https_pin_extensions(
+        "https://93.184.216.34/zen/go/v1/models",
+        {"Host": "opencode.ai"},
+    )
+    assert extensions == {"sni_hostname": "opencode.ai"}
+
+
+def test_https_pin_extensions_skips_non_ip_and_http() -> None:
+    assert _https_pin_extensions("https://opencode.ai/v1/models", {"Host": "opencode.ai"}) == {}
+    assert _https_pin_extensions("http://93.184.216.34/v1/models", {"Host": "opencode.ai"}) == {}
+    assert _https_pin_extensions("https://93.184.216.34/v1/models", {}) == {}
+
+
+@pytest.mark.asyncio
+async def test_secure_request_passes_sni_extensions_for_pinned_https_ip() -> None:
+    captured_extensions: list[dict[str, object]] = []
+
+    async def _capture_request(*_args: object, **kwargs: object) -> httpx.Response:
+        extensions = kwargs.get("extensions")
+        if isinstance(extensions, dict):
+            captured_extensions.append(extensions)
+        request = httpx.Request("GET", "https://93.184.216.34/zen/go/v1/models")
+        return httpx.Response(200, text="ok", request=request)
+
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(
+            return_value=("https://93.184.216.34/zen/go/v1/models", {"Host": "opencode.ai"}),
+        ),
+    ):
+        client = AsyncMock()
+        client.request = AsyncMock(side_effect=_capture_request)
+        response = await secure_request(client, "GET", "https://opencode.ai/zen/go/v1/models")
+        assert response.status_code == 200
+        assert captured_extensions == [{"sni_hostname": "opencode.ai"}]

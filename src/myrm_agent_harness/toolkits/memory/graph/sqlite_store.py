@@ -123,6 +123,7 @@ class SQLiteGraphStore(GraphStore):
             """)
             for idx_sql in (
                 "CREATE INDEX IF NOT EXISTS idx_graph_nodes_labels ON graph_nodes(labels)",
+                "CREATE INDEX IF NOT EXISTS idx_graph_nodes_ns ON graph_nodes(json_extract(properties, '$.primary_namespace'))",
                 "CREATE INDEX IF NOT EXISTS idx_graph_rel_source ON graph_relationships(source_id)",
                 "CREATE INDEX IF NOT EXISTS idx_graph_rel_target ON graph_relationships(target_id)",
                 "CREATE INDEX IF NOT EXISTS idx_graph_rel_type ON graph_relationships(rel_type)",

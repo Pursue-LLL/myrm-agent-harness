@@ -64,11 +64,18 @@ class ConversationSearchRequest(BaseModel):
     mode: ConversationSearchMode | None = None
     scope: ConversationSearchScope = "current_agent"
     lineage: ConversationSearchLineage = "all"
-    limit: int = Field(default=DEFAULT_CONVERSATION_SEARCH_LIMIT, ge=1, le=MAX_CONVERSATION_SEARCH_LIMIT)
+    limit: int = Field(
+        default=DEFAULT_CONVERSATION_SEARCH_LIMIT,
+        ge=1,
+        le=MAX_CONVERSATION_SEARCH_LIMIT,
+    )
     min_score: float = Field(default=0.2, ge=0.0, le=1.0)
     current_conversation_id: str | None = None
     since: datetime | None = None
     until: datetime | None = None
+    expand_conversation_id: str | None = Field(default=None, max_length=255)
+    expand_message_id: str | None = Field(default=None, max_length=255)
+    expand_window: int = Field(default=5, ge=1, le=20)
 
     @field_validator("query", mode="before")
     @classmethod

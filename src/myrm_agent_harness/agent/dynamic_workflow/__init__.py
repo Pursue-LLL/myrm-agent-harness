@@ -45,6 +45,14 @@ from myrm_agent_harness.agent.dynamic_workflow.preflight import (
     strip_script_markdown,
 )
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
+from myrm_agent_harness.agent.dynamic_workflow.template_store import (
+    WorkflowTemplateRecord,
+    WorkflowTemplateStore,
+)
+from myrm_agent_harness.agent.dynamic_workflow.template_validation import (
+    apply_template_args,
+    can_skip_plan_confirm,
+)
 from myrm_agent_harness.agent.dynamic_workflow.tools import (
     NotifyProgressTool,
     SpawnSubagentTool,
@@ -266,6 +274,8 @@ async def run_dynamic_workflow_stream(
     catalog: SubagentCatalog | None = None,
     approval_gate: WorkflowApprovalGate | None = None,
     resume_value: dict[str, object] | None = None,
+    pinned_template_id: str | None = None,
+    template_args: dict[str, str] | None = None,
 ) -> AsyncIterable[dict[str, object]]:
     """Core Dynamic Workflow Engine with full capability inheritance."""
     hash_input = f"{chat_id}:{message_id}".encode()
@@ -283,7 +293,11 @@ async def run_dynamic_workflow_stream(
         yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "cancelled"}
         return
 
-    store = WorkflowEventStore(".myrm/workflow_events.db")
+    from myrm_agent_harness.agent.dynamic_workflow.paths import resolve_workflow_events_db_path
+
+    workflow_db_path = resolve_workflow_events_db_path()
+    store = WorkflowEventStore(workflow_db_path)
+    template_store = WorkflowTemplateStore(workflow_db_path)
 
     def _tool_registry_getter() -> list[object]:
         return list(parent_agent._cached_tools or parent_agent.user_tools) if parent_agent else []
@@ -321,6 +335,7 @@ async def run_dynamic_workflow_stream(
 
     resume_action_val = resume_action(resume_value)
     script_code: str | None = None
+    pinned_template: WorkflowTemplateRecord | None = None
 
     if resume_action_val == "skip":
         yield {
@@ -342,14 +357,35 @@ async def run_dynamic_workflow_stream(
             yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "error"}
             return
 
-    if script_code:
+    if script_code is None and pinned_template_id:
+        pinned_template = template_store.get_template(pinned_template_id)
+        if pinned_template is None:
+            yield {
+                "type": "message",
+                "messageId": message_id,
+                "data": f"Dynamic Workflow template `{pinned_template_id}` was not found.",
+            }
+            yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "error"}
+            return
+        script_code = apply_template_args(pinned_template.script_code, template_args or {})
+        yield {
+            "type": "status",
+            "step_key": "workflow_planning",
+            "status": "success",
+            "data": {
+                "message": f"Loaded workflow template `{pinned_template.display_name}`.",
+                "workflow_template_id": pinned_template.template_id,
+            },
+        }
+
+    if script_code and resume_action_val in ("confirm", "edit"):
         yield {
             "type": "status",
             "step_key": "workflow_planning",
             "status": "success",
             "data": {"message": "Resuming approved orchestration script."},
         }
-    else:
+    elif script_code is None:
         yield {
             "type": "status",
             "step_key": "workflow_planning",
@@ -390,7 +426,20 @@ async def run_dynamic_workflow_stream(
         cost_status=cost_status,
     )
 
-    needs_approval = spawn_count >= 1 and approval_gate is not None and resume_action_val not in ("confirm", "edit")
+    skip_plan_confirm = (
+        pinned_template is not None
+        and can_skip_plan_confirm(
+            script_code=script_code,
+            trust_latch=pinned_template.trust_latch,
+            estimated_cost_usd=estimated_cost_usd,
+        )
+    )
+    needs_approval = (
+        spawn_count >= 1
+        and approval_gate is not None
+        and resume_action_val not in ("confirm", "edit")
+        and not skip_plan_confirm
+    )
     if needs_approval:
         store.save_orchestration_script(workflow_id, script_code)
         yield {
@@ -428,6 +477,8 @@ async def run_dynamic_workflow_stream(
             }
             yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "cancelled"}
             return
+
+    store.save_orchestration_script(workflow_id, script_code)
 
     # --- Phase 3: Execute via PTC ---
     if cancel_token and cancel_token.is_cancelled:

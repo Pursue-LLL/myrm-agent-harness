@@ -170,6 +170,8 @@ class CronManager:
         model: str | None = None,
         chat_id: str | None = None,
         agent_id: str | None = None,
+        workflow_template_id: str | None = None,
+        workflow_template_args: dict[str, str] | None = None,
         command: str | None = None,
         delivery: DeliveryConfig | None = None,
         failure_delivery: DeliveryConfig | None = None,
@@ -223,6 +225,8 @@ class CronManager:
                 model=model,
                 chat_id=chat_id,
                 agent_id=agent_id,
+                workflow_template_id=workflow_template_id,
+                workflow_template_args=workflow_template_args,
                 command=command,
                 required_capabilities=required_capabilities,
                 allowed_roots=allowed_roots,
@@ -301,6 +305,10 @@ class CronManager:
             model=source.model,
             chat_id=source.chat_id,
             agent_id=source.agent_id,
+            workflow_template_id=source.workflow_template_id,
+            workflow_template_args=(
+                dict(source.workflow_template_args) if source.workflow_template_args else None
+            ),
             command=source.command,
             required_capabilities=source.required_capabilities,
             allowed_roots=source.allowed_roots,
@@ -388,6 +396,14 @@ class CronManager:
             job.model = patch.model
         if patch.agent_id is not None:
             job.agent_id = patch.agent_id
+        if patch.clear_workflow_template:
+            job.workflow_template_id = None
+            job.workflow_template_args = None
+        else:
+            if patch.workflow_template_id is not None:
+                job.workflow_template_id = patch.workflow_template_id or None
+            if patch.workflow_template_args is not None:
+                job.workflow_template_args = patch.workflow_template_args or None
         if patch.command is not None and patch.command != job.command:
             job.command = patch.command
             if job.monitor_config and job.monitor_config.enabled:

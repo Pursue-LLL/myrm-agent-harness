@@ -17,14 +17,19 @@ import logging
 import re
 from datetime import datetime
 
-from myrm_agent_harness.toolkits.memory.conversation_search.format_output import format_conversation_search_response
+from myrm_agent_harness.toolkits.memory.conversation_search.format_output import (
+    format_conversation_search_response,
+)
 from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     DEFAULT_CONVERSATION_SEARCH_LIMIT,
     MAX_CONVERSATION_SEARCH_LIMIT,
     ConversationSearchRequest,
 )
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
-from myrm_agent_harness.toolkits.memory.memory_citations import cited_memory_ref, emit_cited_memory_ids
+from myrm_agent_harness.toolkits.memory.memory_citations import (
+    cited_memory_ref,
+    emit_cited_memory_ids,
+)
 from myrm_agent_harness.toolkits.memory.memory_recall_budget import (
     MAX_RECALL_OUTPUT_CHARS,
     budget_recall_line,
@@ -95,7 +100,9 @@ async def search_memory_corpus(
     )
     output: list[str] = []
     displayed_results: list[MemorySearchResult] = []
-    max_body_chars = MAX_RECALL_OUTPUT_CHARS - (len(_DRIFT_DEFENSE_FOOTER) if results else 0)
+    max_body_chars = MAX_RECALL_OUTPUT_CHARS - (
+        len(_DRIFT_DEFENSE_FOOTER) if results else 0
+    )
     output_chars = 0
     truncated_by_budget = False
 
@@ -118,22 +125,35 @@ async def search_memory_corpus(
 
     if not results and not output:
         if manager.last_retrieval_trace is not None:
-            await emit_cited_memory_ids([], [], tool_name="memory_search_tool", retrieval_trace=manager.last_retrieval_trace)
+            await emit_cited_memory_ids(
+                [],
+                [],
+                tool_name="memory_search_tool",
+                retrieval_trace=manager.last_retrieval_trace,
+            )
         return "No relevant memories found."
 
     for result in results:
         cat = next(
-            (key for key, value in category_to_type.items() if value == result.memory_type),
+            (
+                key
+                for key, value in category_to_type.items()
+                if value == result.memory_type
+            ),
             result.memory_type.value,
         )
         memory = result.memory
         effective_time = max(memory.created_at, memory.updated_at)
         age = memory_age_label(effective_time)
         provenance = _channel_label(memory.scope.channel_id)
-        prefix = f"{provenance}[{cat}] (id: {memory.id}, score: {result.score:.2f}, {age}) "
+        prefix = (
+            f"{provenance}[{cat}] (id: {memory.id}, score: {result.score:.2f}, {age}) "
+        )
         suffix = ""
         if isinstance(memory, ClaimMemory):
-            relation_type = str(memory.metadata.get("latest_relationship_type", "")).strip().lower()
+            relation_type = (
+                str(memory.metadata.get("latest_relationship_type", "")).strip().lower()
+            )
             relation_suffix = f" relation={relation_type}" if relation_type else ""
             suffix += (
                 f" [claim_graph freshness={memory.freshness} contradiction={memory.contradiction_status} "
@@ -141,9 +161,11 @@ async def search_memory_corpus(
             )
         if isinstance(memory, SemanticMemory) and memory.source_error:
             suffix += f" (avoid: {memory.source_error})"
-        if result.memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CLAIM) and _is_stale(
-            effective_time
-        ):
+        if result.memory_type in (
+            MemoryType.SEMANTIC,
+            MemoryType.EPISODIC,
+            MemoryType.CLAIM,
+        ) and _is_stale(effective_time):
             if _CODE_PATH_PATTERN.search(memory.content):
                 suffix += (
                     "\n[CRITICAL: Outdated memory referencing potential paths. "
@@ -176,7 +198,11 @@ async def search_memory_corpus(
 
     if displayed_results:
         ratable_types = (MemoryType.SEMANTIC, MemoryType.EPISODIC)
-        cited_ids = [r.memory.id for r in displayed_results if r.memory.id and r.memory_type in ratable_types]
+        cited_ids = [
+            r.memory.id
+            for r in displayed_results
+            if r.memory.id and r.memory_type in ratable_types
+        ]
         cited_refs = [
             cited_memory_ref(r.memory, r.memory_type, r.score)
             for r in displayed_results
@@ -192,7 +218,12 @@ async def search_memory_corpus(
                 retrieval_trace=manager.last_retrieval_trace,
             )
     elif manager.last_retrieval_trace is not None:
-        await emit_cited_memory_ids([], [], tool_name="memory_search_tool", retrieval_trace=manager.last_retrieval_trace)
+        await emit_cited_memory_ids(
+            [],
+            [],
+            tool_name="memory_search_tool",
+            retrieval_trace=manager.last_retrieval_trace,
+        )
 
     text = "\n".join(output)
     if displayed_results:
@@ -207,7 +238,9 @@ async def search_wiki_corpus(
     if backends.query_wiki is None:
         return "Wiki search is not available."
     from myrm_agent_harness.toolkits.memory.memory_citations import emit_sources
-    from myrm_agent_harness.toolkits.wiki.retrieval.source_citations import build_wiki_query_sources
+    from myrm_agent_harness.toolkits.wiki.retrieval.source_citations import (
+        build_wiki_query_sources,
+    )
 
     result = await backends.query_wiki(query)
     sources = build_wiki_query_sources(result, structure=backends.wiki_structure)
@@ -221,7 +254,9 @@ async def search_wiki_corpus(
         await emit_sources(indexed_sources)
     body = (result.answer or "").strip() or "No relevant wiki content found."
     if body != "No relevant wiki content found.":
-        from myrm_agent_harness.utils.context_format import wrap_with_external_sources_tag
+        from myrm_agent_harness.utils.context_format import (
+            wrap_with_external_sources_tag,
+        )
 
         body = wrap_with_external_sources_tag(body, source="LLM-Wiki")
     return body
@@ -234,6 +269,9 @@ async def search_sessions_corpus(
     limit: int,
     since: datetime | None,
     until: datetime | None,
+    expand_conversation_id: str | None = None,
+    expand_message_id: str | None = None,
+    expand_window: int = 5,
 ) -> str:
     provider = backends.conversation_provider
     if provider is None:
@@ -250,6 +288,9 @@ async def search_sessions_corpus(
         min_score=0.2,
         since=since,
         until=until,
+        expand_conversation_id=expand_conversation_id,
+        expand_message_id=expand_message_id,
+        expand_window=expand_window,
     )
     response = await provider.search(request)
     return await format_conversation_search_response(response)

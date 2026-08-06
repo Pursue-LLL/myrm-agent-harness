@@ -1017,3 +1017,84 @@ async def test_summary_includes_workspace_changes_after_merge(
     assert "## Workspace Changes" in summary
     assert "output.txt" in summary
     assert (parent_ws / "output.txt").is_file()
+
+
+@pytest.mark.asyncio
+async def test_pinned_template_skips_llm_generation(tmp_path, monkeypatch):
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+    from myrm_agent_harness.agent.dynamic_workflow import template_store as template_store_mod
+
+    original_event_init = store_mod.WorkflowEventStore.__init__
+    original_template_init = template_store_mod.WorkflowTemplateStore.__init__
+
+    def patched_event_init(self, path):
+        original_event_init(self, str(db_path))
+
+    def patched_template_init(self, path):
+        original_template_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_event_init)
+    monkeypatch.setattr(template_store_mod.WorkflowTemplateStore, "__init__", patched_template_init)
+
+    script = """
+import myrm_tools
+myrm_tools.spawn_subagent(task_id="t1", agent_type="generalPurpose", task_description="hello", readonly=True)
+print("done")
+"""
+    template_store = template_store_mod.WorkflowTemplateStore(str(db_path))
+    template_store.save_template(
+        template_id="pinned-flow",
+        display_name="Pinned Flow",
+        script_code=script,
+        trust_latch=True,
+    )
+
+    parent = MagicMock()
+    parent.llm = AsyncMock()
+    parent._cached_tools = []
+    parent.user_tools = []
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        class Result:
+            stdout = "ok"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+    monkeypatch.setattr(
+        "myrm_agent_harness.agent.dynamic_workflow.preflight.estimate_workflow_cost",
+        AsyncMock(return_value=(0.2, 10.0, "estimated")),
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=parent,
+            query="rerun template",
+            chat_history=[],
+            chat_id="chat_tpl",
+            message_id="msg_tpl",
+            pinned_template_id="pinned-flow",
+        )
+    ]
+
+    orchestrator_calls = [
+        call
+        for call in parent.llm.ainvoke.call_args_list
+        if call.args
+        and call.args[0]
+        and "Dynamic Workflow Orchestrator" in str(call.args[0][0].content)
+    ]
+    assert orchestrator_calls == []
+    planning = next(c for c in chunks if c.get("step_key") == "workflow_planning")
+    assert planning["data"].get("workflow_template_id") == "pinned-flow"
+    end = next(c for c in chunks if c.get("type") == "message_end")
+    assert end["completion_status"] != "error"
+

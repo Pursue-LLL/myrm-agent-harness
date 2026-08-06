@@ -24,6 +24,7 @@ _OPENAI_LIKE_PREFIX = "openai-like/"
 _MINIMAX_PREFIX = "minimax/"
 _MINIMAX_API_BASE_MARKERS = ("minimaxi.com", "minimax.io")
 _AGNES_API_BASE_MARKERS = ("agnes-ai.com", "apihub.agnes")
+_OPENCODE_API_BASE_MARKERS = ("opencode.ai",)
 
 
 def normalize_model_capability_key(
@@ -69,6 +70,9 @@ def model_supports_allowed_tools_tool_choice(
         return False
 
     if any(marker in api for marker in _AGNES_API_BASE_MARKERS):
+        return False
+
+    if any(marker in api for marker in _OPENCODE_API_BASE_MARKERS):
         return False
 
     if "api.openai.com" in api:

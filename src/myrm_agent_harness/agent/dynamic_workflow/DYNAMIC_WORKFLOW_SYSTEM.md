@@ -16,13 +16,17 @@
 ## 系统架构
 
 ```
-Server (use_workflow=True)
+Server (use_workflow=True | workflow_template_id set)
        ↓
 run_dynamic_workflow_stream (__init__.py)
        ↓
-LLM → Python 编排脚本 (ORCHESTRATOR_PROMPT + SubagentCatalog hint)
+[optional] WorkflowTemplateStore — pinned template load + template_args substitution
        ↓
-preflight.py — 静态 spawn 计数 + `_estimate_batch_cost` + HITL plan_confirm
+LLM → Python 编排脚本 (ORCHESTRATOR_PROMPT + SubagentCatalog hint)   ← skipped when pinned
+       ↓
+preflight.py — 静态 spawn 计数 + `_estimate_batch_cost` + HITL plan_confirm (trust_latch may skip)
+       ↓
+orchestration_scripts persist (per-run + save-from-run source)
        ↓
 PTC Sandbox (DW PTC · WorkflowRunGuard: max 50 spawns, concurrency 5)
        ↓
@@ -49,6 +53,9 @@ Summarization LLM → 用户可读 Markdown
 | `preflight.py` | 静态 spawn 分析；费用预估；`WorkflowPlanReview` / `WorkflowApprovalGate` |
 | `notify_stream.py` | PTC 执行期间并发 drain notify queue |
 | `store.py` | SQLite Event Sourcing；`SpawnCacheParams` 指纹 cache + orchestration script 持久化 |
+| `template_store.py` | 用户命名模板库 `workflow_templates`；save-from-run；pinned rerun 加载 |
+| `template_validation.py` | 模板脚本校验、占位符替换、trust_latch plan_confirm 跳过护栏 |
+| `paths.py` | `{harness_root}/.myrm/workflow_events.db` 路径 SSOT（与 background_jobs 同根） |
 | `spawn_cache.py` | `SpawnCacheParams` / fingerprint SSOT |
 | `tools.py` | `SpawnSubagentTool`（WorkflowRunGuard、cache 指纹、非 readonly ISOLATED_COPY、adversarial verify）/ `NotifyProgressTool` |
 
@@ -78,6 +85,7 @@ Summarization LLM → 用户可读 Markdown
 1. **动态类型发现**：`_build_available_types_hint(catalog)` 与 delegate 看到相同 agent_type 列表
 2. **Cancel 传播**：每阶段边界 + 每次 spawn 检查 `cancel_token`
 3. **Readonly 模式**：`disallowed_tools` + `WorkspacePolicy.READ_ONLY_SANDBOX`
+4. **Named Template Library (vMIN)**：用户将成功的 DW 编排脚本保存为命名模板；后续 run 通过 `workflow_template_id` 跳过 orchestrator LLM，仅替换 `{placeholder}` 参数。`trust_latch` + 全 readonly spawn + 低成本时可跳过 plan_confirm。Server 暴露 `/workflow-templates` CRUD + `from-run`；WebUI 在 Settings → Skills → Workflow Templates 管理，DW 完成消息提供 Save CTA。
 4. **汇总层**：原始 stdout 经 SUMMARIZATION_PROMPT 转为 Markdown + 置信度前缀
 5. **Trust 层**：spawn ≥ 1 时 SSE `plan_confirm`（literal spawn 数 + 运行时 hard cap 文案）+ PhaseWaiter；RunGuard 硬上限 50 spawn / 5 并发
 6. **Workspace 安全**：DW 非 readonly spawn 使用 `ISOLATED_COPY`；defer 时 child workspace 保留至 `batch_merge`；merge 后 sanitize 存 SQLite（`workspace_merge_status=merged`）；merge 经 `build_merge_snapshot_context` 登记 SnapshotStore（Revert 可用）并在摘要 append `_workspace_diff`；merge 失败时 SSE `workflow_execution: warning`、`WORKSPACE_MERGE_FAILED` 与 `completion_status: warning`，前端 `WorkspaceMergeWarning` 展示逐条错误

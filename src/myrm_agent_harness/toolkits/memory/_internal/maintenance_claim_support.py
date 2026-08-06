@@ -164,13 +164,6 @@ def _scope_from_claim_node(claim_node: GraphNode) -> MemoryScope:
     )
 
 
-def _claim_node_visible_for_namespaces(claim_node: GraphNode, namespaces: list[str] | None) -> bool:
-    if not namespaces:
-        return True
-    primary_namespace = str(claim_node.properties.get("primary_namespace", "")).strip()
-    return primary_namespace in namespaces
-
-
 def _classify_result_polarity(result: str) -> str:
     normalized = result.strip().lower()
     if any(hint in normalized for hint in _POSITIVE_RESULT_HINTS):
@@ -359,19 +352,27 @@ async def search_claim_graph(
         return []
 
     candidate_limit = max(limit * 8, 500)
-    claim_nodes = await graph.find_nodes(
-        ["Claim"],
-        {},
-        limit=candidate_limit,
-    )
+    if namespaces:
+        seen_ids: set[str] = set()
+        claim_nodes: list[GraphNode] = []
+        for ns in namespaces:
+            ns_nodes = await graph.find_nodes(
+                ["Claim"],
+                {"primary_namespace": ns},
+                limit=candidate_limit,
+            )
+            for node in ns_nodes:
+                if node.id not in seen_ids:
+                    seen_ids.add(node.id)
+                    claim_nodes.append(node)
+    else:
+        claim_nodes = await graph.find_nodes(["Claim"], {}, limit=candidate_limit)
     if not claim_nodes:
         return []
 
     results: list[MemorySearchResult] = []
     now = datetime.now(UTC)
     for claim_node in claim_nodes:
-        if not _claim_node_visible_for_namespaces(claim_node, namespaces):
-            continue
         score = _score_claim_node(query_tokens, claim_node, current_channel_id=current_channel_id)
         if score <= 0.0:
             continue

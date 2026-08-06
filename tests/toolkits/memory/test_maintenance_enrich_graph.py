@@ -178,7 +178,7 @@ async def test_enrich_deduplicates_same_content():
 
 @pytest.mark.asyncio
 async def test_enrich_respects_sibling_limit():
-    """Number of siblings retrieved must not exceed graph_sibling_limit."""
+    """Number of siblings retrieved must not exceed graph_sibling_limit (no namespaces)."""
     config = MemoryConfig(embedding_model="test", graph_sibling_limit=2)
     vector = AsyncMock()
     graph = AsyncMock()
@@ -201,6 +201,72 @@ async def test_enrich_respects_sibling_limit():
     vector.get.assert_called_once()
     requested_ids = vector.get.call_args[0][1]
     assert len(requested_ids) <= 2, f"Should request at most 2 siblings, got {len(requested_ids)}"
+
+
+@pytest.mark.asyncio
+async def test_enrich_overfetch_with_namespaces():
+    """With namespaces, candidate pool is sibling_limit*3 to survive namespace filtering."""
+    config = MemoryConfig(embedding_model="test", graph_sibling_limit=2)
+    vector = AsyncMock()
+    graph = AsyncMock()
+
+    mem1 = EpisodicMemory(id="mem1", content="test query", metadata={})
+    res1 = MemorySearchResult(memory=mem1, score=0.9, memory_type=MemoryType.EPISODIC)
+
+    graph.get_related_nodes_with_depth.return_value = [
+        ("m2", 1), ("m3", 1), ("m4", 1), ("m5", 1), ("m6", 1), ("m7", 2),
+    ]
+
+    docs = [
+        VectorDocument(
+            id=f"m{i}", content=f"query test doc {i}",
+            metadata={"status": "active", "namespaces": ["work"]}, embedding=[0.1],
+        )
+        for i in range(2, 8)
+    ]
+    vector.get.return_value = docs
+
+    await enrich_with_graph(
+        [res1], "query", 10, graph, vector, config, namespaces=["work"],
+    )
+
+    vector.get.assert_called_once()
+    requested_ids = vector.get.call_args[0][1]
+    assert len(requested_ids) <= 6, f"Over-fetch should be sibling_limit*3=6, got {len(requested_ids)}"
+    assert len(requested_ids) > 2, f"Over-fetch should exceed sibling_limit=2, got {len(requested_ids)}"
+
+
+@pytest.mark.asyncio
+async def test_enrich_namespace_filter_excludes_cross_namespace():
+    """Siblings from other namespaces should be filtered out after over-fetch."""
+    config = MemoryConfig(embedding_model="test", graph_sibling_limit=10)
+    vector = AsyncMock()
+    graph = AsyncMock()
+
+    mem1 = EpisodicMemory(id="mem1", content="test query", metadata={})
+    res1 = MemorySearchResult(memory=mem1, score=0.9, memory_type=MemoryType.EPISODIC)
+
+    graph.get_related_nodes_with_depth.return_value = [("m2", 1), ("m3", 1)]
+
+    docs = [
+        VectorDocument(
+            id="m2", content="query test same ns",
+            metadata={"status": "active", "namespaces": ["work"]}, embedding=[0.1],
+        ),
+        VectorDocument(
+            id="m3", content="query test other ns",
+            metadata={"status": "active", "namespaces": ["personal"]}, embedding=[0.1],
+        ),
+    ]
+    vector.get.return_value = docs
+
+    results = await enrich_with_graph(
+        [res1], "query", 10, graph, vector, config, namespaces=["work"],
+    )
+
+    result_ids = {r.id for r in results}
+    assert "m2" in result_ids
+    assert "m3" not in result_ids
 
 
 @pytest.mark.asyncio

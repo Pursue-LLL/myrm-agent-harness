@@ -193,6 +193,8 @@ class CronJob:
     model: str | None = None
     chat_id: str | None = None
     agent_id: str | None = None
+    workflow_template_id: str | None = None
+    workflow_template_args: dict[str, str] | None = None
 
     command: str | None = None
 
@@ -258,6 +260,9 @@ class CronJobPatch:
     model: str | None = None
     agent_id: str | None = None
     command: str | None = None
+    workflow_template_id: str | None = None
+    workflow_template_args: dict[str, str] | None = None
+    clear_workflow_template: bool = False
 
     context_from: tuple[str, ...] | None = None
     clear_context_from: bool = False

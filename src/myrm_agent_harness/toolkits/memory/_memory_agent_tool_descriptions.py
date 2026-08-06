@@ -229,6 +229,10 @@ def _build_memory_search_en(policy: MemorySearchPolicy) -> str:
         tip_lines.append(
             '- For recent chats without a query, use corpus=sessions with query="*"'
         )
+        tip_lines.append(
+            "- When a sessions hit includes message_id and the user needs verbatim detail, "
+            "call again with corpus=sessions, expand_conversation_id, and expand_message_id"
+        )
     if policy.allow_web:
         tip_lines.append(
             "- Use corpus=web to re-query pages you've already searched or fetched"
@@ -280,6 +284,9 @@ def _build_memory_search_zh(policy: MemorySearchPolicy) -> str:
     ]
     if policy.allow_sessions:
         tip_lines.append('- 查最近聊天无 query：corpus=sessions，query="*"')
+        tip_lines.append(
+            "- sessions 结果含 message_id 且用户要原文细节时，用 corpus=sessions 并传 expand_conversation_id 与 expand_message_id 再查"
+        )
     if policy.allow_web:
         tip_lines.append("- corpus=web 可重查已搜索/抓取过的页面")
 

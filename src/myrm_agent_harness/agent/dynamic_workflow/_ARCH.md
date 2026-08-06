@@ -62,6 +62,9 @@ SSE events (message / message_end / status)
 | `preflight.py` | Trust | Static spawn counting, batch cost estimate, plan preview formatting, approval gate protocol. |
 | `__init__.py` | Engine | Core entry point (`run_dynamic_workflow_stream`). Script generation, preflight, optional `approval_gate`, PTC execution, summarization. |
 | `store.py` | Persistence | `WorkflowEventStore` — fingerprinted sub-agent cache + orchestration script persistence. |
+| `template_store.py` | Template library | `WorkflowTemplateStore` — user-named orchestration scripts for pinned reruns (`workflow_templates` table). |
+| `template_validation.py` | Template library | Script validation, placeholder substitution, trust-latch plan-confirm skip guardrails. |
+| `paths.py` | Template library | `resolve_workflow_events_db_path` — SQLite path SSOT under `{harness_root}/.myrm/workflow_events.db`. |
 | `spawn_cache.py` | Cache SSOT | `SpawnCacheParams` fingerprint for durable replay. |
 | `tools.py` | PTC Tools | `SpawnSubagentTool` (WorkflowRunGuard, cache fingerprint, ISOLATED_COPY + merge) / `NotifyProgressTool` |
 | `notify_stream.py` | Streaming | `iter_notify_events_while_task_runs` concurrently drains the notify queue while PTC execution runs; honors `cancel_token` cancellation. |
