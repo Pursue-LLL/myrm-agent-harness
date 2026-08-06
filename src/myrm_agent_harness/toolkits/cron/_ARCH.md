@@ -27,7 +27,7 @@ cross-task data piping (inject referenced jobs' latest successful output), incre
 | situation.py | Core | Situation Report — pluggable context aggregator for heartbeat ticks. SituationSection Protocol + SituationReportBuilder (concurrent build, token budget, fault-tolerant) + SituationContext. | ✅ |
 | stores.py | Core | Built-in in-memory CronStore for development and testing. | ✅ |
 | triggers.py | Core | Trigger type definitions and security helpers. | ✅ |
-| types.py | Config | Cron job domain types. `JobType.REMINDER` for zero-LLM prompt delivery. JobResult supports `skipped` + `skip_reason`. **`CronJob.required_capabilities` + `CronJob.tools_allowed`**; `CronJobPatch` supports `clear_tools_allowed`. | ✅ |
+| types.py | Config | Cron job domain types. `JobType.REMINDER` for zero-LLM prompt delivery. JobResult supports `skipped` + `skip_reason`. **`CronJob.required_capabilities` + `CronJob.tools_allowed`**; `CronJobPatch` supports `clear_tools_allowed`. Agent jobs may bind **`workflow_template_id` + `workflow_template_args`** for pinned DW reruns (server runner passes through). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|

@@ -85,12 +85,12 @@ Summarization LLM → 用户可读 Markdown
 1. **动态类型发现**：`_build_available_types_hint(catalog)` 与 delegate 看到相同 agent_type 列表
 2. **Cancel 传播**：每阶段边界 + 每次 spawn 检查 `cancel_token`
 3. **Readonly 模式**：`disallowed_tools` + `WorkspacePolicy.READ_ONLY_SANDBOX`
-4. **Named Template Library (vMIN)**：用户将成功的 DW 编排脚本保存为命名模板；后续 run 通过 `workflow_template_id` 跳过 orchestrator LLM，仅替换 `{placeholder}` 参数。`trust_latch` + 全 readonly spawn + 低成本时可跳过 plan_confirm。Server 暴露 `/workflow-templates` CRUD + `from-run`；WebUI 在 Settings → Skills → Workflow Templates 管理，DW 完成消息提供 Save CTA。
-4. **汇总层**：原始 stdout 经 SUMMARIZATION_PROMPT 转为 Markdown + 置信度前缀
-5. **Trust 层**：spawn ≥ 1 时 SSE `plan_confirm`（literal spawn 数 + 运行时 hard cap 文案）+ PhaseWaiter；RunGuard 硬上限 50 spawn / 5 并发
-6. **Workspace 安全**：DW 非 readonly spawn 使用 `ISOLATED_COPY`；defer 时 child workspace 保留至 `batch_merge`；merge 后 sanitize 存 SQLite（`workspace_merge_status=merged`）；merge 经 `build_merge_snapshot_context` 登记 SnapshotStore（Revert 可用）并在摘要 append `_workspace_diff`；merge 失败时 SSE `workflow_execution: warning`、`WORKSPACE_MERGE_FAILED` 与 `completion_status: warning`，前端 `WorkspaceMergeWarning` 展示逐条错误
-7. **Spawn prep SSOT**：`agent/sub_agents/spawn_prep.py` 与 delegate 共用
-8. **Durable replay**：`SpawnCacheParams` 指纹命中复用 spawn 结果；`workspace_merge_status=merged` 跳过 re-spawn/re-merge；`pending` 行视为 incomplete 强制 re-spawn
+4. **Named Template Library (vMIN)**：用户将成功的 DW 编排脚本保存为命名模板；后续 run 通过 `workflow_template_id` 跳过 orchestrator LLM，仅替换 `{placeholder}` 参数（Settings 库页条件表单 + summary `placeholders[]`）。`trust_latch` + 全 readonly spawn + 低成本时可跳过 plan_confirm。Server 暴露 `/workflow-templates` CRUD + `from-run`；WebUI Save CTA + Settings → Workflow Templates（只读 script 预览）；Cron job 可选绑定 `workflow_template_id`（unattended 自动 plan approve）。
+5. **汇总层**：原始 stdout 经 SUMMARIZATION_PROMPT 转为 Markdown + 置信度前缀
+6. **Trust 层**：spawn ≥ 1 时 SSE `plan_confirm`（literal spawn 数 + 运行时 hard cap 文案）+ PhaseWaiter；RunGuard 硬上限 50 spawn / 5 并发
+7. **Workspace 安全**：DW 非 readonly spawn 使用 `ISOLATED_COPY`；defer 时 child workspace 保留至 `batch_merge`；merge 后 sanitize 存 SQLite（`workspace_merge_status=merged`）；merge 经 `build_merge_snapshot_context` 登记 SnapshotStore（Revert 可用）并在摘要 append `_workspace_diff`；merge 失败时 SSE `workflow_execution: warning`、`WORKSPACE_MERGE_FAILED` 与 `completion_status: warning`，前端 `WorkspaceMergeWarning` 展示逐条错误
+8. **Spawn prep SSOT**：`agent/sub_agents/spawn_prep.py` 与 delegate 共用
+9. **Durable replay**：`SpawnCacheParams` 指纹命中复用 spawn 结果；`workspace_merge_status=merged` 跳过 re-spawn/re-merge；`pending` 行视为 incomplete 强制 re-spawn
 
 ---
 

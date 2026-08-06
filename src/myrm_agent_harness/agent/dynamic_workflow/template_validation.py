@@ -4,7 +4,7 @@
 - None (pure validation utilities)
 
 [OUTPUT]
-- validate_orchestration_script, apply_template_args, can_skip_plan_confirm
+- validate_orchestration_script, apply_template_args, extract_template_placeholders, can_skip_plan_confirm
 
 [POS]
 Trust and safety guardrails for named workflow template save and pinned rerun paths.
