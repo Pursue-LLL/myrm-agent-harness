@@ -19,6 +19,7 @@ with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory s
 | publication/ | Core | WPG publish SSOT: `publish_concept_article`, `repair_publication_status` | ✅ |
 | apply/ | Core | Narrow-write apply SSOT: `apply_wiki_mutation` (metadata/truth/timeline/create) | ✅ |
 | raw_gate/ | Core | Raw publication gate SSOT: `publish_raw` (FAIL/SKIP/SUPERSEDE/PUT_IF_ABSENT) + `RAW_SUPERSEDE` audit + `evidence_removal` shared re-anchor | ✅ |
+| ingress/ | Core | Browser clip + URL markdown ingress → `publish_raw`; `.wikiignore` patterns — see [ingress/_ARCH.md](ingress/_ARCH.md) | ✅ |
 | corpus_dedup/ | Core | Raw corpus dedup governance: fingerprint scan, disposition, compile eligibility filter — see [corpus_dedup/_ARCH.md](corpus_dedup/_ARCH.md) | ✅ |
 | queue.py | Core | SQLite persistent ingestion queue with retry + stale recovery + compile circuit pause + eligibility filter on enqueue | ✅ |
 | survey/ | Core | Zero-LLM compile structure survey (facet seeds, chunk sibling groups, fast-path) — see [survey/_ARCH.md](survey/_ARCH.md) | ✅ |

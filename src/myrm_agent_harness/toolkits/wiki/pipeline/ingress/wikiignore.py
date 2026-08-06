@@ -1,4 +1,13 @@
-"""Vault `.wikiignore` pattern loader (gitignore-like, simplified)."""
+"""Vault `.wikiignore` pattern loader (gitignore-like, simplified).
+
+[INPUT]
+- core.structure.WikiStructure (POS: vault directory layout)
+
+[OUTPUT]
+- load_wikiignore_patterns / write_wikiignore_patterns / path_matches_wikiignore
+
+[POS] User-defined import/dedup exclusion rules at vault root.
+"""
 
 from __future__ import annotations
 

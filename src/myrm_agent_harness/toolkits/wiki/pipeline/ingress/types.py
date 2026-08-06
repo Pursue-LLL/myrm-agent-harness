@@ -38,6 +38,7 @@ class UrlMarkdownIngressRequest:
     url: str
     filename: str = ""
     folder_path: str = ""
+    relative_path: str = ""
     localize_public_assets: bool = True
 
 

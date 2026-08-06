@@ -1,4 +1,14 @@
-"""Store clip/upload assets under wiki/assets/ with content-hash deduplication."""
+"""Store clip/upload assets under wiki/assets/ with content-hash deduplication.
+
+[INPUT]
+- core.structure.WikiStructure (POS: vault directory layout)
+- core.security.http.secure_fetch (POS: server-side public asset fetch)
+
+[OUTPUT]
+- store_clip_assets / localize_public_markdown_images / rewrite_markdown_asset_refs
+
+[POS] Clip and URL-ingest asset localization into wiki/assets/.
+"""
 
 from __future__ import annotations
 

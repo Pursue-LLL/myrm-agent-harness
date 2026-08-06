@@ -1,4 +1,15 @@
-"""Wiki clip + URL markdown ingress SSOT → publish_raw."""
+"""Wiki clip + URL markdown ingress SSOT → publish_raw.
+
+[INPUT]
+- pipeline.raw_gate (POS: raw publication gate)
+- toolkits.web_fetch (POS: HTML→markdown pruning)
+- ingress.asset_store (POS: wiki/assets hash store)
+
+[OUTPUT]
+- publish_clip_ingress / publish_url_markdown_ingress (POS: clip + URL ingress writers)
+
+[POS] Wiki raw ingress writers. Normalize clip/URL content then call publish_raw.
+"""
 
 from __future__ import annotations
 
@@ -176,16 +187,19 @@ async def publish_url_markdown_ingress(
     markdown: str,
 ) -> ClipIngressResult:
     structure.ensure_structure()
-    filename = request.filename.strip()
-    if not filename:
-        filename = f"web_{hashlib.sha256(request.url.encode()).hexdigest()[:12]}.md"
-    if not filename.endswith(".md"):
-        filename = f"{filename}.md"
-    if request.folder_path.strip():
-        folder = WikiStructure._sanitize_path(request.folder_path.strip())
-        rel_path = f"{folder}/{Path(filename).name}"
+    if request.relative_path.strip():
+        rel_path = request.relative_path.strip().replace("\\", "/").lstrip("/")
     else:
-        rel_path = Path(filename).name
+        filename = request.filename.strip()
+        if not filename:
+            filename = f"web_{hashlib.sha256(request.url.encode()).hexdigest()[:12]}.md"
+        if not filename.endswith(".md"):
+            filename = f"{filename}.md"
+        if request.folder_path.strip():
+            folder = WikiStructure._sanitize_path(request.folder_path.strip())
+            rel_path = f"{folder}/{Path(filename).name}"
+        else:
+            rel_path = Path(filename).name
 
     body = markdown
     asset_stats = IngressAssetStats()
@@ -198,9 +212,10 @@ async def publish_url_markdown_ingress(
             asset_stats, had_markdown_refs=bool(re.search(r"!\[[^\]]*\]\(", markdown))
         )
 
+    title = Path(rel_path).stem
     content = _build_frontmatter(
         source_url=request.url,
-        title=Path(filename).stem,
+        title=title,
         clip_mode=None,
         assets_localized=localized,
     ) + body

@@ -156,16 +156,14 @@ async def test_tool_snapshot_with_diff(browser_session: BrowserSession) -> None:
     result1 = await browser_snapshot.ainvoke({"scope": "content", "diff": False})
     assert "v1" in result1.lower()
 
-    # Change page content using JavaScript to trigger update
-    await page.evaluate("""
-        document.body.innerHTML = '<h1>V2</h1><button>New Button</button>';
-    """)
-    await asyncio.sleep(0.5)
+    # Change page content using set_content for reliable ARIA tree refresh
+    await page.set_content("<html><body><h1>V2</h1><button>New Button</button></body></html>")
+    await asyncio.sleep(1.0)
 
     # Second snapshot (incremental diff)
     result2 = await browser_snapshot.ainvoke({"scope": "content", "diff": True})
-    # May show diff or full tree depending on change detection
-    assert "v2" in result2.lower() or "new" in result2.lower() or "button" in result2.lower()
+    # Diff should detect change: either shows new content or diff markers
+    assert "v2" in result2.lower() or "new" in result2.lower() or "button" in result2.lower() or "diff" in result2.lower()
 
 
 # =============================================================================

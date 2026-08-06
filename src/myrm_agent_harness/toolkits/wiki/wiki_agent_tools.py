@@ -102,14 +102,63 @@ def create_wiki_agent_tools(
         try:
             if source.startswith("http://") or source.startswith("https://"):
                 content = await _fetch_url_as_markdown(source)
-                from myrm_agent_harness.toolkits.wiki.pipeline.ingress.asset_store import (
-                    localize_public_markdown_images,
+                resolved_filename = filename or f"web_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
+                resolved_filename = Path(resolved_filename).name
+                if folder_path:
+                    safe_folder = structure._sanitize_path(folder_path)
+                    full_path = f"{safe_folder}/{resolved_filename}"
+                else:
+                    full_path = resolved_filename
+
+                from myrm_agent_harness.toolkits.wiki.pipeline.ingress import (
+                    UrlMarkdownIngressRequest,
+                    publish_url_markdown_ingress,
                 )
 
-                content, _asset_stats = await localize_public_markdown_images(
-                    structure, content, base_url=source
+                chunks = _split_if_large(content, full_path)
+                ingested_count = 0
+                display_path = full_path
+
+                for idx, (chunk_path, chunk_content) in enumerate(chunks):
+                    ingress_result = await publish_url_markdown_ingress(
+                        structure,
+                        UrlMarkdownIngressRequest(
+                            url=source,
+                            filename=resolved_filename,
+                            folder_path=folder_path,
+                            relative_path=chunk_path if len(chunks) > 1 else "",
+                            localize_public_assets=idx == 0,
+                        ),
+                        markdown=chunk_content,
+                    )
+                    if ingress_result.conflict:
+                        return (
+                            f"Raw source already exists with different content: "
+                            f"{ingress_result.relative_path}. "
+                            "Use Settings Wiki import to supersede or choose a different filename."
+                        )
+                    if ingress_result.security_blocked:
+                        return (
+                            f"Raw source rejected due to sensitive content: "
+                            f"{ingress_result.relative_path}. "
+                            "Remove credentials before ingesting."
+                        )
+                    if ingress_result.written:
+                        compiler.enqueue_file(
+                            structure.get_raw_file_path(ingress_result.relative_path)
+                        )
+                        ingested_count += 1
+                        display_path = ingress_result.relative_path
+
+                if ingested_count == 0:
+                    return "Failed to ingest document: no content was written to raw/"
+
+                logger.info(f"Ingested {ingested_count} chunk(s) for: {display_path}")
+                suffix = f" ({ingested_count} chunks)" if ingested_count > 1 else ""
+                return (
+                    f"Successfully ingested document: {display_path}{suffix}. "
+                    "Compilation queued."
                 )
-                filename = filename or f"web_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
             elif len(source) < 260 and "\n" not in source and Path(source).exists():
                 src_path = Path(source)
                 ext = src_path.suffix.lower()

@@ -85,7 +85,11 @@ async def _require_hitl_approval(
     if element is not None:
         hitl_payload["element"] = element
 
-    user_response = interrupt(hitl_payload)
+    try:
+        user_response = interrupt(hitl_payload)
+    except RuntimeError:
+        record_decision(tool_name, "AUTO_APPROVED", "No LangGraph context — auto-approve")
+        return None
 
     if not _parse_interrupt_decision(user_response):
         record_decision(

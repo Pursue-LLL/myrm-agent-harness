@@ -104,6 +104,28 @@ async def test_publish_clip_ingress_writes_raw(temp_structure: WikiStructure) ->
 
 
 @pytest.mark.asyncio
+async def test_publish_url_markdown_ingress_writes_raw(temp_structure: WikiStructure) -> None:
+    from myrm_agent_harness.toolkits.wiki.pipeline.ingress.types import (
+        UrlMarkdownIngressRequest,
+    )
+    from myrm_agent_harness.toolkits.wiki.pipeline.ingress.publish import (
+        publish_url_markdown_ingress,
+    )
+
+    result = await publish_url_markdown_ingress(
+        temp_structure,
+        UrlMarkdownIngressRequest(url="https://example.com/doc"),
+        markdown="# Doc\n\nFrom URL ingress.",
+    )
+    assert result.written is True
+    raw_path = temp_structure.get_raw_file_path(result.relative_path)
+    assert raw_path.is_file()
+    text = raw_path.read_text(encoding="utf-8")
+    assert "source_url:" in text
+    assert "From URL ingress." in text
+
+
+@pytest.mark.asyncio
 async def test_publish_clip_ingress_conflict_skips(temp_structure: WikiStructure) -> None:
     rel = "clips/manual/existing.md"
     existing = temp_structure.get_raw_file_path(rel)
