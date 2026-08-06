@@ -19,6 +19,7 @@ Public re-export facade. Product code imports hooks here instead of private ``ag
 from __future__ import annotations
 
 from myrm_agent_harness.agent._internals.memory_extraction import (
+    auto_extract_memories,
     create_extraction_llm_func,
     persist_extracted_memories,
 )
@@ -76,6 +77,7 @@ def count_running_background_shell_jobs(session_id: str | None = None) -> int:
 
 
 __all__ = [
+    "auto_extract_memories",
     "BackgroundJobFinishHandler",
     "BackgroundJobFinishResult",
     "BackgroundJobRecord",
