@@ -1,4 +1,4 @@
-"""Tests for loop_suggestions — suggestion generation and error analysis."""
+"""Tests for loop_guard.suggestions — suggestion generation and error analysis."""
 
 from __future__ import annotations
 

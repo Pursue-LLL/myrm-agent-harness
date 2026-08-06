@@ -7,7 +7,6 @@ See module docstring.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.events import (
@@ -24,7 +23,7 @@ from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.security_hook import (
     apply_raw_security_scan,
 )
 
-RawGateCaller = Literal["agent", "settings", "chat"]
+from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.types import RawGateCaller
 
 
 @dataclass(frozen=True, slots=True)

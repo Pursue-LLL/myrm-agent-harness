@@ -222,14 +222,36 @@ class WikiStructure:
         ext_set = {e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions}
 
         files: list[Path] = []
+        ignore_patterns = self.load_wikiignore_patterns()
         for f in target.rglob("*"):
             if not f.is_file() or f.suffix.lower() not in ext_set:
                 continue
             parts = f.relative_to(target).parts
             if any(p.startswith(".") or p in self._IGNORED_DIRS for p in parts[:-1]):
                 continue
+            rel_posix = f.relative_to(target).as_posix()
+            if self.path_matches_wikiignore(rel_posix, ignore_patterns):
+                continue
             files.append(f)
         return sorted(files)
+
+    def load_wikiignore_patterns(self) -> tuple[str, ...]:
+        from myrm_agent_harness.toolkits.wiki.pipeline.ingress.wikiignore import (
+            load_wikiignore_patterns,
+        )
+
+        return load_wikiignore_patterns(self)
+
+    @staticmethod
+    def path_matches_wikiignore(
+        relative_posix: str,
+        patterns: tuple[str, ...],
+    ) -> bool:
+        from myrm_agent_harness.toolkits.wiki.pipeline.ingress.wikiignore import (
+            path_matches_wikiignore,
+        )
+
+        return path_matches_wikiignore(relative_posix, patterns)
 
     def get_wiki_metadata_path(self) -> Path:
         """Get path for wiki metadata (last compile time, stats, etc)."""

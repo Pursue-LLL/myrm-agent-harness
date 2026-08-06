@@ -102,6 +102,13 @@ def create_wiki_agent_tools(
         try:
             if source.startswith("http://") or source.startswith("https://"):
                 content = await _fetch_url_as_markdown(source)
+                from myrm_agent_harness.toolkits.wiki.pipeline.ingress.asset_store import (
+                    localize_public_markdown_images,
+                )
+
+                content, _asset_stats = await localize_public_markdown_images(
+                    structure, content, base_url=source
+                )
                 filename = filename or f"web_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
             elif len(source) < 260 and "\n" not in source and Path(source).exists():
                 src_path = Path(source)

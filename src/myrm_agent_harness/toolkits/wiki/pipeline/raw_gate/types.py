@@ -21,7 +21,7 @@ class RawConflictPolicy(StrEnum):
     SUPERSEDE = "supersede"
 
 
-RawGateCaller = Literal["agent", "settings", "chat"]
+RawGateCaller = Literal["agent", "settings", "chat", "extension"]
 
 
 @dataclass(frozen=True, slots=True)

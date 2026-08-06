@@ -7,7 +7,6 @@ See module docstring.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
 
 from myrm_agent_harness.core.security.persistence.content_scan import PersistScanVerdict
 from myrm_agent_harness.toolkits.wiki.core.canonical_registry import (
@@ -32,7 +31,7 @@ from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.security_hook import (
     scan_publish_article_content,
 )
 
-RawGateCaller = Literal["agent", "settings", "chat"]
+from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.types import RawGateCaller
 
 
 @dataclass(frozen=True, slots=True)
