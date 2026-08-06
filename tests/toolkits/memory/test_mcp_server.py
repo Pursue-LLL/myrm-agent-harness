@@ -434,6 +434,8 @@ class TestMemoryManageTool:
         )
         assert "corrected" in result
         assert "c1" in result
+        assert "demoted" not in result.lower()
+        assert "kept in history" in result.lower()
 
     @pytest.mark.asyncio
     async def test_manage_invalid_action(self, mcp_server, mock_manager):

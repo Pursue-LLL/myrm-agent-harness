@@ -12,8 +12,9 @@ Default locale is English; callers pass BCP-47 locale strings (e.g. ``zh-CN``).
 
 [OUTPUT]
 - build_memory_search_tool_description: Dynamic memory_search_tool description builder
+- build_memory_save_tool_description: Dynamic memory_save_tool description (policy + approval)
 - resolve_memory_save_tool_description / resolve_memory_manage_tool_description
-- MEMORY_*_TOOL_DESCRIPTION_EN / _ZH: locale-specific SSOT constants
+- MEMORY_SAVE_CORE_* / MEMORY_*_TOOL_DESCRIPTION_EN / _ZH: locale-specific SSOT constants
 
 [POS]
 Prompt SSOT for memory agent tools. Imported by memory_agent_tools.py and static tests.
@@ -22,6 +23,10 @@ Prompt SSOT for memory agent tools. Imported by memory_agent_tools.py and static
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchPolicy
+from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
+    WIKI_MEMORY_SAVE_MAX_CHARS,
+    WIKI_MEMORY_SAVE_MIN_HEADINGS,
+)
 from myrm_agent_harness.utils.locale import is_chinese
 
 DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE = "en"
@@ -30,22 +35,23 @@ DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE = "en"
 # English (default LLM-facing)
 # =============================================================================
 
-MEMORY_SAVE_TOOL_DESCRIPTION_EN = """Store a new memory for the user. Memory persists across sessions and is injected
-into future conversations, so keep entries compact and focused on durable facts.
+MEMORY_SAVE_CORE_EN = """Store a new memory for the user. Memory persists across sessions and is injected into future conversations, so keep entries compact and focused on durable facts: one standalone declarative fact per entry.
 
 **WHEN TO SAVE** (do this proactively):
 - User explicitly says "remember this", "note this", "don't forget"
-- User corrects your behavior or output style
+- User corrects your behavior or output style (agent conduct — not a stored fact correction; see below)
 - User shares a stable preference, habit, or personal detail (name, role, timezone)
 - You discover something about the user's environment or project that won't change soon
 - User sets a rule: "always do X" / "never do Y"
 
-**WHAT NOT TO SAVE**:
-- Task progress, session outcomes, completed-work logs (use memory_search with corpus=sessions instead)
+**WHEN NOT TO USE THIS TOOL**:
+- An existing recalled memory fact is wrong → use memory_manage_tool with action=correct (do not save a duplicate)
+- Task progress, session outcomes, or completed-work logs → use memory_search_tool with corpus=sessions
 - Temporary state: PR numbers, commit SHAs, current file paths, WIP items
 - Information that will be stale within a week
 - Step-by-step procedures or workflows (not suitable for memory)
 - Raw data dumps, code snippets, or lengthy text
+- Do not retry identical content if the tool reports a duplicate
 
 **CONTENT QUALITY** — write as declarative facts, not instructions:
 - GOOD: "User prefers dark themes" (declarative fact)
@@ -53,17 +59,17 @@ into future conversations, so keep entries compact and focused on durable facts.
 - One fact per memory entry; include enough context to be useful standalone
 
 **ATTRIBUTION & TRANSIENT STATES** (CRITICAL):
-- Strictly distinguish the user from third parties (family, friends, colleagues). NEVER attribute a third party's traits, illnesses, or preferences to the user. (e.g., "User's boss prefers dark mode", NOT "User prefers dark mode").
+- Strictly distinguish the user from third parties (family, friends, colleagues). NEVER attribute a third party's traits, illnesses, or preferences to the user (e.g., "User's boss prefers dark mode", NOT "User prefers dark mode").
 - DO NOT save transient emotional or psychological states (e.g., "User is feeling anxious today") unless explicitly stated as a chronic condition.
 
-**CATEGORY GUIDE**:
-- knowledge: stable facts about user's world (project tech stack, environment details)
-- event: significant past occurrences worth recalling (user started new project)
+**CATEGORY GUIDE** (pick one):
+- knowledge: stable facts about user's world (project tech stack, environment details) — tags and importance apply here
+- event: significant past occurrences worth recalling (e.g., user started new project) — importance and tags are not stored for events
 - preference: user likes/dislikes (requires preference_key)
-- rule: conditional behavioral rules (requires rule_trigger)
-- instruction: global instructions that always apply (highest priority)
+- rule: conditional behavioral rules (requires rule_trigger; optional rule_priority, rule_keywords)
+- instruction: global instructions that always apply (highest priority) — do not set rule_trigger
 
-**IMPORTANCE SCORING**:
+**IMPORTANCE SCORING** (0–1, primarily for knowledge):
 - 0.8–1.0: User explicitly asked to remember / correction of your behavior
 - 0.5–0.7: Inferred stable preference or environment fact
 - 0.2–0.4: Supplementary context, nice-to-have
@@ -72,117 +78,112 @@ into future conversations, so keep entries compact and focused on durable facts.
 - "bound" (default): visible only to the current agent persona
 - "shared": cross-agent knowledge (user's name, timezone) — use sparingly
 
-Args:
-    content: Memory content text — declarative, concise, standalone.
-    category: knowledge | event | preference | rule | instruction.
-    importance: 0–1 importance score (see scoring guide above).
-    tags: Classify this memory with descriptive labels for later filtering
-        (e.g. ["python", "auth"], ["cooking", "italian"]). Knowledge/event only.
-    write_target: "bound" for current agent; "shared" for cross-agent knowledge.
-    preference_key: Required for preference category (e.g. "response_style").
-    rule_trigger: Required for rule category (context that triggers the rule).
-    rule_priority: Priority for rules (higher = stronger override).
-    rule_keywords: Optional trigger keywords for rule activation."""
+Parameter semantics are in the tool schema."""
 
-MEMORY_MANAGE_TOOL_DESCRIPTION_EN = """Update, delete, correct, or rate an existing memory.
+MEMORY_SAVE_TOOL_DESCRIPTION_EN = MEMORY_SAVE_CORE_EN
 
-**WHEN TO USE**:
-- User says "forget that" / "that's wrong" / "remove that memory" → delete or correct
-- A recalled memory is outdated or inaccurate → correct (preserves history)
-- User confirms a memory is helpful → rate (reinforces retrieval ranking)
+MEMORY_MANAGE_TOOL_DESCRIPTION_EN = """Update, delete, correct, or rate an existing memory from memory_search_tool results.
+
+**WHEN TO USE** (not memory_save_tool):
+- User says "forget that", "that's wrong", or "remove that memory"
+- A recalled memory is outdated or inaccurate → correct
 - A memory needs minor wording fix → update
+- User confirms a memory was helpful → rate (reinforces retrieval ranking)
 
-Args:
-    action: "update", "delete", "correct", or "rate".
-    memory_id: Memory ID from memory_search results.
-    category: knowledge | event | preference | rule.
-    new_content: Required for update/correct actions.
-    new_importance: Optional new importance score.
-    rating_score: Required for rate action (1-5, where 1=bad, 5=excellent).
+**WHEN NOT TO USE**:
+- Storing new facts, preferences, or rules → memory_save_tool
+- Task progress or chat history → memory_search_tool with corpus=sessions
 
-The "correct" action is for when a memory is factually wrong.
-It demotes the old memory (low confidence) and creates a new
-high-confidence correction memory linked to it, so future
-retrievals automatically prefer the corrected version.
+**ACTION GUIDE**:
+- delete: remove a memory (pinned memories cannot be deleted by the agent)
+- update: fix wording or importance only — not for wrong facts; requires new_content
+- correct: fix a wrong recalled fact — knowledge category only; requires new_content; preserves history; use instead of memory_save_tool when correcting existing memories
+- rate: record user feedback — knowledge or event only; requires rating_score 1-5 (1=poor, 5=excellent)
 
-The "rate" action records user feedback on a memory. Higher-rated
-memories are ranked higher in search results and resist forgetting."""
+**CATEGORY LIMITS**:
+- correct → knowledge only
+- rate → knowledge or event only
+- preference profile attributes cannot be deleted via this tool
+- instruction saves (via memory_save_tool) are stored as rules with trigger "always"; manage them with category=rule
+
+Parameter semantics are in the tool schema."""
 
 # =============================================================================
 # Chinese (LLM-facing; must stay semantically aligned with English)
 # =============================================================================
 
-MEMORY_SAVE_TOOL_DESCRIPTION_ZH = """为用户存储新记忆。记忆跨会话持久化并注入未来对话，请保持条目紧凑、聚焦 durable facts。
+MEMORY_SAVE_CORE_ZH = """为用户存储新记忆。记忆跨会话持久化并注入未来对话，请保持条目紧凑、聚焦持久事实：一条可独立理解的陈述性事实。
 
 **何时保存**（应主动执行）：
 - 用户明确说「记住这个」「记一下」「别忘了」
-- 用户纠正你的行为或输出风格
+- 用户纠正你的行为或输出风格（指 Agent 行为，不是已存事实纠错；见下方）
 - 用户分享稳定偏好、习惯或个人细节（姓名、角色、时区）
 - 你发现用户环境/项目中短期内不会变的事实
 - 用户设定规则：「总是 X」「绝不 Y」
 
-**不要保存**：
-- 任务进度、会话结果、已完成工作日志（改用 memory_search，corpus=sessions）
+**不要改用本工具的情况**：
+- 已召回的记忆事实有误 → 使用 memory_manage_tool，action=correct（不要重复 save）
+- 任务进度、会话结果、已完成工作日志 → 使用 memory_search_tool，corpus=sessions
 - 临时状态：PR 号、commit SHA、当前文件路径、进行中的事项
 - 一周内会过时的信息
 - 分步流程或工作流（不适合记忆）
-- 原始数据 dump、代码片段或冗长文本
+- 原始数据转储、代码片段或冗长文本
+- 若工具返回重复提示，不要用相同内容重试
 
 **内容质量** — 写陈述性事实，不要写指令：
 - 好："User prefers dark themes"（陈述性事实）
 - 差："Always use dark theme"（指令式，易被误解为命令）
 - 每条记忆一个事实；包含足够上下文以便独立理解
 
-**归属与 transient states**（关键）：
-- 严格区分用户与第三方（家人、朋友、同事）。绝不要把第三方的特质、疾病或偏好归因给用户。（如 "User's boss prefers dark mode"，而非 "User prefers dark mode"）。
-- 不要保存 transient 情绪或心理状态（如 "User is feeling anxious today"），除非用户明确为 chronic condition。
+**归属与短暂状态**（关键）：
+- 严格区分用户与第三方（家人、朋友、同事）。绝不要把第三方的特质、疾病或偏好归因给用户（如 "User's boss prefers dark mode"，而非 "User prefers dark mode"）。
+- 不要保存短暂情绪或心理状态（如 "User is feeling anxious today"），除非用户明确说明是长期或慢性状况。
 
-**类别指南**：
-- knowledge：用户世界的稳定事实（项目技术栈、环境细节）
-- event：值得回忆的重要过往事件（用户开始新项目）
+**类别指南**（择一）：
+- knowledge：用户世界的稳定事实（项目技术栈、环境细节）— 标签与重要性适用于此类
+- event：值得回忆的重要过往事件（如用户开始新项目）— event 不存储重要性与标签
 - preference：用户喜好/厌恶（需 preference_key）
-- rule：条件性行为规则（需 rule_trigger）
-- instruction：始终适用的全局指令（最高优先级）
+- rule：条件性行为规则（需 rule_trigger；可选 rule_priority、rule_keywords）
+- instruction：始终适用的全局指令（最高优先级）— 不要设置 rule_trigger
 
-**重要性评分**：
+**重要性评分**（0–1，主要用于 knowledge）：
 - 0.8–1.0：用户明确要求记住 / 纠正你的行为
 - 0.5–0.7：推断的稳定偏好或环境事实
-- 0.2–0.4：补充上下文，nice-to-have
+- 0.2–0.4：补充上下文，可有可无
 
 **写入目标**：
-- "bound"（默认）：仅当前 Agent persona 可见
+- "bound"（默认）：仅当前 Agent 角色可见
 - "shared"：跨 Agent 知识（用户姓名、时区等）— 谨慎使用
 
-Args:
-    content: 记忆正文 — 陈述性、简洁、可独立理解。
-    category: knowledge | event | preference | rule | instruction。
-    importance: 0–1 重要性分数（见上方评分指南）。
-    tags: 描述性标签便于后续过滤（如 ["python", "auth"]）。仅 knowledge/event。
-    write_target: "bound" 当前 Agent；"shared" 跨 Agent。
-    preference_key: preference 类别必填（如 "response_style"）。
-    rule_trigger: rule 类别必填（触发上下文）。
-    rule_priority: 规则优先级（越高越强）。
-    rule_keywords: 可选触发关键词。"""
+参数说明见工具参数定义。"""
 
-MEMORY_MANAGE_TOOL_DESCRIPTION_ZH = """更新、删除、纠正或评分已有记忆。
+MEMORY_SAVE_TOOL_DESCRIPTION_ZH = MEMORY_SAVE_CORE_ZH
 
-**何时使用**：
-- 用户说「忘了那个」「不对」「删掉那条记忆」→ delete 或 correct
-- 召回的记忆过时或不准确 → correct（保留历史）
-- 用户确认某条记忆有帮助 → rate（强化检索排序）
+MEMORY_MANAGE_TOOL_DESCRIPTION_ZH = """更新、删除、纠正或评分已有记忆（memory_id 来自 memory_search_tool 结果）。
+
+**何时使用**（不要用 memory_save_tool）：
+- 用户说「忘了那个」「不对」「删掉那条记忆」
+- 召回的记忆过时或不准确 → correct
 - 记忆需要小幅措辞修正 → update
+- 用户确认某条记忆有帮助 → rate（强化检索排序）
 
-Args:
-    action: "update"、"delete"、"correct" 或 "rate"。
-    memory_id: memory_search 结果中的 Memory ID。
-    category: knowledge | event | preference | rule。
-    new_content: update/correct 时必填。
-    new_importance: 可选的新重要性分数。
-    rating_score: rate 时必填（1-5，1=差，5=优）。
+**不要改用本工具的情况**：
+- 存储新事实、偏好或规则 → memory_save_tool
+- 任务进度或聊天历史 → memory_search_tool，corpus=sessions
 
-"correct" 用于记忆事实错误时：旧记忆降置信，并创建与之链接的新高置信 correction 记忆，未来检索自动优先新版本。
+**操作指南**：
+- delete：删除记忆（已钉选的记忆 Agent 不能删）
+- update：仅改措辞或重要性 — 不用于事实错误；需要 new_content
+- correct：纠正错误的已召回事实 — 仅 knowledge 类别；需要 new_content；保留历史记录；纠正已有记忆时优先于 memory_save_tool
+- rate：记录用户反馈 — 仅 knowledge 或 event；需要 rating_score 1-5（1=差，5=优）
 
-"rate" 记录用户对记忆的反馈。高分记忆在搜索结果中排序更靠前、更抗遗忘。"""
+**类别限制**：
+- correct → 仅 knowledge
+- rate → 仅 knowledge 或 event
+- preference 类 profile 属性不能通过本工具删除
+- instruction 保存（memory_save_tool）后存为 trigger=always 的 rule；管理时用 category=rule
+
+参数说明见工具参数定义。"""
 
 # Default aliases (English)
 MEMORY_SAVE_TOOL_DESCRIPTION = MEMORY_SAVE_TOOL_DESCRIPTION_EN
@@ -324,12 +325,66 @@ def build_memory_search_tool_description(
     return _build_memory_search_en(policy)
 
 
+def _wiki_boundary_fragment_en() -> str:
+    return (
+        f"**WIKI BOUNDARY** (wiki corpus enabled):\n"
+        f"- For knowledge/event only: do not save document-like content "
+        f"(≥{WIKI_MEMORY_SAVE_MAX_CHARS} characters or ≥{WIKI_MEMORY_SAVE_MIN_HEADINGS} markdown headings).\n"
+        "- Use wiki_ingest_tool for articles, notes, or long reference text. "
+        "Memory is for short durable facts."
+    )
+
+
+def _wiki_boundary_fragment_zh() -> str:
+    return (
+        f"**Wiki 边界**（已启用 wiki corpus）：\n"
+        f"- 仅 knowledge/event：不要保存文档式内容"
+        f"（≥{WIKI_MEMORY_SAVE_MAX_CHARS} 字符或 ≥{WIKI_MEMORY_SAVE_MIN_HEADINGS} 个 markdown 标题）。\n"
+        "- 长文/笔记/参考资料请用 wiki_ingest_tool；memory 只存短小的持久事实。"
+    )
+
+
+def _approval_fragment_en() -> str:
+    return (
+        "**APPROVAL**: When user confirmation is required, the tool may return "
+        '"submitted for approval" — the memory is not active until the user approves.'
+    )
+
+
+def _approval_fragment_zh() -> str:
+    return (
+        "**审批**：若需用户确认，工具可能返回「submitted for approval」——"
+        "在用户批准前该记忆不会生效。"
+    )
+
+
+def build_memory_save_tool_description(
+    policy: MemorySearchPolicy,
+    *,
+    approval_required: bool = False,
+    locale: str | None = DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE,
+) -> str:
+    """Build memory_save_tool description (wiki boundary + approval vary by runtime)."""
+    parts: list[str] = [
+        MEMORY_SAVE_CORE_ZH if is_chinese(locale) else MEMORY_SAVE_CORE_EN
+    ]
+    if policy.allow_wiki:
+        parts.append(
+            _wiki_boundary_fragment_zh()
+            if is_chinese(locale)
+            else _wiki_boundary_fragment_en()
+        )
+    if approval_required:
+        parts.append(
+            _approval_fragment_zh() if is_chinese(locale) else _approval_fragment_en()
+        )
+    return "\n\n".join(parts)
+
+
 def resolve_memory_save_tool_description(
     locale: str | None = DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE,
 ) -> str:
-    if is_chinese(locale):
-        return MEMORY_SAVE_TOOL_DESCRIPTION_ZH
-    return MEMORY_SAVE_TOOL_DESCRIPTION_EN
+    return build_memory_save_tool_description(MemorySearchPolicy(), locale=locale)
 
 
 def resolve_memory_manage_tool_description(
@@ -345,9 +400,12 @@ __all__ = [
     "MEMORY_MANAGE_TOOL_DESCRIPTION",
     "MEMORY_MANAGE_TOOL_DESCRIPTION_EN",
     "MEMORY_MANAGE_TOOL_DESCRIPTION_ZH",
+    "MEMORY_SAVE_CORE_EN",
+    "MEMORY_SAVE_CORE_ZH",
     "MEMORY_SAVE_TOOL_DESCRIPTION",
     "MEMORY_SAVE_TOOL_DESCRIPTION_EN",
     "MEMORY_SAVE_TOOL_DESCRIPTION_ZH",
+    "build_memory_save_tool_description",
     "build_memory_search_tool_description",
     "resolve_memory_manage_tool_description",
     "resolve_memory_save_tool_description",

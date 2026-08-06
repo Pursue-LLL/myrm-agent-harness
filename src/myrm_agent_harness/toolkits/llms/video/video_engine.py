@@ -192,7 +192,9 @@ class VideoGenerationTools:
                 )
 
         resolved_videos: list[bytes] | None = None
+        video_source_urls: list[str] | None = None
         if reference_videos:
+            video_source_urls = [u.strip() for u in reference_videos if u.strip().startswith(("http://", "https://"))]
             try:
                 resolved_videos = await _resolve_video_inputs(reference_videos)
             except (OSError, ValueError) as e:
@@ -239,6 +241,10 @@ class VideoGenerationTools:
         self._active_task = task
         self._task_store.save(task)
 
+        effective_extra = dict(extra_params) if extra_params else {}
+        if video_source_urls:
+            effective_extra["_video_source_urls"] = video_source_urls
+
         self._background_task = asyncio.create_task(
             self._run_generation(
                 task=task,
@@ -251,7 +257,7 @@ class VideoGenerationTools:
                 enable_audio=enable_audio,
                 reference_images=resolved_images,
                 reference_videos=resolved_videos,
-                extra_params=extra_params,
+                extra_params=effective_extra or None,
                 cancellation_event=cancellation_event,
             ),
             name=f"video-gen-{task_id}",
@@ -416,6 +422,8 @@ class VideoGenerationTools:
             "Video generation tool. "
             'action="generate": create videos from text/images/videos '
             "(T2V, I2V, V2V auto-detected from inputs). "
+            "To extend a video, pass its URL in reference_videos with duration_seconds; "
+            "to edit, pass URL in reference_videos without duration_seconds. "
             'action="status": check current task progress. '
             'action="list": discover providers, models, and per-mode capabilities. '
             f"Active: {self._config.provider}/{self._config.model}."

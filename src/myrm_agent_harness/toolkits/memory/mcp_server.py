@@ -550,10 +550,10 @@ class MemoryMCPServer:
             description=(
                 "Update, delete, correct, or rate an existing memory.\n\n"
                 "Actions:\n"
-                "- update: Change content of an existing memory\n"
+                "- update: Fix wording or importance only (not for wrong facts)\n"
                 "- delete: Remove a memory permanently\n"
-                "- correct: Mark a memory as wrong and store the corrected version "
-                "(old memory is demoted, new correction is preferred in future recalls)\n"
+                "- correct: Fix a wrong knowledge fact; prior entry kept in history; "
+                "new correction is preferred in future recalls\n"
                 "- rate: Give feedback on a memory (1-5 scale; higher-rated memories "
                 "rank higher and resist forgetting)"
             ),
@@ -571,7 +571,7 @@ class MemoryMCPServer:
             Args:
                 action: "update", "delete", "correct", or "rate".
                 memory_id: Memory ID from memory_recall results.
-                category: knowledge | event | preference | rule (claim/instruction not manageable).
+                category: knowledge | event | preference | rule (instruction saves use category=rule).
                 new_content: Required for update/correct actions.
                 new_importance: Optional new importance score (0.0-1.0).
                 rating_score: Required for rate action (1-5, 1=bad, 5=excellent).
@@ -633,7 +633,8 @@ class MemoryMCPServer:
                         return "Knowledge memory is not enabled."
                     correction = await mgr.correct_memory(memory_id, new_content)
                     return (
-                        f"Memory corrected: old memory {memory_id} demoted, new correction stored (ID: {correction.id})"
+                        f"Memory corrected (new ID: {correction.id}). "
+                        f"Prior entry {memory_id} kept in history."
                     )
 
             except Exception as e:

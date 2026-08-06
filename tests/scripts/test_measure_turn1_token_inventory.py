@@ -147,7 +147,7 @@ async def test_build_default_turn1_tools_resolves_default_profile() -> None:
 # SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四 (measure_turn1 default profile, o200k_base)
 _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "web_fetch_tool": 118,
-    "bash_code_execute_tool": 2007,
+    "bash_code_execute_tool": 1682,
     "bash_process_tool": 79,
     "file_edit_tool": 149,
     "file_read_tool": 356,
@@ -156,9 +156,9 @@ _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
     "grep_tool": 198,
     "web_search_tool": 1001,
     "memory_search_tool": 137,
-    "memory_save_tool": 684,
-    "memory_manage_tool": 243,
-    "skill_select_tool": 236,
+    "memory_save_tool": 640,
+    "memory_manage_tool": 251,
+    "skill_select_tool": 188,
 }
 
 
@@ -175,7 +175,7 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
         == report["description_tokens"] + report["schema_wrapper_tokens"]
     )
     layer_totals = report["layer_totals"]
-    assert layer_totals["CORE"] == 3265
-    assert layer_totals["COMMON"] == 2065
-    assert layer_totals["EXTENDED"] == 236
-    assert report["tools_subtotal"] == 6411
+    assert layer_totals["CORE"] == 2940
+    assert layer_totals["COMMON"] == 2029
+    assert layer_totals["EXTENDED"] == 188
+    assert report["tools_subtotal"] == 6002

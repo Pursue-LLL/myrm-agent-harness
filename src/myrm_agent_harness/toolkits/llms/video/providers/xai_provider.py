@@ -1,8 +1,7 @@
 """xAI Grok Imagine video generation provider.
 
-Supports text-to-video (T2V) and image-to-video (I2V) via the
-xAI /v1/videos/generations async endpoint.  Uses the submit → poll → download
-pattern consistent with other providers.
+Supports T2V, I2V, video extend, and video edit via xAI /v1/videos endpoints.
+Uses the submit → poll → download pattern consistent with other providers.
 
 [INPUT]
 - toolkits.llms._media_shared.types::ModeCapabilities, ProviderModeCapabilities (POS: These types are imported by video/models.py, normalization.py, and task_store.py. They define the contract between provider declarations and the normalization engine.)
@@ -121,10 +120,13 @@ class XAIGrokProvider(VideoGenerationProvider):
             supported_aspect_ratios=_SUPPORTED_ASPECT_RATIOS,
             max_duration_seconds=10,
         )
+        _v2v = ModeCapabilities(
+            max_duration_seconds=10,
+        )
         return ProviderCapabilities(
             max_videos=1,
             max_input_images=_MAX_REFERENCE_IMAGES,
-            max_input_videos=0,
+            max_input_videos=1,
             max_duration_seconds=_MAX_DURATION,
             supports_aspect_ratio=True,
             supports_resolution=True,
@@ -132,6 +134,7 @@ class XAIGrokProvider(VideoGenerationProvider):
             mode_capabilities=ProviderModeCapabilities(
                 generate=_t2v,
                 image_to_video=_i2v,
+                video_to_video=_v2v,
             ),
         )
 
@@ -172,6 +175,9 @@ class XAIGrokProvider(VideoGenerationProvider):
         resolved_ar = _resolve_aspect_ratio(aspect_ratio or config.default_aspect_ratio)
         resolved_res = _resolve_resolution(resolution or config.default_resolution)
 
+        video_source_url = self._extract_video_source_url(extra_params)
+        mode = self._resolve_mode(reference_videos, video_source_url, duration_seconds)
+
         timeout = httpx.Timeout(config.timeout_seconds, connect=30.0)
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -179,20 +185,27 @@ class XAIGrokProvider(VideoGenerationProvider):
         }
 
         async with create_httpx_client(timeout=timeout, headers=headers) as client:
-            body: dict[str, object] = {
-                "model": effective_model,
-                "prompt": prompt,
-                "duration": clamped_duration,
-                "aspect_ratio": resolved_ar,
-                "resolution": resolved_res,
-            }
-            if is_single_image:
-                body["image"] = _build_image_input(reference_images[0])
-            elif is_multi_ref:
-                body["reference_images"] = _build_reference_images_input(reference_images)
+            body: dict[str, object] = {"model": effective_model, "prompt": prompt}
+
+            if mode == "extend":
+                body["video"] = {"url": video_source_url}
+                body["duration"] = min(10, max(2, clamped_duration))
+                endpoint = "/videos/extensions"
+            elif mode == "edit":
+                body["video"] = {"url": video_source_url}
+                endpoint = "/videos/edits"
+            else:
+                body["duration"] = clamped_duration
+                body["aspect_ratio"] = resolved_ar
+                body["resolution"] = resolved_res
+                if is_single_image:
+                    body["image"] = _build_image_input(reference_images[0])
+                elif is_multi_ref:
+                    body["reference_images"] = _build_reference_images_input(reference_images)
+                endpoint = "/videos/generations"
 
             resp = await client.post(
-                f"{base_url}/videos/generations",
+                f"{base_url}{endpoint}",
                 json=body,
                 headers={"x-idempotency-key": str(uuid.uuid4())},
             )
@@ -203,7 +216,7 @@ class XAIGrokProvider(VideoGenerationProvider):
                 raise ValueError("xAI response missing request_id")
 
             if config.progress_callback:
-                await config.progress_callback(f"Submitted to xAI (id={request_id}), polling...")
+                await config.progress_callback(f"Submitted to xAI {mode} (id={request_id}), polling...")
 
             completed = await self._poll(client, base_url, request_id, config)
 
@@ -223,6 +236,8 @@ class XAIGrokProvider(VideoGenerationProvider):
                 "request_id": request_id,
                 "model": completed.get("model", effective_model),
                 "duration": video_data.get("duration", clamped_duration),
+                "mode": mode,
+                "video_url": video_url,
             }
             assets = [
                 VideoAsset(
@@ -233,6 +248,31 @@ class XAIGrokProvider(VideoGenerationProvider):
                 )
             ]
             return ProviderOutput(assets=assets)
+
+    @staticmethod
+    def _extract_video_source_url(extra_params: dict[str, object] | None) -> str | None:
+        """Extract first public video URL from extra_params (set by video_engine)."""
+        if not extra_params:
+            return None
+        urls = extra_params.get("_video_source_urls")
+        if isinstance(urls, list) and urls:
+            url = str(urls[0]).strip()
+            if url.startswith(("http://", "https://")):
+                return url
+        return None
+
+    @staticmethod
+    def _resolve_mode(
+        reference_videos: list[bytes] | None,
+        video_source_url: str | None,
+        duration_seconds: int | None,
+    ) -> str:
+        """Determine xAI operation mode: generate, extend, or edit."""
+        if not reference_videos or not video_source_url:
+            return "generate"
+        if duration_seconds is not None:
+            return "extend"
+        return "edit"
 
     async def _poll(
         self,

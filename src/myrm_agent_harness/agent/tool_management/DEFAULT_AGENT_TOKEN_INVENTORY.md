@@ -3,7 +3,7 @@
 > **术语**：下文 **「工具」= LLM 工具**（Action Tool）。§4.18 所列编排信号 / runtime hook **不是** LLM 工具，不计入 66 个。
 
 > 测量方法：`tiktoken o200k_base` 规划 SSOT（`utils/text_utils.PLANNING_ENCODING`；与 GPT-5 / GPT-4o 族一致）
-> 测量时间：2026-08-05（`scripts/measure_turn1_token_inventory.py`）
+> 测量时间：2026-08-06（`scripts/measure_turn1_token_inventory.py`）
 > 测量对象：默认通用智能体，Turn 1 初始化时的完整 prompt 结构
 >
 > **三 tier 计量**：① UI 上下文环 = 上一轮 API `prompt_tokens`；② compress / summarize / emergency prune 预算 = messages + bind-tools overhead（本表）+ 可选 max(API)；③ 非 OpenAI 模型 client 估算存在偏差，账单以 provider usage 为准。
@@ -29,7 +29,7 @@
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
 | 4a | web_fetch_tool | 118 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 抓取/深读 | Turn1 基线 |
-| 6 | **bash_code_execute_tool** | **2,007** | `harness/agent/meta_tools/bash/_tool_description.py` | Shell/Python；静态 ~4k-char 描述 + OS hint（路由+skill_select+MCP 依赖决策+禁 myrm_tools；无动态 append） | 通用 Agent 基线 |
+| 6 | **bash_code_execute_tool** | **1,682** | `harness/agent/meta_tools/bash/_tool_description.py` | Shell/Python；静态 ~4k-char 描述 + OS hint（路由+skill_select+MCP 依赖决策+禁 myrm_tools；无动态 append） | 通用 Agent 基线 |
 | 6b | **bash_process_tool** | **79** | `harness/agent/meta_tools/bash/bash_process_tools.py` | 后台进程 list/output/kill（CORE；与 bash_code_execute 同挂） | enable_shell_tools |
 | 7 | file_edit_tool | 149 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 批量 edits[] 原子编辑 | 通用 Agent 基线 |
 | 8 | file_read_tool | 356 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件 | 通用 Agent 基线 |
@@ -37,7 +37,7 @@
 | 10 | glob_tool | 232 | `harness/agent/meta_tools/file_search/glob_tool.py` | 通配符搜索 | 通用 Agent 基线 |
 | 11 | grep_tool | 198 | `harness/agent/meta_tools/file_search/grep_tool.py` | 正则搜索 | 通用 Agent 基线 |
 
-**CORE 描述小计（Turn1）**：**3,265 tokens**（8 工具；`scripts/measure_turn1_token_inventory.py` 实测）
+**CORE 描述小计（Turn1）**：**2,940 tokens**（8 工具；`scripts/measure_turn1_token_inventory.py` 实测）
 
 ---
 
@@ -50,11 +50,11 @@
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
 | 12 | **memory_search_tool** | **137** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 统一检索（corpus ACL 与 policy 一致；默认仅 memory corpus） | enable_memory |
-| 13 | **memory_save_tool** | **684** | 同上 | 写入长期记忆（EN default；`zh-CN` via server `description_locale`） | enable_memory |
-| 14 | **memory_manage_tool** | **243** | 同上 | 更新/删除/纠正记忆 | enable_memory |
+| 13 | **memory_save_tool** | **640** | `harness/toolkits/memory/_memory_agent_tool_descriptions.py` | 写入长期记忆（EN core；wiki/approval 动态段；保留原有关键 guardrail 短语） | enable_memory |
+| 14 | **memory_manage_tool** | **251** | 同上 | 更新/删除/纠正/评分；correct→knowledge only（preserves history）；update→措辞微调；rate→knowledge/event | enable_memory |
 | 15 | **web_search_tool** | **1,001** | `harness/toolkits/web_search/_web_search_tool_description.py` | 网络搜索（EN/ZH LLM-facing query-rewrite SSOT；server 传 locale） | GUI 可关 |
 
-**COMMON Turn1 实测（默认 profile，`measure_turn1_token_inventory.py`）**：**~2,065 tokens**（4 工具；memory×3 + web_search；English 描述；默认 memory_search 仅 memory corpus）
+**COMMON Turn1 实测（默认 profile，`measure_turn1_token_inventory.py`）**：**2,029 tokens**（4 工具；memory×3 + web_search；English 描述；默认 memory_search 仅 memory corpus）
 
 ---
 
@@ -72,10 +72,10 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 |
 |---|--------|------------------:|----------|------|
-| 20 | skill_select_tool | 236 | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 字节稳定静态 rules + hidden_count 提示；bound catalog 在首条 HumanMessage `<bound_skills>` |
+| 20 | skill_select_tool | 188 | `harness/agent/meta_tools/skills/select/skill_select_tool.py` | 字节稳定静态 rules（tiktoken measured）；search 提示经 dynamic_hints 条件注入；bound catalog 在首条 HumanMessage `<bound_skills>` |
 | 21 | skill_manage_tool | 251 | `harness/agent/meta_tools/skills/manage/skill_manage_tool.py` | 创建/修改/删除技能 |
-| 22 | skill_search_tool | 238 | `harness/agent/meta_tools/discover_capability/discover_capability_tool.py` | 统一能力发现 |
-| 23 | skill_market_tool | 192 | `harness/agent/meta_tools/skills/market/skill_market_tool.py` | 从外部源安装/卸载技能 | Turn1 when market_backend present |
+| 22 | skill_search_tool | 203 | `harness/agent/meta_tools/discover_capability/discover_capability_tool.py` | 统一能力发现；**条件绑定**（hidden_skill_count > 0；tiktoken measured woven desc） |
+| 23 | skill_market_tool | ~175 | `harness/agent/meta_tools/skills/market/skill_market_tool.py` | 从外部源安装/卸载技能；bound-library 提示经 dynamic_hints 条件注入 | Turn1 when market_backend present |
 
 ### 4.4 交互工具（harness 提供，按配置加载）
 
@@ -256,27 +256,27 @@ Token 明细（历史 tiktoken 计量保留）：
 | 分类 | Token (tiktoken) | 明细 |
 |------|------------------:|------|
 | System Prompt 层 | ~2,607 | 固定，跨用户缓存 |
-| CORE 工具层 | **3,265** | 8 工具（含 bash_process；`measure_turn1_token_inventory.py` 实测） |
-| COMMON 工具层 | **2,065** | memory×3 + web_search |
-| EXTENDED 工具层 | **236** | skill_select_tool（默认 profile 仅 1 个 EXTENDED 工具） |
+| CORE 工具层 | **2,940** | 8 工具（含 bash_process；`measure_turn1_token_inventory.py` 实测） |
+| COMMON 工具层 | **2,029** | memory×3 + web_search |
+| EXTENDED 工具层 | **188** | skill_select_tool（默认 profile 仅 1 个 EXTENDED 工具） |
 | 工具 JSON schema | **845** | 13 工具 × ~65 |
 | 动态注入 | ~1,200 | user_instructions + memory_context + inline_skills |
 | 消息格式 | ~500 | role tags, boundaries 等 |
 | 用户消息 | ~32 | 短消息 + datetime 标签 |
-| **tiktoken 小计** | **~10,839** | |
+| **tiktoken 小计** | **~10,341** | |
 
-> bash Turn1 描述 token **2,007**（静态 `_tool_description.py` + OS hint；`scripts/measure_turn1_token_inventory.py` 实测 2026-08-05）。
+> bash Turn1 描述 token **1,682**（静态 `_tool_description.py` + OS hint；`scripts/measure_turn1_token_inventory.py` 实测 2026-08-06）。
 
 ### 最小 Turn 1 场景（仅 CORE 8 工具，无 COMMON/EXTENDED）
 
 | 分类 | Token (tiktoken) |
 |------|------------------:|
 | System Prompt 层 | ~2,607 |
-| CORE 工具层 | **3,265** |
+| CORE 工具层 | **2,940** |
 | 工具 JSON schema | **520** (~8 工具 × ~65) |
 | 用户消息 | ~32 |
 | 消息格式 | ~300 |
-| **tiktoken 小计** | **~6,761** |
+| **tiktoken 小计** | **~6,399** |
 
 ### 满载场景（所有可选功能全开：浏览器+Cron+Wiki+子Agent+渲染UI+看板+日历+计算机+IM）
 
@@ -296,13 +296,13 @@ Token 明细（历史 tiktoken 计量保留）：
 ## 缓存分层效果
 
 ```
-[CORE: web_fetch + bash + file_* + glob + grep (~3,265 tok, 8 tools)]
+[CORE: web_fetch + bash + file_* + glob + grep (~2,940 tok, 8 tools)]
   ↑ 通用 Agent 基线前缀（agent 模式）
 
-[COMMON: memory_* + web_search (~2,065 tok)]
+[COMMON: memory_* + web_search (~2,029 tok)]
   ↑ memory 组优先；web_search GUI 可关
 
-[EXTENDED: skill_select (~236 tok)]
+[EXTENDED: skill_select (~188 tok)]
   ↑ 按需变化，不影响 CORE/COMMON 前缀
 
 [System Prompt: ~2,607]
@@ -312,7 +312,7 @@ Token 明细（历史 tiktoken 计量保留）：
   ↑ 同用户会话内稳定
 ```
 
-**实测 Turn1 工具层合计**：描述 **5,566** + schema **845** = **6,411 tokens**（13 工具，`measure_turn1_token_inventory.py`，o200k_base）。
+**实测 Turn1 工具层合计**：描述 **5,157** + schema **845** = **6,002 tokens**（13 工具，`measure_turn1_token_inventory.py`，o200k_base）。
 
 ---
 

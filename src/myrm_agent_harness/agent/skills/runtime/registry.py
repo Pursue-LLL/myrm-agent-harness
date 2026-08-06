@@ -8,7 +8,7 @@
 [OUTPUT]
 - SkillRegistry: Skill registry class (manages registration, lookup, updates)
 - skill_registry: Global skill registry singleton
-- get_metadata_summary(): XML-format skill summary (embedded in first HumanMessage ``<bound_skills>``, not tool schema)
+- get_metadata_summary(): XML-format skill summary (embedded in first HumanMessage ``<bound_skills>``, not tool schema; optional hidden_skill_count for search-first routing_rules)
 
 [POS]
 Skill registry. Manages runtime caches and lookups, primarily for MCP-based skills.
@@ -122,7 +122,12 @@ class SkillRegistry:
 skill_registry = SkillRegistry()
 
 
-def get_metadata_summary(skills: list[SkillMetadata], max_skills: int = MAX_SKILLS_IN_PROMPT) -> str:
+def get_metadata_summary(
+    skills: list[SkillMetadata],
+    max_skills: int = MAX_SKILLS_IN_PROMPT,
+    *,
+    hidden_skill_count: int = 0,
+) -> str:
     """Generate structured XML skill summary for HumanMessage catalog blocks.
 
     Rendered inside ``<bound_skills>`` on the first HumanMessage (see
@@ -160,8 +165,12 @@ def get_metadata_summary(skills: list[SkillMetadata], max_skills: int = MAX_SKIL
         " If exactly one skill clearly applies to the user's request: use skill_select_tool to read its SKILL.md.",
         " If multiple skills may apply: ask the user which to use.",
         " If no skill applies: proceed without skills.",
-        " </routing_rules>",
     ]
+    if hidden_skill_count > 0:
+        lines.append(
+            " If the needed skill is not listed below: use skill_search_tool before skill_select_tool."
+        )
+    lines.append(" </routing_rules>")
     for s in included:
         attrs = f"name={quoteattr(s.name)} available={quoteattr(str(s.available).lower())} trust={quoteattr(s.trust.name.lower())}"
         if not s.available and s.unavailable_reason:

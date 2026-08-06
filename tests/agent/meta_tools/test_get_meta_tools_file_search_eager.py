@@ -93,16 +93,26 @@ class TestFileSearchEager:
             model_invocable=True,
             available=True,
         )
+        many_skills = [
+            SkillMetadata(
+                name=f"bound_skill_{index:02d}",
+                description=f"desc {index}",
+                model_invocable=True,
+                available=True,
+            )
+            for index in range(21)
+        ]
+        many_skills[0] = sample_skill
         registry = ToolRegistry()
         get_meta_tools(
-            [sample_skill],
+            many_skills,
             skill_backend,
             registry=registry,
             file_access_mode=FileAccessMode.FULL,
             enable_shell_tools=False,
             enable_answer_tool=False,
         )
-        sync_discover_capability_tool(registry, skills=[sample_skill])
+        sync_discover_capability_tool(registry, skills=many_skills)
         discover = next(
             t for t in registry.resolve() if t.name == "skill_search_tool"
         )

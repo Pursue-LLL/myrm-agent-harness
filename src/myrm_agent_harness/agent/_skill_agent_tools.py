@@ -195,6 +195,9 @@ class SkillAgentToolsMixin:
         sync_discover_capability_tool(
             registry,
             skills=skills,
+            skill_configs=self.skill_configs,  # type: ignore[attr-defined]
+            available_tool_names=self._available_tool_names,  # type: ignore[attr-defined]
+            available_tool_groups=self._available_tool_groups,  # type: ignore[attr-defined]
             embedding_config=self._embedding_config,  # type: ignore[attr-defined]
             embedding_cache=getattr(self, "_embedding_cache", None),
         )

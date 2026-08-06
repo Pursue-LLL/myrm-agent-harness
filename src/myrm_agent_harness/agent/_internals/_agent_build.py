@@ -197,9 +197,6 @@ async def build_tools(
     Registers user tools first, then collects any tools exposed by
     middlewares (e.g. ``get_tools()``).
     """
-    from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
-        sync_discover_capability_tool,
-    )
     from myrm_agent_harness.agent.tool_management import ToolBindMode
 
     registry.register_many(
@@ -231,8 +228,6 @@ async def build_tools(
                     mw.__class__.__name__,
                     exc,
                 )
-
-    sync_discover_capability_tool(registry)
 
     resolved_tools = registry.resolve()
     return _weave_dynamic_schemas(resolved_tools)

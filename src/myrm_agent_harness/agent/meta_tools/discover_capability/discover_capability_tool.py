@@ -12,7 +12,7 @@
 
 [OUTPUT]
 - create_discover_capability_tool: 创建统一能力发现工具的工厂函数
-- sync_discover_capability_tool: 注册 skill_search_tool（当有可搜索技能时）
+- sync_discover_capability_tool: 条件注册 skill_search_tool（hidden_skill_count > 0 时）
 - 运行时命中结果以 `<BoundSkills>` XML 包裹
 
 [POS]
@@ -154,19 +154,41 @@ def sync_discover_capability_tool(
     registry: ToolRegistry,
     *,
     skills: list[SkillMetadata] | None = None,
+    skill_configs: dict[str, dict[str, object]] | None = None,
+    available_tool_names: frozenset[str] | None = None,
+    available_tool_groups: frozenset[str] | None = None,
     embedding_config: EmbeddingConfig | None = None,
     embedding_cache: EmbeddingCacheProtocol | None = None,
 ) -> BaseTool | None:
-    """Register discover_capability_tool when searchable skills exist.
+    """Register skill_search_tool when inline catalog has hidden bound skills.
 
     Must run after all tools (framework + server) are registered.
+    Uses the same catalog resolution as ``ensure_skill_catalog_in_messages``.
     """
+    from myrm_agent_harness.agent.skills.runtime.catalog_display import (
+        resolve_catalog_display_skills,
+        should_mount_skill_search_tool,
+    )
     from myrm_agent_harness.agent.tool_management.registry import ToolSource
 
-    discoverable_skills = [s for s in (skills or []) if s.model_invocable]
-
+    bound_skills = skills or []
     registry.remove_tool("skill_search_tool")
 
+    if not should_mount_skill_search_tool(
+        bound_skills,
+        skill_configs=skill_configs,
+        available_tool_names=available_tool_names,
+        available_tool_groups=available_tool_groups,
+    ):
+        return None
+
+    resolution = resolve_catalog_display_skills(
+        bound_skills,
+        skill_configs=skill_configs,
+        available_tool_names=available_tool_names,
+        available_tool_groups=available_tool_groups,
+    )
+    discoverable_skills = [s for s in resolution.filtered_skills if s.model_invocable]
     if not discoverable_skills:
         return None
 

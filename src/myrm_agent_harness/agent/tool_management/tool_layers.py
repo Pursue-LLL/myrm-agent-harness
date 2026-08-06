@@ -146,6 +146,14 @@ _COMMON_LAYER_SORT_RANK: dict[str, int] = {
     "web_search_tool": 10,
 }
 
+# EXTENDED: skill cluster first so toggling other EXTENDED tools preserves skill prefix cache.
+_EXTENDED_LAYER_SORT_RANK: dict[str, int] = {
+    "skill_select_tool": 0,
+    "skill_search_tool": 1,
+    "skill_manage_tool": 2,
+    "skill_market_tool": 3,
+}
+
 
 _LAYER_SNAPSHOT_LABELS: dict[ToolLayer, str] = {
     ToolLayer.CORE: "core",
@@ -163,9 +171,12 @@ def tool_layer_snapshot_label(layer: ToolLayer) -> str:
 def get_tool_registry_sort_key(
     tool_name: str, layer: ToolLayer
 ) -> tuple[int, int, str]:
-    """Cache-friendly registry sort key: layer → COMMON group rank → name."""
+    """Cache-friendly registry sort key: layer → group rank → name."""
     if layer == ToolLayer.COMMON:
         group_rank = _COMMON_LAYER_SORT_RANK.get(tool_name, 50)
+        return (int(layer), group_rank, tool_name)
+    if layer == ToolLayer.EXTENDED:
+        group_rank = _EXTENDED_LAYER_SORT_RANK.get(tool_name, 50)
         return (int(layer), group_rank, tool_name)
     return (int(layer), 0, tool_name)
 

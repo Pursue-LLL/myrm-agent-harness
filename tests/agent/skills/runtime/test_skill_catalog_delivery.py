@@ -82,15 +82,21 @@ def test_ensure_skill_catalog_is_idempotent_on_reinject() -> None:
 def test_skill_select_tool_description_is_static_without_embedded_xml() -> None:
     skills = [_skill("alpha_skill"), _skill("beta_skill")]
     tool = create_select_skill_tool(skills, _StubSkillBackend())  # type: ignore[arg-type]
-    description = tool.description or ""
+    from myrm_agent_harness.agent._internals._agent_build import _weave_dynamic_schemas
+
+    woven = _weave_dynamic_schemas([tool])
+    description = woven[0].description or ""
     assert "<skills>" not in description
     assert "alpha_skill" not in description
     assert "<bound_skills>" in description
-    assert "hidden_count" in description
+    assert "skill_search_tool" not in description
+    assert "hidden_count" not in description
     assert description.rstrip() == build_skill_select_static_description().rstrip()
 
 
 def test_skill_select_tool_description_unchanged_when_skill_bind_size_varies() -> None:
+    from myrm_agent_harness.agent._internals._agent_build import _weave_dynamic_schemas
+
     many_skills = [_skill(f"skill_{idx}_skill") for idx in range(25)]
     sparse_tool = create_select_skill_tool(
         many_skills[:1],
@@ -100,7 +106,18 @@ def test_skill_select_tool_description_unchanged_when_skill_bind_size_varies() -
         many_skills,
         _StubSkillBackend(),  # type: ignore[arg-type]
     )
-    assert sparse_tool.description == dense_tool.description
+    sparse_woven = _weave_dynamic_schemas([sparse_tool])[0]
+    dense_woven = _weave_dynamic_schemas([dense_tool])[0]
+    assert sparse_woven.description == dense_woven.description
+
+
+def test_metadata_summary_routing_rules_include_search_when_hidden() -> None:
+    from myrm_agent_harness.agent.skills.runtime.registry import get_metadata_summary
+
+    inline = get_metadata_summary([_skill("alpha_skill")], hidden_skill_count=0)
+    hidden = get_metadata_summary([_skill("alpha_skill")], hidden_skill_count=3)
+    assert "skill_search_tool" not in inline
+    assert "skill_search_tool" in hidden
 
 
 def test_bound_skills_block_includes_hidden_count_attribute() -> None:

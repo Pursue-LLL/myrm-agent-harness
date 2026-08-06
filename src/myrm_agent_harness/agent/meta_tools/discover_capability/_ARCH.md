@@ -1,7 +1,7 @@
 # discover_capability/
 
 ## Overview
-Unified Capability Discovery gateway. Indexes agent-bound searchable skills (MCP PTC + user skills) into a semantic search index. When searchable skills exist, ``sync_discover_capability_tool()`` registers the discovery tool (LLM-facing name: `skill_search_tool`); empty bind removes it. Stream and HITL resume paths call the same sync when the bind catalog changes (`agent_runtime._sync_skill_search_index_after_catalog_change`).
+Unified Capability Discovery gateway. Indexes agent-bound searchable skills (MCP PTC + user skills) into a semantic search index. When bound skills exceed inline catalog capacity (`hidden_skill_count > 0`), ``sync_discover_capability_tool()`` registers the discovery tool (LLM-facing name: `skill_search_tool`); otherwise it removes it. Stream and HITL resume paths call the same sync when the bind catalog changes (`agent_runtime._sync_skill_search_index_after_catalog_change`).
 
 **Boundary**: searches the **agent-bound skill library**. External marketplace install uses ``skill_market_tool`` when **product Turn1-mount** enables it (`enable_skill_market` / market backend wired in server `tool_setup.py`); otherwise the discovery tool description points users to Settings → Skills → Discover.
 

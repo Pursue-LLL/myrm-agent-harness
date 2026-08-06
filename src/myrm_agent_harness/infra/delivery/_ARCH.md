@@ -14,7 +14,7 @@ Message delivery queue. Disk-persistent with automatic retry on failure and pend
 | file_lock.py | Core | Delivery module file lock wrapper. Prevents duplicate processing during concurrent multi-worker exec | ✅ |
 | queue.py | Core | Delivery queue main class. Coordinates storage and recovery, providing enqueue, deliver, and failure | ✅ |
 | recovery.py | Core | Delivery recovery logic. Exponential backoff calculation, permanent error identification, and startu | ✅ |
-| storage.py | Core | Delivery queue storage layer. Atomic writes prevent data corruption; directory structure isolates pe | ✅ |
+| storage.py | Core | Delivery queue storage layer. Atomic writes; pending/attempting phase lifecycle; directory structure isolates pending and failed deliveries. | ✅ |
 | storage_metrics.py | Core | StorageProvider observability layer. Provides operational metrics needed for monitoring and tuning. | ✅ |
 | storage_resilience.py | Core | StorageProvider resilience layer. Ensures production availability with typed errors and retry logic. | ✅ |
 

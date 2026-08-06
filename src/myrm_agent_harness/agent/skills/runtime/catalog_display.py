@@ -8,6 +8,7 @@
 [OUTPUT]
 - CatalogDisplayResolution: display_skills + hidden_skill_count for catalog delivery
 - resolve_catalog_display_skills(): shared inline/hidden logic for meta-tools and runtime inject
+- should_mount_skill_search_tool(): gate for conditional skill_search_tool mount
 
 [POS]
 Runtime catalog display SSOT. Keeps skill_select_tool schema static while preserving
@@ -104,10 +105,31 @@ def resolve_catalog_display_skills(
     )
 
 
+def should_mount_skill_search_tool(
+    skills: list[SkillMetadata],
+    *,
+    skill_configs: dict[str, dict[str, object]] | None = None,
+    available_tool_names: frozenset[str] | None = None,
+    available_tool_groups: frozenset[str] | None = None,
+) -> bool:
+    """Return True when bound skills exceed inline catalog capacity (hidden_count > 0)."""
+    if not skills:
+        return False
+    resolution = resolve_catalog_display_skills(
+        skills,
+        skill_configs=skill_configs,
+        available_tool_names=available_tool_names,
+        available_tool_groups=available_tool_groups,
+    )
+    discoverable = [s for s in resolution.filtered_skills if s.model_invocable]
+    return resolution.hidden_skill_count > 0 and bool(discoverable)
+
+
 __all__ = [
     "SKILL_CORE_MAX",
     "SKILL_INLINE_THRESHOLD",
     "SKILL_SELECT_INLINE_MAX",
     "CatalogDisplayResolution",
     "resolve_catalog_display_skills",
+    "should_mount_skill_search_tool",
 ]

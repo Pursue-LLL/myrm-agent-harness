@@ -29,7 +29,9 @@ import os
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
+
+DeliveryPhase = Literal["pending", "attempting"]
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.storage.base import StorageProvider
@@ -55,6 +57,7 @@ class QueuedDelivery:
         last_attempt_at: Last attempt timestamp (optional)
         last_error: Last error message (optional)
         failed_at: Failed timestamp for dead letter queue (optional)
+        phase: Delivery lifecycle phase (pending=queued, attempting=in-flight send)
     """
 
     id: str
@@ -67,6 +70,7 @@ class QueuedDelivery:
     last_attempt_at: float | None = None
     last_error: str | None = None
     failed_at: float | None = None
+    phase: DeliveryPhase = "pending"
 
 
 def _resolve_queue_dir(base_dir: Path) -> Path:
@@ -181,6 +185,25 @@ async def load_pending_deliveries(
         return []
 
 
+def _queued_delivery_from_pending_dict(data: dict[str, Any]) -> QueuedDelivery:
+    """Build QueuedDelivery from pending-queue JSON payload."""
+    phase_raw = data.get("phase", "pending")
+    phase: DeliveryPhase = "attempting" if phase_raw == "attempting" else "pending"
+    return QueuedDelivery(
+        id=data["id"],
+        channel=data["channel"],
+        recipient=data["recipient"],
+        content=data["content"],
+        enqueued_at=data["enqueued_at"],
+        priority=data.get("priority", 2),
+        retry_count=data.get("retry_count", 0),
+        last_attempt_at=data.get("last_attempt_at"),
+        last_error=data.get("last_error"),
+        failed_at=data.get("failed_at"),
+        phase=phase,
+    )
+
+
 async def _load_pending_file(base_dir: Path) -> list[QueuedDelivery]:
     """Load pending deliveries from local files."""
     queue_dir = _resolve_queue_dir(base_dir)
@@ -195,18 +218,7 @@ async def _load_pending_file(base_dir: Path) -> list[QueuedDelivery]:
             with open(file_path, encoding="utf-8") as f:
                 data = json.load(f)
 
-            delivery = QueuedDelivery(
-                id=data["id"],
-                channel=data["channel"],
-                recipient=data["recipient"],
-                content=data["content"],
-                enqueued_at=data["enqueued_at"],
-                retry_count=data.get("retry_count", 0),
-                last_attempt_at=data.get("last_attempt_at"),
-                last_error=data.get("last_error"),
-            )
-
-            deliveries.append(delivery)
+            deliveries.append(_queued_delivery_from_pending_dict(data))
 
         except Exception as e:
             logger.error(f"Failed to load delivery from {file_path}: {e}")
@@ -231,18 +243,7 @@ async def _load_pending_storage(storage: StorageProvider) -> list[QueuedDelivery
                 content = await storage.read_text(key)
                 data = json.loads(content)
 
-                delivery = QueuedDelivery(
-                    id=data["id"],
-                    channel=data["channel"],
-                    recipient=data["recipient"],
-                    content=data["content"],
-                    enqueued_at=data["enqueued_at"],
-                    retry_count=data.get("retry_count", 0),
-                    last_attempt_at=data.get("last_attempt_at"),
-                    last_error=data.get("last_error"),
-                )
-
-                deliveries.append(delivery)
+                deliveries.append(_queued_delivery_from_pending_dict(data))
 
             except Exception as e:
                 logger.error(f"Failed to load delivery from {key}: {e}")

@@ -7,7 +7,7 @@
 
 [OUTPUT]
 - build_skill_select_static_description: byte-stable tool description (no bound catalog)
-- create_select_skill_tool: 创建技能选择工具的工厂函数
+- create_select_skill_tool: 创建技能选择工具的工厂函数（skill_search 提示经 with_dynamic_hints 条件注入）
 
 [POS]
 Skill selection meta-tool. Enables the model to select a skill and load its SOP documentation.
@@ -47,15 +47,21 @@ def build_skill_select_static_description() -> str:
     return """Select bound skills and load their SOP documentation.
 
 The bound skill catalog is in the <bound_skills> block at the start of the first user message in this conversation.
-If `<bound_skills>` includes a hidden_count attribute, use `skill_search_tool` first to find unlisted bound skills.
 Rules:
 1. Select skills listed in that <bound_skills> catalog → read and follow the returned SOP.
-2. Skills not listed there are still available — search with `skill_search_tool` first, then select.
-3. Select each skill only ONCE — it stays available for the entire conversation (even after resume). Do NOT re-select; use skill_select_tool(file_path=...) for auxiliary files under scripts/, references/, templates/, or assets/, then bash_code_execute_tool to run.
-4. You may select multiple skills if they help solve the user's problem.
-5. Skills with available="false" cannot be loaded — skip them.
-6. Do NOT confuse tools (_tool suffix, callable) with skills (_skill suffix, select via this tool only).
-7. When the user's message starts with [use <skill_name>], you MUST immediately select that skill."""
+2. Select each skill only ONCE — it stays available for the entire conversation (even after resume). Do NOT re-select; use skill_select_tool(file_path=...) for auxiliary files under scripts/, references/, templates/, or assets/, then bash_code_execute_tool to run.
+3. You may select multiple skills if they help solve the user's problem.
+4. Skills with available="false" cannot be loaded — skip them.
+5. Do NOT confuse tools (_tool suffix, callable) with skills (_skill suffix, select via this tool only).
+6. When the user's message starts with [use <skill_name>], you MUST immediately select that skill."""
+
+
+_SKILL_SEARCH_HINTS: dict[str, str] = {
+    "skill_search_tool": (
+        "If `<bound_skills>` includes hidden_count, use skill_search_tool first to find unlisted bound skills. "
+        "Skills not listed in <bound_skills> are still available — search with skill_search_tool first, then select."
+    ),
+}
 
 
 def create_select_skill_tool(
@@ -68,7 +74,7 @@ def create_select_skill_tool(
 
     class SelectSkillInput(BaseModel):
         skill_names: list[str] = Field(
-            description="Skill names from the <skills> list or from skill_search_tool results (must end with _skill). One or more allowed.",
+            description="Skill names from the <bound_skills> catalog (must end with _skill). One or more allowed.",
             min_length=1,
         )
         reason: str = Field(
@@ -150,4 +156,6 @@ def create_select_skill_tool(
 
         return f"<skills_sop>\n{chr(10).join(skill_docs_formatted)}\n</skills_sop>"
 
-    return select_skill_func
+    from myrm_agent_harness.utils.tool_dynamic_hints import with_dynamic_hints
+
+    return with_dynamic_hints(select_skill_func, _SKILL_SEARCH_HINTS)

@@ -66,6 +66,25 @@ def _sample_skill() -> SkillMetadata:
     )
 
 
+def _many_skills(count: int) -> list[SkillMetadata]:
+    return [
+        SkillMetadata(
+            name=f"bound_skill_{index:02d}",
+            description=f"Bound skill {index}",
+            model_invocable=True,
+            available=True,
+        )
+        for index in range(count)
+    ]
+
+
+def _skills_for_search_mount() -> list[SkillMetadata]:
+    """21 bound skills → hidden_count > 0 → skill_search_tool mounts."""
+    skills = _many_skills(21)
+    skills[0] = _sample_skill()
+    return skills
+
+
 def _tool_description_by_name(tools: list[object], name: str) -> str:
     tool = next(t for t in tools if getattr(t, "name", None) == name)
     description = getattr(tool, "description", None)
@@ -96,7 +115,7 @@ def _mount_market_tool(
 @pytest.mark.integration
 def test_registry_wiring_exposes_skill_tools_with_boundary_descriptions() -> None:
     """user_tools skill_market + get_meta_tools registers both tools with cross-referenced descriptions."""
-    skills = [_sample_skill()]
+    skills = _skills_for_search_mount()
     registry = ToolRegistry()
     skill_backend = _StubSkillBackend(skills)
     market_backend = _StubMarketBackend()
@@ -130,7 +149,7 @@ def test_registry_wiring_exposes_skill_tools_with_boundary_descriptions() -> Non
 @pytest.mark.asyncio
 async def test_skill_agent_build_tools_wires_boundary_descriptions() -> None:
     """SkillAgent._build_tools resolves the same boundary descriptions end-to-end."""
-    skills = [_sample_skill()]
+    skills = _skills_for_search_mount()
     agent = SkillAgent(
         llm=AsyncMock(),
         skill_backend=_StubSkillBackend(skills),
@@ -156,7 +175,7 @@ async def test_skill_agent_build_tools_wires_boundary_descriptions() -> None:
 @pytest.mark.integration
 def test_discover_description_omits_market_tool_when_market_not_mounted() -> None:
     """skill_search_tool must not ghost-reference skill_market_tool when market is off."""
-    skills = [_sample_skill()]
+    skills = _skills_for_search_mount()
     registry = ToolRegistry()
     meta_tools = get_meta_tools(
         skills,
@@ -177,7 +196,7 @@ def test_discover_description_omits_market_tool_when_market_not_mounted() -> Non
 @pytest.mark.integration
 def test_registry_omits_marketplace_tool_without_user_mount() -> None:
     """skill_market_tool mounts only when registered via user_tools (server mount)."""
-    skills = [_sample_skill()]
+    skills = _skills_for_search_mount()
     registry = ToolRegistry()
     meta_tools = get_meta_tools(
         skills,
@@ -193,6 +212,28 @@ def test_registry_omits_marketplace_tool_without_user_mount() -> None:
     resolved_names = {t.name for t in registry.resolve()}
     assert _DISCOVER_TOOL in resolved_names
     assert _MARKETPLACE_TOOL not in resolved_names
+
+
+@pytest.mark.integration
+def test_registry_omits_discover_tool_when_all_skills_inline() -> None:
+    """skill_search_tool is absent when all bound skills fit inline catalog."""
+    skills = [_sample_skill()]
+    registry = ToolRegistry()
+    meta_tools = get_meta_tools(
+        skills,
+        _StubSkillBackend(skills),
+        registry=registry,
+        file_access_mode=FileAccessMode.NONE,
+        enable_shell_tools=False,
+        enable_answer_tool=False,
+    )
+    registry.register_many(meta_tools, source=ToolSource.META)
+    registry.register(_mount_market_tool(_StubMarketBackend()), source=ToolSource.USER)
+    sync_discover_capability_tool(registry, skills=skills)
+
+    resolved_names = {t.name for t in registry.resolve()}
+    assert _MARKETPLACE_TOOL in resolved_names
+    assert _DISCOVER_TOOL not in resolved_names
 
 
 @pytest.mark.integration
@@ -220,7 +261,7 @@ def test_registry_omits_discover_tool_when_no_searchable_skills() -> None:
 @pytest.mark.asyncio
 async def test_discover_runtime_returns_bound_skills_xml() -> None:
     """Runtime hit path wraps results in BoundSkills (not ExternalSkills)."""
-    skills = [_sample_skill()]
+    skills = _skills_for_search_mount()
     registry = ToolRegistry()
     meta_tools = get_meta_tools(
         skills,
@@ -282,6 +323,7 @@ async def test_skill_select_static_description_and_catalog_delivery_wiring() -> 
     from myrm_agent_harness.agent._internals.agent_runtime import (
         apply_bound_skill_catalog_for_stream,
     )
+    from myrm_agent_harness.agent._internals._agent_build import _weave_dynamic_schemas
     from myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool import (
         build_skill_select_static_description,
     )
@@ -297,11 +339,13 @@ async def test_skill_select_static_description_and_catalog_delivery_wiring() -> 
         enable_answer_tool=False,
     )
     select_tool = next(t for t in meta_tools if getattr(t, "name", None) == _SELECT_TOOL)
-    description = select_tool.description or ""
+    woven_select = _weave_dynamic_schemas([select_tool])[0]
+    description = woven_select.description or ""
     assert description.rstrip() == build_skill_select_static_description().rstrip()
     assert "github_pr" not in description
     assert "<skills>" not in description
-    assert "hidden_count" in description
+    assert "skill_search_tool" not in description
+    assert "hidden_count" not in description
 
     agent = SkillAgent(llm=AsyncMock(), skill_backend=_StubSkillBackend(skills))
     messages = [HumanMessage(content="plan a PR review")]

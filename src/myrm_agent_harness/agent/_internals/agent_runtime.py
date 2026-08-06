@@ -260,6 +260,9 @@ def _sync_skill_search_index_after_catalog_change(
     sync_discover_capability_tool(
         registry,
         skills=bound_skills,
+        skill_configs=getattr(agent_state, "skill_configs", None),
+        available_tool_names=getattr(agent_state, "_available_tool_names", None),
+        available_tool_groups=getattr(agent_state, "_available_tool_groups", None),
         embedding_config=getattr(agent_state, "_embedding_config", None),
         embedding_cache=getattr(agent_state, "_embedding_cache", None),
     )

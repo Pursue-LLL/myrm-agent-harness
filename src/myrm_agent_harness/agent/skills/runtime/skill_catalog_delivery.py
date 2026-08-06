@@ -61,7 +61,9 @@ def build_bound_skills_block(
     hidden_skill_count: int = 0,
 ) -> str:
     """Render the full ``<bound_skills>`` block for HumanMessage prepend."""
-    catalog_xml = get_metadata_summary(display_skills)
+    catalog_xml = get_metadata_summary(
+        display_skills, hidden_skill_count=hidden_skill_count
+    )
     catalog_hash = compute_catalog_hash(catalog_xml)
     hidden_attr = (
         f' hidden_count="{hidden_skill_count}"' if hidden_skill_count > 0 else ""

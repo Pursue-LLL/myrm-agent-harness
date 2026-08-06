@@ -1,15 +1,21 @@
-"""Tests for async video enqueue adapter."""
+"""Tests for async video enqueue adapter and video_engine URL extraction.
+
+[POS]
+Tests for AsyncVideoGenerationTools and VideoGenerationTools URL-to-extra_params chain.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pydantic import SecretStr
 
 from myrm_agent_harness.toolkits.llms.video.async_video_engine import AsyncVideoGenerationTools
-from myrm_agent_harness.toolkits.llms.video.models import VideoGenerationConfig
+from myrm_agent_harness.toolkits.llms.video.models import VideoGenerationConfig, VideoResult
 from myrm_agent_harness.toolkits.tasks import SQLiteTaskStore, TaskStatus
 
 
@@ -75,3 +81,188 @@ async def test_async_video_engine_applies_payload_postprocessor(tmp_path: Path) 
     assert task is not None
     assert "api_key" not in task.payload
     assert task.payload["api_key_enc"] == "ciphertext"
+
+
+# ---------------------------------------------------------------------------
+# VideoGenerationTools: URL extraction → extra_params chain tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestVideoEngineUrlExtraction:
+    """Verify video_engine extracts URLs from reference_videos and injects into extra_params."""
+
+    async def test_url_extracted_and_passed_to_provider(self) -> None:
+        """reference_videos with URLs should populate extra_params['_video_source_urls']."""
+        from myrm_agent_harness.toolkits.llms.video.generator import VideoGenerator
+        from myrm_agent_harness.toolkits.llms.video.video_engine import VideoGenerationTools
+
+        config = VideoGenerationConfig(
+            provider="xai",
+            model="grok-imagine-video",
+            api_key=SecretStr("test-key"),
+        )
+        engine = VideoGenerationTools(config)
+
+        captured_extra: dict[str, object] = {}
+
+        async def _mock_generate(
+            self_gen, prompt: str, *, provider_id=None, model=None, **kwargs
+        ) -> VideoResult:
+            captured_extra.update(kwargs.get("extra_params") or {})
+            return VideoResult(
+                provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[]
+            )
+
+        with (
+            patch.object(VideoGenerator, "generate", _mock_generate),
+            patch(
+                "myrm_agent_harness.toolkits.llms.video.video_engine._resolve_video_inputs",
+                new_callable=AsyncMock,
+                return_value=[b"dummy-bytes"],
+            ),
+        ):
+            result_str = await engine.execute(
+                "generate",
+                prompt="extend the sunset",
+                reference_videos=["https://cdn.example.com/video.mp4"],
+                duration_seconds=8,
+            )
+            body = json.loads(result_str)
+            assert body.get("task_id") is not None
+
+            # Wait for the background task to complete within the patch context
+            await asyncio.sleep(0.1)
+
+        assert "_video_source_urls" in captured_extra
+        assert captured_extra["_video_source_urls"] == ["https://cdn.example.com/video.mp4"]
+
+    async def test_local_path_not_in_video_source_urls(self) -> None:
+        """Local file paths should NOT appear in _video_source_urls."""
+        from myrm_agent_harness.toolkits.llms.video.generator import VideoGenerator
+        from myrm_agent_harness.toolkits.llms.video.video_engine import VideoGenerationTools
+
+        config = VideoGenerationConfig(
+            provider="xai",
+            model="grok-imagine-video",
+            api_key=SecretStr("test-key"),
+        )
+        engine = VideoGenerationTools(config)
+
+        captured_extra: dict[str, object] = {}
+
+        async def _mock_generate(
+            self_gen, prompt: str, *, provider_id=None, model=None, **kwargs
+        ) -> VideoResult:
+            captured_extra.update(kwargs.get("extra_params") or {})
+            return VideoResult(
+                provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[]
+            )
+
+        with (
+            patch.object(VideoGenerator, "generate", _mock_generate),
+            patch(
+                "myrm_agent_harness.toolkits.llms.video.video_engine._resolve_video_inputs",
+                new_callable=AsyncMock,
+                return_value=[b"local-bytes"],
+            ),
+        ):
+            result_str = await engine.execute(
+                "generate",
+                prompt="edit from local file",
+                reference_videos=["/tmp/local_video.mp4"],
+            )
+            body = json.loads(result_str)
+            assert body.get("task_id") is not None
+
+            await asyncio.sleep(0.1)
+
+        assert "_video_source_urls" not in captured_extra
+
+    async def test_mixed_urls_and_local_paths(self) -> None:
+        """Only HTTP(S) URLs should be extracted, local paths filtered out."""
+        from myrm_agent_harness.toolkits.llms.video.generator import VideoGenerator
+        from myrm_agent_harness.toolkits.llms.video.video_engine import VideoGenerationTools
+
+        config = VideoGenerationConfig(
+            provider="xai",
+            model="grok-imagine-video",
+            api_key=SecretStr("test-key"),
+        )
+        engine = VideoGenerationTools(config)
+
+        captured_extra: dict[str, object] = {}
+
+        async def _mock_generate(
+            self_gen, prompt: str, *, provider_id=None, model=None, **kwargs
+        ) -> VideoResult:
+            captured_extra.update(kwargs.get("extra_params") or {})
+            return VideoResult(
+                provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[]
+            )
+
+        with (
+            patch.object(VideoGenerator, "generate", _mock_generate),
+            patch(
+                "myrm_agent_harness.toolkits.llms.video.video_engine._resolve_video_inputs",
+                new_callable=AsyncMock,
+                return_value=[b"bytes1", b"bytes2"],
+            ),
+        ):
+            result_str = await engine.execute(
+                "generate",
+                prompt="mixed sources extend",
+                reference_videos=[
+                    "https://cdn.example.com/video1.mp4",
+                    "/tmp/local.mp4",
+                    "http://another.cdn.com/v2.mp4",
+                ],
+                duration_seconds=5,
+            )
+            body = json.loads(result_str)
+            assert body.get("task_id") is not None
+
+            await asyncio.sleep(0.1)
+
+        urls = captured_extra.get("_video_source_urls", [])
+        assert urls == [
+            "https://cdn.example.com/video1.mp4",
+            "http://another.cdn.com/v2.mp4",
+        ]
+
+    async def test_v2v_mode_reported_in_response(self) -> None:
+        """When reference_videos provided, response should indicate V2V mode."""
+        from myrm_agent_harness.toolkits.llms.video.generator import VideoGenerator
+        from myrm_agent_harness.toolkits.llms.video.video_engine import VideoGenerationTools
+
+        config = VideoGenerationConfig(
+            provider="xai",
+            model="grok-imagine-video",
+            api_key=SecretStr("test-key"),
+        )
+        engine = VideoGenerationTools(config)
+
+        async def _mock_generate(
+            self_gen, prompt: str, *, provider_id=None, model=None, **kwargs
+        ) -> VideoResult:
+            return VideoResult(
+                provider="xai", model="grok-imagine-video", videos=[], persisted_urls=[]
+            )
+
+        with (
+            patch.object(VideoGenerator, "generate", _mock_generate),
+            patch(
+                "myrm_agent_harness.toolkits.llms.video.video_engine._resolve_video_inputs",
+                new_callable=AsyncMock,
+                return_value=[b"dummy"],
+            ),
+        ):
+            result_str = await engine.execute(
+                "generate",
+                prompt="extend this",
+                reference_videos=["https://cdn/v.mp4"],
+                duration_seconds=5,
+            )
+
+        body = json.loads(result_str)
+        assert body["mode"] == "V2V (video-to-video)"

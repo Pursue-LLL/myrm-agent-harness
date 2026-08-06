@@ -178,6 +178,8 @@ class TestGoogleVeoGenerateMocked:
 
     @respx.mock
     async def test_generate_download_via_uri(self, no_async_sleep: None) -> None:
+        from unittest.mock import patch
+
         cfg = _cfg()
         model = cfg.model
         base = cfg.base_url or ""
@@ -200,12 +202,18 @@ class TestGoogleVeoGenerateMocked:
                 },
             )
         )
-        respx.get(video_uri).mock(
-            return_value=httpx.Response(200, content=b"\x00\x01\x02")
-        )
 
-        prov = GoogleVeoProvider()
-        out = await prov.generate("prompt", cfg)
+        mock_resp = AsyncMock()
+        mock_resp.raise_for_status = lambda: None
+        mock_resp.content = b"\x00\x01\x02"
+
+        with patch(
+            "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+            return_value=mock_resp,
+        ) as mock_get:
+            prov = GoogleVeoProvider()
+            out = await prov.generate("prompt", cfg)
+            mock_get.assert_called_once_with(video_uri, timeout=cfg.timeout_seconds)
         assert len(out.assets) == 1
         assert out.assets[0].data == b"\x00\x01\x02"
 

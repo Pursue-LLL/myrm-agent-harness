@@ -105,9 +105,9 @@ class ToolLayer(IntEnum):
 
 | 子类 | 加载条件 | 典型工具 | Token 消耗 |
 |------|---------|---------|----------:|
-| 能力发现网关（**TURN1**，条件绑定） | 存在 model_invocable searchable skills | skill_search_tool | ~819（条件绑定） |
-| 记忆工具（COMMON） | 启用记忆系统 | memory_search_tool, memory_save_tool, memory_manage_tool | ~1,126 |
-| 会话搜索（opt-in） | `memoryEnableConversationSearch=true` 且非无痕 | `memory_search_tool`（corpus=sessions ACL；无额外 Turn1 schema） | 含于 memory×3 ~1,126 |
+| 能力发现网关（**TURN1**，条件绑定） | `hidden_skill_count > 0` 且存在 model_invocable bound skills | skill_search_tool | 203（条件绑定；tiktoken measured woven desc） |
+| 记忆工具（COMMON） | 启用记忆系统 | memory_search_tool, memory_save_tool, memory_manage_tool | ~2,029（见 `DEFAULT_AGENT_TOKEN_INVENTORY.md` §三） |
+| 会话搜索（opt-in） | `memoryEnableConversationSearch=true` 且非无痕 | `memory_search_tool`（corpus=sessions ACL；无额外 Turn1 schema） | 含于 memory×3 ~2,029 |
 | 技能工具（Turn1） | 有技能后端 | skill_select_tool, skill_manage_tool | ~343 |
 | 浏览器工具 | `enabled_builtin_tools: browser` | browser_navigate_tool, browser_snapshot_tool, ... (8个) | ~535 |
 | 定时任务工具 | cron 能力 wired；勾选 cron 时 Turn1 | cron_manage_tool | ~827 |
@@ -474,7 +474,7 @@ SSOT：`FRAMEWORK_DESIGN_PRINCIPLES.md` §7 · `TOOL_DESIGN_STRATEGY.md` §2.5 �
 **实现**: `skill_search_tool` (BM25+Embedding) — indexes agent-bound searchable skills for unified search
 
 **效果**:
-- 无 searchable skills → `sync_discover_capability_tool` 不挂载 discover 网关（省 ~238 tok/Turn1）
+- `hidden_skill_count == 0`（≤20 内联 bound skills）→ `sync_discover_capability_tool` 不挂载 discover 网关（省 203 tok/Turn1；tiktoken measured）
 - Agent 通过 discover 命中已绑定技能 → `skill_select_tool` 加载 SOP 后执行
 - 严禁 append 非 Turn1 schema 到 bind_tools（框架 11.1 prefix cache 底线）
 

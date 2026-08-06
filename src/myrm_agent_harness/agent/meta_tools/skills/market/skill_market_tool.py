@@ -37,7 +37,6 @@ if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.market_protocols import SkillMarketBackend, SkillInstallResult
 
 TOOL_DESCRIPTION = """Install NEW skills from external markets (GitHub, skills.sh, etc.).
-NOT for searching skills already bound to this agent — use `skill_search_tool` for that.
 
 Use this tool when:
 - User asks "find me a skill for X" or "is there a skill that can..."
@@ -56,6 +55,13 @@ Important workflow:
 - For install_from_url: User provides a GitHub URL, you install directly
 - For uninstall: Confirm with the user before uninstalling
 """
+
+_SKILL_SEARCH_MARKET_HINTS: dict[str, str] = {
+    "skill_search_tool": (
+        "NOT for searching skills already bound to this agent — use skill_search_tool for that."
+    ),
+}
+
 
 InstallFromUrlFn = Callable[[str, str], Coroutine[None, None, "SkillInstallResult"]]
 UninstallFn = Callable[[str, str], Coroutine[None, None, "SkillInstallResult"]]
@@ -116,7 +122,9 @@ def create_skill_market_tool(
             return await _handle_uninstall(uninstall_fn, skill_id, user_id)
         return f"Unknown action: {action}. Use 'search', 'install', 'install_from_url', or 'uninstall'."
 
-    return skill_market_func
+    from myrm_agent_harness.utils.tool_dynamic_hints import with_dynamic_hints
+
+    return with_dynamic_hints(skill_market_func, _SKILL_SEARCH_MARKET_HINTS)
 
 
 async def _handle_search(backend: SkillMarketBackend, query: str) -> str:

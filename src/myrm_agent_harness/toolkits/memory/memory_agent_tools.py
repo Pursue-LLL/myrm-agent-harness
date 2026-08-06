@@ -24,11 +24,12 @@ import logging
 from typing import Literal
 
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field
 
 from myrm_agent_harness.toolkits.memory._memory_agent_tool_descriptions import (
+    build_memory_save_tool_description,
     build_memory_search_tool_description,
     resolve_memory_manage_tool_description,
-    resolve_memory_save_tool_description,
 )
 from myrm_agent_harness.toolkits.memory.config import RecallMode
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
@@ -114,8 +115,86 @@ def create_memory_tools(
     _search_description = build_memory_search_tool_description(
         policy, locale=description_locale
     )
-    _save_description = resolve_memory_save_tool_description(description_locale)
+    _save_description = build_memory_save_tool_description(
+        policy,
+        approval_required=manager.approval_required,
+        locale=description_locale,
+    )
     _manage_description = resolve_memory_manage_tool_description(description_locale)
+
+    class MemorySaveInput(BaseModel):
+        content: str = Field(
+            description="Declarative fact text; concise and standalone."
+        )
+        category: Literal[
+            "knowledge", "event", "preference", "rule", "instruction"
+        ] = Field(
+            default="knowledge",
+            description=(
+                "knowledge | event | preference | rule | instruction — "
+                "see tool description for category guide"
+            ),
+        )
+        importance: float = Field(
+            default=0.5,
+            description="0–1 score; primarily for knowledge (see description guide).",
+        )
+        tags: list[str] | str | None = Field(
+            default=None,
+            description='Filter labels; knowledge category only (e.g. ["python", "auth"]).',
+        )
+        write_target: Literal["bound", "shared"] = Field(
+            default="bound",
+            description='bound (default) or shared cross-agent facts — use shared sparingly.',
+        )
+        preference_key: str | None = Field(
+            default=None,
+            description='Required when category=preference (e.g. "response_style").',
+        )
+        rule_trigger: str | None = Field(
+            default=None,
+            description="Required when category=rule; do not use for instruction.",
+        )
+        rule_priority: int = Field(
+            default=0,
+            description="Rule override strength when category=rule; higher wins.",
+        )
+        rule_keywords: list[str] | str | None = Field(
+            default=None,
+            description="Optional keywords that activate a rule.",
+        )
+
+    class MemoryManageInput(BaseModel):
+        action: Literal["update", "delete", "correct", "rate"] = Field(
+            description=(
+                "update: wording/importance only; correct: wrong knowledge fact; "
+                "delete; rate — see tool description"
+            ),
+        )
+        memory_id: str = Field(
+            description="Memory ID from memory_search_tool results."
+        )
+        category: Literal["knowledge", "event", "preference", "rule"] = Field(
+            description=(
+                "knowledge | event | preference | rule — "
+                "instruction saves use category=rule (always trigger)"
+            ),
+        )
+        new_content: str | None = Field(
+            default=None,
+            description=(
+                "Required for update (wording/importance) and correct "
+                "(wrong fact, knowledge only)."
+            ),
+        )
+        new_importance: float | None = Field(
+            default=None,
+            description="Optional new importance for update.",
+        )
+        rating_score: int | None = Field(
+            default=None,
+            description="Required for rate; integer 1-5.",
+        )
 
     @tool("memory_search_tool", description=_search_description)
     async def memory_search(
@@ -200,7 +279,7 @@ def create_memory_tools(
 
     tools.append(memory_search)
 
-    @tool("memory_save_tool", description=_save_description)
+    @tool("memory_save_tool", description=_save_description, args_schema=MemorySaveInput)
     async def memory_save(
         content: str,
         category: Literal[
@@ -330,7 +409,7 @@ def create_memory_tools(
 
     tools.append(memory_save)
 
-    @tool("memory_manage_tool", description=_manage_description)
+    @tool("memory_manage_tool", description=_manage_description, args_schema=MemoryManageInput)
     async def memory_manage(
         action: Literal["update", "delete", "correct", "rate"],
         memory_id: str,
@@ -406,7 +485,10 @@ def create_memory_tools(
                 if not manager.has_vector:
                     return "Knowledge memory is not enabled."
                 correction = await manager.correct_memory(memory_id, new_content)
-                return f"Memory corrected: old memory {memory_id} demoted, new correction stored (ID: {correction.id})"
+                return (
+                    f"Memory corrected (new ID: {correction.id}). "
+                    f"Prior entry {memory_id} kept in history."
+                )
 
             return f"Unknown action: {action}"
         except Exception as e:

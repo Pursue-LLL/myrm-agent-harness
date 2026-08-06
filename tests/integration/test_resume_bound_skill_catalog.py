@@ -60,6 +60,23 @@ def _skill(name: str, description: str) -> SkillMetadata:
     )
 
 
+def _many_skills(count: int, *, prefix: str = "bound") -> list[SkillMetadata]:
+    return [_skill(f"{prefix}_{index:02d}_skill", f"desc {index}") for index in range(count)]
+
+
+def _skills_for_search_mount(*, featured: SkillMetadata) -> list[SkillMetadata]:
+    skills = _many_skills(21)
+    featured_inline = SkillMetadata(
+        name=featured.name,
+        description=featured.description,
+        model_invocable=featured.model_invocable,
+        available=featured.available,
+        always=True,
+    )
+    skills[0] = featured_inline
+    return skills
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_resume_refreshes_stale_catalog_from_real_checkpoint() -> None:
@@ -225,7 +242,7 @@ async def test_resume_syncs_skill_search_index_when_bind_changes() -> None:
     """skill_search_tool index matches refreshed bind list after resume catalog update."""
     old_skill = _skill("legacy_search_skill", "legacy")
     new_skill = _skill("fresh_search_skill", "fresh")
-    stale_block = build_bound_skills_block([old_skill])
+    stale_block = build_bound_skills_block([old_skill], hidden_skill_count=1)
 
     graph = _build_checkpoint_graph()
     thread_id = "integration-resume-search-sync"
@@ -235,7 +252,7 @@ async def test_resume_syncs_skill_search_index_when_bind_changes() -> None:
         {"messages": [HumanMessage(content=f"{stale_block}\n\napproval pending")]},
     )
 
-    backend = _MutableSkillBackend([old_skill])
+    backend = _MutableSkillBackend(_skills_for_search_mount(featured=old_skill))
     agent = SkillAgent(llm=AsyncMock(), skill_backend=backend)
     agent._agent = graph
 
@@ -243,9 +260,9 @@ async def test_resume_syncs_skill_search_index_when_bind_changes() -> None:
         sync_discover_capability_tool,
     )
 
-    sync_discover_capability_tool(agent._tool_registry, skills=[old_skill])
+    sync_discover_capability_tool(agent._tool_registry, skills=backend._skills)
 
-    backend._skills = [new_skill]
+    backend._skills = _skills_for_search_mount(featured=new_skill)
     refreshed = await apply_bound_skill_catalog_for_resume(
         agent, Command(resume={"decision": "approve"}), thread_id=thread_id
     )
@@ -285,19 +302,19 @@ async def test_stream_syncs_skill_search_index_when_bind_changes() -> None:
     """New-message stream prep syncs skill_search_tool when bind list drifts."""
     old_skill = _skill("legacy_stream_skill", "legacy")
     new_skill = _skill("fresh_stream_skill", "fresh")
-    stale_block = build_bound_skills_block([old_skill])
+    stale_block = build_bound_skills_block([old_skill], hidden_skill_count=1)
 
-    backend = _MutableSkillBackend([old_skill])
+    backend = _MutableSkillBackend(_skills_for_search_mount(featured=old_skill))
     agent = SkillAgent(llm=AsyncMock(), skill_backend=backend)
 
     from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
         sync_discover_capability_tool,
     )
 
-    sync_discover_capability_tool(agent._tool_registry, skills=[old_skill])
+    sync_discover_capability_tool(agent._tool_registry, skills=backend._skills)
 
     messages = [HumanMessage(content=f"{stale_block}\n\nfollow-up question")]
-    backend._skills = [new_skill]
+    backend._skills = _skills_for_search_mount(featured=new_skill)
     catalog_changed = await apply_bound_skill_catalog_for_stream(messages, agent)
     assert catalog_changed is True
 
@@ -339,7 +356,7 @@ async def test_stream_syncs_skill_search_index_when_bind_changes() -> None:
 async def test_resume_removes_skill_search_when_all_skills_unbound() -> None:
     """Unbinding every skill removes stale skill_search_tool after resume catalog refresh."""
     old_skill = _skill("legacy_unbind_skill", "legacy")
-    stale_block = build_bound_skills_block([old_skill])
+    stale_block = build_bound_skills_block([old_skill], hidden_skill_count=1)
 
     graph = _build_checkpoint_graph()
     thread_id = "integration-resume-empty-bind"
@@ -349,7 +366,7 @@ async def test_resume_removes_skill_search_when_all_skills_unbound() -> None:
         {"messages": [HumanMessage(content=f"{stale_block}\n\napproval pending")]},
     )
 
-    backend = _MutableSkillBackend([old_skill])
+    backend = _MutableSkillBackend(_skills_for_search_mount(featured=old_skill))
     agent = SkillAgent(llm=AsyncMock(), skill_backend=backend)
     agent._agent = graph
 
@@ -357,7 +374,7 @@ async def test_resume_removes_skill_search_when_all_skills_unbound() -> None:
         sync_discover_capability_tool,
     )
 
-    sync_discover_capability_tool(agent._tool_registry, skills=[old_skill])
+    sync_discover_capability_tool(agent._tool_registry, skills=backend._skills)
 
     backend._skills = []
     refreshed = await apply_bound_skill_catalog_for_resume(
@@ -386,16 +403,16 @@ async def test_resume_removes_skill_search_when_all_skills_unbound() -> None:
 async def test_stream_removes_skill_search_when_all_skills_unbound() -> None:
     """New-message stream prep removes skill_search_tool when bind list becomes empty."""
     old_skill = _skill("legacy_stream_unbind_skill", "legacy")
-    stale_block = build_bound_skills_block([old_skill])
+    stale_block = build_bound_skills_block([old_skill], hidden_skill_count=1)
 
-    backend = _MutableSkillBackend([old_skill])
+    backend = _MutableSkillBackend(_skills_for_search_mount(featured=old_skill))
     agent = SkillAgent(llm=AsyncMock(), skill_backend=backend)
 
     from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
         sync_discover_capability_tool,
     )
 
-    sync_discover_capability_tool(agent._tool_registry, skills=[old_skill])
+    sync_discover_capability_tool(agent._tool_registry, skills=backend._skills)
 
     messages = [HumanMessage(content=f"{stale_block}\n\nfollow-up question")]
     backend._skills = []
