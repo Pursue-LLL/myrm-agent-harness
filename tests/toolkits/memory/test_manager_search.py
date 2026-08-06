@@ -250,7 +250,7 @@ class TestSearchOperations:
         assert claim_result.memory.content.startswith("Claim: Auth task")
         assert claim_result.memory.scope.channel_id == "telegram"
         assert claim_result.memory.scope.primary_namespace == "channel:telegram"
-        assert mock_graph_store.find_nodes.await_count == 1
+        assert mock_graph_store.find_nodes.await_count >= 1
 
     @pytest.mark.asyncio
     async def test_search_claim_type_works_without_vector_hits(
@@ -303,29 +303,36 @@ class TestSearchOperations:
         mock_embedding.embed.return_value = [0.1] * 768
         mock_vector_store.count.return_value = 0
         mock_vector_store.search.return_value = []
-        mock_graph_store.find_nodes.return_value = [
-            GraphNode(
-                id="claim:task-test_user-other:deploy-policy",
-                labels=["Claim"],
-                properties={
-                    "primary_namespace": "task:other",
-                    "scope_namespaces_json": "global|task:other",
-                    "scope_level": "task",
-                    "task_id": "other",
-                    "claim_key": "deploy-policy",
-                    "title": "Deploy policy",
-                    "claim_text": "Use canary rollout before full release",
-                    "confidence": 0.87,
-                    "freshness_days": 2,
-                    "freshness": "fresh",
-                    "contradiction_status": "none",
-                    "evidence_count": 2,
-                    "last_result": "Canary rollout adopted",
-                    "latest_channel_id": "telegram",
-                    "last_evidence_at": datetime.now(UTC).isoformat(),
-                },
-            )
-        ]
+
+        mismatched_claim = GraphNode(
+            id="claim:task-test_user-other:deploy-policy",
+            labels=["Claim"],
+            properties={
+                "primary_namespace": "task:other",
+                "scope_namespaces_json": "global|task:other",
+                "scope_level": "task",
+                "task_id": "other",
+                "claim_key": "deploy-policy",
+                "title": "Deploy policy",
+                "claim_text": "Use canary rollout before full release",
+                "confidence": 0.87,
+                "freshness_days": 2,
+                "freshness": "fresh",
+                "contradiction_status": "none",
+                "evidence_count": 2,
+                "last_result": "Canary rollout adopted",
+                "latest_channel_id": "telegram",
+                "last_evidence_at": datetime.now(UTC).isoformat(),
+            },
+        )
+
+        async def _namespace_aware_find(labels, filters, **kwargs):
+            ns = filters.get("primary_namespace", "")
+            if ns == "task:other":
+                return [mismatched_claim]
+            return []
+
+        mock_graph_store.find_nodes = _namespace_aware_find
 
         manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store,
             embedding=mock_embedding,

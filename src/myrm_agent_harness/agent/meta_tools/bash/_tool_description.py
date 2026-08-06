@@ -23,7 +23,7 @@ TOOL_DESCRIPTION = """
 1. **Shell 命令**:执行安全 shell 命令(ls/grep/curl/git 等,禁止危险命令和直接 RCE)。
 2. **执行脚本**:运行已存在的脚本文件(python script.py / bash script.sh)。
 3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入,框架自动识别并以文件模式执行**。
-   - 可调用预装库:pandas, numpy, scipy, matplotlib, seaborn, json, datetime, re。
+   - 预装三方库:pandas, numpy, scipy, matplotlib, seaborn;Python 标准库(json, datetime, re 等)均可用。
    - 可调用内置工具(`from tools.* import ...`),如 `from tools.session_store import session_store` / `session_load` / `session_keys`(均为 async,必须 await)。
    - **不要**使用 `python -c "..."` / `python3 -c "..."` 包装器 — shell 转义易破坏引号与多行字符串。直接传 Python 源码作为 command 即可。
 

@@ -4,7 +4,7 @@
 - None (pure validation utilities)
 
 [OUTPUT]
-- validate_orchestration_script, apply_template_args, extract_template_placeholders, can_skip_plan_confirm
+- validate_orchestration_script, apply_template_args, extract_template_placeholders, validate_template_args, can_skip_plan_confirm
 
 [POS]
 Trust and safety guardrails for named workflow template save and pinned rerun paths.
@@ -12,6 +12,7 @@ Trust and safety guardrails for named workflow template save and pinned rerun pa
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import re
 
@@ -28,11 +29,37 @@ _FORBIDDEN_SNIPPETS = (
 
 _SPAWN_CALL_PATTERN = re.compile(r"myrm_tools\.spawn_subagent\s*\(")
 _AGENT_TYPE_PATTERN = re.compile(r"""agent_type\s*=\s*["']([^"']+)["']""")
-_READONLY_SPAWN_PATTERN = re.compile(
-    r"myrm_tools\.spawn_subagent\s*\([^)]*readonly\s*=\s*True",
-    re.DOTALL,
-)
 _PLACEHOLDER_PATTERN = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+_UNSAFE_TEMPLATE_ARG_CHARS = frozenset('"\n\r\\\'')
+
+
+def normalize_template_args(template_args: dict[str, str] | None) -> dict[str, str]:
+    if not template_args:
+        return {}
+    return {key: value.strip() for key, value in template_args.items()}
+
+
+def validate_template_args(
+    script_code: str,
+    template_args: dict[str, str] | None,
+) -> tuple[bool, str | None]:
+    """Ensure every `{placeholder}` in the script has a safe, non-empty value."""
+    placeholders = extract_template_placeholders(script_code)
+    if not placeholders:
+        return True, None
+
+    args = normalize_template_args(template_args)
+    missing = [key for key in placeholders if not args.get(key)]
+    if missing:
+        joined = ", ".join(missing)
+        return False, f"Missing workflow template placeholder(s): {joined}."
+
+    for key in placeholders:
+        value = args[key]
+        if any(char in value for char in _UNSAFE_TEMPLATE_ARG_CHARS):
+            return False, f"Invalid workflow template argument `{key}`: contains forbidden characters."
+
+    return True, None
 
 
 def compute_script_hash(script_code: str) -> str:
@@ -77,25 +104,58 @@ def extract_template_placeholders(script_code: str) -> tuple[str, ...]:
     return tuple(ordered)
 
 
-def apply_template_args(script_code: str, template_args: dict[str, str]) -> str:
-    if not template_args:
+def apply_template_args(script_code: str, template_args: dict[str, str] | None) -> str:
+    normalized = normalize_template_args(template_args)
+    ok, error = validate_template_args(script_code, normalized)
+    if not ok:
+        raise ValueError(error or "Invalid workflow template arguments.")
+    if not normalized:
         return script_code
 
     def _replace(match: re.Match[str]) -> str:
         key = match.group(1)
-        if key in template_args:
-            return str(template_args[key])
+        if key in normalized:
+            return normalized[key]
         return match.group(0)
 
     return _PLACEHOLDER_PATTERN.sub(_replace, script_code)
 
 
-def script_all_spawns_readonly(script_code: str) -> bool:
-    spawn_count = len(_SPAWN_CALL_PATTERN.findall(script_code))
-    if spawn_count == 0:
+def _is_spawn_subagent_call(node: ast.Call) -> bool:
+    func = node.func
+    if not isinstance(func, ast.Attribute):
         return False
-    readonly_count = len(_READONLY_SPAWN_PATTERN.findall(script_code))
-    return readonly_count >= spawn_count
+    if func.attr != "spawn_subagent":
+        return False
+    return isinstance(func.value, ast.Name) and func.value.id == "myrm_tools"
+
+
+def _spawn_call_has_readonly_true(node: ast.Call) -> bool:
+    for keyword in node.keywords:
+        if keyword.arg != "readonly":
+            continue
+        if isinstance(keyword.value, ast.Constant) and keyword.value.value is True:
+            return True
+    return False
+
+
+def _collect_spawn_subagent_calls(script_code: str) -> list[ast.Call] | None:
+    try:
+        tree = ast.parse(script_code)
+    except SyntaxError:
+        return None
+    calls: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and _is_spawn_subagent_call(node):
+            calls.append(node)
+    return calls
+
+
+def script_all_spawns_readonly(script_code: str) -> bool:
+    spawn_calls = _collect_spawn_subagent_calls(script_code)
+    if not spawn_calls:
+        return False
+    return all(_spawn_call_has_readonly_true(call) for call in spawn_calls)
 
 
 def can_skip_plan_confirm(

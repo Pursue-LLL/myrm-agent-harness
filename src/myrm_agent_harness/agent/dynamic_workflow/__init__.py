@@ -367,7 +367,16 @@ async def run_dynamic_workflow_stream(
             }
             yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "error"}
             return
-        script_code = apply_template_args(pinned_template.script_code, template_args or {})
+        try:
+            script_code = apply_template_args(pinned_template.script_code, template_args)
+        except ValueError as exc:
+            yield {
+                "type": "message",
+                "messageId": message_id,
+                "data": str(exc),
+            }
+            yield {"type": "message_end", "messageId": message_id, "usage": {}, "completion_status": "error"}
+            return
         yield {
             "type": "status",
             "step_key": "workflow_planning",
