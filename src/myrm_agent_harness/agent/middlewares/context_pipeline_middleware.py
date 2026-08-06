@@ -86,7 +86,7 @@ from myrm_agent_harness.agent.context_management.pipeline import (
 from myrm_agent_harness.agent.context_management.pipeline.processors.media_resolver import (
     FileContentReader,
 )
-from myrm_agent_harness.agent.context_management.strategies.integrity_guard import (
+from myrm_agent_harness.agent.context_management.strategies.compactor.integrity_guard import (
     ensure_tool_pair_integrity,
 )
 from myrm_agent_harness.agent.context_management.strategies.session_notes.updater import (

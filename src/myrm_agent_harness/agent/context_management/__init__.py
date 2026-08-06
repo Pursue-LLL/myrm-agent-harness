@@ -72,8 +72,12 @@ from .pipeline import (
     build_default_processors,
     create_default_pipeline,
 )
-from .strategies.compact_rules import COMPACT_RULES
-from .strategies.compactor import compress_messages_async, compress_tool_message_async, should_compress
+from .strategies.compactor import (
+    COMPACT_RULES,
+    compress_messages_async,
+    compress_tool_message_async,
+    should_compress,
+)
 from .strategies.filter import (
     FILTER_TOKEN_THRESHOLD,
     FilteredResult,
@@ -83,7 +87,7 @@ from .strategies.filter import (
 )
 from .strategies.filters import BaseFilter, FilterContext, FilterResult, SemanticFilter, StructuralFilter
 from .strategies.filters.base import SEMANTIC_CONTENT_TYPES, STRUCTURAL_CONTENT_TYPES, detect_content_type
-from .strategies.summarizer import generate_structured_summary, should_summarize
+from .strategies.summary.summarizer import generate_structured_summary, should_summarize
 from .tracking.artifact_tracker import (
     ArtifactAction,
     ArtifactRecord,

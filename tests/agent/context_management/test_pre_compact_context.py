@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.agent.context_management.infra.schemas import PRE_COMPACT_MESSAGE_METADATA_KEY
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
-from myrm_agent_harness.agent.context_management.strategies.pre_compact_context import (
+from myrm_agent_harness.agent.context_management.strategies.compactor.pre_compact_context import (
     PRE_COMPACT_RECALL_MARKER,
     apply_pre_compact_after_protected_head,
     prepend_pre_compact_message,

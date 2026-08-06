@@ -18,7 +18,7 @@ from myrm_agent_harness.agent.context_management.infra.schemas import (
     ContextConfig,
     StructuredSummary,
 )
-from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
     _FallbackSummaryModel,
     generate_structured_summary,
 )
@@ -89,7 +89,7 @@ async def test_full_summary_captures_blocked_and_next_steps() -> None:
     config = ContextConfig(max_context_tokens=128000)
 
     with patch(
-        "myrm_agent_harness.agent.context_management.strategies.summarizer._get_structured_llm_or_parser",
+        "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._get_structured_llm_or_parser",
         side_effect=_force_parser_fallback,
     ):
         new_messages, summary = await generate_structured_summary(
@@ -165,7 +165,7 @@ async def test_incremental_summary_updates_blocked_and_next_steps() -> None:
     config = ContextConfig(max_context_tokens=128000)
 
     with patch(
-        "myrm_agent_harness.agent.context_management.strategies.summarizer._get_structured_llm_or_parser",
+        "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._get_structured_llm_or_parser",
         side_effect=_force_parser_fallback,
     ):
         new_msgs, summary = await generate_structured_summary(

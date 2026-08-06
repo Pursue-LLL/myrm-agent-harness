@@ -7,8 +7,8 @@ import json
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
-from myrm_agent_harness.agent.context_management.strategies.summary_builder import create_summary_message
-from myrm_agent_harness.agent.context_management.strategies.summary_parser import (
+from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import create_summary_message
+from myrm_agent_harness.agent.context_management.strategies.summary.summary_parser import (
     extract_existing_summary,
     extract_messages_after_summary,
     format_messages_for_summary,
@@ -304,7 +304,7 @@ class TestParseSummaryResponse:
         assert result.user_goal == "[摘要解析失败]"
 
     def test_as_str_list_with_non_list(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_parser import _as_str_list
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_parser import _as_str_list
 
         assert _as_str_list(None) == []
         assert _as_str_list("single") == ["single"]

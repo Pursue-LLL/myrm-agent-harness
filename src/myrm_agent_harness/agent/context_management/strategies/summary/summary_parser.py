@@ -27,7 +27,7 @@ from myrm_agent_harness.agent.security.detection.leak_detector import redact_lea
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import smart_truncate
 
-from ..infra.schemas import StructuredSummary
+from ...infra.schemas import StructuredSummary
 
 logger = get_agent_logger(__name__)
 

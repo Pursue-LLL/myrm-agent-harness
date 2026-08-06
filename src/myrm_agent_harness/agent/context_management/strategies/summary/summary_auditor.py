@@ -30,7 +30,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
-from ..infra.schemas import StructuredSummary
+from ...infra.schemas import StructuredSummary
 
 logger = get_agent_logger(__name__)
 

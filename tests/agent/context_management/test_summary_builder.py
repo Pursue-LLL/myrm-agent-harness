@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
-from myrm_agent_harness.agent.context_management.strategies.summary_builder import (
+from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
     SUMMARY_END_MARKER,
     UNVERIFIED_CONTEXT_MARKER,
     create_summary_message,
@@ -117,7 +117,7 @@ class TestCreateSummaryMessage:
         msg = create_summary_message(summary)
         assert "/tmp/ctx.log" in msg.content
 
-    @patch("myrm_agent_harness.agent.context_management.strategies.summary_builder.get_artifact_tracker")
+    @patch("myrm_agent_harness.agent.context_management.strategies.summary.summary_builder.get_artifact_tracker")
     def test_artifact_tracker_integration(self, mock_tracker_fn: MagicMock) -> None:
         mock_tracker = MagicMock()
         mock_tracker.get_summary.return_value = "artifact index content"
@@ -279,7 +279,7 @@ class TestCreateSummaryMessage:
 
 class TestExtractProtectedHead:
     def test_extract_system_and_first_turn(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_builder import extract_protected_head
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import extract_protected_head
 
         messages = [
             SystemMessage(content="sys1"),
@@ -297,7 +297,7 @@ class TestExtractProtectedHead:
         assert isinstance(head[3], AIMessage)
 
     def test_extract_only_systems(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_builder import extract_protected_head
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import extract_protected_head
 
         messages = [
             SystemMessage(content="sys1"),
@@ -308,7 +308,7 @@ class TestExtractProtectedHead:
         assert isinstance(head[0], SystemMessage)
 
     def test_extract_no_system(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_builder import extract_protected_head
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import extract_protected_head
 
         messages = [
             HumanMessage(content="h1"),
@@ -321,6 +321,6 @@ class TestExtractProtectedHead:
         assert isinstance(head[1], AIMessage)
 
     def test_extract_empty(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_builder import extract_protected_head
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import extract_protected_head
 
         assert extract_protected_head([]) == []

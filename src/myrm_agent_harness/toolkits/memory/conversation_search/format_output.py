@@ -2,6 +2,7 @@
 
 [INPUT]
 - toolkits.memory.conversation_search.types::ConversationSearchHit, ConversationSearchResponse (POS: Conversation search DTOs)
+- toolkits.memory.memory_recall_formatting (POS: Recall redact → sanitize/preamble helpers)
 
 [OUTPUT]
 - format_conversation_search_response: Render hits and emit conversation_history sources.
@@ -22,6 +23,11 @@ from myrm_agent_harness.toolkits.memory.conversation_search.types import (
     ConversationSearchResponse,
 )
 from myrm_agent_harness.toolkits.memory.memory_citations import emit_sources
+from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    finalize_recall_tool_output,
+    recall_preamble_overhead_chars,
+    sanitize_recalled_content,
+)
 
 
 async def format_conversation_search_response(
@@ -35,6 +41,7 @@ async def format_conversation_search_response(
             return response.rejected_reason
         return "No matching conversations found."
 
+    max_output_chars = MAX_TOOL_OUTPUT_CHARS - recall_preamble_overhead_chars()
     lines = [
         (
             "Recent conversations:"
@@ -49,7 +56,7 @@ async def format_conversation_search_response(
     for index, hit in enumerate(response.hits, start=1):
         block = format_conversation_hit(index, hit)
         block_cost = len(block) + 1
-        if output_chars + block_cost > MAX_TOOL_OUTPUT_CHARS:
+        if output_chars + block_cost > max_output_chars:
             truncated = True
             break
         lines.append(block)
@@ -62,7 +69,7 @@ async def format_conversation_search_response(
         )
 
     await emit_sources(sources)
-    return "\n\n".join(lines)
+    return finalize_recall_tool_output("\n\n".join(lines))
 
 
 def format_conversation_hit(index: int, hit: ConversationSearchHit) -> str:
@@ -74,8 +81,8 @@ def format_conversation_hit(index: int, hit: ConversationSearchHit) -> str:
     if when:
         header += f", {when}"
     header += ")"
-    snippet = bounded(hit.snippet, MAX_SNIPPET_CHARS)
-    summary = bounded(hit.summary or "", MAX_SUMMARY_CHARS)
+    snippet = _safe_bounded(hit.snippet, MAX_SNIPPET_CHARS)
+    summary = _safe_bounded(hit.summary or "", MAX_SUMMARY_CHARS)
     parts = [header]
     if summary:
         parts.append(f"summary: {summary}")
@@ -93,8 +100,8 @@ def source_ref(index: int, hit: ConversationSearchHit) -> dict[str, object]:
             "conversation_id": hit.conversation_id,
             "message_id": hit.message_id,
             "title": hit.title,
-            "snippet": bounded(hit.snippet, MAX_SNIPPET_CHARS),
-            "summary": bounded(hit.summary or "", MAX_SUMMARY_CHARS) or None,
+            "snippet": _safe_bounded(hit.snippet, MAX_SNIPPET_CHARS),
+            "summary": _safe_bounded(hit.summary or "", MAX_SUMMARY_CHARS) or None,
             "score": round(hit.score, 4),
             "created_at": hit.created_at.isoformat() if hit.created_at else None,
             "updated_at": hit.updated_at.isoformat() if hit.updated_at else None,
@@ -102,6 +109,13 @@ def source_ref(index: int, hit: ConversationSearchHit) -> dict[str, object]:
     ref["index"] = index
     ref["source_key"] = f"conversation:{hit.conversation_id}:{hit.message_id or ''}"
     return {key: value for key, value in ref.items() if value is not None}
+
+
+def _safe_bounded(text: str, max_chars: int) -> str:
+    bounded_text = bounded(text, max_chars)
+    if not bounded_text:
+        return ""
+    return sanitize_recalled_content(bounded_text)
 
 
 def bounded(text: str, max_chars: int) -> str:

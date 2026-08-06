@@ -15,7 +15,7 @@ import json
 from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
-from myrm_agent_harness.agent.context_management.strategies.summary_builder import (
+from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
     create_summary_message,
 )
 
@@ -82,7 +82,7 @@ class TestFallbackSummaryModelMapping:
     """_FallbackSummaryModel -> StructuredSummary field mapping."""
 
     def test_fallback_model_maps_blocked_items(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _FallbackSummaryModel,
         )
 
@@ -96,7 +96,7 @@ class TestFallbackSummaryModelMapping:
         assert summary.next_steps == ["step 1"]
 
     def test_fallback_model_defaults(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _FallbackSummaryModel,
         )
 
@@ -273,7 +273,7 @@ class TestSummaryPromptsHandoffFields:
     """Verify prompt templates include blocked_items / next_steps instructions."""
 
     def test_summary_prompt_has_blocked_items(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_prompts import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_prompts import (
             SUMMARY_PROMPT_TEMPLATE,
         )
 
@@ -281,7 +281,7 @@ class TestSummaryPromptsHandoffFields:
         assert "max 3" in SUMMARY_PROMPT_TEMPLATE.lower()
 
     def test_summary_prompt_has_next_steps(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_prompts import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_prompts import (
             SUMMARY_PROMPT_TEMPLATE,
         )
 
@@ -289,7 +289,7 @@ class TestSummaryPromptsHandoffFields:
         assert "max 5" in SUMMARY_PROMPT_TEMPLATE.lower()
 
     def test_merge_prompt_has_blocked_items_rule(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_prompts import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_prompts import (
             SUMMARY_MERGE_PROMPT_TEMPLATE,
         )
 
@@ -297,7 +297,7 @@ class TestSummaryPromptsHandoffFields:
         assert "remove resolved blockers" in SUMMARY_MERGE_PROMPT_TEMPLATE.lower()
 
     def test_merge_prompt_has_next_steps_rule(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_prompts import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_prompts import (
             SUMMARY_MERGE_PROMPT_TEMPLATE,
         )
 
@@ -309,7 +309,7 @@ class TestSummaryAuditorEntityRetention:
     """Verify entity retention covers blocked_items / next_steps via to_json()."""
 
     def test_entity_in_blocked_items_retained(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_auditor import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_auditor import (
             audit_summary,
         )
 
@@ -325,7 +325,7 @@ class TestSummaryAuditorEntityRetention:
         assert result.entity_retained == 1
 
     def test_entity_in_next_steps_retained(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary_auditor import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_auditor import (
             audit_summary,
         )
 
@@ -345,7 +345,7 @@ class TestRedactSummaryFieldsCoverage:
     """Verify _redact_summary_fields covers new list fields."""
 
     def test_redact_covers_blocked_items(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _redact_summary_fields,
         )
 
@@ -358,7 +358,7 @@ class TestRedactSummaryFieldsCoverage:
         assert len(result.blocked_items) == 1
 
     def test_redact_covers_next_steps(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _redact_summary_fields,
         )
 

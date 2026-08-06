@@ -154,7 +154,10 @@ def notify_loop_guard_compaction() -> None:
     terminated after compaction.  Error signatures are preserved so that
     recurring failures are still tracked across compaction boundaries.
     """
-    guard = _loop_guard_var.get()
+    try:
+        guard = _loop_guard_var.get()
+    except LookupError:
+        return
     if guard is None:
         guard = _get_session_loop_guard()
     if guard is None:

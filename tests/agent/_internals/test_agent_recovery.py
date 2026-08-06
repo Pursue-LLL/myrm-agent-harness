@@ -116,7 +116,7 @@ class TestEmergencyCompact:
         ]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.compactor.compress_messages_async",
+            "myrm_agent_harness.agent.context_management.strategies.compactor.compactor.compress_messages_async",
             new_callable=AsyncMock,
             return_value=(msgs, 500),
         ) as mock_compress:

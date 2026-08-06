@@ -21,8 +21,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
-from ..infra.schemas import StructuredSummary
-from ..tracking.artifact_tracker import get_artifact_tracker
+from ...infra.schemas import StructuredSummary
+from ...tracking.artifact_tracker import get_artifact_tracker
 
 logger = get_agent_logger(__name__)
 

@@ -1,6 +1,6 @@
 """Tests for compression_streak_store."""
 
-from myrm_agent_harness.agent.context_management.strategies.compression_streak_store import (
+from myrm_agent_harness.agent.context_management.strategies.compression.compression_streak_store import (
     InMemoryCompressionStreakStore,
     register_compression_streak_store,
 )

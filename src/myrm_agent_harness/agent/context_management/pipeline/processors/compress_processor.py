@@ -17,8 +17,8 @@ IMPORTANT: Self-update reminder: once this file is updated, also update:
 
 [INPUT]
 - infra.retention_helpers::extract_failed_tool_call_ids, extract_focus_files, extract_focus_modules, extract_user_goal_hint, effective_keep_recent_calls (POS: cross-processor retention contract)
-- strategies.compactor::compress_messages_async (POS: priority-aware message compactor)
-- strategies.smart_fallback::apply_smart_fallback (POS: extreme overflow fallback)
+- strategies.compactor.compactor::compress_messages_async (POS: priority-aware message compactor)
+- strategies.compactor.smart_fallback::apply_smart_fallback (POS: extreme overflow fallback)
 
 [OUTPUT]
 - CompressProcessor: priority-aware compression with keep_recent ToolCallGroup protection and compression_intent consumption
@@ -56,8 +56,8 @@ from ...infra.retention_helpers import (
     extract_focus_modules,
     extract_user_goal_hint,
 )
-from ...strategies.compactor import compress_messages_async
-from ...strategies.smart_fallback import apply_smart_fallback
+from ...strategies.compactor.compactor import compress_messages_async
+from ...strategies.compactor.smart_fallback import apply_smart_fallback
 from ..base import BaseProcessor, ProcessorContext
 
 logger = get_agent_logger(__name__)
@@ -169,7 +169,7 @@ class CompressProcessor(BaseProcessor):
         if total_tokens < dynamic_threshold:
             return False
 
-        from ...strategies.compression_anti_thrash_guard import (
+        from ...strategies.compression.compression_anti_thrash_guard import (
             should_block_automatic_compression,
         )
 
@@ -310,7 +310,7 @@ class CompressProcessor(BaseProcessor):
         )
 
         # Anti-thrashing: track compression effectiveness (persisted in TaskMetrics)
-        from ...strategies.compression_anti_thrash_guard import (
+        from ...strategies.compression.compression_anti_thrash_guard import (
             record_compression_effectiveness,
         )
 
@@ -334,7 +334,7 @@ class CompressProcessor(BaseProcessor):
         if detector is not None:
             detector.notify_compaction()
 
-        from ...strategies.pre_compact_context import (
+        from ...strategies.compactor.pre_compact_context import (
             apply_pre_compact_after_protected_head,
         )
 

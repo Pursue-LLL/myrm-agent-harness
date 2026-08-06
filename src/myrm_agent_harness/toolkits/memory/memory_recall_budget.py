@@ -1,12 +1,13 @@
 """Memory recall budget guardrails.
 
 [INPUT]
-- (none)
+- toolkits.memory.memory_recall_formatting::sanitize_recalled_content (POS: Recall body redact → sanitize)
 
 [OUTPUT]
 - normalize_recall_limit: Normalize model-provided recall limit into a safe range.
 - truncate_recall_content: Truncate recalled memory content while preserving metadata space.
 - line_cost: Calculate newline-aware output cost for recall budget accounting.
+- budget_recall_line: Format one sanitized recall line within the output budget.
 
 [POS]
 Memory recall budget guardrail. Keeps agent-facing recall output bounded without coupling to business context.
@@ -15,6 +16,10 @@ Memory recall budget guardrail. Keeps agent-facing recall output bounded without
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    sanitize_recalled_content,
+)
 
 DEFAULT_RECALL_LIMIT = 5
 MIN_RECALL_LIMIT = 1
@@ -77,7 +82,8 @@ def budget_recall_line(
     """Format a recall line if it fits the remaining output budget."""
     remaining = max_body_chars - output_chars - line_cost(prefix + suffix)
     content_limit = min(max_content_chars, remaining)
-    truncated_content, was_truncated = truncate_recall_content(content, content_limit)
+    safe_content = sanitize_recalled_content(content)
+    truncated_content, was_truncated = truncate_recall_content(safe_content, content_limit)
     line = f"{prefix}{truncated_content}{suffix}"
     if output_chars + line_cost(line) > max_body_chars:
         return BudgetedRecallLine(line=None, next_chars=output_chars, truncated=True)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.context_management.strategies.compression_anti_thrash_guard import (
+from myrm_agent_harness.agent.context_management.strategies.compression.compression_anti_thrash_guard import (
     ANTI_THRASHING_STREAK_LIMIT,
     record_compression_effectiveness,
     should_block_automatic_compression,

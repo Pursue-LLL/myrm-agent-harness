@@ -36,10 +36,10 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMe
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
-from ..infra.message_priority import MessagePriority, classify_message_priority
-from .compression_formatting import shrink_tool_call_args
+from ...infra.message_priority import MessagePriority, classify_message_priority
+from ..compression.compression_formatting import shrink_tool_call_args
+from ..tool_call_groups import build_tool_call_groups
 from .integrity_guard import ensure_tool_pair_integrity
-from .tool_call_groups import build_tool_call_groups
 
 logger = get_agent_logger(__name__)
 

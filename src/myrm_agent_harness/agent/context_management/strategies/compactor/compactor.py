@@ -35,8 +35,8 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
-from ..infra.message_priority import MessagePriority, classify_message_priority
-from ..infra.schemas import (
+from ...infra.message_priority import MessagePriority, classify_message_priority
+from ...infra.schemas import (
     CompactToolCall,
     ContextCompressEvictionCallback,
     ContextCompressOffloadCallback,
@@ -45,17 +45,17 @@ from ..infra.schemas import (
     EvictedToolCall,
     normalize_context_offload_result,
 )
-from .compact_rules import COMPACT_RULES
-from .compression_formatting import (
+from ..compression.compression_formatting import (
     extract_identifier,
     generate_compressed_content,
     generate_compressed_content_with_stats,
     generate_generic_compressed_content,
     shrink_tool_call_args,
 )
+from ..priority_signals import adjust_group_priority
+from ..tool_call_groups import build_tool_call_groups
+from .compact_rules import COMPACT_RULES
 from .deduplication import deduplicate_tool_results
-from .priority_signals import adjust_group_priority
-from .tool_call_groups import build_tool_call_groups
 from .tool_stats import extract_tool_stats
 
 logger = get_agent_logger(__name__)
@@ -76,7 +76,7 @@ def should_compress(messages: list[BaseMessage], config: ContextConfig | None = 
     Returns:
         是否需要压缩
     """
-    from ..infra.schemas import DEFAULT_CONTEXT_CONFIG
+    from ...infra.schemas import DEFAULT_CONTEXT_CONFIG
 
     cfg = config or DEFAULT_CONTEXT_CONFIG
     total_tokens = estimate_messages_tokens(messages)
@@ -161,7 +161,7 @@ async def compress_messages_async(
     """
     _compress_start = time.monotonic()
 
-    from ..infra.schemas import DEFAULT_CONTEXT_CONFIG
+    from ...infra.schemas import DEFAULT_CONTEXT_CONFIG
 
     cfg = config or DEFAULT_CONTEXT_CONFIG
 

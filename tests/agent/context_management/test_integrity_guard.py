@@ -2,7 +2,7 @@
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from myrm_agent_harness.agent.context_management.strategies.integrity_guard import ensure_tool_pair_integrity
+from myrm_agent_harness.agent.context_management.strategies.compactor.integrity_guard import ensure_tool_pair_integrity
 
 
 def test_integrity_guard_trims_partially_matched_multi_tool_ai_message() -> None:

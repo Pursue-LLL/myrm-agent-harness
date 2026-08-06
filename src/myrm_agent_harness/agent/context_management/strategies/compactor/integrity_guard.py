@@ -22,7 +22,7 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
-from .tool_call_groups import build_tool_call_groups
+from ..tool_call_groups import build_tool_call_groups
 
 logger = get_agent_logger(__name__)
 

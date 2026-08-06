@@ -23,14 +23,14 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | intent_recognizers.py    | Core     | Query intent recognition for adaptive type weighting.                                                         | ✅    |
 | manager.py               | Core     | Public import path for ``MemoryManager`` and memory error types. | ✅    |
 | memory_agent_tools.py    | Core     | Agent memory tools factory: memory_search_tool, save, manage. Wires descriptions from `_memory_agent_tool_descriptions.py`. | ✅    |
-| _memory_agent_tool_descriptions.py | Core | LLM-visible memory tool description SSOT (English + Chinese; locale via `is_chinese`). `build_memory_search_tool_description` / `build_memory_save_tool_description` (policy + approval dynamic fragments). Imported by `memory_agent_tools.py` and static tests. | ✅    |
+| _memory_agent_tool_descriptions.py | Core | LLM-visible memory tool description SSOT (English + Chinese; locale via `is_chinese`). `build_memory_search_tool_description` / `build_memory_save_tool_description` (policy + approval dynamic fragments). `surface=\"agent\"|\"mcp\"` maps GUI tool names to MCP HTTP tool names. Consumed by `memory_agent_tools.py`, `mcp_server.py`, and static tests. | ✅    |
 | wiki_memory_boundary.py  | Core     | Wiki vs memory write boundary heuristics; memory_save rejection counter; persist vector filter. | ✅    |
 | tests/toolkits/memory/test_memory_tool_decision_golden.py | Test | 16-scenario save/manage/search routing guardrail golden (EN/ZH prompt SSOT). | ✅ |
 | memory_search_policy.py  | Core     | Corpus ACL and optional wiki/sessions/web backends for memory_search_tool; `query_wiki` + optional `wiki_structure` / `wiki_agent_id` for citation URI parity with wiki_query_tool. | ✅    |
 | memory_search_execution.py | Core   | Memory/wiki/sessions search execution; wiki corpus emits sources + UNTRUSTED wrap on answers. | ✅    |
-| memory_citations.py      | Core     | Citation/source bridge that converts recalled memories, retrieval traces, and conversation sources into UI-safe SSE metadata. | ✅    |
-| memory_recall_budget.py      | Core     | Recall budget guardrails: limit normalization, output size accounting, and content truncation helpers.        | ✅    |
-| memory_recall_formatting.py  | Core     | Recall formatting helpers: time filters, age labels, staleness checks, and channel provenance labels.         | ✅    |
+| memory_citations.py      | Core     | Citation/source bridge; SSE cited_memory_refs use recall redact → sanitize before truncation. | ✅    |
+| memory_recall_budget.py      | Core     | Recall budget guardrails: limit normalization, default redact → sanitize in budget_recall_line, output accounting, truncation. | ✅    |
+| memory_recall_formatting.py  | Core     | Recall formatting helpers: time filters, age labels, staleness checks, channel provenance, and recall tool-output redact → sanitize/preamble. | ✅    |
 | metrics.py               | Core     | Memory search quality metrics — lightweight, thread-safe counters.                                            | ✅    |
 | observability.py         | Core     | Business-neutral memory operation, influence, retrieval trace, memory-space DTOs, and MemoryOperationSink protocol for app-layer dashboards and logs. | ✅    |
 | cognitive/deriver.py     | Core     | Async Dialectic Reasoning Engine for implicit preference extraction.                                          | —     |
@@ -63,7 +63,7 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 
 | File (additional) | Role | Description | I/O/P |
 | --- | --- | --- | --- |
-| mcp_server.py | Core | MCP server adapter: wraps MemoryManager as 4 MCP tools (memory_recall, memory_list, memory_store, memory_manage) for external agent access via Streamable HTTP. Supports dynamic manager resolution via ContextVar (per-request) or manager_resolver (per-server) for multi-agent scoping. Exports set/reset_request_memory_manager for middleware integration. | ✅ |
+| mcp_server.py | Core | MCP server adapter: wraps MemoryManager as 4 MCP tools (memory_recall, memory_list, memory_store, memory_manage) for external agent access via Streamable HTTP. `memory_manage` and `memory_store` descriptions import `_memory_agent_tool_descriptions` SSOT with `surface=\"mcp\"`; runtime wiki document rejection via ContextVar + `wiki_memory_boundary`. Supports dynamic manager resolution via ContextVar (per-request) or manager_resolver (per-server) for multi-agent scoping. Exports set/reset_request_memory_manager and set/reset_request_wiki_boundary_enabled for middleware integration. | ✅ |
 
 ## Key Dependencies
 

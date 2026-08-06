@@ -17,10 +17,12 @@ Default locale is English; callers pass BCP-47 locale strings (e.g. ``zh-CN``).
 - MEMORY_SAVE_CORE_* / MEMORY_*_TOOL_DESCRIPTION_EN / _ZH: locale-specific SSOT constants
 
 [POS]
-Prompt SSOT for memory agent tools. Imported by memory_agent_tools.py and static tests.
+Prompt SSOT for memory agent tools. Imported by memory_agent_tools.py, mcp_server.py (memory_manage/memory_store with surface=mcp), and static tests.
 """
 
 from __future__ import annotations
+
+from typing import Literal
 
 from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchPolicy
 from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
@@ -30,6 +32,58 @@ from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
 from myrm_agent_harness.utils.locale import is_chinese
 
 DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE = "en"
+
+MemoryToolDescriptionSurface = Literal["agent", "mcp"]
+
+_AGENT_TO_MCP_TOOL_REPLACEMENTS: tuple[tuple[str, str], ...] = (
+    ("memory_manage_tool", "memory_manage"),
+    ("memory_search_tool", "memory_recall"),
+    ("memory_save_tool", "memory_store"),
+)
+
+_MCP_SURFACE_EXTRA_REPLACEMENTS_EN: tuple[tuple[str, str], ...] = (
+    (
+        "Task progress, session outcomes, or completed-work logs → use memory_recall with corpus=sessions",
+        "Task progress, session outcomes, or completed-work logs → do not store via memory_store",
+    ),
+    (
+        "Task progress or chat history → memory_recall with corpus=sessions",
+        "Task progress or chat history → do not use memory_manage for session logs",
+    ),
+)
+
+_MCP_SURFACE_EXTRA_REPLACEMENTS_ZH: tuple[tuple[str, str], ...] = (
+    (
+        "任务进度、会话结果、已完成工作日志 → 使用 memory_recall，corpus=sessions",
+        "任务进度、会话结果、已完成工作日志 → 不要用 memory_store 存储",
+    ),
+    (
+        "任务进度或聊天历史 → memory_recall，corpus=sessions",
+        "任务进度或聊天历史 → 不要用 memory_manage 管理会话日志",
+    ),
+)
+
+
+def _apply_tool_surface_names(
+    description: str,
+    *,
+    surface: MemoryToolDescriptionSurface = "agent",
+    locale: str | None = DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE,
+) -> str:
+    """Map GUI Turn1 tool names to MCP HTTP tool names when surface is mcp."""
+    if surface == "agent":
+        return description
+    result = description
+    for agent_name, mcp_name in _AGENT_TO_MCP_TOOL_REPLACEMENTS:
+        result = result.replace(agent_name, mcp_name)
+    extras = (
+        _MCP_SURFACE_EXTRA_REPLACEMENTS_ZH
+        if is_chinese(locale)
+        else _MCP_SURFACE_EXTRA_REPLACEMENTS_EN
+    )
+    for old, new in extras:
+        result = result.replace(old, new)
+    return result
 
 # =============================================================================
 # English (default LLM-facing)
@@ -363,6 +417,7 @@ def build_memory_save_tool_description(
     *,
     approval_required: bool = False,
     locale: str | None = DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE,
+    surface: MemoryToolDescriptionSurface = "agent",
 ) -> str:
     """Build memory_save_tool description (wiki boundary + approval vary by runtime)."""
     parts: list[str] = [
@@ -378,24 +433,54 @@ def build_memory_save_tool_description(
         parts.append(
             _approval_fragment_zh() if is_chinese(locale) else _approval_fragment_en()
         )
-    return "\n\n".join(parts)
+    return _apply_tool_surface_names("\n\n".join(parts), surface=surface, locale=locale)
+
+
+def build_mcp_memory_store_tool_description(
+    *,
+    wiki_boundary_in_description: bool = True,
+    approval_required: bool = False,
+    locale: str | None = DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE,
+) -> str:
+    """Build memory_store MCP @tool description from save SSOT core."""
+    policy = MemorySearchPolicy(allow_wiki=wiki_boundary_in_description)
+    return build_memory_save_tool_description(
+        policy,
+        approval_required=approval_required,
+        locale=locale,
+        surface="mcp",
+    )
 
 
 def resolve_memory_save_tool_description(
     locale: str | None = DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE,
+    *,
+    surface: MemoryToolDescriptionSurface = "agent",
 ) -> str:
-    return build_memory_save_tool_description(MemorySearchPolicy(), locale=locale)
+    return build_memory_save_tool_description(
+        MemorySearchPolicy(),
+        locale=locale,
+        surface=surface,
+    )
 
 
 def resolve_memory_manage_tool_description(
     locale: str | None = DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE,
+    *,
+    surface: MemoryToolDescriptionSurface = "agent",
 ) -> str:
-    if is_chinese(locale):
-        return MEMORY_MANAGE_TOOL_DESCRIPTION_ZH
-    return MEMORY_MANAGE_TOOL_DESCRIPTION_EN
+    base = (
+        MEMORY_MANAGE_TOOL_DESCRIPTION_ZH
+        if is_chinese(locale)
+        else MEMORY_MANAGE_TOOL_DESCRIPTION_EN
+    )
+    return _apply_tool_surface_names(base, surface=surface, locale=locale)
 
 
 __all__ = [
+    "build_mcp_memory_store_tool_description",
+    "build_memory_save_tool_description",
+    "build_memory_search_tool_description",
     "DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE",
     "MEMORY_MANAGE_TOOL_DESCRIPTION",
     "MEMORY_MANAGE_TOOL_DESCRIPTION_EN",
@@ -405,8 +490,7 @@ __all__ = [
     "MEMORY_SAVE_TOOL_DESCRIPTION",
     "MEMORY_SAVE_TOOL_DESCRIPTION_EN",
     "MEMORY_SAVE_TOOL_DESCRIPTION_ZH",
-    "build_memory_save_tool_description",
-    "build_memory_search_tool_description",
+    "MemoryToolDescriptionSurface",
     "resolve_memory_manage_tool_description",
     "resolve_memory_save_tool_description",
 ]

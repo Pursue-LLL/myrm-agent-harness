@@ -39,7 +39,7 @@ from myrm_agent_harness.utils.token_estimation import (
     estimate_messages_tokens,
 )
 
-from ..infra.schemas import ContextConfig, StructuredSummary
+from ...infra.schemas import ContextConfig, StructuredSummary
 from .progress_timeout import (
     InactivityTimeoutError,
     ProgressClock,
@@ -282,7 +282,7 @@ def should_summarize(
     last_provider_prompt_tokens: int | None = None,
 ) -> bool:
     """Check whether proactive summarization should be triggered (dual-signal)."""
-    from ..infra.schemas import DEFAULT_CONTEXT_CONFIG
+    from ...infra.schemas import DEFAULT_CONTEXT_CONFIG
 
     cfg = config or DEFAULT_CONTEXT_CONFIG
     total_tokens = estimate_context_tokens(
@@ -365,7 +365,7 @@ async def generate_structured_summary(
     """
     _summarize_start = time.monotonic()
 
-    from ..infra.schemas import DEFAULT_CONTEXT_CONFIG
+    from ...infra.schemas import DEFAULT_CONTEXT_CONFIG
 
     cfg = config or DEFAULT_CONTEXT_CONFIG
 

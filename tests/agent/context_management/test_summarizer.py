@@ -12,7 +12,7 @@ from myrm_agent_harness.agent.context_management.infra.schemas import (
     ContextConfig,
     StructuredSummary,
 )
-from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
     _build_budget_hint,
     _build_summary_invocation_messages,
     _cap_summary_if_needed,
@@ -184,7 +184,7 @@ class TestGenerateStructuredSummaryFull:
         ]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.extract_existing_summary",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.extract_existing_summary",
             return_value=None,
         ):
             new_messages, summary = await generate_structured_summary(
@@ -213,7 +213,7 @@ class TestGenerateStructuredSummaryFull:
         messages: list[BaseMessage] = [HumanMessage(content="重构auth模块")]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.extract_existing_summary",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.extract_existing_summary",
             return_value=None,
         ):
             _, summary = await generate_structured_summary(
@@ -246,7 +246,7 @@ class TestGenerateStructuredSummaryFull:
         ]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.extract_existing_summary",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.extract_existing_summary",
             return_value=None,
         ):
             _, summary = await generate_structured_summary(
@@ -359,7 +359,7 @@ class TestGenerateStructuredSummaryIncremental:
 
 class TestRecordSummarizeToMetrics:
     def test_metrics_recording_no_exception(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _record_summarize_to_metrics,
         )
 
@@ -367,7 +367,7 @@ class TestRecordSummarizeToMetrics:
 
     def test_metrics_recording_with_exception(self) -> None:
         """Metrics recording failure should be silently caught."""
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _record_summarize_to_metrics,
         )
 
@@ -479,7 +479,7 @@ class TestInvokeSummaryWithParser:
 
     @pytest.mark.asyncio
     async def test_parser_path(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _FallbackSummaryModel,
             _invoke_summary,
         )
@@ -543,7 +543,7 @@ class TestSummarizeWithAuditExceptionHandling:
         ]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.extract_existing_summary",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.extract_existing_summary",
             return_value=None,
         ), pytest.raises(ValueError, match="Failed to generate structured summary"):
             await generate_structured_summary(
@@ -576,7 +576,7 @@ class TestSummarizeWithAuditExceptionHandling:
         ]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.extract_existing_summary",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.extract_existing_summary",
             return_value=None,
         ):
             _, summary = await generate_structured_summary(
@@ -617,7 +617,7 @@ class TestGetStructuredLlmOrParserFallback:
     """Cover the NotImplementedError fallback in _get_structured_llm_or_parser."""
 
     def test_fallback_to_parser(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _get_structured_llm_or_parser,
         )
 
@@ -664,7 +664,7 @@ class TestRecordCompressionSuccess:
     """Cover successful metrics.record_compression path."""
 
     def test_successful_metrics_recording(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _record_summarize_to_metrics,
         )
 
@@ -801,7 +801,7 @@ class TestRedactSummaryIntegrationInInvokeSummary:
         mock_structured.ainvoke.return_value = summary_with_key
         mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
 
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _invoke_summary,
         )
 
@@ -859,7 +859,7 @@ class TestGuardAuxContext:
     """Verify _guard_aux_context trims messages for small aux models."""
 
     def test_no_trim_when_limit_unknown(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _guard_aux_context,
         )
 
@@ -867,7 +867,7 @@ class TestGuardAuxContext:
         msgs: list[BaseMessage] = [HumanMessage(content="x " * 5000)]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.get_model_context_limit",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.get_model_context_limit",
             return_value=None,
         ):
             result = _guard_aux_context(msgs, mock_llm)
@@ -875,7 +875,7 @@ class TestGuardAuxContext:
         assert result is msgs
 
     def test_no_trim_when_within_budget(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _guard_aux_context,
         )
 
@@ -883,7 +883,7 @@ class TestGuardAuxContext:
         msgs: list[BaseMessage] = [HumanMessage(content="short")]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.get_model_context_limit",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.get_model_context_limit",
             return_value=128_000,
         ):
             result = _guard_aux_context(msgs, mock_llm)
@@ -891,7 +891,7 @@ class TestGuardAuxContext:
         assert result is msgs
 
     def test_trims_when_exceeding_aux_limit(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _guard_aux_context,
         )
 
@@ -902,7 +902,7 @@ class TestGuardAuxContext:
         ]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.get_model_context_limit",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.get_model_context_limit",
             return_value=8192,
         ):
             result = _guard_aux_context(msgs, mock_llm)
@@ -912,7 +912,7 @@ class TestGuardAuxContext:
         assert result[-1] is msgs[-1]
 
     def test_preserves_most_recent_messages(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _guard_aux_context,
         )
 
@@ -922,7 +922,7 @@ class TestGuardAuxContext:
         ]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.get_model_context_limit",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.get_model_context_limit",
             return_value=4096,
         ):
             result = _guard_aux_context(msgs, mock_llm)
@@ -932,7 +932,7 @@ class TestGuardAuxContext:
         assert result[-1] is msgs[-1]
 
     def test_at_least_one_message_when_all_too_large(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _guard_aux_context,
         )
 
@@ -942,7 +942,7 @@ class TestGuardAuxContext:
         ]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.get_model_context_limit",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.get_model_context_limit",
             return_value=1024,
         ):
             result = _guard_aux_context(msgs, mock_llm)
@@ -952,7 +952,7 @@ class TestGuardAuxContext:
 
     def test_handles_tiny_aux_context_gracefully(self) -> None:
         """Aux model so small that safe_budget <= 0 — returns original messages."""
-        from myrm_agent_harness.agent.context_management.strategies.summarizer import (
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
             _guard_aux_context,
         )
 
@@ -960,7 +960,7 @@ class TestGuardAuxContext:
         msgs: list[BaseMessage] = [HumanMessage(content="test")]
 
         with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summarizer.get_model_context_limit",
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.get_model_context_limit",
             return_value=100,
         ):
             result = _guard_aux_context(msgs, mock_llm, prompt_tokens=200)
@@ -988,11 +988,11 @@ class TestGuardAuxContextIntegration:
 
         with (
             patch(
-                "myrm_agent_harness.agent.context_management.strategies.summarizer.extract_existing_summary",
+                "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.extract_existing_summary",
                 return_value=None,
             ),
             patch(
-                "myrm_agent_harness.agent.context_management.strategies.summarizer.get_model_context_limit",
+                "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.get_model_context_limit",
                 return_value=4096,
             ),
         ):
@@ -1021,11 +1021,11 @@ class TestGuardAuxContextIntegration:
 
         with (
             patch(
-                "myrm_agent_harness.agent.context_management.strategies.summarizer.extract_existing_summary",
+                "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.extract_existing_summary",
                 return_value=None,
             ),
             patch(
-                "myrm_agent_harness.agent.context_management.strategies.summarizer.get_model_context_limit",
+                "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.get_model_context_limit",
                 return_value=200_000,
             ),
         ):

@@ -143,6 +143,19 @@ def get_metadata_summary(
     catalog size still counts toward cached conversation prefix when present.
     """
     if not skills:
+        if hidden_skill_count > 0:
+            return "\n".join(
+                [
+                    "<skills>",
+                    " <routing_rules>",
+                    " If exactly one skill clearly applies to the user's request: use skill_select_tool to read its SKILL.md.",
+                    " If multiple skills may apply: ask the user which to use.",
+                    " If no skill applies: proceed without skills.",
+                    " If the needed skill is not listed below: use skill_search_tool before skill_select_tool.",
+                    " </routing_rules>",
+                    "</skills>",
+                ]
+            )
         return "<skills>No skills available.</skills>"
 
     always_skills = [s for s in skills if s.always]

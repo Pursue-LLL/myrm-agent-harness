@@ -10,8 +10,8 @@
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from myrm_agent_harness.agent.context_management.strategies.deduplication import deduplicate_tool_results
-from myrm_agent_harness.agent.context_management.strategies.tool_stats import extract_tool_stats
+from myrm_agent_harness.agent.context_management.strategies.compactor.deduplication import deduplicate_tool_results
+from myrm_agent_harness.agent.context_management.strategies.compactor.tool_stats import extract_tool_stats
 
 
 class TestExtractToolStats:

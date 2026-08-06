@@ -1,6 +1,7 @@
 """Memory citation event helpers.
 
 [INPUT]
+- toolkits.memory.memory_recall_formatting::sanitize_recalled_content (POS: Recall body redact → sanitize)
 - agent.streaming.types::AgentEventType (POS: Agent stream event type names)
 - utils.runtime.progress_sink::get_tool_progress_sink (POS: Runtime tool progress event sink)
 - toolkits.memory.types::MemoryType (POS: Memory domain type enum)
@@ -99,7 +100,11 @@ def _copy_optional_str(target: dict[str, object], key: str, value: object) -> No
 
 
 def _bounded_text(value: object) -> str:
-    text = str(value)
+    from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+        sanitize_recalled_content,
+    )
+
+    text = sanitize_recalled_content(str(value))
     if len(text) <= MAX_CITATION_CONTENT_CHARS:
         return text
     return f"{text[:MAX_CITATION_CONTENT_CHARS]}..."

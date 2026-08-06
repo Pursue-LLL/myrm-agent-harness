@@ -4,7 +4,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
 from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
-from myrm_agent_harness.agent.context_management.strategies.summary_auditor import (
+from myrm_agent_harness.agent.context_management.strategies.summary.summary_auditor import (
     AuditResult,
     audit_summary,
     build_retry_guidance,

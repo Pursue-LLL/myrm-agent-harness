@@ -7,7 +7,7 @@ and flattened to plain text before compression, preventing token waste.
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
-from myrm_agent_harness.agent.context_management.strategies.compactor import (
+from myrm_agent_harness.agent.context_management.strategies.compactor.compactor import (
     compress_tool_message_async,
 )
 

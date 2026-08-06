@@ -38,6 +38,7 @@ from myrm_agent_harness.toolkits.memory.memory_recall_budget import (
     normalize_recall_limit,
 )
 from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    format_profile_recall_output,
     parse_time_bound as _parse_time_bound,
 )
 from myrm_agent_harness.toolkits.memory.memory_search_execution import (
@@ -217,7 +218,7 @@ def create_memory_tools(
             value = await manager.get_profile_attribute(profile_key)
             if value is None:
                 return f"No profile attribute '{profile_key}' found."
-            return f"{profile_key}: {value}"
+            return format_profile_recall_output(profile_key, value)
 
         corpora, reject_reason = resolve_search_corpora(corpus, policy)
         if reject_reason:

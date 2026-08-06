@@ -4,7 +4,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.infra.schemas import ContextConfig
-from myrm_agent_harness.agent.context_management.strategies.compactor import (
+from myrm_agent_harness.agent.context_management.strategies.compactor.compactor import (
     compress_messages_async,
     find_tool_message_pairs,
 )

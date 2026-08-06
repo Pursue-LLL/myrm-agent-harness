@@ -16,9 +16,9 @@ from __future__ import annotations
 
 from langchain_core.messages import BaseMessage
 
-from ..infra.schemas import PRE_COMPACT_MESSAGE_METADATA_KEY
-from ..pipeline.base import ProcessorContext
-from .summary_builder import extract_protected_head
+from ...infra.schemas import PRE_COMPACT_MESSAGE_METADATA_KEY
+from ...pipeline.base import ProcessorContext
+from ..summary.summary_builder import extract_protected_head
 
 PRE_COMPACT_RECALL_MARKER = "<pre_compact_recall_context"
 

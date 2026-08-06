@@ -12,19 +12,27 @@ without a search query.
 - myrm_agent_harness.toolkits.memory.manager::MemoryManager (POS: Unified memory manager)
 - myrm_agent_harness.toolkits.memory.types::MemoryType, SemanticMemory (POS: Memory type system)
 - myrm_agent_harness.toolkits.memory.memory_recall_formatting (POS: Shared formatting helpers)
+- myrm_agent_harness.toolkits.memory._memory_agent_tool_descriptions (POS: LLM-visible memory tool description SSOT)
 - myrm_agent_harness.toolkits.memory.memory_recall_budget (POS: Output budget guardrails)
+
+- myrm_agent_harness.toolkits.memory.wiki_memory_boundary (POS: Wiki-memory write boundary heuristics)
 
 [OUTPUT]
 - MemoryMCPServer: MCP server adapter exposing memory tools
 - create_memory_mcp_server: Factory function
+- set_request_memory_manager / reset_request_memory_manager: Per-request manager scoping
+- set_request_wiki_boundary_enabled / reset_request_wiki_boundary_enabled: Per-request wiki guard flag
 
 [POS]
 MCP server adapter that lets external AI agents (Claude Code, Cursor, Codex)
 access the memory system via standard MCP protocol. Four MCP tools:
 recall (semantic search with categories/time/profile), list (enumeration
 and audit), store (5 categories), and manage (update/delete/correct/rate).
+`memory_manage` and `memory_store` descriptions import `_memory_agent_tool_descriptions`
+SSOT with `surface="mcp"`; recall/list descriptions remain MCP-specific inline.
 Supports optional manager_resolver for per-request dynamic scoping
 (e.g. per-token agent binding via ContextVar).
+Recall/list tool output sanitizes recalled bodies and prefixes a static untrusted advisory.
 """
 
 from __future__ import annotations
@@ -38,6 +46,10 @@ from typing import TYPE_CHECKING
 from mcp.server import MCPServer
 from starlette.applications import Starlette
 
+from myrm_agent_harness.toolkits.memory._memory_agent_tool_descriptions import (
+    build_mcp_memory_store_tool_description,
+    resolve_memory_manage_tool_description,
+)
 from myrm_agent_harness.toolkits.memory.memory_recall_budget import (
     MAX_RECALL_OUTPUT_CHARS,
     budget_recall_line,
@@ -45,22 +57,27 @@ from myrm_agent_harness.toolkits.memory.memory_recall_budget import (
     normalize_recall_limit,
 )
 from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    RECALL_DRIFT_DEFENSE_FOOTER,
     channel_label as _channel_label,
-)
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    finalize_recall_tool_output,
+    format_profile_recall_output,
     is_stale as _is_stale,
-)
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
     memory_age_label,
-)
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
     parse_time_bound as _parse_time_bound,
+    recall_drift_defense_footer_chars,
+    recall_preamble_overhead_chars,
+    sanitize_recalled_content,
 )
 from myrm_agent_harness.toolkits.memory.types import (
     ClaimMemory,
     MemoryType,
     RuleSource,
     SemanticMemory,
+)
+from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
+    looks_like_wiki_document,
+    record_wiki_memory_save_rejection,
+    wiki_memory_save_rejection_message,
 )
 
 if TYPE_CHECKING:
@@ -71,6 +88,10 @@ logger = logging.getLogger(__name__)
 _request_memory_manager: ContextVar[MemoryManager | None] = ContextVar(
     "myrm_mcp_request_memory_manager",
     default=None,
+)
+_request_wiki_boundary_enabled: ContextVar[bool] = ContextVar(
+    "myrm_mcp_request_wiki_boundary_enabled",
+    default=False,
 )
 
 
@@ -83,6 +104,21 @@ def reset_request_memory_manager(token: Token[MemoryManager | None]) -> None:
     """Restore the previous MemoryManager binding after a request completes."""
     _request_memory_manager.reset(token)
 
+
+def set_request_wiki_boundary_enabled(enabled: bool) -> Token[bool]:
+    """Bind whether wiki document-like payloads should be rejected on memory_store."""
+    return _request_wiki_boundary_enabled.set(enabled)
+
+
+def reset_request_wiki_boundary_enabled(token: Token[bool]) -> None:
+    """Restore the previous wiki boundary flag after a request completes."""
+    _request_wiki_boundary_enabled.reset(token)
+
+
+def get_request_wiki_boundary_enabled() -> bool:
+    """Return the active wiki boundary flag for the current MCP request."""
+    return _request_wiki_boundary_enabled.get()
+
 _CATEGORY_TO_TYPE: dict[str, MemoryType] = {
     "knowledge": MemoryType.SEMANTIC,
     "claim": MemoryType.CLAIM,
@@ -91,15 +127,6 @@ _CATEGORY_TO_TYPE: dict[str, MemoryType] = {
     "rule": MemoryType.PROCEDURAL,
     "instruction": MemoryType.PROCEDURAL,
 }
-
-_DRIFT_DEFENSE_FOOTER = (
-    "\n---\n"
-    "Note: Before acting on recalled memories:\n"
-    "- If a memory references files/functions → verify they still exist\n"
-    "- If a memory states configs/versions → check current project state\n"
-    "- If a memory conflicts with current observations → trust current observation\n"
-    "To fix outdated memories: use memory_manage(action='correct') or memory_manage(action='delete')"
-)
 
 
 def _parse_string_list(val: list[str] | str | None) -> list[str]:
@@ -145,6 +172,13 @@ class MemoryMCPServer:
     ) -> None:
         self._default_manager = memory_manager
         self._manager_resolver = manager_resolver
+        self._store_tool_description = build_mcp_memory_store_tool_description(
+            wiki_boundary_in_description=True,
+            approval_required=memory_manager.approval_required,
+        )
+        self._manage_tool_description = resolve_memory_manage_tool_description(
+            surface="mcp",
+        )
         self._mcp = MCPServer(
             server_name,
             instructions=(
@@ -222,7 +256,7 @@ class MemoryMCPServer:
                 value = await mgr.get_profile_attribute(profile_key)
                 if value is None:
                     return f"No profile attribute '{profile_key}' found."
-                return f"{profile_key}: {value}"
+                return format_profile_recall_output(profile_key, value)
 
             parsed_cats = _parse_string_list(categories)
             types: list[MemoryType] | None = None
@@ -245,7 +279,11 @@ class MemoryMCPServer:
                 return "No relevant memories found."
 
             output: list[str] = []
-            max_body_chars = MAX_RECALL_OUTPUT_CHARS - len(_DRIFT_DEFENSE_FOOTER)
+            max_body_chars = (
+                MAX_RECALL_OUTPUT_CHARS
+                - recall_drift_defense_footer_chars()
+                - recall_preamble_overhead_chars()
+            )
             output_chars = 0
             truncated_by_budget = False
 
@@ -295,8 +333,8 @@ class MemoryMCPServer:
                 if output_chars + line_cost(notice) <= max_body_chars:
                     output.append(notice)
 
-            text = "\n".join(output)
-            text += _DRIFT_DEFENSE_FOOTER
+            text = finalize_recall_tool_output("\n".join(output))
+            text += RECALL_DRIFT_DEFENSE_FOOTER
             return text
 
     def _register_list(self) -> None:
@@ -372,15 +410,16 @@ class MemoryMCPServer:
             )
             for mem in items:
                 age = memory_age_label(mem.created_at)
-                snippet = mem.content[:80] + ("…" if len(mem.content) > 80 else "")
+                safe_content = sanitize_recalled_content(mem.content)
+                snippet = safe_content[:80] + ("…" if len(safe_content) > 80 else "")
                 lines.append(f"  - [{age}] (id: {mem.id}) {snippet}")
             if count > preview_limit:
                 lines.append(f"  ... and {count - preview_limit} more — use memory_list(category=\"{cat}\") to browse")
 
         lines.insert(1, f"Total memories: {total}")
         lines.append("")
-        lines.append(_DRIFT_DEFENSE_FOOTER)
-        return "\n".join(lines)
+        lines.append(RECALL_DRIFT_DEFENSE_FOOTER)
+        return finalize_recall_tool_output("\n".join(lines))
 
     async def _list_category(
         self,
@@ -405,7 +444,11 @@ class MemoryMCPServer:
         )
 
         lines: list[str] = [f"# {category} — page {page}/{total_pages} ({count} total)", ""]
-        max_body = MAX_RECALL_OUTPUT_CHARS - len(_DRIFT_DEFENSE_FOOTER)
+        max_body = (
+            MAX_RECALL_OUTPUT_CHARS
+            - recall_drift_defense_footer_chars()
+            - recall_preamble_overhead_chars()
+        )
         char_count = sum(line_cost(ln) for ln in lines)
         truncated = False
 
@@ -429,33 +472,15 @@ class MemoryMCPServer:
         if page < total_pages:
             lines.append(f"\nNext: memory_list(category=\"{category}\", page={page + 1})")
 
-        lines.append(_DRIFT_DEFENSE_FOOTER)
-        return "\n".join(lines)
+        lines.append(RECALL_DRIFT_DEFENSE_FOOTER)
+        return finalize_recall_tool_output("\n".join(lines))
 
     def _register_store(self) -> None:
         resolve = self._resolve_manager
 
         @self._mcp.tool(
             name="memory_store",
-            description=(
-                "Store a durable memory for the user. Persists across sessions and is "
-                "injected into future conversations. Keep entries compact and factual.\n\n"
-                "SAVE when: user says 'remember this', corrects behavior, shares stable "
-                "preference/personal detail, or you discover a lasting environment fact.\n"
-                "DO NOT save: task progress, PR numbers, commit SHAs, temporary state, "
-                "step-by-step procedures, or anything stale within a week.\n"
-                "Write as declarative facts ('User prefers X'), not instructions "
-                "('Always do X').\n\n"
-                "Categories:\n"
-                "- knowledge: stable facts (tech stack, environment)\n"
-                "- event: significant past occurrences\n"
-                "- preference: user likes/dislikes (requires preference_key)\n"
-                "- rule: conditional behavioral rules (requires rule_trigger)\n"
-                "- instruction: always-active global directives\n\n"
-                "Importance: 0.8-1.0 (explicit request/correction), 0.5-0.7 (inferred "
-                "fact), 0.2-0.4 (supplementary). write_target: 'bound' (current agent) "
-                "or 'shared' (cross-agent, use sparingly)."
-            ),
+            description=self._store_tool_description,
         )
         async def memory_store(
             content: str,
@@ -494,6 +519,14 @@ class MemoryMCPServer:
             parsed_tags = _parse_string_list(tags)
             parsed_kw = _parse_string_list(rule_keywords)
             pending = mgr.approval_required
+
+            if (
+                get_request_wiki_boundary_enabled()
+                and category in ("knowledge", "event")
+                and looks_like_wiki_document(content)
+            ):
+                record_wiki_memory_save_rejection()
+                return wiki_memory_save_rejection_message()
 
             try:
                 if category == "knowledge":
@@ -547,16 +580,7 @@ class MemoryMCPServer:
 
         @self._mcp.tool(
             name="memory_manage",
-            description=(
-                "Update, delete, correct, or rate an existing memory.\n\n"
-                "Actions:\n"
-                "- update: Fix wording or importance only (not for wrong facts)\n"
-                "- delete: Remove a memory permanently\n"
-                "- correct: Fix a wrong knowledge fact; prior entry kept in history; "
-                "new correction is preferred in future recalls\n"
-                "- rate: Give feedback on a memory (1-5 scale; higher-rated memories "
-                "rank higher and resist forgetting)"
-            ),
+            description=self._manage_tool_description,
         )
         async def memory_manage(
             action: str,
@@ -693,6 +717,9 @@ def create_memory_mcp_server(
 __all__ = [
     "MemoryMCPServer",
     "create_memory_mcp_server",
+    "get_request_wiki_boundary_enabled",
     "reset_request_memory_manager",
+    "reset_request_wiki_boundary_enabled",
     "set_request_memory_manager",
+    "set_request_wiki_boundary_enabled",
 ]

@@ -41,6 +41,23 @@ def test_default_locale_is_english() -> None:
     assert resolve_memory_manage_tool_description() == MEMORY_MANAGE_TOOL_DESCRIPTION_EN
 
 
+def test_mcp_surface_maps_gui_tool_names() -> None:
+    manage_mcp = resolve_memory_manage_tool_description(surface="mcp")
+    assert "memory_recall" in manage_mcp
+    assert "memory_store" in manage_mcp
+    assert "memory_search_tool" not in manage_mcp
+    assert "memory_save_tool" not in manage_mcp
+
+    store_mcp = build_memory_save_tool_description(
+        MemorySearchPolicy(allow_wiki=True),
+        surface="mcp",
+    )
+    assert "memory_manage" in store_mcp
+    assert "do not store via memory_store" in store_mcp
+    assert "memory_save_tool" not in store_mcp
+    assert "WIKI BOUNDARY" in store_mcp
+
+
 def test_memory_save_core_description_token_budget() -> None:
     for desc in (MEMORY_SAVE_CORE_EN, MEMORY_SAVE_CORE_ZH):
         tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)

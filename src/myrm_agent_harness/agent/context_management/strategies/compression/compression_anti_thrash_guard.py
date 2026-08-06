@@ -27,7 +27,7 @@ SAFETY_NET_RATIO: float = 0.90
 def _read_ineffective_streak(chat_id: str | None) -> int:
     if not chat_id:
         return 0
-    from myrm_agent_harness.agent.context_management.strategies.compression_streak_store import (
+    from myrm_agent_harness.agent.context_management.strategies.compression.compression_streak_store import (
         get_compression_streak_store,
     )
 
@@ -68,7 +68,7 @@ def record_compression_effectiveness(
     """Update ineffective streak from compaction token savings."""
     if not chat_id or original_tokens <= 0:
         return
-    from myrm_agent_harness.agent.context_management.strategies.compression_streak_store import (
+    from myrm_agent_harness.agent.context_management.strategies.compression.compression_streak_store import (
         get_compression_streak_store,
     )
     from myrm_agent_harness.agent.context_management.tracking.task_metrics import (

@@ -5,36 +5,23 @@ Three-tier context reduction strategies: Filter, Compress, Summarize.
 
 ## File & Submodule Index
 
-| File | Role | Description | I/O/P |
-|------|------|-------------|-------|
-| __init__.py | Package | Three-tier context reduction strategies: Filter, Compress, Summarize. | — |
-| compact_rules.py | Core | Tool-specific compaction rules. Defines per-tool compression strategies in a line-based format for e | ✅ |
-| compactor.py | Core | Message compactor. Priority-aware three-tier compression strategy with configurable priority classification, structured offload results, and archive write/reuse telemetry. | ✅ |
-| compression_formatting.py | Core | Compression formatting utilities. Provides shared formatting functions used by compactor.py and smar | ✅ |
-| deduplication.py | Core | Provides deduplicate_tool_results. | ✅ |
-| filter.py | Core | Tool result filter. Truncates large tool outputs and generates smart previews via structural extract | ✅ |
-| integrity_guard.py | Core | Tool pair integrity guard for compacted message histories. | ✅ |
-| priority_signals.py | Core | Group-level focus/goal signal matchers shared by Compress priority planning and Filter retention | ✅ |
-| smart_fallback.py | Core | Smart fallback for extreme token overflow; accepts failed_tool_call_ids so protected tools stay HIGH priority during budget allocation | ✅ |
-| progress_timeout.py | Core | Progress-aware timeout primitives (SummaryProgressTracker Protocol, ProgressClock, InactivityTimeoutError, TotalCeilingTimeoutError) for detecting stalled summarization. | ✅ |
-| summarize_circuit_guard.py | Core | Summarize circuit breaker guard (`is_summarize_circuit_open`). Used by server `compact_chat` to fail-fast when harness summarize circuit is open. | ✅ |
-| compression_anti_thrash_guard.py | Core | Anti-thrashing guard (`should_block_automatic_compression`, `record_compression_effectiveness` via `compression_streak_store`). Shared by CompressProcessor and server `compact_chat`. | ✅ |
-| compression_streak_store.py | Core | Pluggable streak persistence Protocol; default in-memory TaskMetrics; server registers Chat DB store at startup. | ✅ |
-| summarizer.py | Core | Context summarizer. Pure in-memory summarization strategy using structured summary schema, cache-safe message-prefix invocation, streaming progress tracking, and aux-model context guard. | ✅ |
-| summary_auditor.py | Core | Quality gate for the summarizer.  Runs *after* LLM generates a summary | ✅ |
-| summary_builder.py | Core | Message reconstruction after summarisation. | ✅ |
-| summary_parser.py | Core | Summary parsing and message formatting utilities. | ✅ |
-| summary_prompts.py | Core | Summarization prompt templates. Defines structured JSON output format (with Handoff fields) and merg | ✅ |
-| pre_compact_context.py | Core | Pre-compaction protected-zone helpers. Preserves injected recall HumanMessage across Compress, SessionNotes, and Summarize rebuild paths. | ✅ |
-| tool_call_groups.py | Core | Provides ToolCallGroup, build_tool_call_groups. | ✅ |
-| tool_stats.py | Core | Provides extract_tool_stats. | ✅ |
+| File | Role | Description |
+|------|------|-------------|
+| `__init__.py` | Package | Namespace package. |
+| `filter.py` | Facade | Tool result filter facade. Truncates large tool outputs and generates smart previews via structural extraction. |
+| `tool_call_groups.py` | Shared | Cross-domain utility: `ToolCallGroup`, `build_tool_call_groups`. Used by compactor, filters, and infra. |
+| `priority_signals.py` | Shared | Cross-domain utility: group-level focus/goal signal matchers. Used by compactor and retention_helpers. |
 
 | Submodule | Description |
 |-----------|-------------|
-| filters/ | Filters module. |
-| session_notes/ | Real-time structured session notes. Asynchronously maintains notes during conversation, serving as z |
+| `compactor/` | Priority-aware message compression: four-level strategy, smart fallback, integrity guard, deduplication, and pre-compact helpers. |
+| `compression/` | Compression guards: anti-thrash protection, effectiveness tracking, and formatting utilities. |
+| `filters/` | Content-type detection, structural and semantic filtering implementations. |
+| `session_notes/` | Real-time structured session notes. Zero-API-cost compression source. |
+| `summary/` | Summarization strategy: LLM-based structured summarize, quality audit, message reconstruction, prompt templates, circuit breaker, and progress timeout. |
 
 ## Key Dependencies
 
-- `runtime`
-- `utils`
+- `..infra` (schemas, message_priority, retention_helpers)
+- `..pipeline` (ProcessorContext)
+- `utils` (token counting, logging)

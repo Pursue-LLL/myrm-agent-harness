@@ -55,13 +55,13 @@ from ...infra.context_budget import (
     resolve_budget_kwargs_from_metadata,
 )
 from ...infra.schemas import ContextConfig, StructuredSummary
-from ...strategies.progress_timeout import (
+from ...strategies.summary.progress_timeout import (
     InactivityTimeoutError,
     ProgressClock,
     TotalCeilingTimeoutError,
 )
-from ...strategies.summarizer import generate_structured_summary, should_summarize
-from ...strategies.summary_builder import (
+from ...strategies.summary.summarizer import generate_structured_summary, should_summarize
+from ...strategies.summary.summary_builder import (
     create_summary_message,
     extract_recent_messages,
 )
@@ -324,7 +324,7 @@ class SummarizeProcessor(BaseProcessor):
 
         focus_topic = _extract_focus_topic(context.metadata)
 
-        from ...strategies.pre_compact_context import get_pre_compact_message
+        from ...strategies.compactor.pre_compact_context import get_pre_compact_message
 
         pre_compact_message = get_pre_compact_message(context)
 
@@ -452,8 +452,8 @@ class SummarizeProcessor(BaseProcessor):
             context.messages, context.metadata, context.chat_id
         )
 
-        from ...strategies.pre_compact_context import prepend_pre_compact_message
-        from ...strategies.summary_builder import extract_protected_head
+        from ...strategies.compactor.pre_compact_context import prepend_pre_compact_message
+        from ...strategies.summary.summary_builder import extract_protected_head
 
         protected_head = extract_protected_head(context.messages)
 

@@ -120,6 +120,15 @@ def test_metadata_summary_routing_rules_include_search_when_hidden() -> None:
     assert "skill_search_tool" in hidden
 
 
+def test_metadata_summary_all_hidden_still_emits_search_routing() -> None:
+    from myrm_agent_harness.agent.skills.runtime.registry import get_metadata_summary
+
+    summary = get_metadata_summary([], hidden_skill_count=25)
+    assert "routing_rules" in summary
+    assert "skill_search_tool" in summary
+    assert "No skills available" not in summary
+
+
 def test_bound_skills_block_includes_hidden_count_attribute() -> None:
     block = build_bound_skills_block([_skill("alpha_skill")], hidden_skill_count=5)
     assert 'hidden_count="5"' in block

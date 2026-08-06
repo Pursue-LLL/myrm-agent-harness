@@ -25,7 +25,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
-from ...strategies.summary_builder import UNVERIFIED_CONTEXT_MARKER
+from ...strategies.summary.summary_builder import UNVERIFIED_CONTEXT_MARKER
 from ..base import BaseProcessor, ProcessorContext
 
 if TYPE_CHECKING:
@@ -93,8 +93,8 @@ class SessionNotesProcessor(BaseProcessor):
             )
         )
 
-        from ...strategies.pre_compact_context import prepend_pre_compact_message
-        from ...strategies.summary_builder import extract_protected_head
+        from ...strategies.compactor.pre_compact_context import prepend_pre_compact_message
+        from ...strategies.summary.summary_builder import extract_protected_head
 
         protected_head = extract_protected_head(context.messages)
         keep_start = _calculate_keep_index(context.messages, notes.last_updated_message_idx)

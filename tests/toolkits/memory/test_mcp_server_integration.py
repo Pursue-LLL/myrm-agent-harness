@@ -166,6 +166,21 @@ class TestMemoryListCategoryIntegration:
         assert "Knowledge fact 2" in result
 
     @pytest.mark.asyncio
+    async def test_knowledge_listing_redacts_credentials(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ) -> None:
+        secret = "sk-proj-abcdefghij1234567890"
+        vector, _, _ = _stores
+        docs = [_make_vector_doc("k1", f"Stored key {secret}")]
+        vector.scroll.return_value = (docs, None)
+        vector.count.return_value = 1
+
+        tm = mcp_server.mcp._tool_manager
+        result = await tm.call_tool("memory_list", {"category": "knowledge"}, _mock_ctx)
+        assert secret not in result
+        assert "Stored key" in result
+
+    @pytest.mark.asyncio
     async def test_pagination_respects_page_param(self, mcp_server: MemoryMCPServer, _stores, _mock_ctx):
         vector, _, _ = _stores
         vector.count.return_value = 10

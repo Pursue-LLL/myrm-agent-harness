@@ -12,7 +12,7 @@
 > | §4.1 批量清理 | `pipeline/processors/compress_processor.py` |
 > | §4.2 compress_min_save | `schemas.py` |
 > | §4.3 动态阈值 | `infra/context_budget.py` |
-> | §4.4 可逆压缩 | `strategies/compactor.py` |
+> | §4.4 可逆压缩 | `strategies/compactor/compactor.py` |
 > | §4.5 摘要与缓存生命周期 | `strategies/summarizer.py` |
 > | §5.1 Cache-TTL 归档与恢复 | `pipeline/processors/cache_ttl_prune_processor.py`, `infra/archive_reference.py`, `tracking/task_metrics.py`, `meta_tools/file_ops/core/file_operation_service.py` |
 > | §5 Pipeline | `pipeline/engine.py`, `middlewares/context_pipeline_middleware.py` |
@@ -1265,7 +1265,7 @@ MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 p
 | `infra/cache_policy.py` | `CacheTtlPrunePolicy` — 按模型/供应商解析官方 TTL 校准 profile，并允许业务层注入覆盖 |
 | `tracking/task_metrics.py` | `TaskMetrics` — 记录真实剪枝延期、归档预算延期、归档写入/复用、归档恢复读取成本、净节省和执行层恢复读取预算 |
 | `pipeline/processors/compress_processor.py` | `CompressProcessor` + `BatchCompactState` — 批量清理策略 |
-| `strategies/compactor.py` | 可逆压缩实现（紧凑格式 + 外部化到文件，减 tokens 不减 blocks） |
+| `strategies/compactor/compactor.py` | 可逆压缩实现（紧凑格式 + 外部化到文件，减 tokens 不减 blocks） |
 | `strategies/summarizer.py` | 结构化摘要（缓存重置事件，减 tokens 且减 blocks） |
 | `infra/context_budget.py` | `ContextBudget` — 动态阈值计算 |
 | `schemas.py` | `ContextConfig` — 阈值定义、`COMPRESS_MIN_SAVE_DEFAULT`、`COMPACT_RULES` |

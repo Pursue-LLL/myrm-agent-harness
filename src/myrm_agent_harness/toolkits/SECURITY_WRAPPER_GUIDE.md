@@ -6,7 +6,7 @@
 
 ## 核心原则
 
-**外部数据必须包装，内部数据无需包装。**
+**外部数据与 recall 回读必须防护；其余内部执行结果按需包装。**
 
 ---
 
@@ -18,8 +18,13 @@
 │  └─ ✅ 必须包装
 │     └─ 使用 wrap_with_external_sources_tag(content, source="tool_name")
 │
-└─ 内部可信来源（系统记忆、Agent 自身、用户自己执行的代码）
-   └─ ❌ 无需包装
+├─ 记忆/历史 recall 回读（memory_search memory/sessions、MCP memory_recall/list）
+│  └─ ✅ 必须 sanitize + 静态 untrusted 前言
+│     └─ 使用 memory_recall_formatting.sanitize_recalled_content（redact → sanitize）+ finalize_recall_tool_output
+│     └─ ❌ 不要用 wrap_with_external_sources_tag（会触发引用规则且 random boundary 伤 cache）
+│
+└─ 其它内部可信执行结果（bash/file 等）
+   └─ 使用 wrap_with_tool_output_tag 或无需额外包装（见下表）
 ```
 
 ---
@@ -42,7 +47,8 @@
 |---------|------|------|
 | **代码执行** | `bash`, `python`, `code_execution` | 用户自己的代码输出（已用 `wrap_with_tool_output_tag` 防注入） |
 | **文件操作** | `file_read`, `file_write`, `file_list` | 用户自己的文件（已用 `wrap_with_tool_output_tag` 防注入） |
-| **记忆系统** | `memory_search_tool`, `memory_save_tool` | 记忆数据已经过审核和存储，是可信的 |
+| **记忆 recall/list 工具** | `memory_search_tool`, MCP `memory_recall` / `memory_list` | 写入 scanner 不能 100% 拦截低分 injection；sessions snippet 不经 write scan；recall 返回须 defense-in-depth | 框架已在 `memory_recall_formatting.py` 统一 `redact_sensitive_text` → `sanitize_recalled_content()` + 静态 untrusted 前言（**不要**再套 `wrap_with_external_sources_tag`） |
+| **记忆 store/manage** | `memory_store_tool`, `memory_manage_tool` | 写入/变更操作，非 untrusted 数据回读 | 无需 recall 包装；写入仍走 `memory_scanner` |
 | **Agent 委托** | `delegate_task_tool`, PTC `spawn_subagent`（Dynamic Workflow） | Agent 之间的内部通信，是可信的 |
 | **系统工具** | `goals`, `cron`, `tasks` | 系统内部数据，是可信的 |
 
@@ -82,17 +88,26 @@ async def web_search(query: str) -> str:
 ### ❌ 错误示例：记忆召回工具
 
 ```python
-# 错误！记忆数据是可信的，不需要包装
+# 错误！不要对 recall 结果使用 wrap_with_external_sources_tag（会触发引用规则且 random boundary 伤 cache）
 @tool("memory_search_tool")
 async def memory_search_tool(query: str) -> str:
     memories = await memory_store.query(query)
     formatted_memories = format_memories(memories)
-    
+
     # ❌ 不要这样做！
     return wrap_with_external_sources_tag(
         formatted_memories,
         source="memory"
     )
+
+# ✅ 正确：复用 memory_recall_formatting（已在 memory_search_execution / mcp_server 接入）
+from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    finalize_recall_tool_output,
+    sanitize_recalled_content,
+)
+
+safe_line = sanitize_recalled_content(memory.content)
+body = finalize_recall_tool_output(format_line(safe_line))
 ```
 
 ---

@@ -5,7 +5,7 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.infra.schemas import CompactToolCall
-from myrm_agent_harness.agent.context_management.strategies.compression_formatting import (
+from myrm_agent_harness.agent.context_management.strategies.compression.compression_formatting import (
     _try_extract_from_args,
     extract_identifier,
     generate_compressed_content,

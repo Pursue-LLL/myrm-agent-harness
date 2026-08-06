@@ -494,7 +494,7 @@ class TestSessionNotesProcessor:
         from myrm_agent_harness.agent.context_management.pipeline.processors.session_notes_processor import (
             SessionNotesProcessor,
         )
-        from myrm_agent_harness.agent.context_management.strategies.summary_builder import UNVERIFIED_CONTEXT_MARKER
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import UNVERIFIED_CONTEXT_MARKER
 
         processor = SessionNotesProcessor(manager=mock_manager, summarize_trigger_threshold=10)
         messages: list[BaseMessage] = [

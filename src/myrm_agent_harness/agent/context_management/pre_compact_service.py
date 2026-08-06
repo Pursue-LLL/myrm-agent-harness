@@ -203,7 +203,7 @@ def _format_recall_body(
         suffix = ""
         budgeted = budget_recall_line(
             prefix=prefix,
-            content=sanitize(memory.content),
+            content=memory.content,
             suffix=suffix,
             output_chars=output_chars,
             max_body_chars=max_chars,

@@ -20,7 +20,7 @@ from langchain_core.messages import BaseMessage, ToolMessage
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
 
-from ..infra.schemas import ContextConfig
+from ...infra.schemas import ContextConfig
 
 logger = get_agent_logger(__name__)
 

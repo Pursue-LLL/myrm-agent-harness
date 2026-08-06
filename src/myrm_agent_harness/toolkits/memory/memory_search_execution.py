@@ -37,16 +37,15 @@ from myrm_agent_harness.toolkits.memory.memory_recall_budget import (
     normalize_recall_limit,
 )
 from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    RECALL_DRIFT_DEFENSE_FOOTER,
     channel_label as _channel_label,
-)
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+    finalize_recall_tool_output,
+    format_profile_recall_output,
     is_stale as _is_stale,
-)
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
     memory_age_label,
-)
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
     parse_time_bound as _parse_time_bound,
+    recall_drift_defense_footer_chars,
+    recall_preamble_overhead_chars,
 )
 from myrm_agent_harness.toolkits.memory.memory_search_policy import MemorySearchBackends
 from myrm_agent_harness.toolkits.memory.types import (
@@ -60,15 +59,6 @@ logger = logging.getLogger(__name__)
 
 _CODE_PATH_PATTERN = re.compile(
     r"(\/[a-zA-Z0-9_\-\.]+)+\/?|[a-zA-Z0-9_\-\.]+\.(py|ts|tsx|js|jsx|json|yaml|yml|md|rs|go|java|c|cpp|h|hpp)"
-)
-
-_DRIFT_DEFENSE_FOOTER = (
-    "\n---\n"
-    "Note: Before acting on recalled memories:\n"
-    "- If a memory references files/functions → verify they still exist\n"
-    "- If a memory states configs/versions → check current project state\n"
-    "- If a memory conflicts with current observations → trust current observation\n"
-    "To fix outdated memories: use memory_manage(action='correct') or memory_manage(action='delete')"
 )
 
 
@@ -100,8 +90,10 @@ async def search_memory_corpus(
     )
     output: list[str] = []
     displayed_results: list[MemorySearchResult] = []
-    max_body_chars = MAX_RECALL_OUTPUT_CHARS - (
-        len(_DRIFT_DEFENSE_FOOTER) if results else 0
+    max_body_chars = (
+        MAX_RECALL_OUTPUT_CHARS
+        - recall_drift_defense_footer_chars()
+        - recall_preamble_overhead_chars()
     )
     output_chars = 0
     truncated_by_budget = False
@@ -226,8 +218,9 @@ async def search_memory_corpus(
         )
 
     text = "\n".join(output)
-    if displayed_results:
-        text += _DRIFT_DEFENSE_FOOTER
+    if output:
+        text = finalize_recall_tool_output(text)
+        text += RECALL_DRIFT_DEFENSE_FOOTER
     return text
 
 

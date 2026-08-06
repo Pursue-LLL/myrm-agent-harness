@@ -239,7 +239,7 @@ class SessionNotesManager:
 
     async def _do_update(self, messages: list[BaseMessage], message_idx: int) -> None:
         """执行实际的笔记更新（增量合并或全量刷新）"""
-        from ..summary_parser import format_messages_for_summary
+        from ..summary.summary_parser import format_messages_for_summary
 
         is_full_refresh = self._notes.needs_full_refresh()
 

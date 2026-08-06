@@ -49,7 +49,7 @@ async def emergency_compact(messages: list[BaseMessage]) -> int:
     heuristics.  Returns the number of tokens saved.
     """
     from myrm_agent_harness.agent.context_management.infra.schemas import ContextConfig
-    from myrm_agent_harness.agent.context_management.strategies.compactor import compress_messages_async
+    from myrm_agent_harness.agent.context_management.strategies.compactor.compactor import compress_messages_async
 
     emergency_cfg = ContextConfig(
         max_context_tokens=1,
