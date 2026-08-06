@@ -132,8 +132,12 @@ class TestCompressProcessorProcess:
                 ),
             ),
             patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=1000,
+            ),
+            patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-                side_effect=[1000, 5000, 700],
+                side_effect=[5000, 700],
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
@@ -201,8 +205,12 @@ class TestCompressProcessorProcess:
                 ),
             ),
             patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=1000,
+            ),
+            patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-                side_effect=[1000, 9600, 930],
+                side_effect=[9600, 930],
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
@@ -319,7 +327,7 @@ class TestEcoMode:
                 return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
             ),
             patch(
-                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
                 return_value=200,
             ),
             patch(
@@ -355,7 +363,7 @@ class TestEcoMode:
                 return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
             ),
             patch(
-                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
                 return_value=200,
             ),
             patch(
@@ -374,5 +382,7 @@ class TestEcoMode:
         """Eco mode never reduces keep_recent_calls below 2."""
         processor = CompressProcessor(max_context_tokens=1000, keep_recent_calls=2)
         assert processor._is_eco_mode(_build_context(metadata={"eco_mode": True}))
-        eco_keep = effective_keep_recent_calls(keep_recent_calls=processor.config.keep_recent_calls, eco_mode=True)
+        eco_keep = effective_keep_recent_calls(
+            keep_recent_calls=processor.config.keep_recent_calls, eco_mode=True
+        )
         assert eco_keep == 2

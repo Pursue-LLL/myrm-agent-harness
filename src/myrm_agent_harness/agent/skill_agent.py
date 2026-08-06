@@ -56,6 +56,9 @@ if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
     from langgraph.checkpoint.base import BaseCheckpointSaver
 
+    from myrm_agent_harness.agent._internals.memory_extraction import (
+        ExtractionLifecycleObserver,
+    )
     from myrm_agent_harness.backends.secrets.protocols import AgentSecretBackend
     from myrm_agent_harness.backends.skills.market_protocols import (
         SkillMarketBackend,
@@ -145,6 +148,7 @@ class SkillAgent(
         similarity_checker: "SkillSimilarityChecker | None" = None,
         on_session_cleanup: "Callable[[Sequence[dict[str, str]], str | None], Awaitable[None]] | None" = None,
         on_loaded_skills_persist: "Callable[[list[str], str | None], Awaitable[None]] | None" = None,
+        extraction_lifecycle_observer: "ExtractionLifecycleObserver | None" = None,
         file_access_mode: FileAccessMode = FileAccessMode.FULL,
         enable_shell_tools: bool = True,
         enable_answer_tool: bool = False,
@@ -201,6 +205,7 @@ class SkillAgent(
         self._wiki_structure: WikiStructure | None = None
         self._on_session_cleanup = on_session_cleanup
         self._on_loaded_skills_persist = on_loaded_skills_persist
+        self._extraction_lifecycle_observer = extraction_lifecycle_observer
         self._file_access_mode = file_access_mode
         self._enable_shell_tools = enable_shell_tools
         self._enable_answer_tool = enable_answer_tool
@@ -229,11 +234,32 @@ class SkillAgent(
                 self.skill_backend, "load_skills"
             ):
                 skills = await self.skill_backend.load_skills(self._desired_skill_ids)
+                # Runtime MCP skills are request-scoped; union them even when
+                # desired_skill_ids filters the user/prebuilt catalog.
+                try:
+                    all_skills = await self.skill_backend.list_skills()
+                except Exception as list_exc:
+                    logger.warning(
+                        "Failed to list MCP skills for desired_skill_ids merge: %s",
+                        list_exc,
+                    )
+                    all_skills = []
+                mcp_skills = [
+                    skill
+                    for skill in all_skills
+                    if getattr(skill, "is_mcp_skill", False)
+                ]
+                if mcp_skills:
+                    by_name = {skill.name: skill for skill in skills}
+                    for mcp_skill in mcp_skills:
+                        by_name.setdefault(mcp_skill.name, mcp_skill)
+                    skills = list(by_name.values())
                 logger.debug(
-                    "Loaded %d/%d skills from skill_backend (desired_ids=%s)",
+                    "Loaded %d/%d skills from skill_backend (desired_ids=%s, mcp_union=%d)",
                     len(skills),
                     len(self._desired_skill_ids),
                     self._desired_skill_ids,
+                    len(mcp_skills),
                 )
             else:
                 skills = await self.skill_backend.list_skills()
@@ -342,7 +368,9 @@ class SkillAgent(
         """流式运行 Agent(覆盖 BaseAgent),增加 Hook 生命周期和记忆会话管理."""
         preloaded_skills: list[SkillMetadata] = []
         if active_skill is None and isinstance(query, str):
-            query, active_skill, preloaded_skills = await self._preload_explicit_skill(query)
+            query, active_skill, preloaded_skills = await self._preload_explicit_skill(
+                query
+            )
 
         from myrm_agent_harness.backends.skills.usage_recorder import (
             reset_turn_usage_dedupe,

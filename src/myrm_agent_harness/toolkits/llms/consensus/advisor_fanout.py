@@ -1,4 +1,8 @@
-"""Parallel advisor fan-out for agent-loop MoA overlay."""
+"""Parallel advisor fan-out for agent-loop MoA overlay.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

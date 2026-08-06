@@ -1,4 +1,8 @@
-"""Raw publication gate request/result types."""
+"""Raw publication gate request/result types.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

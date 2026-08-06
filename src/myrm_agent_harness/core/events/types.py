@@ -68,7 +68,11 @@ class AgentStreamEvent:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to raw dictionary for final SSE serialization."""
-        d: dict[str, Any] = {"type": (self.type.value if isinstance(self.type, AgentEventType) else self.type)}
+        d: dict[str, Any] = {
+            "type": (
+                self.type.value if isinstance(self.type, AgentEventType) else self.type
+            )
+        }
         if self.data is not None:
             d["data"] = self.data
         if self.messageId is not None:
@@ -165,20 +169,33 @@ class ContextBudgetSnapshot:
     Uses actual prompt_tokens from the LLM provider (more accurate than estimation).
     health_status mirrors ContextHealthStatus from context_management but avoids
     coupling to the full ContextBudget infrastructure.
+
+    Optional breakdown fields (messages / tool schemas / remainder) help the GUI
+    explain why the context ring is high without changing token decision logic.
     """
 
     current_tokens: int
     max_context_tokens: int
     usage_percent: float
     health_status: str  # "healthy" | "warning" | "critical"
+    messages_estimated_tokens: int | None = None
+    bound_tools_overhead_tokens: int | None = None
+    other_tokens: int | None = None
 
     def to_dict(self) -> dict[str, int | float | str]:
-        return {
+        payload: dict[str, int | float | str] = {
             "current_tokens": self.current_tokens,
             "max_context_tokens": self.max_context_tokens,
             "usage_percent": round(self.usage_percent, 1),
             "health_status": self.health_status,
         }
+        if self.messages_estimated_tokens is not None:
+            payload["messages_estimated_tokens"] = self.messages_estimated_tokens
+        if self.bound_tools_overhead_tokens is not None:
+            payload["bound_tools_overhead_tokens"] = self.bound_tools_overhead_tokens
+        if self.other_tokens is not None:
+            payload["other_tokens"] = self.other_tokens
+        return payload
 
 
 @dataclass(frozen=True, slots=True)

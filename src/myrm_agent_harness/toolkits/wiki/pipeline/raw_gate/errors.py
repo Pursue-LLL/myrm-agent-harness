@@ -1,4 +1,8 @@
-"""Raw publication gate errors."""
+"""Raw publication gate errors.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

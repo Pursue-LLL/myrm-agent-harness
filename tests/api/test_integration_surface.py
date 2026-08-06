@@ -25,7 +25,13 @@ description: Demo skill for api.skills smoke test.
             [
                 "BackgroundJobFinishHandler",
                 "BackgroundJobFinishResult",
+                "BackgroundJobRecord",
+                "BackgroundProcessInfo",
+                "configure_background_job_store",
+                "count_running_background_shell_jobs",
                 "create_extraction_llm_func",
+                "EVICTED_BASENAME_PATTERN",
+                "get_background_job_store",
                 "get_background_registry",
                 "get_event_logger",
                 "get_global_background_job_finish_handler",
@@ -35,11 +41,18 @@ description: Demo skill for api.skills smoke test.
                 "get_memory_runtime_injection",
                 "get_task_intent",
                 "get_terminal_errors",
+                "INPUT_WAIT_IDLE_SECONDS",
                 "invalidate_permissions",
+                "map_store_status_to_shell_task_status",
+                "build_evicted_basename",
+                "build_step_data",
                 "persist_extracted_memories",
+                "persist_terminal_state",
+                "persist_vault_log_ref",
                 "set_approval_user_id",
                 "set_global_background_job_finish_handler",
                 "set_permission_invalidation_callback",
+                "set_security_config",
                 "set_task_intent",
             ],
         ),
@@ -60,11 +73,18 @@ def test_api_submodule_exports_match_all(module_name: str, expected_all: list[st
     assert sorted(module.__all__) == sorted(expected_all)
 
 
+_HOOKS_NON_CALLABLE_EXPORTS: frozenset[str] = frozenset(
+    {"EVICTED_BASENAME_PATTERN", "INPUT_WAIT_IDLE_SECONDS"}
+)
+
+
 @pytest.mark.api
 def test_api_hooks_callables_are_functions() -> None:
     from myrm_agent_harness.api import hooks
 
     for name in hooks.__all__:
+        if name in _HOOKS_NON_CALLABLE_EXPORTS:
+            continue
         value = getattr(hooks, name)
         assert callable(value), f"{name} should be callable"
 

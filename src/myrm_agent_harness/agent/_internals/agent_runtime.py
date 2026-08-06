@@ -8,7 +8,7 @@ and helper functions that ``BaseAgent`` delegates to.
 - agent.middlewares.approval::ToolApprovalMiddleware (POS: Approval queue helpers. Handles AnyMemory ↔ PendingRecord conversion for the approval pipeline. Internal only — not part of the public API.)
 - agent.artifacts::ArtifactContextManager (POS: Provides ArtifactType, ArtifactMappings, is_active_content.)
 - agent.event_log.logger::EventLogger (POS: Integration façade. Injected into BaseAgent via ``event_log_backend`` param. Async-buffered writes ensure zero impact on the event production hot path.)
-- agent.middlewares.completion_guard::CompletionGuard (POS: Fills the "Agent finishing" gap in the guard chain. Existing guards cover tool-call loops (LoopGuard), context overflow (ContextBudgetGuard), and emergency stops (EStop). CompletionGuard ensures the Agent verifies its work before delivering a final answer.)
+- agent.middlewares.completion::CompletionGuard (POS: Finish gate + Mixed Message Guard + independent sandbox re-run for code tasks.)
 - agent.middlewares.security_boundary_middleware::SecurityBoundaryMiddleware (POS: Security boundary middleware.)
 - agent.middlewares.security_guardrail_middleware::SecurityGuardrailMiddleware (POS: Security guardrail middleware.)
 - agent.streaming.source_tracker::SourceTracker (POS: BaseAgent  SourceTracker)
@@ -26,8 +26,9 @@ and helper functions that ``BaseAgent`` delegates to.
 - utils.token_economics.usage_ledger::UsageLedger (POS: LLM  JSONL)
 
 [OUTPUT]
-- apply_bound_skill_catalog_for_stream: Reinject ``<bound_skills>`` on SkillAgent stream prep.
-- apply_bound_skill_catalog_for_resume: Refresh checkpoint ``<bound_skills>`` before Command resume.
+- apply_bound_skill_catalog_for_stream: Reinject ``<bound_skills>`` on SkillAgent stream prep; sync skill_search index when bind catalog changes.
+- apply_bound_skill_catalog_for_resume: Refresh checkpoint ``<bound_skills>`` before Command resume (delegates stream helper + Command.update).
+- _sync_skill_search_index_after_catalog_change: Rebuild or remove ``skill_search_tool`` when bind list changes on stream or resume (empty bind removes the tool).
 - build_middlewares: Build the full middleware chain for a BaseAgent.
 - create_registry: Create a fresh ToolRegistry for one build cycle.
 - build_tools: Build the resolved tool list via ToolRegistry.
@@ -102,6 +103,7 @@ from .run_lifecycle import (
     collect_tracker_stats,
     compute_context_budget_snapshot,
     post_run_events,
+    resolve_context_budget_breakdown,
 )
 
 if TYPE_CHECKING:
@@ -109,6 +111,7 @@ if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
 
     from myrm_agent_harness.agent.base_agent import BaseAgent
+    from myrm_agent_harness.backends.skills.types import SkillMetadata
     from myrm_agent_harness.utils.chat_utils import ChatHistoryReq
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
     from myrm_agent_harness.utils.runtime.steering import SteeringToken
@@ -140,17 +143,22 @@ __all__ = [
 async def apply_bound_skill_catalog_for_stream(
     messages: list[BaseMessage],
     agent_state: BaseAgent,
-) -> None:
-    """Reinject bound skill catalog on first HumanMessage for SkillAgent streams."""
+) -> bool:
+    """Reinject bound skill catalog on first HumanMessage for SkillAgent streams.
+
+    Returns True when the first HumanMessage catalog content changed (bind list drift).
+    When True, also rebuilds ``skill_search_tool`` index and active resolved tools.
+    """
     from myrm_agent_harness.agent.skill_agent import SkillAgent
 
     if not isinstance(agent_state, SkillAgent) or agent_state.skill_backend is None:
-        return
+        return False
 
     from myrm_agent_harness.agent.skills.runtime.skill_catalog_delivery import (
         ensure_skill_catalog_in_messages,
     )
 
+    content_before = _first_human_content(messages)
     bound_skills = await agent_state._get_cached_skills()
     ensure_skill_catalog_in_messages(
         messages,
@@ -159,10 +167,22 @@ async def apply_bound_skill_catalog_for_stream(
         available_tool_names=agent_state._available_tool_names,
         available_tool_groups=agent_state._available_tool_groups,
     )
-    logger.debug(
-        " Bound skill catalog reinjected on first HumanMessage (%d skills)",
-        len(bound_skills),
-    )
+    content_after = _first_human_content(messages)
+    catalog_changed = content_before != content_after
+
+    if catalog_changed:
+        _sync_skill_search_index_after_catalog_change(agent_state, bound_skills)
+        logger.debug(
+            " Bound skill catalog reinjected on first HumanMessage (%d skills); "
+            "skill_search index synced",
+            len(bound_skills),
+        )
+    else:
+        logger.debug(
+            " Bound skill catalog unchanged on first HumanMessage (%d skills)",
+            len(bound_skills),
+        )
+    return catalog_changed
 
 
 async def apply_bound_skill_catalog_for_resume(
@@ -183,9 +203,19 @@ async def apply_bound_skill_catalog_for_resume(
     config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
     try:
         state_snapshot = await agent_graph.aget_state(config)
-    except Exception as exc:
+    except (
+        AttributeError,
+        KeyError,
+        LookupError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as exc:
         logger.warning(
-            "Failed to load checkpoint for bound skill catalog refresh: %s", exc
+            "Failed to load checkpoint for bound skill catalog refresh (thread=%s): %s",
+            thread_id,
+            exc,
         )
         return command
 
@@ -197,11 +227,9 @@ async def apply_bound_skill_catalog_for_resume(
         return command
 
     messages = list(raw_messages)
-    content_before = _first_human_content(messages)
-    await apply_bound_skill_catalog_for_stream(messages, agent_state)
-    content_after = _first_human_content(messages)
+    catalog_changed = await apply_bound_skill_catalog_for_stream(messages, agent_state)
 
-    if content_before == content_after:
+    if not catalog_changed:
         return command
 
     logger.debug(
@@ -209,6 +237,51 @@ async def apply_bound_skill_catalog_for_resume(
         thread_id,
     )
     return Command(resume=command.resume, update={"messages": messages})
+
+
+def _sync_skill_search_index_after_catalog_change(
+    agent_state: BaseAgent,
+    bound_skills: list["SkillMetadata"],
+) -> None:
+    """Rebuild or remove ``skill_search_tool`` when stream or resume refreshed bind catalog."""
+    from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+    if not isinstance(agent_state, SkillAgent):
+        return
+
+    registry = agent_state._tool_registry
+    if registry is None:
+        return
+
+    from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
+        sync_discover_capability_tool,
+    )
+
+    sync_discover_capability_tool(
+        registry,
+        skills=bound_skills,
+        embedding_config=getattr(agent_state, "_embedding_config", None),
+        embedding_cache=getattr(agent_state, "_embedding_cache", None),
+    )
+
+    from myrm_agent_harness.agent._internals._agent_build import _weave_dynamic_schemas
+    from myrm_agent_harness.agent.tool_management.tool_layers import (
+        get_tool_layer,
+        get_tool_registry_sort_key,
+    )
+
+    agent_state._cached_tools = _weave_dynamic_schemas(registry.resolve())
+    agent_state._cached_tools.sort(
+        key=lambda tool: get_tool_registry_sort_key(
+            tool.name, get_tool_layer(tool.name)
+        )
+    )
+
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        set_active_resolved_tools,
+    )
+
+    set_active_resolved_tools(agent_state._cached_tools)
 
 
 def _first_human_content(messages: list[object]) -> object | None:
@@ -775,26 +848,39 @@ async def run_agent_loop(
                 except Exception:
                     logger.debug("EventLogger close error", exc_info=True)
 
-            # If goal is present in context, use its max_tokens as max_ctx
-            goal_dict = merged_context.get("goal")
-            if (
-                isinstance(goal_dict, dict)
-                and "max_tokens" in goal_dict
-                and goal_dict["max_tokens"]
-            ):
-                max_ctx = goal_dict["max_tokens"]
-            else:
-                max_ctx = (
-                    merged_context.get("max_context_tokens") if merged_context else None
-                )
-
-            stats.context_budget = compute_context_budget_snapshot(
-                stats, int(max_ctx) if max_ctx is not None else None
-            )
-            agent_state._last_run_stats = stats
-
         # Collect token stats BEFORE post_run_events so message_end includes usage.
         collect_tracker_stats(stats, tracker=_run_tracker)
+
+        goal_dict = merged_context.get("goal")
+        if (
+            isinstance(goal_dict, dict)
+            and "max_tokens" in goal_dict
+            and goal_dict["max_tokens"]
+        ):
+            max_ctx = goal_dict["max_tokens"]
+        else:
+            max_ctx = (
+                merged_context.get("max_context_tokens") if merged_context else None
+            )
+
+        provider_prompt_tokens = (
+            stats.token_usage.last_call.prompt_tokens
+            if stats.token_usage and stats.token_usage.last_call
+            else 0
+        )
+        stats.context_budget = compute_context_budget_snapshot(
+            stats,
+            int(max_ctx) if max_ctx is not None else None,
+            **(
+                await resolve_context_budget_breakdown(
+                    checkpointer=agent_state.checkpointer,
+                    thread_id=thread_id,
+                    cached_tools=agent_state._cached_tools,
+                    provider_prompt_tokens=provider_prompt_tokens,
+                )
+            ),
+        )
+        agent_state._last_run_stats = stats
 
         # Artifacts must be collected before cleanup_run clears the executor.
         async for event in post_run_events(

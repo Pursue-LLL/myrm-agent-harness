@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import contextvars
+
 from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
     format_workspace_merge_failures,
     has_workspace_merge_warning,
     record_workspace_merge_failure,
     reset_workspace_merge_warning,
 )
+
+
+def test_merge_warning_fresh_context_without_reset() -> None:
+    def _check() -> None:
+        assert has_workspace_merge_warning() is False
+        assert format_workspace_merge_failures() is None
+
+    contextvars.copy_context().run(_check)
 
 
 def test_merge_warning_lifecycle() -> None:
@@ -24,6 +34,14 @@ def test_merge_warning_lifecycle() -> None:
 
     reset_workspace_merge_warning()
     assert has_workspace_merge_warning() is False
+
+
+def test_merge_warning_strips_whitespace() -> None:
+    reset_workspace_merge_warning()
+    record_workspace_merge_failure("  task_a: disk full  ")
+    payload = format_workspace_merge_failures()
+    assert payload is not None
+    assert payload["errors"] == [{"message": "task_a: disk full"}]
 
 
 def test_merge_warning_skips_blank_messages() -> None:

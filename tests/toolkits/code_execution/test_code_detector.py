@@ -175,3 +175,18 @@ print("done")
         assert result.is_async is True
         assert "python -c" in result.detection_reason
         assert result.extracted_code == "result = await some_func()"
+
+    def test_cat_heredoc_extracted_as_python(self):
+        cmd = (
+            "cat > /tmp/query.py << 'EOF'\n"
+            "import asyncio\n"
+            "from skills.mcp_12306_skill import get_tickets\n"
+            "print('[RESULT] ok')\n"
+            "EOF\n"
+            "python3 /tmp/query.py"
+        )
+        result = code_detector.detect(cmd)
+        assert result.code_type == CodeType.PYTHON
+        assert "get_tickets" in result.extracted_code
+        assert "embedded python" in result.detection_reason
+        assert "cat >" not in result.extracted_code

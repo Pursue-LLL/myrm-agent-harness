@@ -28,6 +28,7 @@ from langchain_core.documents import Document
 
 from myrm_agent_harness.utils.document_utils import extract_clean_content_for_context
 from myrm_agent_harness.utils.text_utils import (
+    PLANNING_ENCODING,
     get_token_count,
     truncate_by_tokens_with_boundary,
 )
@@ -409,7 +410,7 @@ def format_documents_with_metadata(
     extract_clean_content: bool = True,
     max_content_tokens: int | None = None,
     total_max_tokens: int | None = None,
-    token_encoding: str = "o200k_base",
+    token_encoding: str = PLANNING_ENCODING,
 ) -> tuple[list[dict[str, object]], str, TruncationStats | None]:
     """格式化文档列表，返回结构化元数据和上下文字符串
 

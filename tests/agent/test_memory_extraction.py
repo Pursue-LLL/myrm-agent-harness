@@ -208,6 +208,42 @@ class TestAutoExtractMemories:
             assistant_reply="A" * 200,
         )
 
+    @pytest.mark.asyncio
+    async def test_lifecycle_observer_receives_pending_and_success(self) -> None:
+        mock_manager = MagicMock()
+        mock_manager.user_id = "user1"
+        mock_manager.store_batch = AsyncMock(return_value=[])
+        mock_llm = AsyncMock()
+        calls: list[tuple[str, str]] = []
+
+        async def observer(phase: str, status: object, **kwargs: object) -> None:
+            calls.append((phase, getattr(status, "value", str(status))))
+
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.memory.strategies.extractor.extract_memories_from_conversation",
+                new_callable=AsyncMock,
+                return_value=MagicMock(memories=[MagicMock()], extraction_time_ms=12.0),
+            ),
+            patch(
+                "myrm_agent_harness.agent._internals.memory_extraction.persist_extracted_memories",
+                new_callable=AsyncMock,
+                return_value=1,
+            ),
+        ):
+            await auto_extract_memories(
+                query="Tell me about Python's history and design in detail",
+                chat_history=None,
+                memory_manager=mock_manager,
+                llm=mock_llm,
+                assistant_reply="A" * 200,
+                source_chat_id="chat-1",
+                lifecycle_observer=observer,
+            )
+
+        assert ("extract", "pending") in calls
+        assert ("extract", "success") in calls
+
 
 class TestPersistExtractedMemories:
     @pytest.mark.asyncio

@@ -1,4 +1,8 @@
-"""Atomic text writes for OKF cognitive map artifacts."""
+"""Atomic text writes for OKF cognitive map artifacts.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

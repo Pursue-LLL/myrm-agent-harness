@@ -1,9 +1,14 @@
 """Tests for token estimation covering all message token-consuming fields."""
 
+from unittest.mock import MagicMock
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from myrm_agent_harness.utils.token_estimation import (
+    SCHEMA_WRAPPER_TOKENS_PER_TOOL,
+    estimate_bound_tools_tokens,
     estimate_content_tokens,
+    estimate_context_tokens,
     estimate_message_tokens,
     estimate_messages_tokens,
 )
@@ -70,9 +75,9 @@ class TestEstimateMessageTokens:
         )
         content_tokens = estimate_content_tokens(msg.content)
         full_tokens = estimate_message_tokens(msg)
-        assert full_tokens > content_tokens + 4, (
-            f"tool_calls args should add tokens: content={content_tokens}, full={full_tokens}"
-        )
+        assert (
+            full_tokens > content_tokens + 4
+        ), f"tool_calls args should add tokens: content={content_tokens}, full={full_tokens}"
 
     def test_ai_message_with_multiple_tool_calls(self) -> None:
         msg = AIMessage(
@@ -100,10 +105,16 @@ class TestEstimateMessageTokens:
         assert tokens == content_only + 4, "No tool_calls = content + framing only"
 
     def test_tool_message_includes_metadata(self) -> None:
-        msg = ToolMessage(content="Command output: success", tool_call_id="call_abc123", name="bash_code_execute_tool")
+        msg = ToolMessage(
+            content="Command output: success",
+            tool_call_id="call_abc123",
+            name="bash_code_execute_tool",
+        )
         content_only = estimate_content_tokens("Command output: success")
         full = estimate_message_tokens(msg)
-        assert full > content_only + 4, f"tool_call_id and name should add tokens: content={content_only}, full={full}"
+        assert (
+            full > content_only + 4
+        ), f"tool_call_id and name should add tokens: content={content_only}, full={full}"
 
     def test_tool_message_without_name(self) -> None:
         msg = ToolMessage(content="output", tool_call_id="call_abc123")
@@ -142,7 +153,11 @@ class TestEstimateMessagesTokens:
                     }
                 ],
             ),
-            ToolMessage(content="file1.txt\nfile2.txt", tool_call_id="call_1", name="bash_code_execute_tool"),
+            ToolMessage(
+                content="file1.txt\nfile2.txt",
+                tool_call_id="call_1",
+                name="bash_code_execute_tool",
+            ),
             AIMessage(content="Here are the files"),
         ]
         total = estimate_messages_tokens(messages)
@@ -195,3 +210,26 @@ class TestEstimateMessagesTokens:
             f"30 tool calls should add >1000 tokens from args+metadata+framing, "
             f"got diff={diff} (total={total}, content_only={content_only})"
         )
+
+
+class TestEstimateContextTokens:
+    def test_includes_bound_tool_overhead(self) -> None:
+        messages = [HumanMessage(content="hello")]
+        base = estimate_messages_tokens(messages)
+        with_tools = estimate_context_tokens(messages, bound_tool_overhead_tokens=500)
+        assert with_tools == base + 500
+
+    def test_max_provider_prompt_tokens(self) -> None:
+        messages = [HumanMessage(content="x")]
+        estimated = estimate_context_tokens(messages, bound_tool_overhead_tokens=100)
+        aligned = estimate_context_tokens(
+            messages,
+            bound_tool_overhead_tokens=100,
+            last_provider_prompt_tokens=estimated + 1000,
+        )
+        assert aligned == estimated + 1000
+
+    def test_bound_tools_wrapper_budget(self) -> None:
+        tool = MagicMock()
+        tool.description = "demo tool"
+        assert estimate_bound_tools_tokens([tool]) > SCHEMA_WRAPPER_TOKENS_PER_TOOL

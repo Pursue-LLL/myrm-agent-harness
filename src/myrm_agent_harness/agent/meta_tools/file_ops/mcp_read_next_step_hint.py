@@ -1,0 +1,39 @@
+"""One-shot MCP workflow reminder appended after batch-read of function docs."""
+
+from __future__ import annotations
+
+from myrm_agent_harness.agent.meta_tools.file_ops.utils.vault_read import path_base
+
+_MCP_DOC_PREFIX = "/mcp/"
+_MCP_DOC_SUFFIX = ".md"
+
+_MCP_NEXT_STEP_HINT = """
+---
+[MCP NEXT STEP] Function docs loaded. Your **next** tool call MUST be **one** `bash_code_execute_tool`:
+1. `await` every MCP function still needed — in the **same** Python script (serial or `asyncio.gather`)
+2. End stdout with **exactly one** `[RESULT]` — do **not** `[OBSERVATION]` successful intermediate MCP returns
+3. Parameter names/types **only** from the docs above; if you need another function, `file_read_tool` its doc first (do not guess)
+---
+""".strip()
+
+
+def is_mcp_function_doc_batch(paths: list[str]) -> bool:
+    """True when every path is a virtual MCP function doc (batch-read before PTC bash)."""
+    if not paths:
+        return False
+    for raw in paths:
+        base = path_base(raw)
+        if not base.startswith(_MCP_DOC_PREFIX) or not base.endswith(_MCP_DOC_SUFFIX):
+            return False
+    return True
+
+
+def append_mcp_docs_next_step_hint(text: str, paths: list[str]) -> str:
+    """Append workflow reminder when a batch-read covered only MCP function docs."""
+    if not is_mcp_function_doc_batch(paths):
+        return text
+    if _MCP_NEXT_STEP_HINT in text:
+        return text
+    if not text.strip():
+        return _MCP_NEXT_STEP_HINT
+    return f"{text.rstrip()}\n\n{_MCP_NEXT_STEP_HINT}"

@@ -20,7 +20,9 @@ from myrm_agent_harness.agent.context_management.pipeline.processors.summarize_p
     _record_fallback_call,
     _set_failures,
 )
-from myrm_agent_harness.observability.metrics.circuit_breaker_metrics import circuit_breaker_state
+from myrm_agent_harness.observability.metrics.circuit_breaker_metrics import (
+    circuit_breaker_state,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -47,21 +49,27 @@ class TestSummarizeProcessorCircuitBreaker:
         mock_generate.side_effect = Exception("401 Unauthorized")
         processor = SummarizeProcessor()
         context = ProcessorContext(
-            messages=[HumanMessage(content="test")], user_query="test", user_id="test", chat_id="test", llm=AsyncMock()
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
         )
 
         result = await processor.process(context)
 
         assert _get_failures() == MAX_CONSECUTIVE_SUMMARIZE_FAILURES
         cb_labeled = circuit_breaker_state.labels(component="summarize")
-        if hasattr(cb_labeled, '_value'):
+        if hasattr(cb_labeled, "_value"):
             assert cb_labeled._value.get() == 2.0
 
         # Check that deterministic fallback was used
         assert any("fallback" in m.content.lower() for m in result.messages)
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time"
+    )
     @patch(
         "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
     )
@@ -69,7 +77,11 @@ class TestSummarizeProcessorCircuitBreaker:
         mock_generate.side_effect = Exception("timeout")
         processor = SummarizeProcessor()
         context = ProcessorContext(
-            messages=[HumanMessage(content="test")], user_query="test", user_id="test", chat_id="test", llm=AsyncMock()
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
         )
 
         # Trip the circuit breaker
@@ -79,14 +91,16 @@ class TestSummarizeProcessorCircuitBreaker:
 
         assert _get_failures() == MAX_CONSECUTIVE_SUMMARIZE_FAILURES
         cb_labeled = circuit_breaker_state.labels(component="summarize")
-        if hasattr(cb_labeled, '_value'):
+        if hasattr(cb_labeled, "_value"):
             assert cb_labeled._value.get() == 2.0
 
         # Advance time past cooldown (1800 seconds)
         mock_time.return_value = 1000.0 + 1801.0
 
         # Next call should attempt recovery
-        from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
+        from myrm_agent_harness.agent.context_management.infra.schemas import (
+            StructuredSummary,
+        )
 
         mock_generate.side_effect = None
         mock_generate.return_value = ([], StructuredSummary(user_goal="test"))
@@ -95,7 +109,7 @@ class TestSummarizeProcessorCircuitBreaker:
 
         assert _get_failures() == 0
         cb_labeled2 = circuit_breaker_state.labels(component="summarize")
-        if hasattr(cb_labeled2, '_value'):
+        if hasattr(cb_labeled2, "_value"):
             assert cb_labeled2._value.get() == 0.0
 
 
@@ -120,7 +134,9 @@ class TestClassifyErrorType:
 
 class TestExtractFocusTopic:
     def test_with_valid_intent(self) -> None:
-        metadata: dict[str, object] = {"compression_intent": {"user_goal_hint": "安全模块"}}
+        metadata: dict[str, object] = {
+            "compression_intent": {"user_goal_hint": "安全模块"}
+        }
         assert _extract_focus_topic(metadata) == "安全模块"
 
     def test_with_empty_hint(self) -> None:
@@ -176,7 +192,11 @@ class TestSummarizeProcessorShouldProcess:
     async def test_skip_when_summary_exists(self) -> None:
         processor = SummarizeProcessor()
         context = ProcessorContext(
-            messages=[HumanMessage(content="test")], user_query="test", user_id="test", chat_id="test", llm=AsyncMock()
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
         )
         context.structured_summary = StructuredSummary(user_goal="already done")
         assert await processor.should_process(context) is False
@@ -185,7 +205,11 @@ class TestSummarizeProcessorShouldProcess:
     async def test_skip_for_cache_preservation_resume(self) -> None:
         processor = SummarizeProcessor()
         context = ProcessorContext(
-            messages=[HumanMessage(content="test")], user_query="test", user_id="test", chat_id="test", llm=AsyncMock()
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
         )
         context.is_resume = True
         result = await processor.process(context)
@@ -214,7 +238,11 @@ class TestSummarizeProcessorShouldProcess:
         mock_generate.return_value = ([HumanMessage(content="summary msg")], summary)
         processor = SummarizeProcessor()
         context = ProcessorContext(
-            messages=[HumanMessage(content="test")], user_query="test", user_id="test", chat_id="test", llm=AsyncMock()
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
         )
         result = await processor.process(context)
         assert result.structured_summary is not None
@@ -228,7 +256,11 @@ class TestSummarizeProcessorShouldProcess:
         mock_generate.side_effect = Exception("connection refused")
         processor = SummarizeProcessor()
         context = ProcessorContext(
-            messages=[HumanMessage(content="test")], user_query="test", user_id="test", chat_id="test", llm=AsyncMock()
+            messages=[HumanMessage(content="test")],
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=AsyncMock(),
         )
         prev = _get_failures()
         await processor.process(context)
@@ -282,7 +314,9 @@ class TestIsCircuitOpen:
         _set_failures(0)
         assert _is_circuit_open() is False
 
-    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time"
+    )
     def test_open_sets_time_on_first_call(self, mock_time) -> None:
         mock_time.return_value = 5000.0
         _set_failures(MAX_CONSECUTIVE_SUMMARIZE_FAILURES)
@@ -290,14 +324,18 @@ class TestIsCircuitOpen:
         assert _is_circuit_open() is True
         assert _sp._circuit_open_time == 5000.0
 
-    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time"
+    )
     def test_within_cooldown_stays_open(self, mock_time) -> None:
         mock_time.return_value = 5000.0
         _set_failures(MAX_CONSECUTIVE_SUMMARIZE_FAILURES, "transient")
         _sp._circuit_open_time = 4950.0
         assert _is_circuit_open() is True
 
-    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time"
+    )
     def test_past_cooldown_resets(self, mock_time) -> None:
         mock_time.return_value = 10000.0
         _set_failures(MAX_CONSECUTIVE_SUMMARIZE_FAILURES, "transient")
@@ -333,7 +371,9 @@ class TestShouldBypassForHotCache:
         )
         assert processor._should_bypass_for_hot_cache(context, 120000) is False
 
-    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time"
+    )
     def test_recent_activity_bypasses(self, mock_time) -> None:
         mock_time.return_value = 1000.0
         processor = SummarizeProcessor()
@@ -342,7 +382,9 @@ class TestShouldBypassForHotCache:
         )
         assert processor._should_bypass_for_hot_cache(context, 50000) is True
 
-    @patch("myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time")
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time"
+    )
     def test_old_activity_no_bypass(self, mock_time) -> None:
         mock_time.return_value = 1000.0
         processor = SummarizeProcessor()
@@ -375,7 +417,7 @@ class TestShouldProcessBranches:
 
     @pytest.mark.asyncio
     @patch(
-        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.estimate_messages_tokens",
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.estimate_processor_context_tokens",
         return_value=50000,
     )
     @patch(
@@ -399,7 +441,32 @@ class TestShouldProcessBranches:
 
     @pytest.mark.asyncio
     @patch(
-        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.estimate_messages_tokens",
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.should_summarize",
+        return_value=True,
+    )
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.time.time",
+        return_value=1000.0,
+    )
+    async def test_hot_cache_does_not_bypass_when_full_context_over_90_percent(
+        self, _t, _ss
+    ) -> None:
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=[HumanMessage(content="short")],
+            user_query="test",
+            metadata={
+                "last_activity_time": 999.5,
+                "bound_tool_overhead_tokens": 6000,
+                "last_provider_prompt_tokens": 118_000,
+            },
+        )
+        assert await processor.should_process(context) is True
+        assert context.metadata.get("compaction_debt_pending") is not True
+
+    @pytest.mark.asyncio
+    @patch(
+        "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.estimate_processor_context_tokens",
         return_value=50000,
     )
     @patch(
@@ -441,7 +508,9 @@ class TestProcessNotifyCompaction:
     @patch(
         "myrm_agent_harness.agent.context_management.infra.cache_break_detector.get_cache_break_detector"
     )
-    async def test_success_path_calls_notify_compaction(self, mock_detector_fn, mock_generate) -> None:
+    async def test_success_path_calls_notify_compaction(
+        self, mock_detector_fn, mock_generate
+    ) -> None:
         mock_detector = AsyncMock()
         mock_detector.notify_compaction = lambda: None
         mock_detector_fn.return_value = mock_detector
@@ -465,7 +534,9 @@ class TestProcessNotifyCompaction:
     @patch(
         "myrm_agent_harness.agent.context_management.infra.cache_break_detector.get_cache_break_detector"
     )
-    async def test_fallback_path_calls_notify_compaction(self, mock_detector_fn) -> None:
+    async def test_fallback_path_calls_notify_compaction(
+        self, mock_detector_fn
+    ) -> None:
         mock_detector = AsyncMock()
         mock_detector.notify_compaction = lambda: None
         mock_detector_fn.return_value = mock_detector
@@ -486,7 +557,9 @@ class TestProcessNotifyCompaction:
     @patch(
         "myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor.generate_structured_summary"
     )
-    async def test_success_path_sets_last_summarized_message_id(self, mock_generate) -> None:
+    async def test_success_path_sets_last_summarized_message_id(
+        self, mock_generate
+    ) -> None:
         summary = StructuredSummary(user_goal="goal")
         mock_generate.return_value = ([HumanMessage(content="s")], summary)
 

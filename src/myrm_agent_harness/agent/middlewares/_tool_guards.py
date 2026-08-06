@@ -194,7 +194,9 @@ async def run_pre_call_guards(
         msg = f"E-Stop active ({estop_state.level}): all tool execution is suspended. Reason: {estop_state.reason}"
         if estop_state.level == EStopLevel.KILL_ALL:
             msg = f"EMERGENCY: {msg}"
-        return make_error_msg(tool_name, tool_call_id, msg, error_category=ToolErrorCategory.ESTOP)
+        return make_error_msg(
+            tool_name, tool_call_id, msg, error_category=ToolErrorCategory.ESTOP
+        )
 
     loop_guard = get_loop_guard_fn()
     tracker = get_token_tracker()
@@ -295,12 +297,10 @@ async def run_pre_call_guards(
     )
     if turn_budget_verdict.action == TurnBudgetAction.BREAK:
         record_decision(tool_name, "TURN_BUDGET_BREAK", turn_budget_verdict.reason)
-        logger.warning("Turn budget break: %s -- %s", tool_name, turn_budget_verdict.reason)
-        unit_label = (
-            "search queries"
-            if tool_name == "web_search_tool"
-            else "calls"
+        logger.warning(
+            "Turn budget break: %s -- %s", tool_name, turn_budget_verdict.reason
         )
+        unit_label = "search queries" if tool_name == "web_search_tool" else "calls"
         return make_error_msg(
             tool_name,
             tool_call_id,
@@ -586,7 +586,7 @@ async def run_post_call_guards(
     freq_guard.record(tool_name)
 
     if tool_name == "bash_code_execute_tool":
-        from myrm_agent_harness.agent.middlewares.completion_guard import (
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_checklist import (
             classify_verification,
         )
 

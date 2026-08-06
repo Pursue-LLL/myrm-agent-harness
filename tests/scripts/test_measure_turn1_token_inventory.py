@@ -18,33 +18,25 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 import scripts.measure_turn1_token_inventory as measure
+from myrm_agent_harness.utils.token_estimation import SCHEMA_WRAPPER_TOKENS_PER_TOOL
 
 
 def test_token_count_empty_string_returns_zero() -> None:
-    encoding = MagicMock()
-    assert measure._token_count("", encoding) == 0
-    encoding.encode.assert_not_called()
-
-
-def test_token_count_delegates_to_encoding() -> None:
-    encoding = MagicMock()
-    encoding.encode.return_value = [1, 2, 3]
-    assert measure._token_count("hello", encoding) == 3
+    assert measure._tool_description_tokens(MagicMock(description="")) == 0
 
 
 def test_tool_description_tokens_uses_tool_description() -> None:
-    encoding = MagicMock()
-    encoding.encode.return_value = [1, 2]
     tool = MagicMock()
     tool.description = "do work"
-    assert measure._tool_description_tokens(tool, encoding) == 2
+    tokens = measure._tool_description_tokens(tool)
+    assert tokens > 0
 
 
 def test_print_table_renders_layer_subtotals(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     report = {
-        "encoding": "cl100k_base",
+        "encoding": measure.ENCODING_NAME,
         "tool_count": 2,
         "per_tool": [
             {"name": "alpha_tool", "layer": "CORE", "tokens": 10},
@@ -84,7 +76,7 @@ async def test_measure_turn1_inventory_aggregates_stub_tools(
     assert report["encoding"] == measure.ENCODING_NAME
     names = [row["name"] for row in report["per_tool"]]
     assert names == ["a_tool", "z_tool"]
-    assert report["schema_wrapper_tokens"] == 2 * measure.SCHEMA_WRAPPER_TOKENS_PER_TOOL
+    assert report["schema_wrapper_tokens"] == 2 * SCHEMA_WRAPPER_TOKENS_PER_TOOL
     assert (
         report["tools_subtotal"]
         == report["description_tokens"] + report["schema_wrapper_tokens"]
@@ -95,7 +87,7 @@ def test_main_json_mode(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     fake_report = {
-        "encoding": "cl100k_base",
+        "encoding": measure.ENCODING_NAME,
         "tool_count": 0,
         "per_tool": [],
         "layer_totals": {},
@@ -119,7 +111,7 @@ def test_main_table_mode(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     fake_report = {
-        "encoding": "cl100k_base",
+        "encoding": measure.ENCODING_NAME,
         "tool_count": 1,
         "per_tool": [{"name": "solo_tool", "layer": "CORE", "tokens": 42}],
         "layer_totals": {"CORE": 42},
@@ -152,21 +144,21 @@ async def test_build_default_turn1_tools_resolves_default_profile() -> None:
     assert "spawn_subagent" not in names
 
 
-# SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四 (measure_turn1 default profile)
+# SSOT: DEFAULT_AGENT_TOKEN_INVENTORY.md §二–§四 (measure_turn1 default profile, o200k_base)
 _DOC_TURN1_TOOL_TOKENS: dict[str, int] = {
-    "web_fetch_tool": 119,
-    "bash_code_execute_tool": 839,
+    "web_fetch_tool": 118,
+    "bash_code_execute_tool": 2007,
     "bash_process_tool": 79,
-    "file_edit_tool": 184,
-    "file_read_tool": 417,
-    "file_write_tool": 161,
-    "glob_tool": 263,
-    "grep_tool": 224,
-    "web_search_tool": 1436,
-    "memory_search_tool": 191,
-    "memory_save_tool": 688,
-    "memory_manage_tool": 247,
-    "skill_select_tool": 235,
+    "file_edit_tool": 149,
+    "file_read_tool": 356,
+    "file_write_tool": 126,
+    "glob_tool": 232,
+    "grep_tool": 198,
+    "web_search_tool": 1001,
+    "memory_search_tool": 137,
+    "memory_save_tool": 684,
+    "memory_manage_tool": 243,
+    "skill_select_tool": 236,
 }
 
 
@@ -183,7 +175,7 @@ async def test_measure_turn1_inventory_matches_documented_token_baseline() -> No
         == report["description_tokens"] + report["schema_wrapper_tokens"]
     )
     layer_totals = report["layer_totals"]
-    assert layer_totals["CORE"] == 2286
-    assert layer_totals["COMMON"] == 2562
-    assert layer_totals["EXTENDED"] == 235
-    assert report["tools_subtotal"] == 5928
+    assert layer_totals["CORE"] == 3265
+    assert layer_totals["COMMON"] == 2065
+    assert layer_totals["EXTENDED"] == 236
+    assert report["tools_subtotal"] == 6411

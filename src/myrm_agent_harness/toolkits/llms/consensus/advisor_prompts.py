@@ -6,6 +6,10 @@ agent. They must not hallucinate tool execution or claim side effects occurred.
 [OUTPUT]
 - ADVISOR_SYSTEM: fixed system instruction for reference model calls
 - build_advisor_injection_block(): format successful refs for HumanMessage tail
+
+
+[POS]
+See module docstring.
 """
 
 from __future__ import annotations

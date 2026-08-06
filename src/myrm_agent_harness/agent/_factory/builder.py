@@ -100,6 +100,7 @@ async def create_skill_agent(
     on_loaded_skills_persist: (
         Callable[[list[str], str | None], Awaitable[None]] | None
     ) = None,
+    extraction_lifecycle_observer: Callable[..., Awaitable[None]] | None = None,
     file_access_mode: FileAccessMode = FileAccessMode.FULL,
     enable_shell_tools: bool = True,
     enable_answer_tool: bool = False,
@@ -447,6 +448,7 @@ async def create_skill_agent(
         similarity_checker=similarity_checker,
         on_session_cleanup=on_session_cleanup,
         on_loaded_skills_persist=on_loaded_skills_persist,
+        extraction_lifecycle_observer=extraction_lifecycle_observer,
         file_access_mode=resolved_file_access,
         enable_shell_tools=enable_shell_tools,
         enable_answer_tool=enable_answer_tool,

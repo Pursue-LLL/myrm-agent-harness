@@ -31,6 +31,8 @@
 [OUTPUT]
 - ContextHealthStatus: class — Context Health Status
 - ContextBudget: Attributes:
+- resolve_budget_kwargs_from_metadata(): pipeline metadata → bound_tool_overhead + last_provider_prompt_tokens
+- estimate_processor_context_tokens(): full request estimate for Compress/Summarize/Prune processors
 - calculate_context_budget: Args:
 - format_budget_log: Args:
 
@@ -38,14 +40,42 @@
 Provides ContextHealthStatus, ContextBudget, calculate_context_budget.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
 from langchain_core.messages import BaseMessage
 
-from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
+from myrm_agent_harness.utils.token_estimation import estimate_context_tokens
 
 from .schemas import ContextConfig
+
+
+def resolve_budget_kwargs_from_metadata(
+    metadata: Mapping[str, object],
+) -> dict[str, int]:
+    """Extract bind-tools overhead and provider prompt_tokens from pipeline metadata."""
+    raw_overhead = metadata.get("bound_tool_overhead_tokens", 0)
+    bound_tool_overhead_tokens = (
+        int(raw_overhead) if isinstance(raw_overhead, int) else 0
+    )
+    kwargs: dict[str, int] = {
+        "bound_tool_overhead_tokens": max(0, bound_tool_overhead_tokens)
+    }
+    raw_last = metadata.get("last_provider_prompt_tokens")
+    if isinstance(raw_last, int) and raw_last > 0:
+        kwargs["last_provider_prompt_tokens"] = raw_last
+    return kwargs
+
+
+def estimate_processor_context_tokens(
+    messages: list[BaseMessage],
+    metadata: Mapping[str, object],
+) -> int:
+    """Full request context estimate for pipeline processors (messages + tools + optional API max)."""
+    return estimate_context_tokens(
+        messages, **resolve_budget_kwargs_from_metadata(metadata)
+    )
 
 
 class ContextHealthStatus(StrEnum):
@@ -75,7 +105,11 @@ class ContextBudget:
     @property
     def compress_usage(self) -> float:
         """压缩阈值使用率 (0.0 - 1.0+)"""
-        return self.current_tokens / self.compress_threshold if self.compress_threshold > 0 else 0.0
+        return (
+            self.current_tokens / self.compress_threshold
+            if self.compress_threshold > 0
+            else 0.0
+        )
 
     @property
     def summarize_usage(self) -> float:
@@ -135,7 +169,11 @@ class ContextBudget:
             动态计算后的 compress_min_save 值
         """
         # 安全获取配置值，防止 None
-        base_min_save = self.config.compress_min_save if self.config.compress_min_save is not None else 3000
+        base_min_save = (
+            self.config.compress_min_save
+            if self.config.compress_min_save is not None
+            else 3000
+        )
         remaining = self.remaining_ratio if self.remaining_ratio is not None else 1.0
 
         if remaining > 0.5:
@@ -152,7 +190,9 @@ class ContextBudget:
             # 最低不少于 500 tokens（避免过于激进）
             return max(500, int(base_min_save * 0.2))
 
-    def calculate_dynamic_thresholds(self, turn_count: int, estimated_remaining_turns: int = 10) -> tuple[int, int]:
+    def calculate_dynamic_thresholds(
+        self, turn_count: int, estimated_remaining_turns: int = 10
+    ) -> tuple[int, int]:
         """根据会话进度动态计算压缩触发阈值
 
         核心思想：
@@ -168,15 +208,23 @@ class ContextBudget:
             (dynamic_compress_threshold, dynamic_min_save)
         """
         # 安全获取配置值，防止 None
-        base_threshold = self.compress_threshold if self.compress_threshold is not None else 60000
-        base_min_save = self.config.compress_min_save if self.config.compress_min_save is not None else 3000
+        base_threshold = (
+            self.compress_threshold if self.compress_threshold is not None else 60000
+        )
+        base_min_save = (
+            self.config.compress_min_save
+            if self.config.compress_min_save is not None
+            else 3000
+        )
 
         # 早期保护：轮数太少时估算不准确，使用默认阈值
         if turn_count < 5:
             return base_threshold, base_min_save
 
         # 1. 计算每轮平均消耗
-        avg_tokens_per_turn = (self.current_tokens if self.current_tokens is not None else 0) / turn_count
+        avg_tokens_per_turn = (
+            self.current_tokens if self.current_tokens is not None else 0
+        ) / turn_count
 
         # 2. 预估剩余需要的空间
         estimated_remaining_tokens = avg_tokens_per_turn * estimated_remaining_turns
@@ -279,7 +327,9 @@ class ContextBudget:
             bar_width = 20
             filled = min(int(bar_width * usage), bar_width)
             bar = "█" * filled + "░" * (bar_width - filled)
-            lines.append(f"║  {status} {name:<12} {threshold:>7,} [{bar}] {usage * 100:>5.1f}%{suffix}  ║")
+            lines.append(
+                f"║  {status} {name:<12} {threshold:>7,} [{bar}] {usage * 100:>5.1f}%{suffix}  ║"
+            )
 
         lines.extend(
             [
@@ -293,12 +343,20 @@ class ContextBudget:
         return "\n".join(lines)
 
 
-def calculate_context_budget(messages: list[BaseMessage], config: ContextConfig | None = None) -> ContextBudget:
+def calculate_context_budget(
+    messages: list[BaseMessage],
+    config: ContextConfig | None = None,
+    *,
+    bound_tool_overhead_tokens: int = 0,
+    last_provider_prompt_tokens: int | None = None,
+) -> ContextBudget:
     """计算当前上下文预算
 
     Args:
         messages: 消息列表
         config: 上下文配置（可选，默认使用 128k 窗口）
+        bound_tool_overhead_tokens: bind_tools description + schema wrapper overhead
+        last_provider_prompt_tokens: prior LLM call prompt_tokens (provider truth)
 
     Returns:
         ContextBudget 对象
@@ -307,7 +365,11 @@ def calculate_context_budget(messages: list[BaseMessage], config: ContextConfig 
 
     cfg = config or DEFAULT_CONTEXT_CONFIG
 
-    total_tokens = estimate_messages_tokens(messages)
+    total_tokens = estimate_context_tokens(
+        messages,
+        bound_tool_overhead_tokens=bound_tool_overhead_tokens,
+        last_provider_prompt_tokens=last_provider_prompt_tokens,
+    )
 
     return ContextBudget(
         current_tokens=total_tokens,

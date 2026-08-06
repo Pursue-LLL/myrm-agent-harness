@@ -24,7 +24,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import ClassVar
 
-from myrm_agent_harness.toolkits.code_execution.python_extractor import extract_python_from_bash
+from myrm_agent_harness.toolkits.code_execution.python_extractor import (
+    extract_python_from_bash,
+)
 
 
 class CodeType(StrEnum):
@@ -45,9 +47,10 @@ class CodeTypeDetector:
 
     Detection order:
     1. ``python -c`` → Python (quote-aware extract, raw fallback on failure)
-    2. ``await`` keyword → async Python
-    3. Multi-line Python syntax patterns
-    4. Default → Bash
+    2. ``extract_python_from_bash`` → heredoc / cat-heredoc / pure skill imports
+    3. ``await`` keyword → async Python
+    4. Multi-line Python syntax patterns
+    5. Default → Bash
     """
 
     _RAW_PYTHON_C_RE = re.compile(r"python3?\s+-c\s+(.+)", re.DOTALL)
@@ -89,6 +92,15 @@ class CodeTypeDetector:
                 extracted_code=raw_code,
                 is_async=self._contains_await(raw_code),
                 detection_reason="python -c command (raw fallback after quote extraction failed)",
+            )
+
+        embedded = extract_python_from_bash(command)
+        if embedded is not None:
+            return CodeDetectionResult(
+                code_type=CodeType.PYTHON,
+                extracted_code=embedded,
+                is_async=self._contains_await(embedded),
+                detection_reason="embedded python extracted from bash wrapper",
             )
 
         if self._contains_await(command):
@@ -136,7 +148,9 @@ class CodeTypeDetector:
 
     def _detect_python_pattern(self, command: str) -> str | None:
         lines = [
-            line.strip() for line in command.strip().split("\n") if line.strip() and not line.strip().startswith("#")
+            line.strip()
+            for line in command.strip().split("\n")
+            if line.strip() and not line.strip().startswith("#")
         ]
 
         if len(lines) <= self.MIN_LINES_FOR_MULTILINE_DETECTION:

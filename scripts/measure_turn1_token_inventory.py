@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure default GeneralAgent Turn-1 bind_tools token cost (tiktoken cl100k_base).
+"""Measure default GeneralAgent Turn-1 bind_tools token cost (tiktoken planning SSOT).
 
 Builds the harness-side default product profile:
   web_search + web_fetch + file_ops (5) + bash + bash_process + memory (3, COMMON)
@@ -27,22 +27,20 @@ from unittest.mock import AsyncMock, MagicMock
 _repo_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_repo_root))
 
+from myrm_agent_harness.utils.text_utils import PLANNING_ENCODING, get_token_count
+from myrm_agent_harness.utils.token_estimation import (
+    SCHEMA_WRAPPER_TOKENS_PER_TOOL,
+    estimate_bound_tools_tokens,
+)
+
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
-ENCODING_NAME = "cl100k_base"
-SCHEMA_WRAPPER_TOKENS_PER_TOOL = 65
+ENCODING_NAME = PLANNING_ENCODING
 
 
-def _token_count(text: str, encoding) -> int:
-    if not text:
-        return 0
-    return len(encoding.encode(text))
-
-
-def _tool_description_tokens(tool: BaseTool, encoding) -> int:
-    description = tool.description or ""
-    return _token_count(description, encoding)
+def _tool_description_tokens(tool: BaseTool) -> int:
+    return get_token_count(tool.description or "")
 
 
 async def _build_default_turn1_tools() -> list[BaseTool]:
@@ -131,21 +129,17 @@ async def _build_default_turn1_tools() -> list[BaseTool]:
 
 
 async def measure_turn1_inventory() -> dict[str, object]:
-    import tiktoken
-
     from myrm_agent_harness.agent.tool_management.tool_layers import (
-        ToolLayer,
         get_tool_layer,
     )
 
-    encoding = tiktoken.get_encoding(ENCODING_NAME)
     tools = await _build_default_turn1_tools()
 
     per_tool: list[dict[str, object]] = []
     layer_totals: dict[str, int] = defaultdict(int)
 
     for tool in sorted(tools, key=lambda t: t.name):
-        tokens = _tool_description_tokens(tool, encoding)
+        tokens = _tool_description_tokens(tool)
         layer = get_tool_layer(tool.name)
         layer_key = layer.name if hasattr(layer, "name") else str(layer)
         per_tool.append({"name": tool.name, "layer": layer_key, "tokens": tokens})
@@ -154,6 +148,7 @@ async def measure_turn1_inventory() -> dict[str, object]:
     tool_count = len(tools)
     description_total = sum(int(row["tokens"]) for row in per_tool)
     schema_wrappers = tool_count * SCHEMA_WRAPPER_TOKENS_PER_TOOL
+    tools_subtotal = estimate_bound_tools_tokens(tools)
 
     return {
         "encoding": ENCODING_NAME,
@@ -162,7 +157,7 @@ async def measure_turn1_inventory() -> dict[str, object]:
         "layer_totals": dict(layer_totals),
         "description_tokens": description_total,
         "schema_wrapper_tokens": schema_wrappers,
-        "tools_subtotal": description_total + schema_wrappers,
+        "tools_subtotal": tools_subtotal,
     }
 
 

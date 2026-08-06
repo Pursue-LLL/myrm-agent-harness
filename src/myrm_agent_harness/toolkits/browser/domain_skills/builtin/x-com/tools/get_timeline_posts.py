@@ -2,6 +2,10 @@
 
 Designed for execution inside the browser_execute_script sandbox.
 Receives ``session`` (BrowserSession) and ``args`` dict as globals.
+
+
+[POS]
+See module docstring.
 """
 
 from __future__ import annotations

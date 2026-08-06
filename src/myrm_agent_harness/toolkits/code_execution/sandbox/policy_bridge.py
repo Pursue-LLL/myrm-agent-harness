@@ -1,4 +1,8 @@
-"""Bridge between the permission engine's PathPolicy and OS-level SandboxPolicy."""
+"""Bridge between the permission engine's PathPolicy and OS-level SandboxPolicy.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

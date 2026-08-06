@@ -19,7 +19,9 @@ from myrm_agent_harness.toolkits.kanban.stores import InMemoryKanbanStore
 from myrm_agent_harness.toolkits.kanban.types import (
     KanbanBoard,
     KanbanTask,
+    TaskEventKind,
     TaskPriority,
+    TaskRunOutcome,
     TaskStatus,
 )
 
@@ -603,7 +605,7 @@ class TestAgentToolsErrors:
         worker_tools = create_kanban_tools(store, mode="worker", current_task_id="t1")
         assert len(worker_tools) == 6
         orch_tools = create_kanban_tools(store, mode="orchestrator")
-        assert len(orch_tools) == 3
+        assert len(orch_tools) == 5
 
 
 # ===========================================================================
@@ -1635,7 +1637,6 @@ class TestKanbanCommentTool:
         comment = self._get_tool(tools, "kanban_comment")
         await comment.ainvoke({"task_id": "t1", "body": "Test comment body"})
 
-        from myrm_agent_harness.toolkits.kanban.types import TaskEventKind
 
         events = await store.list_events("t1")
         comment_events = [e for e in events if e.kind == TaskEventKind.USER_COMMENT]
@@ -1654,7 +1655,6 @@ class TestKanbanCommentTool:
         comment = self._get_tool(tools, "kanban_comment")
         await comment.ainvoke({"task_id": "t1", "body": "No agent id"})
 
-        from myrm_agent_harness.toolkits.kanban.types import TaskEventKind
 
         events = await store.list_events("t1")
         comment_events = [e for e in events if e.kind == TaskEventKind.USER_COMMENT]
@@ -1674,7 +1674,6 @@ class TestKanbanCommentTool:
         comment = self._get_tool(tools, "kanban_comment")
         await comment.ainvoke({"task_id": "t1", "body": "  padded body  "})
 
-        from myrm_agent_harness.toolkits.kanban.types import TaskEventKind
 
         events = await store.list_events("t1")
         comment_events = [e for e in events if e.kind == TaskEventKind.USER_COMMENT]
@@ -1694,7 +1693,13 @@ class TestKanbanCommentTool:
         store = InMemoryKanbanStore()
         tools = create_kanban_tools(store, mode="orchestrator")
         tool_names = {t.name for t in tools}
-        assert tool_names == {"kanban_add_task", "kanban_list_tasks", "kanban_unblock"}
+        assert tool_names == {
+            "kanban_add_task",
+            "kanban_list_tasks",
+            "kanban_unblock",
+            "kanban_cancel_task",
+            "kanban_retry_task",
+        }
 
 
 class TestKanbanConsolidationTools:
@@ -1812,3 +1817,403 @@ class TestKanbanConsolidationTools:
         unblock = self._get_tool(tools, "kanban_unblock")
         result = json.loads(await unblock.ainvoke({"task_id": "t1"}))
         assert "error" in result
+
+
+# ===========================================================================
+# kanban_cancel_task — orchestrator cancel tool
+# ===========================================================================
+
+
+class TestKanbanCancelTask:
+    """Cover kanban_cancel_task: all status transitions and edge cases."""
+
+    @staticmethod
+    def _get_tool(tools: list, name: str):  # type: ignore[type-arg]
+        return next(t for t in tools if t.name == name)
+
+    @pytest.mark.asyncio
+    async def test_cancel_ready_task(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.READY)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "t1", "reason": "no longer needed"}))
+        assert result["status"] == "cancelled"
+        assert result["was_running"] is False
+        assert result["task"]["status"] == "archived"
+        task = await store.get_task("t1")
+        assert task is not None
+        assert task.status == TaskStatus.ARCHIVED
+        assert task.completed_at is not None
+
+    @pytest.mark.asyncio
+    async def test_cancel_backlog_task(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.BACKLOG)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "t1"}))
+        assert result["status"] == "cancelled"
+        assert result["task"]["status"] == "archived"
+
+    @pytest.mark.asyncio
+    async def test_cancel_blocked_task(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        task = await _make_task(store, "t1", status=TaskStatus.BLOCKED)
+        task.blocked_reason = "waiting"
+        await store.save_task(task)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "t1"}))
+        assert result["status"] == "cancelled"
+        assert result["task"]["status"] == "archived"
+
+    @pytest.mark.asyncio
+    async def test_cancel_failed_task(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        task = await _make_task(store, "t1", status=TaskStatus.FAILED)
+        task.error = "some error"
+        await store.save_task(task)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "t1"}))
+        assert result["status"] == "cancelled"
+        assert result["task"]["status"] == "archived"
+
+    @pytest.mark.asyncio
+    async def test_cancel_running_task_without_dispatcher(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.RUNNING)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "t1"}))
+        assert result["status"] == "cancelled"
+        assert result["was_running"] is True
+        assert result["task"]["status"] == "archived"
+
+    @pytest.mark.asyncio
+    async def test_cancel_running_task_closes_active_run(self) -> None:
+
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.RUNNING)
+        run = await store.create_run("t1", "worker-1")
+        assert not run.is_finished
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        await cancel.ainvoke({"task_id": "t1"})
+
+        runs = await store.list_runs("t1")
+        assert len(runs) == 1
+        assert runs[0].is_finished
+        assert runs[0].outcome == TaskRunOutcome.RECLAIMED
+
+    @pytest.mark.asyncio
+    async def test_cancel_completed_task_rejected(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.COMPLETED)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "t1"}))
+        assert "error" in result
+        assert "completed" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_cancel_archived_task_rejected(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.ARCHIVED)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "t1"}))
+        assert "error" in result
+        assert "archived" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_cancel_nonexistent_task(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "missing"}))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_cancel_empty_task_id(self) -> None:
+        store = InMemoryKanbanStore()
+        tools = create_kanban_tools(store, mode="orchestrator")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": ""}))
+        assert "error" in result
+        assert "task_id is required" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_cancel_emits_archived_event(self) -> None:
+
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.READY)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        await cancel.ainvoke({"task_id": "t1", "reason": "direction changed"})
+        events = await store.list_events("t1")
+        archived_events = [e for e in events if e.kind == TaskEventKind.ARCHIVED]
+        assert len(archived_events) == 1
+        assert archived_events[0].payload is not None
+        assert archived_events[0].payload["from"] == "ready"
+        assert archived_events[0].payload["source"] == "orchestrator"
+        assert archived_events[0].payload["reason"] == "direction changed"
+
+    @pytest.mark.asyncio
+    async def test_cancel_triage_task(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.TRIAGE)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "t1"}))
+        assert result["status"] == "cancelled"
+        assert result["task"]["status"] == "archived"
+
+
+# ===========================================================================
+# kanban_retry_task — orchestrator retry tool
+# ===========================================================================
+
+
+class TestKanbanRetryTask:
+    """Cover kanban_retry_task: FAILED → READY reset and edge cases."""
+
+    @staticmethod
+    def _get_tool(tools: list, name: str):  # type: ignore[type-arg]
+        return next(t for t in tools if t.name == name)
+
+    @pytest.mark.asyncio
+    async def test_retry_failed_task(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        task = await _make_task(store, "t1", status=TaskStatus.FAILED)
+        task.error = "some error"
+        task.retry_count = 3
+        task.consecutive_failures = 3
+        task.completed_at = datetime.now(UTC)
+        task.progress_note = "stuck"
+        await store.save_task(task)
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        retry = self._get_tool(tools, "kanban_retry_task")
+        result = json.loads(await retry.ainvoke({"task_id": "t1", "reason": "fixed env"}))
+        assert result["status"] == "retried"
+        assert result["task"]["status"] == "ready"
+        assert result["task"]["error"] == ""
+
+        refreshed = await store.get_task("t1")
+        assert refreshed is not None
+        assert refreshed.status == TaskStatus.READY
+        assert refreshed.retry_count == 0
+        assert refreshed.consecutive_failures == 0
+        assert refreshed.completed_at is None
+        assert refreshed.progress_note is None
+
+    @pytest.mark.asyncio
+    async def test_retry_with_updated_description(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        task = await _make_task(store, "t1", status=TaskStatus.FAILED)
+        task.description = "old instructions"
+        task.error = "failed"
+        await store.save_task(task)
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        retry = self._get_tool(tools, "kanban_retry_task")
+        result = json.loads(await retry.ainvoke({
+            "task_id": "t1",
+            "description": "Better instructions: use API v2",
+            "reason": "improved approach",
+        }))
+        assert result["status"] == "retried"
+
+        refreshed = await store.get_task("t1")
+        assert refreshed is not None
+        assert refreshed.description == "Better instructions: use API v2"
+
+    @pytest.mark.asyncio
+    async def test_retry_without_description_preserves_original(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        task = await _make_task(store, "t1", status=TaskStatus.FAILED)
+        task.description = "original description"
+        task.error = "failed"
+        await store.save_task(task)
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        retry = self._get_tool(tools, "kanban_retry_task")
+        await retry.ainvoke({"task_id": "t1"})
+
+        refreshed = await store.get_task("t1")
+        assert refreshed is not None
+        assert refreshed.description == "original description"
+
+    @pytest.mark.asyncio
+    async def test_retry_non_failed_task_rejected(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        for status in (TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.BLOCKED, TaskStatus.COMPLETED, TaskStatus.ARCHIVED):
+            await _make_task(store, f"t-{status.value}", status=status)
+            tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+            retry = self._get_tool(tools, "kanban_retry_task")
+            result = json.loads(await retry.ainvoke({"task_id": f"t-{status.value}"}))
+            assert "error" in result
+            assert "Only FAILED" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_retry_nonexistent_task(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        retry = self._get_tool(tools, "kanban_retry_task")
+        result = json.loads(await retry.ainvoke({"task_id": "missing"}))
+        assert "error" in result
+        assert "not found" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_retry_empty_task_id(self) -> None:
+        store = InMemoryKanbanStore()
+        tools = create_kanban_tools(store, mode="orchestrator")
+        retry = self._get_tool(tools, "kanban_retry_task")
+        result = json.loads(await retry.ainvoke({"task_id": ""}))
+        assert "error" in result
+        assert "task_id is required" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_retry_emits_retrying_event(self) -> None:
+
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        task = await _make_task(store, "t1", status=TaskStatus.FAILED)
+        task.error = "err"
+        await store.save_task(task)
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        retry = self._get_tool(tools, "kanban_retry_task")
+        await retry.ainvoke({"task_id": "t1", "reason": "fixed config"})
+
+        events = await store.list_events("t1")
+        retry_events = [e for e in events if e.kind == TaskEventKind.RETRYING]
+        assert len(retry_events) == 1
+        assert retry_events[0].payload is not None
+        assert retry_events[0].payload["from"] == "failed"
+        assert retry_events[0].payload["to"] == "ready"
+        assert retry_events[0].payload["source"] == "orchestrator"
+        assert retry_events[0].payload["reason"] == "fixed config"
+
+    @pytest.mark.asyncio
+    async def test_retry_whitespace_description_ignored(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        task = await _make_task(store, "t1", status=TaskStatus.FAILED)
+        task.description = "keep me"
+        task.error = "err"
+        await store.save_task(task)
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        retry = self._get_tool(tools, "kanban_retry_task")
+        await retry.ainvoke({"task_id": "t1", "description": "   "})
+
+        refreshed = await store.get_task("t1")
+        assert refreshed is not None
+        assert refreshed.description == "keep me"
+
+    @pytest.mark.asyncio
+    async def test_retry_resets_block_cycle_count(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        task = await _make_task(store, "t1", status=TaskStatus.FAILED)
+        task.error = "err"
+        task.block_cycle_count = 3
+        await store.save_task(task)
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        retry = self._get_tool(tools, "kanban_retry_task")
+        await retry.ainvoke({"task_id": "t1"})
+
+        refreshed = await store.get_task("t1")
+        assert refreshed is not None
+        assert refreshed.block_cycle_count == 0
+
+
+class TestCancelDependencyRelease:
+    """Cancel a parent task and verify dependent children are promoted."""
+
+    @staticmethod
+    def _get_tool(tools: list[BaseTool], name: str) -> BaseTool:
+        return next(t for t in tools if t.name == name)
+
+    @pytest.mark.asyncio
+    async def test_cancel_parent_promotes_backlog_child(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "parent", status=TaskStatus.READY)
+        child = await _make_task(store, "child", status=TaskStatus.BACKLOG)
+        await store.add_edge("parent", "child")
+
+        assert not await store.are_dependencies_met("child")
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "parent"}))
+
+        assert result["status"] == "cancelled"
+        assert result["promoted_children"] == ["child"]
+
+        refreshed_child = await store.get_task("child")
+        assert refreshed_child is not None
+        assert refreshed_child.status == TaskStatus.READY
+
+        events = await store.list_events("child")
+        promoted = [e for e in events if e.kind == TaskEventKind.PROMOTED]
+        assert len(promoted) == 1
+        assert promoted[0].payload["trigger_task_id"] == "parent"
+
+    @pytest.mark.asyncio
+    async def test_cancel_parent_child_with_unmet_deps_stays_backlog(self) -> None:
+        """Child depends on both A (cancelled) and B (still running) -> stays BACKLOG."""
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "a", status=TaskStatus.READY)
+        await _make_task(store, "b", status=TaskStatus.RUNNING)
+        await _make_task(store, "child", status=TaskStatus.BACKLOG)
+        await store.add_edge("a", "child")
+        await store.add_edge("b", "child")
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "a"}))
+
+        assert result["status"] == "cancelled"
+        assert "promoted_children" not in result
+
+        refreshed_child = await store.get_task("child")
+        assert refreshed_child is not None
+        assert refreshed_child.status == TaskStatus.BACKLOG
+
+    @pytest.mark.asyncio
+    async def test_cancel_no_children_no_promoted_field(self) -> None:
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "solo", status=TaskStatus.READY)
+
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "solo"}))
+
+        assert result["status"] == "cancelled"
+        assert "promoted_children" not in result

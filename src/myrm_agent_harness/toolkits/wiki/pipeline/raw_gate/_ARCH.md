@@ -9,7 +9,8 @@ Raw publication gate — single SSOT for stable-path writes into vault `raw/`.
 | `types.py` | Types | `RawConflictPolicy`, `RawPublishRequest`, `RawPublishResult` (+ security fields) | ✅ |
 | `errors.py` | Types | `RawGateError` structured failures | ✅ |
 | `security_hook.py` | Core | `apply_raw_security_scan`, `scan_publish_article_content` | ✅ |
-| `forget.py` | Core | `forget_evidence`, `scan_existing_raw_vault` (blocked → unlink + optional FTS purge) | ✅ |
+| `forget.py` | Core | `forget_evidence` permanent delete — delegates to `evidence_removal` | ✅ |
+| `evidence_removal.py` | Core | `remove_raw_evidence` shared re-anchor SSOT (forget + dedup trash) | ✅ |
 | `service.py` | Core | `publish_raw()` with per-vault asyncio lock + security pre-scan | ✅ |
 
 Policies: `FAIL` (agent ingest), `SKIP` / `SUPERSEDE` (settings import), `PUT_IF_ABSENT` (query archive, turn digest, consolidation digest).

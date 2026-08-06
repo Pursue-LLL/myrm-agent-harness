@@ -50,6 +50,10 @@ from myrm_agent_harness.observability.metrics.circuit_breaker_metrics import (
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
+from ...infra.context_budget import (
+    estimate_processor_context_tokens,
+    resolve_budget_kwargs_from_metadata,
+)
 from ...infra.schemas import ContextConfig, StructuredSummary
 from ...strategies.progress_timeout import (
     InactivityTimeoutError,
@@ -70,7 +74,9 @@ _HALF_OPEN_PROBE_INTERVAL = 2
 
 # Tiered cooldown periods by error type
 _CIRCUIT_COOLDOWN_TRANSIENT = 60  # 1 minute for transient errors (timeout, rate limit)
-_CIRCUIT_COOLDOWN_PERMANENT = 600  # 10 minutes for permanent errors (model not found, 503)
+_CIRCUIT_COOLDOWN_PERMANENT = (
+    600  # 10 minutes for permanent errors (model not found, 503)
+)
 _CIRCUIT_COOLDOWN_AUTH = 1800  # 30 minutes for auth errors (invalid API key)
 
 _summarize_failures: int = 0
@@ -119,7 +125,9 @@ def _classify_error_type(exc: Exception) -> str:
     ):
         return "permanent"
 
-    status_code = getattr(exc, "status_code", None) or getattr(getattr(exc, "response", None), "status_code", None)
+    status_code = getattr(exc, "status_code", None) or getattr(
+        getattr(exc, "response", None), "status_code", None
+    )
     if status_code in (404, 503):
         return "permanent"
 
@@ -215,19 +223,26 @@ class SummarizeProcessor(BaseProcessor):
 
     _HOT_CACHE_WINDOW_SECONDS: float = 300.0  # 5 minutes
 
-    async def _emit_compaction_status(self, context: ProcessorContext, phase: str, **extra: object) -> None:
+    async def _emit_compaction_status(
+        self, context: ProcessorContext, phase: str, **extra: object
+    ) -> None:
         """Emit a context_compaction status event (best-effort, never throws)."""
         from myrm_agent_harness.utils.event_utils import dispatch_custom_event
 
         try:
-            payload: dict[str, object] = {"step_key": "context_compaction", "phase": phase}
+            payload: dict[str, object] = {
+                "step_key": "context_compaction",
+                "phase": phase,
+            }
             payload.update(extra)
             runnable_config = context.metadata.get("runnable_config")
             await dispatch_custom_event("agent_status", payload, config=runnable_config)  # type: ignore[arg-type]
         except Exception:
             pass
 
-    def _should_bypass_for_hot_cache(self, context: ProcessorContext, current_tokens: int) -> bool:
+    def _should_bypass_for_hot_cache(
+        self, context: ProcessorContext, current_tokens: int
+    ) -> bool:
         """Check whether to bypass summarization due to hot cache."""
         max_tokens = self.config.max_context_tokens or 128000
         if current_tokens >= max_tokens * 0.90:
@@ -235,7 +250,8 @@ class SummarizeProcessor(BaseProcessor):
 
         last_active = context.metadata.get("last_activity_time")
         return bool(
-            isinstance(last_active, (int, float)) and time.time() - last_active < self._HOT_CACHE_WINDOW_SECONDS
+            isinstance(last_active, (int, float))
+            and time.time() - last_active < self._HOT_CACHE_WINDOW_SECONDS
         )
 
     async def should_process(self, context: ProcessorContext) -> bool:
@@ -247,11 +263,18 @@ class SummarizeProcessor(BaseProcessor):
         if _skip_next_api_token_check:
             _skip_next_api_token_check = False
 
-        should_sum = should_summarize(context.messages, config=self.config, ignore_api_tokens=ignore_api)
+        should_sum = should_summarize(
+            context.messages,
+            config=self.config,
+            ignore_api_tokens=ignore_api,
+            **resolve_budget_kwargs_from_metadata(context.metadata),
+        )
         if not should_sum:
             return False
 
-        total_tokens = estimate_messages_tokens(context.messages)
+        total_tokens = estimate_processor_context_tokens(
+            context.messages, context.metadata
+        )
         if self._should_bypass_for_hot_cache(context, total_tokens):
             logger.info(
                 "[Summarize] Hot cache bypass (tokens=%d), marking compaction_debt_pending",
@@ -292,7 +315,9 @@ class SummarizeProcessor(BaseProcessor):
             logger.warning("[Summarize] %s — using deterministic fallback", reason)
             _record_fallback_call()
             await self._emit_compaction_status(context, "circuit_open", reason=reason)
-            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
+            return self._apply_deterministic_fallback(
+                context, original_tokens, last_msg_db_id
+            )
 
         if circuit_open:
             logger.info("[Summarize] half-open probe — attempting LLM recovery")
@@ -319,13 +344,17 @@ class SummarizeProcessor(BaseProcessor):
             prev = _get_failures()
             _set_failures(prev + 1, "transient")
             _record_fallback_call()
-            circuit_breaker_failures_total.labels(component="summarize", error_type="timeout").inc()
+            circuit_breaker_failures_total.labels(
+                component="summarize", error_type="timeout"
+            ).inc()
             logger.warning(
                 "[Summarize] Progress-aware timeout (%s) — degrading to deterministic fallback",
                 timeout_exc,
             )
             await self._emit_compaction_status(context, "fallback", reason="timeout")
-            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
+            return self._apply_deterministic_fallback(
+                context, original_tokens, last_msg_db_id
+            )
         except Exception as exc:
             from myrm_agent_harness.observability.auth_detector import (
                 detect_auth_failure,
@@ -346,9 +375,13 @@ class SummarizeProcessor(BaseProcessor):
                     exc,
                     auth_hint,
                 )
-                circuit_breaker_failures_total.labels(component="summarize", error_type="auth").inc()
+                circuit_breaker_failures_total.labels(
+                    component="summarize", error_type="auth"
+                ).inc()
                 circuit_breaker_state.labels(component="summarize").set(2)  # OPEN
-                return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
+                return self._apply_deterministic_fallback(
+                    context, original_tokens, last_msg_db_id
+                )
 
             _set_failures(prev + 1, error_type_classified)
             _record_fallback_call()
@@ -358,7 +391,9 @@ class SummarizeProcessor(BaseProcessor):
                 if error_type_classified != "transient"
                 else ("timeout" if "timeout" in str(exc).lower() else "other")
             )
-            circuit_breaker_failures_total.labels(component="summarize", error_type=metrics_error_type).inc()
+            circuit_breaker_failures_total.labels(
+                component="summarize", error_type=metrics_error_type
+            ).inc()
 
             if prev + 1 >= MAX_CONSECUTIVE_SUMMARIZE_FAILURES:
                 circuit_breaker_state.labels(component="summarize").set(2)  # OPEN
@@ -372,8 +407,12 @@ class SummarizeProcessor(BaseProcessor):
                 type(exc).__name__,
                 exc,
             )
-            await self._emit_compaction_status(context, "fallback", reason=error_type_classified)
-            return self._apply_deterministic_fallback(context, original_tokens, last_msg_db_id)
+            await self._emit_compaction_status(
+                context, "fallback", reason=error_type_classified
+            )
+            return self._apply_deterministic_fallback(
+                context, original_tokens, last_msg_db_id
+            )
 
         _set_failures(0)
         global _fallback_calls, _skip_next_api_token_check
@@ -409,14 +448,19 @@ class SummarizeProcessor(BaseProcessor):
         self, context: ProcessorContext, original_tokens: int, last_msg_db_id: object
     ) -> ProcessorContext:
         """Deterministic fallback: build a minimal summary without LLM."""
-        summary = _build_deterministic_summary(context.messages, context.metadata, context.chat_id)
+        summary = _build_deterministic_summary(
+            context.messages, context.metadata, context.chat_id
+        )
 
         from ...strategies.pre_compact_context import prepend_pre_compact_message
         from ...strategies.summary_builder import extract_protected_head
 
         protected_head = extract_protected_head(context.messages)
 
-        tail_budget = int((self.config.max_context_tokens or 128000) * getattr(self.config, "tail_budget_ratio", 0.20))
+        tail_budget = int(
+            (self.config.max_context_tokens or 128000)
+            * getattr(self.config, "tail_budget_ratio", 0.20)
+        )
         recent_messages = extract_recent_messages(context.messages, tail_budget)
         summary_message = create_summary_message(summary, context.chat_id)
 
@@ -578,7 +622,9 @@ async def _guarded_summarize(
     tracker = ProgressClock()
     _DEBOUNCE_SECONDS = 3.0
 
-    async def _emit_compaction_event(phase: str, elapsed_s: float = 0, **extra: object) -> None:
+    async def _emit_compaction_event(
+        phase: str, elapsed_s: float = 0, **extra: object
+    ) -> None:
         """Emit a context_compaction event to the frontend (best-effort, never throws)."""
         try:
             payload: dict[str, object] = {
@@ -600,11 +646,15 @@ async def _guarded_summarize(
             await asyncio.sleep(check_interval)
             elapsed = time.monotonic() - start
             if elapsed >= ceiling_s:
-                await _emit_compaction_event("timeout", elapsed_s=elapsed, reason="ceiling")
+                await _emit_compaction_event(
+                    "timeout", elapsed_s=elapsed, reason="ceiling"
+                )
                 raise TotalCeilingTimeoutError(elapsed)
             idle = tracker.seconds_since_last_touch
             if idle >= inactivity_s:
-                await _emit_compaction_event("timeout", elapsed_s=elapsed, reason="inactivity")
+                await _emit_compaction_event(
+                    "timeout", elapsed_s=elapsed, reason="inactivity"
+                )
                 raise InactivityTimeoutError(idle)
             if not debounce_emitted and elapsed >= _DEBOUNCE_SECONDS:
                 debounce_emitted = True

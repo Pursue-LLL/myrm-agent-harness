@@ -111,6 +111,7 @@ def _make_bare_agent() -> BaseAgent:
     agent._is_running = False
     agent._extensions = []
     agent._tools_initialized = False
+    agent._cache_keepalive = None
 
     from myrm_agent_harness.agent.tool_management import ToolLifecycleManager
 

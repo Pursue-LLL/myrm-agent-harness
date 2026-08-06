@@ -25,6 +25,8 @@ from typing import Any
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, create_model
 
+from myrm_agent_harness.toolkits.mcp.schema_utils import prepare_mcp_call_arguments
+
 logger = logging.getLogger(__name__)
 
 
@@ -121,13 +123,16 @@ def convert_mcp_tools(
             args_model = create_model(f"{tool_name}_Args")  # type: ignore[call-overload]
 
         captured_name = tool_name
+        captured_schema = input_schema
 
         async def _invoke(
             call_fn: Callable[..., Awaitable[object]] = call_tool_fn,
             name: str = captured_name,
+            schema: dict[str, Any] = captured_schema,
             **kwargs: object,
         ) -> str:
-            raw = await call_fn(name, kwargs)
+            call_args = prepare_mcp_call_arguments(kwargs, schema)
+            raw = await call_fn(name, call_args)
             return _normalize_call_result(raw)
 
         lc_tool = StructuredTool(

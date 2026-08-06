@@ -285,13 +285,16 @@ async def test_execute_strips_markdown_fence_and_clears_invalidated_cache() -> N
 @pytest.mark.asyncio
 async def test_execute_with_skill_paths_stages_detected_skill() -> None:
     executor = _mock_code_executor()
-    executor.execute_bash.return_value = ExecutionResult(
+    skill_result = ExecutionResult(
         success=True, result=0, stdout="ok", stderr="", container_id="c1"
     )
+    executor.execute_bash.return_value = skill_result
+    executor.execute.return_value = skill_result
     bash_exec = BashExecutor(executor, enable_skill_execution=False)
     bash_exec.set_skill_env_map({"demo_skill": {"SK": "1"}})
     workspace = MagicMock()
 
+    mock_ensure_skills = AsyncMock(return_value=["/ws/skills/demo_skill"])
     with (
         patch.object(
             bash_exec._workspace_manager,
@@ -304,7 +307,7 @@ async def test_execute_with_skill_paths_stages_detected_skill() -> None:
         patch.object(
             bash_exec._skill_manager,
             "ensure_skills_in_workspace",
-            AsyncMock(return_value=["/ws/skills/demo_skill"]),
+            mock_ensure_skills,
         ),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin.rewrite_skill_paths",
@@ -320,11 +323,15 @@ async def test_execute_with_skill_paths_stages_detected_skill() -> None:
         ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
     ):
-        await bash_exec.execute(
+        result = await bash_exec.execute(
             "from skills.demo_skill import run",
             session_id="sess-1",
             skill_paths=["/host/skills/demo_skill"],
         )
+
+    assert result["stdout"] == "ok"
+    mock_ensure_skills.assert_awaited_once()
+    executor.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio

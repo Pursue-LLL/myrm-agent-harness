@@ -11,6 +11,7 @@ from myrm_agent_harness.toolkits.mcp.schema_utils import (
     get_schema_coercion_stats,
     has_dot_keys,
     nest_flat_arguments,
+    prepare_mcp_call_arguments,
     reset_schema_coercion_stats,
 )
 
@@ -21,7 +22,10 @@ from myrm_agent_harness.toolkits.mcp.schema_utils import (
 
 def test_canonicalize_sorts_object_keys():
     """Object keys must be sorted for deterministic serialization."""
-    schema = {"type": "object", "properties": {"b": {"type": "string"}, "a": {"type": "integer"}}}
+    schema = {
+        "type": "object",
+        "properties": {"b": {"type": "string"}, "a": {"type": "integer"}},
+    }
     canonical = canonicalize_schema_for_cache(schema)
     assert list(canonical.keys()) == ["properties", "type"]
     assert list(canonical["properties"].keys()) == ["a", "b"]
@@ -37,7 +41,9 @@ def test_canonicalize_sorts_required_array():
 def test_canonicalize_preserves_enum_order():
     """``enum`` values carry semantic ordering — must NOT be sorted."""
     schema = {
-        "properties": {"mode": {"enum": ["fast", "balanced", "thorough"], "type": "string"}},
+        "properties": {
+            "mode": {"enum": ["fast", "balanced", "thorough"], "type": "string"}
+        },
         "type": "object",
     }
     canonical = canonicalize_schema_for_cache(schema)
@@ -70,7 +76,11 @@ def test_canonicalize_dependent_required_non_scalar_items():
 
 def test_canonicalize_idempotent():
     """Applying canonicalization twice yields the same result."""
-    schema = {"required": ["c", "a"], "properties": {"c": {"type": "string"}, "a": {"type": "integer"}}, "type": "object"}
+    schema = {
+        "required": ["c", "a"],
+        "properties": {"c": {"type": "string"}, "a": {"type": "integer"}},
+        "type": "object",
+    }
     once = canonicalize_schema_for_cache(schema)
     twice = canonicalize_schema_for_cache(once)
     assert json.dumps(once, sort_keys=True) == json.dumps(twice, sort_keys=True)
@@ -79,9 +89,19 @@ def test_canonicalize_idempotent():
 def test_canonicalize_different_key_order_same_result():
     """Two schemas with identical content but different key orderings
     must produce identical JSON after canonicalization."""
-    schema_a = {"type": "object", "properties": {"repo": {"type": "string"}}, "required": ["repo"]}
-    schema_b = {"required": ["repo"], "properties": {"repo": {"type": "string"}}, "type": "object"}
-    assert json.dumps(canonicalize_schema_for_cache(schema_a)) == json.dumps(canonicalize_schema_for_cache(schema_b))
+    schema_a = {
+        "type": "object",
+        "properties": {"repo": {"type": "string"}},
+        "required": ["repo"],
+    }
+    schema_b = {
+        "required": ["repo"],
+        "properties": {"repo": {"type": "string"}},
+        "type": "object",
+    }
+    assert json.dumps(canonicalize_schema_for_cache(schema_a)) == json.dumps(
+        canonicalize_schema_for_cache(schema_b)
+    )
 
 
 def test_canonicalize_scalars_passthrough():
@@ -229,7 +249,9 @@ def test_canonicalize_mixed_real_world_schema():
 def test_flatten_json_schema_basic():
     schema = {
         "properties": {"user": {"$ref": "#/definitions/User"}},
-        "definitions": {"User": {"type": "object", "properties": {"name": {"type": "string"}}}},
+        "definitions": {
+            "User": {"type": "object", "properties": {"name": {"type": "string"}}}
+        },
     }
 
     flattened = flatten_json_schema(schema)
@@ -242,7 +264,12 @@ def test_flatten_json_schema_infinite_recursion():
     # A schema that refers to itself to test the cycle breaker
     schema = {
         "properties": {"node": {"$ref": "#/definitions/Node"}},
-        "definitions": {"Node": {"type": "object", "properties": {"child": {"$ref": "#/definitions/Node"}}}},
+        "definitions": {
+            "Node": {
+                "type": "object",
+                "properties": {"child": {"$ref": "#/definitions/Node"}},
+            }
+        },
     }
 
     # Should not raise RecursionError
@@ -314,7 +341,9 @@ def test_coerce_arguments_markdown_stripping():
 
 
 def test_coerce_arguments_boolean():
-    schema = {"properties": {"dry_run": {"type": "boolean"}, "force": {"type": "boolean"}}}
+    schema = {
+        "properties": {"dry_run": {"type": "boolean"}, "force": {"type": "boolean"}}
+    }
     kwargs = {"dry_run": "true", "force": "False"}
     coerced = coerce_arguments_by_schema(schema, kwargs)
     assert coerced["dry_run"] is True
@@ -322,7 +351,9 @@ def test_coerce_arguments_boolean():
 
 
 def test_coerce_arguments_number():
-    schema = {"properties": {"limit": {"type": "integer"}, "threshold": {"type": "number"}}}
+    schema = {
+        "properties": {"limit": {"type": "integer"}, "threshold": {"type": "number"}}
+    }
     kwargs = {"limit": "10", "threshold": "3.14"}
     coerced = coerce_arguments_by_schema(schema, kwargs)
     assert coerced["limit"] == 10
@@ -336,7 +367,10 @@ def test_coerce_arguments_recursive():
         "properties": {
             "filters": {
                 "type": "object",
-                "properties": {"limit": {"type": "integer"}, "tags": {"type": "array", "items": {"type": "boolean"}}},
+                "properties": {
+                    "limit": {"type": "integer"},
+                    "tags": {"type": "array", "items": {"type": "boolean"}},
+                },
             }
         }
     }
@@ -386,7 +420,11 @@ def test_coerce_arguments_union_object_from_json_string():
 
 
 def test_coerce_arguments_union_array_from_json_string():
-    schema = {"properties": {"items": {"type": ["array", "null"], "items": {"type": "string"}}}}
+    schema = {
+        "properties": {
+            "items": {"type": ["array", "null"], "items": {"type": "string"}}
+        }
+    }
     kwargs = {"items": '["a", "b"]'}
     coerced = coerce_arguments_by_schema(schema, kwargs)
     assert coerced["items"] == ["a", "b"]
@@ -938,3 +976,31 @@ def test_coerce_value_null_only_schema_string_passthrough():
     schema = {"type": "null"}
     result = coerce_value(schema, "some_string")
     assert result == "some_string"
+
+
+def test_prepare_mcp_call_arguments_strips_optional_nulls():
+    schema: dict[str, object] = {
+        "type": "object",
+        "properties": {
+            "date": {"type": "string"},
+            "trainFilterFlags": {"type": "string", "default": ""},
+        },
+        "required": ["date"],
+    }
+    prepared = prepare_mcp_call_arguments(
+        {"date": "2026-08-06", "trainFilterFlags": None},
+        schema,
+    )
+    assert prepared == {"date": "2026-08-06"}
+
+
+def test_prepare_mcp_call_arguments_keeps_required_nullable_null():
+    schema: dict[str, object] = {
+        "type": "object",
+        "properties": {
+            "payload": {"type": ["string", "null"]},
+        },
+        "required": ["payload"],
+    }
+    prepared = prepare_mcp_call_arguments({"payload": None}, schema)
+    assert prepared == {"payload": None}

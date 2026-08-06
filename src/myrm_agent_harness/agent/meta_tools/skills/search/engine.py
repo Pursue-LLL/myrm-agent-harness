@@ -7,6 +7,9 @@
 
 多语言搜索: 通过 Prompt 引导 LLM 传入 "概念/翻译/同义词" 格式, 利用 jieba 分词的
 词汇匹配能力. 特殊查询 "*" / ".*" 可返回所有技能, 用于 Fallback 兜底.
+
+[POS]
+See module docstring.
 """
 
 from __future__ import annotations

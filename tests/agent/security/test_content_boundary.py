@@ -6,6 +6,7 @@ import re
 
 from myrm_agent_harness.agent.security.detection.content_boundary import (
     detect_suspicious,
+    extract_wrapped_payload,
     has_invisible_unicode,
     sanitize,
     strip_invisible_unicode,
@@ -397,7 +398,15 @@ class TestStructuralFramingStrip:
         assert "</function_call>" not in out
 
     def test_strips_role_tags(self) -> None:
-        for tag in ("system", "assistant", "user", "result", "response", "output", "input"):
+        for tag in (
+            "system",
+            "assistant",
+            "user",
+            "result",
+            "response",
+            "output",
+            "input",
+        ):
             raw = f"prefix <{tag}>hi</{tag}> suffix"
             out = sanitize(raw)
             assert f"<{tag}>" not in out, f"failed to strip <{tag}>"
@@ -434,7 +443,7 @@ class TestStructuralFramingStrip:
         assert "CDATA" not in out
 
     def test_strips_code_fence_with_lang(self) -> None:
-        out = sanitize("```json\n{\"x\": 1}\n```")
+        out = sanitize('```json\n{"x": 1}\n```')
         assert "```json" not in out
 
     def test_strips_bare_code_fence(self) -> None:
@@ -459,3 +468,16 @@ class TestStructuralFramingStrip:
         wrapped = wrap_untrusted(content, source="test")
         assert "<|im_start|>" not in wrapped
         assert "Normal text" in wrapped
+
+
+class TestExtractWrappedPayload:
+    def test_plain_string_unchanged(self) -> None:
+        assert extract_wrapped_payload("2026-08-05") == "2026-08-05"
+
+    def test_unwrap_untrusted_envelope_with_source(self) -> None:
+        wrapped = wrap_untrusted("2026-08-05", source="mcp:get_current_date")
+        assert extract_wrapped_payload(wrapped) == "2026-08-05"
+
+    def test_unwrap_tool_output_envelope(self) -> None:
+        wrapped = wrap_tool_output('{"ok": true}')
+        assert extract_wrapped_payload(wrapped) == '{"ok": true}'

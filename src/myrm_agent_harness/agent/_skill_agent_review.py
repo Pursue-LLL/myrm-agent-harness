@@ -60,7 +60,9 @@ class SkillAgentReviewMixin:
         if isinstance(query, str):
             user_text = query
         elif isinstance(query, list):
-            user_parts = [str(m.get("content", "")) for m in query if m.get("role") == "user"]
+            user_parts = [
+                str(m.get("content", "")) for m in query if m.get("role") == "user"
+            ]
             user_text = " ".join(user_parts)
         else:
             return ""
@@ -114,7 +116,10 @@ class SkillAgentReviewMixin:
                     caller="chat",
                 )
                 if result.security_blocked:
-                    logger.warning("Wiki turn archive blocked: sensitive content in %s", relative_path)
+                    logger.warning(
+                        "Wiki turn archive blocked: sensitive content in %s",
+                        relative_path,
+                    )
                     return
                 if not result.written:
                     return
@@ -125,9 +130,13 @@ class SkillAgentReviewMixin:
 
         task = asyncio.create_task(_archive())
         track_background_task(task)
-        logger.info("Wiki auto-archive scheduled (content=%d chars)", len(archive_content))
+        logger.info(
+            "Wiki auto-archive scheduled (content=%d chars)", len(archive_content)
+        )
 
-    def _should_trigger_skill_review(self, query: str | list[dict[str, object]] | object) -> bool:
+    def _should_trigger_skill_review(
+        self, query: str | list[dict[str, object]] | object
+    ) -> bool:
         """Determine if a background skill review should be triggered.
 
         Uses HeartbeatEvaluator for expression volume + task complexity assessment.
@@ -147,16 +156,22 @@ class SkillAgentReviewMixin:
             return False
 
         try:
-            from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
+            from myrm_agent_harness.toolkits.code_execution.executors.base import (
+                get_executor,
+            )
 
             executor = get_executor()
             if executor and hasattr(executor, "metrics"):
                 metrics = executor.metrics
                 if metrics.total_executions > 0 and metrics.total_success == 0:
-                    logger.info("Skill review skipped (Pre-Screener): Trajectory had 0 successful tool executions.")
+                    logger.info(
+                        "Skill review skipped (Pre-Screener): Trajectory had 0 successful tool executions."
+                    )
                     return False
         except Exception as e:
-            logger.debug("Skill review pre-screener failed to check executor metrics: %s", e)
+            logger.debug(
+                "Skill review pre-screener failed to check executor metrics: %s", e
+            )
         # --------------------------
 
         tool_call_count = stats.tool_call_count
@@ -225,7 +240,11 @@ class SkillAgentReviewMixin:
         if agent_instance is not None:
             try:
                 state_snapshot = await agent_instance.aget_state(config)
-                if state_snapshot and state_snapshot.values and "messages" in state_snapshot.values:
+                if (
+                    state_snapshot
+                    and state_snapshot.values
+                    and "messages" in state_snapshot.values
+                ):
                     messages = list(state_snapshot.values["messages"])
                     fetched_state = True
             except Exception as e:
@@ -251,7 +270,9 @@ class SkillAgentReviewMixin:
             try:
                 cached: list[SkillMetadata] = await get_cached()
                 if cached:
-                    all_skills_catalog = "\n".join(f"- {s.name} — {s.description}" for s in cached)
+                    all_skills_catalog = "\n".join(
+                        f"- {s.name} — {s.description}" for s in cached
+                    )
             except Exception:
                 pass
 
@@ -316,7 +337,9 @@ class SkillAgentReviewMixin:
             try:
                 persisted = await memory_manager.end_session()
                 if persisted:
-                    logger.info("Memory session flush: %d memories persisted", len(persisted))
+                    logger.info(
+                        "Memory session flush: %d memories persisted", len(persisted)
+                    )
             except Exception as e:
                 logger.warning("Memory session flush failed: %s", e)
 
@@ -330,7 +353,9 @@ class SkillAgentReviewMixin:
 
                 privacy = get_privacy_policy()
                 llm: BaseChatModel = self.llm
-                extraction_llm: BaseChatModel | None = getattr(self, "_extraction_llm", None)
+                extraction_llm: BaseChatModel | None = getattr(
+                    self, "_extraction_llm", None
+                )
                 wiki_boundary_enabled = bool(getattr(self, "_wiki_base_dir", None))
                 task = asyncio.create_task(
                     auto_extract_memories(
@@ -343,19 +368,26 @@ class SkillAgentReviewMixin:
                         assistant_reply="".join(assistant_chunks),
                         deep_scan=privacy.deep_scan,
                         wiki_boundary_enabled=wiki_boundary_enabled,
+                        lifecycle_observer=getattr(
+                            self, "_extraction_lifecycle_observer", None
+                        ),
                     )
                 )
                 track_background_task(task)
 
             recurrence_summary = self._build_recurrence_summary(query, assistant_chunks)
             if recurrence_summary:
-                recurrence_task = asyncio.create_task(memory_manager.check_session_recurrence(recurrence_summary))
+                recurrence_task = asyncio.create_task(
+                    memory_manager.check_session_recurrence(recurrence_summary)
+                )
                 track_background_task(recurrence_task)
 
         on_session_cleanup = getattr(self, "_on_session_cleanup", None)
         if on_session_cleanup is not None:
             if isinstance(query, str):
-                messages_for_hook: list[dict[str, object]] = [{"role": "user", "content": query}]
+                messages_for_hook: list[dict[str, object]] = [
+                    {"role": "user", "content": query}
+                ]
             elif isinstance(query, list):
                 messages_for_hook = [
                     {
@@ -366,7 +398,9 @@ class SkillAgentReviewMixin:
                 ]
             else:
                 messages_for_hook = []
-            messages_for_hook.append({"role": "assistant", "content": "".join(assistant_chunks)})
+            messages_for_hook.append(
+                {"role": "assistant", "content": "".join(assistant_chunks)}
+            )
 
             async def _run_session_cleanup() -> None:
                 try:
@@ -393,9 +427,13 @@ class SkillAgentReviewMixin:
         self._maybe_archive_to_wiki(query, assistant_chunks)
 
         if self._should_trigger_skill_review(query):
-            await self._trigger_background_skill_review(query, chat_history, assistant_chunks, active_skills)
+            await self._trigger_background_skill_review(
+                query, chat_history, assistant_chunks, active_skills
+            )
 
-        from myrm_agent_harness.backends.skills.usage_recorder import flush_skill_usage_stats
+        from myrm_agent_harness.backends.skills.usage_recorder import (
+            flush_skill_usage_stats,
+        )
 
         flush_skill_usage_stats()
 

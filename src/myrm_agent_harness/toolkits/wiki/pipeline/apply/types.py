@@ -1,4 +1,8 @@
-"""Wiki apply request/result types."""
+"""Wiki apply request/result types.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,8 @@
-"""Inject per-turn session directory access context for the agent."""
+"""Inject per-turn session directory access context for the agent.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

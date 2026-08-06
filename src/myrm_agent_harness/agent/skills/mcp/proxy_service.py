@@ -32,6 +32,7 @@ import time
 from typing import TYPE_CHECKING, TypedDict
 
 from myrm_agent_harness.utils.lru_cache import LRUCache
+from myrm_agent_harness.toolkits.mcp.schema_utils import prepare_mcp_call_arguments
 
 if TYPE_CHECKING:
     from myrm_agent_harness.backends.skills.types import SkillMetadata
@@ -49,15 +50,14 @@ def _resolve_mcp_input_schema(
     """Normalize MCP tool schema entry to JSON Schema dict."""
     from typing import cast
 
-    raw = tool_schema_entry.get("inputSchema")
-    if raw is None:
-        return {}
-    if isinstance(raw, dict):
-        return cast("dict[str, object]", raw)
-    model_json_schema = getattr(raw, "model_json_schema", None)
-    if callable(model_json_schema):
-        return cast("dict[str, object]", model_json_schema())
-    return {}
+    from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import (
+        normalize_input_schema,
+    )
+
+    return cast(
+        "dict[str, object]",
+        normalize_input_schema(tool_schema_entry.get("inputSchema")),
+    )
 
 
 def _validate_required_mcp_params(
@@ -166,8 +166,22 @@ class MCPSkillProxyService:
             RuntimeError: 如果找不到技能或工具
         """
         log_prefix = f"[PTC:{trace_id}]"
-        cleaned_params = {k: v for k, v in params.items() if v is not None}
-        cache_tool_name = self._canonical_cache_tool_name(skill_name, tool_name)
+        matched_for_schema = self._canonical_cache_tool_name(skill_name, tool_name)
+        schema_entry: dict[str, object] | None = None
+        from myrm_agent_harness.agent.skills.runtime.registry import skill_registry
+
+        skill_meta_for_schema = skill_registry.get_skill(skill_name)
+        if skill_meta_for_schema and skill_meta_for_schema.mcp:
+            schema_entry = skill_meta_for_schema.mcp.tool_schemas.get(
+                matched_for_schema
+            )
+        input_schema = (
+            _resolve_mcp_input_schema(schema_entry)
+            if isinstance(schema_entry, dict)
+            else None
+        )
+        cleaned_params = prepare_mcp_call_arguments(params, input_schema)
+        cache_tool_name = matched_for_schema
         cache_key = self._make_cache_key(skill_name, cache_tool_name, cleaned_params)
         cached_result = self._cache.get(cache_key)
         if cached_result is not None:
@@ -345,26 +359,51 @@ class MCPSkillProxyService:
                     parsed_items.append(item)
 
             if len(parsed_items) == 1:
-                return self._extract_text_content(parsed_items[0])
+                return self._normalize_ptc_value(
+                    self._extract_text_content(parsed_items[0])
+                )
 
             if all(isinstance(item, str) for item in content):
                 combined = "".join(content)
                 try:
-                    return self._extract_text_content(json.loads(combined))
+                    return self._normalize_ptc_value(
+                        self._extract_text_content(json.loads(combined))
+                    )
                 except (json.JSONDecodeError, ValueError):
                     pass
 
-            return [self._extract_text_content(item) for item in parsed_items]
+            return [
+                self._normalize_ptc_value(self._extract_text_content(item))
+                for item in parsed_items
+            ]
 
         # 如果是字符串
         if isinstance(content, str):
             try:
                 parsed = json.loads(content)
-                return self._extract_text_content(parsed)
+                return self._normalize_ptc_value(self._extract_text_content(parsed))
             except (json.JSONDecodeError, ValueError):
-                return content
+                return self._normalize_ptc_value(content)
 
-        return self._extract_text_content(content)
+        return self._normalize_ptc_value(self._extract_text_content(content))
+
+    def _normalize_ptc_value(self, value: object) -> object:
+        """Unwrap security envelopes and parse JSON strings for PTC Python consumers."""
+        if isinstance(value, str):
+            from myrm_agent_harness.core.security.detection.content_boundary import (
+                extract_wrapped_payload,
+            )
+
+            unwrapped = extract_wrapped_payload(value)
+            if unwrapped != value:
+                try:
+                    return json.loads(unwrapped)
+                except (json.JSONDecodeError, ValueError):
+                    return unwrapped
+            return value
+        if isinstance(value, list):
+            return [self._normalize_ptc_value(item) for item in value]
+        return value
 
     def _extract_text_content(self, content: object) -> object:
         """提取 MCP 内容中的实际数据

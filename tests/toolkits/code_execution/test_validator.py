@@ -422,7 +422,9 @@ class TestSanitizeEnv:
             sanitize_env,
         )
 
-        result = sanitize_env({"PATH": "/usr/bin", "HOME": "/home/user"}, EnvInheritPolicy.NONE)
+        result = sanitize_env(
+            {"PATH": "/usr/bin", "HOME": "/home/user"}, EnvInheritPolicy.NONE
+        )
         assert result == {}
 
     def test_core_policy_keeps_only_core(self) -> None:
@@ -483,3 +485,23 @@ class TestSanitizeEnv:
         env = {"PATH": "/usr/bin", "HOME": "/home/user", "LANG": "en_US.UTF-8"}
         result = sanitize_env(env, EnvInheritPolicy.ALL)
         assert result == env
+
+
+class TestMcpVirtualPathBlock:
+    def test_ls_mcp_blocked_with_guidance(self, tmp_path: Path) -> None:
+        result = validate_command(
+            "ls /mcp/ 2>/dev/null | head -50",
+            workspace_path=tmp_path,
+        )
+        assert result.is_safe is False
+        assert result.reason is not None
+        assert "virtual skill-doc path" in result.reason
+        assert "file_read_tool" in result.reason
+
+    def test_cat_mcp_skill_doc_blocked(self, tmp_path: Path) -> None:
+        result = validate_command(
+            "cat /mcp/mcp_12306_skill/get_tickets.md",
+            workspace_path=tmp_path,
+        )
+        assert result.is_safe is False
+        assert "file_read_tool" in (result.reason or "")

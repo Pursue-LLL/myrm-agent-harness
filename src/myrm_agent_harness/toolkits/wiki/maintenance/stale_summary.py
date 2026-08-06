@@ -56,6 +56,25 @@ def collect_stale_raw_files(structure: WikiStructure) -> WikiStaleSummary:
 
     known_hashes = get_last_compile_raw_hashes(metadata)
     current_hashes = collect_raw_content_hashes(structure)
+    from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.eligibility import (
+        CorpusEligibilityFilter,
+    )
+    from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.path_utils import (
+        normalize_raw_relative_path,
+    )
+
+    blocked = CorpusEligibilityFilter(structure).blocked_paths()
+    if blocked:
+        known_hashes = {
+            normalize_raw_relative_path(key): value
+            for key, value in known_hashes.items()
+            if normalize_raw_relative_path(key) not in blocked
+        }
+        current_hashes = {
+            normalize_raw_relative_path(key): value
+            for key, value in current_hashes.items()
+            if normalize_raw_relative_path(key) not in blocked
+        }
     if not known_hashes:
         if current_hashes:
             stale = [StaleRawFile(relative_path=key) for key in sorted(current_hashes)]
@@ -64,7 +83,9 @@ def collect_stale_raw_files(structure: WikiStructure) -> WikiStaleSummary:
                 last_compile_time=last_compile,
                 stale_files=tuple(stale),
             )
-        return WikiStaleSummary(stale_count=0, last_compile_time=last_compile, stale_files=())
+        return WikiStaleSummary(
+            stale_count=0, last_compile_time=last_compile, stale_files=()
+        )
 
     stale: list[StaleRawFile] = []
     for key, current_hash in current_hashes.items():
@@ -125,8 +146,12 @@ def concept_uses_stale_sources(content: str, stale_paths: frozenset[str]) -> boo
     if not stale_paths:
         return False
 
-    from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_from_content
-    from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import load_frontmatter_metadata
+    from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
+        parse_claims_from_content,
+    )
+    from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
+        load_frontmatter_metadata,
+    )
 
     metadata, _body = load_frontmatter_metadata(content)
     sources = metadata.get("sources")

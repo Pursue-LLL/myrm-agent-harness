@@ -31,8 +31,8 @@ POST-CALL:
 
 [OUTPUT]
 - tool_interceptor_middleware: unified tool interception middleware
-- get_loop_guard(): Get or create the session-scoped LoopGuard
-- reset_loop_guard(): Reset loop guard state
+- get_loop_guard(): Get or create the session-scoped LoopGuard (ContextVar + session-key fallback)
+- reset_loop_guard(): Reset loop guard state; `is_resume=True` preserves CallRecord window and error signatures
 - notify_loop_guard_compaction(): Reset iteration budget after context compaction
 
 [POS]
@@ -53,6 +53,7 @@ from langgraph.types import Command
 
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_agent_id,
+    get_approval_session,
     get_event_logger,
 )
 from myrm_agent_harness.agent.middlewares._skill_failure_tracking import (
@@ -70,7 +71,9 @@ from myrm_agent_harness.agent.middlewares._tool_guards import (
 )
 from myrm_agent_harness.agent.middlewares.tool_executor import execute_with_retry
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
-from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import BASH_PROCESS_TOOL_NAME
+from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
+    BASH_PROCESS_TOOL_NAME,
+)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_economics.tracker import (
     get_token_tracker,
@@ -80,28 +83,46 @@ from myrm_agent_harness.utils.token_economics.tracker import (
 
 logger = get_agent_logger(__name__)
 
-_loop_guard_var: ContextVar[LoopGuard] = ContextVar("loop_guard")
+_loop_guard_var: ContextVar[LoopGuard | None] = ContextVar("loop_guard", default=None)
+_session_loop_guards: dict[str, LoopGuard] = {}
 _BASH_POLL_TOOLS = frozenset({BASH_PROCESS_TOOL_NAME})
 
 
-def _create_loop_guard(*, graph_recursion_limit: int = 100) -> LoopGuard:
-    return LoopGuard(poll_tools=_BASH_POLL_TOOLS, graph_recursion_limit=graph_recursion_limit)
+def _loop_guard_session_key() -> str:
+    session_key = get_approval_session()
+    return session_key if session_key else "__default__"
 
 
-def get_loop_guard() -> LoopGuard:
-    """Get or create the session-scoped LoopGuard."""
-    try:
-        guard = _loop_guard_var.get()
-        if guard is not None:
-            return guard
-    except LookupError:
-        pass
-    guard = _create_loop_guard()
+def _bind_loop_guard(guard: LoopGuard) -> LoopGuard:
+    _session_loop_guards[_loop_guard_session_key()] = guard
     _loop_guard_var.set(guard)
     return guard
 
 
-def reset_loop_guard(*, is_resume: bool = False, graph_recursion_limit: int = 100) -> None:
+def _get_session_loop_guard() -> LoopGuard | None:
+    return _session_loop_guards.get(_loop_guard_session_key())
+
+
+def _create_loop_guard(*, graph_recursion_limit: int = 100) -> LoopGuard:
+    return LoopGuard(
+        poll_tools=_BASH_POLL_TOOLS, graph_recursion_limit=graph_recursion_limit
+    )
+
+
+def get_loop_guard() -> LoopGuard:
+    """Get or create the session-scoped LoopGuard."""
+    guard = _loop_guard_var.get()
+    if guard is not None:
+        return guard
+    existing = _get_session_loop_guard()
+    if existing is not None:
+        return _bind_loop_guard(existing)
+    return _bind_loop_guard(_create_loop_guard())
+
+
+def reset_loop_guard(
+    *, is_resume: bool = False, graph_recursion_limit: int = 100
+) -> None:
     """Reset the session-scoped loop guard state.
 
     Called at the start of each agent run and at each Goal continuation turn.
@@ -110,13 +131,20 @@ def reset_loop_guard(*, is_resume: bool = False, graph_recursion_limit: int = 10
     is forwarded to ``LoopGuard._configure_budget`` to keep budget thresholds
     aligned with the actual LangGraph recursion limit.
     """
-    try:
-        guard = _loop_guard_var.get()
-        guard.reset(preserve_error_signatures=is_resume)
-        guard._configure_budget(graph_recursion_limit)
-    except LookupError:
-        guard = _create_loop_guard(graph_recursion_limit=graph_recursion_limit)
-        _loop_guard_var.set(guard)
+    guard = _loop_guard_var.get()
+    if guard is None:
+        guard = _get_session_loop_guard()
+    if guard is None:
+        _bind_loop_guard(
+            _create_loop_guard(graph_recursion_limit=graph_recursion_limit)
+        )
+        return
+    guard.reset(
+        preserve_error_signatures=is_resume,
+        preserve_call_window=is_resume,
+    )
+    guard._configure_budget(graph_recursion_limit)
+    _bind_loop_guard(guard)
 
 
 def notify_loop_guard_compaction() -> None:
@@ -126,14 +154,15 @@ def notify_loop_guard_compaction() -> None:
     terminated after compaction.  Error signatures are preserved so that
     recurring failures are still tracked across compaction boundaries.
     """
-    try:
-        guard = _loop_guard_var.get()
-        prev_calls = guard._metrics.total_calls
-        guard.notify_compaction()
-        if prev_calls > 0:
-            logger.debug("LoopGuard compaction reset: total_calls %d → 0", prev_calls)
-    except LookupError:
-        pass
+    guard = _loop_guard_var.get()
+    if guard is None:
+        guard = _get_session_loop_guard()
+    if guard is None:
+        return
+    prev_calls = guard._metrics.total_calls
+    guard.notify_compaction()
+    if prev_calls > 0:
+        logger.debug("LoopGuard compaction reset: total_calls %d → 0", prev_calls)
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +210,9 @@ async def tool_interceptor_middleware(
             agent_id_for_metrics = get_agent_id() or "base_agent"
 
             if metrics_registry.enabled:
-                metrics_registry.record_tool_call(agent_id=agent_id_for_metrics, tool_name=tool_name, status=status)
+                metrics_registry.record_tool_call(
+                    agent_id=agent_id_for_metrics, tool_name=tool_name, status=status
+                )
 
             _track_skill_execution(
                 tool_name,
@@ -206,7 +237,9 @@ async def tool_interceptor_middleware(
             agent_id_for_metrics = get_agent_id() or "base_agent"
 
             if metrics_registry.enabled:
-                metrics_registry.record_tool_call(agent_id=agent_id_for_metrics, tool_name=tool_name, status="error")
+                metrics_registry.record_tool_call(
+                    agent_id=agent_id_for_metrics, tool_name=tool_name, status="error"
+                )
 
             _track_skill_execution(
                 tool_name,
@@ -261,7 +294,9 @@ async def _tool_interceptor_middleware_inner(
     tool_call_id = request.tool_call.get("id", "")
     tool_args: dict[str, object] = request.tool_call.get("args") or {}
 
-    pre_result = await run_pre_call_guards(request, tool_name, tool_call_id, tool_args, get_loop_guard)
+    pre_result = await run_pre_call_guards(
+        request, tool_name, tool_call_id, tool_args, get_loop_guard
+    )
     if isinstance(pre_result, ToolMessage):
         return pre_result
 
@@ -274,7 +309,9 @@ async def _tool_interceptor_middleware_inner(
 
     start_time = time.time()
 
-    heartbeat_task = asyncio.create_task(emit_tool_heartbeat(tool_name, tool_call_id, start_time))
+    heartbeat_task = asyncio.create_task(
+        emit_tool_heartbeat(tool_name, tool_call_id, start_time)
+    )
 
     try:
         from myrm_agent_harness.agent.middlewares._session_context import (
@@ -285,7 +322,9 @@ async def _tool_interceptor_middleware_inner(
 
         while True:
             try:
-                result = await execute_with_retry(request, handler, tool_name, tool_call_id, allowed_domains)
+                result = await execute_with_retry(
+                    request, handler, tool_name, tool_call_id, allowed_domains
+                )
                 break
             except Exception as e:
                 if type(e).__name__ == "ToolClarificationException":
@@ -305,7 +344,10 @@ async def _tool_interceptor_middleware_inner(
                     else:
                         decision = {}
 
-                    if decision.get("type") == "approve" or decision.get("action") == "approve":
+                    if (
+                        decision.get("type") == "approve"
+                        or decision.get("action") == "approve"
+                    ):
                         if decision.get("edited_payload"):
                             new_args = decision["edited_payload"]
                             request.tool_call["args"] = new_args
@@ -330,7 +372,9 @@ async def _tool_interceptor_middleware_inner(
         return result
 
     except asyncio.CancelledError as e:
-        return await handle_cancellation(e, tool_name, tool_call_id, tool_args, start_time)
+        return await handle_cancellation(
+            e, tool_name, tool_call_id, tool_args, start_time
+        )
 
     except Exception as e:
         return await handle_execution_error(e, tool_name, tool_call_id, tool_args)

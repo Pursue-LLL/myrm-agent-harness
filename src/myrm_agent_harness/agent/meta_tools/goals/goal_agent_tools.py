@@ -74,6 +74,6 @@ def create_goal_tools(goal_provider: GoalProvider, session_id: str) -> list[Base
             return f"Successfully marked goal {goal.goal_id} as COMPLETE. You have achieved the objective."
         except Exception as e:
             logger.error("Goal completion failed: %s", e)
-            return "Error completing goal"
+            return f"Error completing goal: {e}"
 
     return [complete_goal]

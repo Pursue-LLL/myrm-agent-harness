@@ -1,4 +1,8 @@
-"""Wiki apply mutation errors."""
+"""Wiki apply mutation errors.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

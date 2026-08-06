@@ -50,7 +50,7 @@ from myrm_agent_harness.agent.middlewares.approval import (
     ApprovalRateLimiter,
     get_approval_rate_limiter,
 )
-from myrm_agent_harness.agent.middlewares.completion_guard import (
+from myrm_agent_harness.agent.middlewares.completion import (
     CompletionGuard,
     reset_completion_guard,
 )

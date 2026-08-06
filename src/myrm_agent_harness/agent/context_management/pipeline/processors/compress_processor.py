@@ -33,9 +33,16 @@ from dataclasses import replace
 from langchain_core.messages import BaseMessage
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
-from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
+from myrm_agent_harness.utils.token_estimation import (
+    estimate_messages_tokens,
+    estimate_request_tools_tokens,
+)
 
-from ...infra.context_budget import calculate_context_budget
+from ...infra.context_budget import (
+    calculate_context_budget,
+    estimate_processor_context_tokens,
+    resolve_budget_kwargs_from_metadata,
+)
 from ...infra.schemas import (
     ContextCompressEvictionCallback,
     ContextCompressOffloadCallback,
@@ -98,9 +105,6 @@ class CompressProcessor(BaseProcessor):
 
     _ECO_THRESHOLD_FACTOR: float = 0.80
     _HOT_CACHE_WINDOW_SECONDS: float = 300.0  # 5 minutes
-    _ANTI_THRASHING_STREAK_LIMIT: int = 2
-    _EFFECTIVE_SAVINGS_THRESHOLD: float = 0.10
-    _SAFETY_NET_RATIO: float = 0.90
 
     @property
     def name(self) -> str:
@@ -110,27 +114,39 @@ class CompressProcessor(BaseProcessor):
         """Check if eco mode is active (budget pressure signal from business layer)."""
         return bool(context.metadata.get("eco_mode", False))
 
-    def _should_bypass_for_hot_cache(self, context: ProcessorContext, current_tokens: int) -> bool:
+    def _should_bypass_for_hot_cache(
+        self, context: ProcessorContext, current_tokens: int
+    ) -> bool:
         """Check whether to bypass compression due to hot cache."""
         max_tokens = self.config.max_context_tokens or 128000
         if current_tokens >= max_tokens * 0.90:
             return False  # MUST compress synchronously to avoid OOM
 
         last_active = context.metadata.get("last_activity_time")
-        return isinstance(last_active, (int, float)) and (time.time() - last_active < self._HOT_CACHE_WINDOW_SECONDS)
+        return isinstance(last_active, (int, float)) and (
+            time.time() - last_active < self._HOT_CACHE_WINDOW_SECONDS
+        )
+
+    def _budget_kwargs(self, context: ProcessorContext) -> dict[str, int]:
+        return resolve_budget_kwargs_from_metadata(context.metadata)
+
+    def _estimate_context_tokens(self, context: ProcessorContext) -> int:
+        return estimate_processor_context_tokens(context.messages, context.metadata)
 
     async def should_process(self, context: ProcessorContext) -> bool:
         """Determine whether compression is needed (with hot cache bypass).
 
         Eco mode: when metadata['eco_mode'] is True, dynamic threshold is reduced by 20%.
         """
-        total_tokens = estimate_messages_tokens(context.messages)
+        total_tokens = self._estimate_context_tokens(context)
         cfg = self.config
         eco_mode = self._is_eco_mode(context)
 
         turn_count = sum(1 for m in context.messages if m.type == "human")
 
-        budget = calculate_context_budget(context.messages, cfg)
+        budget = calculate_context_budget(
+            context.messages, cfg, **self._budget_kwargs(context)
+        )
         dynamic_threshold, _ = budget.calculate_dynamic_thresholds(
             turn_count=turn_count,
             estimated_remaining_turns=10,
@@ -153,28 +169,15 @@ class CompressProcessor(BaseProcessor):
         if total_tokens < dynamic_threshold:
             return False
 
-        # --- Anti-Thrashing: skip if recent compressions were ineffective ---
-        streak = 0
-        if context.chat_id:
-            from ...tracking.task_metrics import get_task_metrics
+        from ...strategies.compression_anti_thrash_guard import (
+            should_block_automatic_compression,
+        )
 
-            metrics = get_task_metrics(context.chat_id)
-            if metrics:
-                streak = metrics.compression_ineffective_streak
-        if streak >= self._ANTI_THRASHING_STREAK_LIMIT:
-            max_tokens = cfg.max_context_tokens or 128000
-            if total_tokens < max_tokens * self._SAFETY_NET_RATIO:
-                logger.info(
-                    "[Compress] Anti-thrashing: skipping (streak=%d, tokens=%d < 90%% hard limit)",
-                    streak,
-                    total_tokens,
-                )
-                return False
-            logger.warning(
-                "[Compress] Anti-thrashing overridden by 90%% safety net (streak=%d, tokens=%d)",
-                streak,
-                total_tokens,
-            )
+        max_tokens = cfg.max_context_tokens or 128000
+        if should_block_automatic_compression(
+            context.chat_id, total_tokens, max_tokens
+        ):
+            return False
 
         # --- Cold Cache Drain Architecture (Hot Cache Bypass) ---
         if self._should_bypass_for_hot_cache(context, total_tokens):
@@ -213,13 +216,17 @@ class CompressProcessor(BaseProcessor):
             )
             return context
 
-        original_tokens = estimate_messages_tokens(context.messages)
+        original_tokens = self._estimate_context_tokens(context)
 
-        budget = calculate_context_budget(context.messages, self.config)
+        budget = calculate_context_budget(
+            context.messages, self.config, **self._budget_kwargs(context)
+        )
         dynamic_min_save = budget.get_dynamic_compress_min_save()
 
         if dynamic_min_save != self.config.compress_min_save:
-            remaining_ratio = budget.remaining_ratio if budget.remaining_ratio is not None else 1.0
+            remaining_ratio = (
+                budget.remaining_ratio if budget.remaining_ratio is not None else 1.0
+            )
             logger.info(
                 "Dynamic compress_min_save: %d -> %d (remaining %.1f%%)",
                 self.config.compress_min_save,
@@ -303,16 +310,23 @@ class CompressProcessor(BaseProcessor):
         )
 
         # Anti-thrashing: track compression effectiveness (persisted in TaskMetrics)
+        from ...strategies.compression_anti_thrash_guard import (
+            record_compression_effectiveness,
+        )
+
+        record_compression_effectiveness(
+            context.chat_id,
+            original_tokens=original_tokens,
+            tokens_saved=saved,
+        )
         if context.chat_id:
             from ...tracking.task_metrics import get_task_metrics as _get_metrics
 
             metrics = _get_metrics(context.chat_id)
             if metrics:
-                if savings_pct >= self._EFFECTIVE_SAVINGS_THRESHOLD:
-                    metrics.compression_ineffective_streak = 0
-                else:
-                    metrics.compression_ineffective_streak += 1
-                context.metadata["compression_ineffective_streak"] = metrics.compression_ineffective_streak
+                context.metadata["compression_ineffective_streak"] = (
+                    metrics.compression_ineffective_streak
+                )
 
         from ...infra.cache_break_detector import get_cache_break_detector
 
@@ -320,9 +334,13 @@ class CompressProcessor(BaseProcessor):
         if detector is not None:
             detector.notify_compaction()
 
-        from ...strategies.pre_compact_context import apply_pre_compact_after_protected_head
+        from ...strategies.pre_compact_context import (
+            apply_pre_compact_after_protected_head,
+        )
 
-        context.messages = apply_pre_compact_after_protected_head(context.messages, context=context)
+        context.messages = apply_pre_compact_after_protected_head(
+            context.messages, context=context
+        )
 
         return context
 

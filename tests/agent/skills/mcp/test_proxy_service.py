@@ -95,6 +95,24 @@ class TestMCPSkillProxyServiceParse:
         service = MCPSkillProxyService()
         assert service.parse_mcp_result("plain") == "plain"
 
+    def test_parse_untrusted_envelope_string_for_ptc(self) -> None:
+        from myrm_agent_harness.core.security.detection.content_boundary import (
+            wrap_untrusted,
+        )
+
+        service = MCPSkillProxyService()
+        wrapped = wrap_untrusted("2026-08-05", source="mcp:get_current_date")
+        assert service.parse_mcp_result(wrapped) == "2026-08-05"
+
+    def test_parse_untrusted_envelope_json_for_ptc(self) -> None:
+        from myrm_agent_harness.core.security.detection.content_boundary import (
+            wrap_untrusted,
+        )
+
+        service = MCPSkillProxyService()
+        wrapped = wrap_untrusted('[{"station_code":"VNP"}]', source="mcp:stations")
+        assert service.parse_mcp_result(wrapped) == [{"station_code": "VNP"}]
+
     def test_extract_non_dict_passthrough(self) -> None:
         service = MCPSkillProxyService()
         assert service._extract_text_content(42) == 42

@@ -213,7 +213,7 @@ async def test_route_mcp_servers_aggregate_demotion() -> None:
 async def test_route_mcp_servers_aggregate_over_budget_demotes_to_ptc() -> None:
     """Aggregate direct schema over budget demotes to MCP PTC (no catalog_invoke)."""
     cfg = MCPConfig(name="medium", type="stdio", command="echo")
-    tools = [_make_mock_tool(f"tool_{i}", schema_size=200, param_props=3) for i in range(8)]
+    tools = [_make_mock_tool(f"tool_{i}", schema_size=250, param_props=3) for i in range(8)]
     manager = MagicMock()
     manager.get_connection = AsyncMock(return_value=_mock_connection({"medium": tools}))
 

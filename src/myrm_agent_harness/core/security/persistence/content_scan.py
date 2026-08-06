@@ -1,4 +1,8 @@
-"""SSOT for scanning text before persistence (Memory, Wiki raw/publish, display)."""
+"""SSOT for scanning text before persistence (Memory, Wiki raw/publish, display).
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

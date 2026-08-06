@@ -9,7 +9,9 @@ from myrm_agent_harness.agent.context_management.infra.context_budget import (
     ContextBudget,
     ContextHealthStatus,
     calculate_context_budget,
+    estimate_processor_context_tokens,
     format_budget_log,
+    resolve_budget_kwargs_from_metadata,
 )
 from myrm_agent_harness.agent.context_management.infra.schemas import ContextConfig
 
@@ -23,7 +25,12 @@ def config() -> ContextConfig:
 
 
 def _budget(current: int, config: ContextConfig) -> ContextBudget:
-    return ContextBudget(current_tokens=current, compress_threshold=CT, summarize_threshold=ST, config=config)
+    return ContextBudget(
+        current_tokens=current,
+        compress_threshold=CT,
+        summarize_threshold=ST,
+        config=config,
+    )
 
 
 class TestContextHealthStatus:
@@ -58,48 +65,79 @@ class TestContextBudget:
         assert _budget(70_000, config).remaining_until_summarize == 20_000
 
     def test_remaining_ratio(self, config: ContextConfig) -> None:
-        assert _budget(45_000, config).remaining_ratio == pytest.approx(1.0 - 45_000 / ST)
+        assert _budget(45_000, config).remaining_ratio == pytest.approx(
+            1.0 - 45_000 / ST
+        )
 
     def test_remaining_ratio_overflow(self, config: ContextConfig) -> None:
         assert _budget(100_000, config).remaining_ratio == 0.0
 
     def test_zero_thresholds(self, config: ContextConfig) -> None:
-        b = ContextBudget(current_tokens=100, compress_threshold=0, summarize_threshold=0, config=config)
+        b = ContextBudget(
+            current_tokens=100,
+            compress_threshold=0,
+            summarize_threshold=0,
+            config=config,
+        )
         assert b.compress_usage == 0.0
         assert b.summarize_usage == 0.0
         assert b.remaining_ratio == 1.0
 
-    def test_dynamic_compress_min_save_plenty_of_space(self, config: ContextConfig) -> None:
+    def test_dynamic_compress_min_save_plenty_of_space(
+        self, config: ContextConfig
+    ) -> None:
         assert _budget(10_000, config).get_dynamic_compress_min_save() == 3000
 
     def test_dynamic_compress_min_save_moderate(self, config: ContextConfig) -> None:
-        assert _budget(63_000, config).get_dynamic_compress_min_save() == int(3000 * 0.6)
+        assert _budget(63_000, config).get_dynamic_compress_min_save() == int(
+            3000 * 0.6
+        )
 
     def test_dynamic_compress_min_save_tight(self, config: ContextConfig) -> None:
-        assert _budget(79_000, config).get_dynamic_compress_min_save() == int(3000 * 0.4)
+        assert _budget(79_000, config).get_dynamic_compress_min_save() == int(
+            3000 * 0.4
+        )
 
     def test_dynamic_compress_min_save_emergency(self, config: ContextConfig) -> None:
-        assert _budget(86_000, config).get_dynamic_compress_min_save() == max(500, int(3000 * 0.2))
+        assert _budget(86_000, config).get_dynamic_compress_min_save() == max(
+            500, int(3000 * 0.2)
+        )
 
     def test_calculate_dynamic_thresholds_early(self, config: ContextConfig) -> None:
-        threshold, min_save = _budget(5_000, config).calculate_dynamic_thresholds(turn_count=3)
+        threshold, min_save = _budget(5_000, config).calculate_dynamic_thresholds(
+            turn_count=3
+        )
         assert threshold == CT
         assert min_save == 3000
 
     def test_calculate_dynamic_thresholds_relaxed(self, config: ContextConfig) -> None:
-        threshold, _ = _budget(20_000, config).calculate_dynamic_thresholds(turn_count=10, estimated_remaining_turns=10)
+        threshold, _ = _budget(20_000, config).calculate_dynamic_thresholds(
+            turn_count=10, estimated_remaining_turns=10
+        )
         assert threshold == CT
 
-    def test_calculate_dynamic_thresholds_moderate_urgency(self, config: ContextConfig) -> None:
-        threshold, _ = _budget(50_000, config).calculate_dynamic_thresholds(turn_count=10, estimated_remaining_turns=10)
+    def test_calculate_dynamic_thresholds_moderate_urgency(
+        self, config: ContextConfig
+    ) -> None:
+        threshold, _ = _budget(50_000, config).calculate_dynamic_thresholds(
+            turn_count=10, estimated_remaining_turns=10
+        )
         assert threshold < CT
 
-    def test_calculate_dynamic_thresholds_high_urgency(self, config: ContextConfig) -> None:
-        threshold, _ = _budget(80_000, config).calculate_dynamic_thresholds(turn_count=10, estimated_remaining_turns=10)
+    def test_calculate_dynamic_thresholds_high_urgency(
+        self, config: ContextConfig
+    ) -> None:
+        threshold, _ = _budget(80_000, config).calculate_dynamic_thresholds(
+            turn_count=10, estimated_remaining_turns=10
+        )
         assert threshold < CT
 
-    def test_calculate_dynamic_thresholds_very_high_urgency(self, config: ContextConfig) -> None:
-        threshold, _ = _budget(85_000, config).calculate_dynamic_thresholds(turn_count=10, estimated_remaining_turns=20)
+    def test_calculate_dynamic_thresholds_very_high_urgency(
+        self, config: ContextConfig
+    ) -> None:
+        threshold, _ = _budget(85_000, config).calculate_dynamic_thresholds(
+            turn_count=10, estimated_remaining_turns=20
+        )
         assert threshold == int(CT * 0.50)
 
     def test_to_dict(self, config: ContextConfig) -> None:
@@ -135,13 +173,56 @@ class TestCalculateContextBudget:
         assert budget.compress_threshold > 0
 
     def test_with_custom_config(self, config: ContextConfig) -> None:
-        budget = calculate_context_budget([HumanMessage(content="Hello")], config=config)
+        budget = calculate_context_budget(
+            [HumanMessage(content="Hello")], config=config
+        )
         assert budget.compress_threshold == CT
         assert budget.summarize_threshold == ST  # 100_000 * 0.9 = 90_000
 
-    def test_with_default_config(self) -> None:
-        budget = calculate_context_budget([HumanMessage(content="Test")])
-        assert budget.config is not None
+    def test_with_tool_overhead_and_provider_tokens(self) -> None:
+        messages = [HumanMessage(content="Hello")]
+        budget = calculate_context_budget(
+            messages,
+            bound_tool_overhead_tokens=6000,
+            last_provider_prompt_tokens=65000,
+        )
+        assert budget.current_tokens >= 65000
+
+
+class TestResolveBudgetKwargsFromMetadata:
+    def test_extracts_overhead_and_provider_tokens(self) -> None:
+        kwargs = resolve_budget_kwargs_from_metadata(
+            {
+                "bound_tool_overhead_tokens": 5923,
+                "last_provider_prompt_tokens": 118_000,
+                "turn_count": 12,
+            }
+        )
+        assert kwargs == {
+            "bound_tool_overhead_tokens": 5923,
+            "last_provider_prompt_tokens": 118_000,
+        }
+
+    def test_ignores_invalid_metadata(self) -> None:
+        assert resolve_budget_kwargs_from_metadata({}) == {
+            "bound_tool_overhead_tokens": 0
+        }
+        assert resolve_budget_kwargs_from_metadata(
+            {"bound_tool_overhead_tokens": "bad"}
+        ) == {"bound_tool_overhead_tokens": 0}
+
+
+class TestEstimateProcessorContextTokens:
+    def test_uses_provider_prompt_tokens_as_floor(self) -> None:
+        messages = [HumanMessage(content="hi")]
+        total = estimate_processor_context_tokens(
+            messages,
+            {
+                "bound_tool_overhead_tokens": 6000,
+                "last_provider_prompt_tokens": 118_000,
+            },
+        )
+        assert total == 118_000
 
 
 class TestFormatBudgetLog:
@@ -154,3 +235,30 @@ class TestFormatBudgetLog:
 
     def test_critical_format(self, config: ContextConfig) -> None:
         assert "" in format_budget_log(_budget(80_000, config))
+
+
+class TestResolveContextBudgetMetadata:
+    def test_reads_tracker_usage_last_call(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.agent.middlewares.context_pipeline_helpers import (
+            resolve_context_budget_metadata,
+        )
+        from myrm_agent_harness.utils.token_economics.tracker import (
+            TokenTracker,
+            TokenUsage,
+        )
+
+        tracker = TokenTracker()
+        tracker.usage.last_call = TokenUsage(prompt_tokens=42_000)
+        monkeypatch.setattr(
+            "myrm_agent_harness.utils.token_economics.tracker.get_token_tracker",
+            lambda: tracker,
+        )
+
+        request = MagicMock()
+        request.tools = []
+        metadata = resolve_context_budget_metadata(request)
+        assert metadata["last_provider_prompt_tokens"] == 42_000

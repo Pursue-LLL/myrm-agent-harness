@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.middlewares.deliverable_write_verifier import (
+from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier import (
     check_deliverable_write_claim,
     detect_claimed_file_write,
     has_successful_file_write_calls,
 )
-from myrm_agent_harness.agent.security.guards.loop_guard_types import CallRecord, SuccessLevel
+from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+    CallRecord,
+    SuccessLevel,
+)
 
 
 def test_detect_claimed_file_write_positive() -> None:

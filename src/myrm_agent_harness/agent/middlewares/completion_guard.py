@@ -158,7 +158,8 @@ def _completion_check_tool(
             "but no successful evidence-gathering tools were observed in this run.\n"
             f"Reason: {evidence_reason}\n"
             "Before finishing, run at least one successful evidence step (web_search_tool, "
-            "web_fetch_tool, or browser evidence tools), then synthesize the answer."
+            "web_fetch_tool, browser evidence tools, or MCP PTC bash via skills.mcp_*), "
+            "then synthesize the answer."
         )
 
     if deliverable_write_reason.strip():
@@ -189,12 +190,18 @@ async def _rerun_verification_in_sandbox(command: str) -> bool:
     unavailability or execution failure returns False (fail-closed).
     """
     try:
-        from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
-        from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext
+        from myrm_agent_harness.toolkits.code_execution.executors.base import (
+            get_executor,
+        )
+        from myrm_agent_harness.toolkits.code_execution.executors.models import (
+            ExecutionContext,
+        )
 
         executor = get_executor()
         if not executor:
-            logger.warning("[CompletionGuard] Sandbox executor unavailable — skipping independent re-run.")
+            logger.warning(
+                "[CompletionGuard] Sandbox executor unavailable — skipping independent re-run."
+            )
             return False
 
         context = ExecutionContext(code=command, timeout=_RERUN_TIMEOUT_SECONDS)
@@ -210,7 +217,9 @@ async def _rerun_verification_in_sandbox(command: str) -> bool:
         )
         return False
     except Exception:
-        logger.warning("[CompletionGuard] Independent re-run raised exception.", exc_info=True)
+        logger.warning(
+            "[CompletionGuard] Independent re-run raised exception.", exc_info=True
+        )
         return False
 
 
@@ -348,8 +357,37 @@ def _is_ascii_word(keyword: str) -> bool:
     return keyword.isascii() and keyword.isalpha()
 
 
+_MCP_PTC_BASH_MARKER = "skills.mcp_"
+
+
+def _bash_command_text(args: object) -> str:
+    if not isinstance(args, dict):
+        return ""
+    command = args.get("command")
+    if isinstance(command, str):
+        return command
+    code = args.get("code")
+    if isinstance(code, str):
+        return code
+    return ""
+
+
+def _bash_mcp_ptc_evidence_succeeded(record: object) -> bool:
+    """True when bash executed a successful MCP PTC import path (skills.mcp_*)."""
+    tool_name = getattr(record, "tool_name", "")
+    if tool_name != "bash_code_execute_tool":
+        return False
+    success_level = getattr(record, "success_level", None)
+    if getattr(success_level, "name", "") == "FAILURE":
+        return False
+    args = getattr(record, "args", None)
+    return _MCP_PTC_BASH_MARKER in _bash_command_text(args)
+
+
 def _has_external_evidence(records: list[object]) -> bool:
     for record in records:
+        if _bash_mcp_ptc_evidence_succeeded(record):
+            return True
         tool_name = getattr(record, "tool_name", "")
         if tool_name not in _EXTERNAL_EVIDENCE_TOOLS:
             continue
@@ -406,7 +444,9 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         """Expose the internal ``_completion_check`` tool for registration."""
         return [_completion_check_tool]
 
-    async def aafter_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
+    async def aafter_model(
+        self, state: dict[str, Any], runtime: Any
+    ) -> dict[str, Any] | None:
         """Intercept completion attempts and inject verification when critical errors exist."""
         global _rejection_count
         if not self._enabled:
@@ -416,7 +456,9 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         if not messages:
             return None
 
-        last_ai_msg = next((msg for msg in reversed(messages) if isinstance(msg, AIMessage)), None)
+        last_ai_msg = next(
+            (msg for msg in reversed(messages) if isinstance(msg, AIMessage)), None
+        )
         if last_ai_msg is None:
             return None
 
@@ -432,7 +474,9 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 "complete_task",
             }
             has_finish_tool = any(
-                tc.get("name") in finish_tool_names for tc in last_ai_msg.tool_calls if isinstance(tc, dict)
+                tc.get("name") in finish_tool_names
+                for tc in last_ai_msg.tool_calls
+                if isinstance(tc, dict)
             )
             if has_finish_tool:
                 is_attempting_completion = True
@@ -440,10 +484,16 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         if not is_attempting_completion:
             # --- Mixed Message Guard ---
             if last_ai_msg.content and last_ai_msg.tool_calls:
-                content_str = last_ai_msg.content if isinstance(last_ai_msg.content, str) else str(last_ai_msg.content)
+                content_str = (
+                    last_ai_msg.content
+                    if isinstance(last_ai_msg.content, str)
+                    else str(last_ai_msg.content)
+                )
                 if _is_substantive_final_response(content_str):
                     has_mutation = any(
-                        tc.get("name") in _MUTATION_TOOLS for tc in last_ai_msg.tool_calls if isinstance(tc, dict)
+                        tc.get("name") in _MUTATION_TOOLS
+                        for tc in last_ai_msg.tool_calls
+                        if isinstance(tc, dict)
                     )
                     if not has_mutation:
                         logger.info(
@@ -485,7 +535,9 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 if isinstance(last_ai_msg.content, str)
                 else str(last_ai_msg.content)
             )
-            deliverable_write_reason = check_deliverable_write_claim(content_str, filtered_records)
+            deliverable_write_reason = check_deliverable_write_claim(
+                content_str, filtered_records
+            )
         if evidence_reason is not None:
             has_critical_errors = True
         if deliverable_write_reason is not None:
@@ -501,10 +553,13 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         # must NOT be bypassed by independent re-run.
         if evidence_reason is None:
             has_code_writes = any(
-                get_tool_group(r.tool_name) == ToolGroup.WRITE and _is_code_file(str(r.args.get("path", "")))
+                get_tool_group(r.tool_name) == ToolGroup.WRITE
+                and _is_code_file(str(r.args.get("path", "")))
                 for r in filtered_records
             )
-            if has_code_writes and _has_post_verification_code_write(filtered_records, _CODE_EXTENSIONS):
+            if has_code_writes and _has_post_verification_code_write(
+                filtered_records, _CODE_EXTENSIONS
+            ):
                 rerun_cmd = _find_last_verification_cmd(filtered_records)
                 if rerun_cmd:
                     rerun_passed = await _rerun_verification_in_sandbox(rerun_cmd)

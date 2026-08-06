@@ -10,6 +10,7 @@ from myrm_agent_harness.utils.context_format import (
     format_documents_with_metadata,
 )
 from myrm_agent_harness.utils.text_utils import (
+    PLANNING_ENCODING,
     find_sentence_boundary,
     get_token_count,
     truncate_by_tokens_with_boundary,
@@ -110,7 +111,9 @@ class TestHelperFunctions:
         text = "x" * 1000
 
         # 模拟tiktoken不可用的场景（通过传入无效编码器）
-        result = truncate_by_tokens_with_boundary(text, max_tokens=100, encoding_name="invalid_encoder")
+        result = truncate_by_tokens_with_boundary(
+            text, max_tokens=100, encoding_name="invalid_encoder"
+        )
         assert len(result) <= 405  # 100 * 4 + "..." 后缀
 
 
@@ -120,8 +123,14 @@ class TestFormatDocumentsWithMetadata:
     def test_no_token_control(self):
         """无token控制时的基础功能"""
         docs = [
-            Document(page_content="Content 1", metadata={"url": "http://example.com/1", "title": "Doc 1"}),
-            Document(page_content="Content 2", metadata={"url": "http://example.com/2", "title": "Doc 2"}),
+            Document(
+                page_content="Content 1",
+                metadata={"url": "http://example.com/1", "title": "Doc 1"},
+            ),
+            Document(
+                page_content="Content 2",
+                metadata={"url": "http://example.com/2", "title": "Doc 2"},
+            ),
         ]
 
         metadata, text, stats = format_documents_with_metadata(docs)
@@ -135,11 +144,16 @@ class TestFormatDocumentsWithMetadata:
         """全局token预算控制"""
         long_content = "This is a test sentence. " * 100  # ~500 tokens
         docs = [
-            Document(page_content=long_content, metadata={"url": f"http://example.com/{i}", "title": f"Doc {i}"})
+            Document(
+                page_content=long_content,
+                metadata={"url": f"http://example.com/{i}", "title": f"Doc {i}"},
+            )
             for i in range(5)
         ]
 
-        _metadata, _text, stats = format_documents_with_metadata(docs, total_max_tokens=500)
+        _metadata, _text, stats = format_documents_with_metadata(
+            docs, total_max_tokens=500
+        )
 
         assert stats is not None
         assert stats.total_docs == 5
@@ -152,10 +166,15 @@ class TestFormatDocumentsWithMetadata:
         """单文档token限制"""
         long_content = "This is a test sentence. " * 50  # ~250 tokens
         docs = [
-            Document(page_content=long_content, metadata={"url": "http://example.com/1", "title": "Doc 1"}),
+            Document(
+                page_content=long_content,
+                metadata={"url": "http://example.com/1", "title": "Doc 1"},
+            ),
         ]
 
-        _metadata, text, _ = format_documents_with_metadata(docs, max_content_tokens=100)
+        _metadata, text, _ = format_documents_with_metadata(
+            docs, max_content_tokens=100
+        )
 
         content_tokens = get_token_count(text)
         # Header约50 tokens + 内容<=100 tokens
@@ -165,12 +184,17 @@ class TestFormatDocumentsWithMetadata:
         """全局预算优先级高于单文档限制"""
         content = "Test sentence. " * 20  # ~60 tokens
         docs = [
-            Document(page_content=content, metadata={"url": f"http://example.com/{i}", "title": f"Doc {i}"})
+            Document(
+                page_content=content,
+                metadata={"url": f"http://example.com/{i}", "title": f"Doc {i}"},
+            )
             for i in range(5)
         ]
 
         # 全局预算500，单文档限制10000（但会被全局限制）
-        _metadata, _text, stats = format_documents_with_metadata(docs, max_content_tokens=10000, total_max_tokens=500)
+        _metadata, _text, stats = format_documents_with_metadata(
+            docs, max_content_tokens=10000, total_max_tokens=500
+        )
 
         assert stats is not None
         # 5个文档，每个header约50 tokens，总预算500
@@ -180,16 +204,23 @@ class TestFormatDocumentsWithMetadata:
         """验证加权分配"""
         content = "x" * 1000  # 长内容确保会被截断
         docs = [
-            Document(page_content=content, metadata={"url": f"http://example.com/{i}", "title": f"Doc {i}"})
+            Document(
+                page_content=content,
+                metadata={"url": f"http://example.com/{i}", "title": f"Doc {i}"},
+            )
             for i in range(5)
         ]
 
-        _metadata, text, _stats = format_documents_with_metadata(docs, total_max_tokens=1000)
+        _metadata, text, _stats = format_documents_with_metadata(
+            docs, total_max_tokens=1000
+        )
 
         # Top-3文档应该有更多内容
         lines = text.split("\n\n")
         doc_contents = [
-            line for line in lines if line and not line.startswith("【") and not line.startswith("relevant")
+            line
+            for line in lines
+            if line and not line.startswith("【") and not line.startswith("relevant")
         ]
 
         # 前3个文档的内容应该明显长于后2个
@@ -202,11 +233,16 @@ class TestFormatDocumentsWithMetadata:
         """验证统计信息透明性"""
         long_content = "This is a test sentence. " * 100  # ~500 tokens per doc
         docs = [
-            Document(page_content=long_content, metadata={"url": f"http://example.com/{i}", "title": f"Doc {i}"})
+            Document(
+                page_content=long_content,
+                metadata={"url": f"http://example.com/{i}", "title": f"Doc {i}"},
+            )
             for i in range(5)
         ]
 
-        _metadata, _text, stats = format_documents_with_metadata(docs, total_max_tokens=1000)
+        _metadata, _text, stats = format_documents_with_metadata(
+            docs, total_max_tokens=1000
+        )
 
         assert stats is not None
         assert stats.original_tokens > stats.final_tokens
@@ -217,9 +253,18 @@ class TestFormatDocumentsWithMetadata:
     def test_url_deduplication(self):
         """URL去重和内容合并"""
         docs = [
-            Document(page_content="Part 1", metadata={"url": "http://example.com", "title": "Same URL"}),
-            Document(page_content="Part 2", metadata={"url": "http://example.com", "title": "Same URL"}),
-            Document(page_content="Different", metadata={"url": "http://other.com", "title": "Other"}),
+            Document(
+                page_content="Part 1",
+                metadata={"url": "http://example.com", "title": "Same URL"},
+            ),
+            Document(
+                page_content="Part 2",
+                metadata={"url": "http://example.com", "title": "Same URL"},
+            ),
+            Document(
+                page_content="Different",
+                metadata={"url": "http://other.com", "title": "Other"},
+            ),
         ]
 
         metadata, text, _ = format_documents_with_metadata(docs)
@@ -229,9 +274,16 @@ class TestFormatDocumentsWithMetadata:
 
     def test_questions_prefix(self):
         """查询关键词前缀"""
-        docs = [Document(page_content="Content", metadata={"url": "http://example.com", "title": "Doc"})]
+        docs = [
+            Document(
+                page_content="Content",
+                metadata={"url": "http://example.com", "title": "Doc"},
+            )
+        ]
 
-        _metadata, text, _ = format_documents_with_metadata(docs, questions=["query1", "query2"])
+        _metadata, text, _ = format_documents_with_metadata(
+            docs, questions=["query1", "query2"]
+        )
 
         assert text.startswith("relevant results for keywords [query1, query2]:")
 
@@ -246,13 +298,18 @@ class TestTokenControlIntegration:
         docs = [
             Document(
                 page_content=large_content,
-                metadata={"url": f"http://example.com/article{i}", "title": f"Article {i}"},
+                metadata={
+                    "url": f"http://example.com/article{i}",
+                    "title": f"Article {i}",
+                },
             )
             for i in range(10)
         ]
 
         # 限制总预算为5000 tokens
-        metadata, _text, stats = format_documents_with_metadata(docs, total_max_tokens=5000)
+        metadata, _text, stats = format_documents_with_metadata(
+            docs, total_max_tokens=5000
+        )
 
         assert len(metadata) == 10
         assert stats is not None
@@ -264,14 +321,23 @@ class TestTokenControlIntegration:
     def test_mixed_size_documents(self):
         """混合大小文档"""
         docs = [
-            Document(page_content="Short", metadata={"url": "http://example.com/1", "title": "Short"}),
-            Document(page_content="x" * 5000, metadata={"url": "http://example.com/2", "title": "Long"}),
             Document(
-                page_content="Medium length content. " * 10, metadata={"url": "http://example.com/3", "title": "Med"}
+                page_content="Short",
+                metadata={"url": "http://example.com/1", "title": "Short"},
+            ),
+            Document(
+                page_content="x" * 5000,
+                metadata={"url": "http://example.com/2", "title": "Long"},
+            ),
+            Document(
+                page_content="Medium length content. " * 10,
+                metadata={"url": "http://example.com/3", "title": "Med"},
             ),
         ]
 
-        _metadata, text, stats = format_documents_with_metadata(docs, total_max_tokens=500)
+        _metadata, text, stats = format_documents_with_metadata(
+            docs, total_max_tokens=500
+        )
 
         assert stats is not None
         assert stats.final_tokens <= 500
@@ -281,25 +347,35 @@ class TestTokenControlIntegration:
     def test_encoding_consistency(self):
         """验证编码器一致性"""
         docs = [
-            Document(page_content="Test content " * 50, metadata={"url": "http://example.com", "title": "Test"}),
+            Document(
+                page_content="Test content " * 50,
+                metadata={"url": "http://example.com", "title": "Test"},
+            ),
         ]
 
-        # 使用cl100k_base编码器
-        _metadata, text, stats = format_documents_with_metadata(docs, total_max_tokens=200, token_encoding="cl100k_base")
+        _metadata, text, stats = format_documents_with_metadata(
+            docs, total_max_tokens=200, token_encoding=PLANNING_ENCODING
+        )
 
-        # 验证token数使用了相同的编码器
-        actual_tokens = get_token_count(text, encoding_name="cl100k_base")
+        actual_tokens = get_token_count(text, encoding_name=PLANNING_ENCODING)
         if stats:
-            assert abs(actual_tokens - stats.final_tokens) < 10  # 允许小误差（header估算）
+            assert (
+                abs(actual_tokens - stats.final_tokens) < 10
+            )  # 允许小误差（header估算）
 
     def test_adaptive_estimation_short_header(self):
         """测试自适应估算：短header分支（<=20 tokens）"""
         docs = [
-            Document(page_content="Content " * 100, metadata={"url": f"https://ex.co/{i}", "title": f"T{i}"})
+            Document(
+                page_content="Content " * 100,
+                metadata={"url": f"https://ex.co/{i}", "title": f"T{i}"},
+            )
             for i in range(5)
         ]
 
-        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=500)
+        sources, _context, stats = format_documents_with_metadata(
+            docs, total_max_tokens=500
+        )
 
         assert stats.final_tokens <= 500
         assert len(sources) == 5
@@ -309,12 +385,17 @@ class TestTokenControlIntegration:
         docs = [
             Document(
                 page_content="Content " * 100,
-                metadata={"url": f"https://github.com/user/repo-{i}", "title": f"A Medium Length Title {i}"},
+                metadata={
+                    "url": f"https://github.com/user/repo-{i}",
+                    "title": f"A Medium Length Title {i}",
+                },
             )
             for i in range(5)
         ]
 
-        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=600)
+        sources, _context, stats = format_documents_with_metadata(
+            docs, total_max_tokens=600
+        )
 
         assert stats.final_tokens <= 600
         assert len(sources) == 5
@@ -332,7 +413,9 @@ class TestTokenControlIntegration:
             for i in range(5)
         ]
 
-        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=800)
+        sources, _context, stats = format_documents_with_metadata(
+            docs, total_max_tokens=800
+        )
 
         assert stats.final_tokens <= 800
         assert len(sources) == 5
@@ -342,11 +425,17 @@ class TestTokenControlIntegration:
         import logging
 
         docs = [
-            Document(page_content="Content " * 100, metadata={"url": f"https://example.com/{i}"}) for i in range(10)
+            Document(
+                page_content="Content " * 100,
+                metadata={"url": f"https://example.com/{i}"},
+            )
+            for i in range(10)
         ]
 
         with caplog.at_level(logging.ERROR):
-            sources, _context, stats = format_documents_with_metadata(docs, questions=["test"], total_max_tokens=200)
+            sources, _context, stats = format_documents_with_metadata(
+                docs, questions=["test"], total_max_tokens=200
+            )
 
         assert "Budget insufficient" in caplog.text or "truncating" in caplog.text
         assert stats.final_tokens <= 200
@@ -355,7 +444,10 @@ class TestTokenControlIntegration:
     def test_max_content_tokens_priority_override(self):
         """测试max_content_tokens优先级覆盖加权分配"""
         docs = [
-            Document(page_content="Content " * 200, metadata={"url": f"https://example.com/{i}", "title": f"Title {i}"})
+            Document(
+                page_content="Content " * 200,
+                metadata={"url": f"https://example.com/{i}", "title": f"Title {i}"},
+            )
             for i in range(5)
         ]
 
@@ -381,11 +473,24 @@ class TestTokenControlIntegration:
 
     def test_multiple_questions_prefix_budget(self):
         """测试多个questions的前缀token精确计算"""
-        docs = [Document(page_content="Content " * 100, metadata={"url": f"https://example.com/{i}"}) for i in range(5)]
+        docs = [
+            Document(
+                page_content="Content " * 100,
+                metadata={"url": f"https://example.com/{i}"},
+            )
+            for i in range(5)
+        ]
 
-        questions = ["machine learning", "deep learning", "neural networks", "artificial intelligence"]
+        questions = [
+            "machine learning",
+            "deep learning",
+            "neural networks",
+            "artificial intelligence",
+        ]
 
-        _sources, context, stats = format_documents_with_metadata(docs, questions=questions, total_max_tokens=800)
+        _sources, context, stats = format_documents_with_metadata(
+            docs, questions=questions, total_max_tokens=800
+        )
 
         assert "relevant results for keywords" in context
         assert all(q in context for q in questions)
@@ -393,11 +498,19 @@ class TestTokenControlIntegration:
 
     def test_extreme_long_questions_list(self):
         """测试极长questions列表的前缀开销"""
-        docs = [Document(page_content="Content " * 50, metadata={"url": f"https://example.com/{i}"}) for i in range(3)]
+        docs = [
+            Document(
+                page_content="Content " * 50,
+                metadata={"url": f"https://example.com/{i}"},
+            )
+            for i in range(3)
+        ]
 
         long_questions = ["query keyword"] * 20
 
-        _sources, context, stats = format_documents_with_metadata(docs, questions=long_questions, total_max_tokens=600)
+        _sources, context, stats = format_documents_with_metadata(
+            docs, questions=long_questions, total_max_tokens=600
+        )
 
         assert stats.final_tokens <= 600
         assert "relevant results for keywords" in context
@@ -413,7 +526,9 @@ class TestTokenControlIntegration:
         ]
 
         # 精确计算使预算刚好等于overhead
-        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=120)
+        sources, _context, stats = format_documents_with_metadata(
+            docs, total_max_tokens=120
+        )
 
         assert stats.final_tokens <= 120
         assert len(sources) <= 3
@@ -423,12 +538,17 @@ class TestTokenControlIntegration:
         docs = [
             Document(
                 page_content="Content " * 100,
-                metadata={"url": f"https://example.com/doc-{i}", "title": f"Document {i}"},
+                metadata={
+                    "url": f"https://example.com/doc-{i}",
+                    "title": f"Document {i}",
+                },
             )
             for i in range(20)
         ]
 
-        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=400)
+        sources, _context, stats = format_documents_with_metadata(
+            docs, total_max_tokens=400
+        )
 
         assert stats.final_tokens <= 400
         # 应裁剪到前N个文档
@@ -448,7 +568,9 @@ class TestTokenControlIntegration:
             for i in range(5)
         ]
 
-        sources, _context, stats = format_documents_with_metadata(docs, total_max_tokens=5000)
+        sources, _context, stats = format_documents_with_metadata(
+            docs, total_max_tokens=5000
+        )
 
         assert stats.final_tokens <= 5000
         assert len(sources) == 5
@@ -460,7 +582,9 @@ class TestTokenControlIntegration:
 
         from myrm_agent_harness.utils.text_utils import get_token_count
 
-        docs = [Document(page_content="C", metadata={"url": "https://a.co", "title": "T"})]
+        docs = [
+            Document(page_content="C", metadata={"url": "https://a.co", "title": "T"})
+        ]
 
         # 构造questions占用大量预算
         questions = ["keyword query search"] * 10

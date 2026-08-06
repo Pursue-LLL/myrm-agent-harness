@@ -117,10 +117,13 @@ Protocol-first architecture with strict framework-business separation.
       `task.result`, and keeps the task RUNNING until the dispatcher's CompletionVerifier
       passes. Frontend shows `status.verifying` when intent is set. Optional `metadata`
       JSON stores structured handoff at `task.metadata["handoff"]`.
-    - `orchestrator` (3 tools): kanban_add_task, kanban_list_tasks (board list or
+    - `orchestrator` (5 tools): kanban_add_task, kanban_list_tasks (board list or
       single-task read via `task_id`; optional `include_stats`; board list defaults to 50 rows,
       max 200, with `truncated` metadata), kanban_unblock (returns ``dependencies_met``;
-      ``waiting_on_dependencies`` when parents remain open).
+      ``waiting_on_dependencies`` when parents remain open), kanban_cancel_task (archives
+      READY/BACKLOG/BLOCKED/FAILED tasks; for RUNNING tasks also cancels the worker
+      execution via dispatcher), kanban_retry_task (resets a FAILED task to READY with
+      cleared failure counters; optionally updates description for better worker guidance).
     Board/task field edits and delete use server REST/GUI only — not LLM tools.
 
 12. **Dispatcher-only status guard**: Agents cannot move tasks to RUNNING — only the
@@ -134,7 +137,7 @@ Protocol-first architecture with strict framework-business separation.
     (`DEFAULT_ENABLED_BUILTIN_TOOLS` = `web_search` + `memory` only). The server's `profile_resolver`
     maps `"kanban" in enabled_builtin_tools` to `enable_kanban=True`. Binding is
     resolved by `myrm-agent-server/app/ai_agents/general_agent/kanban_tool_mode.py`:
-    chat orchestrators default to 3-tool `orchestrator` mode; `KanbanTaskRunner` binds
+    chat orchestrators default to 5-tool `orchestrator` mode; `KanbanTaskRunner` binds
     6-tool `worker` mode when `kanban_current_task_id` is set; board management uses
     REST/GUI.
 
@@ -256,9 +259,12 @@ Protocol-first architecture with strict framework-business separation.
 | `types.py` | Pure domain types (Board, Task, Status, Priority, Settings, Run, Event) |
 | `protocols.py` | KanbanStore (CRUD + edges + runs + events) + TaskRunner + CompletionVerifier + TaskSpecifier + TaskDecomposer protocol contracts |
 | `stores.py` | InMemoryKanbanStore (test/reference, with DFS cycle detection) |
-| `dispatcher.py` | Event-driven scheduler with startup orphan rescue/heartbeat/zombie/auto-block/transient error smart backoff/run tracking/dependency promotion/pre-and-post-execution status drift guard |
+| `dispatcher.py` | Event-driven scheduler — dispatch loop, task execution, completion verification, dependency promotion, event emission |
 | `dispatcher_failure.py` | Failure/timeout/retry pipeline mixin for KanbanDispatcher |
+| `dispatcher_zombie.py` | Zombie detection, heartbeat monitoring, scheduled wakeup, and startup orphan rescue mixin |
 | `diagnostics.py` | Task diagnostic framework — DTOs, DiagnosticRule Protocol, DiagnosticEngine |
-| `kanban_agent_tools.py` | Role-scoped kanban LLM tools (worker 6 / orchestrator 3) + `get_worker_lifecycle_guidance()` for system prompt injection |
+| `kanban_agent_tools.py` | Facade — `create_kanban_tools` factory, shared helpers (`_parse_until`, `get_worker_lifecycle_guidance`), routes to worker/orchestrator sub-modules |
+| `_worker_tools.py` | Worker-scoped LLM tools (6 tools: show/complete/block/heartbeat/comment/attach) with ownership enforcement |
+| `_orchestrator_tools.py` | Orchestrator-scoped LLM tools (5 tools: add_task/list_tasks/unblock/cancel_task/retry_task) for task lifecycle management |
 | `context_builder.py` | Worker context assembly helper for TaskRunner implementors — includes parent result + handoff metadata propagation + `build_multimodal_query()` for assembling TaskAttachment objects into LLM-compatible multimodal content blocks |
 | `__init__.py` | Public API re-exports |

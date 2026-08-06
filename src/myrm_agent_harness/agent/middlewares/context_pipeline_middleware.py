@@ -98,14 +98,13 @@ from myrm_agent_harness.agent.context_management.tracking.task_metrics import (
     get_or_create_task_metrics,
 )
 from myrm_agent_harness.agent.middlewares.context_pipeline_helpers import (
+    estimate_request_context_tokens,
     extract_compression_intent,
     extract_tool_names_and_schemas,
     resolve_cache_usage_feedback,
+    resolve_context_budget_metadata,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
-from myrm_agent_harness.utils.token_estimation import (
-    estimate_messages_tokens,
-)
 
 logger = get_agent_logger(__name__)
 
@@ -180,7 +179,9 @@ def create_context_pipeline_middleware(
 
     _notes_manager: SessionNotesManager | None = None
     if session_notes_llm is not None:
-        _notes_manager = SessionNotesManager(llm=session_notes_llm, on_persist=on_notes_persist)
+        _notes_manager = SessionNotesManager(
+            llm=session_notes_llm, on_persist=on_notes_persist
+        )
 
     def _get_or_create_pipeline(
         max_context_tokens: int | None,
@@ -251,13 +252,18 @@ def create_context_pipeline_middleware(
 
             messages = cast(list[BaseMessage], list(request.messages))
 
-            chat_id, max_context_tokens, compress_start_ratio = extract_context_from_request(request)
+            chat_id, max_context_tokens, compress_start_ratio = (
+                extract_context_from_request(request)
+            )
 
             model_name = getattr(llm, "model", None) or getattr(llm, "model_name", "")
             model_name_str = str(model_name)
-            current_pipeline = _get_or_create_pipeline(max_context_tokens, model_name_str, compress_start_ratio)
+            current_pipeline = _get_or_create_pipeline(
+                max_context_tokens, model_name_str, compress_start_ratio
+            )
             turn_count = sum(1 for m in messages if m.type == "human")
-            total_tokens = estimate_messages_tokens(messages)
+            total_tokens = estimate_request_context_tokens(messages, request)
+            budget_metadata = resolve_context_budget_metadata(request)
             metrics = get_or_create_task_metrics(chat_id)
             if metrics is not None:
                 metrics.add_input_tokens(total_tokens)
@@ -279,18 +285,30 @@ def create_context_pipeline_middleware(
                         )
 
                 total_tool_calls = _count_tool_calls(messages)
-                await _notes_manager.maybe_trigger_update(messages, total_tokens, total_tool_calls)
+                await _notes_manager.maybe_trigger_update(
+                    messages, total_tokens, total_tool_calls
+                )
 
             async with acquire_context_lock(chat_id):
                 clear_pending_explicit_cache_snapshot()
 
                 # Extract merged_context from request for Prompt Cache preservation flags
-                runtime_context = getattr(request.runtime, "context", {}) if hasattr(request, "runtime") else {}
-                merged_ctx = runtime_context if isinstance(runtime_context, dict) else {}
+                runtime_context = (
+                    getattr(request.runtime, "context", {})
+                    if hasattr(request, "runtime")
+                    else {}
+                )
+                merged_ctx = (
+                    runtime_context if isinstance(runtime_context, dict) else {}
+                )
                 is_resume = merged_ctx.get("is_resume", False)
 
             # Context overflow check for Resume (prevent cache-breaking retry)
-            if is_resume and max_context_tokens is not None and total_tokens > max_context_tokens:
+            if (
+                is_resume
+                and max_context_tokens is not None
+                and total_tokens > max_context_tokens
+            ):
                 logger.error(
                     "[Resume] Context overflow detected: %d / %d tokens. "
                     "Cannot resume without breaking Prompt Cache. "
@@ -328,13 +346,19 @@ def create_context_pipeline_middleware(
                     "compression_intent": extract_compression_intent(merged_ctx),
                     "eco_mode": eco_mode,
                     "supports_vision": merged_ctx.get("supports_vision", True),
-                    "vision_fallback_model_cfg": merged_ctx.get("vision_fallback_model_cfg"),
-                    "vision_fallback_model_cfgs": merged_ctx.get("vision_fallback_model_cfgs"),
-                    "file_content_reader": merged_ctx.get("file_content_reader") or file_content_reader,
+                    "vision_fallback_model_cfg": merged_ctx.get(
+                        "vision_fallback_model_cfg"
+                    ),
+                    "vision_fallback_model_cfgs": merged_ctx.get(
+                        "vision_fallback_model_cfgs"
+                    ),
+                    "file_content_reader": merged_ctx.get("file_content_reader")
+                    or file_content_reader,
                     "last_activity_time": _last_successful_call_time or None,
                     "cache_usage_feedback": resolve_cache_usage_feedback(merged_ctx),
                     "runnable_config": getattr(request, "config", None),
                     "enable_active_tool_prune": enable_active_tool_prune,
+                    **budget_metadata,
                 },
             )
 
@@ -386,7 +410,9 @@ def create_context_pipeline_middleware(
                     logger.debug("Failed to dispatch compression status event: %s", e)
 
             if result.tokens_saved > 0 or result.messages is not messages:
-                request = request.override(messages=cast(list[AnyMessage], result.messages))
+                request = request.override(
+                    messages=cast(list[AnyMessage], result.messages)
+                )
 
                 # Reset read-before-edit gate when context is compressed/summarized,
                 # because the model no longer has byte-level visibility of previously
@@ -406,7 +432,9 @@ def create_context_pipeline_middleware(
                         for guard in _integrity_guards.values():
                             for path in reread_paths:
                                 try:
-                                    with open(path, encoding="utf-8", errors="replace") as f:
+                                    with open(
+                                        path, encoding="utf-8", errors="replace"
+                                    ) as f:
                                         guard.record_read(path, f.read())
                                 except Exception:
                                     pass
@@ -425,8 +453,14 @@ def create_context_pipeline_middleware(
                     tool_names_and_schemas=extract_tool_names_and_schemas(request),
                 )
 
-            if on_summary_persist is not None and result.structured_summary is not None and chat_id:
-                persist_task = asyncio.create_task(_safe_persist_summary(on_summary_persist, chat_id, result))
+            if (
+                on_summary_persist is not None
+                and result.structured_summary is not None
+                and chat_id
+            ):
+                persist_task = asyncio.create_task(
+                    _safe_persist_summary(on_summary_persist, chat_id, result)
+                )
                 _summary_persist_tasks.add(persist_task)
                 persist_task.add_done_callback(_summary_persist_tasks.discard)
 
@@ -473,7 +507,9 @@ def _extract_last_message_db_id(request: ModelRequest) -> str | None:
         return None
 
 
-async def _safe_persist_summary(callback: SummaryPersistCallback, chat_id: str, result: ProcessorContext) -> None:
+async def _safe_persist_summary(
+    callback: SummaryPersistCallback, chat_id: str, result: ProcessorContext
+) -> None:
     """Safely invoke summary persist callback (fire-and-forget, non-blocking)."""
     try:
         await callback(

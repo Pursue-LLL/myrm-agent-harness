@@ -3,6 +3,10 @@
 LangChain AgentMiddleware defaults raise NotImplementedError on sync
 ``wrap_tool_call`` / ``wrap_model_call`` when only async hooks are defined.
 Signoff clarify pool warm executes ask_question_tool via sync ToolNode path.
+
+
+[POS]
+See module docstring.
 """
 
 from __future__ import annotations

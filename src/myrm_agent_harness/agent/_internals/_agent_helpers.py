@@ -48,7 +48,9 @@ def _fire_and_forget(coro: Coroutine[object, object, object]) -> None:
     task.add_done_callback(_background_tasks.discard)
 
 
-def reset_all_guards(*, is_resume: bool = False, graph_recursion_limit: int = 100) -> None:
+def reset_all_guards(
+    *, is_resume: bool = False, graph_recursion_limit: int = 100
+) -> None:
     """Reset all per-request guard state before a new agent run.
 
     Args:
@@ -62,7 +64,7 @@ def reset_all_guards(*, is_resume: bool = False, graph_recursion_limit: int = 10
         reset_terminal_errors,
     )
     from myrm_agent_harness.agent.middlewares.approval import reset_denial_counter
-    from myrm_agent_harness.agent.middlewares.completion_guard import (
+    from myrm_agent_harness.agent.middlewares.completion import (
         reset_completion_guard,
     )
     from myrm_agent_harness.agent.middlewares.plan_confirm_middleware import (
@@ -114,7 +116,11 @@ def extract_query_text(query: object) -> str:
         return query
     if isinstance(query, list):
         return next(
-            (p.get("text", "") for p in query if isinstance(p, dict) and p.get("type") == "text"),
+            (
+                p.get("text", "")
+                for p in query
+                if isinstance(p, dict) and p.get("type") == "text"
+            ),
             "",
         )
     return str(query)
@@ -173,14 +179,18 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                     remaining = MAX_CHARS - current_chars
                     if remaining > 200:
                         truncated_content = content[:remaining] + "...[TRUNCATED]"
-                        serialized_msgs.insert(0, {"role": role, "content": truncated_content})
+                        serialized_msgs.insert(
+                            0, {"role": role, "content": truncated_content}
+                        )
                         current_chars += len(truncated_content)
                     break
 
                 serialized_msgs.insert(0, {"role": role, "content": content})
                 current_chars += msg_len
 
-        _fire_and_forget(registry.enqueue(session_id, user_id, "cognitive_consolidation", {}))
+        _fire_and_forget(
+            registry.enqueue(session_id, user_id, "cognitive_consolidation", {})
+        )
         if chat_id and serialized_msgs:
             _fire_and_forget(
                 registry.enqueue(
@@ -194,7 +204,9 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                 )
             )
             # Add trace analysis for skill extraction (CAPTURED evolution)
-            from myrm_agent_harness.agent.middlewares._session_context import get_event_logger
+            from myrm_agent_harness.agent.middlewares._session_context import (
+                get_event_logger,
+            )
 
             event_logger = get_event_logger()
             if event_logger and event_logger._backend:
@@ -203,12 +215,19 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
                         session_id,
                         user_id,
                         "session_evidence_extraction",
-                        {"chat_id": chat_id, "agent_id": str(merged_context.get("agent_id", "default"))},
+                        {
+                            "chat_id": chat_id,
+                            "agent_id": str(merged_context.get("agent_id", "default")),
+                        },
                     )
                 )
 
         if chat_id:
-            _fire_and_forget(registry.enqueue(session_id, user_id, "context_compaction", {"chat_id": chat_id}))
+            _fire_and_forget(
+                registry.enqueue(
+                    session_id, user_id, "context_compaction", {"chat_id": chat_id}
+                )
+            )
         schedule_idle_task(
             session_id,
             lambda: default_idle_callback(session_id, registry),

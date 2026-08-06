@@ -6,7 +6,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from myrm_agent_harness.agent.streaming.stream_executor import StreamContext, StreamExecutor
+from myrm_agent_harness.agent.streaming.stream_executor import (
+    StreamContext,
+    StreamExecutor,
+)
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.types import AgentRunStatistics
 
@@ -83,7 +86,9 @@ async def test_handle_iteration_limit_emits_event_and_grace_fallback():
     while not ctx.output_queue.empty():
         events.append(await ctx.output_queue.get())
 
-    limit_events = [e for e in events if e["type"] == AgentEventType.ITERATION_LIMIT_REACHED.value]
+    limit_events = [
+        e for e in events if e["type"] == AgentEventType.ITERATION_LIMIT_REACHED.value
+    ]
     assert len(limit_events) == 1
     assert limit_events[0]["data"]["limit"] == 80
     assert limit_events[0]["data"]["nodes_completed"] == 35
@@ -99,7 +104,9 @@ async def test_grace_call_uses_llm_summary():
     from langgraph.errors import GraphRecursionError
 
     mock_llm = AsyncMock()
-    mock_llm.ainvoke.return_value = AIMessage(content="Here is a summary of progress so far.")
+    mock_llm.ainvoke.return_value = AIMessage(
+        content="Here is a summary of progress so far."
+    )
 
     ctx = _make_ctx(recursion_limit=50, node_count=49, llm=mock_llm)
     executor = _make_executor(ctx)
@@ -191,3 +198,79 @@ async def test_iteration_limit_reached_event_type_exists():
     """Verify ITERATION_LIMIT_REACHED is a valid AgentEventType."""
     assert hasattr(AgentEventType, "ITERATION_LIMIT_REACHED")
     assert AgentEventType.ITERATION_LIMIT_REACHED.value == "iteration_limit_reached"
+
+
+@pytest.mark.asyncio
+async def test_grace_call_repairs_dangling_tool_calls_before_llm_invoke():
+    """Grace summary must patch dangling tool_calls (MiniMax 2013 without repair)."""
+    from langchain_core.messages import ToolMessage
+    from langgraph.errors import GraphRecursionError
+
+    dangling_ai = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": "call_dangle_1",
+                "name": "bash_code_execute_tool",
+                "args": {"command": "ls"},
+            }
+        ],
+    )
+    messages_with_dangling: list[HumanMessage | AIMessage | ToolMessage] = [
+        HumanMessage(content="query tickets"),
+        dangling_ai,
+    ]
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke.return_value = AIMessage(
+        content="Progress summary with G1234 train info."
+    )
+
+    ctx = _make_ctx(recursion_limit=50, node_count=49, llm=mock_llm)
+    executor = _make_executor(ctx)
+
+    await executor._handle_iteration_limit(
+        GraphRecursionError("limit"), list(messages_with_dangling)
+    )
+
+    mock_llm.ainvoke.assert_awaited_once()
+    sent_messages = mock_llm.ainvoke.await_args.args[0]
+    tool_messages = [m for m in sent_messages if getattr(m, "type", None) == "tool"]
+    assert len(tool_messages) == 1
+    assert tool_messages[0].tool_call_id == "call_dangle_1"
+
+
+@pytest.mark.asyncio
+async def test_grace_call_drops_leading_orphan_tool_in_tail_slice():
+    """Tail slice must drop leading ToolMessages whose AIMessage was truncated away."""
+    from langchain_core.messages import ToolMessage
+    from langgraph.errors import GraphRecursionError
+
+    prefix = [HumanMessage(content=f"turn-{idx}") for idx in range(18)]
+    owner_ai = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "id": "call_orphan_tool",
+                "name": "file_read_tool",
+                "args": {"paths": ["/a.md"]},
+            }
+        ],
+    )
+    orphan_tool = ToolMessage(
+        content="ok", tool_call_id="call_orphan_tool", name="file_read_tool"
+    )
+    suffix = [HumanMessage(content=f"tail-{idx}") for idx in range(19)]
+    messages = [*prefix, owner_ai, orphan_tool, *suffix]
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke.return_value = AIMessage(content="Tail summary.")
+
+    ctx = _make_ctx(recursion_limit=50, node_count=49, llm=mock_llm)
+    executor = _make_executor(ctx)
+
+    await executor._handle_iteration_limit(GraphRecursionError("limit"), messages)
+
+    sent_messages = mock_llm.ainvoke.await_args.args[0]
+    assert all(getattr(m, "type", None) != "tool" for m in sent_messages[:-1])
+    assert sent_messages[-1].type == "human"

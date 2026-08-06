@@ -47,7 +47,7 @@ class TestBasicBudget:
 
     def test_warning_threshold(self) -> None:
         g = ContextBudgetGuard(
-            max_result_chars=100_000, total_budget_tokens=100, warning_pct=0.80
+            max_result_chars=100_000, total_budget_tokens=70, warning_pct=0.80
         )
         g.check_and_truncate("x" * 400, "tool1")
         v = g.check_and_truncate("x" * 100, "tool2")

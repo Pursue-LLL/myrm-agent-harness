@@ -9,6 +9,8 @@
 - extract_compression_intent
 - resolve_cache_usage_feedback
 - extract_tool_names_and_schemas
+- resolve_context_budget_metadata
+- estimate_request_context_tokens
 
 [POS]
 Helper layer for context pipeline middleware. Keeps request metadata parsing and tool schema
@@ -20,12 +22,18 @@ from collections.abc import Mapping, Sequence
 
 from langchain.agents.middleware import ModelRequest
 
+from langchain_core.messages import BaseMessage
+
 from myrm_agent_harness.agent.context_management.infra.cache_metrics_collector import (
     get_cache_usage_feedback,
 )
 from myrm_agent_harness.agent.context_management.infra.schemas import (
     CacheUsageFeedback,
     CompressionIntent,
+)
+from myrm_agent_harness.utils.token_estimation import (
+    estimate_context_tokens,
+    estimate_request_tools_tokens,
 )
 
 
@@ -37,7 +45,9 @@ def extract_compression_intent(
     return intent.to_dict() if intent is not None else None
 
 
-def resolve_cache_usage_feedback(merged_ctx: dict[str, object]) -> CacheUsageFeedback | None:
+def resolve_cache_usage_feedback(
+    merged_ctx: dict[str, object],
+) -> CacheUsageFeedback | None:
     """Prefer explicit business metadata, then provider usage collected in harness."""
     explicit = CacheUsageFeedback.from_mapping(
         {
@@ -50,7 +60,39 @@ def resolve_cache_usage_feedback(merged_ctx: dict[str, object]) -> CacheUsageFee
     return explicit or get_cache_usage_feedback()
 
 
-def extract_tool_names_and_schemas(request: ModelRequest) -> list[tuple[str, str]] | None:
+def resolve_context_budget_metadata(request: ModelRequest) -> dict[str, int]:
+    """Extract bind-tools overhead and last provider prompt_tokens for compress budget."""
+    from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
+
+    metadata: dict[str, int] = {}
+    tools = getattr(request, "tools", None)
+    if isinstance(tools, list | tuple) and tools:
+        metadata["bound_tool_overhead_tokens"] = estimate_request_tools_tokens(tools)
+
+    tracker = get_token_tracker()
+    if tracker is not None and tracker.usage.last_call is not None:
+        prompt_tokens = tracker.usage.last_call.prompt_tokens
+        if prompt_tokens > 0:
+            metadata["last_provider_prompt_tokens"] = prompt_tokens
+    return metadata
+
+
+def estimate_request_context_tokens(
+    messages: list[BaseMessage],
+    request: ModelRequest,
+) -> int:
+    """Full request context estimate for pipeline preflight checks."""
+    budget_meta = resolve_context_budget_metadata(request)
+    return estimate_context_tokens(
+        messages,
+        bound_tool_overhead_tokens=budget_meta.get("bound_tool_overhead_tokens", 0),
+        last_provider_prompt_tokens=budget_meta.get("last_provider_prompt_tokens"),
+    )
+
+
+def extract_tool_names_and_schemas(
+    request: ModelRequest,
+) -> list[tuple[str, str]] | None:
     """Extract stable tool schema fingerprints from the active model request."""
     tools = getattr(request, "tools", None)
     if not isinstance(tools, list | tuple) or not tools:
@@ -114,7 +156,9 @@ def _to_json_safe(value: object) -> object:
 
 
 __all__ = [
+    "estimate_request_context_tokens",
     "extract_compression_intent",
     "extract_tool_names_and_schemas",
     "resolve_cache_usage_feedback",
+    "resolve_context_budget_metadata",
 ]

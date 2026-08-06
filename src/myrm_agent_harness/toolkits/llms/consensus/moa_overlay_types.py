@@ -1,4 +1,8 @@
-"""Types for agent-loop MoA advisor overlay (distinct from standalone consensus mode)."""
+"""Types for agent-loop MoA advisor overlay (distinct from standalone consensus mode).
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

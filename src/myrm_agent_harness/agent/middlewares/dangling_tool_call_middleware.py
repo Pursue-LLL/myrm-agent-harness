@@ -352,6 +352,12 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
     return patched
 
 
+def repair_dangling_tool_calls(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """Patch dangling tool_calls for direct LLM invocations outside agent middleware."""
+    patched = _build_patched_messages(messages)
+    return patched if patched is not None else messages
+
+
 class DanglingToolCallMiddleware(AgentMiddleware):  # type: ignore[type-arg]
     """Repair dangling tool_calls in message history before LLM invocation.
 

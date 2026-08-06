@@ -1,6 +1,6 @@
 """Tests for is_mutating_tool SSOT used by Cron post-run verification."""
 
-from myrm_agent_harness.agent.middlewares.completion_guard import is_mutating_tool
+from myrm_agent_harness.agent.middlewares.completion import is_mutating_tool
 
 
 def test_is_mutating_tool_detects_file_write_alias() -> None:

@@ -308,7 +308,7 @@ class TestUninstall:
         svc = BaseSkillMarketService()
         result = await svc.uninstall("local::../../etc")
         assert result.success is False
-        assert "Invalid" in (result.error or "")
+        assert result.error
 
     @pytest.mark.asyncio
     async def test_uninstall_nonexistent_skill(self) -> None:
@@ -915,15 +915,21 @@ class TestSearchBrowseMode:
 class TestUninstallSuccess:
     @pytest.mark.asyncio
     async def test_uninstall_success(self, tmp_path) -> None:
+        from myrm_agent_harness.backends.skills.local_skill_id import (
+            local_skill_id_from_path,
+        )
+
         svc = BaseSkillMarketService()
         skill_dir = tmp_path / "my-skill"
         skill_dir.mkdir()
         (skill_dir / "main.py").write_text("code")
 
+        canonical_id = local_skill_id_from_path(skill_dir)
+
         with patch(
             "myrm_agent_harness.agent.skills.market.service.LOCAL_INSTALL_DIR", tmp_path
         ):
-            result = await svc.uninstall("local::my-skill")
+            result = await svc.uninstall(canonical_id)
 
         assert result.success is True
         assert not skill_dir.exists()

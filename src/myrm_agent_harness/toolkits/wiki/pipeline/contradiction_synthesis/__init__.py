@@ -1,4 +1,8 @@
-"""Compile-time contradiction synthesis (CCSP) package."""
+"""Compile-time contradiction synthesis (CCSP) package.
+
+[POS]
+See module docstring.
+"""
 
 from .backlink import apply_synthesis_backlinks
 from .service import run_contradiction_synthesis_pass

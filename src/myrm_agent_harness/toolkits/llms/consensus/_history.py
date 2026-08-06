@@ -1,4 +1,8 @@
-"""Tool-free chat history flattening for consensus and MoA overlay calls."""
+"""Tool-free chat history flattening for consensus and MoA overlay calls.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

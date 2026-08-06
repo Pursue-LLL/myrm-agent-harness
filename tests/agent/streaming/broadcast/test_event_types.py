@@ -15,7 +15,10 @@ import json
 
 import pytest
 
-from myrm_agent_harness.agent.streaming.broadcast.types import ToolCallEventData, _truncate_for_event
+from myrm_agent_harness.agent.streaming.broadcast.types import (
+    ToolCallEventData,
+    _truncate_for_event,
+)
 from myrm_agent_harness.core.events.types import (
     AgentEventType,
     AgentStreamEvent,
@@ -59,7 +62,9 @@ class TestAgentEventTypeEnum:
     def test_all_values_are_snake_case(self):
         """All event type values should be lowercase snake_case."""
         for event in AgentEventType:
-            assert event.value == event.value.lower(), f"{event.name} value not lowercase"
+            assert (
+                event.value == event.value.lower()
+            ), f"{event.name} value not lowercase"
             assert " " not in event.value, f"{event.name} value has spaces"
 
     def test_no_duplicate_values(self):
@@ -128,9 +133,15 @@ class TestToolCallEventData:
             data.tool_name = "other"  # type: ignore[misc]
 
     def test_to_dict_minimal(self):
-        data = ToolCallEventData(tool_name="web_search", status="started", start_time=1718000000.123)
+        data = ToolCallEventData(
+            tool_name="web_search", status="started", start_time=1718000000.123
+        )
         d = data.to_dict()
-        assert d == {"tool_name": "web_search", "status": "started", "start_time": 1718000000.123}
+        assert d == {
+            "tool_name": "web_search",
+            "status": "started",
+            "start_time": 1718000000.123,
+        }
 
     def test_to_dict_full(self):
         data = ToolCallEventData(
@@ -154,7 +165,9 @@ class TestToolCallEventData:
         assert d["version"] == 3
 
     def test_to_json(self):
-        data = ToolCallEventData(tool_name="test", status="failed", start_time=1.0, error="oops")
+        data = ToolCallEventData(
+            tool_name="test", status="failed", start_time=1.0, error="oops"
+        )
         j = data.to_json()
         parsed = json.loads(j)
         assert parsed["status"] == "failed"
@@ -216,3 +229,18 @@ class TestContextBudgetSnapshot:
         assert d["current_tokens"] == 50000
         assert d["usage_percent"] == 39.1
         assert d["health_status"] == "healthy"
+
+    def test_to_dict_with_breakdown(self):
+        snap = ContextBudgetSnapshot(
+            current_tokens=118000,
+            max_context_tokens=128000,
+            usage_percent=92.2,
+            health_status="critical",
+            messages_estimated_tokens=112000,
+            bound_tools_overhead_tokens=6000,
+            other_tokens=0,
+        )
+        d = snap.to_dict()
+        assert d["messages_estimated_tokens"] == 112000
+        assert d["bound_tools_overhead_tokens"] == 6000
+        assert d["other_tokens"] == 0

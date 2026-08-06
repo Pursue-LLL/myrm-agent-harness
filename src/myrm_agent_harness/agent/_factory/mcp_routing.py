@@ -26,7 +26,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
-from myrm_agent_harness.agent._factory.mcp_surface import MCPSurfaceMode, parse_mcp_surface_mode
+from myrm_agent_harness.agent._factory.mcp_surface import (
+    MCPSurfaceMode,
+    parse_mcp_surface_mode,
+)
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 
 if TYPE_CHECKING:
@@ -120,8 +123,10 @@ def _input_schema(tool: BaseTool) -> dict[str, object]:
 
 
 def estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
-    """Estimate schema tokens for a list of tools via chars/4 rule."""
-    total_chars = 0
+    """Estimate schema tokens for a list of tools via planning SSOT tiktoken."""
+    from myrm_agent_harness.utils.text_utils import get_token_count
+
+    total = 0
     for tool in tools:
         schema = _input_schema(tool)
         entry = {
@@ -129,23 +134,23 @@ def estimate_schema_tokens(tools: Sequence[BaseTool]) -> int:
             "description": tool.description or "",
             "parameters": schema,
         }
-        total_chars += len(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
-    return int(total_chars / CHARS_PER_TOKEN + 0.5)
+        total += get_token_count(
+            json.dumps(entry, ensure_ascii=False, separators=(",", ":"))
+        )
+    return total
 
 
 def estimate_single_tool_tokens(tool: BaseTool) -> int:
     """Estimate schema tokens for a single tool."""
+    from myrm_agent_harness.utils.text_utils import get_token_count
+
     schema = _input_schema(tool)
     entry = {
         "name": tool.name,
         "description": tool.description or "",
         "parameters": schema,
     }
-    return int(
-        len(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
-        / CHARS_PER_TOKEN
-        + 0.5
-    )
+    return get_token_count(json.dumps(entry, ensure_ascii=False, separators=(",", ":")))
 
 
 def _compact_description(
@@ -323,7 +328,9 @@ async def route_mcp_servers(
             len(kept_bundles),
         )
     else:
-        kept_bundles, demoted_configs = demote_direct_servers_over_budget(direct_bundles)
+        kept_bundles, demoted_configs = demote_direct_servers_over_budget(
+            direct_bundles
+        )
         ptc_servers.extend(demoted_configs)
 
     mcp_direct_tools: list[BaseTool] = []

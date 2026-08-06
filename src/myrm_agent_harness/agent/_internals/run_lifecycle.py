@@ -76,7 +76,9 @@ install_llm_observability_hook()
 
 _WS_BIND_CTX_KEY = "__workspace_storage_bind_token"  # legacy; never serialize — see _workspace_bind_handle_stash
 
-_workspace_bind_handle_stash: ContextVar[object | None] = ContextVar("workspace_bind_handle_stash", default=None)
+_workspace_bind_handle_stash: ContextVar[object | None] = ContextVar(
+    "workspace_bind_handle_stash", default=None
+)
 
 
 def _stash_workspace_bind_handle(handle: object) -> None:
@@ -100,7 +102,10 @@ def _init_pseudonym_store(workspace_path: str) -> None:
     policy = get_privacy_policy()
     if not policy.enabled:
         return
-    needs_store = policy.s2_action == PIIAction.PSEUDONYMIZE or policy.s3_action == PIIAction.PSEUDONYMIZE
+    needs_store = (
+        policy.s2_action == PIIAction.PSEUDONYMIZE
+        or policy.s3_action == PIIAction.PSEUDONYMIZE
+    )
     if not needs_store:
         return
 
@@ -118,10 +123,20 @@ def _init_pseudonym_store(workspace_path: str) -> None:
 
 def _register_pii_pseudonymizer(policy: object, store: object) -> None:
     """Build and register a PII pseudonymization closure for memory_scanner."""
-    from myrm_agent_harness.core.security.detection.pii_classifier import classify_content
-    from myrm_agent_harness.core.security.detection.pseudonymizer import pseudonymize_text
-    from myrm_agent_harness.core.security.types import PIIAction, PrivacyPolicy, SensitivityLevel
-    from myrm_agent_harness.toolkits.memory._internal.memory_scanner import set_pii_pseudonymizer
+    from myrm_agent_harness.core.security.detection.pii_classifier import (
+        classify_content,
+    )
+    from myrm_agent_harness.core.security.detection.pseudonymizer import (
+        pseudonymize_text,
+    )
+    from myrm_agent_harness.core.security.types import (
+        PIIAction,
+        PrivacyPolicy,
+        SensitivityLevel,
+    )
+    from myrm_agent_harness.toolkits.memory._internal.memory_scanner import (
+        set_pii_pseudonymizer,
+    )
 
     if not isinstance(policy, PrivacyPolicy):
         return
@@ -129,7 +144,10 @@ def _register_pii_pseudonymizer(policy: object, store: object) -> None:
     def _pseudonymize(text: str) -> str:
         if not policy.enabled:
             return text
-        has_pseudonymize = policy.s2_action == PIIAction.PSEUDONYMIZE or policy.s3_action == PIIAction.PSEUDONYMIZE
+        has_pseudonymize = (
+            policy.s2_action == PIIAction.PSEUDONYMIZE
+            or policy.s3_action == PIIAction.PSEUDONYMIZE
+        )
         if not has_pseudonymize or store is None:
             return text
 
@@ -138,13 +156,18 @@ def _register_pii_pseudonymizer(policy: object, store: object) -> None:
             return text
 
         levels_to_process: list[SensitivityLevel] = [pii_result.level]
-        if pii_result.level == SensitivityLevel.S3 and policy.s2_action == PIIAction.PSEUDONYMIZE:
+        if (
+            pii_result.level == SensitivityLevel.S3
+            and policy.s2_action == PIIAction.PSEUDONYMIZE
+        ):
             levels_to_process.append(SensitivityLevel.S2)
 
         result = text
         total_count = 0
         for level in levels_to_process:
-            action = policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
+            action = (
+                policy.s3_action if level == SensitivityLevel.S3 else policy.s2_action
+            )
             if action != PIIAction.PSEUDONYMIZE:
                 continue
             ps_result = pseudonymize_text(result, store, level)
@@ -153,7 +176,10 @@ def _register_pii_pseudonymizer(policy: object, store: object) -> None:
                 total_count += ps_result.count
 
         if total_count > 0:
-            logger.warning("[MEMORY_SCAN] Pseudonymized %d PII items in memory content", total_count)
+            logger.warning(
+                "[MEMORY_SCAN] Pseudonymized %d PII items in memory content",
+                total_count,
+            )
         return result
 
     set_pii_pseudonymizer(_pseudonymize)
@@ -227,7 +253,9 @@ async def setup_workspace(
             logger.debug(f" Using provided Executor: {executor.get_executor_name()}")
 
         executor.bind_workspace(workspace_path)
-        logger.debug(f" {executor.get_executor_name()}: workspace bound to {workspace_path}")
+        logger.debug(
+            f" {executor.get_executor_name()}: workspace bound to {workspace_path}"
+        )
 
         from myrm_agent_harness.toolkits.code_execution.executors.base import (
             set_executor,
@@ -252,7 +280,9 @@ async def setup_workspace(
         if session_id:
             stash_executor_for_session(session_id, executor)
 
-        from myrm_agent_harness.observability.metrics.agent_metrics import record_ttfa_run_start
+        from myrm_agent_harness.observability.metrics.agent_metrics import (
+            record_ttfa_run_start,
+        )
 
         record_ttfa_run_start()
 
@@ -293,7 +323,9 @@ def cleanup_run(
 
         cancelled_count = cancel_all_fn()
         if cancelled_count > 0:
-            logger.info(f" Cancelled {cancelled_count} running subagents on parent cleanup")
+            logger.info(
+                f" Cancelled {cancelled_count} running subagents on parent cleanup"
+            )
 
         set_tool_progress_sink(None)
         set_cancel_token(None)
@@ -308,12 +340,16 @@ def cleanup_run(
 
         set_security_config(None)
         from myrm_agent_harness.agent.artifacts.ui_registry import pop_run_message_id
-        from myrm_agent_harness.agent.middlewares._session_context import get_approval_session
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_approval_session,
+        )
 
         pop_run_message_id(get_approval_session())
         set_workspace_root("")
         set_event_logger(None)
-        from myrm_agent_harness.agent.middlewares._session_context import set_goal_provider
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            set_goal_provider,
+        )
 
         set_goal_provider(None)
 
@@ -329,7 +365,9 @@ def cleanup_run(
 
         set_pseudonym_store(None)
 
-        from myrm_agent_harness.toolkits.memory._internal.memory_scanner import set_pii_pseudonymizer
+        from myrm_agent_harness.toolkits.memory._internal.memory_scanner import (
+            set_pii_pseudonymizer,
+        )
 
         set_pii_pseudonymizer(None)
 
@@ -376,7 +414,9 @@ def cleanup_run(
         logger.error(f"Error during cleanup: {cleanup_error}", exc_info=True)
 
 
-def collect_tracker_stats(stats: AgentRunStatistics, *, tracker: "TokenTracker | None" = None) -> None:
+def collect_tracker_stats(
+    stats: AgentRunStatistics, *, tracker: "TokenTracker | None" = None
+) -> None:
     """Extract token usage and cost from the current TokenTracker into stats.
 
     Args:
@@ -402,7 +442,9 @@ def collect_tracker_stats(stats: AgentRunStatistics, *, tracker: "TokenTracker |
             }
             for model, mu in tracker.model_usage.items()
         }
-        stats.primary_model = max(tracker.model_usage, key=lambda m: tracker.model_usage[m].total_tokens)
+        stats.primary_model = max(
+            tracker.model_usage, key=lambda m: tracker.model_usage[m].total_tokens
+        )
 
     if tracker.usage.cached_tokens > 0:
         cache_stats = tracker.usage.get_cache_effectiveness()
@@ -421,15 +463,23 @@ def collect_tracker_stats(stats: AgentRunStatistics, *, tracker: "TokenTracker |
 
 
 def compute_context_budget_snapshot(
-    stats: AgentRunStatistics, max_context_tokens: int | None
+    stats: AgentRunStatistics,
+    max_context_tokens: int | None,
+    *,
+    messages_estimated_tokens: int | None = None,
+    bound_tools_overhead_tokens: int | None = None,
+    other_tokens: int | None = None,
 ) -> ContextBudgetSnapshot | None:
     """Compute a lightweight context budget snapshot from token tracker stats.
 
-    Uses actual prompt_tokens from the last LLM call (provider-reported,
+    Uses actual prompt_tokens from the LLM provider (provider-reported,
     more accurate than character-based estimation).
 
     usage_percent is relative to max_context_tokens (user-facing percentage).
     health_status: healthy (<80%), warning (80-90%), critical (>=90%).
+
+    Optional breakdown fields are GUI-only estimates; they do not affect pipeline
+    compress/summarize decisions.
     """
 
     if not stats.token_usage or not stats.token_usage.last_call:
@@ -439,7 +489,9 @@ def compute_context_budget_snapshot(
     if last_prompt <= 0:
         return None
 
-    max_ctx = max_context_tokens if max_context_tokens and max_context_tokens > 0 else 128_000
+    max_ctx = (
+        max_context_tokens if max_context_tokens and max_context_tokens > 0 else 128_000
+    )
     usage_pct = (last_prompt / max_ctx) * 100
 
     if usage_pct >= 90:
@@ -454,7 +506,65 @@ def compute_context_budget_snapshot(
         max_context_tokens=max_ctx,
         usage_percent=usage_pct,
         health_status=health,
+        messages_estimated_tokens=messages_estimated_tokens,
+        bound_tools_overhead_tokens=bound_tools_overhead_tokens,
+        other_tokens=other_tokens,
     )
+
+
+async def resolve_context_budget_breakdown(
+    *,
+    checkpointer: object | None,
+    thread_id: str,
+    cached_tools: object | None,
+    provider_prompt_tokens: int,
+) -> dict[str, int]:
+    """Resolve GUI breakdown: messages est., tool schema est., system/other remainder."""
+    from collections.abc import Sequence
+
+    from langchain_core.messages import BaseMessage
+
+    from myrm_agent_harness.utils.token_estimation import (
+        estimate_messages_tokens,
+        estimate_request_tools_tokens,
+    )
+
+    messages_tokens = 0
+    tools_tokens = 0
+    has_messages = False
+
+    if checkpointer is not None and callable(getattr(checkpointer, "aget", None)):
+        try:
+            checkpoint_config = {"configurable": {"thread_id": thread_id}}
+            checkpoint = await checkpointer.aget(checkpoint_config)
+            channel_values = getattr(checkpoint, "channel_values", None)
+            if isinstance(channel_values, dict) and "messages" in channel_values:
+                raw_messages = channel_values["messages"]
+                if isinstance(raw_messages, list):
+                    messages = [
+                        msg for msg in raw_messages if isinstance(msg, BaseMessage)
+                    ]
+                    if messages:
+                        messages_tokens = estimate_messages_tokens(messages)
+                        has_messages = True
+        except Exception:
+            logger.debug(
+                "Failed to load checkpoint messages for context budget breakdown",
+                exc_info=True,
+            )
+
+    if isinstance(cached_tools, Sequence) and cached_tools:
+        tools_tokens = estimate_request_tools_tokens(cached_tools)
+
+    if not has_messages and tools_tokens <= 0:
+        return {}
+
+    other_tokens = max(0, provider_prompt_tokens - messages_tokens - tools_tokens)
+    return {
+        "messages_estimated_tokens": messages_tokens,
+        "bound_tools_overhead_tokens": tools_tokens,
+        "other_tokens": other_tokens,
+    }
 
 
 async def post_run_events(
@@ -632,9 +742,15 @@ async def extract_checkpoint_state(
 
     if last_run_stats:
         stats = {
-            "token_usage": (last_run_stats.token_usage.to_dict() if last_run_stats.token_usage else {}),
+            "token_usage": (
+                last_run_stats.token_usage.to_dict()
+                if last_run_stats.token_usage
+                else {}
+            ),
             "duration_seconds": last_run_stats.duration_seconds,
-            "status": (last_run_stats.status.value if last_run_stats.status else "unknown"),
+            "status": (
+                last_run_stats.status.value if last_run_stats.status else "unknown"
+            ),
         }
         progress = 1.0 if last_run_stats.status else 0.5
 

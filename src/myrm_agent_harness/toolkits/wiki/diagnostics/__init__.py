@@ -1,4 +1,8 @@
-"""Wiki diagnostics — deterministic quality measurement."""
+"""Wiki diagnostics — deterministic quality measurement.
+
+[POS]
+See module docstring.
+"""
 
 from myrm_agent_harness.toolkits.wiki.diagnostics.recall_benchmark import (
     BENCHMARK_SCHEMA_VERSION,

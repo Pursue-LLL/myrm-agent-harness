@@ -28,12 +28,16 @@ def test_field_required_string():
 
 
 def test_field_optional_integer():
-    _py_type, default = _json_schema_to_pydantic_field({"type": "integer"}, required=False)
+    _py_type, default = _json_schema_to_pydantic_field(
+        {"type": "integer"}, required=False
+    )
     assert default is None
 
 
 def test_field_boolean_type():
-    py_type, _default = _json_schema_to_pydantic_field({"type": "boolean"}, required=True)
+    py_type, _default = _json_schema_to_pydantic_field(
+        {"type": "boolean"}, required=True
+    )
     assert py_type is bool
 
 
@@ -207,8 +211,52 @@ def test_convert_tool_invocation():
     assert captured[0] == ("search", {"query": "test"})
 
 
+def test_convert_strips_null_optional_fields_before_call_tool():
+    """12306-style strict schemas reject explicit null on optional typed fields."""
+    captured: list[tuple[str, dict[str, Any]]] = []
+
+    async def capture_call(name: str, args: dict[str, Any]) -> SimpleNamespace:
+        captured.append((name, args))
+        return SimpleNamespace(content=[SimpleNamespace(text="ok")])
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "date": {"type": "string"},
+            "fromStation": {"type": "string"},
+            "toStation": {"type": "string"},
+            "trainFilterFlags": {"type": "string", "default": ""},
+            "earliestStartTime": {"type": "number", "default": 0},
+        },
+        "required": ["date", "fromStation", "toStation"],
+        "additionalProperties": False,
+    }
+    tools = convert_mcp_tools(
+        [_make_mcp_tool("get-tickets", input_schema=schema)],
+        capture_call,
+    )
+    asyncio.get_event_loop().run_until_complete(
+        tools[0].ainvoke(
+            {
+                "date": "2026-08-06",
+                "fromStation": "BJP",
+                "toStation": "SHH",
+            }
+        )
+    )
+    assert captured[0][0] == "get-tickets"
+    assert captured[0][1] == {
+        "date": "2026-08-06",
+        "fromStation": "BJP",
+        "toStation": "SHH",
+    }
+    assert "trainFilterFlags" not in captured[0][1]
+    assert "earliestStartTime" not in captured[0][1]
+
+
 def test_convert_string_input_schema():
     """input_schema as JSON string should be parsed."""
+
     async def noop(name: str, args: dict[str, Any]) -> SimpleNamespace:
         return SimpleNamespace(content=[])
 
@@ -223,6 +271,7 @@ def test_convert_string_input_schema():
 
 def test_convert_non_dict_input_schema():
     """Non-dict/non-string input_schema should fall back to empty."""
+
     async def noop(name: str, args: dict[str, Any]) -> SimpleNamespace:
         return SimpleNamespace(content=[])
 
@@ -233,6 +282,7 @@ def test_convert_non_dict_input_schema():
 
 def test_convert_missing_description():
     """Missing description should default to empty string."""
+
     async def noop(name: str, args: dict[str, Any]) -> SimpleNamespace:
         return SimpleNamespace(content=[])
 
@@ -243,6 +293,7 @@ def test_convert_missing_description():
 
 def test_convert_none_description():
     """None description should default to empty string."""
+
     async def noop(name: str, args: dict[str, Any]) -> SimpleNamespace:
         return SimpleNamespace(content=[])
 

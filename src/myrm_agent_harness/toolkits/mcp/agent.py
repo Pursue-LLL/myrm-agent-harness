@@ -20,7 +20,7 @@ Provides MCP tool fetching capabilities:
 - client::MCPClientManager, MCPServerConfigProtocol (POS: MCP client management layer)
 - tool_converter::convert_mcp_tools (POS: MCP tool → LangChain BaseTool converter)
 - config::parse_mcp_tool_name, sanitize_mcp_name_component, should_register_mcp_tool (POS: MCP configuration, name sanitization, tool name parsing, and per-server tool filter function)
-- schema_utils::FlattenMeta, canonicalize_schema_for_cache, coerce_arguments_by_schema, flatten_deep_schema, flatten_json_schema, has_dot_keys, nest_flat_arguments (POS: MCP schema tolerance utilities)
+- schema_utils::FlattenMeta, canonicalize_schema_for_cache, coerce_arguments_by_schema, prepare_mcp_call_arguments, flatten_deep_schema, flatten_json_schema, has_dot_keys, nest_flat_arguments (POS: MCP schema tolerance utilities)
 - core.security.tool_registry::MCPAnnotations, SafetyMetadata, register_ptc_safety_metadata (POS: Tool metadata and permission mapping)
 - agent.streaming.types::AgentEventType (POS: Framework-agnostic streaming event types)
 - utils.runtime.progress_sink::get_tool_progress_sink (POS: Runtime tool progress event sink)
@@ -64,7 +64,11 @@ from myrm_agent_harness.core.security.tool_registry import (
 )
 
 from .client import MCPClientManager, MCPServerConfigProtocol
-from .config import parse_mcp_tool_name, sanitize_mcp_name_component, should_register_mcp_tool
+from .config import (
+    parse_mcp_tool_name,
+    sanitize_mcp_name_component,
+    should_register_mcp_tool,
+)
 from .schema_utils import (
     FlattenMeta,
     canonicalize_schema_for_cache,
@@ -73,6 +77,7 @@ from .schema_utils import (
     flatten_json_schema,
     has_dot_keys,
     nest_flat_arguments,
+    prepare_mcp_call_arguments,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,17 +101,21 @@ def _is_mcp_auth_error(exc: Exception) -> bool:
     status_error_types: list[type] = []
     try:
         from httpx2 import HTTPStatusError as Httpx2StatusError
+
         status_error_types.append(Httpx2StatusError)
     except ImportError:
         pass
     try:
         from httpx import HTTPStatusError as HttpxStatusError
+
         status_error_types.append(HttpxStatusError)
     except ImportError:
         pass
     if not status_error_types:
         return False
-    return isinstance(exc, tuple(status_error_types)) and exc.response.status_code == 401
+    return (
+        isinstance(exc, tuple(status_error_types)) and exc.response.status_code == 401
+    )
 
 
 def _emit_auth_expired_for_tool(server_name: str, error_detail: str) -> None:
@@ -156,7 +165,11 @@ class MCPAgent:
         """
         if not tool_include and not tool_exclude:
             return tools
-        filtered = [t for t in tools if should_register_mcp_tool(t.name, tool_include, tool_exclude)]
+        filtered = [
+            t
+            for t in tools
+            if should_register_mcp_tool(t.name, tool_include, tool_exclude)
+        ]
         removed = len(tools) - len(filtered)
         if removed:
             logger.info(
@@ -192,7 +205,11 @@ class MCPAgent:
         """
         if artifact is None:
             return None
-        meta = artifact.get("_meta") if isinstance(artifact, dict) else getattr(artifact, "_meta", None)
+        meta = (
+            artifact.get("_meta")
+            if isinstance(artifact, dict)
+            else getattr(artifact, "_meta", None)
+        )
         if not isinstance(meta, dict):
             return None
         ui = meta.get("ui")
@@ -271,7 +288,11 @@ class MCPAgent:
             content_blocks, artifact = result
             if isinstance(content_blocks, list):
                 coerced: list[dict[str, object]] = [
-                    MCPAgent._coerce_content_block(b) if isinstance(b, dict) else {"type": "text", "text": str(b)}
+                    (
+                        MCPAgent._coerce_content_block(b)
+                        if isinstance(b, dict)
+                        else {"type": "text", "text": str(b)}
+                    )
                     for b in content_blocks
                 ]
 
@@ -319,7 +340,8 @@ class MCPAgent:
                 if summary is not None:
                     logger.info(
                         "MCP tool '%s' output vaulted via handler: %d chars",
-                        tool_name, original_len,
+                        tool_name,
+                        original_len,
                     )
                     return summary
             except Exception:
@@ -332,7 +354,9 @@ class MCPAgent:
         discarded = original_len - max_chars
         logger.warning(
             "MCP tool '%s' output truncated: %d → %d chars",
-            tool_name, original_len, max_chars,
+            tool_name,
+            original_len,
+            max_chars,
         )
         return (
             f"{content[:max_chars]}\n\n"
@@ -355,7 +379,9 @@ class MCPAgent:
         string it replaces the truncated output; if it returns ``None`` or
         raises, the existing head-truncation logic is used as fallback.
         """
-        from myrm_agent_harness.core.security.detection.content_boundary import wrap_untrusted
+        from myrm_agent_harness.core.security.detection.content_boundary import (
+            wrap_untrusted,
+        )
         from myrm_agent_harness.core.security.redact import redact_sensitive_text
 
         for tool in tools:
@@ -381,24 +407,33 @@ class MCPAgent:
                         await MCPAgent._emit_mcp_app_event(raw, _name)
                         if isinstance(normalized, str) and len(normalized) > _max_chars:
                             normalized = MCPAgent._handle_oversized_output(
-                                normalized, _name, _max_chars, _handler,
+                                normalized,
+                                _name,
+                                _max_chars,
+                                _handler,
                             )
                         if isinstance(normalized, str):
-                            normalized = wrap_untrusted(normalized, source=f"mcp:{_name}")
+                            normalized = wrap_untrusted(
+                                normalized, source=f"mcp:{_name}"
+                            )
                         return normalized
                 except TimeoutError:
                     error_msg = f"MCP tool '{_name}' timed out after {_timeout}s. Server may be slow or unresponsive."
                     logger.error(error_msg)
                     return error_msg
                 except (NotImplementedError, ValueError, TypeError) as exc:
-                    error_msg = f"MCP tool '{_name}' returned unsupported content: {exc}"
+                    error_msg = (
+                        f"MCP tool '{_name}' returned unsupported content: {exc}"
+                    )
                     logger.warning(error_msg)
                     return redact_sensitive_text(error_msg)
                 except Exception as exc:
                     if _is_mcp_auth_error(exc):
                         server = parse_mcp_tool_name(_name)
                         srv_label = server[0] if server else _name
-                        logger.warning("MCP tool '%s' failed with auth error (401)", _name)
+                        logger.warning(
+                            "MCP tool '%s' failed with auth error (401)", _name
+                        )
                         _emit_auth_expired_for_tool(srv_label, str(exc))
                         return (
                             f"MCP server '{srv_label}' requires re-authorization. "
@@ -422,7 +457,9 @@ class MCPAgent:
         if mcp_app_meta is None:
             return
         from myrm_agent_harness.core.events import AgentEventType
-        from myrm_agent_harness.utils.runtime.progress_sink import get_tool_progress_sink
+        from myrm_agent_harness.utils.runtime.progress_sink import (
+            get_tool_progress_sink,
+        )
 
         sink = get_tool_progress_sink()
         if sink is None:
@@ -445,7 +482,9 @@ class MCPAgent:
         try:
             await sink.emit(event)
         except Exception as exc:
-            logger.debug("Failed to emit mcp_app event for tool '%s': %s", tool_name, exc)
+            logger.debug(
+                "Failed to emit mcp_app event for tool '%s': %s", tool_name, exc
+            )
 
     @staticmethod
     def _sanitize_tools(tools: list[BaseTool]) -> None:
@@ -475,9 +514,12 @@ class MCPAgent:
                 schema_for_coercion = (
                     raw_schema
                     if isinstance(raw_schema, dict)
-                    else getattr(raw_schema, "model_json_schema", lambda: {})()
-                    if raw_schema is not None and hasattr(raw_schema, "model_json_schema")
-                    else {}
+                    else (
+                        getattr(raw_schema, "model_json_schema", lambda: {})()
+                        if raw_schema is not None
+                        and hasattr(raw_schema, "model_json_schema")
+                        else {}
+                    )
                 )
 
                 async def _coercion_wrapper(
@@ -491,18 +533,23 @@ class MCPAgent:
                     # Restore nested structure only if schema was flattened AND model used dot-keys
                     if _meta.was_flattened and has_dot_keys(coerced_kwargs):
                         coerced_kwargs = nest_flat_arguments(coerced_kwargs)
+                    coerced_kwargs = prepare_mcp_call_arguments(coerced_kwargs, _schema)
                     return await _orig(*args, **coerced_kwargs)
 
                 tool.coroutine = _coercion_wrapper
 
-    def _store_tool_server_mapping(self, tools: list[BaseTool], server_name: str) -> None:
+    def _store_tool_server_mapping(
+        self, tools: list[BaseTool], server_name: str
+    ) -> None:
         """Store tool-to-server name mapping."""
         for tool in tools:
             tool_id = self._get_tool_id(tool)
             self._tool_server_mapping[tool_id] = server_name
 
     @staticmethod
-    def _register_tool_annotations(tools: list[BaseTool], server_name: str, host_serial: bool = False) -> None:
+    def _register_tool_annotations(
+        tools: list[BaseTool], server_name: str, host_serial: bool = False
+    ) -> None:
         """Extract and register MCP native annotations into PTC safety registry."""
         skill_name = server_name.replace("-", "_").lower()
         if not skill_name.startswith("mcp_"):
@@ -514,7 +561,12 @@ class MCPAgent:
             meta = getattr(tool, "metadata", {}) or {}
 
             annotations: MCPAnnotations = {}
-            for key in ["readOnlyHint", "idempotentHint", "destructiveHint", "openWorldHint"]:
+            for key in [
+                "readOnlyHint",
+                "idempotentHint",
+                "destructiveHint",
+                "openWorldHint",
+            ]:
                 if key in meta:
                     annotations[key] = bool(meta[key])  # type: ignore[misc]
 
@@ -527,7 +579,9 @@ class MCPAgent:
                 is_idempotent=annotations.get("idempotentHint", False),
             )
 
-            register_ptc_safety_metadata(skill_name, tool.name, safety_meta, annotations)
+            register_ptc_safety_metadata(
+                skill_name, tool.name, safety_meta, annotations
+            )
 
     @staticmethod
     def _prefix_tool_names(tools: list[BaseTool], server_name: str) -> None:
@@ -569,11 +623,15 @@ class MCPAgent:
         filter (uses original names) → prefix → description limit →
         sanitize (schema) → timeout + output guard (with optional vault spill) → annotations.
         """
-        tools = MCPAgent._apply_tool_filter(tools, server_name, tool_include, tool_exclude)
+        tools = MCPAgent._apply_tool_filter(
+            tools, server_name, tool_include, tool_exclude
+        )
         MCPAgent._prefix_tool_names(tools, server_name)
         MCPAgent._enforce_description_limits(tools)
         MCPAgent._sanitize_tools(tools)
-        MCPAgent._wrap_tools_with_timeout(tools, execute_timeout, max_output_chars, oversized_result_handler)
+        MCPAgent._wrap_tools_with_timeout(
+            tools, execute_timeout, max_output_chars, oversized_result_handler
+        )
         MCPAgent._register_tool_annotations(tools, server_name, host_serial)
         return tools
 
@@ -607,19 +665,23 @@ class MCPAgent:
             transport_type = server_config.type
             if transport_type == "sse":
                 from mcp.client.sse import sse_client
+
                 return sse_client(raw_target, headers=headers or None)
             if headers:
                 import httpx2
+
                 http_client = httpx2.AsyncClient(
                     headers=headers,
                     timeout=httpx2.Timeout(30.0, read=300.0),
                     follow_redirects=True,
                 )
                 from mcp.client.streamable_http import streamable_http_client
+
                 return streamable_http_client(raw_target, http_client=http_client)
             return raw_target
 
         from mcp.client.stdio import stdio_client
+
         return stdio_client(raw_target)
 
     async def _enumerate_server_tools(
@@ -691,7 +753,9 @@ class MCPAgent:
 
         return server_name, [], last_error
 
-    async def get_tools(self, mcp_config: Sequence[MCPServerConfigProtocol] | None = None) -> list[BaseTool]:
+    async def get_tools(
+        self, mcp_config: Sequence[MCPServerConfigProtocol] | None = None
+    ) -> list[BaseTool]:
         """Get all available MCP tools from configured servers.
 
         Each server gets a one-shot ``mcp.client.Client`` connection for tool

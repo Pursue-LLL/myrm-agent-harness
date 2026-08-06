@@ -26,7 +26,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import StrEnum
 
-from myrm_agent_harness.utils.text_utils import smart_truncate
+from myrm_agent_harness.utils.text_utils import get_token_count, smart_truncate
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +70,8 @@ class BudgetVerdict:
 
 
 def _estimate_tokens(text: str) -> int:
-    """Rough token estimation: ~4 chars per token for English/code."""
-    return max(1, len(text) // 4)
+    """Token estimation aligned with context budget planning SSOT."""
+    return get_token_count(text)
 
 
 class ContextBudgetGuard:

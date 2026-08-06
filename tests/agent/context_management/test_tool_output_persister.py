@@ -92,6 +92,7 @@ class TestPersistLargeToolOutput:
 
 class TestFormatFilteredMessageWithSavedPath:
     def test_without_saved_path(self) -> None:
+        """Persist may fail (saved_path=None); header still guides file_read_tool recovery."""
         from myrm_agent_harness.agent.context_management.strategies.filter import (
             FilteredResult,
             format_filtered_message,
@@ -107,8 +108,9 @@ class TestFormatFilteredMessageWithSavedPath:
             read_suggestions=["re-execute tool"],
         )
         msg = format_filtered_message(result)
-        assert "file_read_tool" not in msg
+        assert "LARGE OUTPUT TRUNCATED - USE file_read_tool TO RECOVER" in msg
         assert "Full output saved to:" not in msg
+        assert ".context/" not in msg
 
     def test_with_saved_path(self) -> None:
         from myrm_agent_harness.agent.context_management.strategies.filter import (

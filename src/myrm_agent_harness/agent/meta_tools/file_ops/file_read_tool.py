@@ -56,6 +56,7 @@ from .file_read_handlers import (
     build_multimodal_result,
     process_text_paths,
 )
+from .mcp_read_next_step_hint import append_mcp_docs_next_step_hint
 from .utils.document_reader import is_document_path
 from .utils.image_reader import is_image_path
 from .utils.pdf_reader import is_pdf_path
@@ -407,6 +408,7 @@ def create_file_read_tool(
                 )
 
             result = "\n\n".join(text_parts) if text_parts else "No results."
+            result = append_mcp_docs_next_step_hint(result, text_paths)
             final_text = redact_sensitive_text(result)
             if preserve_in_context:
                 final_text = f"<preserve_context>\n{final_text}\n</preserve_context>"

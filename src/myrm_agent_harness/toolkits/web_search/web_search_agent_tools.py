@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.web_search.engine import SearchServiceConfig
 
 from myrm_agent_harness.toolkits.web_search._web_search_tool_description import (
-    WEB_SEARCH_TOOL_DESCRIPTION,
+    resolve_web_search_tool_description,
 )
 
 
@@ -46,6 +46,8 @@ def create_web_search_tool(
     reranker_config: RerankerConfig | None = None,
     sufficiency_config: SufficiencyConfig | None = None,
     sufficiency_llm_config: LLMConfig | None = None,
+    *,
+    description_locale: str | None = None,
 ):
     """Create a web search meta-tool.
 
@@ -54,11 +56,12 @@ def create_web_search_tool(
         reranker_config: Reranker model configuration (optional); when provided, precision mode is auto-enabled
         sufficiency_config: RSG configuration (optional); enables retrieval quality evaluation
         sufficiency_llm_config: LLM config for the sufficiency evaluator (required if sufficiency_config.enabled)
+        description_locale: BCP-47 locale for LLM-facing tool description (default English).
 
     Returns:
         web_search_tool tool function
     """
-    tool_description = WEB_SEARCH_TOOL_DESCRIPTION
+    tool_description = resolve_web_search_tool_description(description_locale)
 
     class WebSearchInput(BaseModel):
         questions: list[str] = Field(
@@ -72,7 +75,7 @@ def create_web_search_tool(
         )
         time_range: str | None = Field(
             default=None,
-            description="时间范围。仅当用户明确提到时间约束时设置：day/week/month/year 或 YYYY-MM-DD..YYYY-MM-DD。",
+            description="Time range. Set only when the user explicitly mentions a time constraint: day/week/month/year or YYYY-MM-DD..YYYY-MM-DD.",
         )
 
         @field_validator("questions", mode="before")

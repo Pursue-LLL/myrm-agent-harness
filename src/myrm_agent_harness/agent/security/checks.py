@@ -2,6 +2,10 @@
 
 Path policy evaluation, URL scheme validation, and shell threat analysis.
 All checks are pure functions — no side effects, no I/O, trivially testable.
+
+
+[POS]
+See module docstring.
 """
 
 from __future__ import annotations

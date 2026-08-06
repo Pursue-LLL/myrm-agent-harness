@@ -17,6 +17,9 @@ Three-tier context reduction strategies: Filter, Compress, Summarize.
 | priority_signals.py | Core | Group-level focus/goal signal matchers shared by Compress priority planning and Filter retention | ✅ |
 | smart_fallback.py | Core | Smart fallback for extreme token overflow; accepts failed_tool_call_ids so protected tools stay HIGH priority during budget allocation | ✅ |
 | progress_timeout.py | Core | Progress-aware timeout primitives (SummaryProgressTracker Protocol, ProgressClock, InactivityTimeoutError, TotalCeilingTimeoutError) for detecting stalled summarization. | ✅ |
+| summarize_circuit_guard.py | Core | Summarize circuit breaker guard (`is_summarize_circuit_open`). Used by server `compact_chat` to fail-fast when harness summarize circuit is open. | ✅ |
+| compression_anti_thrash_guard.py | Core | Anti-thrashing guard (`should_block_automatic_compression`, `record_compression_effectiveness` via `compression_streak_store`). Shared by CompressProcessor and server `compact_chat`. | ✅ |
+| compression_streak_store.py | Core | Pluggable streak persistence Protocol; default in-memory TaskMetrics; server registers Chat DB store at startup. | ✅ |
 | summarizer.py | Core | Context summarizer. Pure in-memory summarization strategy using structured summary schema, cache-safe message-prefix invocation, streaming progress tracking, and aux-model context guard. | ✅ |
 | summary_auditor.py | Core | Quality gate for the summarizer.  Runs *after* LLM generates a summary | ✅ |
 | summary_builder.py | Core | Message reconstruction after summarisation. | ✅ |

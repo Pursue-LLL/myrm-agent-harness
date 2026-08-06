@@ -1,4 +1,8 @@
-"""Wiki compile resilience: failure policy, circuit pause, display sanitization."""
+"""Wiki compile resilience: failure policy, circuit pause, display sanitization.
+
+[POS]
+See module docstring.
+"""
 
 from .circuit import CompileCircuitStore
 from .failure_policy import IO_MISSING, evaluate_batch_pause, is_transient_error_kind, resolve_io_failure, resolve_llm_failure

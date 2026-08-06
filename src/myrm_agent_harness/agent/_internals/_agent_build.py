@@ -26,7 +26,7 @@ from myrm_agent_harness.agent.middlewares import (
     tool_interceptor_middleware,
 )
 from myrm_agent_harness.agent.middlewares.approval import ToolApprovalMiddleware
-from myrm_agent_harness.agent.middlewares.completion_guard import CompletionGuard
+from myrm_agent_harness.agent.middlewares.completion import CompletionGuard
 from myrm_agent_harness.agent.middlewares.dangling_tool_call_middleware import (
     dangling_tool_call_middleware,
 )

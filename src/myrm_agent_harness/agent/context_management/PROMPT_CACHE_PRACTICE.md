@@ -454,7 +454,7 @@ class BatchCompactState:
 
 **问题**：当上下文内容本身难以压缩时（如最近的工具调用都在保护范围内），压缩每次只能节省 <10%，却每次都破坏 Prompt Cache。
 
-**实现**：`CompressProcessor`（`compress_processor.py`）通过 `TaskMetrics.compression_ineffective_streak` 追踪连续无效压缩次数（持久化在 `TaskMetrics` 中，跨 turn 累积）。
+**实现**：`CompressProcessor`（`compress_processor.py`）与 server `compact_chat` 通过 `compression_anti_thrash_guard` 追踪连续无效压缩次数；streak 持久化在 `chats.compression_ineffective_streak`（server `ChatCompressionStreakStore`），failure cooldown 仍由 DB 兜底。
 
 | 条件 | 行为 |
 |------|------|
@@ -997,7 +997,7 @@ Turn 12 (会话结束):
 
 | 内容 | 位置 | Cache 维度 |
 |------|------|------------|
-| Bound 技能 XML（含 MCP `mcp_*_skill`） | 首条 HumanMessage ``<bound_skills hidden_count="N">``（``skill_catalog_delivery.py`` + ``get_metadata_summary()``）；新消息与 **Command resume** 均经 ``apply_bound_skill_catalog_for_stream`` / ``apply_bound_skill_catalog_for_resume`` 刷新 | messages[] 前缀；bind 变时不触发 ``tool_definitions_changed`` |
+| Bound 技能 XML（含 MCP `mcp_*_skill`） | 首条 HumanMessage ``<bound_skills hidden_count="N">``（``skill_catalog_delivery.py`` + ``get_metadata_summary()``）；新消息与 **Command resume** 均经 ``apply_bound_skill_catalog_for_stream`` / ``apply_bound_skill_catalog_for_resume`` 刷新；catalog 变化时同步 ``skill_search_tool`` 索引（``agent_runtime._sync_skill_search_index_after_catalog_change``，stream+resume SSOT，不改 tool schema） | messages[] 前缀；bind 变时不触发 ``tool_definitions_changed`` |
 | skill_select_tool 静态规则 | ``skill_select_tool.description``（无 embed XML、无 hidden 计数、无 manage 规则） | tool schema 前缀跨 Profile 稳定 |
 | MCP 函数文档 | skill workspace ``/mcp/.../*.md``；经 ``skill_select_tool`` 返回 ToolMessage | 对话消息，非 system/tool schema |
 | Active todo focus | ``progress_middleware`` **追加到最后一个 HumanMessage** | 不破坏 system prefix cache |

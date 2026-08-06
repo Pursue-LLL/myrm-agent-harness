@@ -1,4 +1,8 @@
-"""Spawn cache key helpers for DW durable execution."""
+"""Spawn cache key helpers for DW durable execution.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

@@ -25,7 +25,9 @@ from myrm_agent_harness.agent.security.guards.loop_guard_types import (
     VerificationCategory,
 )
 
-LOOP_GUARD_PATCH = "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+LOOP_GUARD_PATCH = (
+    "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+)
 
 
 def _make_state(messages: list[object]) -> dict[str, object]:
@@ -48,24 +50,31 @@ class TestCompletionGuardTriggerConditions:
         """Should skip when AIMessage HAS tool_calls (except finish tools)."""
         state = _make_state(
             [
-                AIMessage(content="", tool_calls=[{"id": "tc1", "name": "file_read_tool", "args": {}}]),
+                AIMessage(
+                    content="",
+                    tool_calls=[{"id": "tc1", "name": "file_read_tool", "args": {}}],
+                ),
             ]
         )
         result = await self.guard.aafter_model(state, None)
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_triggers_when_ai_calls_finish_tool_with_unverified_writes(self) -> None:
+    async def test_triggers_when_ai_calls_finish_tool_with_unverified_writes(
+        self,
+    ) -> None:
         """Should trigger when AIMessage calls finish tool after modifying code without verification."""
         state = _make_state(
             [
                 AIMessage(
                     content="",
-                    tool_calls=[{
-                        "id": "tc_answer",
-                        "name": "request_answer_user_tool",
-                        "args": {"reason": "Task complete"}
-                    }]
+                    tool_calls=[
+                        {
+                            "id": "tc_answer",
+                            "name": "request_answer_user_tool",
+                            "args": {"reason": "Task complete"},
+                        }
+                    ],
                 ),
             ]
         )
@@ -126,6 +135,28 @@ class TestCompletionGuardTriggerConditions:
                     tool_name="web_search_tool",
                     args_hash="evidence1",
                     args={"query": "latest ai news"},
+                    success_level=SuccessLevel.FULL_SUCCESS,
+                )
+            ]
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_allows_when_mcp_ptc_bash_evidence_exists(self) -> None:
+        """Freshness query with successful MCP PTC bash should pass through."""
+        state = _make_state(
+            [
+                HumanMessage(content="Please give today's latest AI news summary."),
+                AIMessage(content="All done."),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = [
+                CallRecord(
+                    tool_name="bash_code_execute_tool",
+                    args_hash="mcpbash1",
+                    args={"command": "from skills.mcp_news_skill import fetch_latest"},
                     success_level=SuccessLevel.FULL_SUCCESS,
                 )
             ]
@@ -226,7 +257,6 @@ class TestCompletionGuardTriggerConditions:
         assert result is not None
         assert _cg_mod._rejection_count == 0
         assert result["messages"][0].tool_calls[0]["args"].get("force_fail") is True
-
 
 
 class TestCompletionGuardReset:
@@ -433,7 +463,10 @@ class TestBuildChecklist:
                 success_level=SuccessLevel.FULL_SUCCESS,
             ),
             CallRecord(
-                tool_name="grep_tool", args_hash="jkl", args={"pattern": "foo"}, success_level=SuccessLevel.FULL_SUCCESS
+                tool_name="grep_tool",
+                args_hash="jkl",
+                args={"pattern": "foo"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
         ]
         checklist, _ = _build_checklist(records)
@@ -462,7 +495,9 @@ class TestBuildChecklist:
             ),
         ]
 
-        checklist, has_critical = _build_checklist(records, workspace_root=str(tmp_path))
+        checklist, has_critical = _build_checklist(
+            records, workspace_root=str(tmp_path)
+        )
 
         assert has_critical
         assert "CRITICAL" in checklist
@@ -505,7 +540,9 @@ class TestCompletionCheckTool:
     def test_tool_returns_checklist(self) -> None:
         from collections import deque
 
-        from myrm_agent_harness.agent.middlewares.completion_guard import _completion_check_tool
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _completion_check_tool,
+        )
 
         mock_window: deque[CallRecord] = deque(
             [
@@ -525,7 +562,10 @@ class TestCompletionCheckTool:
         assert "file_write_tool" in result
 
     def test_force_fail(self) -> None:
-        from myrm_agent_harness.agent.middlewares.completion_guard import _completion_check_tool
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _completion_check_tool,
+        )
+
         result = _completion_check_tool.invoke({"force_fail": True})
         assert "CRITICAL SYSTEM DIRECTIVE" in result
 
@@ -556,7 +596,9 @@ class TestClassifyVerification:
             ("bun run build", VerificationCategory.BUILD),
         ],
     )
-    def test_detects_verification_commands(self, command: str, expected: VerificationCategory) -> None:
+    def test_detects_verification_commands(
+        self, command: str, expected: VerificationCategory
+    ) -> None:
         assert classify_verification({"command": command}) == expected
 
     @pytest.mark.parametrize(
@@ -580,19 +622,35 @@ class TestClassifyVerification:
 
     def test_chained_commands(self) -> None:
         """Detects verification in chained commands (&&, ;)."""
-        assert classify_verification({"command": "cd src && pytest tests/"}) == VerificationCategory.TEST
-        assert classify_verification({"command": "cd src; ruff check ."}) == VerificationCategory.LINT
+        assert (
+            classify_verification({"command": "cd src && pytest tests/"})
+            == VerificationCategory.TEST
+        )
+        assert (
+            classify_verification({"command": "cd src; ruff check ."})
+            == VerificationCategory.LINT
+        )
 
     def test_exact_match_without_trailing_args(self) -> None:
         """Exact command matches (no args after pattern)."""
         assert classify_verification({"command": "pytest"}) == VerificationCategory.TEST
-        assert classify_verification({"command": "npm test"}) == VerificationCategory.TEST
-        assert classify_verification({"command": "tsc"}) == VerificationCategory.TYPECHECK
+        assert (
+            classify_verification({"command": "npm test"}) == VerificationCategory.TEST
+        )
+        assert (
+            classify_verification({"command": "tsc"}) == VerificationCategory.TYPECHECK
+        )
 
     def test_chained_exact_match(self) -> None:
         """Chained commands with exact match at end."""
-        assert classify_verification({"command": "cd dir && pytest"}) == VerificationCategory.TEST
-        assert classify_verification({"command": "source .venv/bin/activate && mypy"}) == VerificationCategory.TYPECHECK
+        assert (
+            classify_verification({"command": "cd dir && pytest"})
+            == VerificationCategory.TEST
+        )
+        assert (
+            classify_verification({"command": "source .venv/bin/activate && mypy"})
+            == VerificationCategory.TYPECHECK
+        )
 
 
 class TestFrontendBrowserVerificationWarning:
@@ -904,15 +962,25 @@ class TestMixedMessageGuard:
     @pytest.mark.asyncio
     async def test_strips_readonly_tools_with_substantive_content(self) -> None:
         """Core case: content is final answer + read-only tools -> strip."""
-        state = _make_state([
-            AIMessage(
-                content=self._long_answer(),
-                tool_calls=[
-                    {"id": "tc1", "name": "file_read_tool", "args": {"path": "/src/router.py"}},
-                    {"id": "tc2", "name": "grep_tool", "args": {"pattern": "route"}},
-                ],
-            ),
-        ])
+        state = _make_state(
+            [
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "file_read_tool",
+                            "args": {"path": "/src/router.py"},
+                        },
+                        {
+                            "id": "tc2",
+                            "name": "grep_tool",
+                            "args": {"pattern": "route"},
+                        },
+                    ],
+                ),
+            ]
+        )
         result = await self.guard.aafter_model(state, None)
 
         assert result is not None
@@ -924,43 +992,65 @@ class TestMixedMessageGuard:
     @pytest.mark.asyncio
     async def test_preserves_mutation_tools(self) -> None:
         """Safety: content + mutation tool (write_file) -> do NOT strip."""
-        state = _make_state([
-            AIMessage(
-                content=self._long_answer(),
-                tool_calls=[
-                    {"id": "tc1", "name": "write_file", "args": {"path": "/out.py", "content": "x"}},
-                ],
-            ),
-        ])
+        state = _make_state(
+            [
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "write_file",
+                            "args": {"path": "/out.py", "content": "x"},
+                        },
+                    ],
+                ),
+            ]
+        )
         result = await self.guard.aafter_model(state, None)
         assert result is None
 
     @pytest.mark.asyncio
     async def test_preserves_mixed_mutation_and_readonly(self) -> None:
         """Safety: content + mix of mutation and read-only tools -> do NOT strip."""
-        state = _make_state([
-            AIMessage(
-                content=self._long_answer(),
-                tool_calls=[
-                    {"id": "tc1", "name": "file_read_tool", "args": {"path": "/src/router.py"}},
-                    {"id": "tc2", "name": "execute_command", "args": {"command": "echo hi"}},
-                ],
-            ),
-        ])
+        state = _make_state(
+            [
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "file_read_tool",
+                            "args": {"path": "/src/router.py"},
+                        },
+                        {
+                            "id": "tc2",
+                            "name": "execute_command",
+                            "args": {"command": "echo hi"},
+                        },
+                    ],
+                ),
+            ]
+        )
         result = await self.guard.aafter_model(state, None)
         assert result is None
 
     @pytest.mark.asyncio
     async def test_short_content_not_stripped(self) -> None:
         """Content < 500 chars is likely in-progress narration -> do NOT strip."""
-        state = _make_state([
-            AIMessage(
-                content="Let me check the file for you.",
-                tool_calls=[
-                    {"id": "tc1", "name": "file_read_tool", "args": {"path": "/src/router.py"}},
-                ],
-            ),
-        ])
+        state = _make_state(
+            [
+                AIMessage(
+                    content="Let me check the file for you.",
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "file_read_tool",
+                            "args": {"path": "/src/router.py"},
+                        },
+                    ],
+                ),
+            ]
+        )
         result = await self.guard.aafter_model(state, None)
         assert result is None
 
@@ -968,14 +1058,20 @@ class TestMixedMessageGuard:
     async def test_unfinished_content_not_stripped(self) -> None:
         """Content with 'unfinished' trailing marker -> do NOT strip."""
         content = self._long_answer() + "\n\nI'll now check the tests..."
-        state = _make_state([
-            AIMessage(
-                content=content,
-                tool_calls=[
-                    {"id": "tc1", "name": "file_read_tool", "args": {"path": "/tests/"}},
-                ],
-            ),
-        ])
+        state = _make_state(
+            [
+                AIMessage(
+                    content=content,
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "file_read_tool",
+                            "args": {"path": "/tests/"},
+                        },
+                    ],
+                ),
+            ]
+        )
         result = await self.guard.aafter_model(state, None)
         assert result is None
 
@@ -983,28 +1079,40 @@ class TestMixedMessageGuard:
     async def test_no_structure_not_stripped(self) -> None:
         """Long content without markdown structure -> do NOT strip."""
         content = "x " * 300  # >500 chars but no markdown structure
-        state = _make_state([
-            AIMessage(
-                content=content,
-                tool_calls=[
-                    {"id": "tc1", "name": "file_read_tool", "args": {"path": "/file"}},
-                ],
-            ),
-        ])
+        state = _make_state(
+            [
+                AIMessage(
+                    content=content,
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "file_read_tool",
+                            "args": {"path": "/file"},
+                        },
+                    ],
+                ),
+            ]
+        )
         result = await self.guard.aafter_model(state, None)
         assert result is None
 
     @pytest.mark.asyncio
     async def test_finish_tools_bypass_mixed_guard(self) -> None:
         """When tool_calls include finish tool, take completion path not mixed guard."""
-        state = _make_state([
-            AIMessage(
-                content=self._long_answer(),
-                tool_calls=[
-                    {"id": "tc1", "name": "request_answer_user_tool", "args": {"reason": "done"}},
-                ],
-            ),
-        ])
+        state = _make_state(
+            [
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "request_answer_user_tool",
+                            "args": {"reason": "done"},
+                        },
+                    ],
+                ),
+            ]
+        )
         with patch(LOOP_GUARD_PATCH) as mock_guard:
             mock_guard.return_value._window = [
                 CallRecord(
@@ -1022,42 +1130,60 @@ class TestMixedMessageGuard:
     @pytest.mark.asyncio
     async def test_bash_tool_is_mutation(self) -> None:
         """bash_tool is classified as mutation -> do NOT strip."""
-        state = _make_state([
-            AIMessage(
-                content=self._long_answer(),
-                tool_calls=[
-                    {"id": "tc1", "name": "bash_code_execute_tool", "args": {"command": "ls"}},
-                ],
-            ),
-        ])
+        state = _make_state(
+            [
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "bash_code_execute_tool",
+                            "args": {"command": "ls"},
+                        },
+                    ],
+                ),
+            ]
+        )
         result = await self.guard.aafter_model(state, None)
         assert result is None
 
     @pytest.mark.asyncio
     async def test_bash_code_execute_tool_is_mutation(self) -> None:
         """bash_code_execute_tool is classified as mutation -> do NOT strip."""
-        state = _make_state([
-            AIMessage(
-                content=self._long_answer(),
-                tool_calls=[
-                    {"id": "tc1", "name": "bash_code_execute_tool", "args": {"command": "pytest"}},
-                ],
-            ),
-        ])
+        state = _make_state(
+            [
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "bash_code_execute_tool",
+                            "args": {"command": "pytest"},
+                        },
+                    ],
+                ),
+            ]
+        )
         result = await self.guard.aafter_model(state, None)
         assert result is None
 
     @pytest.mark.asyncio
     async def test_no_content_no_trigger(self) -> None:
         """AIMessage with tool_calls but empty content -> do NOT trigger mixed guard."""
-        state = _make_state([
-            AIMessage(
-                content="",
-                tool_calls=[
-                    {"id": "tc1", "name": "file_read_tool", "args": {"path": "/file"}},
-                ],
-            ),
-        ])
+        state = _make_state(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "file_read_tool",
+                            "args": {"path": "/file"},
+                        },
+                    ],
+                ),
+            ]
+        )
         result = await self.guard.aafter_model(state, None)
         assert result is None
 
@@ -1073,18 +1199,23 @@ class TestTemporalOrderChecking:
         """Write → verify → write again → CRITICAL (post-verification write)."""
         records = [
             CallRecord(
-                tool_name="file_write_tool", args_hash="w1",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": "pytest tests/"},
                 success_level=SuccessLevel.FULL_SUCCESS,
                 verification_type=VerificationCategory.TEST,
             ),
             CallRecord(
-                tool_name="file_edit_tool", args_hash="w2",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_edit_tool",
+                args_hash="w2",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
         ]
         checklist, has_critical = _build_checklist(records)
@@ -1095,11 +1226,14 @@ class TestTemporalOrderChecking:
         """Write → verify → no more writes → not critical."""
         records = [
             CallRecord(
-                tool_name="file_write_tool", args_hash="w1",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": "pytest tests/"},
                 success_level=SuccessLevel.FULL_SUCCESS,
                 verification_type=VerificationCategory.TEST,
@@ -1113,18 +1247,23 @@ class TestTemporalOrderChecking:
         """Write code → verify → write non-code → not critical."""
         records = [
             CallRecord(
-                tool_name="file_write_tool", args_hash="w1",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": "pytest"},
                 success_level=SuccessLevel.FULL_SUCCESS,
                 verification_type=VerificationCategory.TEST,
             ),
             CallRecord(
-                tool_name="file_write_tool", args_hash="w2",
-                args={"path": "/docs/README.md"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_write_tool",
+                args_hash="w2",
+                args={"path": "/docs/README.md"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
         ]
         checklist, has_critical = _build_checklist(records)
@@ -1134,11 +1273,14 @@ class TestTemporalOrderChecking:
         """Failed verifications are NOT treated as temporal anchors."""
         records = [
             CallRecord(
-                tool_name="file_write_tool", args_hash="w1",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": "pytest"},
                 success_level=SuccessLevel.FAILURE,
                 verification_type=VerificationCategory.TEST,
@@ -1155,13 +1297,15 @@ class TestFindLastSuccessfulVerificationCommand:
     def test_finds_last_successful_command(self) -> None:
         records = [
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": "pytest tests/ -x"},
                 success_level=SuccessLevel.FULL_SUCCESS,
                 verification_type=VerificationCategory.TEST,
             ),
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v2",
+                tool_name="bash_code_execute_tool",
+                args_hash="v2",
                 args={"command": "ruff check src/"},
                 success_level=SuccessLevel.FULL_SUCCESS,
                 verification_type=VerificationCategory.LINT,
@@ -1173,13 +1317,15 @@ class TestFindLastSuccessfulVerificationCommand:
     def test_skips_failed_verifications(self) -> None:
         records = [
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": "pytest tests/"},
                 success_level=SuccessLevel.FULL_SUCCESS,
                 verification_type=VerificationCategory.TEST,
             ),
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v2",
+                tool_name="bash_code_execute_tool",
+                args_hash="v2",
                 args={"command": "ruff check src/"},
                 success_level=SuccessLevel.FAILURE,
                 verification_type=VerificationCategory.LINT,
@@ -1191,8 +1337,10 @@ class TestFindLastSuccessfulVerificationCommand:
     def test_returns_none_when_no_verifications(self) -> None:
         records = [
             CallRecord(
-                tool_name="file_write_tool", args_hash="w1",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
         ]
         cmd = find_last_successful_verification_command(records)
@@ -1201,7 +1349,8 @@ class TestFindLastSuccessfulVerificationCommand:
     def test_returns_none_for_empty_command(self) -> None:
         records = [
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": ""},
                 success_level=SuccessLevel.FULL_SUCCESS,
                 verification_type=VerificationCategory.TEST,
@@ -1223,18 +1372,23 @@ class TestIndependentRerun:
         """When independent re-run passes, agent is allowed to complete."""
         records = [
             CallRecord(
-                tool_name="file_write_tool", args_hash="w1",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": "pytest tests/"},
                 success_level=SuccessLevel.FULL_SUCCESS,
                 verification_type=VerificationCategory.TEST,
             ),
             CallRecord(
-                tool_name="file_edit_tool", args_hash="w2",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_edit_tool",
+                args_hash="w2",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
         ]
 
@@ -1260,18 +1414,23 @@ class TestIndependentRerun:
         """When independent re-run fails, agent is blocked from completing."""
         records = [
             CallRecord(
-                tool_name="file_write_tool", args_hash="w1",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": "pytest tests/"},
                 success_level=SuccessLevel.FULL_SUCCESS,
                 verification_type=VerificationCategory.TEST,
             ),
             CallRecord(
-                tool_name="file_edit_tool", args_hash="w2",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_edit_tool",
+                args_hash="w2",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
         ]
 
@@ -1298,11 +1457,14 @@ class TestIndependentRerun:
         """When critical error is 'verification failed' (not temporal), rerun must NOT bypass."""
         records = [
             CallRecord(
-                tool_name="file_write_tool", args_hash="w1",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": "pytest tests/"},
                 success_level=SuccessLevel.FAILURE,
                 verification_type=VerificationCategory.TEST,
@@ -1332,18 +1494,23 @@ class TestIndependentRerun:
         """When sandbox executor is unavailable, falls back to blocking."""
         records = [
             CallRecord(
-                tool_name="file_write_tool", args_hash="w1",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_write_tool",
+                args_hash="w1",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
             CallRecord(
-                tool_name="bash_code_execute_tool", args_hash="v1",
+                tool_name="bash_code_execute_tool",
+                args_hash="v1",
                 args={"command": "pytest tests/"},
                 success_level=SuccessLevel.FULL_SUCCESS,
                 verification_type=VerificationCategory.TEST,
             ),
             CallRecord(
-                tool_name="file_edit_tool", args_hash="w2",
-                args={"path": "/src/app.py"}, success_level=SuccessLevel.FULL_SUCCESS,
+                tool_name="file_edit_tool",
+                args_hash="w2",
+                args={"path": "/src/app.py"},
+                success_level=SuccessLevel.FULL_SUCCESS,
             ),
         ]
 
@@ -1382,7 +1549,10 @@ class TestExtractLatestHumanText:
             HumanMessage(
                 content=[
                     {"type": "text", "text": "Describe this image"},
-                    {"type": "image_url", "image_url": {"url": "http://example.com/img.png"}},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "http://example.com/img.png"},
+                    },
                 ]
             )
         ]
@@ -1478,3 +1648,47 @@ class TestHasExternalEvidence:
         )
 
         assert _has_external_evidence([]) is False
+
+    def test_returns_true_for_successful_mcp_ptc_bash(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="bash_code_execute_tool",
+            args_hash="mcp1",
+            args={
+                "command": (
+                    'python3 -c "from skills.mcp_12306_skill import get_tickets; '
+                    'print(\\"ok\\")"'
+                ),
+            },
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        assert _has_external_evidence([record]) is True
+
+    def test_returns_false_for_failed_mcp_ptc_bash(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="bash_code_execute_tool",
+            args_hash="mcp2",
+            args={"command": "from skills.mcp_12306_skill import get_tickets"},
+            success_level=SuccessLevel.FAILURE,
+        )
+        assert _has_external_evidence([record]) is False
+
+    def test_returns_false_for_plain_bash_without_mcp_marker(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion_guard import (
+            _has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="bash_code_execute_tool",
+            args_hash="bash1",
+            args={"command": "pytest -q"},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        assert _has_external_evidence([record]) is False

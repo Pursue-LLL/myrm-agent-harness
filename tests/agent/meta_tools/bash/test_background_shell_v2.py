@@ -77,7 +77,11 @@ async def test_registry_wait_respects_cap_and_still_running() -> None:
     assert result["still_running"] is True
     assert result["status"] == "running"
 
-    capped = await registry.wait_for_process(9002, timeout_seconds=999)
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.bash._background_registry._WAIT_MAX_SECONDS",
+        0.3,
+    ):
+        capped = await registry.wait_for_process(9002, timeout_seconds=999)
     assert capped["still_running"] is True
 
 

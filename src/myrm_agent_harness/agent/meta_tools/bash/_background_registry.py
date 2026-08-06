@@ -73,7 +73,7 @@ _DEFAULT_KILL_GRACE_SECONDS = 5.0  # SIGTERM → SIGKILL escalation window.
 _DEFAULT_REAP_DELAY_SECONDS = (
     300.0  # Exited entries are purged from the registry after this idle window.
 )
-_WAIT_MAX_SECONDS = 120.0
+_WAIT_MAX_SECONDS = 30.0
 _WAIT_POLL_INTERVAL_SECONDS = 0.1
 
 

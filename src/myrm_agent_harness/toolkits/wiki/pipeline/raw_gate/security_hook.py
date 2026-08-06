@@ -1,4 +1,8 @@
-"""Wiki raw write security pre-scan hook."""
+"""Wiki raw write security pre-scan hook.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

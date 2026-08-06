@@ -148,7 +148,9 @@ class TestToolStuckException:
 
 
 class TestConsecutiveFailures:
-    def test_break_after_3_consecutive_any_tool_failures(self, guard: LoopGuard) -> None:
+    def test_break_after_3_consecutive_any_tool_failures(
+        self, guard: LoopGuard
+    ) -> None:
         """3 consecutive failures across different tools → ToolStuckException."""
         tools = ["bash_code_execute_tool", "file_read_tool", "grep_tool"]
         for tool in tools:
@@ -543,7 +545,9 @@ class TestErrorSignatureDetection:
         guard.pre_check(tool, {"arg": f"err_{idx}"})
         guard.record_result(tool, {"arg": f"err_{idx}"}, error_msg)
         guard.pre_check(f"ok_tool_{idx}", {"arg": "ok"})
-        guard.record_result(f"ok_tool_{idx}", {"arg": "ok"}, "All tasks completed successfully.")
+        guard.record_result(
+            f"ok_tool_{idx}", {"arg": "ok"}, "All tasks completed successfully."
+        )
 
     def test_same_error_across_tools_triggers_stuck(self) -> None:
         """Same normalised error 5 times across different tools → ToolStuckException."""
@@ -551,7 +555,12 @@ class TestErrorSignatureDetection:
         error_msg = self._make_error(
             "ToolExecutionError: SyntaxError: unexpected character"
         )
-        tools = ["bash_code_execute_tool", "file_write_tool", "bash_code_execute_tool", "grep_tool"]
+        tools = [
+            "bash_code_execute_tool",
+            "file_write_tool",
+            "bash_code_execute_tool",
+            "grep_tool",
+        ]
 
         for i, tool in enumerate(tools):
             self._feed_error_with_success_spacer(guard, tool, error_msg, i)
@@ -606,7 +615,9 @@ class TestErrorSignatureDetection:
         )
 
         for i in range(3):
-            self._feed_error_with_success_spacer(guard, "bash_code_execute_tool", error_msg, i)
+            self._feed_error_with_success_spacer(
+                guard, "bash_code_execute_tool", error_msg, i
+            )
 
         guard.reset(preserve_error_signatures=True)
         assert len(guard._error_signatures) > 0
@@ -705,6 +716,27 @@ class TestMetrics:
         assert len(guard._output_history) == 0
         assert guard._metrics.total_calls == 1  # reset doesn't clear metrics
 
+    def test_call_window_preserved_on_resume_reset(self) -> None:
+        """reset(preserve_call_window=True) keeps CallRecords for CompletionGuard evidence."""
+        guard = LoopGuard()
+        guard.pre_check(
+            "bash_code_execute_tool",
+            {"command": "from skills.mcp_12306_skill import get_tickets"},
+        )
+        guard.record_result(
+            "bash_code_execute_tool",
+            {"command": "from skills.mcp_12306_skill import get_tickets"},
+            "ok",
+        )
+        assert len(guard._window) == 1
+
+        guard.reset(preserve_call_window=True)
+        assert len(guard._window) == 1
+        assert guard._window[0].tool_name == "bash_code_execute_tool"
+
+        guard.reset(preserve_call_window=False)
+        assert len(guard._window) == 0
+
     def test_reset_metrics_clears_metrics(self, guard: LoopGuard) -> None:
         """reset_metrics clears metrics counters."""
         guard.pre_check("tool_a", {"x": 1})
@@ -800,7 +832,9 @@ class TestCompetitorScenarioComparison:
 
         guard.pre_check("browser_navigate_tool", {"url": "http://example.com"})
         guard.record_result(
-            "browser_navigate_tool", {"url": "http://example.com"}, "Error: connection refused"
+            "browser_navigate_tool",
+            {"url": "http://example.com"},
+            "Error: connection refused",
         )
         guard._window[-1].success_level = SuccessLevel.FAILURE
 
@@ -822,11 +856,15 @@ class TestCompetitorScenarioComparison:
         guard = LoopGuard(warn_threshold=3, break_threshold=5)
 
         guard.pre_check("bash_code_execute_tool", {"command": "pip install broken"})
-        guard.record_result("bash_code_execute_tool", {"command": "pip install broken"}, "Error")
+        guard.record_result(
+            "bash_code_execute_tool", {"command": "pip install broken"}, "Error"
+        )
         guard._window[-1].success_level = SuccessLevel.FAILURE
 
         guard.pre_check("bash_code_execute_tool", {"command": "pip install broken"})
-        guard.record_result("bash_code_execute_tool", {"command": "pip install broken"}, "Error")
+        guard.record_result(
+            "bash_code_execute_tool", {"command": "pip install broken"}, "Error"
+        )
         guard._window[-1].success_level = SuccessLevel.FAILURE
 
         with pytest.raises(ToolStuckException):
@@ -852,7 +890,10 @@ class TestCompetitorScenarioComparison:
         verdict = guard.pre_check("tool_b", {"y": 2})
 
         assert verdict.action == LoopAction.BREAK
-        assert "final summary" in verdict.backoff_hint.lower() or "review" in verdict.backoff_hint.lower()
+        assert (
+            "final summary" in verdict.backoff_hint.lower()
+            or "review" in verdict.backoff_hint.lower()
+        )
 
     def test_granular_detection_not_blanket_disable(self) -> None:
         """After BREAK for one tool, different tools are still allowed.
@@ -874,7 +915,9 @@ class TestCompetitorScenarioComparison:
 
         for _ in range(5):
             fresh_guard.pre_check("bash_code_execute_tool", {"command": "failing"})
-            fresh_guard.record_result("bash_code_execute_tool", {"command": "failing"}, "ok")
+            fresh_guard.record_result(
+                "bash_code_execute_tool", {"command": "failing"}, "ok"
+            )
 
         # Now a DIFFERENT tool should still be ALLOWED
         verdict = fresh_guard.pre_check("file_read_tool", {"path": "/tmp/x"})
@@ -929,10 +972,14 @@ class TestNotifyCompaction:
         guard = LoopGuard(graph_recursion_limit=60, error_signature_threshold=5)
 
         guard.pre_check("bash_a", {"cmd": "bad"})
-        guard.record_result("bash_a", {"cmd": "bad"}, "ToolExecutionError: SyntaxError in script")
+        guard.record_result(
+            "bash_a", {"cmd": "bad"}, "ToolExecutionError: SyntaxError in script"
+        )
 
         guard.pre_check("bash_b", {"cmd": "bad2"})
-        guard.record_result("bash_b", {"cmd": "bad2"}, "ToolExecutionError: SyntaxError in script")
+        guard.record_result(
+            "bash_b", {"cmd": "bad2"}, "ToolExecutionError: SyntaxError in script"
+        )
 
         assert len(guard._error_signatures) > 0
         sigs_before = dict(guard._error_signatures)

@@ -13,6 +13,7 @@ from myrm_agent_harness.agent._internals.run_lifecycle import (
     cleanup_run,
     compute_context_budget_snapshot,
     post_run_events,
+    resolve_context_budget_breakdown,
     setup_workspace,
 )
 from myrm_agent_harness.agent.streaming.types import AgentEventType
@@ -54,13 +55,20 @@ class TestSetupWorkspace:
 
         fake_root = "/tmp/host-aggregate"
         with (
-            patch(f"{_MOD}.create_workspace_service", return_value=mock_svc) as mock_fact,
+            patch(
+                f"{_MOD}.create_workspace_service", return_value=mock_svc
+            ) as mock_fact,
             patch(f"{_MOD}.set_workspace_root"),
-            patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
+            patch(
+                "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"
+            ),
         ):
             ctx, exe = await setup_workspace(
                 executor=mock_executor,
-                context={"session_id": "test_session", "workspaces_storage_root": fake_root},
+                context={
+                    "session_id": "test_session",
+                    "workspaces_storage_root": fake_root,
+                },
             )
 
         assert ctx["workspace_path"] == "/tmp/ws"
@@ -83,11 +91,17 @@ class TestSetupWorkspace:
         with (
             patch(f"{_MOD}.create_workspace_service", return_value=mock_svc),
             patch(f"{_MOD}.set_workspace_root"),
-            patch("myrm_agent_harness.toolkits.code_execution.create_executor", return_value=mock_executor),
-            patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
+            patch(
+                "myrm_agent_harness.toolkits.code_execution.create_executor",
+                return_value=mock_executor,
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"
+            ),
         ):
             _ctx, exe = await setup_workspace(
-                executor=None, context={"session_id": "s1", "workspaces_storage_root": fake_root}
+                executor=None,
+                context={"session_id": "s1", "workspaces_storage_root": fake_root},
             )
 
         assert exe is mock_executor
@@ -113,7 +127,9 @@ class TestCleanupRun:
             patch(f"{_MOD}.reset_token_tracker"),
             patch(f"{_MOD}.clear_pending_explicit_cache_snapshot"),
             patch("myrm_agent_harness.agent.middlewares.approval.set_security_config"),
-            patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
+            patch(
+                "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"
+            ),
         ):
             cleanup_run(**defaults)  # type: ignore[arg-type]
 
@@ -138,8 +154,12 @@ class TestCleanupRun:
             patch(f"{_MOD}.reset_token_tracker"),
             patch(f"{_MOD}.clear_pending_explicit_cache_snapshot"),
             patch("myrm_agent_harness.agent.middlewares.approval.set_security_config"),
-            patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
-            patch("myrm_agent_harness.utils.runtime.steering.set_steering_token") as mock_set_st,
+            patch(
+                "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"
+            ),
+            patch(
+                "myrm_agent_harness.utils.runtime.steering.set_steering_token"
+            ) as mock_set_st,
         ):
             cleanup_run(
                 stats=AgentRunStatistics(),
@@ -159,8 +179,12 @@ class TestCleanupRun:
             patch(f"{_MOD}.reset_token_tracker"),
             patch(f"{_MOD}.clear_pending_explicit_cache_snapshot"),
             patch("myrm_agent_harness.agent.middlewares.approval.set_security_config"),
-            patch("myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"),
-            patch("myrm_agent_harness.toolkits.code_execution.executors.base.clear_stashed_executor") as mock_clear_exec,
+            patch(
+                "myrm_agent_harness.toolkits.code_execution.executors.base.set_executor"
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.code_execution.executors.base.clear_stashed_executor"
+            ) as mock_clear_exec,
         ):
             cleanup_run(
                 stats=AgentRunStatistics(),
@@ -176,7 +200,11 @@ class TestCleanupRun:
         stats = AgentRunStatistics()
         with patch(f"{_MOD}.set_tool_progress_sink", side_effect=RuntimeError("boom")):
             cleanup_run(
-                stats=stats, start_time=time.time(), cancel_token=None, steering_token=None, cancel_all_fn=lambda: 0
+                stats=stats,
+                start_time=time.time(),
+                cancel_token=None,
+                steering_token=None,
+                cancel_all_fn=lambda: 0,
             )
 
 
@@ -274,7 +302,12 @@ class TestPostRunEvents:
         mock_usage = MagicMock()
         mock_usage.to_dict.return_value = {"total_tokens": 100}
 
-        stats = AgentRunStatistics(token_usage=mock_usage, cost_usd=0.05, cost_status="actual", primary_model="gpt-4")
+        stats = AgentRunStatistics(
+            token_usage=mock_usage,
+            cost_usd=0.05,
+            cost_status="actual",
+            primary_model="gpt-4",
+        )
 
         with (
             patch(
@@ -298,7 +331,8 @@ class TestPostRunEvents:
         mock_usage.to_dict.return_value = {"total_tokens": 100}
 
         stats = AgentRunStatistics(
-            token_usage=mock_usage, model_usage={"gpt-4": {"total_tokens": 100, "cost_usd": 0.01}}
+            token_usage=mock_usage,
+            model_usage={"gpt-4": {"total_tokens": 100, "cost_usd": 0.01}},
         )
 
         with (
@@ -399,8 +433,41 @@ class TestPostRunEvents:
         end_event = events[-1]
         assert end_event["completion_status"] == CompletionStatus.TRUNCATED.value
 
+    @pytest.mark.asyncio
+    async def test_message_end_includes_context_budget_breakdown(self) -> None:
+        from myrm_agent_harness.core.events.types import ContextBudgetSnapshot
 
-class TestComputeContextBudgetSnapshot:
+        stats = AgentRunStatistics(
+            context_budget=ContextBudgetSnapshot(
+                current_tokens=118_000,
+                max_context_tokens=128_000,
+                usage_percent=92.2,
+                health_status="critical",
+                messages_estimated_tokens=112_000,
+                bound_tools_overhead_tokens=6_000,
+                other_tokens=0,
+            )
+        )
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
+                return_value=_async_gen([]),
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                return_value=None,
+            ),
+            patch(f"{_MOD}.get_token_tracker", return_value=None),
+        ):
+            events = [e async for e in post_run_events(stats, "msg1", {}, False, None)]
+
+        end_event = events[-1]
+        budget = end_event["context_budget"]
+        assert budget["current_tokens"] == 118_000
+        assert budget["messages_estimated_tokens"] == 112_000
+        assert budget["bound_tools_overhead_tokens"] == 6_000
+
     """Tests for compute_context_budget_snapshot."""
 
     def _make_stats(self, prompt_tokens: int) -> AgentRunStatistics:
@@ -468,6 +535,102 @@ class TestComputeContextBudgetSnapshot:
         assert result is not None
         assert result.health_status == "healthy"
         assert result.usage_percent == 50.0
+
+    def test_breakdown_fields_optional(self) -> None:
+        stats = self._make_stats(118_000)
+        result = compute_context_budget_snapshot(
+            stats,
+            128_000,
+            messages_estimated_tokens=112_000,
+            bound_tools_overhead_tokens=6_000,
+            other_tokens=0,
+        )
+        assert result is not None
+        payload = result.to_dict()
+        assert payload["messages_estimated_tokens"] == 112_000
+        assert payload["bound_tools_overhead_tokens"] == 6_000
+        assert payload["other_tokens"] == 0
+
+    def test_breakdown_omitted_when_none(self) -> None:
+        stats = self._make_stats(50_000)
+        result = compute_context_budget_snapshot(stats, 128_000)
+        assert result is not None
+        payload = result.to_dict()
+        assert "messages_estimated_tokens" not in payload
+        assert "bound_tools_overhead_tokens" not in payload
+
+
+class TestResolveContextBudgetBreakdown:
+    @pytest.mark.asyncio
+    async def test_returns_empty_without_messages_or_tools(self) -> None:
+        result = await resolve_context_budget_breakdown(
+            checkpointer=None,
+            thread_id="t1",
+            cached_tools=None,
+            provider_prompt_tokens=50_000,
+        )
+        assert result == {}
+
+    @pytest.mark.asyncio
+    async def test_tools_only_breakdown(self) -> None:
+        tool = MagicMock()
+        tool.description = "x" * 100
+        result = await resolve_context_budget_breakdown(
+            checkpointer=None,
+            thread_id="t1",
+            cached_tools=[tool],
+            provider_prompt_tokens=10_000,
+        )
+        assert result["bound_tools_overhead_tokens"] > 0
+        assert result["messages_estimated_tokens"] == 0
+        assert result["other_tokens"] >= 0
+
+    @pytest.mark.asyncio
+    async def test_messages_and_tools_with_other_remainder(self) -> None:
+        from langchain_core.messages import HumanMessage
+
+        messages = [HumanMessage(content="hello world")]
+        checkpoint = MagicMock()
+        checkpoint.channel_values = {"messages": messages}
+        checkpointer = AsyncMock()
+        checkpointer.aget = AsyncMock(return_value=checkpoint)
+
+        tool = MagicMock()
+        tool.description = "read files"
+        result = await resolve_context_budget_breakdown(
+            checkpointer=checkpointer,
+            thread_id="thread-1",
+            cached_tools=[tool],
+            provider_prompt_tokens=50_000,
+        )
+        assert result["messages_estimated_tokens"] > 0
+        assert result["bound_tools_overhead_tokens"] > 0
+        assert result["other_tokens"] == max(
+            0,
+            50_000
+            - result["messages_estimated_tokens"]
+            - result["bound_tools_overhead_tokens"],
+        )
+        checkpointer.aget.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_checkpointer_error_still_returns_tools_breakdown(self) -> None:
+        checkpointer = AsyncMock()
+        checkpointer.aget = AsyncMock(
+            side_effect=RuntimeError("checkpoint unavailable")
+        )
+
+        tool = MagicMock()
+        tool.description = "search the web"
+        result = await resolve_context_budget_breakdown(
+            checkpointer=checkpointer,
+            thread_id="thread-1",
+            cached_tools=[tool],
+            provider_prompt_tokens=8_000,
+        )
+        assert result["bound_tools_overhead_tokens"] > 0
+        assert result["messages_estimated_tokens"] == 0
+        assert result["other_tokens"] > 0
 
 
 async def _async_gen(items: list[object]):

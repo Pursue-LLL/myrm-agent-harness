@@ -17,15 +17,12 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `_tool_execution_lifecycle.py` | Internal | Tool execution lifecycle hooks. | ✅ |
 | `_tool_guards.py` | Internal | Guard modules orchestrated by tool_interceptor. | ✅ |
 | `_tool_helpers.py` | Internal | Stateless helpers for tool_interceptor_middleware. | ✅ |
-| `deliverable_write_verifier.py` | Internal | Zero-call deliverable write claim detection for CompletionGuard. | ✅ |
-| `completion_guard.py` | Core | Finish gate + Mixed Message Guard + Independent Re-run for code tasks. Temporal ordering enforcement: blocks completion when code is modified after last verification, independently re-runs the verification command in the sandbox before allowing completion. Also gates freshness-sensitive completions when no successful external evidence tools were used, and deliverable write claims without successful file_write/file_edit tool evidence. Exports `is_mutating_tool()` SSOT for side-effect tool detection. | ✅ |
 | `clarification_guard_middleware.py` | Core | Enforces single `ask_question_tool` call per turn; blocks coexisting tool calls with synthetic errors. | ✅ |
-| `completion_guard_checklist.py` | Internal | Verification command classification + checklist builder + temporal ordering analysis + verification command extraction for CompletionGuard. | ✅ |
 | `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |
 | `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher; host-serial MCP lane awareness (distinct servers may parallelize, same server stays serial) + canonical path identity planning (`realpath`/`normcase`) and precise `file_read_tool.paths[]` conflict modeling (read-read overlap allowed, read-write/write-write isolated). Exposes stage planner for mixed batches (`build_tool_execution_stages`) so runtimes can run parallel-safe subsets while keeping unsafe calls isolated. | ✅ |
 | `context_pipeline_helpers.py` | Internal | Compression intent, cache feedback, schema fingerprint. | ✅ |
 | `context_pipeline_middleware.py` | Core | `create_context_pipeline_middleware` factory. | ✅ |
-| `dangling_tool_call_middleware.py` | Core | Repair malformed tool histories for strict providers: sanitize malformed calls, patch dangling tool_calls, and drop orphan ToolMessages. | ✅ |
+| `dangling_tool_call_middleware.py` | Core | Repair malformed tool histories for strict providers: sanitize malformed calls, patch dangling tool_calls, drop orphan ToolMessages; exports `repair_dangling_tool_calls()` for direct LLM invocations (grace-call path). | ✅ |
 | `_skill_tool_choice.py` | Internal | Build OpenAI ``allowed_tools`` tool_choice for skill attenuation (cache-safe). | ✅ |
 | `_runtime_tool_governance.py` | Internal | Per-turn intent-aware tool narrowing (UI + readonly gates) and `compute_turn_allowed_names()` merged allowlist for model hint + execution enforcement. | ✅ |
 | `skill_attenuation_middleware.py` | Core | Skill attenuation via ``tool_choice.allowed_tools`` when provider supports it; skips model-layer hint otherwise; execution SSOT via ContextVar + `check_trust_attenuation`; dynamic tool resolution for ToolNode. Does not mutate `request.tools`. | ✅ |
@@ -45,10 +42,11 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `subagent_limit_middleware.py` | Core | Max concurrent subagents per turn. | ✅ |
 | `tool_call_dedup_middleware.py` | Core | tool_call_id deduplication. | ✅ |
 | `tool_executor.py` | Core | Tool execution with timeout/retry/backoff; propagates ``ToolError.error_category`` into ToolMessage for SSE. | ✅ |
-| `tool_interceptor_middleware.py` | Core | Single interception point for all tool calls. | ✅ |
+| `tool_interceptor_middleware.py` | Core | Single interception point for all tool calls; `reset_loop_guard(is_resume=True)` preserves error signatures and the CallRecord window (`preserve_call_window`); session-key registry keeps LoopGuard across ContextVar loss after HITL resume. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
+| `completion/` | Finish gate, verification checklist, external evidence, deliverable write checks. See [completion/_ARCH.md](completion/_ARCH.md). |
 | `approval/` | HITL approval queue, batch, scheduler. See [approval/_ARCH.md](approval/_ARCH.md). |
 | `approval_interception/` | Approval interception recognizer. See [approval_interception/_ARCH.md](approval_interception/_ARCH.md). |
 | `guardrails/` | Guardrail provider chain + GuardrailMiddleware. See [guardrails/_ARCH.md](guardrails/_ARCH.md). |

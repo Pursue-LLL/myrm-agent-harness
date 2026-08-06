@@ -91,7 +91,8 @@ myrm_agent_harness/
 │   ├── session.py                      # MemorySession（对话级缓冲）
 │   ├── retriever.py                    # MemoryRetriever（RRF + 几何平均评分 + MMR 多样性重排 + source decay 会话源多样化）
 │   ├── signals.py                      # SignalCalculator（上下文信号计算）
-│   ├── memory_agent_tools.py           # Agent 工具（memory_recall/save/manage）
+│   ├── memory_agent_tools.py           # Agent 工具工厂（search/save/manage 实现）
+│   ├── _memory_agent_tool_descriptions.py  # LLM 可见描述 SSOT（prompt/cache）
 │   ├── memory_citations.py             # 记忆 citation refs 与 retrieval trace 的轻量 SSE 元数据桥接
 │   ├── observability.py                # 业务无关记忆观测 DTO/Protocol（operation / influence / retrieval trace / space / sink）
 │   ├── reliability.py                  # 业务无关记忆可靠性 DTO（probe / repair plan / import plan / recall benchmark summary）

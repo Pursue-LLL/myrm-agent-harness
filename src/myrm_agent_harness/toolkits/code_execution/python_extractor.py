@@ -32,7 +32,8 @@ def extract_python_from_bash(command: str) -> str | None:
     Supports (in priority order):
     1. ``python3 -c "..."`` / ``python3 -c '...'`` — quote-aware extraction
     2. ``python3 <<EOF ... EOF`` — heredoc
-    3. Raw Python containing ``from skills.`` / ``from tools.`` imports
+    3. ``cat > path <<EOF ... EOF`` — shell heredoc file write wrappers
+    4. Raw Python containing ``from skills.`` / ``from tools.`` imports (non-shell)
 
     Returns the extracted Python source or ``None`` if no Python is detected.
     """
@@ -44,7 +45,13 @@ def extract_python_from_bash(command: str) -> str | None:
     if code is not None:
         return code
 
+    code = _extract_cat_heredoc(command)
+    if code is not None:
+        return code
+
     if SKILL_IMPORT_RE.search(command) or TOOLS_IMPORT_RE.search(command):
+        if _looks_like_shell_wrapper(command):
+            return None
         return command
 
     return None
@@ -111,8 +118,30 @@ TOOLS_IMPORT_RE = re.compile(r"(?:from\s+tools\.\w+\s+import|import\s+tools\.)")
 _PYTHON_CMD_RE = re.compile(r"python3?\s+-c\s+")
 
 _HEREDOC_RE = re.compile(
-    r"python3?\s+<<\s*['\"]?EOF['\"]?\s*\n(.+?)\nEOF",
+    r"python3?\s+<<-?\s*['\"]?(\w+)['\"]?\s*\n(.+?)\n\1\b",
     re.DOTALL,
+)
+
+_CAT_HEREDOC_RE = re.compile(
+    r"^\s*cat\s+>\s+\S+\s+<<-?\s*['\"]?(\w+)['\"]?\s*\n(.+?)\n\1\b",
+    re.DOTALL | re.MULTILINE,
+)
+
+_SHELL_WRAPPER_PREFIXES = (
+    "cat ",
+    "echo ",
+    "bash ",
+    "sh ",
+    "/bin/bash",
+    "/bin/sh",
+    "cd ",
+    "export ",
+    "pwd",
+    "ls ",
+    "mkdir ",
+    "rm ",
+    "cp ",
+    "mv ",
 )
 
 _BARE_PYTHON_BIN_RE = re.compile(r"^python3?\b", re.IGNORECASE)
@@ -157,8 +186,29 @@ def _scan_quoted(text: str, quote: str) -> str | None:
 
 
 def _extract_heredoc(command: str) -> str | None:
-    m = _HEREDOC_RE.search(command)
-    return m.group(1) if m else None
+    match = _HEREDOC_RE.search(command)
+    return match.group(2).strip() if match else None
+
+
+def _extract_cat_heredoc(command: str) -> str | None:
+    """Extract Python body from ``cat > path << EOF ... EOF`` shell wrappers."""
+    match = _CAT_HEREDOC_RE.search(command)
+    if match is None:
+        return None
+    body = match.group(2).strip()
+    return body or None
+
+
+def _looks_like_shell_wrapper(command: str) -> bool:
+    """True when the command starts with shell syntax rather than raw Python."""
+    stripped = command.lstrip()
+    if not stripped:
+        return False
+    first_line = stripped.split("\n", 1)[0].strip()
+    if "<<" in first_line:
+        return True
+    lowered = first_line.lower()
+    return any(lowered.startswith(prefix) for prefix in _SHELL_WRAPPER_PREFIXES)
 
 
 def _split_pipe_segments(command: str) -> list[str]:

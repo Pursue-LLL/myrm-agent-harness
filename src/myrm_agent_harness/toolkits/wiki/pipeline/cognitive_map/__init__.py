@@ -1,4 +1,8 @@
-"""OKF cognitive map — index.md, log.md, hot.md deterministic writers."""
+"""OKF cognitive map — index.md, log.md, hot.md deterministic writers.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

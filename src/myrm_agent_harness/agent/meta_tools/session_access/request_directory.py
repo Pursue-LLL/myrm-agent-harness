@@ -1,4 +1,8 @@
-"""Structured input for request_directory HITL."""
+"""Structured input for request_directory HITL.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

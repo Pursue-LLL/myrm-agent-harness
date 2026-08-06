@@ -268,6 +268,18 @@ def _extract_url_hosts(command: str) -> list[str]:
     return hosts
 
 
+def _mcp_virtual_path_blocked_reason(path: str) -> str | None:
+    """Return a guided block reason when bash targets the MCP virtual /mcp/ namespace."""
+    normalized = path.replace("\\", "/").strip()
+    if normalized.startswith("/mcp") or normalized.startswith("mcp/"):
+        return (
+            f"Access denied: {path}. /mcp/ is a virtual skill-doc path, not a filesystem directory. "
+            "Use skill_select_tool first, then file_read_tool on "
+            "`/mcp/<skill_name>/<function_name>.md` — do not use bash ls/cat on /mcp/."
+        )
+    return None
+
+
 def validate_command(
     command: str,
     workspace_path: Path | None = None,
@@ -309,6 +321,13 @@ def validate_command(
             allowed_paths = _get_allowed_paths(workspace_path, additional_paths)
 
             for path in paths:
+                mcp_reason = _mcp_virtual_path_blocked_reason(path)
+                if mcp_reason is not None:
+                    return ValidationResult(
+                        is_safe=False,
+                        reason=mcp_reason,
+                        blocked_item=path,
+                    )
                 if not _is_path_allowed(path, allowed_paths):
                     return ValidationResult(
                         is_safe=False,
@@ -404,7 +423,9 @@ def is_path_allowed(path: str | Path, mode: str = "read") -> bool:
 # ============================================================
 
 
-def validate_path_component(component: str, component_name: str = "path component") -> ValidationResult:
+def validate_path_component(
+    component: str, component_name: str = "path component"
+) -> ValidationResult:
     """Validate a path component for safety (user_id, chat_id, workspace_id, etc.).
 
     Prevents path traversal attacks and filesystem restriction bypass.
@@ -468,7 +489,9 @@ def validate_path_component(component: str, component_name: str = "path componen
     return ValidationResult(is_safe=True)
 
 
-def is_path_component_safe(component: str, component_name: str = "path component") -> bool:
+def is_path_component_safe(
+    component: str, component_name: str = "path component"
+) -> bool:
     """Check if a path component is safe (convenience wrapper)."""
     return validate_path_component(component, component_name).is_safe
 
@@ -541,6 +564,8 @@ def sanitize_env(
         filtered[key] = value
 
     if blocked:
-        _env_logger.info(f" Blocked {len(blocked)} env vars ({inherit_policy}): {', '.join(sorted(blocked))}")
+        _env_logger.info(
+            f" Blocked {len(blocked)} env vars ({inherit_policy}): {', '.join(sorted(blocked))}"
+        )
 
     return filtered

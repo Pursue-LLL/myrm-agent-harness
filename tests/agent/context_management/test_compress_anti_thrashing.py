@@ -25,7 +25,10 @@ from myrm_agent_harness.agent.context_management.tracking.task_metrics import (
 
 class _FakeBudget:
     def __init__(
-        self, *, dynamic_threshold: int, dynamic_min_save: int = 500,
+        self,
+        *,
+        dynamic_threshold: int,
+        dynamic_min_save: int = 500,
         remaining_ratio: float | None = 1.0,
     ) -> None:
         self._dynamic_threshold = dynamic_threshold
@@ -75,12 +78,15 @@ class TestAntiThrashingShouldProcess:
         metrics.compression_ineffective_streak = 0
         context = _build_context()
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=60000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=60000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -94,12 +100,15 @@ class TestAntiThrashingShouldProcess:
         metrics.compression_ineffective_streak = 1
         context = _build_context()
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=60000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=60000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -113,12 +122,15 @@ class TestAntiThrashingShouldProcess:
         metrics.compression_ineffective_streak = 2
         context = _build_context()
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=80000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=80000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -132,12 +144,15 @@ class TestAntiThrashingShouldProcess:
         metrics.compression_ineffective_streak = 2
         context = _build_context()
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=91000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=91000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -151,12 +166,15 @@ class TestAntiThrashingShouldProcess:
         metrics.compression_ineffective_streak = 5
         context = _build_context()
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=95000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=95000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -173,12 +191,15 @@ class TestAntiThrashingShouldProcess:
             metadata={},
         )
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=60000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=60000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -204,8 +225,12 @@ class TestAntiThrashingStreakUpdate:
                 return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
             ),
             patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=1000,
+            ),
+            patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-                side_effect=[1000, 5000, 800],
+                side_effect=[5000, 800],
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
@@ -236,8 +261,12 @@ class TestAntiThrashingStreakUpdate:
                 return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
             ),
             patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=1000,
+            ),
+            patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-                side_effect=[1000, 5000, 950],
+                side_effect=[5000, 950],
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
@@ -267,11 +296,17 @@ class TestAntiThrashingStreakUpdate:
             with (
                 patch(
                     "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-                    return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
+                    return_value=_FakeBudget(
+                        dynamic_threshold=100, dynamic_min_save=50
+                    ),
+                ),
+                patch(
+                    "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                    return_value=1000,
                 ),
                 patch(
                     "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-                    side_effect=[1000, 5000, 980],
+                    side_effect=[5000, 980],
                 ),
                 patch(
                     "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
@@ -304,8 +339,12 @@ class TestAntiThrashingStreakUpdate:
                 return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
             ),
             patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=1000,
+            ),
+            patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-                side_effect=[1000, 5000, 800],
+                side_effect=[5000, 800],
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
@@ -332,16 +371,20 @@ class TestAntiThrashingHotCacheInteraction:
         metrics.compression_ineffective_streak = 3
 
         import time
+
         context = _build_context(
             metadata={"last_activity_time": time.time()},
         )
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=70000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=70000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -358,12 +401,15 @@ class TestShouldProcessCoverage:
         processor = CompressProcessor(max_context_tokens=100000)
         context = _build_context()
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=80000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=50000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=80000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=50000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -375,12 +421,15 @@ class TestShouldProcessCoverage:
         processor = CompressProcessor(max_context_tokens=100000)
         context = _build_context(metadata={"eco_mode": True})
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=70000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=60000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=70000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=60000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -393,16 +442,20 @@ class TestShouldProcessCoverage:
         create_task_metrics(CHAT_ID)
 
         import time
+
         context = _build_context(
             metadata={"last_activity_time": time.time()},
         )
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=60000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=60000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -416,16 +469,20 @@ class TestShouldProcessCoverage:
         create_task_metrics(CHAT_ID)
 
         import time
+
         context = _build_context(
             metadata={"last_activity_time": time.time()},
         )
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=91000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=91000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -438,12 +495,15 @@ class TestShouldProcessCoverage:
         create_task_metrics(CHAT_ID)
         context = _build_context()
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=60000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=60000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -474,12 +534,15 @@ class TestBoundaryValues:
         metrics.compression_ineffective_streak = 2
         context = _build_context()
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=90000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=90000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -493,12 +556,15 @@ class TestBoundaryValues:
         metrics.compression_ineffective_streak = 2
         context = _build_context()
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=89999,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=89999,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -510,12 +576,15 @@ class TestBoundaryValues:
         processor = CompressProcessor(max_context_tokens=100000)
         context = _build_context()
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-            return_value=_FakeBudget(dynamic_threshold=50000),
-        ), patch(
-            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-            return_value=60000,
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+                return_value=_FakeBudget(dynamic_threshold=50000),
+            ),
+            patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=60000,
+            ),
         ):
             result = await processor.should_process(context)
 
@@ -537,8 +606,12 @@ class TestBoundaryValues:
                 return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
             ),
             patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=1000,
+            ),
+            patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-                side_effect=[1000, 5000, 800],
+                side_effect=[5000, 800],
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
@@ -569,8 +642,12 @@ class TestBoundaryValues:
                 return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
             ),
             patch(
+                "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                return_value=1000,
+            ),
+            patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-                side_effect=[1000, 5000, 901],
+                side_effect=[5000, 901],
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
@@ -597,11 +674,17 @@ class TestBoundaryValues:
             with (
                 patch(
                     "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
-                    return_value=_FakeBudget(dynamic_threshold=100, dynamic_min_save=50),
+                    return_value=_FakeBudget(
+                        dynamic_threshold=100, dynamic_min_save=50
+                    ),
+                ),
+                patch(
+                    "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.CompressProcessor._estimate_context_tokens",
+                    return_value=1000,
                 ),
                 patch(
                     "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.estimate_messages_tokens",
-                    side_effect=[1000, 5000, 800],
+                    side_effect=[5000, 800],
                 ),
                 patch(
                     "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.compress_messages_async",
@@ -671,6 +754,7 @@ class TestHotCacheBypassEdgeCases:
     def test_stale_activity_time(self) -> None:
         """last_activity_time older than 5 min: bypass does not trigger."""
         import time
+
         processor = CompressProcessor(max_context_tokens=100000)
         context = _build_context(
             metadata={"last_activity_time": time.time() - 400},
@@ -680,6 +764,7 @@ class TestHotCacheBypassEdgeCases:
     def test_hot_activity_time_triggers_bypass(self) -> None:
         """Recent last_activity_time + tokens < 90%: bypass triggers."""
         import time
+
         processor = CompressProcessor(max_context_tokens=100000)
         context = _build_context(
             metadata={"last_activity_time": time.time()},
@@ -689,6 +774,7 @@ class TestHotCacheBypassEdgeCases:
     def test_hot_but_at_90_percent_no_bypass(self) -> None:
         """Recent last_activity_time but tokens >= 90%: no bypass (OOM risk)."""
         import time
+
         processor = CompressProcessor(max_context_tokens=100000)
         context = _build_context(
             metadata={"last_activity_time": time.time()},

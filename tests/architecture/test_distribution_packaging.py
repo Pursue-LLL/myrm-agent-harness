@@ -45,6 +45,29 @@ _SKIP_WITHOUT_NUITKA = pytest.mark.skipif(
 _SLOW_ARCHITECTURE = pytest.mark.slow
 
 
+def _rustc_version_tuple() -> tuple[int, ...]:
+    """Return rustc version as a tuple, e.g. (1, 94, 1)."""
+    try:
+        out = subprocess.run(
+            ["rustc", "--version"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if out.returncode != 0:
+            return (0,)
+        parts = out.stdout.split()
+        if len(parts) >= 2:
+            return tuple(int(x) for x in parts[1].split(".") if x.isdigit())
+    except Exception:
+        pass
+    return (0,)
+
+
+_SKIP_RUSTC_TOO_OLD = pytest.mark.skipif(
+    _rustc_version_tuple() < (1, 94, 1),
+    reason="rustc >= 1.94.1 required for litellm wheel build",
+)
+
+
 @pytest.mark.architecture
 def test_platform_detection_returns_known_key() -> None:
     plat = get_current_platform()
@@ -160,6 +183,7 @@ _SLOW_ARCHITECTURE = pytest.mark.slow
 @pytest.mark.architecture
 @_SKIP_UNDER_XDIST
 @_SLOW_ARCHITECTURE
+@_SKIP_RUSTC_TOO_OLD
 def test_release_wheel_is_uv_installable(tmp_path: Path) -> None:
     """Release wheel filename must be PEP 427 compliant for uv pip install."""
     subprocess.run(

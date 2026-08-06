@@ -14,6 +14,7 @@ with various LLMs.
 - flatten_deep_schema: Flattens deeply-nested schemas to dot-path notation.
 - nest_flat_arguments: Restores dot-path args to nested structure for dispatch.
 - coerce_arguments_by_schema: Corrects parsed arguments, handles mixed-union container literals, and completes required nullable omissions.
+- prepare_mcp_call_arguments: Strip null optional fields before MCP call_tool (strict JSON Schema hosts).
 - get_schema_coercion_stats/reset_schema_coercion_stats: Lightweight runtime coercion counters.
 
 [POS]
@@ -133,7 +134,11 @@ def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str
                 ref_path = node["$ref"]
                 # Parse local ref like #/definitions/MyType
                 parts = ref_path.split("/")
-                if len(parts) >= 3 and parts[0] == "#" and parts[1] in ("definitions", "$defs"):
+                if (
+                    len(parts) >= 3
+                    and parts[0] == "#"
+                    and parts[1] in ("definitions", "$defs")
+                ):
                     def_name = parts[2]
                     if def_name in definitions:
                         # Recursively resolve the definition
@@ -177,7 +182,9 @@ def _looks_like_json_container_literal(value: str) -> bool:
     stripped = value.strip()
     if len(stripped) < 2:
         return False
-    return (stripped[0] == "{" and stripped[-1] == "}") or (stripped[0] == "[" and stripped[-1] == "]")
+    return (stripped[0] == "{" and stripped[-1] == "}") or (
+        stripped[0] == "[" and stripped[-1] == "]"
+    )
 
 
 def _extract_schema_types(schema: dict[str, Any]) -> list[str]:
@@ -232,6 +239,48 @@ def _schema_allows_null(schema: dict[str, Any]) -> bool:
     return False
 
 
+def prepare_mcp_call_arguments(
+    kwargs: dict[str, object],
+    args_schema: dict[str, Any] | None = None,
+) -> dict[str, object]:
+    """Prepare kwargs for MCP ``call_tool``.
+
+    StructuredTool/Pydantic validation may expand omitted optional fields to
+    explicit ``None``. Strict MCP servers (e.g. 12306) reject ``null`` for
+    typed optional properties that define non-null defaults — those keys must
+    be omitted instead.
+
+    Preserves explicit ``None`` only for required properties whose schema
+    allows null (strict-host nullable completion from coercion).
+    """
+    if not kwargs:
+        return kwargs
+
+    properties: dict[str, Any] = {}
+    required: set[str] = set()
+    if isinstance(args_schema, dict):
+        raw_props = args_schema.get("properties")
+        if isinstance(raw_props, dict):
+            properties = raw_props
+        raw_required = args_schema.get("required")
+        if isinstance(raw_required, list):
+            required = {key for key in raw_required if isinstance(key, str)}
+
+    prepared: dict[str, object] = {}
+    for key, value in kwargs.items():
+        if value is not None:
+            prepared[key] = value
+            continue
+        prop_schema = properties.get(key)
+        if (
+            key in required
+            and isinstance(prop_schema, dict)
+            and _schema_allows_null(prop_schema)
+        ):
+            prepared[key] = None
+    return prepared
+
+
 def _primary_non_null_type(schema: dict[str, Any]) -> str | None:
     """Pick the first non-null declared type for coercion decisions."""
     for schema_type in _extract_schema_types(schema):
@@ -256,7 +305,9 @@ def _value_conforms_to_schema_types(schema: dict[str, Any], value: Any) -> bool:
     if isinstance(value, list):
         return _schema_expects_type(schema, "array")
     if isinstance(value, int):
-        return _schema_expects_type(schema, "integer") or _schema_expects_type(schema, "number")
+        return _schema_expects_type(schema, "integer") or _schema_expects_type(
+            schema, "number"
+        )
     if isinstance(value, float):
         return _schema_expects_type(schema, "number")
     if isinstance(value, str):
@@ -284,9 +335,10 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
         expects_array = _schema_expects_type(schema, "array")
         should_attempt_container_parse = False
         if expects_object or expects_array:
-            should_attempt_container_parse = (
-                expected_type in ("array", "object") or _looks_like_json_container_literal(clean_value)
-            )
+            should_attempt_container_parse = expected_type in (
+                "array",
+                "object",
+            ) or _looks_like_json_container_literal(clean_value)
 
         if should_attempt_container_parse:
             try:
@@ -336,7 +388,11 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
                 value = False
         elif expected_type in ("integer", "number"):
             with contextlib.suppress(ValueError):
-                value = int(clean_value) if expected_type == "integer" else float(clean_value)
+                value = (
+                    int(clean_value)
+                    if expected_type == "integer"
+                    else float(clean_value)
+                )
 
     # Reverse: got a non-string but expected string (e.g. LLM passed dict for station name)
     if (
@@ -378,7 +434,9 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
     return value
 
 
-def coerce_arguments_by_schema(args_schema: dict[str, Any] | None, kwargs: dict[str, Any]) -> dict[str, Any]:
+def coerce_arguments_by_schema(
+    args_schema: dict[str, Any] | None, kwargs: dict[str, Any]
+) -> dict[str, Any]:
     """Coerces argument types based on the schema requirements.
 
     If the schema expects an array, object, boolean, or number, but the LLM provided a string,
@@ -455,7 +513,9 @@ class FlattenMeta:
 
     __slots__ = ("original_required", "was_flattened")
 
-    def __init__(self, was_flattened: bool, original_required: list[str] | None = None) -> None:
+    def __init__(
+        self, was_flattened: bool, original_required: list[str] | None = None
+    ) -> None:
         self.was_flattened = was_flattened
         self.original_required = original_required
 

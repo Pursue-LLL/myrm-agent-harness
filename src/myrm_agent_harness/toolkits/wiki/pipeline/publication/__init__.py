@@ -1,4 +1,8 @@
-"""Wiki publication gate — single write path for published concept pages."""
+"""Wiki publication gate — single write path for published concept pages.
+
+[POS]
+See module docstring.
+"""
 
 from .path_change import ConceptPathMapping, reindex_concepts_after_move
 from .publish import ArticlePublishOutcome, publish_concept_article, repair_publication_status

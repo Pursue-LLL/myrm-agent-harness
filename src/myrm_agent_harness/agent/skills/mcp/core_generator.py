@@ -28,6 +28,7 @@ from myrm_agent_harness.agent.skills.mcp.schema_doc_utils import (
     TOOL_DOC_TEMPLATE,
     build_call_example,
     build_params_section,
+    normalize_input_schema,
 )
 from myrm_agent_harness.backends.skills.types import MCPSkillData, SkillMetadata
 from myrm_agent_harness.toolkits.mcp import MCPConfig
@@ -46,44 +47,35 @@ Above are only summaries without parameter details. **Get docs first, then call.
 
 ### Step 1: Read function docs via file_read_tool
 
-Use `file_read_tool` to batch-get docs. Do NOT use bash/cat to read docs — sandbox blocks it.
+**First:** enumerate every MCP function needed to finish the user's request. **Then** batch-read **all** their docs in one `file_read_tool` call. Do NOT use bash/cat. Do NOT start bash until every needed doc is read.
 
 Path: `/mcp/{{skill_name}}/{{function_name}}.md`
 
-`{{skill_name}}` is the exact name in the "Skill Name" line above. Do NOT guess or abbreviate.
+`{{skill_name}}` is the exact name in the "Skill Name" line above. Do NOT guess or abbreviate parameter names.
 
-### Step 2: Call via bash_code_execute_tool
+### Step 2: ONE bash via bash_code_execute_tool (CRITICAL)
 
-Import: `from skills.{{skill_name}} import {{func_name}}` (`skills.*` = MCP; `tools.*` = built-in PTC only, NOT interchangeable)
+After Step 1 batch-reads **all** docs needed this turn:
+- **ONE** bash only — serial/parallel `await` all MCP calls → end with **one** `[RESULT]`
+- **FORBIDDEN**: `[OBSERVATION]` for successful intermediate MCP returns — keep them in variables inside the same script
+- **FORBIDDEN**: OBSERVATION-only bash after docs are read; splitting into "probe then fetch" without error
+- **FORBIDDEN**: calling `file_write_tool(...)` inside bash Python — use native tool separately
 
-Rules:
-- Returns are **parsed Python objects** — use `result['key']` directly, do NOT `json.loads()`
-- Always set `timeout=120` (network round-trips)
-- Python syntax only: `None`/`True`/`False` (not null/true/false)
+Import: `from skills.{{skill_name}} import {{func_name}}` (`skills.*` = MCP; `tools.*` = built-in; NOT interchangeable)
 
 ### Performance Rules (CRITICAL)
 
-1. **ONE bash call = ONE complete task** — ENTIRE workflow in a SINGLE invocation. Each extra call wastes ~500ms + thousands of tokens.
-2. **Dependency analysis** — combine based on return structure specificity:
-   - Independent → `asyncio.gather()` parallel
-   - Dependent + known structure (docs show field names/types) → serial in same script
-   - Dependent + unknown structure → `print(f"[OBSERVATION] {{result}}")`, combine next call
-3. **NEVER re-select this skill** — once loaded, stays available for entire conversation.
-4. **No duplicates, converge fast** — never repeat a call with identical params (reuse the fetched result); once data suffices, output immediately — do NOT re-query to double-check.
-5. **print() final result** — stdout is your answer.
+1. **ONE bash = ONE complete task** — after docs read, default to serial/parallel in one bash → `[RESULT]`
+2. Independent → `asyncio.gather()` in one bash; Dependent + doc fields known → serial in one bash → `[RESULT]`
+3. **Scenario A** (no deps): one bash + `gather` → `[RESULT]`
+4. **Scenario B** (deps + doc fields known): one bash serial `await` → `[RESULT]` — default after docs read
+5. **Scenario C** (doc missing fields / call failed): `[OBSERVATION]` only, next bash continues
+6. **NEVER re-select this skill** — once loaded, stays for entire conversation
+7. **No duplicate calls** — reuse results; do NOT re-query to double-check
+8. **stdout is your answer** — `[RESULT]` for final data; do NOT `[OBSERVATION]` successful intermediate MCP returns
 
-```python
-import asyncio
-from skills.{{skill_name}} import func_a, func_b, func_c
-
-async def main():
-    a, b = await asyncio.gather(func_a(p1="x"), func_b(p2="y"))
-    results = await func_c(from_val=a, to_val=b)
-    for item in results[:5]:
-        print(f"{{item['name']}} | {{item['value']}}")
-
-asyncio.run(main())
-```
+Returns are **parsed Python objects** — do NOT `json.loads()`; only access fields explicitly documented.
+Always set `timeout=120`; Python: `None`/`True`/`False` (not null/true/false).
 
 """
 
@@ -311,10 +303,16 @@ class MCPSkillGenerator:
         for tool_name in tools:
             schema = tool_schemas.get(tool_name, {})
             desc = schema.get("description", "No description available")
-            python_func_name = tool_name.replace("-", "_")
+            from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
+                mcp_tool_short_name,
+            )
+
+            python_func_name = mcp_tool_short_name(tool_name)
 
             if tool_count <= USAGE_GUIDE_TOOL_THRESHOLD:
-                params_str = self._format_params_inline(schema.get("inputSchema", {}))
+                params_str = self._format_params_inline(
+                    normalize_input_schema(schema.get("inputSchema"))
+                )
                 full_desc = (
                     f"{desc}\n\n  **Parameters:**\n{params_str}" if params_str else desc
                 )
@@ -334,9 +332,13 @@ class MCPSkillGenerator:
     ) -> str:
         """Build detailed tool documentation (Level 3)."""
         tool_desc = schema.get("description", "No description available")
-        input_schema = schema.get("inputSchema", {})
+        input_schema = normalize_input_schema(schema.get("inputSchema"))
         params_section = build_params_section(input_schema)
-        python_func_name = tool_name.replace("-", "_")
+        from myrm_agent_harness.agent.skills.mcp.tool_name_utils import (
+            mcp_tool_short_name,
+        )
+
+        python_func_name = mcp_tool_short_name(tool_name)
         call_example = build_call_example(input_schema)
 
         return TOOL_DOC_TEMPLATE.format(
@@ -440,7 +442,7 @@ class MCPSkillGenerator:
         )
 
         return SkillMetadata(
-            name=skill_name, description=skill_description, mcp=mcp_data
+            name=skill_name, description=skill_description, mcp=mcp_data, always=True
         )
 
 

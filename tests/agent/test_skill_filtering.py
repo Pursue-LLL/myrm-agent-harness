@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillTrust
+from myrm_agent_harness.backends.skills.types_requires import MCPSkillData
 
 
 class MockSkillBackend:
@@ -26,7 +27,11 @@ class MockSkillBackend:
 
     async def load_skills(self, skill_ids: list[str]) -> list[SkillMetadata]:
         id_set = set(skill_ids)
-        return [s for s in self._skills if s.name in id_set or (s.storage_skill_id and s.storage_skill_id in id_set)]
+        return [
+            s
+            for s in self._skills
+            if s.name in id_set or (s.storage_skill_id and s.storage_skill_id in id_set)
+        ]
 
 
 class MockSkillBackendNoLoadSupport:
@@ -94,7 +99,9 @@ async def test_desired_skill_ids_filters_correctly(sample_skills):
     llm = MagicMock()
     backend = MockSkillBackend(sample_skills)
 
-    agent = SkillAgent(llm=llm, skill_backend=backend, desired_skill_ids=["skill1", "skill3"])
+    agent = SkillAgent(
+        llm=llm, skill_backend=backend, desired_skill_ids=["skill1", "skill3"]
+    )
 
     skills = await agent._get_cached_skills()
     assert len(skills) == 2
@@ -109,7 +116,11 @@ async def test_desired_skill_ids_with_invalid_ids(sample_skills):
     llm = MagicMock()
     backend = MockSkillBackend(sample_skills)
 
-    agent = SkillAgent(llm=llm, skill_backend=backend, desired_skill_ids=["skill1", "invalid_id", "skill2"])
+    agent = SkillAgent(
+        llm=llm,
+        skill_backend=backend,
+        desired_skill_ids=["skill1", "invalid_id", "skill2"],
+    )
 
     skills = await agent._get_cached_skills()
     assert len(skills) == 2  # Only valid IDs loaded
@@ -151,3 +162,25 @@ async def test_hot_reload_fetches_each_time(sample_skills):
     assert len(skills1) == 1
     assert len(skills2) == 1
     assert skills1[0].name == "skill1"
+
+
+@pytest.mark.asyncio
+async def test_desired_skill_ids_unions_runtime_mcp_skills(sample_skills):
+    """Runtime MCP skills stay visible even when desired_skill_ids filters the catalog."""
+    from myrm_agent_harness.agent.skill_agent import SkillAgent
+
+    mcp_skill = SkillMetadata(
+        name="mcp_12306_skill",
+        description="12306 MCP",
+        trust=SkillTrust.INSTALLED,
+        mcp=MCPSkillData(server="12306", tools=["mcp__12306__get_tickets"], config=[]),
+    )
+    backend = MockSkillBackend([*sample_skills, mcp_skill])
+    agent = SkillAgent(
+        llm=MagicMock(),
+        skill_backend=backend,
+        desired_skill_ids=["skill1"],
+    )
+
+    skills = await agent._get_cached_skills()
+    assert {s.name for s in skills} == {"skill1", "mcp_12306_skill"}

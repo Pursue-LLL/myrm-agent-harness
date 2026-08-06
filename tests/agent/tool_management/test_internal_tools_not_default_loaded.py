@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.agent.middlewares.completion_guard import COMPLETION_CHECK_TOOL_NAME
+from myrm_agent_harness.agent.middlewares.completion import COMPLETION_CHECK_TOOL_NAME
 from myrm_agent_harness.agent.orchestration.hooks import RUNTIME_HOOK_NAMES
-from myrm_agent_harness.agent.orchestration.signals.catalog import ORCHESTRATION_SIGNAL_NAMES
+from myrm_agent_harness.agent.orchestration.signals.catalog import (
+    ORCHESTRATION_SIGNAL_NAMES,
+)
 from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS
 
 CONTROL_PLANE_TOOL_NAMES: frozenset[str] = frozenset(
@@ -40,7 +42,9 @@ async def test_default_resolve_excludes_internal_pseudo_tools() -> None:
     resolved_names = {tool.name for tool in resolved}
 
     overlap = resolved_names & CONTROL_PLANE_TOOL_NAMES
-    assert not overlap, f"Control-plane tools leaked into default bind_tools: {sorted(overlap)}"
+    assert (
+        not overlap
+    ), f"Control-plane tools leaked into default bind_tools: {sorted(overlap)}"
 
 
 @pytest.mark.asyncio
@@ -89,10 +93,14 @@ async def test_schema_only_tools_not_registered_in_default_build() -> None:
 def test_ptc_runtime_tools_not_in_tool_layers_registry() -> None:
     """DW PTC bridge tools are runtime-only; must not inflate _TOOL_LAYERS."""
     overlap = set(_TOOL_LAYERS) & PTC_RUNTIME_TOOL_NAMES
-    assert not overlap, f"PTC runtime tools must not be in _TOOL_LAYERS: {sorted(overlap)}"
+    assert (
+        not overlap
+    ), f"PTC runtime tools must not be in _TOOL_LAYERS: {sorted(overlap)}"
 
 
 def test_control_plane_not_in_tool_layers_registry() -> None:
     """Orchestration signals and runtime hooks must not appear in _TOOL_LAYERS."""
     overlap = set(_TOOL_LAYERS) & CONTROL_PLANE_TOOL_NAMES
-    assert not overlap, f"Control-plane names must not be in _TOOL_LAYERS: {sorted(overlap)}"
+    assert (
+        not overlap
+    ), f"Control-plane names must not be in _TOOL_LAYERS: {sorted(overlap)}"

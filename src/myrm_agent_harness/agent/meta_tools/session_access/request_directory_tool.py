@@ -1,4 +1,8 @@
-"""LangChain adapter for request_directory HITL session access grants."""
+"""LangChain adapter for request_directory HITL session access grants.
+
+[POS]
+See module docstring.
+"""
 
 from __future__ import annotations
 

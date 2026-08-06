@@ -31,14 +31,15 @@ TOOL_DOC_TEMPLATE = """# {tool_name}
 ## Returns
 
 Returns a **parsed Python object** (dict, list, str, int, etc.), NOT a JSON string.
-Do NOT call `json.loads()` on the result. Use it directly like `result['key']` or `for item in result`.
+Do NOT call `json.loads()` on the result. Only access fields explicitly documented above;
+if the return structure is not specified, inspect the real result before composing dependent calls.
 
 ## Import & Call Example
 
 ```python
 from skills.{skill_name} import {tool_name}
 
-result = {tool_name}({call_example})
+result = await {tool_name}({call_example})
 print(result)
 ```
 """
@@ -142,7 +143,9 @@ def build_call_example(input_schema: JsonDict) -> str:
         ptype = info.get("type", "string")
         example = info.get("examples", [None])[0] if info.get("examples") else None
         if example is not None:
-            parts.append(f'{name}="{example}"' if ptype == "string" else f"{name}={example}")
+            parts.append(
+                f'{name}="{example}"' if ptype == "string" else f"{name}={example}"
+            )
         elif ptype == "string":
             parts.append(f'{name}="..."')
         elif ptype in ("integer", "number"):
@@ -152,3 +155,17 @@ def build_call_example(input_schema: JsonDict) -> str:
         else:
             parts.append(f"{name}=...")
     return ", ".join(parts)
+
+
+def normalize_input_schema(raw: object) -> JsonDict:
+    """Normalize MCP tool inputSchema (dict or Pydantic model) to JSON Schema dict."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    model_json_schema = getattr(raw, "model_json_schema", None)
+    if callable(model_json_schema):
+        result = model_json_schema()
+        if isinstance(result, dict):
+            return result
+    return {}

@@ -26,6 +26,7 @@ class WikiMapEventType(StrEnum):
     RAW_SUPERSEDE = "raw_supersede"
     RAW_SECURITY = "raw_security"
     EVIDENCE_FORGOTTEN = "evidence_forgotten"
+    EVIDENCE_RESTORED = "evidence_restored"
 
 
 @dataclass(frozen=True, slots=True)
