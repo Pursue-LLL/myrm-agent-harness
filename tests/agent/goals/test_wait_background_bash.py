@@ -5,7 +5,7 @@ from myrm_agent_harness.agent.goals.wait_background_bash import (
     is_wait_eligible_command,
     parse_background_spawn_from_record,
 )
-from myrm_agent_harness.agent.security.guards.loop_guard_types import CallRecord
+from myrm_agent_harness.agent.security.guards.loop_guard import CallRecord
 
 
 def test_is_wait_eligible_command_whitelist() -> None:

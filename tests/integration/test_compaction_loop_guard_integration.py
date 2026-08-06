@@ -71,7 +71,7 @@ def _simulate_tool_calls(guard: LoopGuard, count: int) -> None:
     Directly sets total_calls and populates the window with synthetic records
     so that notify_compaction()'s clearing behavior can be verified.
     """
-    from myrm_agent_harness.agent.security.guards.loop_guard_types import CallRecord
+    from myrm_agent_harness.agent.security.guards.loop_guard import CallRecord
 
     guard._metrics.total_calls = count
     for i in range(min(count, 10)):
@@ -326,7 +326,7 @@ async def test_consecutive_compactions_reset_each_time():
 @pytest.mark.asyncio
 async def test_compaction_preserves_agent_phase():
     """notify_compaction() must not reset _current_phase."""
-    from myrm_agent_harness.agent.security.guards.loop_guard_types import AgentPhase
+    from myrm_agent_harness.agent.security.guards.loop_guard import AgentPhase
 
     guard = _loop_guard_var.get()
     _simulate_tool_calls(guard, 30)

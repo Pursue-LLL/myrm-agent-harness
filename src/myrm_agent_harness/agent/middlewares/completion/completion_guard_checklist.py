@@ -1,7 +1,7 @@
 """Completion guard checklist generation and verification command classification.
 
 [INPUT]
-- agent.security.guards.loop_guard_types::CallRecord, ToolGroup, SuccessLevel (POS: loop guard types)
+- agent.security.guards.loop_guard::CallRecord, ToolGroup, SuccessLevel (POS: loop guard types)
 
 [OUTPUT]
 - classify_verification(): detect verification commands in bash tool args
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 
-from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+from myrm_agent_harness.agent.security.guards.loop_guard import (
     CallRecord,
     SuccessLevel,
     ToolGroup,

@@ -94,10 +94,7 @@
 | `middlewares/approval/helpers.py` | 审批辅助函数（拒绝计数/allowlist） | Layer 4 |
 | `redact.py` | 工具输出脱敏（`bash_code_execute_tool` / `file_read_tool` / `grep_tool`，API key/token/PEM/DB 连接串） | Layer 2 输出脱敏 |
 | `middlewares/security_guardrail_middleware.py` | 安全护栏中间件 | 输入/输出侧集成 |
-| `security/guards/loop_guard.py` | 统一循环检测（LoopGuard） | Layer 5 |
-| `security/guards/loop_guard_types.py` | 循环检测类型定义 | Layer 5 |
-| `security/guards/loop_suggestions/` | 循环检测上下文建议生成 | Layer 5 |
-| `security/guards/loop_guard_stats.py` | 循环检测持久化统计 | Layer 5 |
+| `security/guards/loop_guard/` | 统一循环检测子系统（LoopGuard、types、detectors、stats、suggestions） | Layer 5 |
 | `security/guards/frequency_guard.py` | 工具调用频率异常检测（FrequencyGuard）| Layer 5 |
 | `security/guards/tool_turn_budget_guard.py` | 单轮工具调用配额（ToolTurnBudgetGuard）| Layer 5 |
 

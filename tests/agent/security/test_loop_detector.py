@@ -5,12 +5,13 @@ from __future__ import annotations
 import pytest
 
 from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
-from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard, _stable_hash
-from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+from myrm_agent_harness.agent.security.guards.loop_guard import (
     AgentPhase,
     LoopAction,
+    LoopGuard,
     LoopKind,
     ToolGroup,
+    _stable_hash,
     get_tool_group,
 )
 

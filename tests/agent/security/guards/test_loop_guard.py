@@ -16,8 +16,8 @@ threshold relaxation, reset behavior, and post-compaction guard reset.
 import pytest
 
 from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
-from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
-from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+from myrm_agent_harness.agent.security.guards.loop_guard import (
+    LoopGuard,
     AgentPhase,
     LoopAction,
     LoopKind,

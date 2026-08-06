@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+from myrm_agent_harness.agent.security.guards.loop_guard import (
     CallRecord,
     ErrorPattern,
     SuccessLevel,
     SuggestionPriority,
     WarningLevel,
 )
-from myrm_agent_harness.agent.security.guards.loop_suggestions import generate_dynamic_suggestion
-from myrm_agent_harness.agent.security.guards.loop_suggestions.core import (
+from myrm_agent_harness.agent.security.guards.loop_guard.suggestions import generate_dynamic_suggestion
+from myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core import (
     DEFAULT_SUGGESTION,
     analyze_error_pattern,
     analyze_warning_level,

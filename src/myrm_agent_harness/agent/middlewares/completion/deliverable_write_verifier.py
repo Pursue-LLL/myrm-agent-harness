@@ -20,10 +20,10 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.security.guards.loop_guard_types import SuccessLevel
+from myrm_agent_harness.agent.security.guards.loop_guard import SuccessLevel
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.agent.security.guards.loop_guard_types import CallRecord
+    from myrm_agent_harness.agent.security.guards.loop_guard import CallRecord
 
 _FILE_WRITE_TOOLS: frozenset[str] = frozenset(
     {

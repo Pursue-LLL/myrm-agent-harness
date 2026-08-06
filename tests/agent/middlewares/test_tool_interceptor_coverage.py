@@ -91,7 +91,7 @@ async def test_tool_interceptor_coverage_loop_break():
 
         mock_guard_inst = MagicMock()
         mock_verdict = MagicMock()
-        from myrm_agent_harness.agent.security.guards.loop_guard_types import LoopAction
+        from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction
 
         mock_verdict.action = LoopAction.BREAK
         mock_verdict.reason = "loop break reason"
@@ -135,7 +135,7 @@ async def test_tool_interceptor_coverage_pii_block():
 
         mock_guard_inst = MagicMock()
         mock_verdict = MagicMock()
-        from myrm_agent_harness.agent.security.guards.loop_guard_types import LoopAction
+        from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction
 
         mock_verdict.action = LoopAction.ALLOW
         mock_guard_inst.pre_check.return_value = mock_verdict
@@ -420,7 +420,7 @@ async def test_run_pre_call_guards_updated_input():
 
         mock_guard_inst = MagicMock()
         mock_verdict = MagicMock()
-        from myrm_agent_harness.agent.security.guards.loop_guard_types import LoopAction
+        from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction
 
         mock_verdict.action = LoopAction.ALLOW
         mock_guard_inst.pre_check.return_value = mock_verdict
@@ -457,7 +457,7 @@ def test_get_loop_guard_reuses_session_registry_when_contextvar_cleared():
         _session_loop_guards,
         get_loop_guard,
     )
-    from myrm_agent_harness.agent.security.guards.loop_guard_types import CallRecord
+    from myrm_agent_harness.agent.security.guards.loop_guard import CallRecord
 
     _session_loop_guards.clear()
     token = _loop_guard_var.set(None)
@@ -678,7 +678,7 @@ async def test_run_post_call_guards_full():
         run_post_call_guards as _run_post_call_guards,
     )
     from myrm_agent_harness.agent.security.guards.context_budget import BudgetAction
-    from myrm_agent_harness.agent.security.guards.loop_guard_types import LoopAction
+    from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction
 
     result = ToolMessage(content="  ", name="test_tool", tool_call_id="call_123")
 

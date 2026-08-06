@@ -3,9 +3,8 @@
 import tempfile
 from pathlib import Path
 
-from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
-from myrm_agent_harness.agent.security.guards.loop_guard_stats import LoopGuardStatsDB
-from myrm_agent_harness.agent.security.guards.loop_guard_types import LoopKind
+from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard, LoopKind
+from myrm_agent_harness.agent.security.guards.loop_guard.stats import LoopGuardStatsDB
 
 
 class TestStatsDBBasic:

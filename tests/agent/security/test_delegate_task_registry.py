@@ -8,9 +8,10 @@ Validates:
 5. Loop suggestions core static map has delegate_task
 """
 
-from myrm_agent_harness.agent.security.guards.loop_guard_types import TOOL_SEMANTIC_MAP, ToolGroup
-from myrm_agent_harness.agent.security.guards.loop_suggestions import _DYNAMIC_GENERATORS
-from myrm_agent_harness.agent.security.guards.loop_suggestions.core import TOOL_SUGGESTIONS
+from myrm_agent_harness.agent.security.guards.loop_guard.types import TOOL_SEMANTIC_MAP
+from myrm_agent_harness.agent.security.guards.loop_guard import ToolGroup
+from myrm_agent_harness.agent.security.guards.loop_guard.suggestions import _DYNAMIC_GENERATORS
+from myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core import TOOL_SUGGESTIONS
 from myrm_agent_harness.agent.security.tool_registry import TOOL_PERMISSION_MAP, TOOL_SAFETY_METADATA
 
 

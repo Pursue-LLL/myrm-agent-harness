@@ -17,14 +17,10 @@ Session-level security guards integrated into tool_interceptor_middleware.
 | skill_approval_hook.py | Core | Integrated into tool_interceptor_middleware between the onion policy and execution. | ✅ |
 | ssrf_guard.py | Shim | Re-exports `core.security.guards.ssrf` for stable `agent.security.guards.*` import paths. | ✅ |
 | taint_tracker.py | Core | Layer 2 enhancement. Tracks information flow labels (prompt→command injection prevention). | ✅ |
-| _loop_detectors.py | Shim | Re-exports `loop_guard.detectors` for stable import paths. | ✅ |
-| loop_guard_types.py | Shim | Re-exports `loop_guard.types` for stable import paths. | ✅ |
-| loop_guard_stats.py | Shim | Re-exports `loop_guard.stats` for stable import paths. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
-| loop_guard/ | Unified inefficiency detection (repetition, ping-pong, no-progress, divergence, output-diminishing, error-signature). Canonical implementation of LoopGuard, detection algorithms, types, stats, and suggestions. |
-| loop_suggestions/ | Shim — re-exports from `loop_guard/suggestions/` for stable import paths. |
+| loop_guard/ | Unified inefficiency detection (repetition, ping-pong, no-progress, divergence, output-diminishing, error-signature). Contains LoopGuard, detection algorithms, types, stats, and suggestions. |
 
 ## Key Dependencies
 

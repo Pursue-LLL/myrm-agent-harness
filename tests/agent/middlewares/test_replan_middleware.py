@@ -84,7 +84,7 @@ def test_wrap_tool_call_propagates_graph_interrupt(middleware):
 
 @pytest.mark.asyncio
 @patch(
-    "myrm_agent_harness.agent.security.guards.loop_suggestions.core.get_tool_suggestion"
+    "myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion"
 )
 async def test_awrap_tool_call_catches_error(mock_get_suggestion, middleware):
     """Test that awrap_tool_call catches exceptions and returns a Replan ToolMessage."""
@@ -117,7 +117,7 @@ async def test_awrap_tool_call_catches_error(mock_get_suggestion, middleware):
 
 @pytest.mark.asyncio
 @patch(
-    "myrm_agent_harness.agent.security.guards.loop_suggestions.core.get_tool_suggestion"
+    "myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion"
 )
 async def test_awrap_tool_call_empty_args(mock_get_suggestion, middleware):
     """Test error handling when tool_call args is an empty dict."""
@@ -143,7 +143,7 @@ async def test_awrap_tool_call_empty_args(mock_get_suggestion, middleware):
 
 @pytest.mark.asyncio
 @patch(
-    "myrm_agent_harness.agent.security.guards.loop_suggestions.core.get_tool_suggestion"
+    "myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion"
 )
 async def test_awrap_tool_call_missing_name(mock_get_suggestion, middleware):
     """Test handling when tool_call lacks 'name' key."""
@@ -220,7 +220,7 @@ async def test_awrap_tool_call_exceeds_max_attempts(middleware):
 
 @pytest.mark.asyncio
 @patch(
-    "myrm_agent_harness.agent.security.guards.loop_suggestions.core.get_tool_suggestion"
+    "myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core.get_tool_suggestion"
 )
 async def test_per_tool_counting_isolation(mock_get_suggestion, middleware):
     """Verify that a success on tool_a does NOT reset tool_b's error count."""

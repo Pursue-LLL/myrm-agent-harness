@@ -1,4 +1,4 @@
-"""Tests for loop_guard_stats — persistent loop event storage and analysis."""
+"""Tests for loop_guard.stats — persistent loop event storage and analysis."""
 
 from __future__ import annotations
 

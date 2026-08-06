@@ -61,7 +61,6 @@ class LoopGuardStatsDB:
         if db_path is None:
             default_dir = Path.home() / ".cache" / "myrm-agent-harness"
             default_dir.mkdir(parents=True, exist_ok=True)
-            # DB filename kept for backward-compatibility with existing user data
             db_path = default_dir / "loop_detector_stats.db"
 
         self.db_path = Path(db_path)

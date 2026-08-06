@@ -1,7 +1,7 @@
 """Loop guard subsystem — unified inefficiency detection for Agent sessions.
 
 Re-exports the public API so callers can use
-``from ...guards.loop_guard import LoopGuard`` as before.
+``from ...guards.loop_guard import LoopGuard``.
 """
 
 from .guard import LoopGuard, _stable_hash

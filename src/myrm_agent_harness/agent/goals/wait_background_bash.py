@@ -1,7 +1,7 @@
 """Auto WAIT for whitelisted long-running background bash commands.
 
 [INPUT]
-- agent.security.guards.loop_guard_types::CallRecord (POS: tool call window entries)
+- agent.security.guards.loop_guard::CallRecord (POS: tool call window entries)
 - agent.middlewares.tool_interceptor_middleware::get_loop_guard (POS: session LoopGuard)
 
 [OUTPUT]
@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.agent.security.guards.loop_guard_types import CallRecord
+    from myrm_agent_harness.agent.security.guards.loop_guard import CallRecord
 
 WAIT_ON_BACKGROUND_JOB_ID_KEY = "wait_on_background_job_id"
 

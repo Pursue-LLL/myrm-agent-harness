@@ -6,31 +6,31 @@ suggestions_browser, and loop_guard to bring coverage above 80%.
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
-from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+from myrm_agent_harness.agent.security.guards.loop_guard import (
     AgentPhase,
     CallRecord,
     ErrorPattern,
     LoopAction,
+    LoopGuard,
     SuccessLevel,
     SuggestionPriority,
     WarningLevel,
 )
-from myrm_agent_harness.agent.security.guards.loop_suggestions.bash import suggest_bash
-from myrm_agent_harness.agent.security.guards.loop_suggestions.browser import suggest_browser_snapshot
-from myrm_agent_harness.agent.security.guards.loop_suggestions.core import (
+from myrm_agent_harness.agent.security.guards.loop_guard.suggestions.bash import suggest_bash
+from myrm_agent_harness.agent.security.guards.loop_guard.suggestions.browser import suggest_browser_snapshot
+from myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core import (
     analyze_error_pattern,
     analyze_warning_level,
     evaluate_success_level,
     is_result_successful,
     prioritize_suggestions,
 )
-from myrm_agent_harness.agent.security.guards.loop_suggestions.meta import (
+from myrm_agent_harness.agent.security.guards.loop_guard.suggestions.meta import (
     suggest_skill_search,
     suggest_skill_select,
     suggest_spawn_subagent,
 )
-from myrm_agent_harness.agent.security.guards.loop_suggestions.web import suggest_web_search
+from myrm_agent_harness.agent.security.guards.loop_guard.suggestions.web import suggest_web_search
 
 
 class TestAnalyzeErrorPattern:

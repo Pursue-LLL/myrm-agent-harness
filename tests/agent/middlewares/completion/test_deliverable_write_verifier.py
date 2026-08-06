@@ -7,7 +7,7 @@ from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier 
     detect_claimed_file_write,
     has_successful_file_write_calls,
 )
-from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+from myrm_agent_harness.agent.security.guards.loop_guard import (
     CallRecord,
     SuccessLevel,
 )

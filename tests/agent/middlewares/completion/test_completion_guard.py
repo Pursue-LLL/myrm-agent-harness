@@ -19,7 +19,7 @@ from myrm_agent_harness.agent.middlewares.completion.completion_guard_checklist 
     build_checklist,
     find_last_successful_verification_command,
 )
-from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+from myrm_agent_harness.agent.security.guards.loop_guard import (
     CallRecord,
     SuccessLevel,
     VerificationCategory,

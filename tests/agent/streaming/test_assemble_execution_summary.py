@@ -15,7 +15,7 @@ from myrm_agent_harness.agent.goals.types import (
     GoalExecutionSummary,
     GoalStatus,
 )
-from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+from myrm_agent_harness.agent.security.guards.loop_guard import (
     CallRecord,
     SuccessLevel,
     VerificationCategory,

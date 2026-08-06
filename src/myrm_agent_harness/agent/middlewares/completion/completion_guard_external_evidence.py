@@ -6,7 +6,7 @@ before allowing completion.
 
 [INPUT]
 - langchain_core.messages::HumanMessage (POS: human turn content extraction)
-- agent.security.guards.loop_guard_types::CallRecord (POS: loop guard types)
+- agent.security.guards.loop_guard::CallRecord (POS: loop guard types)
 
 [OUTPUT]
 - build_external_evidence_reason(): block reason when evidence is required but missing

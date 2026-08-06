@@ -633,7 +633,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 **实现位置**：
 - `web_fetch/web_fetch_agent_tools.py` — web_fetch 描述声明只读优先
 - `browser/tools/navigate.py` — `with_dynamic_hints` 注入 web_search / web_fetch 提示（工具不可用时 weave 自动剥离）
-- `agent/security/guards/loop_suggestions/core.py` — 失败时双向互指（web_fetch ↔ browser_navigate）
+- `agent/security/guards/loop_guard/suggestions/core.py` — 失败时双向互指（web_fetch ↔ browser_navigate）
 - `agent/middlewares/completion/completion_guard_external_evidence.py` — 回答前要求 web_search / web_fetch / browser / MCP PTC bash 证据
 
 Loop Guard 与 Completion Guard 为兜底；正常路径由 Turn1 工具描述完成选型。

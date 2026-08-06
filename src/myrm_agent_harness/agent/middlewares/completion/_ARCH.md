@@ -20,5 +20,5 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](../MIDDLEWARE_SYSTEM.md)
 ## Key Dependencies
 
 - `agent.middlewares.tool_interceptor_middleware` — LoopGuard CallRecord window
-- `agent.security.guards.loop_guard_types` — CallRecord, ToolGroup
+- `agent.security.guards.loop_guard` — CallRecord, ToolGroup
 - `toolkits.code_execution` — independent verification re-run sandbox

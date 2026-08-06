@@ -74,7 +74,7 @@ from myrm_agent_harness.agent.middlewares.deliverable_write_verifier import (
     check_deliverable_write_claim,
 )
 from myrm_agent_harness.agent.orchestration.hooks import COMPLETION_CHECK_TOOL_NAME
-from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+from myrm_agent_harness.agent.security.guards.loop_guard import (
     ToolGroup,
     get_tool_group,
 )
