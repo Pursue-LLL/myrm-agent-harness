@@ -295,3 +295,51 @@ class TestContainsHint:
         assert _contains_hint("only if running on Linux", _CONSTRAINT_HINTS) is True
         assert _contains_hint("requires authentication", _CONSTRAINT_HINTS) is True
         assert _contains_hint("always use this tool", _CONSTRAINT_HINTS) is False
+
+
+class TestCJKSupport:
+    """Tests for CJK character support in claim graph utilities."""
+
+    def test_normalize_claim_key_cjk_unique(self) -> None:
+        from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
+            _normalize_claim_key,
+        )
+
+        key1 = _normalize_claim_key("完成用户登录功能重构", "")
+        key2 = _normalize_claim_key("修复支付接口超时问题", "")
+        key3 = _normalize_claim_key("优化首页加载速度", "")
+        assert key1 != key2 != key3
+        assert "task-digest" not in key1
+
+    def test_normalize_claim_key_mixed(self) -> None:
+        from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
+            _normalize_claim_key,
+        )
+
+        key = _normalize_claim_key("配置Nginx反向代理", "")
+        assert "nginx" in key
+        assert "配" in key
+
+    def test_token_overlap_cjk(self) -> None:
+        overlap = _token_overlap("完成用户登录功能重构", "修复用户登录模块bug")
+        assert overlap > 0
+
+    def test_token_overlap_cjk_no_match(self) -> None:
+        overlap = _token_overlap("完成用户登录功能重构", "数据库备份策略优化")
+        assert overlap < _token_overlap("完成用户登录功能重构", "修复用户登录模块bug")
+
+    def test_classify_claim_relation_cjk_polarity_flip(self) -> None:
+        rel, conflict = _classify_claim_relation(
+            existing_goal="用户登录功能重构",
+            existing_result="completed login refactoring",
+            existing_key_details="",
+            existing_polarity="positive",
+            new_goal="用户登录功能重构",
+            new_result="login module is broken",
+            new_key_details="",
+            new_polarity="negative",
+            existing_evidence_count=2,
+            explicit_change_kind="none",
+        )
+        assert conflict is True
+        assert rel == "CONTRADICTED_BY"

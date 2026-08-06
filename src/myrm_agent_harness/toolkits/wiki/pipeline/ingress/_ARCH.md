@@ -16,7 +16,7 @@ Wiki raw ingress SSOT — browser clip and URL markdown asset localization befor
 
 | Caller | Entry | `publish_raw` caller |
 | --- | --- | --- |
-| Browser extension | server `clip_runner` → `publish_clip_ingress` | `extension` |
+| Browser extension | server `clip/runner` → `publish_clip_ingress` | `extension` |
 | Agent URL ingest | `wiki_agent_tools` → `publish_url_markdown_ingress` | `agent` |
 | Settings import scan | `WikiStructure.scan_folder` → `.wikiignore` filter | — |
 

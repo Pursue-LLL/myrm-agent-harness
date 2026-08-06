@@ -34,7 +34,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _DIGEST_FIELD_PATTERN = re.compile(r"\*\*(Title|Goal|Result|Change Kind|Key Details)\*\*:\s*(.+)")
-_NON_ALNUM_PATTERN = re.compile(r"[^a-z0-9]+")
+_CJK_RANGE = "\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af"
+_CJK_CHAR_START = 0x3040
+_NON_ALNUM_PATTERN = re.compile(rf"[^a-z0-9{_CJK_RANGE}]+")
 _POSITIVE_RESULT_HINTS = (
     "complete",
     "completed",
@@ -55,7 +57,7 @@ _NEGATIVE_RESULT_HINTS = (
     "removed",
     "disabled",
 )
-_QUERY_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+_QUERY_TOKEN_PATTERN = re.compile(rf"[a-z0-9]+|[{_CJK_RANGE}]")
 _SUPERSEDE_HINTS = (
     "migrate",
     "migrated",
@@ -174,7 +176,10 @@ def _classify_result_polarity(result: str) -> str:
 
 
 def _text_tokens(text: str) -> set[str]:
-    return {token for token in _QUERY_TOKEN_PATTERN.findall(text.lower()) if len(token) >= 2}
+    return {
+        t for t in _QUERY_TOKEN_PATTERN.findall(text.lower())
+        if len(t) >= 2 or (len(t) == 1 and ord(t) >= _CJK_CHAR_START)
+    }
 
 
 def _token_overlap(left: str, right: str) -> float:
@@ -302,7 +307,10 @@ def _build_claim_model_summary(
 
 
 def _tokenize_query(query: str) -> set[str]:
-    return {token for token in _QUERY_TOKEN_PATTERN.findall(query.lower()) if len(token) >= 2}
+    return {
+        t for t in _QUERY_TOKEN_PATTERN.findall(query.lower())
+        if len(t) >= 2 or (len(t) == 1 and ord(t) >= _CJK_CHAR_START)
+    }
 
 
 def _score_claim_node(

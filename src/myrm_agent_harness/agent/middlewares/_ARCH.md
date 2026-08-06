@@ -39,7 +39,9 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `safety_dispatcher.py` | Core | safe→concurrent / unsafe→serial tool routing. | ✅ |
 | `security_boundary_middleware.py` | Core | Security boundary enforcement. | ✅ |
 | `security_guardrail_middleware.py` | Core | Security guardrail enforcement. | ✅ |
+| `session_access_middleware.py` | Core | Inject per-turn HITL session directory access context (`<session-access>` block) before each model call; dedup via marker. | ✅ |
 | `subagent_limit_middleware.py` | Core | Max concurrent subagents per turn. | ✅ |
+| `sync_hook_parity.py` | Internal | `SyncHookParityAdapter` wraps middlewares missing sync `wrap_tool_call`/`wrap_model_call` so sync ToolNode paths don't raise; `apply_sync_hook_parity()` auto-wraps the middleware list. | ✅ |
 | `tool_call_dedup_middleware.py` | Core | tool_call_id deduplication. | ✅ |
 | `tool_executor.py` | Core | Tool execution with timeout/retry/backoff; propagates ``ToolError.error_category`` into ToolMessage for SSE. | ✅ |
 | `tool_interceptor_middleware.py` | Core | Single interception point for all tool calls; `reset_loop_guard(is_resume=True)` preserves error signatures and the CallRecord window (`preserve_call_window`); session-key registry keeps LoopGuard across ContextVar loss after HITL resume. | ✅ |

@@ -217,3 +217,61 @@ async def test_search_claim_graph_respects_limit():
     )
 
     assert len(results) <= 5
+
+
+@pytest.mark.asyncio
+async def test_search_claim_graph_cjk_query():
+    """CJK queries should match CJK claim titles via single-character tokens."""
+    graph = AsyncMock()
+    graph.find_nodes.return_value = [
+        _make_claim_node("cn1", "完成用户登录功能重构", claim_text="用户登录模块从session迁移到JWT"),
+    ]
+
+    results = await _search_claim_graph(
+        graph,
+        query="用户登录",
+        current_channel_id="ch1",
+        namespaces=["test"],
+        limit=10,
+    )
+
+    assert len(results) == 1
+    assert results[0].score > 0
+
+
+@pytest.mark.asyncio
+async def test_search_claim_graph_cjk_no_match():
+    """CJK queries that don't overlap should return empty."""
+    graph = AsyncMock()
+    graph.find_nodes.return_value = [
+        _make_claim_node("cn1", "完成用户登录功能重构", claim_text="用户登录模块从session迁移到JWT"),
+    ]
+
+    results = await _search_claim_graph(
+        graph,
+        query="数据库备份策略",
+        current_channel_id="ch1",
+        namespaces=["test"],
+        limit=10,
+    )
+
+    assert len(results) == 0
+
+
+@pytest.mark.asyncio
+async def test_search_claim_graph_mixed_cjk_english():
+    """Mixed CJK+English titles should be searchable by either language."""
+    graph = AsyncMock()
+    graph.find_nodes.return_value = [
+        _make_claim_node("mix1", "配置Nginx反向代理", claim_text="Nginx reverse proxy configuration"),
+    ]
+
+    results_en = await _search_claim_graph(
+        graph, query="nginx", current_channel_id="ch1", namespaces=["test"], limit=10,
+    )
+    assert len(results_en) == 1
+
+    results_cn = await _search_claim_graph(
+        graph, query="配置代理", current_channel_id="ch1", namespaces=["test"], limit=10,
+    )
+    assert len(results_cn) == 1

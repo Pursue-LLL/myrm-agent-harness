@@ -33,7 +33,6 @@ myrm_agent_harness/toolkits/memory/_internal/storage.py	663
 myrm_agent_harness/toolkits/web_fetch/router/adaptive_router.py	657
 myrm_agent_harness/toolkits/browser/session/interactor.py	648
 myrm_agent_harness/agent/skills/optimization/batch_executor.py	640
-myrm_agent_harness/agent/middlewares/completion_guard.py	636
 myrm_agent_harness/toolkits/llms/adapters/tool_call_parsers.py	631
 myrm_agent_harness/toolkits/mcp/agent.py	663
 myrm_agent_harness/agent/skills/evolution/pipeline/screener.py	629

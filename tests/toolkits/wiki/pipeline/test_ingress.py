@@ -15,6 +15,7 @@ from myrm_agent_harness.toolkits.wiki.pipeline.ingress.types import (
     ClipAssetInput,
     ClipIngressRequest,
     ClipMode,
+    IngressAssetStats,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.ingress.wikiignore import (
     load_wikiignore_patterns,
@@ -145,3 +146,40 @@ async def test_publish_clip_ingress_conflict_skips(temp_structure: WikiStructure
     assert result.written is False
     assert result.conflict is True
     assert existing.read_text(encoding="utf-8") == "existing"
+
+
+@pytest.mark.asyncio
+async def test_publish_clip_ingress_html_path(temp_structure: WikiStructure) -> None:
+    result = await publish_clip_ingress(
+        temp_structure,
+        ClipIngressRequest(
+            source_url="https://example.com/html",
+            title="HTML Ingress",
+            clip_mode=ClipMode.FULL_PAGE,
+            html="<article><h1>HTML</h1><p>Converted body.</p></article>",
+            markdown="",
+        ),
+    )
+    assert result.written is True
+    raw_path = temp_structure.get_raw_file_path(result.relative_path)
+    content = raw_path.read_text(encoding="utf-8")
+    assert "Converted body." in content
+
+
+@pytest.mark.asyncio
+async def test_publish_clip_ingress_security_blocked_by_credential(
+    temp_structure: WikiStructure,
+) -> None:
+    secret = "sk-1234567890abcdefghijklmnopqrstuvwxyz1234567890abcd"
+    result = await publish_clip_ingress(
+        temp_structure,
+        ClipIngressRequest(
+            source_url="https://example.com/secrets",
+            title="Secrets",
+            clip_mode=ClipMode.FULL_PAGE,
+            markdown=f"# Secrets\n\nOPENAI_API_KEY={secret}\n",
+        ),
+    )
+    assert result.written is False
+    assert result.security_blocked is True
+    assert not temp_structure.get_raw_file_path(result.relative_path).exists()
