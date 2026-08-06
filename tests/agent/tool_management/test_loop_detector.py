@@ -1,7 +1,11 @@
 """Tests for LoopGuard (unified loop detection)."""
 
-from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
-from myrm_agent_harness.agent.security.guards.loop_guard_types import VERDICT_ALLOW, LoopAction, LoopKind
+from myrm_agent_harness.agent.security.guards.loop_guard import (
+    LoopGuard,
+    VERDICT_ALLOW,
+    LoopAction,
+    LoopKind,
+)
 
 
 class TestRepetitionDetection:

@@ -22,10 +22,10 @@ Response levels:
 - Severity: WARNING (3-5x) -> ERROR (6-9x) -> CRITICAL (10+x)
 
 [INPUT]
-- loop_guard_types (POS: core types for loop detection)
-- loop_suggestions (POS: context-aware suggestion generation)
-- _loop_detectors (POS: detection algorithm mixin)
-- loop_guard_stats (POS: optional persistent statistics, lazy import)
+- types (POS: core types for loop detection)
+- suggestions (POS: context-aware suggestion generation)
+- detectors (POS: detection algorithm mixin)
+- stats (POS: optional persistent statistics, lazy import)
 
 [OUTPUT]
 - LoopGuard: session-scoped detector with BREAK/WARN/ALLOW verdicts,
@@ -47,8 +47,8 @@ import json
 import re
 from collections import deque
 
-from ._loop_detectors import LoopDetectorMixin
-from .loop_guard_types import (
+from .detectors import LoopDetectorMixin
+from .types import (
     VERDICT_ALLOW,
     AgentPhase,
     CallRecord,
@@ -59,10 +59,10 @@ from .loop_guard_types import (
     SuccessLevel,
     VerificationCategory,
 )
-from .loop_suggestions import evaluate_success_level
+from .suggestions import evaluate_success_level
 
 try:
-    from .loop_guard_stats import LoopGuardStatsDB
+    from .stats import LoopGuardStatsDB
 except ImportError:
     LoopGuardStatsDB = None  # type: ignore[assignment, misc]
 

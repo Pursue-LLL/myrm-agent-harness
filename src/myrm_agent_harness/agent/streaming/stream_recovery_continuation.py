@@ -279,11 +279,13 @@ class StreamContinuationRecoveryMixin:
         from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
             get_loop_guard,
         )
-        from myrm_agent_harness.agent.security.guards.loop_guard_types import (
-            TOOL_SEMANTIC_MAP,
+        from myrm_agent_harness.agent.security.guards.loop_guard import (
             SuccessLevel,
             ToolGroup,
             VerificationCategory,
+        )
+        from myrm_agent_harness.agent.security.guards.loop_guard.types import (
+            TOOL_SEMANTIC_MAP,
         )
 
         guard = get_loop_guard()

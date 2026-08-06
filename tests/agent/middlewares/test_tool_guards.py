@@ -21,7 +21,7 @@ from myrm_agent_harness.agent.middlewares._tool_guards import (
     PreCallResult,
     _emit_loop_guard_event,
 )
-from myrm_agent_harness.agent.security.guards.loop_guard_types import (
+from myrm_agent_harness.agent.security.guards.loop_guard import (
     LoopAction,
 )
 

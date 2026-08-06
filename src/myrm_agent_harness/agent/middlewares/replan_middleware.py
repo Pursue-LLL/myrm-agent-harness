@@ -90,7 +90,7 @@ class ReplanMiddleware(AgentMiddleware[Any, Any]):
         from myrm_agent_harness.agent._internals.agent_recovery import (
             build_error_context,
         )
-        from myrm_agent_harness.agent.security.guards.loop_suggestions.core import (
+        from myrm_agent_harness.agent.security.guards.loop_guard.suggestions.core import (
             get_tool_suggestion,
         )
 

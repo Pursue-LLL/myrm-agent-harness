@@ -1,7 +1,6 @@
 """Tests for P1 tool-specific suggestions in loop guard."""
 
-from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
-from myrm_agent_harness.agent.security.guards.loop_guard_types import LoopAction
+from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction, LoopGuard
 
 
 class TestSpawnSubagentSuggestions:
@@ -115,7 +114,7 @@ class TestToolCoverage:
     """Test that all P1 tools are now configured."""
 
     def test_p1_tools_have_suggestions(self) -> None:
-        from myrm_agent_harness.agent.security.guards.loop_suggestions import TOOL_SUGGESTIONS
+        from myrm_agent_harness.agent.security.guards.loop_guard.suggestions import TOOL_SUGGESTIONS
 
         p1_tools = [
             "delegate_task_tool",
@@ -129,6 +128,6 @@ class TestToolCoverage:
             assert len(TOOL_SUGGESTIONS[tool]) > 50, f"Suggestion for {tool} seems too short"
 
     def test_total_coverage_increased(self) -> None:
-        from myrm_agent_harness.agent.security.guards.loop_suggestions import TOOL_SUGGESTIONS
+        from myrm_agent_harness.agent.security.guards.loop_guard.suggestions import TOOL_SUGGESTIONS
 
         assert len(TOOL_SUGGESTIONS) >= 16, f"Expected at least 16 tools configured, got {len(TOOL_SUGGESTIONS)}"

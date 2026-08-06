@@ -64,8 +64,7 @@ from myrm_agent_harness.agent.security.guards.tool_turn_budget_guard import (
     get_tool_turn_budget_guard,
     resolve_turn_budget_units,
 )
-from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
-from myrm_agent_harness.agent.security.guards.loop_guard_types import LoopAction
+from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction, LoopGuard
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.runtime.steering import (
     STEERING_SKIP_MESSAGE,
