@@ -45,6 +45,7 @@ from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
     WikiMapEventType,
 )
 from myrm_agent_harness.toolkits.wiki.maintenance.modes import MaintainMode
+from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import action_kind_for_issue_type
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -76,74 +77,69 @@ class WikiLinter:
         self._indexer = indexer
         self._web_searcher = web_searcher
 
-    async def lint_and_maintain(self, mode: MaintainMode = MaintainMode.FULL) -> LintResult:
+    async def scan(
+        self,
+        mode: MaintainMode = MaintainMode.STRUCTURAL,
+        *,
+        include_raw_security: bool = False,
+    ) -> tuple[list[LintIssue], dict[str, object]]:
+        """Scan vault health without auto-fix or LLM backlink discovery.
+
+        When ``include_raw_security`` is True (maintain job only), existing raw files
+        may be redacted or removed by the raw security gate.
         """
-        Run health check and automatic maintenance.
-
-        Args:
-            mode: STRUCTURAL skips LLM drift/backlink discovery; FULL runs the complete pipeline.
-
-        Returns:
-            LintResult with issues and fixes
-        """
-        start_time = datetime.now(UTC)
-        logger.info("Starting wiki maintenance")
-
         all_issues: list[LintIssue] = []
+        raw_scan: dict[str, object] = {}
 
-        # Check 1: Broken links
         broken_links = await self._check_broken_links()
         all_issues.extend(broken_links)
 
-        # Check 2: Completeness
         incomplete = await self._check_completeness()
         all_issues.extend(incomplete)
 
-        # Check 2b: Frontmatter type gate
         invalid_types = await self._check_frontmatter_types()
         all_issues.extend(invalid_types)
 
-        # Check 3: Stale content (raw files updated but wiki not recompiled)
         stale = await self._check_stale()
         all_issues.extend(stale)
 
-        # Check 4b: Redact sensitive content in existing raw vault files
-        from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import scan_existing_raw_vault
+        if include_raw_security:
+            from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import scan_existing_raw_vault
 
-        raw_scan = await scan_existing_raw_vault(self._structure, self._indexer)
-        redacted_paths = raw_scan.get("redacted_paths", [])
-        if isinstance(redacted_paths, list):
-            for rel_path in redacted_paths:
-                if isinstance(rel_path, str):
-                    all_issues.append(
-                        LintIssue(
-                            issue_type="security_redacted",
-                            severity="medium",
-                            location=rel_path,
-                            description="Sensitive content redacted in raw source",
-                            can_auto_fix=False,
+            raw_scan = await scan_existing_raw_vault(self._structure, self._indexer)
+            redacted_paths = raw_scan.get("redacted_paths", [])
+            if isinstance(redacted_paths, list):
+                for rel_path in redacted_paths:
+                    if isinstance(rel_path, str):
+                        all_issues.append(
+                            LintIssue(
+                                issue_type="security_redacted",
+                                severity="medium",
+                                location=rel_path,
+                                description="Sensitive content redacted in raw source",
+                                action_kind=action_kind_for_issue_type("security_redacted"),
+                                can_auto_fix=False,
+                            )
                         )
-                    )
-        removed_paths = raw_scan.get("removed_paths", [])
-        if isinstance(removed_paths, list):
-            for rel_path in removed_paths:
-                if isinstance(rel_path, str):
-                    all_issues.append(
-                        LintIssue(
-                            issue_type="security_removed",
-                            severity="high",
-                            location=rel_path,
-                            description="Blocked raw source removed during maintenance",
-                            can_auto_fix=False,
+            removed_paths = raw_scan.get("removed_paths", [])
+            if isinstance(removed_paths, list):
+                for rel_path in removed_paths:
+                    if isinstance(rel_path, str):
+                        all_issues.append(
+                            LintIssue(
+                                issue_type="security_removed",
+                                severity="high",
+                                location=rel_path,
+                                description="Blocked raw source removed during maintenance",
+                                action_kind=action_kind_for_issue_type("security_removed"),
+                                can_auto_fix=False,
+                            )
                         )
-                    )
 
-        # Check 5: Knowledge drift (wiki diverged from raw source facts)
         if mode == MaintainMode.FULL and self._config.enable_auto_maintenance:
             drift = await self._check_drift()
             all_issues.extend(drift)
 
-        # Check 6: Knowledge graph gaps (isolated/bridge nodes)
         if self._indexer:
             try:
                 insights = self._indexer.graph_insights()
@@ -158,22 +154,32 @@ class WikiLinter:
                             LintIssue(
                                 issue_type="knowledge_gap",
                                 severity="low",
-                                location=gap["node"],
+                                location=str(gap["node"]),
                                 description=desc_fn(gap),
+                                action_kind=action_kind_for_issue_type("knowledge_gap"),
                             )
                         )
             except Exception as e:
                 logger.warning(f"Graph gap analysis failed: {e}")
 
-        # Auto-fix issues
-        fixed_count = 0
-        for issue in all_issues:
-            if issue.can_auto_fix:
-                try:
-                    await self._auto_fix_issue(issue)
-                    fixed_count += 1
-                except Exception as e:
-                    logger.error(f"Failed to auto-fix {issue.issue_type}: {e}")
+        return all_issues, raw_scan
+
+    async def lint_and_maintain(self, mode: MaintainMode = MaintainMode.FULL) -> LintResult:
+        """
+        Run health check and automatic maintenance.
+
+        Args:
+            mode: STRUCTURAL skips LLM drift/backlink discovery; FULL runs the complete pipeline.
+
+        Returns:
+            LintResult with issues and fixes
+        """
+        start_time = datetime.now(UTC)
+        logger.info("Starting wiki maintenance")
+
+        all_issues, raw_scan = await self.scan(mode, include_raw_security=True)
+
+        fixed_count = await self._apply_deterministic_fixes(all_issues)
 
         # Discover new connections
         connections_count = 0
@@ -258,6 +264,7 @@ class WikiLinter:
                             severity="low",
                             location=str(concept_path),
                             description=f"Article too short ({len(content)} chars)",
+                            action_kind=action_kind_for_issue_type("incomplete"),
                             can_auto_fix=False,
                             suggested_fix="Enhance article with more details",
                         )
@@ -270,6 +277,7 @@ class WikiLinter:
                             severity="medium",
                             location=str(concept_path),
                             description="Contains TODO/FIXME markers",
+                            action_kind=action_kind_for_issue_type("incomplete"),
                             can_auto_fix=False,
                         )
                     )
@@ -282,6 +290,19 @@ class WikiLinter:
     async def _check_frontmatter_types(self) -> list[LintIssue]:
         """Check concept articles for required frontmatter `type` field."""
         return collect_invalid_frontmatter_type_issues(self._structure)
+
+    async def _apply_deterministic_fixes(self, issues: list[LintIssue]) -> int:
+        """Apply only deterministic vault repairs (frontmatter type gate)."""
+        fixed_count = 0
+        for issue in issues:
+            if not issue.can_auto_fix:
+                continue
+            try:
+                await self._auto_fix_issue(issue)
+                fixed_count += 1
+            except Exception as e:
+                logger.error(f"Failed to auto-fix {issue.issue_type}: {e}")
+        return fixed_count
 
     async def _auto_fix_issue(self, issue: LintIssue) -> None:
         """Automatically fix an issue if possible."""
@@ -394,7 +415,8 @@ class WikiLinter:
                 severity="medium",
                 location=item.relative_path,
                 description="Raw source updated after last compilation",
-                can_auto_fix=True,
+                action_kind=action_kind_for_issue_type("stale"),
+                can_auto_fix=False,
                 suggested_fix="Recompile to update wiki from this source",
             )
             for item in summary.stale_files
@@ -461,8 +483,9 @@ class WikiLinter:
                             severity="high",
                             location=str(concept_path),
                             description=response_text[:300],
-                            can_auto_fix=True,
-                            suggested_fix="Recompile this article from raw sources to fix drift",
+                            action_kind=action_kind_for_issue_type("drift"),
+                            can_auto_fix=False,
+                            suggested_fix="Review and recompile this article from raw sources",
                         )
                     )
 

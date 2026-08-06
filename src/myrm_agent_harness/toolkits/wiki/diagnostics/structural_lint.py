@@ -29,6 +29,7 @@ from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter imp
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import validate_wiki_frontmatter
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import LintIssue
+from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import action_kind_for_issue_type
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
@@ -135,6 +136,7 @@ def collect_broken_link_issues(structure: WikiStructure) -> list[LintIssue]:
                         severity="medium",
                         location=str(concept_path),
                         description=f"Broken link to {link_target}",
+                        action_kind=action_kind_for_issue_type("broken_link"),
                         can_auto_fix=False,
                     )
                 )
@@ -164,6 +166,7 @@ def collect_broken_wikilink_issues(structure: WikiStructure) -> list[LintIssue]:
                         severity="medium",
                         location=str(concept_path),
                         description=f"Broken wikilink to [[{target}]]",
+                        action_kind=action_kind_for_issue_type("broken_wikilink"),
                         can_auto_fix=False,
                     )
                 )
@@ -189,11 +192,21 @@ def collect_invalid_frontmatter_type_issues(structure: WikiStructure) -> list[Li
                 severity="high",
                 location=str(concept_path),
                 description="; ".join(validation.errors),
+                action_kind=action_kind_for_issue_type("invalid_frontmatter_type"),
                 can_auto_fix=True,
                 suggested_fix="Repair page metadata to add a valid page type",
             )
         )
     return issues
+
+
+def collect_structural_lint_issues(structure: WikiStructure) -> list[LintIssue]:
+    """Return deterministic structural lint issues for a vault (zero LLM)."""
+    return [
+        *collect_broken_link_issues(structure),
+        *collect_broken_wikilink_issues(structure),
+        *collect_invalid_frontmatter_type_issues(structure),
+    ]
 
 
 def collect_structural_lint_snapshot(structure: WikiStructure) -> StructuralLintSnapshot:
