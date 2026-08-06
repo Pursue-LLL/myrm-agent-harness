@@ -108,6 +108,34 @@ def _relative_raw_display(structure: WikiStructure, raw_path: Path) -> str:
         return raw_path.name
 
 
+def _read_raw_frontmatter_source_url(content: str) -> str | None:
+    if not content.startswith("---"):
+        return None
+    end = content.find("\n---", 3)
+    if end == -1:
+        return None
+    block = content[3:end]
+    for line in block.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("source_url:"):
+            continue
+        value = stripped.split(":", 1)[1].strip().strip('"').strip("'")
+        return value or None
+    return None
+
+
+def _extension_replace_allowed(
+    *,
+    caller: RawGateCaller,
+    replace_source_url: str | None,
+    existing_content: str,
+) -> bool:
+    if caller != "extension" or not replace_source_url:
+        return False
+    existing_url = _read_raw_frontmatter_source_url(existing_content)
+    return existing_url == replace_source_url
+
+
 def _publish_raw_impl(
     structure: WikiStructure,
     request: RawPublishRequest,
@@ -177,6 +205,41 @@ def _publish_raw_impl(
             )
 
         if policy == RawConflictPolicy.FAIL:
+            if _extension_replace_allowed(
+                caller=caller,
+                replace_source_url=request.replace_source_url,
+                existing_content=raw_path.read_text(encoding="utf-8"),
+            ):
+                _write_raw_file(raw_path, write_content)
+                append_log_entry(
+                    structure,
+                    WikiMapEvent(
+                        event_type=WikiMapEventType.RAW_SUPERSEDE,
+                        summary=(
+                            f"Extension re-clip replaced raw source "
+                            f"{_relative_raw_display(structure, raw_path)}"
+                        ),
+                        details={
+                            "caller": caller,
+                            "reason": "extension_reclip_same_source_url",
+                            "path": rel_path,
+                            "previous_hash": previous_hash,
+                            "content_hash": new_hash,
+                            "source_url": request.replace_source_url,
+                        },
+                    ),
+                )
+                return _result_from_write(
+                    rel_path=rel_path,
+                    raw_path=raw_path,
+                    content=write_content,
+                    written=True,
+                    skipped=False,
+                    superseded=True,
+                    created=False,
+                    conflict_skipped=False,
+                    security_redacted=security_redacted,
+                )
             raise RawGateError(
                 "raw_conflict",
                 f"Raw source already exists with different content: {rel_path}",

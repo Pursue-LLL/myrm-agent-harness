@@ -48,26 +48,38 @@ def _append_contract_summary(lines: list[str], skill: SkillMetadata) -> None:
         f"verifications={quoteattr(str(len(contract.verification_steps)))}",
     ]
     if contract.estimated_duration_seconds is not None:
-        attrs.append(f"duration_seconds={quoteattr(f'{contract.estimated_duration_seconds:g}')}")
+        attrs.append(
+            f"duration_seconds={quoteattr(f'{contract.estimated_duration_seconds:g}')}"
+        )
 
     lines.append(f" <contract {' '.join(attrs)}>")
 
     if contract.success_criteria:
-        lines.append(f" <success>{escape(_truncate_summary_text(contract.success_criteria))}</success>")
+        lines.append(
+            f" <success>{escape(_truncate_summary_text(contract.success_criteria))}</success>"
+        )
 
     if contract.dependencies:
         dependency_text = ", ".join(contract.dependencies[:5])
-        lines.append(f" <dependencies>{escape(_truncate_summary_text(dependency_text))}</dependencies>")
+        lines.append(
+            f" <dependencies>{escape(_truncate_summary_text(dependency_text))}</dependencies>"
+        )
 
     for verification in contract.verification_steps[:2]:
         verification_hint = verification.description
         if verification.expected_output:
-            verification_hint = f"{verification.description} -> {verification.expected_output}"
-        lines.append(f" <verify>{escape(_truncate_summary_text(verification_hint))}</verify>")
+            verification_hint = (
+                f"{verification.description} -> {verification.expected_output}"
+            )
+        lines.append(
+            f" <verify>{escape(_truncate_summary_text(verification_hint))}</verify>"
+        )
 
     for trap in contract.potential_traps[:2]:
         trap_hint = f"{trap.description}; mitigate: {trap.mitigation}"
-        lines.append(f" <trap severity={quoteattr(trap.severity)}>{escape(_truncate_summary_text(trap_hint))}</trap>")
+        lines.append(
+            f" <trap severity={quoteattr(trap.severity)}>{escape(_truncate_summary_text(trap_hint))}</trap>"
+        )
 
     lines.append(" </contract>")
 
@@ -113,7 +125,9 @@ class SkillRegistry:
         for name in removed:
             del self._skills[name]
         if removed:
-            logger.info("Cleared %d MCP skill(s) from registry: %s", len(removed), removed)
+            logger.info(
+                "Cleared %d MCP skill(s) from registry: %s", len(removed), removed
+            )
 
     def clear(self) -> None:
         self._skills.clear()

@@ -284,7 +284,6 @@ async def store_episodics_batch(
 
 
 
-
 # ======================================================================
 # Get / Update helpers
 # ======================================================================
@@ -333,8 +332,6 @@ async def update_vector_memory(
 
 async def delete_from_vector(collection: str, ids: list[str], vector: VectorStoreProtocol) -> int:
     return await vector.delete(collection, ids)
-
-
 
 
 # ======================================================================

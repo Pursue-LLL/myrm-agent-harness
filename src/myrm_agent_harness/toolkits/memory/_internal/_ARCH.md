@@ -20,7 +20,9 @@ Internal implementation details — not part of the public API.
 | memory_scanner.py | Core | Memory write-path security scanner. Scans content, raw_exchange, trigger/action fields for prompt injection (7+2 patterns), credential leaks (25+ patterns), and invisible Unicode. Three-tier verdict: BLOCKED/REDACTED/WARN/CLEAN. | ✅ |
 | scope.py | Core | Scope helper functions. Handles namespace derivation, MemoryScope binding, write target trimming, namespace validation, and channel affinity. | ✅ |
 | search_service.py | Core | Search-side orchestration for memory retrieval. Handles query cleanup, type routing, hybrid candidate collection, ranking, graph enrichment, compact output budgeting, access-count background updates, and business-neutral retrieval trace emission. | ✅ |
-| storage.py | Core | Internal storage operations. Embedding helpers, store/CRUD operations, context loading, and public re-exports. | ✅ |
+| storage.py | Core | Internal storage facade. Embedding helpers, store/CRUD operations, and re-exports from submodules. | ✅ |
+| storage_context.py | Core | Context loading for agent prompt (profile, rules, working state). | ✅ |
+| storage_conversation.py | Core | Conversation memory storage with dual-embedding (Qdrant named vectors). | ✅ |
 | storage_converters.py | Core | Document ↔ Schema converters and shared metadata helpers (scope, lifecycle, filter). | ✅ |
 | storage_search.py | Core | Search operations: vector similarity, BM25 keyword, profile/procedural text, dual-channel conversation search with RRF fusion. | ✅ |
 | write_service.py | Core | Write-side orchestration for memory persistence. Handles memory scanning, approval routing, | ✅ |

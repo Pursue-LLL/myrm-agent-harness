@@ -13,7 +13,7 @@ Raw publication gate — single SSOT for stable-path writes into vault `raw/`.
 | `evidence_removal.py` | Core | `remove_raw_evidence` shared re-anchor SSOT (forget + dedup trash) | ✅ |
 | `service.py` | Core | `publish_raw()` with per-vault asyncio lock + security pre-scan | ✅ |
 
-Policies: `FAIL` (agent ingest), `SKIP` / `SUPERSEDE` (settings import), `PUT_IF_ABSENT` (query archive, turn digest, consolidation digest).
+Policies: `FAIL` (agent ingest), `SKIP` / `SUPERSEDE` (settings import), `PUT_IF_ABSENT` (query archive, turn digest, consolidation digest). Extension clip may replace an existing raw file when `replace_source_url` matches the stored frontmatter `source_url`.
 
 `RawGateCaller`: `agent` | `settings` | `chat` | `extension` (browser clip ingress).
 

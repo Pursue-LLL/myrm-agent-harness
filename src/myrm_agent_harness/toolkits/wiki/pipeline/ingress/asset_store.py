@@ -109,6 +109,7 @@ async def localize_public_markdown_images(
     markdown: str,
     *,
     base_url: str,
+    raw_relative: str = "placeholder.md",
 ) -> tuple[str, IngressAssetStats]:
     """Download public http(s) images referenced in markdown (server-side Track B)."""
     url_to_filename: dict[str, str] = {}
@@ -125,6 +126,12 @@ async def localize_public_markdown_images(
             break
         resolved = raw_ref
         if not raw_ref.startswith(("http://", "https://")):
+            if (
+                raw_ref.startswith("../")
+                or raw_ref.startswith("wiki/assets/")
+                or "/wiki/assets/" in raw_ref
+            ):
+                continue
             if base_url:
                 from urllib.parse import urljoin
 
@@ -156,7 +163,9 @@ async def localize_public_markdown_images(
             failed += 1
     if not url_to_filename:
         return markdown, IngressAssetStats(stored=0, skipped=0, failed=failed)
-    rewritten = rewrite_markdown_asset_refs(markdown, url_to_filename, raw_relative="placeholder.md")
+    rewritten = rewrite_markdown_asset_refs(
+        markdown, url_to_filename, raw_relative=raw_relative
+    )
     return rewritten, IngressAssetStats(stored=stored, skipped=skipped, failed=failed)
 
 

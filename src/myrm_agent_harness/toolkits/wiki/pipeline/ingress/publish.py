@@ -53,12 +53,10 @@ def _slugify_title(title: str, *, max_len: int = 60) -> str:
     return cleaned[:max_len] or "clip"
 
 
-def _default_clip_path(title: str, source_url: str) -> str:
+def _default_clip_path(source_url: str) -> str:
     month = datetime.now(UTC).strftime("%Y-%m")
-    slug = _slugify_title(title)
-    if not slug or slug == "clip":
-        slug = f"web_{hashlib.sha256(source_url.encode()).hexdigest()[:10]}"
-    return f"clips/{month}/{slug}.md"
+    url_hash = hashlib.sha256(source_url.encode()).hexdigest()[:12]
+    return f"clips/{month}/web_{url_hash}.md"
 
 
 def _build_frontmatter(
@@ -95,7 +93,18 @@ def _resolve_relative_path(request: ClipIngressRequest) -> str:
         folder = WikiStructure._sanitize_path(request.folder_path.strip())
         slug = _slugify_title(request.title)
         return f"{folder}/{slug}.md"
-    return _default_clip_path(request.title, request.source_url)
+    return _default_clip_path(request.source_url)
+
+
+def _merge_asset_stats(
+    primary: IngressAssetStats,
+    secondary: IngressAssetStats,
+) -> IngressAssetStats:
+    return IngressAssetStats(
+        stored=primary.stored + secondary.stored,
+        skipped=primary.skipped + secondary.skipped,
+        failed=primary.failed + secondary.failed,
+    )
 
 
 def _assets_localized_label(
@@ -128,6 +137,16 @@ async def publish_clip_ingress(
     if url_map:
         body = rewrite_markdown_asset_refs(body, url_map, raw_relative=rel_path)
 
+    track_b_body, track_b_stats = await localize_public_markdown_images(
+        structure,
+        body,
+        base_url=request.source_url,
+        raw_relative=rel_path,
+    )
+    body = track_b_body
+    asset_stats = _merge_asset_stats(asset_stats, track_b_stats)
+    had_refs = had_refs or bool(re.search(r"!\[[^\]]*\]\(", body))
+
     localized = _assets_localized_label(asset_stats, had_markdown_refs=had_refs)
     content = _build_frontmatter(
         source_url=request.source_url,
@@ -143,6 +162,7 @@ async def publish_clip_ingress(
                 relative_path=rel_path,
                 content=content,
                 conflict_policy=RawConflictPolicy.FAIL,
+                replace_source_url=request.source_url,
             ),
             caller="extension",
         )
@@ -206,7 +226,10 @@ async def publish_url_markdown_ingress(
     localized: Literal["full", "partial", "remote"] = "remote"
     if request.localize_public_assets:
         body, asset_stats = await localize_public_markdown_images(
-            structure, body, base_url=request.url
+            structure,
+            body,
+            base_url=request.url,
+            raw_relative=rel_path,
         )
         localized = _assets_localized_label(
             asset_stats, had_markdown_refs=bool(re.search(r"!\[[^\]]*\]\(", markdown))

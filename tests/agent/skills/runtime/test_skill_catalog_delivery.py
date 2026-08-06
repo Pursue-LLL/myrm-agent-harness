@@ -133,6 +133,7 @@ def test_bound_skills_block_includes_hidden_count_attribute() -> None:
     block = build_bound_skills_block([_skill("alpha_skill")], hidden_skill_count=5)
     assert 'hidden_count="5"' in block
 
+
 def test_empty_skills_strips_stale_catalog_without_reinject() -> None:
     stale = '<bound_skills hash="x">\n<skills></skills>\n</bound_skills>\n\nhello'
     messages = [HumanMessage(content=stale)]
@@ -149,7 +150,10 @@ def test_multimodal_first_human_message_prepends_catalog() -> None:
         HumanMessage(
             content=[
                 {"type": "text", "text": "describe this image"},
-                {"type": "image_url", "image_url": {"url": "https://example.com/x.png"}},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "https://example.com/x.png"},
+                },
             ]
         )
     ]
@@ -203,7 +207,9 @@ def test_ensure_skill_catalog_no_ops_on_empty_messages() -> None:
     assert messages == []
 
 
-def test_resolve_catalog_display_skills_prefers_always_skills_when_over_threshold() -> None:
+def test_resolve_catalog_display_skills_prefers_always_skills_when_over_threshold() -> (
+    None
+):
     from myrm_agent_harness.agent.skills.runtime.catalog_display import (
         resolve_catalog_display_skills,
     )

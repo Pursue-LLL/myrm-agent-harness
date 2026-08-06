@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
@@ -183,3 +185,88 @@ async def test_publish_clip_ingress_security_blocked_by_credential(
     assert result.written is False
     assert result.security_blocked is True
     assert not temp_structure.get_raw_file_path(result.relative_path).exists()
+
+
+@pytest.mark.asyncio
+async def test_publish_clip_ingress_default_path_uses_source_url_hash(
+    temp_structure: WikiStructure,
+) -> None:
+    source_url = "https://example.com/hash-path-article"
+    result = await publish_clip_ingress(
+        temp_structure,
+        ClipIngressRequest(
+            source_url=source_url,
+            title="Any Title",
+            clip_mode=ClipMode.FULL_PAGE,
+            markdown="# Hash path\n",
+        ),
+    )
+    assert result.written is True
+    assert result.relative_path.startswith("clips/")
+    assert "/web_" in result.relative_path
+    assert result.relative_path.endswith(".md")
+
+
+@pytest.mark.asyncio
+async def test_publish_clip_ingress_reclip_replaces_same_source_url(
+    temp_structure: WikiStructure,
+) -> None:
+    source_url = "https://example.com/reclip-doc"
+    first = await publish_clip_ingress(
+        temp_structure,
+        ClipIngressRequest(
+            source_url=source_url,
+            title="Living Doc",
+            clip_mode=ClipMode.FULL_PAGE,
+            markdown="# Version 1\n",
+        ),
+    )
+    assert first.written is True
+    rel_path = first.relative_path
+
+    second = await publish_clip_ingress(
+        temp_structure,
+        ClipIngressRequest(
+            source_url=source_url,
+            title="Living Doc",
+            clip_mode=ClipMode.FULL_PAGE,
+            markdown="# Version 2\n",
+        ),
+    )
+    assert second.written is True
+    assert second.conflict is False
+    assert second.relative_path == rel_path
+    content = temp_structure.get_raw_file_path(rel_path).read_text(encoding="utf-8")
+    assert "Version 2" in content
+    assert "Version 1" not in content
+
+
+@pytest.mark.asyncio
+async def test_publish_clip_ingress_localizes_remote_markdown_images(
+    temp_structure: WikiStructure,
+) -> None:
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
+    mock_response = AsyncMock()
+    mock_response.status_code = 200
+    mock_response.headers = {"content-type": "image/png"}
+    mock_response.content = png
+
+    with patch(
+        "myrm_agent_harness.toolkits.wiki.pipeline.ingress.asset_store.secure_get",
+        new_callable=AsyncMock,
+        return_value=mock_response,
+    ):
+        result = await publish_clip_ingress(
+            temp_structure,
+            ClipIngressRequest(
+                source_url="https://example.com/article-with-img",
+                title="Article With Image",
+                clip_mode=ClipMode.FULL_PAGE,
+                markdown="![diagram](https://cdn.example.com/diagram.png)\n",
+            ),
+        )
+
+    assert result.written is True
+    content = temp_structure.get_raw_file_path(result.relative_path).read_text(encoding="utf-8")
+    assert "wiki/assets/" in content or "../wiki/assets/" in content
+    assert "cdn.example.com" not in content

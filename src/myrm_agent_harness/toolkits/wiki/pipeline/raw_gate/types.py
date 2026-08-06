@@ -30,6 +30,7 @@ class RawPublishRequest:
     content: str
     conflict_policy: RawConflictPolicy = RawConflictPolicy.FAIL
     supersede_reason: str = ""
+    replace_source_url: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
