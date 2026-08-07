@@ -150,6 +150,12 @@ def test_capabilities_section_documents_combo_modes() -> None:
     assert "组合调用工具或方法以提效" not in capabilities
 
 
+def test_async_section_documents_why_and_links_to_gather_examples() -> None:
+    assert "技能/MCP 调用为 async" in TOOL_DESCRIPTION
+    assert "await 无法执行" in TOOL_DESCRIPTION
+    assert "gather 示例一致" in TOOL_DESCRIPTION
+
+
 def test_shell_commands_include_common_ops() -> None:
     assert "mv/cp/rm" in TOOL_DESCRIPTION
 

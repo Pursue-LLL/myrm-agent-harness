@@ -78,7 +78,8 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 
 ### 异步写法
 
-`async def main(): ...` + `asyncio.run(main())`,或直接 top-level `await`(框架已支持)。
+技能/MCP 调用为 async — 须用下列入口之一,否则 await 无法执行:
+`async def main(): ...` + `asyncio.run(main())`,或直接 top-level `await`(框架已支持,与上方 gather 示例一致)。
 
 ### 路径
 
