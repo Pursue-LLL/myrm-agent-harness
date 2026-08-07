@@ -23,6 +23,7 @@ description: Demo skill for api.skills smoke test.
         (
             "myrm_agent_harness.api.hooks",
             [
+                "auto_extract_memories",
                 "BackgroundJobFinishHandler",
                 "BackgroundJobFinishResult",
                 "BackgroundJobRecord",
