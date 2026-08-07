@@ -25,7 +25,7 @@ TOOL_DESCRIPTION = """
 3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入,框架自动识别并以文件模式执行**。
    - 预装三方库:pandas, numpy, scipy, matplotlib, seaborn;Python 标准库(json, datetime, re 等)均可用。
    - **不要**使用 `python -c "..."` / `python3 -c "..."` 包装器 — shell 转义易破坏引号与多行字符串。直接传 Python 源码作为 command 即可。
-4. **组合执行**: ① 单次 Python 源码合并多步(含技能批量调用); ② 多轮 Shell 持久会话; ③ Shell 调已有脚本。返回值具体才可 merge,否则先 `[OBSERVATION]` — 细则见「编写原则」。
+4. **组合执行(管道思想)**: 单次 invocation 内接多步 — ① Python 源码(gather/串行/控制流,含技能批量); ② Shell 用 `&&`/`|` 串联,或执行已有脚本(见 #2)。返回值具体才可接管道,否则先 `[OBSERVATION]` — 细则见「编写原则」。
 
 ## 优先使用专用工具
 

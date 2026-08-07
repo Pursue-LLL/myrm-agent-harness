@@ -119,12 +119,17 @@ def test_python_c_wrapper_discouraged() -> None:
 
 
 def test_capabilities_section_documents_combo_modes() -> None:
-    """能力段枚举组合形态; merge/OBSERVATION 判定细则只在编写原则."""
+    """能力段枚举管道/组合形态; merge/OBSERVATION 判定细则只在编写原则."""
     capabilities_end = TOOL_DESCRIPTION.index("## 优先使用专用工具")
     capabilities = TOOL_DESCRIPTION[:capabilities_end]
     assert "组合执行" in capabilities
-    assert "技能批量调用" in capabilities
+    assert "管道思想" in capabilities
+    assert "技能批量" in capabilities
+    assert "`&&`" in capabilities
+    assert "`|`" in capabilities
+    assert "见 #2" in capabilities
     assert "编写原则" in capabilities
+    assert "多轮 Shell 持久" not in capabilities
     assert capabilities.count("依赖性分析") == 0
     assert "asyncio.gather" not in capabilities
     assert "判定标准" not in capabilities
