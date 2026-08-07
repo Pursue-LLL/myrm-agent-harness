@@ -75,8 +75,10 @@ class _BashProcessInput(BaseModel):
     action: _BASH_PROCESS_ACTIONS = Field(
         description=(
             "list: all background jobs in this session (includes last_progress when available); "
-            "output: tail stdout/stderr for pid; "
-            "wait: block until pid exits or timeout_seconds (max 120); "
+            "output: tail stdout/stderr for pid; if waiting_for_input=true read input_wait_hint "
+            "and use submit_stdin (do not blind-poll); "
+            "wait: block until pid exits or timeout_seconds (max 120); if still_running with "
+            "waiting_for_input=true use submit_stdin; "
             "kill: stop pid (SIGTERM unless force=true); "
             "write_stdin: send raw bytes to pid stdin (no newline); "
             "submit_stdin: send data plus Enter (for y/n prompts); "
@@ -333,7 +335,9 @@ def create_bash_process_tool() -> BaseTool:
         BASH_PROCESS_TOOL_NAME,
         description=(
             "Manage background bash processes started with bash_code_execute_tool(run_in_background=true). "
-            "Actions: list (session jobs + last_progress), output (tail/ incremental poll via since_cursor), "
+            "When output or wait returns waiting_for_input=true, read input_wait_hint and answer with "
+            "submit_stdin (do not blind-poll). "
+            "Actions: list (session jobs + last_progress), output (tail/incremental poll via since_cursor), "
             "wait (block until exit or timeout_seconds, max 120), kill (SIGTERM or force SIGKILL), "
             "write_stdin (raw stdin), submit_stdin (stdin + Enter), close_stdin (EOF)."
         ),

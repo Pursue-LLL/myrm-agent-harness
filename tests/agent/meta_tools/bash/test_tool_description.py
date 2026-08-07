@@ -6,6 +6,9 @@ from myrm_agent_harness.agent.meta_tools.bash._tool_description import TOOL_DESC
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     create_bash_code_execute_tool,
 )
+from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
+    create_bash_process_tool,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_helpers import get_os_hint
 
 
@@ -85,6 +88,7 @@ def test_background_contract_documented() -> None:
     assert "since_cursor" in TOOL_DESCRIPTION
     assert "waiting_for_input" in TOOL_DESCRIPTION
     assert "input_wait_hint" in TOOL_DESCRIPTION
+    assert TOOL_DESCRIPTION.count("waiting_for_input") >= 2
     assert "MYRM_PROGRESS" in TOOL_DESCRIPTION
     assert "MYRM_CHECKPOINT" in TOOL_DESCRIPTION
     assert "bash_process_tool" in TOOL_DESCRIPTION
@@ -129,3 +133,19 @@ def test_shell_commands_include_common_ops() -> None:
 def test_reason_not_duplicated_in_static_prompt() -> None:
     """reason lives in BashInput schema, not static TOOL_DESCRIPTION."""
     assert "≥10" not in TOOL_DESCRIPTION
+
+
+def test_bash_process_tool_description_documents_waiting_for_input() -> None:
+    tool = create_bash_process_tool()
+    desc = tool.description or ""
+    assert "waiting_for_input" in desc
+    assert "input_wait_hint" in desc
+    assert "submit_stdin" in desc
+    assert "blind-poll" in desc
+
+
+def test_bash_process_and_execute_prompts_share_stdin_contract() -> None:
+    process_desc = create_bash_process_tool().description or ""
+    for keyword in ("waiting_for_input", "input_wait_hint", "submit_stdin"):
+        assert keyword in TOOL_DESCRIPTION
+        assert keyword in process_desc

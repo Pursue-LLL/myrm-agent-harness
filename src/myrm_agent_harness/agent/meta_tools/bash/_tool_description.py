@@ -107,7 +107,7 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 
 - `bash_process_tool(action='list')` — 列出本会话所有后台任务;含 `pid / command / status / uptime_seconds / exit_code` 等字段;若上报过进度则含 `last_progress`,便于比对哪个 worker 卡住、哪个快收尾。
 - `bash_process_tool(action='output', pid, since_cursor?, filter?)` — 拉 stdout/stderr 尾部;传上次的 ``next_cursor`` 作为 ``since_cursor`` 实现增量轮询;``filter`` 为可选行级 regex;若 ``waiting_for_input=true`` 读 ``input_wait_hint`` 并用 ``submit_stdin`` 应答。
-- `bash_process_tool(action='wait', pid, timeout_seconds?)` — 阻塞至进程退出或超时(默认 30s,最大 120s);超时则任务仍在运行。
+- `bash_process_tool(action='wait', pid, timeout_seconds?)` — 阻塞至进程退出或超时(默认 30s,最大 120s);仍 running 且 ``waiting_for_input=true`` 时读 ``input_wait_hint`` 并用 ``submit_stdin`` 应答。
 - `bash_process_tool(action='kill', pid, force?)` — `force=false` 正常终止;仍存活则 `force=true` 强制结束。
 - `bash_process_tool(action='write_stdin', pid, data=...)` — 向 stdin 写原始字节(不追加换行)。
 - `bash_process_tool(action='submit_stdin', pid, data=...)` — 向 stdin 写数据并追加 Enter(用于 y/n 等交互);也可由 GUI 应答。
