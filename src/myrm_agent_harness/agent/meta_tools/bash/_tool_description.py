@@ -16,16 +16,17 @@ and prohibitions.
 """
 
 TOOL_DESCRIPTION = """
-使用该工具执行准确安全的 Shell 命令或 Python 代码来解决用户问题。严禁任何假设和猜测!
+使用该工具执行准确的 Shell 命令或 Python 代码来解决用户问题。严禁任何假设和猜测!
 
 ## 能力
 
-1. **Shell 命令**:执行安全 shell 命令(ls/grep/curl/git 等,禁止危险命令和直接 RCE)。
+1. **Shell 命令**:执行 shell 命令(mv/cp/rm、包管理、构建测试、git、curl 等)。
 2. **执行脚本**:运行已存在的脚本文件(python script.py / bash script.sh)。
 3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入,框架自动识别并以文件模式执行**。
    - 预装三方库:pandas, numpy, scipy, matplotlib, seaborn;Python 标准库(json, datetime, re 等)均可用。
    - 可调用内置工具(`from tools.* import ...`),如 `from tools.session_store import session_store` / `session_load` / `session_keys`(均为 async,必须 await)。
    - **不要**使用 `python -c "..."` / `python3 -c "..."` 包装器 — shell 转义易破坏引号与多行字符串。直接传 Python 源码作为 command 即可。
+4. **组合调用能力或方法以提效**: 根据任务依赖性分析,单次组合调用多个工具或方法以提高效率。
 
 ## 优先使用专用工具
 
@@ -37,9 +38,9 @@ bash_code_execute_tool 适用于:文件移动/复制(mv/cp)、包管理、构建
 
 ## 编写原则
 
-### 准确性优先,绝对禁止假设返回值结构
+### 准确性优先,同时考虑效率
 
-合并多个任务可提高效率,但**前提是所有返回值结构都是具体的**。必须对任务做【依赖性分析】。
+合并多个任务可提高效率,但**前提是要使用的目标工具或方法的返回值结构都是具体的**。必须对任务做【依赖性分析】，绝对禁止假设返回值结构，否则因为强行组合未知返回值的方法而导致报错多次重试反而会降低效率，浪费token。
 流程:先判定返回值是否具体 → 具体则合并到一次执行 → 不具体则先 `[OBSERVATION]` 探路。
 
 #### 返回值具体性判定
