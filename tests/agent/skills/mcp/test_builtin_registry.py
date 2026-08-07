@@ -95,7 +95,7 @@ class TestGetBuiltinToolRegistry:
 
         mod._registry = None
         registry = mod.get_builtin_tool_registry()
-        expected = {"session_store", "session_load", "session_keys", "notify"}
+        expected = {"notify"}
         assert set(registry.tool_names) == expected
         mod._registry = None
 
@@ -107,8 +107,8 @@ class TestGetBuiltinToolRegistry:
         desc = registry.get_ptc_description()
         assert "myrm_tools.web_search" not in desc
         assert "myrm_tools.web_fetch" not in desc
-        assert "tools.session_store" in desc
         assert "tools.notify" in desc
+        assert "tools.session_store" not in desc
         mod._registry = None
 
     def test_singleton_behavior(self) -> None:

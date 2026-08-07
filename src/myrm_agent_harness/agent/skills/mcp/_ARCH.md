@@ -7,7 +7,6 @@ MCP Skills — Agent-layer MCP skill transformation.
 
 | Builtin | Purpose | Turn1 docs | Notes |
 |---------|---------|------------|-------|
-| `tools.session_store` / `session_load` / `session_keys` | Cross-bash KV persistence | `TOOL_DESCRIPTION` § persistence | Max 256 KiB/value; file at `<workspace>/.session_store/<sid>.json` |
 | `tools.notify` | Python IPC progress → `ptc_notify` SSE | Not appended Turn1; optional in scripts | Rate limit 10 rps; prefer `MYRM_PROGRESS` echo for bash |
 | `myrm_tools.notify` | DW orchestration progress | Dynamic Workflow prompt only | Via `inject_ptc`, not regular bash |
 
@@ -16,8 +15,7 @@ MCP Skills — Agent-layer MCP skill transformation.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | MCP Skills — Agent-layer MCP skill transformation. | — |
-| builtin_registry.py | Core | BuiltinToolRegistry + get_builtin_tool_registry; session_store/load/keys + notify via MCP IPC ``tools.*``. ``get_ptc_description()`` for docs/tests only (not bash Turn1 append). | ✅ |
-| builtin_session_store.py | Core | PTC builtin handlers: cross-call file-backed session KV store at `<workspace>/.session_store/<sid>.json` (session_id is sanitised via `_SAFE_SESSION_ID_RE` to prevent path traversal). | ✅ |
+| builtin_registry.py | Core | BuiltinToolRegistry + get_builtin_tool_registry; notify via MCP IPC ``tools.*``. ``get_ptc_description()`` for docs/tests only (not bash Turn1 append). | ✅ |
 | builtin_notify.py | Core | PTC builtin handler: `tools.notify` → LangGraph `ptc_notify` custom event for real-time UI updates. Token-bucket rate limited (10rps / burst 20 per session); field validation delegated to `progress_payload.py`. | ✅ |
 | progress_payload.py | Core | Shared notify/progress field SSOT (`parse_ptc_notify_params`, `build_workflow_stage_event`, `build_ptc_notify_payload`). Used by PTC `notify_handler` and DW `NotifyProgressTool`. | ✅ |
 | notify_registry.py | Core | Session→RunnableConfig registry (with `session_scope` async ctx mgr) so the IPC task can resolve the caller's config for `notify` dispatch. | ✅ |

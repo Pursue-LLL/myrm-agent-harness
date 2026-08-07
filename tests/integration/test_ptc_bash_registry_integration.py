@@ -35,7 +35,7 @@ def test_bash_tool_description_is_static_without_registry_append() -> None:
     bash_tool = create_bash_code_execute_tool()
     description = bash_tool.description
 
-    assert "tools.session_store" in TOOL_DESCRIPTION
+    assert "tools.session_store" not in TOOL_DESCRIPTION
     assert "import myrm_tools" in TOOL_DESCRIPTION
     assert "myrm_tools.web_search_tool" not in description
     assert get_builtin_tool_registry().get_ptc_description() not in description
@@ -55,20 +55,18 @@ async def test_registry_dispatch_rejects_unknown_tool() -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_registry_dispatch_session_keys_real_handler(tmp_path: Path) -> None:
+async def test_registry_dispatch_notify_real_handler(tmp_path: Path) -> None:
     import myrm_agent_harness.agent.skills.mcp.builtin_registry as registry_mod
 
     registry_mod._registry = None
     registry = get_builtin_tool_registry()
     token = _ipc_call_context.set(_ipc_ctx("integ-session", tmp_path))
     try:
-        await registry.dispatch("session_store", {"key": "integ-key", "value": 42})
-        keys = await registry.dispatch("session_keys", {})
-        assert isinstance(keys, list)
-        assert "integ-key" in keys
-
-        loaded = await registry.dispatch("session_load", {"key": "integ-key"})
-        assert loaded == 42
+        result = await registry.dispatch(
+            "notify",
+            {"message": "hello", "level": "info"},
+        )
+        assert result is None
     finally:
         _ipc_call_context.reset(token)
         registry_mod._registry = None

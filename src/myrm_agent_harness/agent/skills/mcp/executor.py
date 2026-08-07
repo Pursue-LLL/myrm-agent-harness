@@ -88,7 +88,7 @@ class SkillExecutor:
         检测命令中是否包含技能调用，如果是则：
         1. 提取 Python 代码
         2. 注入 MCP IPC 客户端代码（携带 session_id / workspace_root 以支持
-           session_store / notify 等需要会话上下文的 builtin 工具）
+           notify 等需要会话上下文的 builtin 工具）
         3. 返回预处理后的代码
 
         Args:

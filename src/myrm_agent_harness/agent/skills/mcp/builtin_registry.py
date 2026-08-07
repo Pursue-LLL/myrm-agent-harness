@@ -9,17 +9,15 @@
 
 [INPUT]
 - agent.skills.mcp.builtin_notify::notify_handler (POS: Realtime progress notification handler.)
-- agent.skills.mcp.builtin_session_store::session_store_handler, session_load_handler, session_keys_handler (POS: Cross-call key-value persistence for PTC scripts.)
 
 [OUTPUT]
 - BuiltinToolEntry: Registered handler + description + parameter schema + return type.
 - BuiltinToolRegistry: Process-wide registry with register / dispatch / get_ptc_description.
-- get_builtin_tool_registry: Lazy singleton accessor (registers session_store/load/keys, notify).
+- get_builtin_tool_registry: Lazy singleton accessor (registers notify).
 
 [POS]
 PTC builtin tool registry & dispatcher. Routes ``__builtin__`` IPC calls for
-session_store / notify. Bash Turn1 uses ``from tools.* import ...`` (MCP IPC);
-Dynamic Workflow uses ``inject_ptc`` with ``myrm_tools`` spawn/notify only.
+notify. Dynamic Workflow uses ``inject_ptc`` with ``myrm_tools`` spawn/notify only.
 """
 
 import logging
@@ -123,8 +121,8 @@ class BuiltinToolRegistry:
         names = ", ".join(f"`tools.{name}`" for name in sorted(self._tools.keys()))
         return (
             "\n## MCP builtins (Python only)\n"
-            f"Cross-call/session builtins via `from tools.<name> import ...`: {names}. "
-            "Use skills.*/tools.* for MCP batch scripts; single calls use native tools."
+            f"PTC builtins via `from tools.<name> import ...`: {names}. "
+            "Use skills.* for MCP batch scripts; single calls use native tools."
         )
 
     @property
@@ -152,37 +150,7 @@ def _register_default_tools(registry: BuiltinToolRegistry) -> None:
     builtins below avoid duplicating web APIs in bash tool description.
     """
     from myrm_agent_harness.agent.skills.mcp.builtin_notify import notify_handler
-    from myrm_agent_harness.agent.skills.mcp.builtin_session_store import (
-        session_keys_handler,
-        session_load_handler,
-        session_store_handler,
-    )
 
-    registry.register(
-        name="session_store",
-        handler=session_store_handler,
-        description=(
-            "Persist a JSON-serialisable value under a string key for later "
-            "PTC calls in the same session. Survives across bash_code_execute_tool "
-            "invocations (Python is otherwise stateless)."
-        ),
-        parameters={"key": "str", "value": "JSON-serialisable"},
-        return_type="None",
-    )
-    registry.register(
-        name="session_load",
-        handler=session_load_handler,
-        description=("Load a value previously stored via session_store. Returns None when the key is missing."),
-        parameters={"key": "str"},
-        return_type="object | None",
-    )
-    registry.register(
-        name="session_keys",
-        handler=session_keys_handler,
-        description="List all keys currently stored via session_store.",
-        parameters={},
-        return_type="list[str]",
-    )
     registry.register(
         name="notify",
         handler=notify_handler,

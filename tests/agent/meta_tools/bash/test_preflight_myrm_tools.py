@@ -196,6 +196,7 @@ def test_myrm_tools_block_hint_routes_to_correct_apis() -> None:
     hint = exc_info.value.user_hint
     assert hint is not None
     assert "MYRM_PROGRESS" in hint
-    assert "session_store" in hint
+    assert "workspace" in hint.lower() or "json" in hint.lower()
+    assert "session_store" not in hint
     assert "skills" in hint
     assert "file_read_tool" in hint

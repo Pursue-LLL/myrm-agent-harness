@@ -58,14 +58,14 @@ _MAX_REFERENCED_PY_SCAN_BYTES = 512 * 1024
 
 _MYRM_TOOLS_BLOCK_MESSAGE = (
     "Command blocked: `import myrm_tools` is not available in bash_code_execute_tool. "
-    "Use native tools for single calls; use `from skills.* import ...` or "
-    "`from tools.* import ...` for MCP/builtin batch scripts; "
-    "use `from tools.session_store import session_store` for cross-call persistence."
+    "Use native tools for single calls; use `from skills.* import ...` "
+    "for MCP batch scripts; persist cross-bash data under `/workspace` JSON files."
 )
 _MYRM_TOOLS_BLOCK_HINT = (
     "Do not use myrm_tools in bash. Single calls: native tools "
     "(file_read_tool, web_search_tool, …). MCP batch: from skills.* import …. "
-    "Cross-bash data: tools.session_store. Long-script progress: MYRM_PROGRESS echo."
+    "Cross-bash data: write `/workspace` JSON (json.dump or file_write_tool). "
+    "Long-script progress: MYRM_PROGRESS echo."
 )
 
 

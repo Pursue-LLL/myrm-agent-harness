@@ -9,7 +9,7 @@ Bash tool module.
 |------|-----|------------|
 | Single tool call | Native LangChain tools (`file_read_tool`, …) | bash / `myrm_tools` |
 | MCP batch script | `from skills.* import …` | `myrm_tools` |
-| Cross-bash persistence | `tools.session_store` / `session_load` | Paste JSON into chat / `myrm_tools` |
+| Cross-bash persistence | `/workspace` JSON files / `file_write_tool` | Paste JSON into chat / `myrm_tools` |
 | Long-script progress | `MYRM_PROGRESS` echo (see `TOOL_DESCRIPTION`) | `myrm_tools.notify` |
 | Orchestration spawn/notify | Dynamic Workflow → `myrm_tools.*` | Regular bash |
 

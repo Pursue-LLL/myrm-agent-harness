@@ -254,7 +254,7 @@ def generate_ipc_client_code(
 
     Args:
         socket_path: Unix Socket 路径。
-        session_id: 当前会话 ID(用于 session_store / notify 等需要会话隔离的 builtin)。
+        session_id: 当前会话 ID(用于 notify 等需要会话隔离的 builtin)。
         workspace_root: 沙箱内的工作目录(host 视角的绝对路径)。
     """
     base = _generate_base_code()

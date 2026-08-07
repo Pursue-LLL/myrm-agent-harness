@@ -9,7 +9,7 @@ Agent-in-Sandbox 模式下，子进程通过 Unix Socket 与 Agent 主进程通�
 - 路由：skill_name == "__builtin__" → BuiltinToolRegistry
          其他 → MCPSkillProxyService
 - 调用上下文：每个请求设置 ``IPCCallContext`` 到 ContextVar，
-  让 ``session_store`` / ``notify`` 等内置 handler 取到 session_id /
+  让 ``notify`` 等内置 handler 取到 session_id /
   workspace_root，而无需污染全局或显式参数透传。
 
 [INPUT]
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class IPCCallContext:
-    """Per-call context for IPC handlers (session_store/notify/...).
+    """Per-call context for IPC handlers (notify/...).
 
     Set by the IPC server before dispatching to a builtin handler. Read via
     :func:`get_ipc_call_context`. Frozen so handlers cannot mutate it.
@@ -201,7 +201,7 @@ class MCPIPCServer:
 
             logger.info(f"{log_prefix} Request: {request.skill_name}.{request.tool_name}")
 
-            # Per-call context for builtin handlers (session_store/notify/...).
+            # Per-call context for builtin handlers (notify/...).
             # ContextVar is task-local, so concurrent IPC clients stay isolated.
             ctx_token = _ipc_call_context.set(
                 IPCCallContext(

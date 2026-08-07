@@ -16,7 +16,7 @@ and prohibitions.
 """
 
 TOOL_DESCRIPTION = """
-使用该工具执行准确的 Shell 命令或 Python 代码来解决用户问题。严禁任何假设和猜测!
+使用该工具执行准确的 Shell 命令或 Python 代码来高效解决用户问题。严禁任何假设和猜测!
 
 ## 能力
 
@@ -24,7 +24,6 @@ TOOL_DESCRIPTION = """
 2. **执行脚本**:运行已存在的脚本文件(python script.py / bash script.sh)。
 3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入,框架自动识别并以文件模式执行**。
    - 预装三方库:pandas, numpy, scipy, matplotlib, seaborn;Python 标准库(json, datetime, re 等)均可用。
-   - 可调用内置工具(`from tools.* import ...`),如 `from tools.session_store import session_store` / `session_load` / `session_keys`(均为 async,必须 await)。
    - **不要**使用 `python -c "..."` / `python3 -c "..."` 包装器 — shell 转义易破坏引号与多行字符串。直接传 Python 源码作为 command 即可。
 4. **组合调用能力或方法以提效**: 根据任务依赖性分析,单次组合调用多个工具或方法以提高效率。
 
@@ -87,7 +86,7 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 
 ### Python 无状态,Bash 持久化
 
-- **Python**:每次执行独立进程,变量/import/函数**不保持**。如需跨调用持久化数据,使用 `from tools.session_store import session_store` / `session_load` / `session_keys`(均为 async,必须 await)。
+- **Python**:每次执行独立进程,变量/import/函数**不保持**。**优先一次 bash 合并**;确需跨轮持久化 → 写 ``/workspace/...`` 中间 JSON(``json.dump/load`` 或 ``file_write_tool``);**禁止**大 payload 进 ``[RESULT]``/``[OBSERVATION]``。
 - **Bash**:持久化会话(按 chat_id 隔离),环境变量/工作目录/Shell 函数**保持**。
 
 ## 严格禁止
