@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     BackgroundProcessRegistry,
 )
 from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (

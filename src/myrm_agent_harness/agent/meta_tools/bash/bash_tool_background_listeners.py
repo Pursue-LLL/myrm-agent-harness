@@ -1,7 +1,7 @@
 """Background job event listeners for bash_code_execute_tool spawn path.
 
 [INPUT]
-- ._background_registry::BackgroundProcessInfo (POS: Background job snapshot type)
+- ._background.registry::BackgroundProcessInfo (POS: Background job snapshot type)
 - utils.event_utils::dispatch_custom_event (POS: LangGraph custom event dispatch)
 
 [OUTPUT]
@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from langchain_core.runnables import RunnableConfig
 
-    from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+    from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
         BackgroundProcessInfo,
         FinishListener,
         ProgressListener,

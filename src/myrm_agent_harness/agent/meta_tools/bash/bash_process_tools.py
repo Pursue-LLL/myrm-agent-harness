@@ -4,7 +4,7 @@ Single ``bash_process_tool`` manages list/output/wait/kill/stdin for jobs spawne
 via ``bash_code_execute_tool(run_in_background=True)``.
 
 [INPUT]
-- agent.meta_tools.bash._background_registry::get_background_registry (POS: registry singleton)
+- agent.meta_tools.bash._background.registry::get_background_registry (POS: registry singleton)
 - runtime context (POS: session_id from RunnableConfig)
 
 [OUTPUT]
@@ -24,10 +24,10 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     get_background_registry,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_types import (
+from myrm_agent_harness.agent.meta_tools.bash._background.types import (
     build_input_wait_hint,
 )
 

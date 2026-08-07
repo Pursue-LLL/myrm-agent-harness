@@ -4,7 +4,7 @@
 - myrm_agent_harness.agent._skill_agent_context (POS: per-agent runtime context registry)
 - myrm_agent_harness.agent._internals.memory_extraction (POS: session memory extraction helpers)
 - myrm_agent_harness.agent.middlewares._session_context (POS: middleware session ContextVar registry)
-- myrm_agent_harness.agent.meta_tools.bash._background_registry (POS: background bash job registry)
+- myrm_agent_harness.agent.meta_tools.bash._background.registry (POS: background bash job registry)
 - myrm_agent_harness.utils.runtime.background_job_finish_registry (POS: bash job finish hook registry)
 
 [OUTPUT]
@@ -37,22 +37,22 @@ from myrm_agent_harness.agent.context_management.infra.evicted_content import (
     EVICTED_BASENAME_PATTERN,
     build_evicted_basename,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     get_background_registry,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_registry_store_sync import (
+from myrm_agent_harness.agent.meta_tools.bash._background.store_sync import (
     persist_terminal_state,
     persist_vault_log_ref,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_job_store import (
+from myrm_agent_harness.agent.meta_tools.bash._background.job_store import (
     configure_background_job_store,
     get_background_job_store,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_job_store_core import (
+from myrm_agent_harness.agent.meta_tools.bash._background.job_store_core import (
     BackgroundJobRecord,
     map_store_status_to_shell_task_status,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_types import (
+from myrm_agent_harness.agent.meta_tools.bash._background.types import (
     BackgroundProcessInfo,
     INPUT_WAIT_IDLE_SECONDS,
 )

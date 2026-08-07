@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     BackgroundProcessRegistry,
     get_background_registry,
 )
@@ -22,7 +22,7 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_auto_yield import (
 from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
     create_bash_process_tool,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_types import (
+from myrm_agent_harness.agent.meta_tools.bash._background.types import (
     BackgroundProcessInfo,
 )
 from myrm_agent_harness.toolkits.code_execution.executors.models import (
@@ -34,7 +34,7 @@ from tests.agent.meta_tools.bash.test_background_registry import _FakeProc
 
 @pytest.fixture(autouse=True)
 def _clear_registry() -> None:
-    from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+    from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
         get_background_registry,
     )
     from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
@@ -78,7 +78,7 @@ async def test_registry_wait_respects_cap_and_still_running() -> None:
     assert result["status"] == "running"
 
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash._background_registry._WAIT_MAX_SECONDS",
+        "myrm_agent_harness.agent.meta_tools.bash._background.registry._WAIT_MAX_SECONDS",
         0.3,
     ):
         capped = await registry.wait_for_process(9002, timeout_seconds=999)
@@ -379,7 +379,7 @@ async def test_bash_process_kill_success() -> None:
     tool = create_bash_process_tool()
     config = {"configurable": {"context": {"session_id": "chat-kill"}}}
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash._background_registry.kill_process_group",
+        "myrm_agent_harness.agent.meta_tools.bash._background.registry.kill_process_group",
     ) as mock_kill:
         result = await tool.ainvoke(
             {"action": "kill", "pid": 9034, "force": True}, config=config

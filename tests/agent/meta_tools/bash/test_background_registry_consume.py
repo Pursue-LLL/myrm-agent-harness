@@ -9,11 +9,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._background_registry_consume import (
+from myrm_agent_harness.agent.meta_tools.bash._background.consume import (
     BackgroundRegistryEntry,
     consume_background_entry,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_types import BackgroundProcessInfo
+from myrm_agent_harness.agent.meta_tools.bash._background.types import BackgroundProcessInfo
 from myrm_agent_harness.toolkits.code_execution.executors.models import AsyncProcessProtocol
 
 
@@ -147,7 +147,7 @@ async def test_consume_background_entry_persists_terminal_state() -> None:
     entry = _make_entry(proc)
 
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash._background_registry_store_sync.persist_terminal_state",
+        "myrm_agent_harness.agent.meta_tools.bash._background.store_sync.persist_terminal_state",
     ) as persist:
         task = asyncio.create_task(_run_consume(entry))
         await asyncio.sleep(0.05)
@@ -212,7 +212,7 @@ async def test_consume_background_entry_spill_writer_persists_vault_ref() -> Non
     entry = _make_entry(proc, spill_writer=spill)
 
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash._background_registry_store_sync.persist_vault_log_ref",
+        "myrm_agent_harness.agent.meta_tools.bash._background.store_sync.persist_vault_log_ref",
     ) as persist_ref:
         task = asyncio.create_task(_run_consume(entry))
         await asyncio.sleep(0.05)

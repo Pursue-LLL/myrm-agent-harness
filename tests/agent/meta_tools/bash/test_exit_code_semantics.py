@@ -239,7 +239,7 @@ class TestClassifyBackgroundExit:
     """Tests for ``_classify_background_exit`` (PR2.6 O8)."""
 
     def _info(self, status: str, exit_code: int | None) -> object:
-        from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+        from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
             BackgroundProcessInfo,
         )
 

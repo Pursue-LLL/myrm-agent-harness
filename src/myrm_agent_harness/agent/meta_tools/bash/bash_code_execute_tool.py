@@ -50,7 +50,7 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_auto_yield import (
     should_auto_yield,
     wait_for_yield_window,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     get_background_registry,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import (

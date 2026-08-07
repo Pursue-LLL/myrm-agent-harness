@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._background_progress import (
+from myrm_agent_harness.agent.meta_tools.bash._background.progress import (
     try_parse_progress_line,
 )
 

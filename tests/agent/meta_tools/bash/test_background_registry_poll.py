@@ -2,7 +2,7 @@
 
 from collections import deque
 
-from myrm_agent_harness.agent.meta_tools.bash._background_registry_poll import build_poll_output
+from myrm_agent_harness.agent.meta_tools.bash._background.poll import build_poll_output
 
 
 def test_build_poll_output_incremental_slice() -> None:

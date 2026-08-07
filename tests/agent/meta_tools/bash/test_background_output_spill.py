@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._background_output_spill import BackgroundOutputSpillWriter
+from myrm_agent_harness.agent.meta_tools.bash._background.output_spill import BackgroundOutputSpillWriter
 
 
 @pytest.fixture

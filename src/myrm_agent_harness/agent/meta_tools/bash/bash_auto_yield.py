@@ -2,7 +2,7 @@
 
 [INPUT]
 - agent.goals.wait_background_bash::is_wait_eligible_command (POS: build/test whitelist SSOT)
-- ._background_registry::get_background_registry (POS: poll partial output)
+- ._background.registry::get_background_registry (POS: poll partial output)
 
 [OUTPUT]
 - DEFAULT_YIELD_AFTER_SECONDS: Profile-aligned default when arg omitted
@@ -18,11 +18,11 @@ import asyncio
 import time
 
 from myrm_agent_harness.agent.goals.wait_background_bash import is_wait_eligible_command
-from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     BackgroundProcessRegistry,
     get_background_registry,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_types import BackgroundProcessInfo
+from myrm_agent_harness.agent.meta_tools.bash._background.types import BackgroundProcessInfo
 
 DEFAULT_YIELD_AFTER_SECONDS = 10
 _POLL_INTERVAL_SECONDS = 0.25

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     BackgroundProcessInfo,
     BackgroundProcessRegistry,
 )
@@ -126,7 +126,7 @@ async def test_kill_terminates_and_marks_status() -> None:
         proc.finish(-sig)
 
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash._background_registry.kill_process_group",
+        "myrm_agent_harness.agent.meta_tools.bash._background.registry.kill_process_group",
         side_effect=_record,
     ):
         ok = await registry.kill(22222, force=False)
@@ -154,7 +154,7 @@ async def test_per_session_quota_blocks_new_jobs() -> None:
         await registry.register(cast(AsyncProcessProtocol, proc), command="sleep 10", session_id="quota-s")
 
     third = _FakeProc(pid=30002, stdout=[], stderr=[])
-    from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+    from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
         BackgroundQuotaError,
     )
 
@@ -279,7 +279,7 @@ async def test_kill_escalates_to_sigkill_when_sigterm_ignored() -> None:
             proc.finish(-9)
 
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash._background_registry.kill_process_group",
+        "myrm_agent_harness.agent.meta_tools.bash._background.registry.kill_process_group",
         side_effect=_record,
     ):
         ok = await registry.kill(70000, force=False, grace_seconds=0.1)
@@ -420,7 +420,7 @@ async def test_kill_session_jobs_only_targets_owner_session() -> None:
             proc_b.finish(-sig)
 
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash._background_registry.kill_process_group",
+        "myrm_agent_harness.agent.meta_tools.bash._background.registry.kill_process_group",
         side_effect=_record,
     ):
         killed = await registry.kill_session_jobs("chat-A", grace_seconds=0.05)
@@ -477,7 +477,7 @@ async def test_kill_session_jobs_runs_concurrently() -> None:
     loop = asyncio.get_running_loop()
     start = loop.time()
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash._background_registry.kill_process_group",
+        "myrm_agent_harness.agent.meta_tools.bash._background.registry.kill_process_group",
         side_effect=_record,
     ):
         killed = await registry.kill_session_jobs("concurrent-s", grace_seconds=0.2)
@@ -516,7 +516,7 @@ async def test_shutdown_uses_process_group_kill_for_living_children() -> None:
         killed_pids.append((pid, sig))
 
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash._background_registry.kill_process_group",
+        "myrm_agent_harness.agent.meta_tools.bash._background.registry.kill_process_group",
         side_effect=_record,
     ):
         registry.shutdown()
@@ -567,7 +567,7 @@ async def test_kill_non_running_pid_is_noop_success() -> None:
 
 
 def test_get_background_registry_returns_singleton() -> None:
-    from myrm_agent_harness.agent.meta_tools.bash import _background_registry as mod
+    from myrm_agent_harness.agent.meta_tools.bash._background import registry as mod
 
     mod._registry = None
     first = mod.get_background_registry()

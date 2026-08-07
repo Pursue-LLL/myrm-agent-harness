@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._background_job_store import (
+from myrm_agent_harness.agent.meta_tools.bash._background.job_store import (
     BackgroundJobStore,
     reset_background_job_store_for_tests,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background_job_store_core import (
+from myrm_agent_harness.agent.meta_tools.bash._background.job_store_core import (
     BackgroundJobRecord,
     map_store_status_to_shell_task_status,
     reconcile_orphaned_job_ids,

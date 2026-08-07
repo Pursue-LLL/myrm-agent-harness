@@ -158,7 +158,7 @@ async def test_spawn_background_registers_process() -> None:
         patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._background_registry.get_background_registry",
+            "myrm_agent_harness.agent.meta_tools.bash._background.registry.get_background_registry",
         ) as mock_registry,
     ):
         mock_registry.return_value.register = AsyncMock(return_value=fake_info)
@@ -422,12 +422,12 @@ async def test_spawn_background_strips_fence_and_handles_quota() -> None:
         patch.object(bash_exec._skill_manager, "clear_workspace_cache") as mock_clear,
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._background_registry.get_background_registry",
+            "myrm_agent_harness.agent.meta_tools.bash._background.registry.get_background_registry",
         ) as mock_registry,
     ):
         mock_registry.return_value.register = AsyncMock(
             side_effect=__import__(
-                "myrm_agent_harness.agent.meta_tools.bash._background_registry",
+                "myrm_agent_harness.agent.meta_tools.bash._background.registry",
                 fromlist=["BackgroundQuotaError"],
             ).BackgroundQuotaError("sess-1", 1)
         )

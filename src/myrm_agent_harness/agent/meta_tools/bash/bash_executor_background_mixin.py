@@ -1,7 +1,7 @@
 """BashExecutor background process spawn.
 
 [INPUT]
-- ._background_registry::get_background_registry, BackgroundQuotaError (POS: Background job registry)
+- ._background.registry::get_background_registry, BackgroundQuotaError (POS: Background job registry)
 - .bash_execution_error::BashExecutionError (POS: Structured execution error)
 - agent.artifacts.file_id_registry::resolve_file_ids_in_text (POS: File ID resolution)
 
@@ -23,7 +23,7 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import BashEx
 from myrm_agent_harness.toolkits.code_execution import ExecutionContext
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+    from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
         BackgroundProcessInfo,
         FinishListener,
         ProgressListener,
@@ -88,7 +88,7 @@ class BashExecutorBackgroundMixin:
 
         proc = await spawn_method(context)
 
-        from myrm_agent_harness.agent.meta_tools.bash._background_registry import (
+        from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
             BackgroundQuotaError,
             get_background_registry,
         )
