@@ -50,6 +50,11 @@ def test_bash_description_is_decoupled_from_mcp_skill_sop() -> None:
     assert "tools.session_store" not in TOOL_DESCRIPTION
 
 
+def test_large_output_eviction_read_hint_documented() -> None:
+    assert "file_read_tool" in TOOL_DESCRIPTION
+    assert ".context/.../evicted/" in TOOL_DESCRIPTION
+
+
 def test_merge_rules_and_output_format_documented() -> None:
     assert "asyncio.gather" in TOOL_DESCRIPTION
     assert "[OBSERVATION]" in TOOL_DESCRIPTION
@@ -78,6 +83,8 @@ def test_myrm_tools_blocked_in_prompt() -> None:
 def test_background_contract_documented() -> None:
     assert "run_in_background=true" in TOOL_DESCRIPTION
     assert "since_cursor" in TOOL_DESCRIPTION
+    assert "waiting_for_input" in TOOL_DESCRIPTION
+    assert "input_wait_hint" in TOOL_DESCRIPTION
     assert "MYRM_PROGRESS" in TOOL_DESCRIPTION
     assert "MYRM_CHECKPOINT" in TOOL_DESCRIPTION
     assert "bash_process_tool" in TOOL_DESCRIPTION
@@ -105,6 +112,14 @@ def test_workspace_path_hint_documented() -> None:
 def test_python_c_wrapper_discouraged() -> None:
     assert "python -c" in TOOL_DESCRIPTION
     assert "python script.py" in TOOL_DESCRIPTION
+
+
+def test_capabilities_section_has_no_redundant_merge_bullet() -> None:
+    """Merge/OBSERVATION rules live under 编写原则; do not duplicate in 能力."""
+    capabilities_end = TOOL_DESCRIPTION.index("## 优先使用专用工具")
+    capabilities = TOOL_DESCRIPTION[:capabilities_end]
+    assert "组合调用能力或方法以提效" not in capabilities
+    assert capabilities.count("依赖性分析") == 0
 
 
 def test_shell_commands_include_common_ops() -> None:

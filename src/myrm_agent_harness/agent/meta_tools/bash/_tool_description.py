@@ -25,7 +25,6 @@ TOOL_DESCRIPTION = """
 3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入,框架自动识别并以文件模式执行**。
    - 预装三方库:pandas, numpy, scipy, matplotlib, seaborn;Python 标准库(json, datetime, re 等)均可用。
    - **不要**使用 `python -c "..."` / `python3 -c "..."` 包装器 — shell 转义易破坏引号与多行字符串。直接传 Python 源码作为 command 即可。
-4. **组合调用能力或方法以提效**: 根据任务依赖性分析,单次组合调用多个工具或方法以提高效率。
 
 ## 优先使用专用工具
 
@@ -75,6 +74,7 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 - 用代码控制流(while/if/try)替代多次工具调用。
 - 只输出回答用户所需数据,节省 token。
 - 大数据文件(CSV/JSON/日志)优先用 Python 分析,只输出摘要。
+- 超大输出 eviction 截断时,按返回路径用 ``file_read_tool`` 读 ``.context/.../evicted/``。
 
 ### 异步写法
 
@@ -110,7 +110,7 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 - `bash_process_tool(action='wait', pid, timeout_seconds?)` — 阻塞至进程退出或超时(默认 30s,最大 120s);超时则任务仍在运行。
 - `bash_process_tool(action='kill', pid, force?)` — `force=false` 正常终止;仍存活则 `force=true` 强制结束。
 - `bash_process_tool(action='write_stdin', pid, data=...)` — 向 stdin 写原始字节(不追加换行)。
-- `bash_process_tool(action='submit_stdin', pid, data=...)` — 向 stdin 写数据并追加 Enter(用于 y/n 等交互提示);也可由 GUI 应答。
+- `bash_process_tool(action='submit_stdin', pid, data=...)` — 向 stdin 写数据并追加 Enter;``output``/``wait`` 返回 ``waiting_for_input=true`` 时读 ``input_wait_hint`` 再应答(勿盲 poll);也可由 GUI 应答。
 - `bash_process_tool(action='close_stdin', pid)` — 向 stdin 发送 EOF,关闭交互输入。
 
 ### 零 token 进度上报
