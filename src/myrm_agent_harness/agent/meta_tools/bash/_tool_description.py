@@ -11,8 +11,8 @@ and to satisfy the file-size guideline (single file ≤ 500 lines).
 
 [POS]
 Prompt content displayed to the LLM. Defines the contract for calling
-``bash_code_execute_tool``: capabilities, accepted code shapes, output format,
-and prohibitions.
+``bash_code_execute_tool``: capabilities, merge/OBSERVATION rules, native-tool routing,
+background job stdin/eviction hints, output format, and prohibitions.
 """
 
 TOOL_DESCRIPTION = """
@@ -106,11 +106,11 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 启动 dev server / 监听器 / 长爬虫时,传 `run_in_background=true`,立即返回 `{pid, status}` 而不阻塞当前轮。后台进程按 chat session 隔离,每会话最多 5 个并发。配套工具:
 
 - `bash_process_tool(action='list')` — 列出本会话所有后台任务;含 `pid / command / status / uptime_seconds / exit_code` 等字段;若上报过进度则含 `last_progress`,便于比对哪个 worker 卡住、哪个快收尾。
-- `bash_process_tool(action='output', pid, since_cursor?, filter?)` — 拉 stdout/stderr 尾部;传上次的 ``next_cursor`` 作为 ``since_cursor`` 实现增量轮询;``filter`` 为可选行级 regex。
+- `bash_process_tool(action='output', pid, since_cursor?, filter?)` — 拉 stdout/stderr 尾部;传上次的 ``next_cursor`` 作为 ``since_cursor`` 实现增量轮询;``filter`` 为可选行级 regex;若 ``waiting_for_input=true`` 读 ``input_wait_hint`` 并用 ``submit_stdin`` 应答。
 - `bash_process_tool(action='wait', pid, timeout_seconds?)` — 阻塞至进程退出或超时(默认 30s,最大 120s);超时则任务仍在运行。
 - `bash_process_tool(action='kill', pid, force?)` — `force=false` 正常终止;仍存活则 `force=true` 强制结束。
 - `bash_process_tool(action='write_stdin', pid, data=...)` — 向 stdin 写原始字节(不追加换行)。
-- `bash_process_tool(action='submit_stdin', pid, data=...)` — 向 stdin 写数据并追加 Enter;``output``/``wait`` 返回 ``waiting_for_input=true`` 时读 ``input_wait_hint`` 再应答(勿盲 poll);也可由 GUI 应答。
+- `bash_process_tool(action='submit_stdin', pid, data=...)` — 向 stdin 写数据并追加 Enter(用于 y/n 等交互);也可由 GUI 应答。
 - `bash_process_tool(action='close_stdin', pid)` — 向 stdin 发送 EOF,关闭交互输入。
 
 ### 零 token 进度上报
