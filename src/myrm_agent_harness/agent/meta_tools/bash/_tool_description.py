@@ -25,15 +25,14 @@ TOOL_DESCRIPTION = """
 3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入,框架自动识别并以文件模式执行**。
    - 预装三方库:pandas, numpy, scipy, matplotlib, seaborn;Python 标准库(json, datetime, re 等)均可用。
    - **不要**使用 `python -c "..."` / `python3 -c "..."` 包装器 — shell 转义易破坏引号与多行字符串。直接传 Python 源码作为 command 即可。
-4. **组合执行(管道思想)**: 单次 invocation 内接多步 — ① Python 源码(gather/串行/控制流,含技能批量); ② Shell 用 `&&`/`|` 串联,或执行已有脚本(见 #2)。返回值具体才可接管道,否则先 `[OBSERVATION]` — 细则见「编写原则」。
+4. **组合执行提效(管道思想)**: 单次 invocation 内接多步 — ① Python 源码(gather/串行/控制流,含技能批量); ② Shell 用 `&&`/`|` 串联,或执行已有脚本(见 #2)。返回值具体才可接管道,否则先 `[OBSERVATION]` — 细则见「编写原则」。
 
 ## 优先使用专用工具
 
-- 读/写/编辑文件:**必须**使用 `file_read_tool` / `file_write_tool` / `file_edit_tool`,**不要**用 echo/cat/sed/awk/tee/perl 操作文件。
-- 检索代码:**必须**使用 `glob_tool` / `grep_tool`,**不要**用 bash 的 find/grep 递归扫描。
-- 浏览目录:**必须**使用 `glob_tool`（浅层用 `pattern="*"`;递归用 `pattern="**/*"` 时尽量配合 `path` 收窄范围），**不要**用 bash `ls/find`。
+- 读/写/编辑:**必须**用 `file_read_tool` / `file_write_tool` / `file_edit_tool`,**不要** echo/cat/sed/awk/tee/perl。
+- 找文件/搜内容/列目录:**必须**用 `glob_tool` / `grep_tool`,**不要** bash `find/grep/ls` 递归扫描。参数与示例见各工具描述。
 
-bash_code_execute_tool 适用于:文件移动/复制(mv/cp)、包管理、构建测试、git 操作、Python 数据处理、技能调用。
+bash_code_execute_tool 适用于:系统/运行时操作(mv/cp/rm、包管理、构建测试、git、curl)、Python/脚本/技能调用、后台长任务(见下) — 读文件/搜内容/列目录用上节专用工具。
 
 ## 编写原则
 

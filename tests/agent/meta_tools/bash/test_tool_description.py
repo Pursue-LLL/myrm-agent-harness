@@ -102,6 +102,19 @@ def test_background_contract_documented() -> None:
 def test_glob_routing_omits_nonexistent_depth_argument() -> None:
     assert "glob_tool" in TOOL_DESCRIPTION
     assert "限定 depth" not in TOOL_DESCRIPTION
+    assert 'pattern="*"' not in TOOL_DESCRIPTION
+
+
+def test_native_tool_routing_defers_usage_to_tool_descriptions() -> None:
+    assert "检索代码" not in TOOL_DESCRIPTION
+    assert "参数与示例见各工具描述" in TOOL_DESCRIPTION
+
+
+def test_bash_positive_routing_covers_runtime_ops() -> None:
+    routing = TOOL_DESCRIPTION.split("## 编写原则", maxsplit=1)[0]
+    assert "curl" in routing
+    assert "后台长任务" in routing
+    assert "读文件/搜内容/列目录用上节专用工具" in routing
 
 
 def test_preinstalled_third_party_libs_listed() -> None:
