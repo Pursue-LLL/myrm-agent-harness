@@ -118,12 +118,18 @@ def test_python_c_wrapper_discouraged() -> None:
     assert "python script.py" in TOOL_DESCRIPTION
 
 
-def test_capabilities_section_has_no_redundant_merge_bullet() -> None:
-    """Merge/OBSERVATION rules live under 编写原则; do not duplicate in 能力."""
+def test_capabilities_section_documents_combo_modes() -> None:
+    """能力段枚举组合形态; merge/OBSERVATION 判定细则只在编写原则."""
     capabilities_end = TOOL_DESCRIPTION.index("## 优先使用专用工具")
     capabilities = TOOL_DESCRIPTION[:capabilities_end]
-    assert "组合调用能力或方法以提效" not in capabilities
+    assert "组合执行" in capabilities
+    assert "技能批量调用" in capabilities
+    assert "编写原则" in capabilities
     assert capabilities.count("依赖性分析") == 0
+    assert "asyncio.gather" not in capabilities
+    assert "判定标准" not in capabilities
+    assert "组合调用能力或方法以提效" not in capabilities
+    assert "组合调用工具或方法以提效" not in capabilities
 
 
 def test_shell_commands_include_common_ops() -> None:
