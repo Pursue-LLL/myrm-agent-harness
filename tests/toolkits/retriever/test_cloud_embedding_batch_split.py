@@ -124,13 +124,14 @@ class TestEmbedBatchWithSplit:
             call_sizes.append(len(inputs))
             return _make_mock_response(len(inputs))
 
-        long_texts = ["y" * 60_000] * 5  # 5 texts x 60K = 300K chars
+        # Each text stays under the embed token window; combined chars exceed batch limit.
+        long_texts = ["word " * 1_600 for _ in range(20)]
         with patch("litellm.aembedding", side_effect=mock_aembedding):
             result = await service.embed_batch(long_texts)
 
-        assert len(result) == 5
+        assert len(result) == 20
         assert len(call_sizes) > 1  # Must split due to chars
-        assert sum(call_sizes) == 5
+        assert sum(call_sizes) == 20
 
     @pytest.mark.asyncio()
     async def test_empty_batch(self, service: CloudEmbedding) -> None:

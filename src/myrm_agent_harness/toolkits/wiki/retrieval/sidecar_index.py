@@ -27,10 +27,10 @@ import uuid
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
-from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
 from ..core.config import WikiConfig
 from .tokenizer import tokenize_for_fts
+from .vector_chunks import delete_text_vectors, upsert_text_vectors
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
@@ -121,22 +121,20 @@ class SidecarIndexMixin:
 
         if self._config.enable_hybrid_search and self._vector and self._embedding:
             await self._ensure_collection()
-            try:
-                vec = await self._embedding.embed(payload)
-                doc = VectorDocument(
-                    id=self._concept_to_uuid(entry_id),
-                    content=payload,
-                    vector=vec,
-                    metadata={
-                        "concept_name": entry_id,
-                        "entry_type": "sidecar",
-                        "level": _SIDECAR_LEVEL_LABEL[level],
-                        "dir_path": normalized_dir,
-                    },
-                )
-                await self._vector.upsert(self._collection_name, [doc])
-            except Exception as e:
-                logger.error("Failed to upsert sidecar vector for '%s': %s", entry_id, e)
+            await upsert_text_vectors(
+                embedding=self._embedding,
+                vector=self._vector,
+                collection_name=self._collection_name,
+                parent_key=entry_id,
+                text=payload,
+                base_metadata={
+                    "concept_name": entry_id,
+                    "entry_type": "sidecar",
+                    "level": _SIDECAR_LEVEL_LABEL[level],
+                    "dir_path": normalized_dir,
+                },
+                metadata_key="concept_name",
+            )
 
     async def delete_sidecar(self, dir_path: str, *, level: int) -> None:
         """Delete one directory sidecar entry from FTS + vector index."""
@@ -149,9 +147,11 @@ class SidecarIndexMixin:
         await asyncio.to_thread(sync_delete)
         if self._config.enable_hybrid_search and self._vector:
             with contextlib.suppress(Exception):
-                await self._vector.delete(
+                await delete_text_vectors(
+                    self._vector,
                     self._collection_name,
-                    [self._concept_to_uuid(entry_id)],
+                    entry_id,
+                    metadata_key="concept_name",
                 )
 
     async def delete_all_sidecars(self) -> None:

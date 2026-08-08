@@ -233,12 +233,19 @@ class TextChunker:
 
         return self._splitter_cache[cache_key]
 
-    def chunk_text(self, text: str, document_metadata: dict | None = None) -> list[Document]:
+    def chunk_text(
+        self,
+        text: str,
+        document_metadata: dict | None = None,
+        *,
+        max_chunk_tokens: int | None = None,
+    ) -> list[Document]:
         """Chunk text into semantically complete paragraphs (Markdown format).
 
         Args:
             text: Text content
             document_metadata: Document metadata
+            max_chunk_tokens: When set, force this embed budget instead of adaptive sizing
 
         Returns:
             Chunked document list
@@ -246,8 +253,11 @@ class TextChunker:
         if not text or not isinstance(text, str):
             return []
 
-        # Compute chunk size and overlap (by language, doc length, content type)
-        chunk_size_tokens, chunk_overlap_tokens = get_adaptive_chunk_params(text)
+        if max_chunk_tokens is not None:
+            chunk_size_tokens = max(32, max_chunk_tokens)
+            chunk_overlap_tokens = max(1, int(chunk_size_tokens * 0.1))
+        else:
+            chunk_size_tokens, chunk_overlap_tokens = get_adaptive_chunk_params(text)
 
         language = detect_language(text)
         total_tokens = get_token_count(text)

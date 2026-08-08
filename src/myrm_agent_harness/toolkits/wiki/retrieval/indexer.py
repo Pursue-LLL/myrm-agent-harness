@@ -30,8 +30,8 @@ import sqlite3
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
 from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
-from myrm_agent_harness.toolkits.vector.base import VectorDocument
 from myrm_agent_harness.utils.db.fts5 import fts5_auto_heal, fts5_integrity_check, fts5_rebuild
 
 from ..core.config import WikiConfig
@@ -40,6 +40,11 @@ from ..core.structure import WikiStructure
 from .graph_store import WikiGraphStore
 from .sidecar_index import _SIDECAR_PREFIX, SidecarIndexMixin
 from .tokenizer import tokenize_for_fts
+from .vector_chunks import (
+    collapse_vector_hits,
+    delete_text_vectors,
+    upsert_text_vectors,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
@@ -305,23 +310,20 @@ class WikiIndexer(SidecarIndexMixin):
             and self._embedding
         ):
             await self._ensure_collection()
-            try:
-                vec = await self._embedding.embed(truth_content)
-                doc_id = self._concept_to_uuid(concept_name)
-                doc = VectorDocument(
-                    id=doc_id,
-                    content=truth_content,
-                    vector=vec,
-                    metadata={
-                        "concept_name": concept_name,
-                        "entry_type": "concept",
-                        "level": "L2",
-                        "dir_path": self._concept_dir_path(concept_name),
-                    },
-                )
-                await self._vector.upsert(self._collection_name, [doc])
-            except Exception as e:
-                logger.error(f"Failed to upsert vector for wiki concept '{concept_name}': {e}")
+            await upsert_text_vectors(
+                embedding=self._embedding,
+                vector=self._vector,
+                collection_name=self._collection_name,
+                parent_key=concept_name,
+                text=truth_content,
+                base_metadata={
+                    "concept_name": concept_name,
+                    "entry_type": "concept",
+                    "level": "L2",
+                    "dir_path": self._concept_dir_path(concept_name),
+                },
+                metadata_key="concept_name",
+            )
 
     async def delete(self, concept_name: str) -> None:
         """
@@ -339,15 +341,13 @@ class WikiIndexer(SidecarIndexMixin):
 
         # 2. Delete from Vector Store (Async)
         if self._config.enable_hybrid_search and self._vector:
-            doc_id = self._concept_to_uuid(concept_name)
             try:
-                # Assuming VectorStoreProtocol has a delete method.
-                # If not, some implement delete by providing empty vectors or it might crash.
-                # We should check if _vector has delete.
-                if hasattr(self._vector, "delete"):
-                    await self._vector.delete(self._collection_name, [doc_id])
-                else:
-                    logger.warning("Vector store does not support deletion.")
+                await delete_text_vectors(
+                    self._vector,
+                    self._collection_name,
+                    concept_name,
+                    metadata_key="concept_name",
+                )
             except Exception as e:
                 logger.error(f"Failed to delete vector for wiki concept '{concept_name}': {e}")
 
@@ -446,8 +446,12 @@ class WikiIndexer(SidecarIndexMixin):
                     if self._is_sidecar_entry(candidate):
                         continue
                     vec_results.append((candidate, res.score))
+            except EmbedInputTooLargeError:
+                raise
             except Exception as e:
                 logger.error(f"Wiki vector search failed: {e}")
+
+        vec_results = collapse_vector_hits(vec_results)
 
         if vec_results:
 

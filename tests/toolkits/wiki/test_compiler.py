@@ -90,3 +90,37 @@ async def test_wiki_compiler_require_approval(wiki_structure, mock_llm, mock_ind
     assert len(edits) == 1
     assert edits[0]["concept_name"] == "Test Concept"
     assert parse_claims_from_content(edits[0]["proposed_content"])
+
+
+@pytest.mark.asyncio
+async def test_generate_articles_batch_records_embed_pause(wiki_structure, mock_llm, mock_indexer):
+    from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
+    from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
+    from myrm_agent_harness.toolkits.wiki.pipeline.resilience import EMBED_WINDOW_VIOLATION
+
+    compiler = WikiCompiler(
+        mock_llm,
+        wiki_structure,
+        WikiConfig(),
+        WikiCompileConfig(require_approval=False, min_concept_mentions=1),
+        indexer=mock_indexer,
+    )
+
+    async def _raise_embed(concept: ConceptInfo) -> str:
+        raise EmbedInputTooLargeError(
+            token_count=900,
+            limit=512,
+            model="test-embed",
+            parent_key=concept.name,
+        )
+
+    compiler._generate_article = _raise_embed  # type: ignore[method-assign]
+
+    concepts = [
+        ConceptInfo(name="Big Doc", definition="large compiled truth", mentions=1, source_files=["a.md"])
+    ]
+    stats = await compiler._generate_articles_batch(concepts)
+
+    assert stats.embed_pause_kind == EMBED_WINDOW_VIOLATION
+    assert "900" in stats.embed_pause_reason
+    assert stats.blocked == 1

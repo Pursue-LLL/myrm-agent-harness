@@ -34,6 +34,11 @@ from tenacity import (
 )
 
 from myrm_agent_harness.toolkits.retriever.embedding.base import EmbeddingService
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
+    EmbedInputTooLargeError,
+    EmbedWindowPolicy,
+)
+from myrm_agent_harness.utils.text_utils import get_token_count
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.cache import EmbeddingCacheProtocol
@@ -147,6 +152,21 @@ class CloudEmbedding(EmbeddingService):
             )
         return self._dimension
 
+    @property
+    def input_token_limit(self) -> int:
+        return EmbedWindowPolicy.for_model(self._model).max_input_tokens
+
+    def _validate_input_sizes(self, texts: list[str]) -> None:
+        limit = self.input_token_limit
+        for text in texts:
+            token_count = get_token_count(text)
+            if token_count > limit:
+                raise EmbedInputTooLargeError(
+                    token_count=token_count,
+                    limit=limit,
+                    model=self._model,
+                )
+
     async def embed(self, text: str) -> list[float]:
         """Embed a single text with cache lookup and transient-error retry."""
         if self._cache is not None:
@@ -218,6 +238,8 @@ class CloudEmbedding(EmbeddingService):
         """
         if not texts:
             return []
+
+        self._validate_input_sizes(texts)
 
         batches = self._split_into_batches(texts)
         if len(batches) == 1:

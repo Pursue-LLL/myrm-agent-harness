@@ -39,6 +39,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -55,6 +56,7 @@ from .queue import WikiIngestionQueue
 from .resilience import (
     CompileRunSnapshot,
     evaluate_batch_pause,
+    resolve_embed_failure,
     resolve_io_failure,
     resolve_llm_failure,
 )
@@ -70,6 +72,8 @@ class _ArticleBatchStats:
     pending: int
     published: int
     blocked: int
+    embed_pause_reason: str = ""
+    embed_pause_kind: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,6 +349,9 @@ class WikiCompiler:
                 if all_concepts:
                     self._queue.set_compile_phase("postprocess")
                     articles = await self._generate_articles_batch(all_concepts)
+                    self._maybe_pause_for_embed_failure(articles)
+                    if articles.embed_pause_kind:
+                        continue
                     synthesis_result = await run_contradiction_synthesis_pass(
                         self._llm,
                         self._structure,
@@ -462,6 +469,7 @@ class WikiCompiler:
 
         # Step 2: Generate articles for each concept
         batch_stats = await self._generate_articles_batch(all_concepts)
+        self._maybe_pause_for_embed_failure(batch_stats)
         logger.info(
             "Generated %s articles (published=%s pending=%s blocked=%s)",
             batch_stats.generated,
@@ -469,6 +477,18 @@ class WikiCompiler:
             batch_stats.pending,
             batch_stats.blocked,
         )
+
+        if batch_stats.embed_pause_kind:
+            return CompileResult(
+                concepts_count=len(all_concepts),
+                articles_generated=batch_stats.generated,
+                backlinks_created=0,
+                duration_ms=0,
+                articles_pending=batch_stats.pending,
+                articles_published=batch_stats.published,
+                articles_blocked=batch_stats.blocked,
+                synthesis_pending=0,
+            )
 
         synthesis_result = await run_contradiction_synthesis_pass(
             self._llm,
@@ -692,12 +712,23 @@ class WikiCompiler:
         ]
         logger.info(f"Generating articles for {len(filtered)} concepts")
 
+        embed_pause: list[tuple[str, str]] = []
+
         async def _gen_one(concept: ConceptInfo) -> str:
             try:
                 if self._semaphore:
                     async with self._semaphore:
                         return await self._generate_article(concept)
                 return await self._generate_article(concept)
+            except EmbedInputTooLargeError as exc:
+                if not embed_pause:
+                    embed_pause.append(resolve_embed_failure(exc))
+                logger.error(
+                    "Embedding window violation while publishing wiki concept '%s': %s",
+                    concept.name,
+                    exc,
+                )
+                return "blocked"
             except Exception as e:
                 logger.error(f"Failed to generate article for {concept.name}: {e}")
                 return "blocked"
@@ -725,11 +756,15 @@ class WikiCompiler:
                 blocked += 1
 
         generated = pending + published
+        pause_reason = embed_pause[0][0] if embed_pause else ""
+        pause_kind = embed_pause[0][1] if embed_pause else ""
         return _ArticleBatchStats(
             generated=generated,
             pending=pending,
             published=published,
             blocked=blocked,
+            embed_pause_reason=pause_reason,
+            embed_pause_kind=pause_kind,
         )
 
     async def _generate_article(self, concept: ConceptInfo) -> str:
@@ -847,6 +882,12 @@ class WikiCompiler:
             details={"concepts_extracted": len(concepts)},
         )
         self._cognitive_map_service().refresh(event)
+
+    def _maybe_pause_for_embed_failure(self, stats: _ArticleBatchStats) -> None:
+        if not stats.embed_pause_kind:
+            return
+        self._queue.pause_compile(stats.embed_pause_reason, stats.embed_pause_kind)
+        logger.warning("Compile worker paused: %s", stats.embed_pause_reason)
 
     async def _generate_backlinks(self, concepts: list[ConceptInfo]) -> int:
         """Delegate to postprocess.generate_backlinks."""

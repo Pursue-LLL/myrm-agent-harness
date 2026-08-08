@@ -33,12 +33,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
-from myrm_agent_harness.toolkits.vector.base import VectorDocument
 from myrm_agent_harness.utils.db.fts5 import fts5_auto_heal, fts5_integrity_check, fts5_rebuild
 
 from ..core.config import WikiConfig
 from ..core.structure import WikiStructure
 from .tokenizer import tokenize_for_fts
+from .vector_chunks import delete_text_vectors, upsert_text_vectors
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
@@ -288,21 +288,19 @@ class WikiAssetIndexer:
 
         if self._config.enable_hybrid_search and self._vector and self._embedding:
             await self._ensure_collection()
-            try:
-                vec = await self._embedding.embed(caption)
-                doc = VectorDocument(
-                    id=self._asset_to_uuid(filename),
-                    content=caption,
-                    vector=vec,
-                    metadata={
-                        "filename": filename,
-                        "entry_type": "asset",
-                        "source_concepts": source_concepts,
-                    },
-                )
-                await self._vector.upsert(_COLLECTION_NAME, [doc])
-            except Exception as exc:
-                logger.error("Failed to upsert vector for wiki asset '%s': %s", filename, exc)
+            await upsert_text_vectors(
+                embedding=self._embedding,
+                vector=self._vector,
+                collection_name=_COLLECTION_NAME,
+                parent_key=filename,
+                text=caption,
+                base_metadata={
+                    "filename": filename,
+                    "entry_type": "asset",
+                    "source_concepts": source_concepts,
+                },
+                metadata_key="filename",
+            )
 
     async def index_all(self) -> AssetIndexResult:
         if not self._config.enable_asset_index or self._caption_provider is None:

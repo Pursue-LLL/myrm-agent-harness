@@ -6,9 +6,10 @@ toolkits.llms.errors.classifier::classify_error, ErrorKind (POS: LLM error taxon
 .types::FailureResolution (POS: compile failure policy result)
 
 [OUTPUT]
-resolve_io_failure, resolve_llm_failure: map failures to queue retry/pause policy
+resolve_io_failure, resolve_llm_failure, resolve_embed_failure: map failures to queue retry/pause policy
 evaluate_batch_pause: batch-level compile circuit pause decision
 is_transient_error_kind: transient retry eligibility filter
+EMBED_WINDOW_VIOLATION: embed input window error kind for compile circuit + UI
 
 [POS]
 Wiki compile failure policy. Classifies IO/LLM failures and decides retry backoff vs circuit pause.
@@ -17,11 +18,13 @@ Wiki compile failure policy. Classifies IO/LLM failures and decides retry backof
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind, classify_error
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
 
 from .sanitize import sanitize_display_message
 from .types import FailureResolution
 
 IO_MISSING = "io_missing"
+EMBED_WINDOW_VIOLATION = "embed_window_violation"
 
 _TRANSIENT_KINDS: frozenset[str] = frozenset(
     {
@@ -34,6 +37,7 @@ _PAUSE_KINDS: frozenset[str] = frozenset(
     {
         ErrorKind.AUTH.value,
         ErrorKind.BILLING.value,
+        EMBED_WINDOW_VIOLATION,
     }
 )
 _NON_RETRY_KINDS: frozenset[str] = frozenset(
@@ -46,6 +50,7 @@ _NON_RETRY_KINDS: frozenset[str] = frozenset(
         ErrorKind.RESPONSE_FORMAT_ERROR.value,
         ErrorKind.MODEL_NOT_FOUND.value,
         IO_MISSING,
+        EMBED_WINDOW_VIOLATION,
     }
 )
 
@@ -64,6 +69,17 @@ def resolve_io_failure(message: str) -> FailureResolution:
         retryable=False,
         counts_toward_pause=False,
     )
+
+
+def resolve_embed_failure(exc: EmbedInputTooLargeError) -> tuple[str, str]:
+    """Map an embed window violation to compile pause reason and error kind."""
+    model_label = exc.model or "embedding model"
+    scope = f" for '{exc.parent_key}'" if exc.parent_key else ""
+    reason = sanitize_display_message(
+        f"Embedding input {exc.token_count} tokens exceeds {model_label} limit "
+        f"{exc.limit}{scope}. Switch to a larger-window embedding model, then resume."
+    )
+    return reason, EMBED_WINDOW_VIOLATION
 
 
 def resolve_llm_failure(exc: Exception) -> FailureResolution:

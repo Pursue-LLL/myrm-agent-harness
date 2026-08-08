@@ -19,6 +19,8 @@ and sidecar-first hierarchical retrieval (L0/L1 route + L2 article grounding).
 | query.py | Core | Query engine: hot + recent log prefix, index-first seeds → sidecar scope → FTS rerank → best-first graph converge; derived `confidence_score`; `retrieval_trace` metadata; SourceSnippet incl. claims + raw evidence excerpt + `claim_text` + `claim_confidence` + snapshot_status + evidence SHA + asset hits | ✅ |
 | source_citations.py | Core | Shared LLM-Wiki citation SSOT; `snippet` (raw excerpt) + `claim_text` + `resource_uri` + `superseded_from_uri` for claim snippets with `evidence_path`; optional `structure` for live digest when pin missing | ✅ |
 | asset_index.py | Core | Wiki asset caption indexer: FTS5 + Qdrant `wiki_assets`, SHA256 skip, provenance scan, orphan purge | ✅ |
+| vector_chunks.py | Core | Embed-window-aware multi-chunk vector upsert/delete + search hit collapse (shared by indexer/sidecar/asset) | ✅ |
+| reindex_vectors.py | Core | Rebuild published concept vectors after embedding model or chunk policy changes | ✅ |
 
 ## Key Dependencies
 

@@ -25,6 +25,10 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import resolve_embed_window_policy
+from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import split_for_embedding
+from myrm_agent_harness.utils.text_utils import get_token_count
+
 from myrm_agent_harness.toolkits.memory._internal.storage_context import (
     WORKING_STATE_PROFILE_KEY,
     WORKING_STATE_TTL_DAYS,
@@ -144,14 +148,29 @@ class MemoryNotFoundError(MemoryError):
 # ======================================================================
 
 
+def _fit_text_for_embedding(text: str, embedding: EmbeddingProtocol) -> str:
+    policy = resolve_embed_window_policy(embedding)
+    chunks = split_for_embedding(text, policy)
+    if not chunks:
+        return text
+    if len(chunks) > 1:
+        logger.warning(
+            "Memory embed input truncated to first chunk (%d -> %d tokens)",
+            get_token_count(text),
+            get_token_count(chunks[0]),
+        )
+    return chunks[0]
+
+
 async def embed_single(text: str, embedding: EmbeddingProtocol, cache: EmbeddingCacheProtocol | None) -> list[float]:
+    safe_text = _fit_text_for_embedding(text, embedding)
     if cache is not None:
-        cached = await cache.get(text)
+        cached = await cache.get(safe_text)
         if cached is not None:
             return cached
-    vec = await embedding.embed(text)
+    vec = await embedding.embed(safe_text)
     if cache is not None:
-        await cache.put(text, vec)
+        await cache.put(safe_text, vec)
     return vec
 
 
@@ -160,15 +179,16 @@ async def embed_batch(
 ) -> list[list[float]]:
     if not texts:
         return []
+    safe_texts = [_fit_text_for_embedding(text, embedding) for text in texts]
     if cache is None:
-        return await embedding.embed_batch(texts)
+        return await embedding.embed_batch(safe_texts)
 
-    cached = await cache.get_batch(texts)
+    cached = await cache.get_batch(safe_texts)
     miss_indices = [i for i, v in enumerate(cached) if v is None]
     if not miss_indices:
         return [v for v in cached if v is not None]
 
-    miss_texts = [texts[i] for i in miss_indices]
+    miss_texts = [safe_texts[i] for i in miss_indices]
     new_vecs = await embedding.embed_batch(miss_texts)
     await cache.put_batch(miss_texts, new_vecs)
 
