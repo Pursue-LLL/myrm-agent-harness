@@ -35,12 +35,12 @@ async def test_memory_guard_cached_failure_fast_path() -> None:
 
         guard = MemoryGuard(config)
 
-        with pytest.raises(MemoryError, match="Memory usage 80.0% exceeds threshold 50.0%"):
+        with pytest.raises(MemoryError, match=r"Memory usage 80\.0% exceeds threshold 50\.0%"):
             await guard.check_memory()
 
         call_count_before = mock_psutil.virtual_memory.call_count
 
-        with pytest.raises(MemoryError, match="Memory usage 80.0% exceeds threshold 50.0%"):
+        with pytest.raises(MemoryError, match=r"Memory usage 80\.0% exceeds threshold 50\.0%"):
             await guard.check_memory()
 
         assert mock_psutil.virtual_memory.call_count == call_count_before

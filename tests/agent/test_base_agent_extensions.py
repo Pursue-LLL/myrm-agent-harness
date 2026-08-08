@@ -162,13 +162,13 @@ class TestRegisterExtension:
     def test_name_conflict_raises(self):
         agent = _make_bare_agent()
         agent.register_extension(StubExtension("dup"))
-        with pytest.raises(ValueError, match="Extension name conflict.*dup"):
+        with pytest.raises(ValueError, match=r"Extension name conflict.*dup"):
             agent.register_extension(StubExtension("dup"))
 
     def test_register_after_init_raises(self):
         agent = _make_bare_agent()
         agent._agent = MagicMock()
-        with pytest.raises(ValueError, match="Cannot register extension.*after agent initialization"):
+        with pytest.raises(ValueError, match=r"Cannot register extension.*after agent initialization"):
             agent.register_extension(StubExtension("late"))
 
     def test_register_preserves_order(self):

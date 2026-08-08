@@ -411,5 +411,5 @@ async def test_file_read_not_found_raises_tool_error(tmp_path) -> None:
     ), patch(
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.format_path_not_found_hint",
         return_value="Try another path",
-    ), pytest.raises(ToolError, match="missing.md"):
+    ), pytest.raises(ToolError, match=r"missing\.md"):
         await tool.ainvoke({"paths": [rel]}, config=_DUMMY_CONFIG)

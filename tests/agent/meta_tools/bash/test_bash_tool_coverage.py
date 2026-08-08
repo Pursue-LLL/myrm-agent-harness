@@ -274,7 +274,7 @@ async def test_bash_tool_interactive_command_allowed_in_background() -> None:
 @pytest.mark.asyncio
 async def test_bash_tool_interactive_command_blocked_in_foreground() -> None:
     tool = create_bash_code_execute_tool()
-    with pytest.raises(Exception, match="interactive|template|option"):
+    with pytest.raises(Exception, match=r"interactive|template|option"):
         await tool.ainvoke(
             {
                 "command": "npx create-next-app my-app",

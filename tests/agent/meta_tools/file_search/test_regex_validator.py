@@ -71,27 +71,27 @@ class TestPatternLength:
 
 class TestDangerousPatterns:
     def test_nested_plus_plus(self, validator: RegexValidator) -> None:
-        with pytest.raises(ToolError, match="[Dd]angerous|[Nn]ested"):
+        with pytest.raises(ToolError, match=r"[Dd]angerous|[Nn]ested"):
             validator.validate_and_compile("(a+)+")
 
     def test_nested_star_star(self, validator: RegexValidator) -> None:
-        with pytest.raises(ToolError, match="[Dd]angerous|[Nn]ested"):
+        with pytest.raises(ToolError, match=r"[Dd]angerous|[Nn]ested"):
             validator.validate_and_compile("(a*)*")
 
     def test_nested_plus_star(self, validator: RegexValidator) -> None:
-        with pytest.raises(ToolError, match="[Dd]angerous|[Nn]ested"):
+        with pytest.raises(ToolError, match=r"[Dd]angerous|[Nn]ested"):
             validator.validate_and_compile("(a+)*")
 
     def test_nested_star_plus(self, validator: RegexValidator) -> None:
-        with pytest.raises(ToolError, match="[Dd]angerous|[Nn]ested"):
+        with pytest.raises(ToolError, match=r"[Dd]angerous|[Nn]ested"):
             validator.validate_and_compile("(a*)+")
 
     def test_dot_plus_nested(self, validator: RegexValidator) -> None:
-        with pytest.raises(ToolError, match="[Dd]angerous|[Nn]ested"):
+        with pytest.raises(ToolError, match=r"[Dd]angerous|[Nn]ested"):
             validator.validate_and_compile("(.+)+")
 
     def test_dot_star_nested(self, validator: RegexValidator) -> None:
-        with pytest.raises(ToolError, match="[Dd]angerous|[Nn]ested"):
+        with pytest.raises(ToolError, match=r"[Dd]angerous|[Nn]ested"):
             validator.validate_and_compile("(.*)*")
 
     def test_safe_pattern_accepted(self, validator: RegexValidator) -> None:
@@ -147,7 +147,7 @@ class TestCompilation:
         assert result.search("line1\ntest line2") is not None
 
     def test_invalid_regex_rejected(self, validator: RegexValidator) -> None:
-        with pytest.raises(ToolError, match="[Ii]nvalid regex"):
+        with pytest.raises(ToolError, match=r"[Ii]nvalid regex"):
             validator.validate_and_compile("[unclosed")
 
     def test_empty_pattern_accepted(self, validator: RegexValidator) -> None:

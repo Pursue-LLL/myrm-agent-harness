@@ -358,7 +358,7 @@ contract:
 ---
 # Content
 """
-        with pytest.raises(SkillMetadataError, match="contract.verification_steps"):
+        with pytest.raises(SkillMetadataError, match=r"contract\.verification_steps"):
             parse_skill_frontmatter(content, "test")
 
     def test_invalid_yaml_raises(self) -> None:

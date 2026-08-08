@@ -71,5 +71,5 @@ def test_validate_upload_dir_rejects_release_wheel_with_manifest_py(tmp_path: Pa
             tmp_path,
             f"myrm_agent_harness_core_{token}-{version}-cp313-cp313-{platform_key}.whl",
         )
-    with pytest.raises(SystemExit, match="Manifest .py source must not ship"):
+    with pytest.raises(SystemExit, match=r"Manifest \.py source must not ship"):
         validate_upload_dir(tmp_path, version)

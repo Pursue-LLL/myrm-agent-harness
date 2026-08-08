@@ -285,10 +285,10 @@ async def test_youtube_timeout_triggers_fallback() -> None:
             )
             # TimeoutError from extract → engine should handle gracefully
             # The crawl may return None or fallback depending on exception handling
-            try:
+            try:  # noqa: SIM105  # deliberate: assert engine did not hang
                 await engine.crawl(youtube_url)
             except TimeoutError:
-                pass  # deliberate: assert engine did not hang
+                pass
 
         await engine.shutdown()
 

@@ -44,7 +44,7 @@ class TestNetworkShieldIntegration:
             assert headers == {"Host": "api.github.com"}
 
             # Unauthorized domain should be blocked
-            with pytest.raises(SSRFSecurityError, match="Access to evil.com is blocked"):
+            with pytest.raises(SSRFSecurityError, match=r"Access to evil\.com is blocked"):
                 await async_pin_url("https://evil.com/steal")
 
     @pytest.mark.asyncio

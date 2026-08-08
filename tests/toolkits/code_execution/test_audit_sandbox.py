@@ -63,7 +63,7 @@ def test_network_isolation_allowed_hosts(tmp_path):
     hook("socket.connect", (("api.github.com", 443),))
 
     # Blocked host
-    with pytest.raises(SecurityError, match="Network access to 'evil.com' is blocked"):
+    with pytest.raises(SecurityError, match=r"Network access to 'evil\.com' is blocked"):
         hook("socket.connect", (("evil.com", 80),))
 
 
@@ -86,7 +86,7 @@ def test_file_isolation_writes_blocked_outside_workspace(audit_hook):
     with pytest.raises(SecurityError, match="Write operation outside allowed workspace blocked"):
         hook("open", (outside_path, "w", 0))
 
-    with pytest.raises(SecurityError, match="Destructive file operation \\(os.remove\\) outside allowed workspace blocked"):
+    with pytest.raises(SecurityError, match=r"Destructive file operation \(os\.remove\) outside allowed workspace blocked"):
         hook("os.remove", (outside_path, None))
 
 
@@ -111,5 +111,5 @@ def test_file_isolation_rename_blocked_outside_workspace(audit_hook):
     allowed_src = os.path.join(workspace, "test.txt")
     outside_dst = "/etc/hosts"
 
-    with pytest.raises(SecurityError, match="Destructive file operation \\(os.rename\\) outside allowed workspace blocked"):
+    with pytest.raises(SecurityError, match=r"Destructive file operation \(os\.rename\) outside allowed workspace blocked"):
         hook("os.rename", (allowed_src, outside_dst, None, None))

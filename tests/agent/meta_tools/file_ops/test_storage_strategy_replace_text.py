@@ -32,7 +32,7 @@ async def test_replace_text_maps_batch_error_with_path() -> None:
     storage.put_text = AsyncMock()
 
     strategy = StorageBackendStrategy(storage)
-    with pytest.raises(ValueError, match="Text not found in file: f.txt"):
+    with pytest.raises(ValueError, match=r"Text not found in file: f\.txt"):
         await strategy.replace_text("f.txt", "missing", "x")
 
 

@@ -72,7 +72,7 @@ def test_release_wheel_artifact_rejects_manifest_py(tmp_path: Path) -> None:
     assert violations
     assert "Manifest .py source must not ship" in violations[0]
 
-    with pytest.raises(DistributionWheelArtifactError, match="Manifest .py source must not ship"):
+    with pytest.raises(DistributionWheelArtifactError, match=r"Manifest \.py source must not ship"):
         verify_distribution_wheel_artifact(wheel_path, role=DistributionWheelRole.RELEASE)
 
 

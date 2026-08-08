@@ -194,6 +194,7 @@ def test_execution_summary_immutable():
         turns_used=0,
     )
     import pytest
+    from dataclasses import FrozenInstanceError
 
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         summary.turns_used = 5  # type: ignore[misc]

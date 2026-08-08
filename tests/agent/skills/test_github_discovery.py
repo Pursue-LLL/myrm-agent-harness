@@ -149,7 +149,7 @@ def test_parse_github_url_short():
     assert ref.subdirectory == "subdir"
 
 def test_parse_github_url_invalid_host():
-    with pytest.raises(ValueError, match="Only github.com URLs are supported"):
+    with pytest.raises(ValueError, match=r"Only github\.com URLs are supported"):
         parse_github_url("https://gitlab.com/owner/repo")
 
 def test_parse_github_url_invalid_format():

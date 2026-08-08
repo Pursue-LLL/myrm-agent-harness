@@ -121,7 +121,7 @@ class TestURLAllowlistGuard:
     @pytest.mark.asyncio
     async def test_allowlist_guard_blocks_unauthorized_domain(self):
         with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(["api.github.com"]):
-            with pytest.raises(SSRFSecurityError, match="Access to evil.com is blocked"):
+            with pytest.raises(SSRFSecurityError, match=r"Access to evil\.com is blocked"):
                 await async_pin_url("https://evil.com/log")
 
     def test_check_url_blocks_dlp_violation(self):

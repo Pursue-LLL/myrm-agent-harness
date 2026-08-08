@@ -211,5 +211,5 @@ class TestErrorMessageQuality:
                 f.write("{}")
 
             validator = ConfigProtectionValidator()
-            with pytest.raises(PermissionError, match="biome.json"):
+            with pytest.raises(PermissionError, match=r"biome\.json"):
                 await validator._do_validate(_make_context(OperationType.STR_REPLACE), config_path)

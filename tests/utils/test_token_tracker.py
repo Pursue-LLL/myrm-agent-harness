@@ -347,7 +347,7 @@ class TestLiteLLMCallback:
 
     def test_getattr_unknown_raises(self) -> None:
         with pytest.raises(AttributeError, match=r"has no attribute 'MissingAttr'"):
-            tt.MissingAttr
+            _ = tt.MissingAttr
 
     def test_log_success_event_non_streaming_dict_usage(self, litellm_stub: types.ModuleType) -> None:
         tt.init_token_tracker()

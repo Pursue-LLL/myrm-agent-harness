@@ -45,7 +45,7 @@ def test_cleanup_config_invalid_file_access() -> None:
 
 def test_cleanup_config_inconsistent_thresholds() -> None:
     """Test inconsistent threshold values raise ValueError."""
-    with pytest.raises(ValueError, match="session_active_days.*should be >=.*file_access_days"):
+    with pytest.raises(ValueError, match=r"session_active_days.*should be >=.*file_access_days"):
         ContextCleanupConfig(
             session_active_days=10,
             file_access_days=20,
@@ -54,7 +54,7 @@ def test_cleanup_config_inconsistent_thresholds() -> None:
 
 def test_cleanup_config_inconsistent_fallback() -> None:
     """Test inconsistent fallback threshold raises ValueError."""
-    with pytest.raises(ValueError, match="file_access_days.*should be >=.*max_age_days"):
+    with pytest.raises(ValueError, match=r"file_access_days.*should be >=.*max_age_days"):
         ContextCleanupConfig(
             max_age_days=20,
             file_access_days=10,

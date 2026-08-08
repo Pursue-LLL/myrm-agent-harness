@@ -112,7 +112,7 @@ _WAIT_PATCH, new_callable=AsyncMock):
 @pytest.mark.asyncio
 async def test_interact_at_press_no_text_raises(interactor: Interactor) -> None:
     """Press without key combo should raise ValueError."""
-    with pytest.raises(ValueError, match="'text'.*required"):
+    with pytest.raises(ValueError, match=r"'text'.*required"):
         await interactor.interact_at("press", 400, 300, text="")
 
 
@@ -165,7 +165,7 @@ async def test_interact_at_scroll_invalid_delta(interactor: Interactor) -> None:
 @pytest.mark.asyncio
 async def test_interact_at_scroll_no_text_raises(interactor: Interactor) -> None:
     """Scroll without delta should raise ValueError."""
-    with pytest.raises(ValueError, match="'text'.*required"):
+    with pytest.raises(ValueError, match=r"'text'.*required"):
         await interactor.interact_at("scroll", 640, 360, text="")
 
 

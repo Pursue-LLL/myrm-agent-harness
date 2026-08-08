@@ -421,11 +421,11 @@ async def test_error_interact_with_disabled_element(browser_session: BrowserSess
     await asyncio.sleep(0.3)
 
     # Try to click disabled button
-    try:
+    try:  # noqa: SIM105  # deliberate: assert no hang and no re-raise
         await page.click("#btn", timeout=2000)
     except Exception:
         # Expected to fail or do nothing
-        pass  # deliberate: assert no hang and no re-raise
+        pass
 
     # Session should still be usable
     text = await browser_session.extract_text()

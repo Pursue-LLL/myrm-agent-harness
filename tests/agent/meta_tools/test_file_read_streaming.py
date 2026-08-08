@@ -176,7 +176,7 @@ async def test_read_file_smart_gb_rejection():
 
     try:
         # 验证：应抛出FileTooLargeError
-        with pytest.raises(FileTooLargeError, match="exceeds.*GB limit"):
+        with pytest.raises(FileTooLargeError, match=r"exceeds.*GB limit"):
             await read_file_smart(temp_path)
 
     finally:
