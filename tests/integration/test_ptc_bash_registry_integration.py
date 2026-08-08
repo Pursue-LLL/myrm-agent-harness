@@ -36,7 +36,7 @@ def test_bash_tool_description_is_static_without_registry_append() -> None:
     description = bash_tool.description
 
     assert "tools.session_store" not in TOOL_DESCRIPTION
-    assert "import myrm_tools" in TOOL_DESCRIPTION
+    assert "myrm_tools" not in TOOL_DESCRIPTION
     assert "myrm_tools.web_search_tool" not in description
     assert get_builtin_tool_registry().get_ptc_description() not in description
 
