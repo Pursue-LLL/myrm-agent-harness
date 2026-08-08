@@ -72,8 +72,7 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 ### 优化策略
 
 - 用代码控制流(while/if/try)替代多次工具调用。
-- 只输出回答用户所需数据,节省 token。
-- 大数据文件(CSV/JSON/日志)优先用 Python 分析,只输出摘要。
+- 只输出所需数据:大数据(CSV/JSON/日志)用 Python 分析,只给摘要。
 - 超大输出 eviction 截断时,按返回路径用 ``file_read_tool`` 读 ``.context/.../evicted/``。
 
 ### 异步写法
