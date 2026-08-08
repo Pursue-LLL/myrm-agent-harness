@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
@@ -92,6 +93,15 @@ class OCRParser(FileParser):
         )
         logger.info("PaddleOCR engine initialized: lang=%s, gpu=%s", self._lang, self._use_gpu)
         return self._engine
+
+    async def parse_bytes(self, raw: bytes, *, suffix: str = ".png") -> str:
+        """Parse in-memory image bytes (sandbox-safe)."""
+        if not raw:
+            return ""
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
+            tmp.write(raw)
+            tmp.flush()
+            return await self.parse(tmp.name)
 
     async def parse(self, file_path: str) -> str:
         """Parse image file and return extracted text."""

@@ -58,7 +58,7 @@ is an adapter, not the toolkit itself. Examples: `wiki/wiki_agent_tools.py`,
 **Rule of thumb:** engine + persistence + Protocol in `toolkits/` (exported from `__init__.py`);
 LangChain adapter is optional and secondary. Wrappers that must read `agent/` session state belong in `agent/meta_tools/`.
 
-Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/` (`web_fetch_agent_tools.py`), `web_search/`, `wiki/`.
+Current `*_agent_tools.py` modules (all compliant): `acp/`, `computer_use/`, `cron/`, `kanban/`, `memory/`, `web_fetch/` (`web_fetch_agent_tools.py`), `web_search/`, `wiki/`, `llms/vision/` (`vision_agent_tools.py`).
 
 ### Naming disambiguation: `mcp/agent.py`
 
@@ -174,7 +174,7 @@ Does your code need to import anything from agent/?
 | kanban/ | Durable multi-task scheduling — heartbeat, zombie detection, run/event audit trail. |
 | llms/ | LLM manager and adapters — 100+ provider support, citation extraction, image/video/tts generation and vision understanding (`llms/vision/`). |
 | mcp/ | MCP protocol support — client management, tool fetching, connection pooling. |
-| memory/ | Pluggable memory system — vector/relational/graph storage for AI agents. |
+| memory/ | Pluggable memory system — vector/relational/graph storage for AI agents; agent I/O in `memory/agent_surface/`. |
 | openapi_bridge/ | OpenAPI Bridge — zero-code REST API integration via OpenAPI 3.x / Swagger 2.0 specs. |
 | retriever/ | Retrieval and reranking — multi-source document retrieval with scoring pipeline. |
 | storage/ | Storage abstraction layer — Protocol + local filesystem implementation. |

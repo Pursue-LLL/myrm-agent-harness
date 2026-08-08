@@ -12,7 +12,9 @@ from myrm_agent_harness.toolkits.wiki.pipeline.ingress.asset_store import (
     store_asset_bytes,
     store_clip_assets,
 )
-from myrm_agent_harness.toolkits.wiki.pipeline.ingress.publish import publish_clip_ingress
+from myrm_agent_harness.toolkits.wiki.pipeline.ingress.publish import (
+    publish_clip_ingress,
+)
 from myrm_agent_harness.toolkits.wiki.pipeline.ingress.types import (
     ClipAssetInput,
     ClipIngressRequest,
@@ -47,7 +49,9 @@ def test_load_and_write_wikiignore(temp_structure: WikiStructure) -> None:
     assert loaded == ("drafts/**", "*.bak")
 
 
-def test_scan_folder_respects_wikiignore(temp_structure: WikiStructure, tmp_path) -> None:
+def test_scan_folder_respects_wikiignore(
+    temp_structure: WikiStructure, tmp_path
+) -> None:
     source = tmp_path / "import-src"
     (source / "keep").mkdir(parents=True)
     (source / "drafts").mkdir()
@@ -63,8 +67,12 @@ def test_scan_folder_respects_wikiignore(temp_structure: WikiStructure, tmp_path
 def test_store_clip_assets_dedupes_by_url(temp_structure: WikiStructure) -> None:
     png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
     assets = (
-        ClipAssetInput(source_url="https://example.com/a.png", content_type="image/png", data=png),
-        ClipAssetInput(source_url="https://example.com/a.png", content_type="image/png", data=png),
+        ClipAssetInput(
+            source_url="https://example.com/a.png", content_type="image/png", data=png
+        ),
+        ClipAssetInput(
+            source_url="https://example.com/a.png", content_type="image/png", data=png
+        ),
     )
     url_map, stats = store_clip_assets(temp_structure, assets)
     assert len(url_map) == 1
@@ -107,7 +115,9 @@ async def test_publish_clip_ingress_writes_raw(temp_structure: WikiStructure) ->
 
 
 @pytest.mark.asyncio
-async def test_publish_url_markdown_ingress_writes_raw(temp_structure: WikiStructure) -> None:
+async def test_publish_url_markdown_ingress_writes_raw(
+    temp_structure: WikiStructure,
+) -> None:
     from myrm_agent_harness.toolkits.wiki.pipeline.ingress.types import (
         UrlMarkdownIngressRequest,
     )
@@ -129,7 +139,9 @@ async def test_publish_url_markdown_ingress_writes_raw(temp_structure: WikiStruc
 
 
 @pytest.mark.asyncio
-async def test_publish_clip_ingress_conflict_skips(temp_structure: WikiStructure) -> None:
+async def test_publish_clip_ingress_conflict_skips(
+    temp_structure: WikiStructure,
+) -> None:
     rel = "clips/manual/existing.md"
     existing = temp_structure.get_raw_file_path(rel)
     existing.parent.mkdir(parents=True, exist_ok=True)
@@ -267,6 +279,8 @@ async def test_publish_clip_ingress_localizes_remote_markdown_images(
         )
 
     assert result.written is True
-    content = temp_structure.get_raw_file_path(result.relative_path).read_text(encoding="utf-8")
+    content = temp_structure.get_raw_file_path(result.relative_path).read_text(
+        encoding="utf-8"
+    )
     assert "wiki/assets/" in content or "../wiki/assets/" in content
     assert "cdn.example.com" not in content

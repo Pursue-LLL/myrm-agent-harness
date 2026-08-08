@@ -37,14 +37,21 @@ from .core.frontmatter_contract import WikiProvenance
 from .core.structure import WikiStructure
 from .maintenance.linter import WikiLinter
 from .pipeline.compiler import WikiCompiler
-from .pipeline.apply import WikiApplyError, WikiApplyOp, WikiApplyRequest, apply_wiki_mutation
+from .pipeline.apply import (
+    WikiApplyError,
+    WikiApplyOp,
+    WikiApplyRequest,
+    apply_wiki_mutation,
+)
 from .retrieval.indexer import WikiIndexer
 from .retrieval.query import WikiQueryEngine
 from .retrieval.source_citations import attach_wiki_scope_id, build_wiki_query_sources
 
 logger = get_agent_logger(__name__)
 
-_BINARY_DOC_EXTENSIONS = frozenset({".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"})
+_BINARY_DOC_EXTENSIONS = frozenset(
+    {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt"}
+)
 _LARGE_DOC_CHUNK_THRESHOLD = 80_000
 
 
@@ -83,7 +90,8 @@ def create_wiki_agent_tools(
         source: Annotated[str, "URL or file path to ingest"],
         filename: Annotated[str, "Optional custom filename"] = "",
         folder_path: Annotated[
-            str, "Optional logical folder path to categorize this document (e.g., 'Research/AI')"
+            str,
+            "Optional logical folder path to categorize this document (e.g., 'Research/AI')",
         ] = "",
     ) -> str:
         """
@@ -102,7 +110,10 @@ def create_wiki_agent_tools(
         try:
             if source.startswith("http://") or source.startswith("https://"):
                 content = await _fetch_url_as_markdown(source)
-                resolved_filename = filename or f"web_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
+                resolved_filename = (
+                    filename
+                    or f"web_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
+                )
                 resolved_filename = Path(resolved_filename).name
                 if folder_path:
                     safe_folder = structure._sanitize_path(folder_path)
@@ -171,7 +182,10 @@ def create_wiki_agent_tools(
                     filename = Path(filename).stem + ".md"
             else:
                 content = source
-                filename = filename or f"text_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
+                filename = (
+                    filename
+                    or f"text_{hashlib.sha256(source.encode()).hexdigest()[:12]}.md"
+                )
 
             filename = Path(filename).name
 
@@ -234,7 +248,9 @@ def create_wiki_agent_tools(
             return "Failed to ingest document"
 
     @tool("wiki_query_tool")
-    async def wiki_query(question: Annotated[str, "Question to ask the wiki"]) -> dict | str:
+    async def wiki_query(
+        question: Annotated[str, "Question to ask the wiki"],
+    ) -> dict | str:
         """
         Query the wiki knowledge base.
 
@@ -253,9 +269,13 @@ def create_wiki_agent_tools(
             ):
                 return "No relevant information found in wiki. Consider ingesting more documents."
 
-            from myrm_agent_harness.utils.context_format import wrap_with_external_sources_tag
+            from myrm_agent_harness.utils.context_format import (
+                wrap_with_external_sources_tag,
+            )
 
-            wrapped_context = wrap_with_external_sources_tag(result.answer, source="LLM-Wiki")
+            wrapped_context = wrap_with_external_sources_tag(
+                result.answer, source="LLM-Wiki"
+            )
 
             sources = attach_wiki_scope_id(
                 build_wiki_query_sources(result, structure=structure),
@@ -264,9 +284,13 @@ def create_wiki_agent_tools(
 
             if result.should_archive:
                 try:
-                    await _archive_query_result(structure, compiler, question, result.answer)
+                    await _archive_query_result(
+                        structure, compiler, question, result.answer
+                    )
                 except Exception as archive_err:
-                    logger.warning(f"Query archive failed (non-blocking): {archive_err}")
+                    logger.warning(
+                        f"Query archive failed (non-blocking): {archive_err}"
+                    )
 
             return {"content": wrapped_context, "metadata": {"sources": sources}}
 
@@ -284,10 +308,18 @@ def create_wiki_agent_tools(
         compiled_truth: Annotated[str, "New Compiled Truth section body"] = "",
         timeline_entry: Annotated[str, "Timeline bullet to append"] = "",
         body: Annotated[str, "Body content for create_note"] = "",
-        tags: Annotated[str, "Comma-separated tags for update_metadata/create_note"] = "",
-        aliases: Annotated[str, "Comma-separated aliases for update_metadata/create_note"] = "",
-        sources: Annotated[str, "Comma-separated source refs for update_metadata/create_note"] = "",
-        clear_confidence: Annotated[bool, "Clear frontmatter confidence on update_metadata"] = False,
+        tags: Annotated[
+            str, "Comma-separated tags for update_metadata/create_note"
+        ] = "",
+        aliases: Annotated[
+            str, "Comma-separated aliases for update_metadata/create_note"
+        ] = "",
+        sources: Annotated[
+            str, "Comma-separated source refs for update_metadata/create_note"
+        ] = "",
+        clear_confidence: Annotated[
+            bool, "Clear frontmatter confidence on update_metadata"
+        ] = False,
     ) -> str:
         """
         Apply a narrow, structured mutation to a wiki concept page.
@@ -324,7 +356,9 @@ def create_wiki_agent_tools(
         )
         indexer = WikiIndexer(structure)
         try:
-            result = await apply_wiki_mutation(structure, indexer, request, caller="agent")
+            result = await apply_wiki_mutation(
+                structure, indexer, request, caller="agent"
+            )
         except WikiApplyError as exc:
             return f"Wiki apply failed ({exc.code}): {exc.message}"
 
@@ -466,9 +500,7 @@ async def _parse_binary_document(file_path: str) -> str:
     return text
 
 
-def _split_if_large(
-    content: str, base_path: str
-) -> list[tuple[str, str]]:
+def _split_if_large(content: str, base_path: str) -> list[tuple[str, str]]:
     """Split large content into chunks for better wiki compilation.
 
     Returns list of (relative_path, content) tuples. For small documents,
@@ -480,7 +512,9 @@ def _split_if_large(
     from myrm_agent_harness.toolkits.retriever.splitter import TextChunker
 
     chunker = TextChunker(min_chunk_tokens=200)
-    docs = chunker.chunk_text(content, document_metadata={"title": Path(base_path).stem})
+    docs = chunker.chunk_text(
+        content, document_metadata={"title": Path(base_path).stem}
+    )
 
     if len(docs) <= 1:
         return [(base_path, content)]
@@ -506,12 +540,16 @@ async def _fetch_url_as_markdown(url: str) -> str:
         doc = await web_fetch_tools.crawl(url)
         if doc and doc.page_content:
             return doc.page_content
-        logger.debug("FetchEngine returned empty for %s, falling back to secure_get", url)
+        logger.debug(
+            "FetchEngine returned empty for %s, falling back to secure_get", url
+        )
     except Exception:
         logger.debug("FetchEngine failed for %s, falling back to secure_get", url)
 
     from myrm_agent_harness.core.security.http.secure_fetch import secure_get
-    from myrm_agent_harness.toolkits.web_fetch.markdown_generator import MarkdownGenerator
+    from myrm_agent_harness.toolkits.web_fetch.markdown_generator import (
+        MarkdownGenerator,
+    )
 
     headers = {"User-Agent": "Myrm-Agent-Wiki/1.0 (knowledge-ingestion)"}
     response = await secure_get(url, timeout=30.0, headers=headers)

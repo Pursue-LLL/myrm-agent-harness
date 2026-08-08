@@ -48,8 +48,17 @@ from myrm_agent_harness.toolkits.file_parsers.base import (
     PDFParseResult,
     PDFTable,
 )
+from myrm_agent_harness.toolkits.file_parsers.container_xml_parser import (
+    EpubParser,
+    OdfParser,
+)
+from myrm_agent_harness.toolkits.file_parsers.content_format_sniff import (
+    sniff_content_format,
+)
+from myrm_agent_harness.toolkits.file_parsers.csv_parser import CsvParser
 from myrm_agent_harness.toolkits.file_parsers.docx import DocxParser
 from myrm_agent_harness.toolkits.file_parsers.excel import ExcelParser
+from myrm_agent_harness.toolkits.file_parsers.rtf_parser import RtfParser
 from myrm_agent_harness.toolkits.file_parsers.ipynb import IpynbParser
 from myrm_agent_harness.toolkits.file_parsers.ocr import OCRLine, OCRParser, OCRResult
 from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
@@ -156,8 +165,10 @@ class LegacyFormatParser(FileParser):
             proc = await asyncio.create_subprocess_exec(
                 soffice,
                 "--headless",
-                "--convert-to", out_fmt,
-                "--outdir", str(tmpdir),
+                "--convert-to",
+                out_fmt,
+                "--outdir",
+                str(tmpdir),
                 str(path),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -166,7 +177,9 @@ class LegacyFormatParser(FileParser):
             if proc.returncode != 0:
                 _logger.warning(
                     "soffice exited with code %d for %s: %s",
-                    proc.returncode, path.name, stderr.decode(errors="replace")[:500],
+                    proc.returncode,
+                    path.name,
+                    stderr.decode(errors="replace")[:500],
                 )
                 shutil.rmtree(tmpdir, ignore_errors=True)
                 return None
@@ -185,7 +198,9 @@ class LegacyFormatParser(FileParser):
 
     @property
     def supported_extensions(self) -> list[str]:
-        src_ext = next((k for k, v in _LEGACY_TO_MODERN.items() if v == self._target_ext), "")
+        src_ext = next(
+            (k for k, v in _LEGACY_TO_MODERN.items() if v == self._target_ext), ""
+        )
         return [src_ext] if src_ext else []
 
 
@@ -226,25 +241,34 @@ _PARSERS: dict[str, FileParser] = {
     ".tif": _OCR_PARSER,
     ".bmp": _OCR_PARSER,
     ".webp": _OCR_PARSER,
+    ".csv": CsvParser(),
+    ".rtf": RtfParser(),
+    ".epub": EpubParser(),
+    ".odt": OdfParser(".odt"),
+    ".ods": OdfParser(".ods"),
+    ".odp": OdfParser(".odp"),
 }
 
 
 # ====================== Factory Functions ======================
 
 
+def _resolve_parser_extension(file_path: str) -> str:
+    path = Path(file_path)
+    declared = path.suffix.lower()
+    sniffed = sniff_content_format(path)
+    if sniffed is None:
+        return declared
+    if declared not in _PARSERS:
+        return sniffed
+    if sniffed != declared:
+        return sniffed
+    return declared
+
+
 def get_parser(file_path: str) -> FileParser:
-    """Get parser for file based on file extension
-
-    Args:
-        file_path: File path
-
-    Returns:
-        Corresponding file parser
-
-    Raises:
-        ValueError: Unsupported file type
-    """
-    ext = Path(file_path).suffix.lower()
+    """Get parser for file based on extension with content sniff fallback."""
+    ext = _resolve_parser_extension(file_path)
     parser = _PARSERS.get(ext)
 
     if parser is None:
@@ -282,6 +306,9 @@ def get_file_type(file_path: str) -> str:
 
 
 def is_supported(file_path: str) -> bool:
-    """Check if file type is supported"""
-    ext = Path(file_path).suffix.lower()
-    return ext in _PARSERS
+    """Check if file type is supported (extension or content sniff)."""
+    path = Path(file_path)
+    declared = path.suffix.lower()
+    if declared in _PARSERS:
+        return True
+    return sniff_content_format(path) in _PARSERS

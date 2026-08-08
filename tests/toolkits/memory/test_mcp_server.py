@@ -432,6 +432,22 @@ class TestMemoryStoreTool:
         mock_manager.set_profile_attribute.assert_called_once_with("theme", "dark mode")
 
     @pytest.mark.asyncio
+    async def test_store_preference_ack_redacts_credentials(
+        self, mcp_server, mock_manager
+    ):
+        secret = "sk-proj-abcdefghij1234567890"
+        result = await _get_tool_fn(mcp_server, "memory_store")(
+            content=f"My API key is {secret}",
+            category="preference",
+            preference_key="api_key",
+        )
+        assert secret not in result
+        assert "api_key" in result
+        mock_manager.set_profile_attribute.assert_called_once_with(
+            "api_key", f"My API key is {secret}"
+        )
+
+    @pytest.mark.asyncio
     async def test_store_rule_requires_trigger(self, mcp_server, mock_manager):
         result = await _get_tool_fn(mcp_server, "memory_store")(
             content="use async", category="rule"

@@ -177,6 +177,32 @@ def test_format_profile_recall_output_redacts_credentials() -> None:
     assert "api_key:" in result
 
 
+def test_format_preference_save_ack_redacts_credentials() -> None:
+    from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+        format_preference_save_ack,
+    )
+
+    secret = "sk-proj-abcdefghij1234567890"
+    content = f"My API key is {secret}"
+    result = format_preference_save_ack("api_key", content)
+    assert secret not in result
+    assert "Preference 'api_key' set to" in result
+    assert "My API key is" in result
+
+
+def test_format_recall_source_error_suffix_redacts_credentials() -> None:
+    from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+        format_recall_source_error_suffix,
+    )
+
+    secret = "sk-proj-abcdefghij1234567890"
+    source_error = f"Last attempt leaked key={secret} in URL"
+    result = format_recall_source_error_suffix(source_error)
+    assert secret not in result
+    assert result.startswith(" (avoid:")
+    assert "Last attempt leaked key=" in result
+
+
 @pytest.mark.asyncio
 async def test_sessions_search_sanitizes_poison_and_adds_preamble() -> None:
     from datetime import UTC, datetime

@@ -14,6 +14,8 @@ Tests cover:
 - Include archived flag propagation
 - Budget truncation for large content
 - Drift defense footer presence
+- Knowledge listing credential redaction in tool output
+- memory_store preference ack redaction via full FastMCP call_tool pipeline
 """
 
 from __future__ import annotations
@@ -361,3 +363,34 @@ class TestMemoryListEdgeCases:
         tm = mcp_server.mcp._tool_manager
         result = await tm.call_tool("memory_list", {"category": "rule"}, _mock_ctx)
         assert "Always greet" in result
+
+
+class TestMemoryStoreIntegration:
+    """FastMCP memory_store → MemoryManager.set_profile_attribute → ack formatting."""
+
+    @pytest.mark.asyncio
+    async def test_store_preference_ack_redacts_credentials_via_fastmcp(
+        self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
+    ) -> None:
+        secret = "sk-proj-abcdefghij1234567890"
+        _, relational, _ = _stores
+        relational.set_profile = AsyncMock(return_value=None)
+        relational.pending_exists = AsyncMock(return_value=False)
+
+        tm = mcp_server.mcp._tool_manager
+        result = await tm.call_tool(
+            "memory_store",
+            {
+                "category": "preference",
+                "preference_key": "api_key",
+                "content": f"My key is {secret}",
+            },
+            _mock_ctx,
+        )
+
+        assert secret not in result
+        assert "api_key" in result
+        relational.set_profile.assert_awaited_once()
+        stored_value = relational.set_profile.await_args.args[1]
+        assert secret not in stored_value
+        assert "My key is" in stored_value

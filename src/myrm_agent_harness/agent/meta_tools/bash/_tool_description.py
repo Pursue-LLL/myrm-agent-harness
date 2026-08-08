@@ -16,7 +16,7 @@ background job stdin/eviction hints, output format, and prohibitions.
 """
 
 TOOL_DESCRIPTION = """
-使用该工具执行准确的 Shell 命令或 Python 代码来高效解决用户问题。严禁任何假设和猜测!
+使用该工具执行准确的 Shell 命令或 Python 代码来高效精准地解决用户问题。严禁任何假设和猜测!
 
 ## 能力
 

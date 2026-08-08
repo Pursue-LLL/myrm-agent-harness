@@ -32,7 +32,9 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     load_frontmatter_metadata,
     serialize_frontmatter_block,
 )
-from myrm_agent_harness.toolkits.wiki.core.section_contract import build_note_body_skeleton
+from myrm_agent_harness.toolkits.wiki.core.section_contract import (
+    build_note_body_skeleton,
+)
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.pending import WikiPendingEditsManager
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
@@ -133,7 +135,9 @@ def build_chat_compound_draft(
         trust=request.trust,
     )
     timeline_entry = f"Staged from chat compound at {_utc_now_iso()}"
-    body = build_note_body_skeleton(compiled_truth=compiled_truth, timeline_entry=timeline_entry)
+    body = build_note_body_skeleton(
+        compiled_truth=compiled_truth, timeline_entry=timeline_entry
+    )
     page_type = WikiPageType.SESSION
     content = ensure_frontmatter_type(
         body,
@@ -146,7 +150,9 @@ def build_chat_compound_draft(
     metadata["source_message"] = request.source_message.strip()
     metadata["compound_provenance"] = CHAT_COMPOUND_PROVENANCE
     content = serialize_frontmatter_block(metadata) + body_only.lstrip("\n")
-    content = ensure_compile_claims(content, concept_name, [concept_name], structure=structure)
+    content = ensure_compile_claims(
+        content, concept_name, [concept_name], structure=structure
+    )
     return _apply_trust_claim_status(content, trust=request.trust)
 
 
@@ -194,4 +200,6 @@ async def stage_chat_compound(
         draft,
         provenance=CHAT_COMPOUND_PROVENANCE,
     )
-    return ChatCompoundResult(pending_edit_id=edit_id, concept_name=request.concept_name.strip())
+    return ChatCompoundResult(
+        pending_edit_id=edit_id, concept_name=request.concept_name.strip()
+    )

@@ -138,7 +138,9 @@ class LintIssue:
     location: str  # File path or concept name
     description: str
     action_kind: str = "info"  # repair | recompile | navigate | info
-    can_auto_fix: bool = False  # True only for deterministic vault repairs (frontmatter type)
+    can_auto_fix: bool = (
+        False  # True only for deterministic vault repairs (frontmatter type)
+    )
     suggested_fix: str | None = None
 
 

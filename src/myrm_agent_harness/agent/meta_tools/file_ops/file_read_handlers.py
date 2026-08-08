@@ -56,8 +56,10 @@ async def build_multimodal_result(
     reason: str | None,
     url_errors: list[str],
     supports_vision: bool,
+    supports_video: bool = False,
     vision_fallback_model_cfg: object | None = None,
     vision_fallback_model_cfgs: object | None = None,
+    video_fallback_model_cfgs: object | None = None,
     video_paths: list[str] | None = None,
     parse_mode: str | None = None,
     mode: str = "all",
@@ -117,9 +119,10 @@ async def build_multimodal_result(
             vid_path,
             executor,
             supports_vision=supports_vision,
-            supports_video=False,
+            supports_video=supports_video,
             vision_fallback_model_cfg=vision_fallback_model_cfg,
             vision_fallback_model_cfgs=vision_fallback_model_cfgs,
+            video_fallback_model_cfgs=video_fallback_model_cfgs,
         )
         if isinstance(result, list):
             blocks.extend(result)
@@ -156,8 +159,10 @@ async def append_media_text_parts(
     video_paths: list[str],
     executor: CodeExecutor | None,
     supports_vision: bool,
+    supports_video: bool = False,
     vision_fallback_model_cfg: object | None,
     vision_fallback_model_cfgs: object | None = None,
+    video_fallback_model_cfgs: object | None = None,
     parse_mode: str | None,
 ) -> None:
     """Append text-mode results for media paths when multimodal is unavailable."""
@@ -214,9 +219,10 @@ async def append_media_text_parts(
                 vid_path,
                 executor,
                 supports_vision=supports_vision,
-                supports_video=False,
+                supports_video=supports_video,
                 vision_fallback_model_cfg=vision_fallback_model_cfg,
-            vision_fallback_model_cfgs=vision_fallback_model_cfgs,
+                vision_fallback_model_cfgs=vision_fallback_model_cfgs,
+                video_fallback_model_cfgs=video_fallback_model_cfgs,
             )
             if isinstance(vid_result, str):
                 text_parts.append(vid_result)

@@ -41,9 +41,13 @@ _FILE_PATH_RE = re.compile(
     r")"
 )
 
-_IDENT_RE = re.compile(r"(?:def|class|function|interface|type|const|let|var|struct|enum)\s+(\w{3,})")
+_IDENT_RE = re.compile(
+    r"(?:def|class|function|interface|type|const|let|var|struct|enum)\s+(\w{3,})"
+)
 
-_UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
+_UUID_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE
+)
 
 _HASH_PREFIX_RE = re.compile(r"(?:sha256|sha1|md5):[0-9a-f]{8,}", re.IGNORECASE)
 
@@ -114,11 +118,18 @@ def extract_key_entities(messages: list[BaseMessage]) -> set[str]:
         for m in _API_ENDPOINT_RE.finditer(text):
             entities.add(m.group(0))
 
-    return {e for e in entities if len(e) >= _MIN_ENTITY_LEN and e.lower() not in _NOISE_WORDS}
+    return {
+        e
+        for e in entities
+        if len(e) >= _MIN_ENTITY_LEN and e.lower() not in _NOISE_WORDS
+    }
 
 
 def audit_summary(
-    summary: StructuredSummary, original_messages: list[BaseMessage], *, entities: set[str] | None = None
+    summary: StructuredSummary,
+    original_messages: list[BaseMessage],
+    *,
+    entities: set[str] | None = None,
 ) -> AuditResult:
     """Run all quality gates on a structured summary.
 
@@ -177,7 +188,9 @@ def build_retry_guidance(result: AuditResult) -> str:
 
     if result.missing_entities:
         sample = result.missing_entities[:8]
-        parts.append(f"The previous summary missed these key entities — please include them: {', '.join(sample)}")
+        parts.append(
+            f"The previous summary missed these key entities — please include them: {', '.join(sample)}"
+        )
 
     for issue in result.issues:
         if "too sparse" in issue.lower():
@@ -201,7 +214,9 @@ def _check_structure(summary: StructuredSummary) -> list[str]:
     return issues
 
 
-def _check_entity_retention(summary: StructuredSummary, entities: set[str]) -> tuple[int, list[str]]:
+def _check_entity_retention(
+    summary: StructuredSummary, entities: set[str]
+) -> tuple[int, list[str]]:
     """Return (retained_count, missing_entities_list)."""
     if not entities:
         return 0, []
@@ -240,7 +255,11 @@ def _check_density(summary: StructuredSummary, original_tokens: int) -> list[str
 
     issues: list[str] = []
     if ratio < _MIN_DENSITY_RATIO:
-        issues.append(f"Summary too sparse: {ratio:.1%} of original (minimum {_MIN_DENSITY_RATIO:.0%})")
+        issues.append(
+            f"Summary too sparse: {ratio:.1%} of original (minimum {_MIN_DENSITY_RATIO:.0%})"
+        )
     if ratio > _MAX_DENSITY_RATIO:
-        issues.append(f"Summary too verbose: {ratio:.1%} of original (maximum {_MAX_DENSITY_RATIO:.0%})")
+        issues.append(
+            f"Summary too verbose: {ratio:.1%} of original (maximum {_MAX_DENSITY_RATIO:.0%})"
+        )
     return issues

@@ -91,9 +91,17 @@ myrm_agent_harness/
 │   ├── session.py                      # MemorySession（对话级缓冲）
 │   ├── retriever.py                    # MemoryRetriever（RRF + 几何平均评分 + MMR 多样性重排 + source decay 会话源多样化）
 │   ├── signals.py                      # SignalCalculator（上下文信号计算）
-│   ├── memory_agent_tools.py           # Agent 工具工厂（search/save/manage 实现）
-│   ├── _memory_agent_tool_descriptions.py  # LLM 可见描述 SSOT（prompt/cache）
-│   ├── memory_citations.py             # 记忆 citation refs 与 retrieval trace 的轻量 SSE 元数据桥接
+│   ├── memory_agent_tools.py           # 稳定 import 门面 → agent_surface/
+│   ├── agent_surface/                  # Agent 可见 I/O 层（tools / MCP / recall sanitize / citations）
+│   │   ├── memory_agent_tools.py       # Agent 工具工厂（search/save/manage 实现）
+│   │   ├── _memory_agent_tool_descriptions.py  # LLM 可见描述 SSOT（prompt/cache）
+│   │   ├── memory_recall_formatting.py # Recall sanitize / save ack / source_error SSOT
+│   │   ├── memory_recall_budget.py     # Recall 输出预算
+│   │   ├── memory_search_policy.py     # corpus ACL
+│   │   ├── memory_search_execution.py  # memory/wiki/sessions 执行
+│   │   ├── memory_citations.py         # 记忆 citation refs 与 retrieval trace SSE 桥接
+│   │   ├── mcp_server.py               # MCP HTTP 适配器
+│   │   └── wiki_memory_boundary.py     # wiki/memory 写入边界
 │   ├── observability.py                # 业务无关记忆观测 DTO/Protocol（operation / influence / retrieval trace / space / sink）
 │   ├── reliability.py                  # 业务无关记忆可靠性 DTO（probe / repair plan / import plan / recall benchmark summary）
 │   ├── conversation_search/            # Protocol-backed 历史会话搜索工具（无业务 DB 依赖）
@@ -383,7 +391,9 @@ _decision_latency.record(latency_ms, {"use_dual": use_dual})
 
 读取路径：`MemoryContextMiddleware` 注入时采用指令层级。**Stable（Profile/Rules/Self-Instructions/Corrections）**封装在 `<user_memory_context>` 的 **SystemMessage** 中。**Learned Preferences / Learned Rules**放入 **HumanMessage**，先 `sanitize()` 与逐项 `_escape_xml_item()`（降低伪造围栏标签风险），再由 `wrap_untrusted(..., source="memory_context")` 生成 `<<<UNTRUSTED_DATA id="…">>>` 信封，与同进程已注入的 `SECURITY_BOUNDARY_SYSTEM_RULES` 契约一致。
 
-**工具 recall 路径**（`memory_search_tool` corpus=memory/sessions、MCP `memory_recall` / `memory_list`）：每条 recalled body 经 `sanitize_recalled_content()`（`redact_sensitive_text` → `sanitize`；`budget_recall_line` 默认调用），整段 tool 结果前缀静态 untrusted 提示 `finalize_recall_tool_output()`。与 middleware 注入路径互补，不重复 random `wrap_untrusted` 信封（保留 ToolMessage token 效率与 Prompt Cache 友好）。
+**工具 recall 路径**（`memory_search_tool` corpus=memory/sessions、MCP `memory_recall` / `memory_list`）：每条 recalled body 经 `sanitize_recalled_content()`（`redact_sensitive_text` → `sanitize`；`budget_recall_line` 默认调用），SemanticMemory 的 `source_error` 后缀经 `format_recall_source_error_suffix()` 同 SSOT，整段 tool 结果前缀静态 untrusted 提示 `finalize_recall_tool_output()`。与 middleware 注入路径互补，不重复 random `wrap_untrusted` 信封（保留 ToolMessage token 效率与 Prompt Cache 友好）。
+
+**工具 save ack 路径**（`memory_save_tool` / MCP `memory_store` preference 成功回执）：经 `format_preference_save_ack()`，同样 `sanitize_recalled_content()`，避免 write scan 已 redact 存库但 ToolMessage 仍 echo 明文凭据。
 
 ```python
 def scan_and_clean_memory(memory: object, *, block_threshold: float = 0.8) -> ScanResult:
@@ -741,7 +751,7 @@ tools = create_memory_tools(manager=manager)
 | --------------- | --------------------------------------------------------------------- |
 | `memory_search_tool` | COMMON 层统一读工具：`corpus=memory|wiki|sessions|all`；Server 通过 `MemorySearchPolicy` ACL 绑定 wiki/会话后端 |
 | `memory_save_tool`   | 存储新记忆，支持 knowledge/event/preference/rule/instruction 五种类别；LLM description 由 `build_memory_save_tool_description(policy, approval_required, locale)` 组装（EN/ZH core + 可选 wiki 边界 + 可选审批提示）；参数语义在 `MemorySaveInput` Pydantic schema；当 `MemorySearchPolicy.allow_wiki=True` 时，≥800 字或 ≥3 个 markdown 标题的 knowledge/event 会被硬拒并指向 `wiki_ingest_tool` |
-| `memory_manage_tool` | 更新/删除/纠正/评分已有记忆；LLM description 与 save 对称分流（新事实→save；过时/错误事实→correct preserves history；措辞微调→update；rate→knowledge/event）；instruction 保存后按 `category=rule` 管理；工具返回用户向文案（不含内部 demote 术语）；参数语义在 `MemoryManageInput` Pydantic schema；Memory MCP HTTP（`mcp_server.py`）的 `memory_manage` 同样 import `resolve_memory_manage_tool_description()` SSOT |
+| `memory_manage_tool` | 更新/删除/纠正/评分已有记忆；LLM description 与 save 对称分流（新事实→save；过时/错误事实→correct preserves history；措辞微调→update；rate→knowledge/event）；instruction 保存后按 `category=rule` 管理；工具返回用户向文案（不含内部 demote 术语）；参数语义在 `MemoryManageInput` Pydantic schema；Memory MCP HTTP（`agent_surface/mcp_server.py`）的 `memory_manage` 同样 import `resolve_memory_manage_tool_description()` SSOT |
 
 #### Wiki vs Memory 写入边界
 
@@ -752,7 +762,7 @@ tools = create_memory_tools(manager=manager)
 
 `memory_search_tool` 的 `limit` 在 memory corpus 下收敛到 `1..15`；sessions corpus 下收敛到 `1..8`。空查询或 `*` 在 `corpus=sessions` 时表示浏览最近会话。wiki/sessions corpus 由 Server policy 控制，runtime 无法扩 scope。
 
-**Memory MCP HTTP**（`mcp_server.py`）：对外暴露 `memory_recall` / `memory_list` / `memory_store` / `memory_manage` 四工具；**`memory_manage` 与 `memory_store` 描述** import `_memory_agent_tool_descriptions` SSOT（`surface=mcp` 工具名映射；store 含 wiki boundary 文案）；wiki 启用时 `memory_store` 运行时硬拒 document-like 内容（与 GUI `memory_save_tool` 一致，server middleware 传 ContextVar）。recall/list 仍为 MCP 专用 inline 描述。
+**Memory MCP HTTP**（`agent_surface/mcp_server.py`）：对外暴露 `memory_recall` / `memory_list` / `memory_store` / `memory_manage` 四工具；**`memory_manage` 与 `memory_store` 描述** import `agent_surface/_memory_agent_tool_descriptions` SSOT（`surface=mcp` 工具名映射；store 含 wiki boundary 文案）；wiki 启用时 `memory_store` 运行时硬拒 document-like 内容（与 GUI `memory_save_tool` 一致，server middleware 传 ContextVar）。recall/list 仍为 MCP 专用 inline 描述。
 
 `conversation_search/` 模块提供 Protocol、formatter 与 `create_conversation_search_tool` 单元测试工厂；产品路径（GeneralAgent 与 Custom 子 Agent）均通过 `memory_search_tool(corpus=sessions)` + Server `MemorySearchPolicy` ACL。Turn1 不 bind standalone LLM 工具名 `conversation_search_tool`。
 

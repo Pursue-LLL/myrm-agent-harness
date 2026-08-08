@@ -14,6 +14,7 @@ _ISSUE_TYPE_ACTION: dict[str, WikiIssueActionKind] = {
     "broken_wikilink": "navigate",
     "incomplete": "navigate",
     "knowledge_gap": "navigate",
+    "provenance_gap": "navigate",
     "security_redacted": "info",
     "security_removed": "info",
 }

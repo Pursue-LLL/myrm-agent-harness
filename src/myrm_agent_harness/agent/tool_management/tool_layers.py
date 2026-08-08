@@ -99,6 +99,9 @@ _TOOL_LAYERS: dict[str, ToolLayer] = {
     "desktop_snapshot_tool": ToolLayer.EXTENDED,
     "desktop_interact_tool": ToolLayer.EXTENDED,
     "desktop_vision_tool": ToolLayer.EXTENDED,
+    # --- Vision toolkit (skill-bound) ---
+    "vision_semantic_tool": ToolLayer.EXTENDED,
+    "vision_geometry_tool": ToolLayer.EXTENDED,
     # --- Cron 定时任务 ---
     "cron_manage_tool": ToolLayer.EXTENDED,
     # --- Goal / planning 工具 ---

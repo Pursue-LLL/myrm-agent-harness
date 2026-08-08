@@ -4,6 +4,8 @@
 
 Pluggable memory system for AI agents.
 
+Agent-visible I/O implementations live under ``agent_surface/``; root ``memory_*.py`` / ``mcp_server.py`` paths are stable import facades.
+
 Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 
 ## File & Submodule Index
@@ -11,29 +13,30 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | File                     | Role     | Description                                                                                                   | I/O/P |
 | ------------------------ | -------- | ------------------------------------------------------------------------------------------------------------- | ----- |
 | __init__.py              | Package  | Pluggable memory system for AI agents.                                                                        | —     |
+| manager.py               | Core     | Public import path for ``MemoryManager`` and memory error types. | ✅    |
+| setup.py                 | Core     | Out-of-the-box local memory factory. Combines SQLite and embedded Qdrant to provide zero-config               | ✅    |
+| types.py                 | Core     | Memory type system foundation. Provides MemoryType, MemoryStatus, exact mutation outcome DTOs, profile attribute snapshots, BaseMemory and all typed memory schemas. | ✅    |
+| config.py                | Core     | Memory configuration — functional switches and retrieval params only.                                         | ✅    |
+| memory_agent_tools.py    | Facade   | Stable import path → ``agent_surface/memory_agent_tools.py``. | —     |
+| _memory_agent_tool_descriptions.py | Facade | Stable import path → ``agent_surface/_memory_agent_tool_descriptions.py``. | — |
+| memory_search_policy.py  | Facade   | Stable import path → ``agent_surface/memory_search_policy.py``. | — |
+| memory_search_execution.py | Facade | Stable import path → ``agent_surface/memory_search_execution.py``. | — |
+| memory_recall_budget.py  | Facade   | Stable import path → ``agent_surface/memory_recall_budget.py``. | — |
+| memory_recall_formatting.py | Facade | Stable import path → ``agent_surface/memory_recall_formatting.py``. | — |
+| memory_citations.py      | Facade   | Stable import path → ``agent_surface/memory_citations.py``. | — |
+| mcp_server.py            | Facade   | Stable import path → ``agent_surface/mcp_server.py``. | — |
+| wiki_memory_boundary.py  | Facade   | Stable import path → ``agent_surface/wiki_memory_boundary.py``. | — |
 | _assistant_retrieval.py  | Internal | Two-Pass Assistant Retrieval for assistant-reference queries (MemPalace enhancement).                         | ✅    |
 | adaptive.py              | Core     | Adaptive dual-channel selection logic. Analyzes query characteristics (token count,                           | ✅    |
 | archival.py              | Core     | Provides ArchivalCandidate, ArchivalStrategy, TimeBasedArchivalStrategy.                                      | ✅    |
 | backup.py                | Core     | Provides BackupMetadata, BackupResult, RestoreResult.                                                         | ✅    |
 | chunking.py              | Core     | Chunking utilities for ConversationMemory. Provides configurable strategies                                   | ✅    |
 | compression.py           | Core     | Transparent payload compression and external BLOB storage for ConversationMemory raw_exchange fields.         | ✅    |
-| config.py                | Core     | Memory configuration — functional switches and retrieval params only.                                         | ✅    |
 | ephemeral.py             | Core     | Ephemeral and read-only memory managers for subagent isolation.                                               | ✅    |
 | health.py                | Core     | Memory system diagnostics — instance-level health and maintenance reports.                                    | ✅    |
 | intent_recognizers.py    | Core     | Query intent recognition for adaptive type weighting.                                                         | ✅    |
-| manager.py               | Core     | Public import path for ``MemoryManager`` and memory error types. | ✅    |
-| memory_agent_tools.py    | Core     | Agent memory tools factory: memory_search_tool, save, manage. Wires descriptions from `_memory_agent_tool_descriptions.py`. | ✅    |
-| _memory_agent_tool_descriptions.py | Core | LLM-visible memory tool description SSOT (English + Chinese; locale via `is_chinese`). `build_memory_search_tool_description` / `build_memory_save_tool_description` (policy + approval dynamic fragments). `surface=\"agent\"|\"mcp\"` maps GUI tool names to MCP HTTP tool names. Consumed by `memory_agent_tools.py`, `mcp_server.py`, and static tests. | ✅    |
-| wiki_memory_boundary.py  | Core     | Wiki vs memory write boundary heuristics; memory_save rejection counter; persist vector filter. | ✅    |
-| tests/toolkits/memory/test_memory_tool_decision_golden.py | Test | 16-scenario save/manage/search routing guardrail golden (EN/ZH prompt SSOT). | ✅ |
-| memory_search_policy.py  | Core     | Corpus ACL and optional wiki/sessions/web backends for memory_search_tool; `query_wiki` + optional `wiki_structure` / `wiki_agent_id` for citation URI parity with wiki_query_tool. | ✅    |
-| memory_search_execution.py | Core   | Memory/wiki/sessions search execution; wiki corpus emits sources + UNTRUSTED wrap on answers. | ✅    |
-| memory_citations.py      | Core     | Citation/source bridge; SSE cited_memory_refs use recall redact → sanitize before truncation. | ✅    |
-| memory_recall_budget.py      | Core     | Recall budget guardrails: limit normalization, default redact → sanitize in budget_recall_line, output accounting, truncation. | ✅    |
-| memory_recall_formatting.py  | Core     | Recall formatting helpers: time filters, age labels, staleness checks, channel provenance, and recall tool-output redact → sanitize/preamble. | ✅    |
 | metrics.py               | Core     | Memory search quality metrics — lightweight, thread-safe counters.                                            | ✅    |
 | observability.py         | Core     | Business-neutral memory operation, influence, retrieval trace, memory-space DTOs, and MemoryOperationSink protocol for app-layer dashboards and logs. | ✅    |
-| cognitive/deriver.py     | Core     | Async Dialectic Reasoning Engine for implicit preference extraction.                                          | —     |
 | query_analyzer.py        | Core     | Bilingual (EN/CN) query pattern recognition for temporal markers, person names, quoted phrases, preference queries, and assistant reference detection. Integrated into main retrieval path via search_service. | ✅    |
 | query_sanitizer.py       | Core     | Agent Memory query preprocessing layer.                                                                       | ✅    |
 | reliability.py           | Core     | Framework-safe memory reliability DTOs for probe results, repair plans, repair execution results, archive restore plans/results, import dry-run mappings, import plans, and recall benchmark summaries with IR metrics (ndcg, mrr, precision, latency percentiles). | ✅    |
@@ -41,14 +44,14 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | security.py              | Core     | Public facade for memory security preflight scanning used by app-layer import and archive restore review flows. | ✅    |
 | retriever.py             | Core     | RRF retriever for multi-source memory search. rank(): geometric scoring → correction-chain suppression → hard cutoff (min_relevance_score) → MMR → normalization. fuse(): RRF scoring → correction-chain suppression → MMR → normalization (hard cutoff omitted — RRF scores are rank-based, absolute thresholds inapplicable). | ✅    |
 | session.py               | Core     | Conversation-level memory buffer. Buffers memory writes during a session and batch-flushes                    | ✅    |
-| setup.py                 | Core     | Out-of-the-box local memory factory. Combines SQLite and embedded Qdrant to provide zero-config               | ✅    |
+| session_post_process.py  | Core     | Unified post-session task runner (memory consolidation + proactive extraction). | ✅ |
 | signals.py               | Core     | Context signal calculator for memory retrieval scoring. Provides normalized [0,1] factors                     | ✅    |
 | text_utils.py            | Core     | Unified multi-language tokenization for memory retrieval. Uses re.UNICODE                                     | ✅    |
 | tool_capture.py          | Core     | Tool-scoped memory capture hook. Detects user edicts and repeated tool failures, auto-creates procedural rules. | ✅    |
-| types.py                 | Core     | Memory type system foundation. Provides MemoryType, MemoryStatus, exact mutation outcome DTOs, profile attribute snapshots, BaseMemory and all typed memory schemas. | ✅    |
 
 | Submodule   | Description                                                                       |
 | ----------- | --------------------------------------------------------------------------------- |
+| agent_surface/ | Agent-visible I/O: tools, MCP, recall sanitize SSOT, citations, corpus policy, wiki boundary. See [agent_surface/_ARCH.md](agent_surface/_ARCH.md). |
 | \_manager/  | Composable ``MemoryManager`` implementation modules.                               |
 | \_internal/ | Internal implementation details — not part of the public API.                     |
 | cognitive/  | Cognitive memory consolidation layer.                                             |
@@ -59,11 +62,6 @@ Detailed design: [MEMORY_SYSTEM.md](MEMORY_SYSTEM.md)
 | relational/ | Relational Store — abstract interface and SQLite implementation.                  |
 | strategies/ | Optional memory strategies: forgetting, extraction, deduplication, consolidation, preference stability, recurrence-triggered consolidation, staleness review. |
 | proactive/ | Proactive follow-up track — LLM implicit commitment extraction, `CommitmentStore` protocol, heartbeat delivery. See [COMMITMENT_SYSTEM.md](proactive/COMMITMENT_SYSTEM.md). |
-| session_post_process.py | Unified post-session task runner (memory consolidation + proactive extraction). | ✅ |
-
-| File (additional) | Role | Description | I/O/P |
-| --- | --- | --- | --- |
-| mcp_server.py | Core | MCP server adapter: wraps MemoryManager as 4 MCP tools (memory_recall, memory_list, memory_store, memory_manage) for external agent access via Streamable HTTP. `memory_manage` and `memory_store` descriptions import `_memory_agent_tool_descriptions` SSOT with `surface=\"mcp\"`; runtime wiki document rejection via ContextVar + `wiki_memory_boundary`. Supports dynamic manager resolution via ContextVar (per-request) or manager_resolver (per-server) for multi-agent scoping. Exports set/reset_request_memory_manager and set/reset_request_wiki_boundary_enabled for middleware integration. | ✅ |
 
 ## Key Dependencies
 

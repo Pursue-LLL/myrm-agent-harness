@@ -6,11 +6,12 @@
 设计原则：
 - 支持视频的模型：返回 [文本描述, 视频内容块]（直传 LLM）
 - 仅支持视觉的模型：通过 VideoAnalysisEngine 帧提取降级
-- 不支持视觉的模型：返回纯文本描述（文件名、大小、格式）
+- 不支持视觉且无降级配置：返回纯文本描述（文件名、大小、格式）
 - 硬上限：超过 100MB 的视频降级为纯文本描述
 
 [INPUT]
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
+- toolkits.llms.vision.fallback_engine::pick_video_fallback_model_cfgs (POS: 视频/视觉降级链选择)
 - toolkits.llms.vision.video_analysis_engine::VideoAnalysisEngine (POS: 视频分析引擎)
 
 [OUTPUT]
@@ -55,6 +56,7 @@ async def read_video_as_content_blocks(
     supports_video: bool = False,
     vision_fallback_model_cfg: object | None = None,
     vision_fallback_model_cfgs: object | None = None,
+    video_fallback_model_cfgs: object | None = None,
 ) -> str | list[ContentBlock]:
     """读取视频文件并返回适当格式的内容
 
@@ -62,8 +64,10 @@ async def read_video_as_content_blocks(
         path: 视频文件路径
         executor: 代码执行器
         supports_vision: 模型是否支持图像视觉
-        supports_video: 模型是否原生支持视频
+        supports_video: 主模型是否原生支持视频
         vision_fallback_model_cfg: 视觉降级模型配置（用于帧提取分析）
+        vision_fallback_model_cfgs: 有序视觉降级链
+        video_fallback_model_cfgs: 有序视频降级链（优先于 vision 槽）
     """
     suffix = PurePosixPath(path).suffix.lower()
     mime_type = VIDEO_MIME_TYPES.get(suffix, "video/mp4")
@@ -79,7 +83,18 @@ async def read_video_as_content_blocks(
     size_bytes = len(raw_bytes)
     size_display = _format_size(size_bytes)
 
-    if not supports_vision and not supports_video:
+    from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+        pick_video_fallback_model_cfgs,
+        resolve_vision_fallback_llm_configs,
+    )
+
+    picked_fallback_cfgs = pick_video_fallback_model_cfgs(
+        video_fallback_model_cfgs,
+        vision_fallback_model_cfgs,
+    )
+    has_fallback = bool(picked_fallback_cfgs) or vision_fallback_model_cfg is not None
+
+    if not supports_vision and not supports_video and not has_fallback:
         return f"[Video file: {path}] ({mime_type}, {size_display}. Current model does not support vision or video.)"
 
     if size_bytes > MAX_VIDEO_BYTES:
@@ -97,22 +112,27 @@ async def read_video_as_content_blocks(
             {"type": "image_url", "image_url": {"url": data_url}},
         ]
 
-    # 模型仅支持图像不支持视频 → 通过 VideoAnalysisEngine 帧提取分析
-    if vision_fallback_model_cfg or vision_fallback_model_cfgs:
-        from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
-            resolve_vision_fallback_llm_configs,
-        )
+    # 主模型不支持原生视频 → 通过 VideoAnalysisEngine 帧提取/原生分析
+    if picked_fallback_cfgs or vision_fallback_model_cfg:
         from myrm_agent_harness.toolkits.llms.vision.video_analysis_engine import (
             VideoAnalysisEngine,
         )
 
         try:
-            fallback_configs = resolve_vision_fallback_llm_configs(
-                vision_fallback_model_cfg,
-                vision_fallback_model_cfgs,
-            )
+            if picked_fallback_cfgs:
+                fallback_configs = resolve_vision_fallback_llm_configs(None, picked_fallback_cfgs)
+            else:
+                fallback_configs = resolve_vision_fallback_llm_configs(
+                    vision_fallback_model_cfg,
+                    vision_fallback_model_cfgs,
+                )
             engine = VideoAnalysisEngine(fallback_configs)
-            description = await engine.analyze_local_video(path, executor, supports_video=False)
+            chain_supports_video = bool(fallback_configs and fallback_configs[0].supports_video)
+            description = await engine.analyze_local_video(
+                path,
+                executor,
+                supports_video=chain_supports_video,
+            )
             return f"[Video: {path}] ({mime_type}, {size_display})\n[Video Analysis]:\n{description}"
         except Exception as e:
             logger.warning("Video analysis fallback failed: %s", e)
@@ -120,8 +140,8 @@ async def read_video_as_content_blocks(
 
     return (
         f"[Video file: {path}] ({mime_type}, {size_display}. "
-        f"Model supports vision but not video. Configure a vision fallback model "
-        f"or use a video-capable model for video analysis.)"
+        f"Model supports vision but not video. Configure a video or vision fallback model "
+        f"for video analysis.)"
     )
 
 

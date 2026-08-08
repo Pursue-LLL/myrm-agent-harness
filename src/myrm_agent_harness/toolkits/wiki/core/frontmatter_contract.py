@@ -24,7 +24,9 @@ import re
 
 import yaml
 
-from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
+from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import (
+    parse_frontmatter,
+)
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 
 
@@ -49,7 +51,9 @@ class WikiPublishStatus(StrEnum):
     BLOCKED = "blocked"
 
 
-WIKI_PUBLISH_STATUSES: frozenset[str] = frozenset(member.value for member in WikiPublishStatus)
+WIKI_PUBLISH_STATUSES: frozenset[str] = frozenset(
+    member.value for member in WikiPublishStatus
+)
 
 
 class WikiProvenance(StrEnum):
@@ -103,7 +107,9 @@ def serialize_frontmatter_block(metadata: dict[str, object]) -> str:
     """Serialize metadata to a YAML frontmatter block."""
     safe_metadata: dict[str, object] = _coerce_enum_values(metadata)  # type: ignore[assignment]
     if _metadata_requires_yaml_dump(safe_metadata):
-        dumped = yaml.safe_dump(safe_metadata, allow_unicode=True, sort_keys=False, default_flow_style=False).strip()
+        dumped = yaml.safe_dump(
+            safe_metadata, allow_unicode=True, sort_keys=False, default_flow_style=False
+        ).strip()
         return f"---\n{dumped}\n---\n"
     return serialize_frontmatter(safe_metadata)
 
@@ -152,7 +158,9 @@ def validate_wiki_frontmatter(content: str) -> FrontmatterValidationResult:
     metadata, _body = parse_frontmatter(content)
     type_str = _normalize_type_value(metadata.get("type"))
     if type_str is None:
-        return FrontmatterValidationResult(ok=False, errors=("Missing required frontmatter field: type",))
+        return FrontmatterValidationResult(
+            ok=False, errors=("Missing required frontmatter field: type",)
+        )
     if type_str not in WIKI_PAGE_TYPES:
         allowed = ", ".join(sorted(WIKI_PAGE_TYPES))
         return FrontmatterValidationResult(
@@ -192,7 +200,11 @@ def infer_type_for_import(
 def serialize_frontmatter(metadata: dict[str, object]) -> str:
     """Serialize metadata dict to a YAML frontmatter block (minimal, Obsidian-compatible)."""
     lines = ["---"]
-    ordered_keys = ["type", PUBLISH_STATUS_KEY, *[key for key in metadata if key not in {"type", PUBLISH_STATUS_KEY}]]
+    ordered_keys = [
+        "type",
+        PUBLISH_STATUS_KEY,
+        *[key for key in metadata if key not in {"type", PUBLISH_STATUS_KEY}],
+    ]
     for key in ordered_keys:
         if key not in metadata:
             continue
@@ -222,7 +234,11 @@ def ensure_frontmatter_type(
 ) -> str:
     """Merge or inject frontmatter with a valid `type` while preserving body content."""
     metadata, body = load_frontmatter_metadata(content)
-    resolved = page_type.value if isinstance(page_type, WikiPageType) else str(page_type).strip().lower()
+    resolved = (
+        page_type.value
+        if isinstance(page_type, WikiPageType)
+        else str(page_type).strip().lower()
+    )
     metadata["type"] = resolved
     if sources is not None and "sources" not in metadata:
         metadata["sources"] = sources
@@ -247,7 +263,9 @@ def ensure_draft_frontmatter(content: str) -> str:
     return serialize_frontmatter_block(metadata) + body.lstrip("\n")
 
 
-def repair_publication_on_disk(structure: WikiStructure) -> PublicationOnDiskRepairResult:
+def repair_publication_on_disk(
+    structure: WikiStructure,
+) -> PublicationOnDiskRepairResult:
     """Grandfather missing publish_status to published; skip intentional draft/blocked pages."""
     scanned = 0
     repaired = 0
@@ -278,7 +296,9 @@ def repair_publication_on_disk(structure: WikiStructure) -> PublicationOnDiskRep
             continue
 
         try:
-            concept_path.write_text(ensure_published_frontmatter(content), encoding="utf-8")
+            concept_path.write_text(
+                ensure_published_frontmatter(content), encoding="utf-8"
+            )
             repaired += 1
         except OSError as exc:
             errors.append(f"{concept_path}: {exc}")
@@ -333,7 +353,9 @@ def repair_file_frontmatter(
     page_type = infer_type_for_import(rel, metadata, is_raw_import=is_raw_import)
 
     sources: list[str] | None = [rel] if is_raw_import else None
-    repaired = ensure_frontmatter_type(content, page_type, sources=sources, provenance=WikiProvenance.REPAIRED)
+    repaired = ensure_frontmatter_type(
+        content, page_type, sources=sources, provenance=WikiProvenance.REPAIRED
+    )
     path.write_text(repaired, encoding="utf-8")
     return True
 
@@ -347,9 +369,13 @@ def repair_missing_types(structure: WikiStructure) -> TypeRepairResult:
 
     for concept_path in structure.list_concepts():
         scanned += 1
-        rel = str(concept_path.relative_to(structure.concepts_dir).with_suffix("")).replace("\\", "/")
+        rel = str(
+            concept_path.relative_to(structure.concepts_dir).with_suffix("")
+        ).replace("\\", "/")
         try:
-            if repair_file_frontmatter(concept_path, is_raw_import=False, relative_path=rel):
+            if repair_file_frontmatter(
+                concept_path, is_raw_import=False, relative_path=rel
+            ):
                 repaired += 1
             else:
                 skipped += 1

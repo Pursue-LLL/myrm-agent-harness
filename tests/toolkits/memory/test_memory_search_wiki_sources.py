@@ -38,7 +38,7 @@ async def test_search_wiki_corpus_returns_answer_and_emits_asset_sources() -> No
     )
 
     with patch(
-        "myrm_agent_harness.toolkits.memory.memory_citations.emit_sources",
+        "myrm_agent_harness.toolkits.memory.agent_surface.memory_citations.emit_sources",
         new=AsyncMock(),
     ) as emit_mock:
         body = await search_wiki_corpus(backends, "diagram")
@@ -67,7 +67,7 @@ async def test_search_wiki_corpus_wraps_answer_with_untrusted_tag() -> None:
     backends = MemorySearchBackends(query_wiki=AsyncMock(return_value=result))
 
     with patch(
-        "myrm_agent_harness.toolkits.memory.memory_citations.emit_sources",
+        "myrm_agent_harness.toolkits.memory.agent_surface.memory_citations.emit_sources",
         new=AsyncMock(),
     ):
         body = await search_wiki_corpus(backends, "diagram")
@@ -88,7 +88,7 @@ async def test_search_wiki_corpus_empty_answer_fallback() -> None:
     backends = MemorySearchBackends(query_wiki=AsyncMock(return_value=result))
 
     with patch(
-        "myrm_agent_harness.toolkits.memory.memory_citations.emit_sources",
+        "myrm_agent_harness.toolkits.memory.agent_surface.memory_citations.emit_sources",
         new=AsyncMock(),
     ) as emit_mock:
         body = await search_wiki_corpus(backends, "missing")
@@ -128,7 +128,7 @@ async def test_search_wiki_corpus_emits_resource_uri_with_wiki_structure(tmp_pat
     )
 
     with patch(
-        "myrm_agent_harness.toolkits.memory.memory_citations.emit_sources",
+        "myrm_agent_harness.toolkits.memory.agent_surface.memory_citations.emit_sources",
         new=AsyncMock(),
     ) as emit_mock:
         await search_wiki_corpus(backends, "notes")

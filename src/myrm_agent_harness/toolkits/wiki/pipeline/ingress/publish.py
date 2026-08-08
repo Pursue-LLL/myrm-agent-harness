@@ -148,12 +148,15 @@ async def publish_clip_ingress(
     had_refs = had_refs or bool(re.search(r"!\[[^\]]*\]\(", body))
 
     localized = _assets_localized_label(asset_stats, had_markdown_refs=had_refs)
-    content = _build_frontmatter(
-        source_url=request.source_url,
-        title=request.title,
-        clip_mode=request.clip_mode,
-        assets_localized=localized,
-    ) + body
+    content = (
+        _build_frontmatter(
+            source_url=request.source_url,
+            title=request.title,
+            clip_mode=request.clip_mode,
+            assets_localized=localized,
+        )
+        + body
+    )
 
     try:
         result = await publish_raw(
@@ -236,12 +239,15 @@ async def publish_url_markdown_ingress(
         )
 
     title = Path(rel_path).stem
-    content = _build_frontmatter(
-        source_url=request.url,
-        title=title,
-        clip_mode=None,
-        assets_localized=localized,
-    ) + body
+    content = (
+        _build_frontmatter(
+            source_url=request.url,
+            title=title,
+            clip_mode=None,
+            assets_localized=localized,
+        )
+        + body
+    )
 
     try:
         result = await publish_raw(

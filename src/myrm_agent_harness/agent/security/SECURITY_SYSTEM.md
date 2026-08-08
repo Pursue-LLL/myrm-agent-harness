@@ -1484,7 +1484,7 @@ GeneralAgent → build_channel_security_config(agent_security_raw=...) → _merg
 
 - **审计日志**：每次非 CLEAN 的扫描结果通过 `record_decision()` 写入安全审计链（BLOCKED → DENY / 其他 → SCAN_FINDING）
 - **命中率指标**：`_ScanMetrics` 线程安全单例追踪 total_scans / blocked / redacted / warned / clean，通过 `get_scan_metrics().snapshot()` 获取
-- **读取路径防护**：`memory_context_middleware.py` Stable 上下文置于 `<user_memory_context>` **SystemMessage**；learned preferences/rules 经 `sanitize()`、逐项 XML 逃逸后由 `wrap_untrusted(...)` 生成 `<<<UNTRUSTED_DATA>>>` **HumanMessage**，与 `SECURITY_BOUNDARY_SYSTEM_RULES` 对齐；工具 recall 路径（`memory_search_tool` memory/sessions corpus、MCP `memory_recall`/`memory_list`）经 `sanitize_recalled_content()`（`redact_sensitive_text` → `sanitize`；`budget_recall_line` 默认）+ 静态 untrusted 前言
+- **读取路径防护**：`memory_context_middleware.py` Stable 上下文置于 `<user_memory_context>` **SystemMessage**；learned preferences/rules 经 `sanitize()`、逐项 XML 逃逸后由 `wrap_untrusted(...)` 生成 `<<<UNTRUSTED_DATA>>>` **HumanMessage**，与 `SECURITY_BOUNDARY_SYSTEM_RULES` 对齐；工具 recall 路径（`memory_search_tool` memory/sessions corpus、MCP `memory_recall`/`memory_list`）经 `sanitize_recalled_content()`（`redact_sensitive_text` → `sanitize`；`budget_recall_line` 默认）+ SemanticMemory `source_error` 后缀经 `format_recall_source_error_suffix()` + 静态 untrusted 前言；preference save 成功 ack 经 `format_preference_save_ack()` 同 SSOT
 
 ### 配置
 

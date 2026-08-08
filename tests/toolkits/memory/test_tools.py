@@ -353,7 +353,10 @@ class TestMemoryRecallTool:
                 return_value=[
                     MemorySearchResult(
                         memory=SemanticMemory(
-                            content="corrected pref", source_error="wrong output"
+                            content="corrected pref",
+                            source_error=(
+                                "wrong output; key was sk-proj-abcdefghij1234567890"
+                            ),
                         ),
                         score=0.85,
                         memory_type=MemoryType.SEMANTIC,
@@ -367,7 +370,9 @@ class TestMemoryRecallTool:
                 if t.name == "memory_search_tool"
             )
             result = await tool.ainvoke({"query": "pref"})
-        assert "(avoid: wrong output)" in result
+        assert "(avoid:" in result
+        assert "sk-proj-abcdefghij1234567890" not in result
+        assert "wrong output" in result
 
     @pytest.mark.asyncio
     async def test_recall_drift_defense_footer(
@@ -502,6 +507,32 @@ class TestMemorySaveTool:
                 }
             )
         assert "language" in result
+
+    @pytest.mark.asyncio
+    async def test_save_preference_ack_redacts_credentials(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+
+        secret = "sk-proj-abcdefghij1234567890"
+        manager = self._make_manager(
+            mock_vector_store, mock_embedding, memory_config, relational=AsyncMock()
+        )
+        with patch.object(
+            MemoryManager, "set_profile_attribute", AsyncMock(return_value=None)
+        ):
+            tool = next(
+                t for t in create_memory_tools(manager) if t.name == "memory_save_tool"
+            )
+            result = await tool.ainvoke(
+                {
+                    "content": f"My API key is {secret}",
+                    "category": "preference",
+                    "preference_key": "api_key",
+                }
+            )
+        assert secret not in result
+        assert "api_key" in result
 
     @pytest.mark.asyncio
     async def test_save_rule_requires_trigger(

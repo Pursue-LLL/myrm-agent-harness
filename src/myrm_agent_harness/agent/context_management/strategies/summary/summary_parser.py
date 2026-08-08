@@ -21,7 +21,13 @@ from __future__ import annotations
 import json
 import re
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 
 from myrm_agent_harness.agent.security.detection.leak_detector import redact_leaks
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
@@ -82,11 +88,15 @@ def format_messages_for_summary(messages: list[BaseMessage]) -> str:
                 tool_names = [tc.get("name", "unknown") for tc in msg.tool_calls]
                 formatted_parts.append(f"[AI 调用工具] {', '.join(tool_names)}")
             elif msg.content:
-                content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                content = (
+                    msg.content if isinstance(msg.content, str) else str(msg.content)
+                )
                 formatted_parts.append(f"[AI 回复] {content[:500]}...")
         elif isinstance(msg, ToolMessage):
             content = msg.content if isinstance(msg.content, str) else str(msg.content)
-            formatted_parts.append(f"[工具结果: {msg.name}] {smart_truncate(content, 1000)}")
+            formatted_parts.append(
+                f"[工具结果: {msg.name}] {smart_truncate(content, 1000)}"
+            )
         elif isinstance(msg, SystemMessage):
             pass
 
@@ -98,7 +108,9 @@ def format_messages_for_summary(messages: list[BaseMessage]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _build_summary_from_dict(data: dict[str, object], context_dump_path: str = "") -> StructuredSummary:
+def _build_summary_from_dict(
+    data: dict[str, object], context_dump_path: str = ""
+) -> StructuredSummary:
     """从 JSON dict 构建 StructuredSummary，统一所有解析路径的字段映射。"""
     return StructuredSummary(
         user_goal=str(data.get("user_goal", "未知目标")),
@@ -109,14 +121,18 @@ def _build_summary_from_dict(data: dict[str, object], context_dump_path: str = "
         last_action=str(data.get("last_action", "")),
         context_dump_path=context_dump_path or str(data.get("context_dump_path", "")),
         active_task=str(data.get("active_task", "")),
-        constraints_and_preferences=_as_str_list(data.get("constraints_and_preferences")),
+        constraints_and_preferences=_as_str_list(
+            data.get("constraints_and_preferences")
+        ),
         resolved_questions=_as_str_list(data.get("resolved_questions")),
         pending_user_asks=_as_str_list(data.get("pending_user_asks")),
         active_state=str(data.get("active_state", "")),
     )
 
 
-def parse_summary_response(response: object, context_dump_path: str = "") -> StructuredSummary:
+def parse_summary_response(
+    response: object, context_dump_path: str = ""
+) -> StructuredSummary:
     """Parse ``StructuredSummary`` from an LLM response body (JSON string, tagged block, or mixed text)."""
     if isinstance(response, list):
         return _build_summary_from_dict({}, context_dump_path=context_dump_path)
@@ -277,7 +293,9 @@ def _parse_summary_from_text(content: str) -> StructuredSummary | None:
             stripped = line.strip()
             # strip emoji prefixes for section header matching
             clean = stripped
-            for ch in "\U0001f3af\U0001f4cc\U0001f4cd\u2699\ufe0f\u2705\U0001f4a1\u26a0\ufe0f\U0001f534\U0001f527":
+            for (
+                ch
+            ) in "\U0001f3af\U0001f4cc\U0001f4cd\u2699\ufe0f\u2705\U0001f4a1\u26a0\ufe0f\U0001f534\U0001f527":
                 clean = clean.lstrip(ch)
             clean = clean.lstrip(" ")
 

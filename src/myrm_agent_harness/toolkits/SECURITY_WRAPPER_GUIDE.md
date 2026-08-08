@@ -23,6 +23,12 @@
 │     └─ 使用 memory_recall_formatting.sanitize_recalled_content（redact → sanitize）+ finalize_recall_tool_output
 │     └─ ❌ 不要用 wrap_with_external_sources_tag（会触发引用规则且 random boundary 伤 cache）
 │
+├─ 记忆 preference save 成功回执（memory_save_tool / MCP memory_store preference）
+│  └─ ✅ 必须 sanitize（同 recall SSOT）
+│     └─ 使用 format_preference_save_ack（redact → sanitize）；避免 write scan 已 redact 存库但 ToolMessage echo 明文
+│  3. Recall source_error suffix（memory_search / MCP recall）
+│     └─ 使用 format_recall_source_error_suffix（redact → sanitize）；与 middleware stable 注入对齐
+│
 └─ 其它内部可信执行结果（bash/file 等）
    └─ 使用 wrap_with_tool_output_tag 或无需额外包装（见下表）
 ```
@@ -47,8 +53,10 @@
 |---------|------|------|
 | **代码执行** | `bash`, `python`, `code_execution` | 用户自己的代码输出（已用 `wrap_with_tool_output_tag` 防注入） |
 | **文件操作** | `file_read`, `file_write`, `file_list` | 用户自己的文件（已用 `wrap_with_tool_output_tag` 防注入） |
-| **记忆 recall/list 工具** | `memory_search_tool`, MCP `memory_recall` / `memory_list` | 写入 scanner 不能 100% 拦截低分 injection；sessions snippet 不经 write scan；recall 返回须 defense-in-depth | 框架已在 `memory_recall_formatting.py` 统一 `redact_sensitive_text` → `sanitize_recalled_content()` + 静态 untrusted 前言（**不要**再套 `wrap_with_external_sources_tag`） |
-| **记忆 store/manage** | `memory_store_tool`, `memory_manage_tool` | 写入/变更操作，非 untrusted 数据回读 | 无需 recall 包装；写入仍走 `memory_scanner` |
+| **记忆 recall/list 工具** | `memory_search_tool`, MCP `memory_recall` / `memory_list` | 写入 scanner 不能 100% 拦截低分 injection；sessions snippet 不经 write scan；recall 返回须 defense-in-depth | 框架已在 `agent_surface/memory_recall_formatting.py` 统一 `redact_sensitive_text` → `sanitize_recalled_content()` + 静态 untrusted 前言（**不要**再套 `wrap_with_external_sources_tag`） |
+| **记忆 preference save ack** | `memory_save_tool`, MCP `memory_store`（preference 成功） | write scan redact 存库后，ack 若 echo 原始入参会把凭据塞回 ToolMessage | `format_preference_save_ack()`（同 SSOT redact → sanitize） |
+| **记忆 recall source_error 后缀** | `memory_search_tool`, MCP `memory_recall` | correction 的 `source_error` 字段可含凭据；与 middleware stable 注入同 SSOT | `format_recall_source_error_suffix()`（redact → sanitize） |
+| **记忆 store/manage 其它** | knowledge/event/rule；`memory_manage_tool` | 成功 ack 不回显 user body 或仅返回 ID | 写入/变更仍走 `memory_scanner`；无需 recall 前言 |
 | **Agent 委托** | `delegate_task_tool`, PTC `spawn_subagent`（Dynamic Workflow） | Agent 之间的内部通信，是可信的 |
 | **系统工具** | `goals`, `cron`, `tasks` | 系统内部数据，是可信的 |
 
@@ -100,8 +108,8 @@ async def memory_search_tool(query: str) -> str:
         source="memory"
     )
 
-# ✅ 正确：复用 memory_recall_formatting（已在 memory_search_execution / mcp_server 接入）
-from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
+# ✅ 正确：复用 agent_surface/memory_recall_formatting（memory_search_execution / mcp_server 已接入）
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     finalize_recall_tool_output,
     sanitize_recalled_content,
 )

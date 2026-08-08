@@ -24,17 +24,23 @@ from myrm_agent_harness.toolkits.wiki.core.canonical_registry import (
     find_canonical_conflict,
     stamp_content_hash,
 )
-from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import FrontmatterValidationError
+from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
+    FrontmatterValidationError,
+)
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.apply.errors import WikiApplyError
-from myrm_agent_harness.toolkits.wiki.pipeline.apply.handlers import apply_mutation_to_content
+from myrm_agent_harness.toolkits.wiki.pipeline.apply.handlers import (
+    apply_mutation_to_content,
+)
 from myrm_agent_harness.toolkits.wiki.pipeline.apply.types import (
     WikiApplyCaller,
     WikiApplyOp,
     WikiApplyRequest,
     WikiApplyResult,
 )
-from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
+from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
+    publish_concept_article,
+)
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
 _VAULT_LOCKS: dict[str, asyncio.Lock] = {}
@@ -115,7 +121,11 @@ async def apply_wiki_mutation(
                     f"Canonical identity already mapped to {conflict}",
                 )
 
-        existing = None if request.op == WikiApplyOp.CREATE_NOTE else _read_existing_content(structure, concept_name)
+        existing = (
+            None
+            if request.op == WikiApplyOp.CREATE_NOTE
+            else _read_existing_content(structure, concept_name)
+        )
         if existing is not None and request.if_match:
             current_hash = compute_page_lease_hash(existing)
             if request.if_match != current_hash:

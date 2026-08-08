@@ -33,6 +33,15 @@ def test_resolve_all_skips_disabled_corpora() -> None:
     assert reason is None
 
 
+def test_resolve_all_includes_web_when_enabled() -> None:
+    corpora, reason = resolve_search_corpora(
+        "all",
+        MemorySearchPolicy(allow_wiki=True, allow_sessions=True, allow_web=True),
+    )
+    assert corpora == ["memory", "wiki", "sessions", "web"]
+    assert reason is None
+
+
 def test_resolve_wiki_blocked_by_policy() -> None:
     corpora, reason = resolve_search_corpora("wiki", MemorySearchPolicy(allow_wiki=False))
     assert corpora == []

@@ -17,7 +17,7 @@ Utility functions module.
 | office_scope.py | Core | Office `.docx`/`.xlsx` extension scope for write guards | ✅ |
 | office_opc.py | Core | OPC metrics + xlsx formula snapshots + corrupt Office file audit read errors for bash post-audit | ✅ |
 | office_recalc.py | Core | Optional LibreOffice recalc + Excel error cell scan after xlsx edits | ✅ |
-| video_reader.py | Core | Provides is_video_path, read_video_as_content_blocks. | ✅ |
+| video_reader.py | Core | Sandbox video reads for file_read_tool; video-slot-first fallback chain + VideoAnalysisEngine. | ✅ |
 | path_utils.py | Core | Provides resolve_file_id_path. | ✅ |
 | vault_read.py | Core | vault:// URI read, workspace resolve, batch read for file_read_tool | ✅ |
 | pdf_reader.py | Core | PDF file reader with Large Document Smart RAG Diverter. Auto-ingests large PDFs (>20 pages) into wiki knowledge base for RAG retrieval. | ✅ |

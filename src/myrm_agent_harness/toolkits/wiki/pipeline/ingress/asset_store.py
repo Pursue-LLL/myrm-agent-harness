@@ -101,7 +101,9 @@ def store_clip_assets(
             continue
         url_to_filename[item.source_url] = filename
         stored += 1
-    return url_to_filename, IngressAssetStats(stored=stored, skipped=skipped, failed=failed)
+    return url_to_filename, IngressAssetStats(
+        stored=stored, skipped=skipped, failed=failed
+    )
 
 
 async def localize_public_markdown_images(
@@ -146,7 +148,9 @@ async def localize_public_markdown_images(
             if response.status_code != 200:
                 failed += 1
                 continue
-            content_type = response.headers.get("content-type", "application/octet-stream")
+            content_type = response.headers.get(
+                "content-type", "application/octet-stream"
+            )
             data = response.content
             filename = store_asset_bytes(
                 structure, data=data, content_type=content_type

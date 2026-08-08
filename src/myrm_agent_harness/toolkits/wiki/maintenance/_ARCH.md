@@ -6,7 +6,7 @@ LLM-driven wikilink enrichment, and proactive knowledge-gap analysis
 (isolated/bridge node detection via graph insights). Cross-concept contradiction
 synthesis runs at compile time (`pipeline/contradiction_synthesis/`).
 
-Deterministic broken markdown/wikilink links and frontmatter-type checks live in `../diagnostics/structural_lint.py` (SSOT); `linter.py` delegates to that module.
+Deterministic broken markdown/wikilink links, frontmatter-type checks, and raw-backed provenance gaps live in `../diagnostics/structural_lint.py` (SSOT); `linter.py` delegates to that module.
 
 ## File & Submodule Index
 

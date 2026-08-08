@@ -9,7 +9,7 @@ server `/wiki/stats` and CI retrieval regression gates.
 
 | File | Role |
 |------|------|
-| `structural_lint.py` | SSOT for broken markdown links (code-fence aware), broken `[[wikilink]]` targets (path + title alias), and frontmatter type gate counts |
+| `structural_lint.py` | SSOT for broken markdown links (code-fence aware), broken `[[wikilink]]` targets (path + title alias), frontmatter type gate counts, and raw-backed provenance gaps |
 | `recall_benchmark.py` | Offline **Tier-1** FTS indexer benchmark (hit@k, latency). **Tier-2** query-path claim-health cases live in `tests/toolkits/wiki/test_query_closure_v2.py` (CI via harness `test.yml`) |
 
 ## Boundaries

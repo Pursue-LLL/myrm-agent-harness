@@ -10,7 +10,9 @@
 2. **辅助模型调用**：使用配置的 `visionFallbackModel` 将图像/视频转为文本描述
 3. **实时状态通知**：通过 SSE 事件（`analyzing_image/video` + `analyzing_image/video_clear`）向前端通知处理状态
 4. **优雅降级**：失败时返回友好的错误信息，不影响整体请求流程
-5. **视频双策略**：支持原生视频的模型（如 Gemini）直传，不支持的通过 ffmpeg 帧提取 + 视觉模型分析
+5. 视频双策略：支持原生视频的模型（如 Gemini）直传，不支持的通过 ffmpeg 帧提取 + 视觉模型分析
+6. **Agent 视觉工具链**：`vision_semantic_tool`（together/ground/region/ocr）+ `vision_geometry_tool`（pixel_diff/crop），EXTENDED 层，仅 `vision-toolkit` skill 绑定时挂载
+7. **视频降级槽**：Settings `videoFallbackModel` 独立于 `visionFallbackModel`；Server `media_router` + chat/agent runtime context 注入 `video_fallback_model_cfgs`
 
 ## 系统架构
 
@@ -124,6 +126,19 @@ if not supports_vision and vision_fallback_model_cfg:
 **messageStreamHandler** (`myrm-agent-frontend/src/store/chat/messageStreamHandler.ts`):
 - 监听 SSE 事件 `type: "status"` + `step_key: "analyzing_image" | "analyzing_video"`
 - 设置/清除 message 的 `mediaAnalysisStatus` 字段
+- 读取 `vision_backend` 徽章（`vlm` / `frame` / `native_video`）并在 `MessageBox` 展示
+
+### 6. Agent Vision Toolkit (Harness EXTENDED)
+
+**位置**: `myrm_agent_harness/toolkits/llms/vision/vision_agent_tools.py`
+
+**工具**:
+- `vision_semantic_tool` — together / ground / region / ocr（VLM 链 + 末级 OCR tier）
+- `vision_geometry_tool` — pixel_diff / crop
+
+**挂载**: `ToolLayer.EXTENDED` · prebuilt skill `vision-toolkit` · 每 turn 语义工具默认最多 3 次调用
+
+**Server 注入**: `GeneralAgentParams.video_fallback_model_cfgs` + `vision_fallback_model_cfgs` → agent runtime context → `file_read_tool` / chat 预处理；`create_vision_agent_tools` 仅消费 vision 槽（图像语义工具）
 
 ## 配置示例
 
@@ -139,6 +154,10 @@ if not supports_vision and vision_fallback_model_cfg:
     "visionFallbackModel": {
       "providerId": "openai-compatible",
       "model": "qwen-vl-plus"
+    },
+    "videoFallbackModel": {
+      "providerId": "google",
+      "model": "gemini-2.5-flash"
     }
   },
   "customModelInfo": {

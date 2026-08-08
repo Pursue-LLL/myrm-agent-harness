@@ -2,8 +2,12 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_from_content
-from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import load_frontmatter_metadata
+from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
+    parse_claims_from_content,
+)
+from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
+    load_frontmatter_metadata,
+)
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.chat_compound import (
     CHAT_COMPOUND_PROVENANCE,
@@ -33,7 +37,9 @@ def mock_indexer() -> WikiIndexer:
     return indexer
 
 
-def test_build_chat_compound_draft_includes_qa_and_metadata(wiki_structure: WikiStructure) -> None:
+def test_build_chat_compound_draft_includes_qa_and_metadata(
+    wiki_structure: WikiStructure,
+) -> None:
     draft = build_chat_compound_draft(
         wiki_structure,
         ChatCompoundRequest(
@@ -95,7 +101,9 @@ async def test_stage_chat_compound_dedupes_source_message(
         source_message="msg-dup",
         trust=ChatCompoundTrustContext(False, False),
     )
-    first = await stage_chat_compound(wiki_structure, mock_indexer, pending_mgr, request)
+    first = await stage_chat_compound(
+        wiki_structure, mock_indexer, pending_mgr, request
+    )
     assert first.pending_edit_id > 0
 
     with pytest.raises(ChatCompoundError) as exc_info:
@@ -116,6 +124,8 @@ def test_find_pending_edit_id_by_source_message(wiki_structure: WikiStructure) -
             trust=ChatCompoundTrustContext(False, False),
         ),
     )
-    pending_mgr.add_pending_edit("ChatCompounds/2026-08/find", draft, provenance=CHAT_COMPOUND_PROVENANCE)
+    pending_mgr.add_pending_edit(
+        "ChatCompounds/2026-08/find", draft, provenance=CHAT_COMPOUND_PROVENANCE
+    )
     found = find_pending_edit_id_by_source_message(pending_mgr, "msg-find")
     assert found is not None

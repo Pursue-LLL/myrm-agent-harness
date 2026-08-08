@@ -26,6 +26,12 @@ from pathlib import Path
 from typing import Literal
 
 from myrm_agent_harness.toolkits.file_parsers.base import FileParser
+from myrm_agent_harness.toolkits.file_parsers.docx_embedded_assets import (
+    DocxEmbeddedImage,
+    docx_embed_markdown_ref,
+    extract_docx_embedded_images,
+    find_docx_embed_ids,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +58,12 @@ class DocxParser(FileParser):
 
         content = await asyncio.to_thread(self._parse_sync, file_path)
 
-        logger.info("Word document parsed: %s, format=%s, length: %d chars", path.name, self._output_format, len(content))
+        logger.info(
+            "Word document parsed: %s, format=%s, length: %d chars",
+            path.name,
+            self._output_format,
+            len(content),
+        )
         return content
 
     def _parse_sync(self, file_path: str) -> str:
@@ -63,7 +74,9 @@ class DocxParser(FileParser):
             from docx.table import Table
             from docx.text.paragraph import Paragraph
         except ImportError as e:
-            raise ImportError("python-docx is not installed. Run: uv add python-docx") from e
+            raise ImportError(
+                "python-docx is not installed. Run: uv add python-docx"
+            ) from e
 
         doc = Document(file_path)
 
@@ -87,22 +100,28 @@ class DocxParser(FileParser):
             if tag == qn("w:p"):  # type: ignore[operator]
                 para = Paragraph(element, doc)
                 text = para.text.strip()
-                if not text:
-                    continue
+                embed_ids = find_docx_embed_ids(element)
                 style_name = para.style.name if para.style and para.style.name else ""
-                if style_name.startswith("Heading"):
-                    level_str = style_name.replace("Heading", "").strip()
-                    try:
-                        heading_level = int(level_str)
-                        blocks.append(f"{'#' * heading_level} {text}")
-                    except ValueError:
+                if text:
+                    if style_name.startswith("Heading"):
+                        level_str = style_name.replace("Heading", "").strip()
+                        try:
+                            heading_level = int(level_str)
+                            blocks.append(f"{'#' * heading_level} {text}")
+                        except ValueError:
+                            blocks.append(text)
+                    elif "List Bullet" in style_name:
+                        blocks.append(f"- {text}")
+                    elif "List Number" in style_name:
+                        blocks.append(f"1. {text}")
+                    else:
                         blocks.append(text)
-                elif "List Bullet" in style_name:
-                    blocks.append(f"- {text}")
-                elif "List Number" in style_name:
-                    blocks.append(f"1. {text}")
-                else:
-                    blocks.append(text)
+                for embed_id in embed_ids:
+                    blocks.append(
+                        f"![embedded image]({docx_embed_markdown_ref(embed_id)})"
+                    )
+                if not text and not embed_ids:
+                    continue
             elif tag == qn("w:tbl"):  # type: ignore[operator]
                 table = Table(element, doc)
                 md = self._table_to_markdown(table)
@@ -110,6 +129,10 @@ class DocxParser(FileParser):
                     blocks.append(md)
 
         return "\n\n".join(blocks)
+
+    def embedded_images(self, file_path: str) -> dict[str, DocxEmbeddedImage]:
+        """Return embedded image payloads keyed by OOXML relationship id."""
+        return extract_docx_embedded_images(file_path)
 
     def _build_structure(
         self,
@@ -133,7 +156,9 @@ class DocxParser(FileParser):
                     para_id = f"_idx_{element_idx}"
 
                 text = para.text.strip()
-                style_name = para.style.name if para.style and para.style.name else "Normal"
+                style_name = (
+                    para.style.name if para.style and para.style.name else "Normal"
+                )
 
                 has_images = bool(element.findall(f".//{qn('w:drawing')}"))  # type: ignore[operator, arg-type]
 
@@ -178,7 +203,9 @@ class DocxParser(FileParser):
                     for r_idx, row_cells in enumerate(rows_data):
                         for c_idx, cell_text in enumerate(row_cells):
                             if cell_text:
-                                cell_map.append({"r": r_idx, "c": c_idx, "v": cell_text})
+                                cell_map.append(
+                                    {"r": r_idx, "c": c_idx, "v": cell_text}
+                                )
                                 if len(cell_map) >= 500:
                                     break
                         if len(cell_map) >= 500:

@@ -93,7 +93,53 @@ class TestReadVideoAsContentBlocks:
             vision_fallback_model_cfg=None,
         )
         assert isinstance(result, str)
-        assert "Configure a vision fallback model" in result
+        assert "Configure a video or vision fallback model" in result
+
+    @pytest.mark.asyncio
+    async def test_video_fallback_slot_preferred_over_vision(self, mock_executor):
+        mock_executor.read_file_bytes.return_value = b"fake_video"
+
+        video_cfg = MagicMock()
+        video_cfg.model = "gemini-video"
+        video_cfg.api_key = "video-key"
+        video_cfg.base_url = None
+        video_cfg.model_kwargs = None
+        video_cfg.supports_video = True
+
+        vision_cfg = MagicMock()
+        vision_cfg.model = "gpt-4o-mini"
+        vision_cfg.api_key = "vision-key"
+        vision_cfg.base_url = None
+        vision_cfg.model_kwargs = None
+        vision_cfg.supports_video = False
+
+        validated = MagicMock()
+        validated.supports_video = True
+
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.fallback_engine.LLMConfig.model_validate",
+            return_value=validated,
+        ), patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
+            return_value=None,
+        ) as mock_engine_init, patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.analyze_local_video",
+            new_callable=AsyncMock,
+            return_value="Scene summary",
+        ) as mock_analyze:
+            result = await read_video_as_content_blocks(
+                "clip.mp4",
+                mock_executor,
+                supports_vision=False,
+                supports_video=False,
+                vision_fallback_model_cfgs=[vision_cfg],
+                video_fallback_model_cfgs=[video_cfg],
+            )
+            assert isinstance(result, str)
+            assert "Scene summary" in result
+            mock_engine_init.assert_called_once()
+            mock_analyze.assert_awaited_once()
+            assert mock_analyze.await_args.kwargs["supports_video"] is True
 
     @pytest.mark.asyncio
     async def test_vision_only_with_fallback_calls_engine(self, mock_executor):
@@ -106,7 +152,7 @@ class TestReadVideoAsContentBlocks:
         fallback_cfg.model_kwargs = None
 
         with patch(
-            "myrm_agent_harness.agent.config.llm.LLMConfig.model_validate"
+            "myrm_agent_harness.toolkits.llms.vision.fallback_engine.LLMConfig.model_validate"
         ) as mock_model_validate, patch(
             "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
             return_value=None,
@@ -127,6 +173,37 @@ class TestReadVideoAsContentBlocks:
             assert isinstance(result, str)
             assert "A cat playing" in result
             assert "[Video Analysis]" in result
+
+    @pytest.mark.asyncio
+    async def test_fallback_failure_returns_unavailable_message(self, mock_executor):
+        mock_executor.read_file_bytes.return_value = b"fake_video"
+
+        fallback_cfg = MagicMock()
+        fallback_cfg.model = "gpt-4o-mini"
+        fallback_cfg.api_key = "test"
+        fallback_cfg.base_url = None
+        fallback_cfg.model_kwargs = None
+
+        with patch(
+            "myrm_agent_harness.toolkits.llms.vision.fallback_engine.LLMConfig.model_validate",
+            return_value=MagicMock(supports_video=False),
+        ), patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.__init__",
+            return_value=None,
+        ), patch(
+            "myrm_agent_harness.toolkits.llms.vision.video_analysis_engine.VideoAnalysisEngine.analyze_local_video",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("boom"),
+        ):
+            result = await read_video_as_content_blocks(
+                "clip.mp4",
+                mock_executor,
+                supports_vision=False,
+                supports_video=False,
+                vision_fallback_model_cfgs=[fallback_cfg],
+            )
+            assert isinstance(result, str)
+            assert "Video analysis unavailable" in result
 
     @pytest.mark.asyncio
     async def test_mime_type_detection(self, mock_executor):

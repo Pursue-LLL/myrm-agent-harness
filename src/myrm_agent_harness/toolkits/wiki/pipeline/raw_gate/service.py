@@ -19,12 +19,21 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from myrm_agent_harness.toolkits.wiki.core.canonical_registry import compute_page_lease_hash
+from myrm_agent_harness.toolkits.wiki.core.canonical_registry import (
+    compute_page_lease_hash,
+)
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
-from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.events import WikiMapEvent, WikiMapEventType
-from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.writer import append_log_entry
+from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.events import (
+    WikiMapEvent,
+    WikiMapEventType,
+)
+from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.writer import (
+    append_log_entry,
+)
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.errors import RawGateError
-from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.security_hook import apply_raw_security_scan
+from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.security_hook import (
+    apply_raw_security_scan,
+)
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.types import (
     RawConflictPolicy,
     RawGateCaller,
@@ -272,7 +281,9 @@ def _publish_raw_impl(
                     },
                 ),
             )
-            from myrm_agent_harness.toolkits.wiki.core.claims_contract import record_raw_supersede_entry
+            from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
+                record_raw_supersede_entry,
+            )
 
             record_raw_supersede_entry(
                 structure,

@@ -9,6 +9,7 @@ myrm_agent_harness.utils.media.image_compressor::image_compressor (POS: 图像�
 VisionFallbackEngine: 辅助视觉模型图像转文本服务，三段式 prompt（Role + Anti-injection + Focus hint），失败 raise VisionDescriptionError（fail-closed）。
 VisionDescriptionError: 视觉描述失败时的专用异常，调用方按各自策略处理。
 create_vision_fallback_engine: 从 context 字段构建引擎（支持单配置或有序链）。
+pick_video_fallback_model_cfgs: 视频槽优先、vision 槽备选的降级链选择（chat/agent SSOT）。
 
 [POS]
 视觉能力降级服务。在主模型缺乏视觉能力时，提供底层、无状态的图像转文本能力；封装并发解析与 image_compressor Reactive Resize 兜底。属于 Harness 框架层，供业务层与框架工具链调用，不依赖业务逻辑和数据库。
@@ -87,6 +88,20 @@ def resolve_vision_fallback_llm_configs(
     return configs
 
 
+def pick_video_fallback_model_cfgs(
+    video_fallback_model_cfgs: object | None,
+    vision_fallback_model_cfgs: object | None,
+) -> list[object]:
+    """Prefer video fallback slot configs, then vision fallback slot."""
+    if video_fallback_model_cfgs is not None:
+        if isinstance(video_fallback_model_cfgs, (list, tuple)) and video_fallback_model_cfgs:
+            return list(video_fallback_model_cfgs)
+    if vision_fallback_model_cfgs is not None:
+        if isinstance(vision_fallback_model_cfgs, (list, tuple)) and vision_fallback_model_cfgs:
+            return list(vision_fallback_model_cfgs)
+    return []
+
+
 def create_vision_fallback_engine(
     vision_fallback_model_cfg: object | None = None,
     vision_fallback_model_cfgs: object | None = None,
@@ -154,6 +169,24 @@ class VisionFallbackEngine:
             label = cls._HINT_LABELS.get(source, cls._HINT_LABELS["user"])
             parts.append(label + "\n" + hint_text)
         parts.append(cls._DESCRIBE_PROMPT)
+        return "\n\n".join(parts)
+
+    @classmethod
+    def build_together_prompt(cls, task: str | None, image_count: int) -> str:
+        hint = (task or "").strip()[-cls._FOCUS_HINT_MAX_CHARS:]
+        parts = [cls._ROLE_PROMPT]
+        if hint:
+            parts.append(
+                "The user's current request, so you know which details matter most:\n" + hint
+            )
+        if image_count > 1:
+            parts.append(
+                "You are viewing multiple images in one request. Label them Image 1, Image 2, etc. "
+                "Describe each, then answer the user's question using evidence from all images together. "
+                "Do not invent differences that are not visible."
+            )
+        else:
+            parts.append(cls._DESCRIBE_PROMPT)
         return "\n\n".join(parts)
 
     def __init__(self, fallback_configs: LLMConfig | Sequence[LLMConfig]):
@@ -304,6 +337,51 @@ class VisionFallbackEngine:
         tasks = [self.describe_image_b64(b64, mime) for b64, mime in images]
         results = await asyncio.gather(*tasks, return_exceptions=False)
         return list(results)
+
+    async def describe_images_together(
+        self,
+        images: list[tuple[str, str]],
+        prompt: str | None = None,
+    ) -> str:
+        """Joint multi-image understanding in a single VLM call."""
+        if not images:
+            raise VisionDescriptionError("together requires at least one image")
+        effective_prompt = prompt or self.build_together_prompt(None, len(images))
+        last_error: str | None = None
+        self._last_success_provider_index = None
+
+        content_blocks: list[dict[str, object]] = [{"type": "text", "text": effective_prompt}]
+        for b64, mime in images:
+            content_blocks.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{mime};base64,{b64}"},
+                }
+            )
+        msg = HumanMessage(content=content_blocks)
+
+        for index in range(len(self.fallback_configs)):
+            model = self._get_model(index)
+            try:
+                response = await model.ainvoke([msg])
+                self._last_success_provider_index = index
+                return str(response.content)
+            except Exception as exc:
+                reason = classify_failover_reason(exc)
+                if (
+                    _should_failover_to_next_provider(reason)
+                    and index < len(self.fallback_configs) - 1
+                ):
+                    last_error = str(exc)
+                    logger.warning(
+                        "Together vision provider %s failed, trying next: %s",
+                        self.fallback_configs[index].model,
+                        exc,
+                    )
+                    continue
+                last_error = str(exc)
+                break
+        raise VisionDescriptionError(last_error or "together vision failed")
 
     async def describe_local_image(self, path: str, executor: FileExecutor) -> str:
         """通过文件沙箱执行器解析本地图像文件

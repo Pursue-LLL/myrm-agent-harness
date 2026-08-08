@@ -256,3 +256,62 @@ def test_build_vision_prompt_truncates_long_hint():
     prompt = VisionFallbackEngine.build_vision_prompt(long_hint, "user")
     assert len(long_hint) > VisionFallbackEngine._FOCUS_HINT_MAX_CHARS
     assert "x" * VisionFallbackEngine._FOCUS_HINT_MAX_CHARS in prompt
+
+
+def test_pick_video_fallback_model_cfgs_prefers_video_slot():
+    from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+        pick_video_fallback_model_cfgs,
+    )
+
+    video_cfgs = [{"model": "gemini-video"}]
+    vision_cfgs = [{"model": "gpt-4o-mini"}]
+    picked = pick_video_fallback_model_cfgs(video_cfgs, vision_cfgs)
+    assert picked == video_cfgs
+
+
+def test_pick_video_fallback_model_cfgs_falls_back_to_vision():
+    from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+        pick_video_fallback_model_cfgs,
+    )
+
+    vision_cfgs = [{"model": "gpt-4o-mini"}]
+    picked = pick_video_fallback_model_cfgs(None, vision_cfgs)
+    assert picked == vision_cfgs
+
+
+def test_pick_video_fallback_model_cfgs_empty_video_list_uses_vision():
+    from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+        pick_video_fallback_model_cfgs,
+    )
+
+    vision_cfgs = [{"model": "gpt-4o-mini"}]
+    picked = pick_video_fallback_model_cfgs([], vision_cfgs)
+    assert picked == vision_cfgs
+
+
+def test_pick_video_fallback_model_cfgs_returns_empty_when_unconfigured():
+    from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+        pick_video_fallback_model_cfgs,
+    )
+
+    assert pick_video_fallback_model_cfgs(None, None) == []
+    assert pick_video_fallback_model_cfgs([], []) == []
+
+
+def test_create_vision_fallback_engine_none_when_unconfigured():
+    from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+        create_vision_fallback_engine,
+    )
+
+    assert create_vision_fallback_engine(None, None) is None
+
+
+def test_resolve_vision_fallback_llm_configs_accepts_non_list_cfgs():
+    from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
+        resolve_vision_fallback_llm_configs,
+    )
+
+    cfg = LLMConfig(model="gpt-4o-mini", api_key="test")
+    configs = resolve_vision_fallback_llm_configs(None, cfg)
+    assert len(configs) == 1
+    assert configs[0].model == "gpt-4o-mini"

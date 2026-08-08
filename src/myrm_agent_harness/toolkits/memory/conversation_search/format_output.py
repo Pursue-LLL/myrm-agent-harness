@@ -2,7 +2,7 @@
 
 [INPUT]
 - toolkits.memory.conversation_search.types::ConversationSearchHit, ConversationSearchResponse (POS: Conversation search DTOs)
-- toolkits.memory.memory_recall_formatting (POS: Recall redact → sanitize/preamble helpers)
+- toolkits.memory.agent_surface.memory_recall_formatting (POS: Recall redact → sanitize/preamble helpers)
 
 [OUTPUT]
 - format_conversation_search_response: Render hits and emit conversation_history sources.

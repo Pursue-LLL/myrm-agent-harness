@@ -305,8 +305,10 @@ def create_file_read_tool(
                     valid_paths, chat_id=chat_id, executor=executor
                 )
             supports_vision = bool(ctx.get("supports_vision", False))
+            supports_video = bool(ctx.get("supports_video", False))
             vision_fallback_model_cfg = ctx.get("vision_fallback_model_cfg")
             vision_fallback_model_cfgs = ctx.get("vision_fallback_model_cfgs")
+            video_fallback_model_cfgs = ctx.get("video_fallback_model_cfgs")
 
             image_paths = [
                 p
@@ -344,8 +346,10 @@ def create_file_read_tool(
             ) and executor is not None
             use_multimodal = has_multimodal and (
                 supports_vision
+                or supports_video
                 or vision_fallback_model_cfg is not None
                 or vision_fallback_model_cfgs is not None
+                or video_fallback_model_cfgs is not None
             )
             has_documents = bool(document_paths) and executor is not None
 
@@ -361,8 +365,10 @@ def create_file_read_tool(
                     reason,
                     url_errors,
                     supports_vision=supports_vision,
+                    supports_video=supports_video,
                     vision_fallback_model_cfg=vision_fallback_model_cfg,
                     vision_fallback_model_cfgs=vision_fallback_model_cfgs,
+                    video_fallback_model_cfgs=video_fallback_model_cfgs,
                     video_paths=video_paths,
                     parse_mode=parse_mode,
                     mode=mode,
@@ -382,8 +388,10 @@ def create_file_read_tool(
                 video_paths=video_paths,
                 executor=executor,
                 supports_vision=supports_vision,
+                supports_video=supports_video,
                 vision_fallback_model_cfg=vision_fallback_model_cfg,
                 vision_fallback_model_cfgs=vision_fallback_model_cfgs,
+                video_fallback_model_cfgs=video_fallback_model_cfgs,
                 parse_mode=parse_mode,
             )
 

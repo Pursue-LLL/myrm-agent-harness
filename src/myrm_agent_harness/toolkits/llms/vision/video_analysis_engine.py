@@ -231,6 +231,8 @@ class VideoAnalysisEngine:
         mime_type: str = "video/mp4",
         supports_video: bool = True,
         prompt: str | None = None,
+        *,
+        native_video_required: bool = False,
     ) -> str:
         """分析 Base64 编码的视频
 
@@ -239,9 +241,15 @@ class VideoAnalysisEngine:
             mime_type: 视频 MIME 类型
             supports_video: 目标模型是否原生支持视频
             prompt: 自定义分析提示词
+            native_video_required: 已配置 video fallback 槽时禁止静默帧降级
         """
         if supports_video:
             return await self._direct_analyze(b64_data, mime_type, prompt)
+        if native_video_required:
+            return (
+                "[Video analysis unavailable: native video is required but the current model "
+                "does not support video. Configure a video-capable fallback model.]"
+            )
         return await self._frame_extraction_analyze_b64(b64_data, mime_type, prompt)
 
     async def analyze_video_url(
@@ -250,6 +258,8 @@ class VideoAnalysisEngine:
         mime_type: str = "video/mp4",
         supports_video: bool = True,
         prompt: str | None = None,
+        *,
+        native_video_required: bool = False,
     ) -> str:
         """分析 URL 引用的视频"""
         if supports_video:
@@ -268,6 +278,11 @@ class VideoAnalysisEngine:
             except Exception as e:
                 logger.error("Video URL analysis failed: %s", e)
                 return "[Video could not be analyzed]"
+        if native_video_required:
+            return (
+                "[Video analysis unavailable: native video is required but the current model "
+                "does not support video. Configure a video-capable fallback model.]"
+            )
         return "[Video analysis requires a video-capable model or ffmpeg for frame extraction]"
 
     async def analyze_local_video(
@@ -276,6 +291,8 @@ class VideoAnalysisEngine:
         executor: FileExecutor,
         supports_video: bool = True,
         prompt: str | None = None,
+        *,
+        native_video_required: bool = False,
     ) -> str:
         """通过文件执行器分析本地视频文件"""
         suffix = PurePosixPath(path).suffix.lower()
@@ -287,13 +304,49 @@ class VideoAnalysisEngine:
             except Exception as e:
                 return f"[Video file could not be read: {path}]"
 
+            analyze_bytes = raw_bytes
             if len(raw_bytes) > MAX_VIDEO_BYTES:
-                return (
-                    f"[Video too large: {len(raw_bytes) / 1024 / 1024:.1f}MB, "
-                    f"limit {MAX_VIDEO_BYTES // 1024 // 1024}MB]"
+                if not _has_ffmpeg():
+                    return (
+                        f"[Video too large: {len(raw_bytes) / 1024 / 1024:.1f}MB, "
+                        f"limit {MAX_VIDEO_BYTES // 1024 // 1024}MB. Install ffmpeg to transcode.]"
+                    )
+                from myrm_agent_harness.toolkits.llms.vision.transcode import (
+                    cleanup_transcode_path,
+                    transcode_video_h264,
                 )
-            b64_data = base64.standard_b64encode(raw_bytes).decode("ascii")
+
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
+                    tmp.write(raw_bytes)
+                    tmp.flush()
+                    compact_path: str | None = None
+                    try:
+                        compact_path = await transcode_video_h264(tmp.name)
+                        analyze_bytes = Path(compact_path).read_bytes()
+                    except Exception as exc:
+                        logger.error("Video transcode failed: %s", exc)
+                        return (
+                            f"[Video too large and transcode failed: "
+                            f"{len(raw_bytes) / 1024 / 1024:.1f}MB]"
+                        )
+                    finally:
+                        if compact_path is not None:
+                            cleanup_transcode_path(compact_path)
+                if len(analyze_bytes) > MAX_VIDEO_BYTES:
+                    return (
+                        f"[Video still too large after transcode: "
+                        f"{len(analyze_bytes) / 1024 / 1024:.1f}MB, "
+                        f"limit {MAX_VIDEO_BYTES // 1024 // 1024}MB]"
+                    )
+
+            b64_data = base64.standard_b64encode(analyze_bytes).decode("ascii")
             return await self._direct_analyze(b64_data, mime_type, prompt)
+
+        if native_video_required:
+            return (
+                "[Video analysis unavailable: native video is required but the current model "
+                "does not support video. Configure a video-capable fallback model.]"
+            )
 
         # 帧提取降级：需要本地文件路径（不经过 executor）
         if not _has_ffmpeg():

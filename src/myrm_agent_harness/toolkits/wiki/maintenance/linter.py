@@ -38,6 +38,7 @@ from myrm_agent_harness.toolkits.wiki.diagnostics.structural_lint import (
     collect_broken_link_issues,
     collect_broken_wikilink_issues,
     collect_invalid_frontmatter_type_issues,
+    collect_provenance_gap_issues,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
     WikiCognitiveMapService,
@@ -45,8 +46,12 @@ from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
     WikiMapEventType,
 )
 from myrm_agent_harness.toolkits.wiki.maintenance.modes import MaintainMode
-from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import action_kind_for_issue_type
-from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
+from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import (
+    action_kind_for_issue_type,
+)
+from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
+    publish_concept_article,
+)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -100,11 +105,16 @@ class WikiLinter:
         invalid_types = await self._check_frontmatter_types()
         all_issues.extend(invalid_types)
 
+        provenance_gaps = await self._check_provenance_gaps()
+        all_issues.extend(provenance_gaps)
+
         stale = await self._check_stale()
         all_issues.extend(stale)
 
         if include_raw_security:
-            from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import scan_existing_raw_vault
+            from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate import (
+                scan_existing_raw_vault,
+            )
 
             raw_scan = await scan_existing_raw_vault(self._structure, self._indexer)
             redacted_paths = raw_scan.get("redacted_paths", [])
@@ -117,7 +127,9 @@ class WikiLinter:
                                 severity="medium",
                                 location=rel_path,
                                 description="Sensitive content redacted in raw source",
-                                action_kind=action_kind_for_issue_type("security_redacted"),
+                                action_kind=action_kind_for_issue_type(
+                                    "security_redacted"
+                                ),
                                 can_auto_fix=False,
                             )
                         )
@@ -131,7 +143,9 @@ class WikiLinter:
                                 severity="high",
                                 location=rel_path,
                                 description="Blocked raw source removed during maintenance",
-                                action_kind=action_kind_for_issue_type("security_removed"),
+                                action_kind=action_kind_for_issue_type(
+                                    "security_removed"
+                                ),
                                 can_auto_fix=False,
                             )
                         )
@@ -164,7 +178,9 @@ class WikiLinter:
 
         return all_issues, raw_scan
 
-    async def lint_and_maintain(self, mode: MaintainMode = MaintainMode.FULL) -> LintResult:
+    async def lint_and_maintain(
+        self, mode: MaintainMode = MaintainMode.FULL
+    ) -> LintResult:
         """
         Run health check and automatic maintenance.
 
@@ -210,7 +226,9 @@ class WikiLinter:
 
         removed_count = raw_scan.get("files_removed", 0)
         removed_paths_list = raw_scan.get("removed_paths", [])
-        raw_security_removed = int(removed_count) if isinstance(removed_count, int) else 0
+        raw_security_removed = (
+            int(removed_count) if isinstance(removed_count, int) else 0
+        )
         raw_security_removed_paths = (
             [str(path) for path in removed_paths_list if isinstance(path, str)]
             if isinstance(removed_paths_list, list)
@@ -291,6 +309,10 @@ class WikiLinter:
         """Check concept articles for required frontmatter `type` field."""
         return collect_invalid_frontmatter_type_issues(self._structure)
 
+    async def _check_provenance_gaps(self) -> list[LintIssue]:
+        """Check concept articles for missing or broken raw source provenance."""
+        return collect_provenance_gap_issues(self._structure)
+
     async def _apply_deterministic_fixes(self, issues: list[LintIssue]) -> int:
         """Apply only deterministic vault repairs (frontmatter type gate)."""
         fixed_count = 0
@@ -310,8 +332,12 @@ class WikiLinter:
             article_path = Path(issue.location)
             if not article_path.exists():
                 return
-            rel = str(article_path.relative_to(self._structure.concepts_dir).with_suffix("")).replace("\\", "/")
-            repair_file_frontmatter(article_path, is_raw_import=False, relative_path=rel)
+            rel = str(
+                article_path.relative_to(self._structure.concepts_dir).with_suffix("")
+            ).replace("\\", "/")
+            repair_file_frontmatter(
+                article_path, is_raw_import=False, relative_path=rel
+            )
             logger.info("Repaired frontmatter type for %s", article_path.name)
             content = article_path.read_text(encoding="utf-8")
             await publish_concept_article(self._structure, self._indexer, rel, content)
@@ -342,7 +368,9 @@ class WikiLinter:
 
                 # Extract existing wikilinks to avoid duplicates
                 existing_links = set(re.findall(r"\[\[([^\]]+)\]\]", content))
-                existing_links_lower = {link.split("|")[0].strip().lower() for link in existing_links}
+                existing_links_lower = {
+                    link.split("|")[0].strip().lower() for link in existing_links
+                }
 
                 system_msg = SystemMessage(
                     content=(
@@ -384,7 +412,10 @@ class WikiLinter:
                 for link_name in suggested:
                     if not isinstance(link_name, str):
                         continue
-                    if link_name.lower() in existing_links_lower or link_name.lower() == current_name.lower():
+                    if (
+                        link_name.lower() in existing_links_lower
+                        or link_name.lower() == current_name.lower()
+                    ):
                         continue
                     # Verify concept exists
                     if link_name.lower() not in {n.lower() for n in concept_names}:
@@ -396,8 +427,14 @@ class WikiLinter:
                     logger.info(f"LLM discovered link: {current_name} -> {link_name}")
 
                 if article_modified:
-                    rel = str(concept_path.relative_to(self._structure.concepts_dir).with_suffix("")).replace("\\", "/")
-                    await publish_concept_article(self._structure, self._indexer, rel, content)
+                    rel = str(
+                        concept_path.relative_to(
+                            self._structure.concepts_dir
+                        ).with_suffix("")
+                    ).replace("\\", "/")
+                    await publish_concept_article(
+                        self._structure, self._indexer, rel, content
+                    )
 
             except Exception as e:
                 logger.warning(f"LLM link enrichment failed for {concept_path}: {e}")
@@ -406,7 +443,9 @@ class WikiLinter:
 
     async def _check_stale(self) -> list[LintIssue]:
         """Detect wiki articles whose source raw files have been modified after compilation."""
-        from myrm_agent_harness.toolkits.wiki.maintenance.stale_summary import collect_stale_raw_files
+        from myrm_agent_harness.toolkits.wiki.maintenance.stale_summary import (
+            collect_stale_raw_files,
+        )
 
         summary = collect_stale_raw_files(self._structure)
         return [
