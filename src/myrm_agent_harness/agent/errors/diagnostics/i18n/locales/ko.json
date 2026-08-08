@@ -37,7 +37,8 @@
   "custom_model_not_found_resolution_steps": [
     "{service_name}가 실행 중인지 확인하세요",
     "사용 가능한 모델 확인: {list_models_url}",
-    "Ollama의 경우: ollama pull {model_name}로 모델을 다운로드하세요"
+    "모델 이름 철자 확인(대소문자 구분)",
+    "모델이 설치되어 있지 않다면 다운로드하세요"
   ],
   "rate_limit_user_message": "API 속도 제한에 도달했습니다",
   "rate_limit_resolution_steps": [

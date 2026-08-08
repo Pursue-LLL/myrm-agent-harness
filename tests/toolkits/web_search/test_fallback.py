@@ -129,9 +129,8 @@ class TestProviderChain:
             side_effect=Exception("HTTP 429 Quota exceeded")
         )
 
-        with patch.object(searcher, "_get_search_service", return_value=mock_service):
-            with pytest.raises(SearchAPIError):
-                await searcher.search("no_chain_config_unique", num_results=5)
+        with patch.object(searcher, "_get_search_service", return_value=mock_service), pytest.raises(SearchAPIError):
+            await searcher.search("no_chain_config_unique", num_results=5)
 
         assert metrics.chain_hop_count == 0
 

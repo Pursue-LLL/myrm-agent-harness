@@ -321,9 +321,9 @@ class TestLaunchNewBrowserAutoInstall:
         with (
             patch.object(launcher, "_ensure_playwright", return_value=mock_pw),
             patch("asyncio.create_subprocess_exec", return_value=mock_install_proc),
+            pytest.raises(BrowserLaunchError, match="automatic installation failed"),
         ):
-            with pytest.raises(BrowserLaunchError, match="automatic installation failed"):
-                await launcher._launch_new_browser()
+            await launcher._launch_new_browser()
 
     @pytest.mark.asyncio
     async def test_auto_install_only_attempted_once(self) -> None:
@@ -406,9 +406,10 @@ class TestLaunchNewBrowserAutoInstall:
         mock_pw = MagicMock()
         mock_pw.chromium.launch = AsyncMock(side_effect=TimeoutError("browser timeout"))
 
-        with patch.object(launcher, "_ensure_playwright", return_value=mock_pw):
-            with pytest.raises(BrowserLaunchError, match="Failed to create Browser"):
-                await launcher._launch_new_browser()
+        with patch.object(launcher, "_ensure_playwright", return_value=mock_pw), pytest.raises(
+            BrowserLaunchError, match="Failed to create Browser"
+        ):
+            await launcher._launch_new_browser()
 
 
 # ---------------------------------------------------------------------------

@@ -39,7 +39,7 @@ def _patch_async_client(post_return: MagicMock | Exception) -> tuple[MagicMock, 
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
     return mock_client, patch(
-        "myrm_agent_harness.toolkits.llms.tts.generator.httpx.AsyncClient",
+        "myrm_agent_harness.toolkits.llms.tts.generator.create_httpx_client",
         return_value=mock_client,
     )
 
@@ -171,7 +171,7 @@ async def test_generate_gateway_failover_to_byok(gateway_config: ToolGatewayConf
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
     with (
-        patch("myrm_agent_harness.toolkits.llms.tts.generator.httpx.AsyncClient", return_value=mock_client),
+        patch("myrm_agent_harness.toolkits.llms.tts.generator.create_httpx_client", return_value=mock_client),
         patch(
             "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
             new_callable=AsyncMock,
@@ -191,9 +191,10 @@ async def test_generate_retries_then_raises() -> None:
     )
     _, client_patch = _patch_async_client(RuntimeError("network down"))
 
-    with client_patch, patch("myrm_agent_harness.toolkits.llms.tts.generator.asyncio.sleep", new_callable=AsyncMock):
-        with pytest.raises(TTSGenerationError, match="network down"):
-            await engine.generate("retry")
+    with client_patch, patch("myrm_agent_harness.toolkits.llms.tts.generator.asyncio.sleep", new_callable=AsyncMock), pytest.raises(
+        TTSGenerationError, match="network down"
+    ):
+        await engine.generate("retry")
 
 
 @pytest.mark.asyncio

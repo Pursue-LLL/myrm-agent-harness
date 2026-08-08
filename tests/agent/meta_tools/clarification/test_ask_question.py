@@ -79,7 +79,7 @@ async def test_ask_question_tool_validation_error():
 
     tool = AskQuestionTool(callback=mock_callback)
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         await tool._arun(
             questions=[
                 {

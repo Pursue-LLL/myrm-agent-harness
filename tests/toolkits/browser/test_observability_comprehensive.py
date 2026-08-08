@@ -250,12 +250,13 @@ class TestBrowserObservability:
         obs = BrowserObservability(config)
         obs.mark_task_status(False)
 
-        with patch.object(Path, "unlink", side_effect=OSError("Permission denied")):
-            with patch("myrm_agent_harness.toolkits.browser.observability.logger") as mock_logger:
-                obs.cleanup_recording()
+        with patch.object(Path, "unlink", side_effect=OSError("Permission denied")), patch(
+            "myrm_agent_harness.toolkits.browser.observability.logger"
+        ) as mock_logger:
+            obs.cleanup_recording()
 
-                mock_logger.warning.assert_called()
-                assert "Failed to delete recording" in str(mock_logger.warning.call_args)
+            mock_logger.warning.assert_called()
+            assert "Failed to delete recording" in str(mock_logger.warning.call_args)
 
     def test_cleanup_recording_multiple_videos_selects_newest(self, tmp_path: Path) -> None:
         """测试多个视频文件时选择最新的"""

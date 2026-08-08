@@ -7,6 +7,7 @@ Also tests attach/detach, format_for_snapshot, and respond flows.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import FrozenInstanceError
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -341,7 +342,7 @@ def test_dialog_record_frozen():
         action_taken="accepted",
         handled_by="smart",
     )
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         record.message = "modified"
 
 

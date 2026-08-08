@@ -1157,12 +1157,13 @@ async def test_handle_execution_error_tool_stuck_fallthrough_if_interrupt_return
 
     e = ToolStuckException("TOOL_STUCK_EXCEPTION: stuck")
 
-    with patch("langgraph.types.interrupt", return_value=None):
-        with patch("myrm_agent_harness.agent.hooks.executor.fire_hook"):
-            result = await _handle_execution_error(
-                e, "bash_code_execute_tool", "call_999", {}
-            )
-            assert (
-                "ToolStuckException" in result.content
-                or "TOOL_STUCK_EXCEPTION" in result.content
-            )
+    with patch("langgraph.types.interrupt", return_value=None), patch(
+        "myrm_agent_harness.agent.hooks.executor.fire_hook"
+    ):
+        result = await _handle_execution_error(
+            e, "bash_code_execute_tool", "call_999", {}
+        )
+        assert (
+            "ToolStuckException" in result.content
+            or "TOOL_STUCK_EXCEPTION" in result.content
+        )

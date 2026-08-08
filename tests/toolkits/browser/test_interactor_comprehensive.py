@@ -295,9 +295,10 @@ async def test_interact_scroll_invalid_text(interactor: Interactor) -> None:
     """Test scroll with invalid text raises ValueError."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
-        with pytest.raises(ValueError, match="Scroll requires numeric text"):
-            await interactor.interact("scroll", "e0", "not_a_number")
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator), pytest.raises(
+        ValueError, match="Scroll requires numeric text"
+    ):
+        await interactor.interact("scroll", "e0", "not_a_number")
 
 
 # =============================================================================
@@ -589,9 +590,10 @@ async def test_interact_drag_invalid_format(interactor: Interactor) -> None:
     """Test drag with invalid text format."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
-        with pytest.raises(ValueError, match="Drag requires 'x,y' text"):
-            await interactor.interact("drag", "e0", "invalid")
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator), pytest.raises(
+        ValueError, match="Drag requires 'x,y' text"
+    ):
+        await interactor.interact("drag", "e0", "invalid")
 
 
 @pytest.mark.asyncio
@@ -599,9 +601,10 @@ async def test_interact_drag_non_numeric(interactor: Interactor) -> None:
     """Test drag with non-numeric coordinates."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
-        with pytest.raises(ValueError, match="Drag requires numeric 'x,y'"):
-            await interactor.interact("drag", "e0", "abc,def")
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator), pytest.raises(
+        ValueError, match="Drag requires numeric 'x,y'"
+    ):
+        await interactor.interact("drag", "e0", "abc,def")
 
 
 # =============================================================================

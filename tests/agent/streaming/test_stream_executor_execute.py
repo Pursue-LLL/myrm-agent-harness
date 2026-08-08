@@ -334,8 +334,6 @@ async def test_execute_redirect_partial_buffer_in_messages(fire_hook_mock, base_
             yield ("messages", (AIMessage(content="I think"), {"langgraph_node": "model"}))
             steering_token.redirect("Wrong direction, do Z")
             yield ("messages", (AIMessage(content=" wrong text"), {"langgraph_node": "model"}))
-        else:
-            pass
         return
         yield
 
@@ -370,8 +368,6 @@ async def test_execute_redirect_without_partial_text(fire_hook_mock, base_ctx):
         if call_count[0] == 1:
             steering_token.redirect("Changed my mind")
             yield ("messages", (AIMessage(content="ignored"), {"langgraph_node": "model"}))
-        else:
-            pass
         return
         yield
 
@@ -662,9 +658,10 @@ async def test_execute_iteration_limit_in_goal_mode(fire_hook_mock, base_ctx):
 
     base_ctx.agent.astream = _astream_recursion_then_ok
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
-        with patch.object(executor, "_handle_goal_continuation", new_callable=AsyncMock, return_value=False):
-            await executor.execute()
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
+        executor, "_handle_goal_continuation", new_callable=AsyncMock, return_value=False
+    ):
+        await executor.execute()
 
     assert call_count[0] >= 1
 
@@ -691,9 +688,10 @@ async def test_execute_teammate_messages_triggers_continue(fire_hook_mock, base_
             return True
         return await original_handle_teammate(collected)
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
-        with patch.object(executor, "_handle_teammate_messages", side_effect=_mock_teammate):
-            await executor.execute()
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
+        executor, "_handle_teammate_messages", side_effect=_mock_teammate
+    ):
+        await executor.execute()
 
     assert call_count[0] == 2
 
@@ -716,9 +714,10 @@ async def test_execute_escalation_triggers_continue(fire_hook_mock, base_ctx):
         escalation_call[0] += 1
         return escalation_call[0] == 1
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
-        with patch.object(executor, "_handle_escalation", side_effect=_mock_escalation):
-            await executor.execute()
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
+        executor, "_handle_escalation", side_effect=_mock_escalation
+    ):
+        await executor.execute()
 
     assert call_count[0] == 2
 
@@ -741,9 +740,10 @@ async def test_execute_length_truncation_triggers_continue(fire_hook_mock, base_
         trunc_call[0] += 1
         return trunc_call[0] == 1
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
-        with patch.object(executor, "_handle_length_truncation", side_effect=_mock_truncation):
-            await executor.execute()
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
+        executor, "_handle_length_truncation", side_effect=_mock_truncation
+    ):
+        await executor.execute()
 
     assert call_count[0] == 2
 
@@ -766,9 +766,10 @@ async def test_execute_safety_refusal_triggers_continue(fire_hook_mock, base_ctx
         refusal_call[0] += 1
         return refusal_call[0] == 1
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
-        with patch.object(executor, "_handle_safety_refusal_fallback", side_effect=_mock_refusal):
-            await executor.execute()
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
+        executor, "_handle_safety_refusal_fallback", side_effect=_mock_refusal
+    ):
+        await executor.execute()
 
     assert call_count[0] == 2
 
@@ -791,9 +792,10 @@ async def test_execute_empty_response_triggers_continue(fire_hook_mock, base_ctx
         empty_call[0] += 1
         return empty_call[0] == 1
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
-        with patch.object(executor, "_handle_empty_response", side_effect=_mock_empty):
-            await executor.execute()
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
+        executor, "_handle_empty_response", side_effect=_mock_empty
+    ):
+        await executor.execute()
 
     assert call_count[0] == 2
 
@@ -810,9 +812,10 @@ async def test_execute_escalation_scrubber_flush(fire_hook_mock, base_ctx):
         return_value=[(AgentEventType.MESSAGE, "clean text")]
     )
 
-    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
-        with patch.object(executor, "_emit_event", new_callable=AsyncMock) as emit_mock:
-            await executor.execute()
+    with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock), patch.object(
+        executor, "_emit_event", new_callable=AsyncMock
+    ) as emit_mock:
+        await executor.execute()
 
     emitted_dicts = [call.args[0] for call in emit_mock.call_args_list]
     assert any(

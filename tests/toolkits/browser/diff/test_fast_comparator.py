@@ -3,6 +3,7 @@
 import base64
 import io
 import sys
+from dataclasses import FrozenInstanceError
 from unittest.mock import patch
 
 import pytest
@@ -300,7 +301,7 @@ class TestFastComparator:
         img = create_test_image()
         result = comparator.compare(img, img)
 
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             result.similarity = 0.5  # type: ignore[misc]
 
     def test_result_protocol_compliance(self) -> None:
@@ -317,9 +318,10 @@ class TestFastComparator:
 
     def test_initialization_without_pillow(self) -> None:
         """Test initialization fails when Pillow is not installed."""
-        with patch("myrm_agent_harness.toolkits.browser.diff.fast_comparator.Image", None):
-            with pytest.raises(ImportError, match="Pillow is required for FastComparator"):
-                FastComparator()
+        with patch("myrm_agent_harness.toolkits.browser.diff.fast_comparator.Image", None), pytest.raises(
+            ImportError, match="Pillow is required for FastComparator"
+        ):
+            FastComparator()
 
     def test_from_bytes_without_pillow(self) -> None:
         """Test from_bytes fails when Pillow is not installed."""
@@ -328,9 +330,10 @@ class TestFastComparator:
         img.save(buffer, format="PNG")
         image_bytes = buffer.getvalue()
 
-        with patch("myrm_agent_harness.toolkits.browser.diff.fast_comparator.Image", None):
-            with pytest.raises(ImportError, match="Pillow is required for FastComparator"):
-                FastComparator.from_bytes(image_bytes)
+        with patch("myrm_agent_harness.toolkits.browser.diff.fast_comparator.Image", None), pytest.raises(
+            ImportError, match="Pillow is required for FastComparator"
+        ):
+            FastComparator.from_bytes(image_bytes)
 
     def test_input_validation_too_large(self) -> None:
         """Test that compare rejects oversized base64 input."""

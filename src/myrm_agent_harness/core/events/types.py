@@ -181,6 +181,7 @@ class ContextBudgetSnapshot:
     messages_estimated_tokens: int | None = None
     bound_tools_overhead_tokens: int | None = None
     other_tokens: int | None = None
+    turn_count: int | None = None
 
     def to_dict(self) -> dict[str, int | float | str]:
         payload: dict[str, int | float | str] = {
@@ -195,6 +196,8 @@ class ContextBudgetSnapshot:
             payload["bound_tools_overhead_tokens"] = self.bound_tools_overhead_tokens
         if self.other_tokens is not None:
             payload["other_tokens"] = self.other_tokens
+        if self.turn_count is not None:
+            payload["turn_count"] = self.turn_count
         return payload
 
 

@@ -142,11 +142,11 @@ class TestLLMConnectivity:
         mock_litellm = MagicMock()
         mock_litellm.get_llm_provider = MagicMock(return_value=(None, None, "https://api.openai.com/v1", None))
 
-        with patch.dict("os.environ", {"MYRM_MODEL_NAME": "gpt-4o", "MYRM_API_KEY": "sk-123"}):
-            with patch.dict("sys.modules", {"litellm": mock_litellm}):
-                with patch("httpx.AsyncClient", return_value=mock_client_instance):
-                    result = await Doctor()._check_llm_connectivity()
-                    assert result.status == CheckStatus.OK
+        with patch.dict("os.environ", {"MYRM_MODEL_NAME": "gpt-4o", "MYRM_API_KEY": "sk-123"}), patch.dict(
+            "sys.modules", {"litellm": mock_litellm}
+        ), patch("httpx.AsyncClient", return_value=mock_client_instance):
+            result = await Doctor()._check_llm_connectivity()
+            assert result.status == CheckStatus.OK
 
 
 class TestGetModuleVersion:

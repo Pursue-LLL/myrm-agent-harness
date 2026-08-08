@@ -129,10 +129,11 @@ class TestExtractYoutubeTranscript:
 
     @pytest.mark.asyncio
     async def test_import_error_returns_none(self) -> None:
-        with patch.dict("sys.modules", {"youtube_transcript_api": None}):
-            with patch("builtins.__import__", side_effect=ImportError("no module")):
-                result = await extract_youtube_transcript("https://youtube.com/watch?v=dQw4w9WgXcQ")
-                assert result is None
+        with patch.dict("sys.modules", {"youtube_transcript_api": None}), patch(
+            "builtins.__import__", side_effect=ImportError("no module")
+        ):
+            result = await extract_youtube_transcript("https://youtube.com/watch?v=dQw4w9WgXcQ")
+            assert result is None
 
     @pytest.mark.asyncio
     async def test_successful_extraction(self) -> None:
@@ -233,32 +234,34 @@ class TestExtractYoutubeTranscript:
 
     @pytest.mark.asyncio
     async def test_empty_segments_returns_none(self) -> None:
-        with patch("asyncio.to_thread", new_callable=AsyncMock, return_value=[]):
-            with patch.dict("sys.modules", {"youtube_transcript_api": MagicMock()}):
-                import importlib
+        with patch("asyncio.to_thread", new_callable=AsyncMock, return_value=[]), patch.dict(
+            "sys.modules", {"youtube_transcript_api": MagicMock()}
+        ):
+            import importlib
 
-                import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
+            import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
 
-                importlib.reload(yt_mod)
-                result = await yt_mod.extract_youtube_transcript(
-                    "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                )
-                assert result is None
+            importlib.reload(yt_mod)
+            result = await yt_mod.extract_youtube_transcript(
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            )
+            assert result is None
 
     @pytest.mark.asyncio
     async def test_generic_exception_returns_none(self) -> None:
         """Non-disabled/no-transcript exceptions hit the warning branch."""
-        with patch("asyncio.to_thread", side_effect=Exception("Connection timeout")):
-            with patch.dict("sys.modules", {"youtube_transcript_api": MagicMock()}):
-                import importlib
+        with patch("asyncio.to_thread", side_effect=Exception("Connection timeout")), patch.dict(
+            "sys.modules", {"youtube_transcript_api": MagicMock()}
+        ):
+            import importlib
 
-                import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
+            import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
 
-                importlib.reload(yt_mod)
-                result = await yt_mod.extract_youtube_transcript(
-                    "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                )
-                assert result is None
+            importlib.reload(yt_mod)
+            result = await yt_mod.extract_youtube_transcript(
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            )
+            assert result is None
 
     @pytest.mark.asyncio
     async def test_proxy_pool_integration(self) -> None:

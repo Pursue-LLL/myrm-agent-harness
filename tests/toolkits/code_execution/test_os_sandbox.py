@@ -395,9 +395,10 @@ class TestDetector:
             AppContainerProvider,
         )
 
-        with patch.object(AppContainerProvider, "is_available", return_value=False):
-            with pytest.raises(RuntimeError, match="AppContainer not available"):
-                detect_sandbox_provider(SandboxMode.ENABLE, _windows_platform())
+        with patch.object(AppContainerProvider, "is_available", return_value=False), pytest.raises(
+            RuntimeError, match="AppContainer not available"
+        ):
+            detect_sandbox_provider(SandboxMode.ENABLE, _windows_platform())
 
     def test_windows_appcontainer_when_available(self) -> None:
         from myrm_agent_harness.toolkits.code_execution.sandbox.providers.appcontainer import (

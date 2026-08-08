@@ -140,7 +140,7 @@ class TestToolExecution:
 
         with patch(
             "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
-        ) as MockExecutorCls:
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
             mock_executor = AsyncMock()
             mock_executor.execute.return_value = '{"id": "123", "name": "Rex"}'
             MockExecutorCls.return_value = mock_executor
@@ -165,7 +165,7 @@ class TestToolExecution:
 
         with patch(
             "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
-        ) as MockExecutorCls:
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
             mock_executor = AsyncMock()
             mock_executor.execute.return_value = '{"id": "new"}'
             MockExecutorCls.return_value = mock_executor

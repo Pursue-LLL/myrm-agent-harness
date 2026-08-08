@@ -559,6 +559,25 @@ class TestPostRunEvents:
         assert "messages_estimated_tokens" not in payload
         assert "bound_tools_overhead_tokens" not in payload
 
+    def test_turn_count_passthrough_and_omitted_when_none(self) -> None:
+        stats = self._make_stats(50_000)
+        result = compute_context_budget_snapshot(
+            stats,
+            128_000,
+            messages_estimated_tokens=40_000,
+            turn_count=30,
+        )
+        assert result is not None
+        assert result.turn_count == 30
+        payload = result.to_dict()
+        assert payload["turn_count"] == 30
+
+        stats_no_turn = self._make_stats(50_000)
+        result_no_turn = compute_context_budget_snapshot(stats_no_turn, 128_000)
+        assert result_no_turn is not None
+        assert result_no_turn.turn_count is None
+        assert "turn_count" not in result_no_turn.to_dict()
+
 
 class TestResolveContextBudgetBreakdown:
     @pytest.mark.asyncio
@@ -605,6 +624,7 @@ class TestResolveContextBudgetBreakdown:
         )
         assert result["messages_estimated_tokens"] > 0
         assert result["bound_tools_overhead_tokens"] > 0
+        assert result["turn_count"] == 1
         assert result["other_tokens"] == max(
             0,
             50_000
@@ -612,6 +632,30 @@ class TestResolveContextBudgetBreakdown:
             - result["bound_tools_overhead_tokens"],
         )
         checkpointer.aget.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_turn_count_counts_only_human_messages(self) -> None:
+        from langchain_core.messages import AIMessage, HumanMessage
+
+        messages = [
+            HumanMessage(content="first"),
+            AIMessage(content="reply one"),
+            HumanMessage(content="second"),
+            AIMessage(content="reply two"),
+            HumanMessage(content="third"),
+        ]
+        checkpoint = MagicMock()
+        checkpoint.channel_values = {"messages": messages}
+        checkpointer = AsyncMock()
+        checkpointer.aget = AsyncMock(return_value=checkpoint)
+
+        result = await resolve_context_budget_breakdown(
+            checkpointer=checkpointer,
+            thread_id="thread-1",
+            cached_tools=None,
+            provider_prompt_tokens=10_000,
+        )
+        assert result["turn_count"] == 3
 
     @pytest.mark.asyncio
     async def test_checkpointer_error_still_returns_tools_breakdown(self) -> None:
@@ -631,6 +675,7 @@ class TestResolveContextBudgetBreakdown:
         assert result["bound_tools_overhead_tokens"] > 0
         assert result["messages_estimated_tokens"] == 0
         assert result["other_tokens"] > 0
+        assert "turn_count" not in result
 
 
 async def _async_gen(items: list[object]):

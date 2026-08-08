@@ -12,6 +12,7 @@ Tests cover:
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -530,5 +531,5 @@ class TestEdgeCases:
             signal_class="arg_preference",
             feedback="",
         )
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             signal.tool_name = "other"  # type: ignore[misc]

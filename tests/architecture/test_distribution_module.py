@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from importlib.metadata import PackageNotFoundError
 from types import ModuleType
@@ -128,9 +129,10 @@ def test_assert_distribution_ready_raises_on_platform_key_mismatch(
     core_mod = ModuleType("myrm_agent_harness_core")
     core_mod.__version__ = "1.0.0"
     core_mod.get_platform_key = lambda: "linux-x64"
-    with patch.dict(sys.modules, {"myrm_agent_harness_core": core_mod}):
-        with pytest.raises(DistributionNotReadyError, match="platform core wheel mismatch"):
-            assert_distribution_ready()
+    with patch.dict(sys.modules, {"myrm_agent_harness_core": core_mod}), pytest.raises(
+        DistributionNotReadyError, match="platform core wheel mismatch"
+    ):
+        assert_distribution_ready()
 
 
 @pytest.mark.architecture
@@ -148,9 +150,10 @@ def test_assert_distribution_ready_raises_on_version_mismatch(
     core_mod = ModuleType("myrm_agent_harness_core")
     core_mod.__version__ = "1.0.0"
     core_mod.get_platform_key = lambda: "unknown"
-    with patch.dict(sys.modules, {"myrm_agent_harness_core": core_mod}):
-        with pytest.raises(DistributionNotReadyError, match="version mismatch"):
-            assert_distribution_ready()
+    with patch.dict(sys.modules, {"myrm_agent_harness_core": core_mod}), pytest.raises(
+        DistributionNotReadyError, match="version mismatch"
+    ):
+        assert_distribution_ready()
 
 
 @pytest.mark.architecture
@@ -303,6 +306,10 @@ def test_is_musl_linux_false_when_glibc_present() -> None:
 
 
 @pytest.mark.architecture
+@pytest.mark.skipif(
+    importlib.util.find_spec("matplotlib") is None,
+    reason="matplotlib not installed in this environment",
+)
 @patch("matplotlib.font_manager.fontManager.addfont")
 @patch("matplotlib.font_manager.findfont", return_value="/cache/NotoSansCJK-Regular.ttc")
 @patch("matplotlib.font_manager.FontProperties")

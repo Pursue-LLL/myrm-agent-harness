@@ -1,14 +1,34 @@
 import asyncio
 import contextlib
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from myrm_agent_harness.agent.skills.optimization.config import MonitoringConfig, OptimizationConfig
 from myrm_agent_harness.agent.skills.optimization.scheduler import OptimizationScheduler
-from myrm_agent_harness.agent.skills.optimization.types import SkillQualityScore
+from myrm_agent_harness.agent.skills.optimization.types import OptimizationError, SkillQualityScore
 from myrm_agent_harness.backends.skills.types import SkillMetadata
+
+
+@pytest.fixture(autouse=True)
+def _mock_prometheus_metrics() -> None:
+    """Record calls are no-ops when prometheus_client is unavailable."""
+    targets = {
+        "record_optimization_start": MagicMock(),
+        "record_optimization_success": MagicMock(),
+        "record_optimization_failure": MagicMock(),
+        "record_llm_cost": MagicMock(),
+        "record_llm_tokens": MagicMock(),
+        "update_queue_size": MagicMock(),
+        "update_circuit_breaker_count": MagicMock(),
+        "update_dlq_size": MagicMock(),
+    }
+    with patch.multiple(
+        "myrm_agent_harness.agent.skills.optimization.prometheus_metrics",
+        **targets,
+    ):
+        yield
 
 
 @pytest.fixture
@@ -338,9 +358,9 @@ async def test_execute_optimization_error(scheduler):
         success_rate=0.5, token_efficiency=0.5, execution_time=0.5, user_satisfaction=0.5, call_frequency=0.5
     )
 
-    scheduler.optimizer.optimize_skill.side_effect = Exception("Optimization failed")
+    scheduler.optimizer.optimize_skill.side_effect = OptimizationError("Optimization failed")
 
-    with pytest.raises(Exception, match="Optimization failed"):
+    with pytest.raises(OptimizationError, match="Optimization failed"):
         await scheduler._execute_optimization(metadata, quality)
 
     assert scheduler._metrics["optimization_failed"] == 1
@@ -348,7 +368,7 @@ async def test_execute_optimization_error(scheduler):
 
     # Check circuit breaker
     for _ in range(4):
-        with pytest.raises(Exception):
+        with pytest.raises(OptimizationError):
             await scheduler._execute_optimization(metadata, quality)
 
     assert scheduler._is_circuit_broken("skill_1") is True

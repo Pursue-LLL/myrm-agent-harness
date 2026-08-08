@@ -104,7 +104,7 @@ class TestPasswdFilePermissions:
     """_create_passwd_file must set 0600 permissions."""
 
     def test_chmod_0600_on_tempfile(self) -> None:
-        tmp = NamedTemporaryFile(suffix=".vnc_passwd_test", delete=False)
+        tmp = NamedTemporaryFile(suffix=".vnc_passwd_test", delete=False)  # noqa: SIM115 需要跨 finally 清理
         tmp.close()
         try:
             os.chmod(tmp.name, 0o600)
@@ -114,7 +114,7 @@ class TestPasswdFilePermissions:
             os.unlink(tmp.name)
 
     def test_chmod_restricts_group_other(self) -> None:
-        tmp = NamedTemporaryFile(suffix=".vnc_passwd_test", delete=False)
+        tmp = NamedTemporaryFile(suffix=".vnc_passwd_test", delete=False)  # noqa: SIM115 需要跨 finally 清理
         tmp.close()
         try:
             os.chmod(tmp.name, 0o644)
@@ -370,7 +370,7 @@ class TestStopCleansPasswdFile:
     async def test_stop_removes_passwd_file(self) -> None:
         from pathlib import Path
 
-        tmp = NamedTemporaryFile(suffix=".vnc_passwd_test", delete=False)
+        tmp = NamedTemporaryFile(suffix=".vnc_passwd_test", delete=False)  # noqa: SIM115 需要跨测试清理
         tmp.close()
         passwd_path = Path(tmp.name)
         assert passwd_path.exists()

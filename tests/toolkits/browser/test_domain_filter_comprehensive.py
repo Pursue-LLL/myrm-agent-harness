@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -341,7 +342,7 @@ def test_allowlist_frozen() -> None:
     """Test DomainAllowlist is frozen (immutable)."""
     allowlist = DomainAllowlist(patterns=("example.com",))
 
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         allowlist.patterns = ("hacked.com",)  # type: ignore[misc]
 
 

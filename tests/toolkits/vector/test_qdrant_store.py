@@ -115,7 +115,7 @@ async def test_close(store, mock_client):
 
 @pytest.mark.asyncio
 async def test_with_retry_failure(store, mock_client):
-    mock_client.collection_exists.side_effect = Exception("error")
+    mock_client.collection_exists.side_effect = ValueError("error")
     store.MAX_RETRIES = 1
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         await store._with_retry(mock_client.collection_exists, collection_name="test")

@@ -66,25 +66,23 @@ class TestSSRFShield:
 
     @pytest.mark.asyncio
     async def test_blocks_internal_ip(self):
-        with mock_getaddrinfo("192.168.1.100"):
-            with pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
-                await async_pin_url("http://192.168.1.100/admin")
+        with mock_getaddrinfo("192.168.1.100"), pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
+            await async_pin_url("http://192.168.1.100/admin")
 
     @pytest.mark.asyncio
     async def test_blocks_internal_ip_records_audit(self):
-        with mock_getaddrinfo("192.168.1.100"):
-            with patch("myrm_agent_harness.core.security.guards.ssrf.record_decision") as mock_audit:
-                with pytest.raises(SSRFSecurityError):
-                    await async_pin_url("http://192.168.1.100/admin")
+        with mock_getaddrinfo("192.168.1.100"), patch(
+            "myrm_agent_harness.core.security.guards.ssrf.record_decision"
+        ) as mock_audit, pytest.raises(SSRFSecurityError):
+            await async_pin_url("http://192.168.1.100/admin")
 
         mock_audit.assert_called_once()
         assert mock_audit.call_args.args[1] == "SSRF_BLOCKED"
 
     @pytest.mark.asyncio
     async def test_blocks_dns_rebinding(self):
-        with mock_getaddrinfo("127.0.0.1"):
-            with pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
-                await async_pin_url("http://evil-domain.com/flushall")
+        with mock_getaddrinfo("127.0.0.1"), pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
+            await async_pin_url("http://evil-domain.com/flushall")
 
     @pytest.mark.asyncio
     async def test_allows_whitelisted_hosts(self):
@@ -120,9 +118,10 @@ class TestURLAllowlistGuard:
 
     @pytest.mark.asyncio
     async def test_allowlist_guard_blocks_unauthorized_domain(self):
-        with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(["api.github.com"]):
-            with pytest.raises(SSRFSecurityError, match=r"Access to evil\.com is blocked"):
-                await async_pin_url("https://evil.com/log")
+        with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(["api.github.com"]), pytest.raises(
+            SSRFSecurityError, match=r"Access to evil\.com is blocked"
+        ):
+            await async_pin_url("https://evil.com/log")
 
     def test_check_url_blocks_dlp_violation(self):
         with URLAllowlistGuard.apply(["api.github.com"]):

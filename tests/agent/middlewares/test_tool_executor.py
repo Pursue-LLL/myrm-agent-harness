@@ -170,9 +170,9 @@ class TestExecuteWithRetryErrors:
             patch("myrm_agent_harness.agent.middlewares.tool_executor.get_tool_timeout", return_value=0.01),
             patch("myrm_agent_harness.agent.middlewares.tool_executor._emit_timeout_event", new_callable=AsyncMock),
             patch("myrm_agent_harness.agent.middlewares.tool_executor._emit_retry_event", new_callable=AsyncMock),
+            pytest.raises(ToolError),
         ):
-            with pytest.raises(ToolError):
-                await execute_with_retry(_make_request(), slow, "t", "tc_1", allowed_domains=None)
+            await execute_with_retry(_make_request(), slow, "t", "tc_1", allowed_domains=None)
         assert event_logger.log.await_count >= 2
 
     @pytest.mark.asyncio
@@ -184,9 +184,9 @@ class TestExecuteWithRetryErrors:
             patch("myrm_agent_harness.agent.middlewares.tool_executor.get_event_logger", return_value=event_logger),
             patch("myrm_agent_harness.agent.middlewares.tool_executor.get_terminal_errors", return_value=set()),
             patch("myrm_agent_harness.agent.middlewares.tool_executor.asyncio.sleep", new_callable=AsyncMock),
+            pytest.raises(ToolError),
         ):
-            with pytest.raises(ToolError):
-                await execute_with_retry(_make_request(), handler, "search", "tc_1", allowed_domains=None)
+            await execute_with_retry(_make_request(), handler, "search", "tc_1", allowed_domains=None)
         assert event_logger.log.await_count >= 1
 
     @pytest.mark.asyncio

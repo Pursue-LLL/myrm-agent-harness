@@ -19,9 +19,8 @@ def test_sql_text_raises_install_hint_when_sqlalchemy_missing() -> None:
             raise ImportError("blocked for test")
         return real_import(name, *args, **kwargs)
 
-    with patch("builtins.__import__", side_effect=_import):
-        with pytest.raises(ImportError, match="sqlalchemy is required"):
-            migration_engine._sql_text("SELECT 1")
+    with patch("builtins.__import__", side_effect=_import), pytest.raises(ImportError, match="sqlalchemy is required"):
+        migration_engine._sql_text("SELECT 1")
 
 
 def test_stateful_migration_engine_requires_sqlalchemy_engine_type() -> None:

@@ -477,6 +477,7 @@ class TestEnumerateServerToolsCancelledError:
             raise asyncio.CancelledError()
 
         cfg = MCPConfig(name="cancel_server", type="stdio", command="echo", description="d")
-        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate):
-            with pytest.raises(asyncio.CancelledError):
-                await agent._enumerate_server_tools(cfg)
+        with patch.object(agent, "_enumerate_server_tools", side_effect=_fake_enumerate), pytest.raises(
+            asyncio.CancelledError
+        ):
+            await agent._enumerate_server_tools(cfg)

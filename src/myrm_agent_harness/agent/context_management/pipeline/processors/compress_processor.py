@@ -38,6 +38,7 @@ from myrm_agent_harness.utils.token_estimation import (
 )
 
 from ...infra.context_budget import (
+    DEFAULT_ESTIMATED_REMAINING_TURNS,
     calculate_context_budget,
     estimate_processor_context_tokens,
     resolve_budget_kwargs_from_metadata,
@@ -148,7 +149,7 @@ class CompressProcessor(BaseProcessor):
         )
         dynamic_threshold, _ = budget.calculate_dynamic_thresholds(
             turn_count=turn_count,
-            estimated_remaining_turns=10,
+            estimated_remaining_turns=DEFAULT_ESTIMATED_REMAINING_TURNS,
         )
 
         if eco_mode:

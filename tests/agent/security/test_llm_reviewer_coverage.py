@@ -14,6 +14,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
+from pydantic import ValidationError
 
 from myrm_agent_harness.agent.security.transcript_classifier import (
     _CLASSIFIER_LLM_OVERRIDES,

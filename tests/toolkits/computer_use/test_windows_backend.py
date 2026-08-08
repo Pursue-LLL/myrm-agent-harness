@@ -79,13 +79,13 @@ def _mock_windows_env():
     modules = {**_MOCK_MODULES_BASE, "pyautogui": mock_pyautogui}
     with patch.dict("sys.modules", modules):
         import ctypes as real_ctypes
-        with patch.object(real_ctypes, "windll", mock_windll, create=True):
-            with patch.object(real_ctypes, "wstring_at", return_value="clipboard text", create=True):
-                with patch.object(real_ctypes, "create_unicode_buffer", return_value=MagicMock(value="Notepad")):
-                    # Reload windows module with mocked ctypes
-                    import myrm_agent_harness.toolkits.computer_use.backends.windows as win_mod
-                    importlib.reload(win_mod)
-                    yield win_mod, mock_pyautogui, mock_windll
+        with patch.object(real_ctypes, "windll", mock_windll, create=True), patch.object(
+            real_ctypes, "wstring_at", return_value="clipboard text", create=True
+        ), patch.object(real_ctypes, "create_unicode_buffer", return_value=MagicMock(value="Notepad")):
+            # Reload windows module with mocked ctypes
+            import myrm_agent_harness.toolkits.computer_use.backends.windows as win_mod
+            importlib.reload(win_mod)
+            yield win_mod, mock_pyautogui, mock_windll
 
 
 @pytest.mark.usefixtures("_mock_windows_env")
@@ -495,9 +495,10 @@ class TestWindowsBackendScreenshot:
         async def mock_to_thread(fn, *args, **kwargs):
             return fn(*args, **kwargs) if not args else fn()
 
-        with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: asyncio.coroutine(lambda: fake_png)()):
-            with patch("asyncio.to_thread", return_value=fake_png):
-                result = await backend.screenshot()
+        with patch("asyncio.to_thread", side_effect=lambda fn, *a, **kw: asyncio.coroutine(lambda: fake_png)()), patch(
+            "asyncio.to_thread", return_value=fake_png
+        ):
+            result = await backend.screenshot()
 
         assert isinstance(result, bytes)
 
@@ -775,9 +776,10 @@ class TestWindowsBackendWindowTextExtraction:
 
     def test_import_error_returns_failure(self, _mock_windows_env) -> None:
         win_mod, _, _ = _mock_windows_env
-        with patch.dict("sys.modules", {"uiautomation": None}):
-            with patch("builtins.__import__", side_effect=ImportError("no module")):
-                result = win_mod._extract_window_text_uia()
+        with patch.dict("sys.modules", {"uiautomation": None}), patch(
+            "builtins.__import__", side_effect=ImportError("no module")
+        ):
+            result = win_mod._extract_window_text_uia()
         assert result.success is False
 
     def test_no_foreground_control(self, _mock_windows_env) -> None:

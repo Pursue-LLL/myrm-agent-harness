@@ -1,5 +1,6 @@
 """Unit tests for NetworkIntelligence — CDP-based lazy response body retrieval."""
 
+from dataclasses import FrozenInstanceError
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -46,7 +47,7 @@ class TestCdpRequestRecord:
             method="GET",
             resource_type="XHR",
         )
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             record.url = "https://other.com"  # type: ignore[misc]
 
 

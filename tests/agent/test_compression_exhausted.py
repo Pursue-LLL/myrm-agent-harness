@@ -1,5 +1,8 @@
+from myrm_agent_harness.agent.streaming.escalation_scrubber import EscalationScrubber
+from myrm_agent_harness.agent.streaming.reasoning_scrubber import ReasoningScrubber
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.types import AgentRunStatistics
+from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
 
 """Tests for compression exhausted protection (death-loop prevention).
 
@@ -157,6 +160,10 @@ class TestErrorEventCompressionExhausted:
         executor.failover_used = False
         executor.streaming_final_answer = False
         executor._rebuild_agent_fn = lambda x: None
+        executor._slice_tool_call_ids = []
+        executor._escalation_scrubber = EscalationScrubber()
+        executor._reasoning_scrubber = ReasoningScrubber()
+        executor._pseudonym_restorer = None
 
         ctx.agent = MagicMock()
         ctx.agent.astream = MagicMock(side_effect=Exception("context_length_exceeded"))
@@ -169,7 +176,7 @@ class TestErrorEventCompressionExhausted:
 
         with (
             patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock),
-            pytest.raises(Exception),
+            pytest.raises(MyrmLLMError),
         ):
             await executor.execute()
 
@@ -208,6 +215,10 @@ class TestErrorEventCompressionExhausted:
         executor.failover_used = False
         executor.streaming_final_answer = False
         executor._rebuild_agent_fn = lambda x: None
+        executor._slice_tool_call_ids = []
+        executor._escalation_scrubber = EscalationScrubber()
+        executor._reasoning_scrubber = ReasoningScrubber()
+        executor._pseudonym_restorer = None
 
         ctx.agent = MagicMock()
         ctx.agent.astream = MagicMock(side_effect=Exception("some random error"))
@@ -220,7 +231,7 @@ class TestErrorEventCompressionExhausted:
 
         with (
             patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock),
-            pytest.raises(Exception),
+            pytest.raises(MyrmLLMError),
         ):
             await executor.execute()
 

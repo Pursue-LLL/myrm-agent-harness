@@ -143,68 +143,59 @@ class TestGracefulDegradation:
 
         with patch.object(
             tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
-        ):
-            # Mock分块
-            with patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_chunker:
-                mock_instance = mock_chunker.return_value
-                mock_chunks = [
-                    Document(
-                        page_content="chunk1",
-                        metadata={"url": "https://test1.com", "chunk_index": 0, "source_doc_id": "doc_0"},
-                    ),
-                    Document(
-                        page_content="chunk2",
-                        metadata={"url": "https://test2.com", "chunk_index": 0, "source_doc_id": "doc_1"},
-                    ),
+        ), patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_chunker:
+            mock_instance = mock_chunker.return_value
+            mock_chunks = [
+                Document(
+                    page_content="chunk1",
+                    metadata={"url": "https://test1.com", "chunk_index": 0, "source_doc_id": "doc_0"},
+                ),
+                Document(
+                    page_content="chunk2",
+                    metadata={"url": "https://test2.com", "chunk_index": 0, "source_doc_id": "doc_1"},
+                ),
+            ]
+            mock_instance.chunk_text.return_value = mock_chunks
+
+            # Mock BM25筛选
+            with patch.object(
+                tools._retriever_manager,
+                "bm25_retrieval_only",
+                new_callable=AsyncMock,
+                return_value=mock_chunks,
+            ), patch.object(
+                tools._retriever_manager,
+                "rerank_with_mapping",
+                new_callable=AsyncMock,
+                side_effect=Exception("Reranker service unavailable"),
+            ), patch(
+                "myrm_agent_harness.toolkits.web_search.engine.web_search_metrics",
+                test_metrics,
+            ), patch("myrm_agent_harness.toolkits.web_search.engine.logger") as mock_logger:
+                sources, context = await tools.fast_search_with_questions(
+                    questions=["q1", "q2"], top_k=5
+                )
+
+                # 验证降级成功
+                assert len(sources) >= 1
+                assert context != ""
+
+                # 验证ERROR日志
+                error_calls = [
+                    call for call in mock_logger.error.call_args_list if "Reranker failed" in str(call)
                 ]
-                mock_instance.chunk_text.return_value = mock_chunks
+                assert len(error_calls) >= 1
 
-                # Mock BM25筛选
-                with patch.object(
-                    tools._retriever_manager,
-                    "bm25_retrieval_only",
-                    new_callable=AsyncMock,
-                    return_value=mock_chunks,
-                ):
-                    # Mock Reranker失败
-                    with patch.object(
-                        tools._retriever_manager,
-                        "rerank_with_mapping",
-                        new_callable=AsyncMock,
-                        side_effect=Exception("Reranker service unavailable"),
-                    ):
-                        # Mock web_search_metrics
-                        with patch(
-                            "myrm_agent_harness.toolkits.web_search.engine.web_search_metrics",
-                            test_metrics,
-                        ):
-                            with patch(
-                                "myrm_agent_harness.toolkits.web_search.engine.logger"
-                            ) as mock_logger:
-                                sources, context = await tools.fast_search_with_questions(
-                                    questions=["q1", "q2"], top_k=5
-                                )
+                # 验证WARNING日志
+                warning_calls = [
+                    call
+                    for call in mock_logger.warning.call_args_list
+                    if "Reranker degraded" in str(call)
+                ]
+                assert len(warning_calls) >= 1
 
-                                # 验证降级成功
-                                assert len(sources) >= 1
-                                assert context != ""
-
-                                # 验证ERROR日志
-                                error_calls = [
-                                    call for call in mock_logger.error.call_args_list if "Reranker failed" in str(call)
-                                ]
-                                assert len(error_calls) >= 1
-
-                                # 验证WARNING日志
-                                warning_calls = [
-                                    call
-                                    for call in mock_logger.warning.call_args_list
-                                    if "Reranker degraded" in str(call)
-                                ]
-                                assert len(warning_calls) >= 1
-
-                                # 验证metrics计数
-                                assert test_metrics.reranker_degraded_count >= 1
+                # 验证metrics计数
+                assert test_metrics.reranker_degraded_count >= 1
 
     async def test_degraded_metadata_tag(self, patch_get_reranker_service, mock_reranker_config):
         """验证降级事件的元数据标记"""
@@ -240,11 +231,12 @@ class TestGracefulDegradation:
                 "rerank_with_mapping",
                 new_callable=AsyncMock,
                 side_effect=Exception("Reranker timeout"),
-            ), patch("myrm_agent_harness.toolkits.web_search.engine.logger"):
-                with patch("myrm_agent_harness.toolkits.web_search.engine.web_search_metrics"):
-                    # 降级后的文档应该带有 _degraded_mode 标记
-                    # 这个标记在 _precision_mode_search 内部设置
-                    pass  # 功能验证通过
+            ), patch("myrm_agent_harness.toolkits.web_search.engine.logger"), patch(
+                "myrm_agent_harness.toolkits.web_search.engine.web_search_metrics"
+            ):
+                # 降级后的文档应该带有 _degraded_mode 标记
+                # 这个标记在 _precision_mode_search 内部设置
+                pass  # 功能验证通过
 
 
 @pytest.mark.asyncio
@@ -351,46 +343,45 @@ class TestPrecisionModeExecution:
 
         with patch.object(
             tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
-        ):
-            # Mock get_token_count 确保文档被识别为长文档
-            with patch("myrm_agent_harness.toolkits.web_search.engine.get_token_count") as mock_count:
-                # 第一次调用（avg计算）返回1600（触发精准模式）
-                # 后续调用（分块判断）返回1200（触发分块）
-                mock_count.side_effect = [1600, 1600, 1200, 1200]
+        ), patch("myrm_agent_harness.toolkits.web_search.engine.get_token_count") as mock_count, patch(
+            "myrm_agent_harness.toolkits.web_search.engine.TextChunker"
+        ) as mock_chunker:
+            # 第一次调用（avg计算）返回1600（触发精准模式）
+            # 后续调用（分块判断）返回1200（触发分块）
+            mock_count.side_effect = [1600, 1600, 1200, 1200]
 
-                with patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_chunker:
-                    mock_instance = mock_chunker.return_value
-                    mock_chunks = [
-                        Document(
-                            page_content="chunk1",
-                            metadata={"url": "https://test1.com", "chunk_index": 0, "source_doc_id": "doc_0"},
-                        ),
-                        Document(
-                            page_content="chunk2",
-                            metadata={"url": "https://test1.com", "chunk_index": 1, "source_doc_id": "doc_0"},
-                        ),
-                    ]
-                    mock_instance.chunk_text.return_value = mock_chunks
+            mock_instance = mock_chunker.return_value
+            mock_chunks = [
+                Document(
+                    page_content="chunk1",
+                    metadata={"url": "https://test1.com", "chunk_index": 0, "source_doc_id": "doc_0"},
+                ),
+                Document(
+                    page_content="chunk2",
+                    metadata={"url": "https://test1.com", "chunk_index": 1, "source_doc_id": "doc_0"},
+                ),
+            ]
+            mock_instance.chunk_text.return_value = mock_chunks
 
-                    with patch.object(
-                        tools._retriever_manager,
-                        "bm25_retrieval_only",
-                        new_callable=AsyncMock,
-                        return_value=mock_chunks,
-                    ), patch.object(
-                        tools._retriever_manager,
-                        "rerank_with_mapping",
-                        new_callable=AsyncMock,
-                        return_value=mock_chunks,
-                    ):
-                        sources, context = await tools.fast_search_with_questions(questions=["q1", "q2"], top_k=5)
+            with patch.object(
+                tools._retriever_manager,
+                "bm25_retrieval_only",
+                new_callable=AsyncMock,
+                return_value=mock_chunks,
+            ), patch.object(
+                tools._retriever_manager,
+                "rerank_with_mapping",
+                new_callable=AsyncMock,
+                return_value=mock_chunks,
+            ):
+                sources, context = await tools.fast_search_with_questions(questions=["q1", "q2"], top_k=5)
 
-                        # 验证精准模式被执行
-                        assert len(sources) >= 1
-                        assert context != ""
+                # 验证精准模式被执行
+                assert len(sources) >= 1
+                assert context != ""
 
-                        # 验证分块被调用
-                        mock_instance.chunk_text.assert_called()
+                # 验证分块被调用
+                mock_instance.chunk_text.assert_called()
 
     async def test_precision_mode_single_query_with_long_docs(self, patch_get_reranker_service, mock_reranker_config):
         """精准模式：单查询 + 长文档也应该触发精准模式（P0修复验证）"""
@@ -406,37 +397,36 @@ class TestPrecisionModeExecution:
 
         with patch.object(
             tools._searcher, "multi_query_parallel_search", new_callable=AsyncMock, return_value=mock_results
-        ):
-            # Mock get_token_count 返回长文档
-            with patch("myrm_agent_harness.toolkits.web_search.engine.get_token_count") as mock_count:
-                mock_count.side_effect = [1800, 1800]  # 平均1800 tokens，触发精准模式
+        ), patch("myrm_agent_harness.toolkits.web_search.engine.get_token_count") as mock_count, patch(
+            "myrm_agent_harness.toolkits.web_search.engine.TextChunker"
+        ) as mock_chunker:
+            mock_count.side_effect = [1800, 1800]  # 平均1800 tokens，触发精准模式
 
-                with patch("myrm_agent_harness.toolkits.web_search.engine.TextChunker") as mock_chunker:
-                    mock_instance = mock_chunker.return_value
-                    mock_chunks = [
-                        Document(page_content="chunk", metadata={"url": "https://test1.com", "chunk_index": 0})
-                    ]
-                    mock_instance.chunk_text.return_value = mock_chunks
+            mock_instance = mock_chunker.return_value
+            mock_chunks = [
+                Document(page_content="chunk", metadata={"url": "https://test1.com", "chunk_index": 0})
+            ]
+            mock_instance.chunk_text.return_value = mock_chunks
 
-                    with patch.object(
-                        tools._retriever_manager,
-                        "bm25_retrieval_only",
-                        new_callable=AsyncMock,
-                        return_value=mock_chunks,
-                    ), patch.object(
-                        tools._retriever_manager,
-                        "rerank_with_mapping",
-                        new_callable=AsyncMock,
-                        return_value=mock_chunks,
-                    ):
-                        # 单查询 + 长文档 → 应该触发精准模式
-                        sources, _context = await tools.fast_search_with_questions(
-                            questions=["single query"], top_k=5
-                        )
+            with patch.object(
+                tools._retriever_manager,
+                "bm25_retrieval_only",
+                new_callable=AsyncMock,
+                return_value=mock_chunks,
+            ), patch.object(
+                tools._retriever_manager,
+                "rerank_with_mapping",
+                new_callable=AsyncMock,
+                return_value=mock_chunks,
+            ):
+                # 单查询 + 长文档 → 应该触发精准模式
+                sources, _context = await tools.fast_search_with_questions(
+                    questions=["single query"], top_k=5
+                )
 
-                        assert len(sources) >= 1
-                        # 验证分块被调用（证明精准模式触发）
-                        mock_instance.chunk_text.assert_called()
+                assert len(sources) >= 1
+                # 验证分块被调用（证明精准模式触发）
+                mock_instance.chunk_text.assert_called()
 
     async def test_precision_mode_keeps_short_documents_intact(self, patch_get_reranker_service, mock_reranker_config):
         """精准模式：短文档保持完整（不分块）"""

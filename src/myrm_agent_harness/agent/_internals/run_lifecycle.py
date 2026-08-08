@@ -469,6 +469,7 @@ def compute_context_budget_snapshot(
     messages_estimated_tokens: int | None = None,
     bound_tools_overhead_tokens: int | None = None,
     other_tokens: int | None = None,
+    turn_count: int | None = None,
 ) -> ContextBudgetSnapshot | None:
     """Compute a lightweight context budget snapshot from token tracker stats.
 
@@ -479,7 +480,9 @@ def compute_context_budget_snapshot(
     health_status: healthy (<80%), warning (80-90%), critical (>=90%).
 
     Optional breakdown fields are GUI-only estimates; they do not affect pipeline
-    compress/summarize decisions.
+    compress/summarize decisions. ``turn_count`` mirrors the runtime
+    compress_processor human-message count so the GUI preflight can reuse the
+    same dynamic-threshold input as the pipeline.
     """
 
     if not stats.token_usage or not stats.token_usage.last_call:
@@ -509,6 +512,7 @@ def compute_context_budget_snapshot(
         messages_estimated_tokens=messages_estimated_tokens,
         bound_tools_overhead_tokens=bound_tools_overhead_tokens,
         other_tokens=other_tokens,
+        turn_count=turn_count,
     )
 
 
@@ -519,7 +523,11 @@ async def resolve_context_budget_breakdown(
     cached_tools: object | None,
     provider_prompt_tokens: int,
 ) -> dict[str, int]:
-    """Resolve GUI breakdown: messages est., tool schema est., system/other remainder."""
+    """Resolve GUI breakdown: messages est., tool schema est., system/other remainder.
+
+    Also returns ``turn_count`` = number of human messages in the checkpoint, so
+    the preflight can reuse the same dynamic-threshold input as compress_processor.
+    """
     from collections.abc import Sequence
 
     from langchain_core.messages import BaseMessage
@@ -531,6 +539,7 @@ async def resolve_context_budget_breakdown(
 
     messages_tokens = 0
     tools_tokens = 0
+    turn_count = 0
     has_messages = False
 
     if checkpointer is not None and callable(getattr(checkpointer, "aget", None)):
@@ -546,6 +555,7 @@ async def resolve_context_budget_breakdown(
                     ]
                     if messages:
                         messages_tokens = estimate_messages_tokens(messages)
+                        turn_count = sum(1 for m in messages if m.type == "human")
                         has_messages = True
         except Exception:
             logger.debug(
@@ -560,11 +570,15 @@ async def resolve_context_budget_breakdown(
         return {}
 
     other_tokens = max(0, provider_prompt_tokens - messages_tokens - tools_tokens)
-    return {
+    result: dict[str, int] = {
         "messages_estimated_tokens": messages_tokens,
         "bound_tools_overhead_tokens": tools_tokens,
         "other_tokens": other_tokens,
     }
+    # 仅在 checkpoint 真实可读时返回轮数，避免读取失败时前端误用 0 覆盖本地统计
+    if has_messages:
+        result["turn_count"] = turn_count
+    return result
 
 
 async def post_run_events(

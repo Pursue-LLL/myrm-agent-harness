@@ -136,11 +136,9 @@ class TestEnsureExecutor:
                 return_value=mock_context,
             ),
             patch(f"{_EXECUTORS}.get_stashed_executor", return_value=None),
+            pytest.raises(RuntimeError, match="CodeExecutor not available"),
         ):
-            with pytest.raises(RuntimeError, match="CodeExecutor not available"):
-                ensure_executor(mock_config)  # type: ignore[arg-type]
-
-    def test_raises_when_no_session_id(self) -> None:
+            ensure_executor(mock_config)  # type: ignore[arg-type]    def test_raises_when_no_session_id(self) -> None:
         mock_context: dict[str, object] = {}
         mock_config: dict[str, object] = {"configurable": {}}
         with (

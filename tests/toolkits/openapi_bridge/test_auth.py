@@ -187,6 +187,5 @@ class TestOAuth2ClientCredentials:
         )
         provider = OpenAPIAuthProvider(config)
         # Simulate missing token_url by patching the config attribute
-        with patch.object(provider._config, "token_url", None):
-            with pytest.raises(ValueError, match="token_url not configured"):
-                await provider.get_headers()
+        with patch.object(provider._config, "token_url", None), pytest.raises(ValueError, match="token_url not configured"):
+            await provider.get_headers()

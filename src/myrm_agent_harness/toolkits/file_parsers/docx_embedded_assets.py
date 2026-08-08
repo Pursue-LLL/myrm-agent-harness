@@ -20,7 +20,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _DOCX_EMBED_PREFIX = "docx-embed:"
-_REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 _IMAGE_REL_TYPE = (
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 )

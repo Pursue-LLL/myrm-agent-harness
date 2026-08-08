@@ -192,7 +192,7 @@ class TestSubagentCheckpointStorage:
         file_path = storage._storage_path / f"{cp.task_id}.json"
         file_path.mkdir(parents=True)
 
-        with pytest.raises(Exception):
+        with pytest.raises(IsADirectoryError):
             await storage.save(cp)
 
         if storage.metrics:

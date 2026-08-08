@@ -50,6 +50,9 @@ from myrm_agent_harness.utils.token_estimation import estimate_context_tokens
 
 from .schemas import ContextConfig
 
+DEFAULT_ESTIMATED_REMAINING_TURNS = 10
+"""动态阈值估算未来轮数的默认值，供运行时 compress_processor 与 server 预检共用。"""
+
 
 def resolve_budget_kwargs_from_metadata(
     metadata: Mapping[str, object],
@@ -191,7 +194,9 @@ class ContextBudget:
             return max(500, int(base_min_save * 0.2))
 
     def calculate_dynamic_thresholds(
-        self, turn_count: int, estimated_remaining_turns: int = 10
+        self,
+        turn_count: int,
+        estimated_remaining_turns: int = DEFAULT_ESTIMATED_REMAINING_TURNS,
     ) -> tuple[int, int]:
         """根据会话进度动态计算压缩触发阈值
 

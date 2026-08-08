@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 
 class _MockToolInput(BaseModel):
@@ -159,5 +159,5 @@ class TestEndToEnd:
 
     def test_without_coerce_pydantic_fails(self) -> None:
         """Without coerce, Pydantic rejects stringified list."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             _MockToolInput(paths='["a.py", "b.py"]', content="hello")

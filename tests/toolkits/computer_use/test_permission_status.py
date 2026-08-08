@@ -10,6 +10,7 @@ Covers:
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -46,7 +47,7 @@ class TestPermissionStatus:
 
     def test_frozen_cannot_mutate(self) -> None:
         status = PermissionStatus()
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             status.accessibility = False  # type: ignore[misc]
 
     def test_platform_and_deeplinks(self) -> None:

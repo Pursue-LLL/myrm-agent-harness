@@ -78,20 +78,22 @@ async def test_wait(backend):
         assert res.success is True
 
 def test_screen_info(backend):
-    with patch("pyautogui.size", return_value=MagicMock(width=1920, height=1080)):
-        with patch("myrm_agent_harness.toolkits.computer_use.backends.macos._detect_dpi_scale_quartz", return_value=2.0):
-            info = backend.screen_info()
-            assert info.width == 1920
-            assert info.height == 1080
-            assert info.dpi_scale == 2.0
+    with patch("pyautogui.size", return_value=MagicMock(width=1920, height=1080)), patch(
+        "myrm_agent_harness.toolkits.computer_use.backends.macos._detect_dpi_scale_quartz", return_value=2.0
+    ):
+        info = backend.screen_info()
+        assert info.width == 1920
+        assert info.height == 1080
+        assert info.dpi_scale == 2.0
 
 def test_screen_context(backend):
-    with patch("pyautogui.position", return_value=MagicMock(x=10, y=20)):
-        with patch("myrm_agent_harness.toolkits.computer_use.backends.macos._get_active_window_title", return_value="Title"):
-            ctx = backend.screen_context()
-            assert ctx.active_window == "Title"
-            assert ctx.mouse_x == 10
-            assert ctx.mouse_y == 20
+    with patch("pyautogui.position", return_value=MagicMock(x=10, y=20)), patch(
+        "myrm_agent_harness.toolkits.computer_use.backends.macos._get_active_window_title", return_value="Title"
+    ):
+        ctx = backend.screen_context()
+        assert ctx.active_window == "Title"
+        assert ctx.mouse_x == 10
+        assert ctx.mouse_y == 20
 
 @pytest.mark.asyncio
 async def test_window_text(backend):

@@ -3,6 +3,7 @@
 100% coverage for search_bm25 function and MemoryManager integration.
 """
 
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
@@ -478,7 +479,7 @@ class TestBM25Configuration:
         """Test that MemoryConfig is frozen (immutable)."""
         config = MemoryConfig(embedding_model="test-model")
 
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             config.bm25_top_k = 100
 
 

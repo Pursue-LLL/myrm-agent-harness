@@ -20,7 +20,7 @@ async def test_manager_recovery_callback_triggered() -> None:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            raise Exception("Rate limit")
+            raise ValueError("Rate limit")
         return "success"
 
     recovery_callback = AsyncMock()
@@ -38,7 +38,7 @@ async def test_manager_recovery_callback_triggered() -> None:
     )
 
     # First call - fails and enters cooldown
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         await manager.execute(scenario=ScenarioType.BALANCED, now_ms=1000.0)
 
     # Second call - probe succeeds (simulate 70s passing, past global throttle but still in cooldown)
@@ -92,7 +92,7 @@ async def test_manager_recovery_callback_exception_handling() -> None:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            raise Exception("Rate limit")
+            raise ValueError("Rate limit")
         return "success"
 
     async def failing_callback(event: RecoveryEvent) -> None:
@@ -111,7 +111,7 @@ async def test_manager_recovery_callback_exception_handling() -> None:
     )
 
     # First call fails
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         await manager.execute(scenario=ScenarioType.BALANCED, now_ms=1000.0)
 
     # Second call succeeds despite callback failure (70s later, past global throttle)

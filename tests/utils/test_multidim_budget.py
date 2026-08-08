@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from dataclasses import FrozenInstanceError
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -20,7 +21,7 @@ class TestBudgetDimension:
         dim = BudgetDimension(limit_usd=5.0)
         assert dim.limit_usd == 5.0
         assert dim.warning_threshold == 0.8
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             dim.limit_usd = 10.0  # type: ignore[misc]
 
 

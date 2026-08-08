@@ -121,9 +121,10 @@ class TestFileVaultBackend:
         """Test write cleans up temp file on failure."""
         backend = FileVaultBackend(tmp_path)
 
-        with patch.object(Path, "replace", side_effect=OSError("Write failed")):
-            with pytest.raises(OSError, match="Failed to write session"):
-                await backend.write("example.com", b"data")
+        with patch.object(Path, "replace", side_effect=OSError("Write failed")), pytest.raises(
+            OSError, match="Failed to write session"
+        ):
+            await backend.write("example.com", b"data")
 
     @pytest.mark.asyncio
     async def test_delete_existing_file(self, tmp_path: Path) -> None:
@@ -450,7 +451,7 @@ def test_session_vault_decrypt_invalid_data(tmp_path: Path) -> None:
     key = os.urandom(32)
     vault = SessionVault(backend, key)
 
-    with pytest.raises(Exception):
+    with pytest.raises(DecryptionError):
         vault._decrypt(b"invalid_ciphertext_but_at_least_29_bytes_long_xxxxxx")
 
 
@@ -465,7 +466,7 @@ def test_session_vault_decrypt_wrong_key(tmp_path: Path) -> None:
 
     ciphertext = vault1._encrypt(b"data")
 
-    with pytest.raises(Exception):
+    with pytest.raises(DecryptionError):
         vault2._decrypt(ciphertext)
 
 

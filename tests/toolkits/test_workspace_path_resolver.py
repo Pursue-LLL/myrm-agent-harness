@@ -26,10 +26,11 @@ class TestWorkspacePathResolver:
 
     def test_resolve_from_container_workspace(self, tmp_path):
         """Test: Container /workspace detection."""
-        with patch.object(Path, "exists", return_value=True):
-            with patch.object(WorkspacePathResolver, "_is_in_container", return_value=True):
-                result = WorkspacePathResolver.resolve_workspace_root()
-                assert result == Path("/workspace")
+        with patch.object(Path, "exists", return_value=True), patch.object(
+            WorkspacePathResolver, "_is_in_container", return_value=True
+        ):
+            result = WorkspacePathResolver.resolve_workspace_root()
+            assert result == Path("/workspace")
 
     def test_resolve_from_project_markers(self, tmp_path):
         """Test: Detect project root from .git marker."""

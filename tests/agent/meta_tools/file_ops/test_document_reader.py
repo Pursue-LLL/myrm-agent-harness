@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -85,15 +86,14 @@ class TestReadDocumentAsText:
     async def test_docx_parsing(self) -> None:
         """Test .docx file is parsed to markdown via DocxParser"""
         docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
-        Document = docx_mod.Document
+        doc = docx_mod.Document()
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
-            doc = Document()
             doc.add_heading("Test Heading", level=1)
             doc.add_paragraph("Hello World")
             doc.save(f.name)
             f.seek(0)
-            docx_bytes = open(f.name, "rb").read()
+            docx_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"contract.docx": docx_bytes})
@@ -107,9 +107,8 @@ class TestReadDocumentAsText:
     async def test_xlsx_parsing(self) -> None:
         """Test .xlsx file is parsed to markdown table via ExcelParser"""
         openpyxl = pytest.importorskip("openpyxl", reason="openpyxl not installed")
-        Workbook = openpyxl.Workbook
+        wb = openpyxl.Workbook()
 
-        wb = Workbook()
         ws = wb.active
         assert ws is not None
         ws.append(["Name", "Age"])
@@ -118,7 +117,7 @@ class TestReadDocumentAsText:
 
         with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
             wb.save(f.name)
-            xlsx_bytes = open(f.name, "rb").read()
+            xlsx_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"data.xlsx": xlsx_bytes})
@@ -153,13 +152,12 @@ class TestReadDocumentAsText:
     async def test_empty_docx(self) -> None:
         """Test empty document returns appropriate message"""
         docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
-        Document = docx_mod.Document
+        doc = docx_mod.Document()
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
-            doc = Document()
             doc.save(f.name)
             f.seek(0)
-            empty_bytes = open(f.name, "rb").read()
+            empty_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"empty.docx": empty_bytes})
@@ -177,16 +175,15 @@ class TestReadDocumentAsText:
     async def test_pptx_parsing(self) -> None:
         """Test .pptx file is parsed to markdown via PptxParser"""
         pptx_mod = pytest.importorskip("pptx", reason="python-pptx not installed")
-        Presentation = pptx_mod.Presentation
+        prs = pptx_mod.Presentation()
 
         with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as f:
-            prs = Presentation()
             slide = prs.slides.add_slide(prs.slide_layouts[0])
             slide.shapes.title.text = "Quarterly Review"
             slide.placeholders[1].text = "Revenue increased by 25%"
             prs.save(f.name)
             f.seek(0)
-            pptx_bytes = open(f.name, "rb").read()
+            pptx_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"slides.pptx": pptx_bytes})
@@ -200,15 +197,14 @@ class TestReadDocumentAsText:
     async def test_truncation_protection(self) -> None:
         """Test large documents are truncated at _FALLBACK_MAX_CHARS"""
         docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
-        Document = docx_mod.Document
+        doc = docx_mod.Document()
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
-            doc = Document()
             for i in range(5000):
                 doc.add_paragraph(f"Paragraph {i} with some padding text to make it longer " * 3)
             doc.save(f.name)
             f.seek(0)
-            large_bytes = open(f.name, "rb").read()
+            large_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"large.docx": large_bytes})
@@ -219,14 +215,13 @@ class TestReadDocumentAsText:
     async def test_temp_file_cleanup(self) -> None:
         """Test temp files are cleaned up after parsing"""
         docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
-        Document = docx_mod.Document
+        doc = docx_mod.Document()
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
-            doc = Document()
             doc.add_paragraph("Cleanup test")
             doc.save(f.name)
             f.seek(0)
-            cleanup_bytes = open(f.name, "rb").read()
+            cleanup_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"cleanup.docx": cleanup_bytes})
@@ -246,15 +241,14 @@ class TestReadDocumentStructureMode:
     async def test_pptx_structure_mode(self) -> None:
         """parse_mode='structure' returns JSON metadata for PPTX."""
         pptx_mod = pytest.importorskip("pptx", reason="python-pptx not installed")
-        Presentation = pptx_mod.Presentation
+        prs = pptx_mod.Presentation()
 
         with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as f:
-            prs = Presentation()
             slide = prs.slides.add_slide(prs.slide_layouts[0])
             slide.shapes.title.text = "Structure Test"
             prs.save(f.name)
             f.seek(0)
-            pptx_bytes = open(f.name, "rb").read()
+            pptx_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"test.pptx": pptx_bytes})
@@ -272,15 +266,14 @@ class TestReadDocumentStructureMode:
     async def test_docx_structure_mode(self) -> None:
         """parse_mode='structure' returns JSON metadata for DOCX."""
         docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
-        Document = docx_mod.Document
+        doc = docx_mod.Document()
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
-            doc = Document()
             doc.add_heading("Structure Heading", level=1)
             doc.add_paragraph("Test paragraph")
             doc.save(f.name)
             f.seek(0)
-            docx_bytes = open(f.name, "rb").read()
+            docx_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"test.docx": docx_bytes})
@@ -297,15 +290,14 @@ class TestReadDocumentStructureMode:
     async def test_pptx_default_mode_returns_markdown(self) -> None:
         """When parse_mode is None, PPTX returns Markdown."""
         pptx_mod = pytest.importorskip("pptx", reason="python-pptx not installed")
-        Presentation = pptx_mod.Presentation
+        prs = pptx_mod.Presentation()
 
         with tempfile.NamedTemporaryFile(suffix=".pptx", delete=False) as f:
-            prs = Presentation()
             slide = prs.slides.add_slide(prs.slide_layouts[0])
             slide.shapes.title.text = "Markdown Test"
             prs.save(f.name)
             f.seek(0)
-            pptx_bytes = open(f.name, "rb").read()
+            pptx_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"test.pptx": pptx_bytes})
@@ -317,14 +309,13 @@ class TestReadDocumentStructureMode:
     async def test_docx_default_mode_returns_markdown(self) -> None:
         """When parse_mode is None, DOCX returns Markdown."""
         docx_mod = pytest.importorskip("docx", reason="python-docx not installed")
-        Document = docx_mod.Document
+        doc = docx_mod.Document()
 
         with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as f:
-            doc = Document()
             doc.add_heading("Heading", level=1)
             doc.save(f.name)
             f.seek(0)
-            docx_bytes = open(f.name, "rb").read()
+            docx_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"test.docx": docx_bytes})
@@ -335,9 +326,8 @@ class TestReadDocumentStructureMode:
     async def test_xlsx_structure_mode_still_works(self) -> None:
         """parse_mode='structure' still works for XLSX."""
         openpyxl = pytest.importorskip("openpyxl", reason="openpyxl not installed")
-        Workbook = openpyxl.Workbook
+        wb = openpyxl.Workbook()
 
-        wb = Workbook()
         ws = wb.active
         assert ws is not None
         ws.append(["Product", "Price"])
@@ -345,7 +335,7 @@ class TestReadDocumentStructureMode:
 
         with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as f:
             wb.save(f.name)
-            xlsx_bytes = open(f.name, "rb").read()
+            xlsx_bytes = Path(f.name).read_bytes()
             os.unlink(f.name)
 
         executor = MockExecutor({"data.xlsx": xlsx_bytes})

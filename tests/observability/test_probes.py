@@ -72,11 +72,12 @@ class TestCheckWorkspaceStorageHealth:
         """Workspace can be healthy while rg is absent — surface warn for Doctor UI."""
         from myrm_agent_harness.observability.diagnostics.probes import check_workspace_storage_health
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch.dict(os.environ, {"MYRM_DATA_DIR": str(tmpdir)}):
-            with patch("shutil.which", return_value=None):
-                report = await check_workspace_storage_health()
-                assert report.status == "warn"
-                assert "ripgrep" in report.message.lower()
+        with tempfile.TemporaryDirectory() as tmpdir, patch.dict(os.environ, {"MYRM_DATA_DIR": str(tmpdir)}), patch(
+            "shutil.which", return_value=None
+        ):
+            report = await check_workspace_storage_health()
+            assert report.status == "warn"
+            assert "ripgrep" in report.message.lower()
 
     @pytest.mark.asyncio
     async def test_default_workspace_path(self):

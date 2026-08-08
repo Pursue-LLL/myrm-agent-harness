@@ -502,7 +502,9 @@ if potential_saved < min_save_threshold:
 **动态 compress_threshold**（根据会话进度）：
 
 ```python
-def calculate_dynamic_thresholds(self, turn_count, estimated_remaining_turns=10):
+def calculate_dynamic_thresholds(
+    self, turn_count, estimated_remaining_turns=DEFAULT_ESTIMATED_REMAINING_TURNS
+):
     # 计算"紧张度" = 剩余空间 / 预估需要
     urgency = remaining_tokens / estimated_remaining_tokens
 

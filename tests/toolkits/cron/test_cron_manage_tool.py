@@ -11,6 +11,7 @@ import json
 from datetime import UTC, datetime
 
 import pytest
+from pydantic import ValidationError
 
 from myrm_agent_harness.toolkits.cron.cron_agent_tools import (
     _build_monitor_config,
@@ -469,7 +470,7 @@ class TestUnknownAction:
     @pytest.mark.asyncio
     async def test_unknown_action_rejected_by_pydantic(self, tool) -> None:
         """Invalid action values are rejected by Pydantic's Literal validation."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             await tool.ainvoke({"action": "delete"})
 
 

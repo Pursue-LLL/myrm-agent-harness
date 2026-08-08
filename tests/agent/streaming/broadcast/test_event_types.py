@@ -244,3 +244,24 @@ class TestContextBudgetSnapshot:
         assert d["messages_estimated_tokens"] == 112000
         assert d["bound_tools_overhead_tokens"] == 6000
         assert d["other_tokens"] == 0
+
+    def test_to_dict_includes_turn_count_when_set(self):
+        snap = ContextBudgetSnapshot(
+            current_tokens=50000,
+            max_context_tokens=128000,
+            usage_percent=39.1,
+            health_status="healthy",
+            turn_count=30,
+        )
+        d = snap.to_dict()
+        assert d["turn_count"] == 30
+
+    def test_to_dict_omits_turn_count_when_none(self):
+        snap = ContextBudgetSnapshot(
+            current_tokens=50000,
+            max_context_tokens=128000,
+            usage_percent=39.1,
+            health_status="healthy",
+        )
+        d = snap.to_dict()
+        assert "turn_count" not in d

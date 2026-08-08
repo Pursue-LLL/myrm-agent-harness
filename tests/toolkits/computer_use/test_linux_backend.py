@@ -31,10 +31,11 @@ async def test_run_cmd(backend):
 
 @pytest.mark.asyncio
 async def test_screenshot(backend):
-    with patch("shutil.which", return_value=True), patch.object(backend, "_run_cmd", return_value=("", "", 0)):
-        with patch("pathlib.Path.read_bytes", return_value=b"png"):
-            res = await backend.screenshot()
-            assert res == b"png"
+    with patch("shutil.which", return_value=True), patch.object(backend, "_run_cmd", return_value=("", "", 0)), patch(
+        "pathlib.Path.read_bytes", return_value=b"png"
+    ):
+        res = await backend.screenshot()
+        assert res == b"png"
 
 @pytest.mark.asyncio
 async def test_click(backend):
@@ -50,13 +51,14 @@ async def test_type_text_ascii(backend):
 
 @pytest.mark.asyncio
 async def test_type_text_non_ascii(backend):
-    with patch.object(backend, "_run_cmd", return_value=("", "", 0)):
-        with patch("asyncio.create_subprocess_shell") as mock_shell:
-            mock_proc = AsyncMock()
-            mock_proc.communicate.return_value = (b"", b"")
-            mock_shell.return_value = mock_proc
-            res = await backend.type_text("你好")
-            assert res.success is True
+    with patch.object(backend, "_run_cmd", return_value=("", "", 0)), patch(
+        "asyncio.create_subprocess_shell"
+    ) as mock_shell:
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (b"", b"")
+        mock_shell.return_value = mock_proc
+        res = await backend.type_text("你好")
+        assert res.success is True
 
 @pytest.mark.asyncio
 async def test_key(backend):

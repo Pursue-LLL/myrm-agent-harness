@@ -16,9 +16,16 @@ class TestAgentEventType:
 
     def test_key_event_types_exist(self) -> None:
         required = {
-            "MESSAGE", "MESSAGE_END", "ERROR", "CANCELLED",
-            "TOOL_START", "TOOL_END", "TOOL_FAILURE",
-            "ARTIFACTS", "TOKEN_USAGE", "REASONING",
+            "MESSAGE",
+            "MESSAGE_END",
+            "ERROR",
+            "CANCELLED",
+            "TOOL_START",
+            "TOOL_END",
+            "TOOL_FAILURE",
+            "ARTIFACTS",
+            "TOKEN_USAGE",
+            "REASONING",
             "BROWSER_VIEW_UPDATE",
             "DESKTOP_VIEW_UPDATE",
         }
@@ -120,6 +127,7 @@ class TestAgentStreamEvent:
     def test_getitem_keyerror(self) -> None:
         evt = AgentStreamEvent(type="test")
         import pytest
+
         with pytest.raises(KeyError):
             _ = evt["nonexistent"]
 
@@ -173,6 +181,18 @@ class TestContextBudgetSnapshot:
         assert d["current_tokens"] == 5000
         assert d["usage_percent"] == 3.9
         assert d["health_status"] == "healthy"
+        assert "turn_count" not in d
+
+    def test_to_dict_with_turn_count(self) -> None:
+        snap = ContextBudgetSnapshot(
+            current_tokens=5000,
+            max_context_tokens=128000,
+            usage_percent=3.90625,
+            health_status="healthy",
+            turn_count=12,
+        )
+        d = snap.to_dict()
+        assert d["turn_count"] == 12
 
 
 class TestApprovalInterceptedEventData:

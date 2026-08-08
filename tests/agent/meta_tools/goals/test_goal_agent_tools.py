@@ -62,7 +62,7 @@ async def test_complete_goal_tool_with_criteria_pass(mock_provider):
 
     with patch(
         "myrm_agent_harness.agent.goals.verification.VerificationGatekeeper"
-    ) as MockGK, patch(
+    ) as MockGK, patch(  # noqa: N806 mock 类名别名
         "myrm_agent_harness.agent.goals.finalizer.finalize_goal_complete",
         new_callable=AsyncMock,
     ) as mock_finalize:
@@ -88,7 +88,7 @@ async def test_complete_goal_tool_with_criteria_fail(mock_provider):
 
     with patch(
         "myrm_agent_harness.agent.goals.verification.VerificationGatekeeper"
-    ) as MockGK:
+    ) as MockGK:  # noqa: N806 mock 类名别名
         mock_gk_instance = AsyncMock()
         mock_gk_instance.verify_all.return_value = VerificationResult(
             passed=False, reason="Bad command", error_logs="Not found"

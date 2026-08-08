@@ -120,10 +120,10 @@ async def test_engine_capture_skill_from_trajectory():
     with (
         patch(
             "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
-        ) as MockExtractor,
+        ) as MockExtractor,  # noqa: N806 mock 类名别名
         patch(
             "myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.SandboxValidator"
-        ) as MockSandbox,
+        ) as MockSandbox,  # noqa: N806 mock 类名别名
     ):
         instance = MockExtractor.return_value
         instance.extract_from_trajectory = AsyncMock(return_value=mock_result)
@@ -160,9 +160,9 @@ async def test_engine_extract_skill_from_slice():
     )
 
     with (
-        patch("myrm_agent_harness.agent.skills.evolution.core.engine.TraceAnalyzer") as MockTraceAnalyzer,
-        patch("myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor") as MockExtractor,
-        patch("myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.SandboxValidator") as MockSandbox,
+        patch("myrm_agent_harness.agent.skills.evolution.core.engine.TraceAnalyzer") as MockTraceAnalyzer,  # noqa: N806 mock 类名别名
+        patch("myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor") as MockExtractor,  # noqa: N806 mock 类名别名
+        patch("myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.SandboxValidator") as MockSandbox,  # noqa: N806 mock 类名别名
     ):
         engine = SkillEvolutionEngine(store=mock_store, llm=mock_llm, event_log_backend=MagicMock())
         trace_instance = MockTraceAnalyzer.return_value
@@ -189,7 +189,7 @@ async def test_engine_extract_skill_from_slice_incoherent():
     mock_slice_result = MagicMock()
     mock_slice_result.is_coherent = False
 
-    with patch("myrm_agent_harness.agent.skills.evolution.core.engine.TraceAnalyzer") as MockTraceAnalyzer:
+    with patch("myrm_agent_harness.agent.skills.evolution.core.engine.TraceAnalyzer") as MockTraceAnalyzer:  # noqa: N806 mock 类名别名
         engine = SkillEvolutionEngine(store=mock_store, llm=mock_llm, event_log_backend=MagicMock())
         trace_instance = MockTraceAnalyzer.return_value
         trace_instance.analyze_slice = AsyncMock(return_value=mock_slice_result)
@@ -383,7 +383,7 @@ async def test_engine_capture_skill_edge_cases():
     engine = SkillEvolutionEngine(store=mock_store, llm=mock_llm)
     with patch(
         "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
-    ) as MockExtractor:
+    ) as MockExtractor:  # noqa: N806 mock 类名别名
         MockExtractor.return_value.extract_from_trajectory = AsyncMock(
             return_value=None
         )
@@ -392,7 +392,7 @@ async def test_engine_capture_skill_edge_cases():
     # 3. Not general
     with patch(
         "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
-    ) as MockExtractor:
+    ) as MockExtractor:  # noqa: N806 mock 类名别名
         res = SkillCaptureResult(
             is_general=False, confidence=1.0, safety_analysis="", name="x", content="x"
         )
@@ -402,7 +402,7 @@ async def test_engine_capture_skill_edge_cases():
     # 4. Low confidence
     with patch(
         "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
-    ) as MockExtractor:
+    ) as MockExtractor:  # noqa: N806 mock 类名别名
         res = SkillCaptureResult(
             is_general=True, confidence=0.5, safety_analysis="", name="x", content="x"
         )
@@ -413,10 +413,10 @@ async def test_engine_capture_skill_edge_cases():
     with (
         patch(
             "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
-        ) as MockExtractor,
+        ) as MockExtractor,  # noqa: N806 mock 类名别名
         patch(
             "myrm_agent_harness.agent.skills.evolution.safety.validator.SkillValidator"
-        ) as MockValidator,
+        ) as MockValidator,  # noqa: N806 mock 类名别名
     ):
         res = SkillCaptureResult(
             is_general=True, confidence=0.9, safety_analysis="", name="x", content="x"
@@ -431,13 +431,13 @@ async def test_engine_capture_skill_edge_cases():
     with (
         patch(
             "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
-        ) as MockExtractor,
+        ) as MockExtractor,  # noqa: N806 mock 类名别名
         patch(
             "myrm_agent_harness.agent.skills.evolution.safety.validator.SkillValidator"
-        ) as MockValidator,
+        ) as MockValidator,  # noqa: N806 mock 类名别名
         patch(
             "myrm_agent_harness.agent.skills.evolution.execution.sandbox_validator.SandboxValidator"
-        ) as MockSandbox,
+        ) as MockSandbox,  # noqa: N806 mock 类名别名
     ):
         res = SkillCaptureResult(
             is_general=True, confidence=0.9, safety_analysis="", name="x", content="x"
@@ -470,7 +470,7 @@ async def test_engine_capture_skill_deduplication():
 
     with patch(
         "myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor.StructuredExtractor"
-    ) as MockExtractor:
+    ) as MockExtractor:  # noqa: N806 mock 类名别名
         # Same content should trigger dedup
         res = SkillCaptureResult(
             is_general=True,

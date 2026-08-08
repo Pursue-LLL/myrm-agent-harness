@@ -266,9 +266,10 @@ class TestGetVersion:
                 awaitable.close()  # type: ignore[attr-defined]
             raise TimeoutError
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
-            with patch("asyncio.wait_for", side_effect=_raise_timeout):
-                version = await detector._get_version("/usr/bin/claude")
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc), patch(
+            "asyncio.wait_for", side_effect=_raise_timeout
+        ):
+            version = await detector._get_version("/usr/bin/claude")
         assert version is None
 
     @pytest.mark.asyncio

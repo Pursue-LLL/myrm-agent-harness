@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from unittest.mock import AsyncMock
 
 import pytest
@@ -71,7 +72,7 @@ class TestDomainAllowlist:
 
     def test_frozen_immutable(self):
         al = DomainAllowlist(patterns=("example.com",))
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             al.patterns = "other.com"  # type: ignore[misc]
 
     def test_is_empty_property(self):

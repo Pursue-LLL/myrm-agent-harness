@@ -300,13 +300,13 @@ class TestCrossPlatformConsistency:
 
     def test_firefox_on_all_platforms(self):
         from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import (
-            _DBUS_AUTOMATABLE_APPS as linux_apps,
+            _DBUS_AUTOMATABLE_APPS as linux_apps,  # noqa: N811 语义别名
         )
         from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
-            _SCRIPTABLE_APPS as mac_apps,
+            _SCRIPTABLE_APPS as mac_apps,  # noqa: N811 语义别名
         )
         from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import (
-            _COM_AUTOMATABLE_APPS as win_apps,
+            _COM_AUTOMATABLE_APPS as win_apps,  # noqa: N811 语义别名
         )
 
         assert "Firefox" in mac_apps
@@ -315,10 +315,10 @@ class TestCrossPlatformConsistency:
 
     def test_vscode_on_mac_and_windows(self):
         from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
-            _SCRIPTABLE_APPS as mac_apps,
+            _SCRIPTABLE_APPS as mac_apps,  # noqa: N811 语义别名
         )
         from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import (
-            _COM_AUTOMATABLE_APPS as win_apps,
+            _COM_AUTOMATABLE_APPS as win_apps,  # noqa: N811 语义别名
         )
 
         assert "Visual Studio Code" in mac_apps
@@ -326,13 +326,13 @@ class TestCrossPlatformConsistency:
 
     def test_wps_office_on_all_platforms(self):
         from myrm_agent_harness.toolkits.computer_use.perception.linux_ax import (
-            _DBUS_AUTOMATABLE_APPS as linux_apps,
+            _DBUS_AUTOMATABLE_APPS as linux_apps,  # noqa: N811 语义别名
         )
         from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
-            _SCRIPTABLE_APPS as mac_apps,
+            _SCRIPTABLE_APPS as mac_apps,  # noqa: N811 语义别名
         )
         from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import (
-            _COM_AUTOMATABLE_APPS as win_apps,
+            _COM_AUTOMATABLE_APPS as win_apps,  # noqa: N811 语义别名
         )
 
         assert "WPS Office" in mac_apps
@@ -341,10 +341,10 @@ class TestCrossPlatformConsistency:
 
     def test_adobe_photoshop_on_mac_and_windows(self):
         from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
-            _SCRIPTABLE_APPS as mac_apps,
+            _SCRIPTABLE_APPS as mac_apps,  # noqa: N811 语义别名
         )
         from myrm_agent_harness.toolkits.computer_use.perception.windows_ax import (
-            _COM_AUTOMATABLE_APPS as win_apps,
+            _COM_AUTOMATABLE_APPS as win_apps,  # noqa: N811 语义别名
         )
 
         assert "Adobe Photoshop" in mac_apps

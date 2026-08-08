@@ -28,16 +28,17 @@ async def test_desktop_interact_revalidation_success(mock_backend, mock_config):
     mock_refs = {"e0": ElementRef(ref_id="e0", role="button", name="Test", bbox=(0,0,10,10), backend_key="key")}
     session._refs.get.return_value = mock_refs["e0"]
 
-    with patch("myrm_agent_harness.toolkits.computer_use.desktop_session.capture_snapshot", return_value=(mock_meta, mock_refs)) as mock_capture:
-        with patch("myrm_agent_harness.toolkits.computer_use.desktop_session.invoke_element") as mock_invoke:
-            mock_invoke.return_value.success = True
-            session.desktop_snapshot = AsyncMock(return_value="Follow up")
+    with patch("myrm_agent_harness.toolkits.computer_use.desktop_session.capture_snapshot", return_value=(mock_meta, mock_refs)) as mock_capture, patch(
+        "myrm_agent_harness.toolkits.computer_use.desktop_session.invoke_element"
+    ) as mock_invoke:
+        mock_invoke.return_value.success = True
+        session.desktop_snapshot = AsyncMock(return_value="Follow up")
 
-            result = await session.desktop_interact(ref="e0", action="click")
+        result = await session.desktop_interact(ref="e0", action="click")
 
-            mock_capture.assert_called_once_with(mock_backend, "foreground", None)
-            session._refs.replace.assert_called_once_with(mock_refs, mock_meta)
-            assert "Action 'click' on @e0 succeeded." in result
+        mock_capture.assert_called_once_with(mock_backend, "foreground", None)
+        session._refs.replace.assert_called_once_with(mock_refs, mock_meta)
+        assert "Action 'click' on @e0 succeeded." in result
 
 @pytest.mark.asyncio
 async def test_desktop_interact_revalidation_failure_ref_missing(mock_backend, mock_config):

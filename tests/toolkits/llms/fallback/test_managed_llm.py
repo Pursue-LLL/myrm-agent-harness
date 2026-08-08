@@ -155,8 +155,8 @@ async def test_managed_llm_scenario_types(mock_main_llm, mock_fallback_llm):
 async def test_managed_llm_both_models_fail(mock_main_llm, mock_fallback_llm):
     """Test ManagedLLM when both main and fallback fail."""
     # Arrange
-    mock_main_llm.agenerate.side_effect = Exception("Main error")
-    mock_fallback_llm.agenerate.side_effect = Exception("Fallback error")
+    mock_main_llm.agenerate.side_effect = ValueError("Main error")
+    mock_fallback_llm.agenerate.side_effect = ValueError("Fallback error")
 
     managed_llm = ManagedLLM(
         main_llm=mock_main_llm,
@@ -167,7 +167,7 @@ async def test_managed_llm_both_models_fail(mock_main_llm, mock_fallback_llm):
 
     # Act & Assert
     messages = [HumanMessage(content="Test")]
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         await managed_llm.ainvoke(messages)
 
     mock_main_llm.agenerate.assert_called_once()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from gzip import BadGzipFile
 from pathlib import Path
 
 import pytest
@@ -76,7 +77,7 @@ class TestExecutorCompression:
         file_path.write_bytes(b"not gzip data")
 
         # Should raise error
-        with pytest.raises(Exception):
+        with pytest.raises(BadGzipFile):
             await executor.read_file("invalid.txt.gz")
 
     @pytest.mark.asyncio

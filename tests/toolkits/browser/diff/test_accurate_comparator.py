@@ -2,6 +2,7 @@
 
 import base64
 import io
+from dataclasses import FrozenInstanceError
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -326,7 +327,7 @@ class TestAccurateComparator:
             is_significant_change=False,
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(FrozenInstanceError):
             result.similarity = 0.5  # type: ignore[misc]
 
     def test_result_protocol_compliance(self) -> None:

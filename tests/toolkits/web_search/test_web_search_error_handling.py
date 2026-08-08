@@ -503,9 +503,8 @@ class TestProviderChain:
         async def mock_get_service(instance, bypass_gateway=False):
             return service_mock
 
-        with patch.object(WebSearcher, "_get_search_service", mock_get_service):
-            with pytest.raises(AllQueriesFailedError):
-                await searcher.search("test", 5)
+        with patch.object(WebSearcher, "_get_search_service", mock_get_service), pytest.raises(AllQueriesFailedError):
+            await searcher.search("test", 5)
 
         assert metrics.chain_hop_count >= 1
 

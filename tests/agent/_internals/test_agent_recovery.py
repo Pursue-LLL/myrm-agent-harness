@@ -307,7 +307,7 @@ class TestRebuildAgentWithLlm:
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.preheat.CacheKeepAliveManager"
-            ) as MockKAM,
+            ) as MockKAM,  # noqa: N806 mock 类名别名
         ):
             new_kam_instance = MagicMock()
             MockKAM.return_value = new_kam_instance
@@ -375,7 +375,7 @@ class TestRebuildAgentWithLlm:
             ),
             patch(
                 "myrm_agent_harness.agent.context_management.preheat.CacheKeepAliveManager"
-            ) as MockKAM,
+            ) as MockKAM,  # noqa: N806 mock 类名别名
         ):
             new_kam_instance = MagicMock()
             MockKAM.return_value = new_kam_instance
