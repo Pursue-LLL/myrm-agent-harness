@@ -1,6 +1,8 @@
 """Tests for myrm_agent_harness.toolkits.llms.errors.classifier
 and _runtime.stream_executor._emergency_compact."""
 
+from typing import ClassVar
+
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
@@ -587,7 +589,7 @@ class TestExtractRetryAfter:
         from myrm_agent_harness.toolkits.llms.errors.classifier import extract_retry_after
 
         class FakeResponse:
-            headers = {"retry-after": "30"}
+            headers: ClassVar[dict[str, str]] = {"retry-after": "30"}
 
         exc = Exception("rate limited")
         exc.response = FakeResponse()
@@ -597,7 +599,7 @@ class TestExtractRetryAfter:
         from myrm_agent_harness.toolkits.llms.errors.classifier import extract_retry_after
 
         class FakeResponse:
-            headers = {"Retry-After": "45.5"}
+            headers: ClassVar[dict[str, str]] = {"Retry-After": "45.5"}
 
         exc = Exception("rate limited")
         exc.response = FakeResponse()
@@ -607,7 +609,7 @@ class TestExtractRetryAfter:
         from myrm_agent_harness.toolkits.llms.errors.classifier import extract_retry_after
 
         class FakeResponse:
-            headers = {"retry-after": "0"}
+            headers: ClassVar[dict[str, str]] = {"retry-after": "0"}
 
         exc = Exception("rate limited")
         exc.response = FakeResponse()
@@ -617,7 +619,7 @@ class TestExtractRetryAfter:
         from myrm_agent_harness.toolkits.llms.errors.classifier import extract_retry_after
 
         class FakeResponse:
-            headers = {"retry-after": "-5"}
+            headers: ClassVar[dict[str, str]] = {"retry-after": "-5"}
 
         exc = Exception("rate limited")
         exc.response = FakeResponse()
@@ -627,7 +629,7 @@ class TestExtractRetryAfter:
         from myrm_agent_harness.toolkits.llms.errors.classifier import extract_retry_after
 
         class FakeResponse:
-            headers = {"retry-after": "invalid"}
+            headers: ClassVar[dict[str, str]] = {"retry-after": "invalid"}
 
         exc = Exception("rate limited")
         exc.response = FakeResponse()
@@ -647,7 +649,7 @@ class TestExtractRetryAfter:
         from myrm_agent_harness.toolkits.llms.errors.classifier import extract_retry_after
 
         class FakeResponse:
-            headers = {"retry-after": "60"}
+            headers: ClassVar[dict[str, str]] = {"retry-after": "60"}
 
         inner = Exception("inner rate limit")
         inner.response = FakeResponse()
@@ -668,7 +670,7 @@ class TestExtractRetryAfter:
         from myrm_agent_harness.toolkits.llms.errors.classifier import extract_retry_after
 
         class FakeResponse:
-            headers = {"retry-after": "120"}
+            headers: ClassVar[dict[str, str]] = {"retry-after": "120"}
 
         # Build a chain of 7 exceptions; only depth 0 has a response.
         # The function iterates 5 times, so from depth 6 it reaches depth 2 at most.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -665,7 +666,7 @@ class TestFilterForkMessages:
         from myrm_agent_harness.agent.sub_agents.executor import _estimate_msg_tokens
 
         class FakeMsg:
-            content = [{"type": "text", "text": "hello world"}]
+            content: ClassVar[list[dict[str, str]]] = [{"type": "text", "text": "hello world"}]
 
         tokens = _estimate_msg_tokens(FakeMsg())
         assert tokens >= 1

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,14 +18,14 @@ from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, SubAgentRe
 class _ReadonlyTool:
     readonly = True
     name = "file_read_tool"
-    metadata: dict[str, object] = {}
+    metadata: ClassVar[dict[str, object]] = {}
 
 
 class _MutatingMcpTool:
     is_mcp = True
     readonly = False
     name = "mcp_write_tool"
-    metadata: dict[str, object] = {"is_mcp": True}
+    metadata: ClassVar[dict[str, object]] = {"is_mcp": True}
 
 
 def test_build_verifier_tool_registry_getter_filters_mutating_mcp_and_adds_submit_verdict() -> None:

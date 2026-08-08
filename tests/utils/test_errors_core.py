@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import ClassVar
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
@@ -103,7 +104,7 @@ class TestModelOutputValidator:
 
     def test_arbitrary_object_with_tool_calls(self) -> None:
         class Obj:
-            tool_calls = [{"x": 1}]
+            tool_calls: ClassVar[list[dict[str, int]]] = [{"x": 1}]
 
         r = ModelOutputValidator.validate_model_output(Obj())
         assert r["has_tool_calls"] is True

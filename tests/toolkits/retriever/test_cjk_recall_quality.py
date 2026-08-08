@@ -8,6 +8,8 @@ These tests are backend-agnostic: they pass regardless of whether jieba is insta
 because the CJK bigram fallback must also satisfy the recall guarantees.
 """
 
+from typing import ClassVar
+
 import pytest
 
 from myrm_agent_harness.toolkits.retriever.bm25.tokenizer import (
@@ -75,7 +77,7 @@ class TestCJKRecallQuality:
     the queried phrase as a substring.
     """
 
-    DOCUMENTS = [
+    DOCUMENTS: ClassVar[list[str]] = [
         "机器学习模型部署方案讨论",
         "深度学习训练优化技巧总结",
         "数据预处理管道设计文档",

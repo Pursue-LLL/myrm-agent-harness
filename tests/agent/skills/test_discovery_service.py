@@ -111,16 +111,24 @@ class TestSearch:
             )
 
             async def github_search(
-                _query: str, _limit: int, *, _delay: float = github_delay
+                _query: str,
+                _limit: int,
+                *,
+                _delay: float = github_delay,
+                _result: SkillSearchResult = github_result,
             ) -> list[SkillSearchResult]:
                 await asyncio.sleep(_delay)
-                return [github_result]
+                return [_result]
 
             async def skills_sh_search(
-                _query: str, _limit: int, *, _delay: float = skills_sh_delay
+                _query: str,
+                _limit: int,
+                *,
+                _delay: float = skills_sh_delay,
+                _result: SkillSearchResult = skills_sh_result,
             ) -> list[SkillSearchResult]:
                 await asyncio.sleep(_delay)
-                return [skills_sh_result]
+                return [_result]
 
             svc._sources = [
                 MagicMock(source_name="github", search=github_search),

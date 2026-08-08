@@ -23,6 +23,7 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 | hooks.py | Core | Session / skill-agent / memory / bash integration hooks（含 task intent 与 memory telemetry 只读契约：budget/injection + injection contract） | ✅ |
 | skills.py | Core | Skill frontmatter parse and metadata builders | ✅ |
 | subagents.py | Core | `build_parent_delegatable_toolkit` — public subagent delegation helper for server wiring | ✅ |
+| security.py | Core | `ManagedApprovalPolicy` / `get_process_managed_approval_policy` — process-wide MAP facade for server | ✅ |
 
 ## SDK convenience (non-stable)
 

@@ -1,5 +1,7 @@
 """Tests for logger_utils - covering all AgentLogger methods."""
 
+from typing import ClassVar
+
 from myrm_agent_harness.utils.logger_utils import (
     AgentLogger,
     get_agent_core_logger,
@@ -91,7 +93,7 @@ class TestFormatKwargs:
     def test_messages_with_tool_calls(self):
         class MockMsg:
             content = "test"
-            tool_calls = [{"id": "tc1"}]
+            tool_calls: ClassVar[list[dict[str, str]]] = [{"id": "tc1"}]
             tool_call_id = "tc1"
             id = "msg-2"
 

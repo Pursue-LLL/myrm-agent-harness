@@ -15,7 +15,7 @@ class MockLifecycleTool(BaseTool):
     description: str = "A mock tool with lifecycle"
 
     # Allow extra attributes for tracking
-    model_config = {"extra": "allow"}
+    model_config = {"extra": "allow"}  # noqa: RUF012  # Pydantic model config must stay a dict
 
     def __init__(self, name: str = "mock_lifecycle_tool") -> None:
         super().__init__()

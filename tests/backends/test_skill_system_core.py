@@ -8,6 +8,7 @@ from __future__ import annotations
 import io
 import logging
 import zipfile
+from typing import ClassVar
 
 import pytest
 
@@ -144,7 +145,7 @@ class TestSafeExtractZip:
 
 
 class TestAttenuateTools:
-    ALL_TOOLS = ["memory_search", "write_file", "execute_command", "echo_tool"]
+    ALL_TOOLS: ClassVar[list[str]] = ["memory_search", "write_file", "execute_command", "echo_tool"]
 
     def test_no_active_skills(self) -> None:
         result = attenuate_tools(self.ALL_TOOLS, [])
