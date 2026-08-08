@@ -30,11 +30,13 @@ def _make_text_pdf(text_content: str = "Hello World " * 80) -> Path:
     """Generate a minimal 1-page PDF with text using raw PDF 1.4 bytes."""
     pdf_bytes = _build_minimal_pdf_bytes(text_content)
 
-    tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-    tmp.write(pdf_bytes)
-    tmp.flush()
-    tmp.close()
-    return Path(tmp.name)
+    with tempfile.NamedTemporaryFile(
+        suffix=".pdf", delete=False, mode="wb"
+    ) as tmp:
+        tmp.write(pdf_bytes)
+        tmp.flush()
+        tmp_path = tmp.name
+    return Path(tmp_path)
 
 
 def _build_minimal_pdf_bytes(text: str) -> bytes:
