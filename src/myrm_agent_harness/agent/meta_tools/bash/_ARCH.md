@@ -18,7 +18,7 @@ Bash tool module.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Bash tool module. | — |
-| `_tool_description.py` | Internal | Static cache-stable `TOOL_DESCRIPTION`: capabilities, merge/OBSERVATION rules, native-tool routing, background jobs (`waiting_for_input`/`submit_stdin`, eviction read hint); forbids `myrm_tools` in bash. | ✅ |
+| `_tool_description.py` | Internal | Static cache-stable `TOOL_DESCRIPTION`: capabilities, merge/OBSERVATION rules, native-tool routing, background jobs (`waiting_for_input`/`submit_stdin`, eviction read hint); internal-module names omitted (`myrm_tools` guard in `_preflight_checks`). | ✅ |
 | _output_eviction.py | Internal | Large output eviction (save to file, return `EvictionResult(text, evicted_ref)` for SSE propagation to GUI viewer). | ✅ |
 | _event_logging.py | Internal | Event logging for bash command execution (redaction, classification). | ✅ |
 | `_preflight_checks.py` | Internal | Security preflight: URL exfiltration, sensitive paths, myrm_tools guard (AST / bash `-c` / `-m` / pipe stdin / cat\|pipe `.py` scan / referenced `.py` scan; raises ``ToolError`` with ``MYRM_TOOLS_BLOCKED`` + ``guardrail_blocked`` for GUI Badge), interactive detection, install package registry verification. | ✅ |
