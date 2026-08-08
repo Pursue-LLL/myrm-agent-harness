@@ -99,6 +99,15 @@ def test_background_contract_documented() -> None:
     assert "still_running" not in TOOL_DESCRIPTION
 
 
+def test_background_detail_authority_lives_in_process_tool_desc() -> None:
+    """后台 action 细节只维护在 bash_process_tool 自身 desc,TOOL_DESCRIPTION 仅概要预告."""
+    process_desc = create_bash_process_tool().description or ""
+    assert "list" in process_desc
+    assert "kill" in process_desc
+    assert "close_stdin" in process_desc
+    assert "详见其工具描述" in TOOL_DESCRIPTION
+
+
 def test_glob_routing_omits_nonexistent_depth_argument() -> None:
     assert "glob_tool" in TOOL_DESCRIPTION
     assert "限定 depth" not in TOOL_DESCRIPTION

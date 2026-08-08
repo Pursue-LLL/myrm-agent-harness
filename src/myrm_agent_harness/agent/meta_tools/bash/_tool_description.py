@@ -25,7 +25,7 @@ TOOL_DESCRIPTION = """
 3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入**。
    - 预装三方库:pandas, numpy, scipy, matplotlib, seaborn;Python 标准库(json, datetime, re 等)均可用。
    - **不要**使用 `python -c "..."` / `python3 -c "..."` 包装器 — shell 转义易破坏引号与多行字符串。直接传 Python 源码作为 command 即可。
-4. **组合执行提效(管道思想)**: 单次 invocation 内接多步 — ① Python 源码(gather/串行/控制流,含技能批量); ② Shell 用 `&&`/`|` 串联,或执行已有脚本(见 #2)。返回值具体才可接管道,否则先 `[OBSERVATION]` — 细则见「编写原则」。
+4. **组合执行提效(管道思想)**: 单次调用内串联多步 — ① Python 源码(gather/串行/控制流,含技能批量); ② Shell 用 `&&`/`|` 串联,或执行已有脚本(见 #2)。返回值具体才可接管道,否则先 `[OBSERVATION]` — 细则见「编写原则」。
 
 ## 优先使用专用工具
 
@@ -106,13 +106,9 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 
 启动 dev server / 监听器 / 长爬虫时,传 `run_in_background=true`,立即返回 `{pid, status}` 而不阻塞当前轮。后台进程按 chat session 隔离,每会话最多 5 个并发。配套工具:
 
-- `bash_process_tool(action='list')` — 列出本会话所有后台任务;含 `pid / command / status / uptime_seconds / exit_code` 等字段;若上报过进度则含 `last_progress`,便于比对哪个 worker 卡住、哪个快收尾。
-- `bash_process_tool(action='output', pid, since_cursor?, filter?)` — 拉 stdout/stderr 尾部;传上次的 ``next_cursor`` 作为 ``since_cursor`` 实现增量轮询;``filter`` 为可选行级 regex;若 ``waiting_for_input=true`` 读 ``input_wait_hint`` 并用 ``submit_stdin`` 应答。
-- `bash_process_tool(action='wait', pid, timeout_seconds?)` — 阻塞至进程退出或超时(默认 30s,最大 120s);仍 running 且 ``waiting_for_input=true`` 时读 ``input_wait_hint`` 并用 ``submit_stdin`` 应答。
-- `bash_process_tool(action='kill', pid, force?)` — `force=false` 正常终止;仍存活则 `force=true` 强制结束。
-- `bash_process_tool(action='write_stdin', pid, data=...)` — 向 stdin 写原始字节(不追加换行)。
-- `bash_process_tool(action='submit_stdin', pid, data=...)` — 向 stdin 写数据并追加 Enter(用于 y/n 等交互);也可由 GUI 应答。
-- `bash_process_tool(action='close_stdin', pid)` — 向 stdin 发送 EOF,关闭交互输入。
+配套工具 `bash_process_tool` 提供 7 个 action:list(会话内全部任务,含 `last_progress`) / output(增量轮询:传上次 `next_cursor` 为 `since_cursor`) / wait / kill / write_stdin / submit_stdin / close_stdin — 参数与规则详见其工具描述。
+
+**关键**:output/wait 返回 `waiting_for_input=true` 时,读 `input_wait_hint` 并用 `submit_stdin` 应答,勿盲轮询;`waiting_for_input=false` 时正常拉输出/等待即可。
 
 ### 零 token 进度上报
 
