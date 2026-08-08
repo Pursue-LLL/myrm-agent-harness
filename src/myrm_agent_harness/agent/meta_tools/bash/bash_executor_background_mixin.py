@@ -32,6 +32,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def strip_trailing_background_ampersand(command: str) -> str:
+    """Remove a bare trailing ``&`` so ``sh -c`` cannot orphan the spawned job.
+
+    ``spawn_background`` runs ``sh -c <command>``. A trailing ``&`` makes ``sh``
+    return immediately while the real process keeps running detached: the
+    registered PID then points at an already-exited shell and every
+    ``bash_process_tool`` action (output/kill/wait) silently fails. ``&&`` is a
+    chaining operator and is preserved.
+    """
+    stripped = command.rstrip()
+    if stripped.endswith("&") and not stripped.endswith("&&"):
+        return stripped[:-1].rstrip()
+    return command
+
+
 class BashExecutorBackgroundMixin:
     """Spawn long-running shell commands via the background process registry."""
 
@@ -50,6 +65,15 @@ class BashExecutorBackgroundMixin:
         unwrapped = unwrap_markdown_fence(command)
         if unwrapped is not command:
             command = unwrapped
+
+        normalized = strip_trailing_background_ampersand(command)
+        if normalized != command:
+            logger.warning(
+                " [BashExecutor] Background command had a trailing '&' that would orphan "
+                "the spawned process; stripped it: %r",
+                command,
+            )
+            command = normalized
 
         workspace, invalidated_workspace_id = await self._workspace_manager.get_or_create(session_id)
         if invalidated_workspace_id:

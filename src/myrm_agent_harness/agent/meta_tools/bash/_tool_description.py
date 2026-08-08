@@ -104,6 +104,8 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 
 启动 dev server / 监听器 / 长爬虫时,传 `run_in_background=true`,立即返回 `{pid, status}` 而不阻塞当前轮。后台进程按 chat session 隔离,每会话最多 5 个并发。
 
+**注意**:传 `run_in_background=true` 时**不要**在命令末尾追加 `&` — 工具已自动后台化,追加 `&` 会导致进程脱离管理(pid 失效,无法 output/kill/wait)。
+
 配套工具 `bash_process_tool` 提供 7 个 action:list(会话内全部任务,含 `last_progress`) / output(增量轮询:传上次 `next_cursor` 为 `since_cursor`) / wait / kill / write_stdin / submit_stdin / close_stdin — 参数与规则详见其工具描述。
 
 **关键**:output/wait 返回 `waiting_for_input=true` 时,读 `input_wait_hint` 并用 `submit_stdin` 应答,勿盲轮询;`waiting_for_input=false` 时正常拉输出/等待即可。
