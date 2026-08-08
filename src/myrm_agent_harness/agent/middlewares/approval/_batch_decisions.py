@@ -195,6 +195,14 @@ def build_interrupt_payload(
 
         is_smart_denied = bool(extra_ctx and extra_ctx.get("smart_denied"))
         is_high_risk = bool(extra_ctx and extra_ctx.get("high_risk"))
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_managed_approval_policy,
+        )
+        from myrm_agent_harness.agent.security.managed_policy_gates import (
+            allow_always_writes_blocked,
+        )
+
+        map_blocks_allow_always = allow_always_writes_blocked(get_managed_approval_policy())
         if is_smart_denied:
             review_config: dict[str, object] = {
                 "allowedDecisions": ["approve", "reject"],
@@ -208,7 +216,7 @@ def build_interrupt_payload(
             review_config = {
                 "allowedDecisions": ["approve", "reject", "edit"],
             }
-            if is_high_risk:
+            if is_high_risk or map_blocks_allow_always:
                 review_config["hideAllowAlways"] = True
         if domains:
             review_config["domainApproval"] = True

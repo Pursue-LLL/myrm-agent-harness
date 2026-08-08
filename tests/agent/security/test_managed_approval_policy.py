@@ -9,7 +9,9 @@ from myrm_agent_harness.agent.security.managed_approval_policy import (
 from myrm_agent_harness.agent.security.managed_policy_gates import (
     effective_auto_mode_enabled,
     honor_allowlist,
+    map_suppresses_yolo,
     yolo_allowed,
+    yolo_allowed_for_model,
 )
 from myrm_agent_harness.agent.security.types import SecurityConfig
 
@@ -42,6 +44,27 @@ def test_force_auto_review_overrides_user_off() -> None:
 def test_disable_yolo() -> None:
     policy = ManagedApprovalPolicy.from_mapping({"disableYolo": True})
     assert yolo_allowed(policy) is False
+
+
+def test_yolo_allowed_for_model_force_auto_review() -> None:
+    policy = ManagedApprovalPolicy.from_mapping(
+        {"forceAutoReviewForModels": ["claude-opus*"]},
+    )
+    assert yolo_allowed_for_model(policy, "claude-opus-4") is False
+    assert yolo_allowed_for_model(policy, "gpt-4o") is True
+
+
+def test_yolo_allowed_for_model_ignore_allowlist() -> None:
+    policy = ManagedApprovalPolicy.from_mapping(
+        {"ignoreAllowlistForModels": ["gpt-*"]},
+    )
+    assert map_suppresses_yolo(policy, "gpt-4o") is True
+    assert yolo_allowed_for_model(policy, "gpt-4o") is False
+
+
+def test_yolo_allowed_for_model_respects_global_disable() -> None:
+    policy = ManagedApprovalPolicy.from_mapping({"disableYolo": True})
+    assert yolo_allowed_for_model(policy, "gpt-4o") is False
 
 
 def test_load_from_env_json() -> None:

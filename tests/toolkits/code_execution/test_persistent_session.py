@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import os
 
@@ -483,6 +484,187 @@ class TestSmartEnvInjection:
         finally:
             await session.execute("rm -f package.json")
             await session.close()
+
+
+class TestResilienceGitCredentialInjection:
+    """GitHub credential/identity injection guards in resilience_init.sh (git push/commit).
+
+    Verifies: HTTPS push gets an env-ref credential helper (token never inlined),
+    SSH pushes passthrough, and commits resolve/inject identity only when the
+    sandbox has none.
+    """
+
+    _FAKE_DIR = "/tmp/myrm_resilience_fake"
+    _RESILIENCE = os.path.join(
+        os.path.dirname(__file__),
+        "../../../src/myrm_agent_harness/agent/meta_tools/bash/scripts/resilience_init.sh",
+    )
+
+    _FAKE_GIT = """#!/bin/bash
+echo "$@" >> "${FAKE_GIT_LOG}"
+case "$1" in
+  rev-parse)
+    if [ "$2" = "--is-inside-work-tree" ]; then
+      [ "$FAKE_GIT_IS_REPO" = "1" ] && exit 0 || exit 128
+    fi
+    exit 0;;
+  config)
+    case "$2" in
+      --get)
+        case "$3" in
+          credential.helper) [ -n "$FAKE_GIT_CRED_HELPER" ] && { echo "$FAKE_GIT_CRED_HELPER"; exit 0; } || exit 1;;
+          user.name) [ -n "$FAKE_GIT_NAME" ] && { echo "$FAKE_GIT_NAME"; exit 0; } || exit 1;;
+          user.email) [ -n "$FAKE_GIT_EMAIL" ] && { echo "$FAKE_GIT_EMAIL"; exit 0; } || exit 1;;
+          *) exit 1;;
+        esac;;
+      *) exit 0;;
+    esac;;
+  remote) echo "$FAKE_GIT_REMOTE"; exit 0;;
+  symbolic-ref) echo "feat/test"; exit 0;;
+esac
+exit 0
+"""
+
+    _FAKE_CURL = """#!/bin/bash
+if [[ "$*" == *"api.github.com/user"* ]]; then
+  echo '{"login":"octocat","id":1}'
+fi
+exit 0
+"""
+
+    @staticmethod
+    def _env(*, remote: str, token: str, cred_helper: str = "", name: str = "", email: str = "", is_repo: str = "1") -> str:
+        return (
+            f"FAKE_GIT_LOG={TestResilienceGitCredentialInjection._FAKE_DIR}/git.log "
+            f"FAKE_GIT_IS_REPO={is_repo} FAKE_GIT_NAME={name} FAKE_GIT_EMAIL={email} "
+            f"FAKE_GIT_CRED_HELPER={cred_helper} FAKE_GIT_REMOTE={remote} GITHUB_TOKEN={token}"
+        )
+
+    async def _run(self, env: str, cmd: str, pre_cache: str = "") -> str:
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            await session.execute(f"rm -rf {self._FAKE_DIR} && mkdir -p {self._FAKE_DIR}/home")
+            await session.execute('rm -f "${TMPDIR:-/tmp}"/myrm_gh_identity')
+            if pre_cache:
+                await session.execute(f"printf '%s' '{pre_cache}' > \"${{TMPDIR:-/tmp}}\"/myrm_gh_identity")
+            for name, body in (("git", self._FAKE_GIT), ("curl", self._FAKE_CURL)):
+                b64 = base64.b64encode(body.encode()).decode()
+                await session.execute(
+                    f"echo {b64} | base64 -d > {self._FAKE_DIR}/{name} && chmod +x {self._FAKE_DIR}/{name}"
+                )
+            # Isolate HOME so a host-level ~/.git-credentials (e.g. gh auth) cannot
+            # flip _git_has_existing_credentials and skip helper injection.
+            await session.execute(f"export PATH={self._FAKE_DIR}:$PATH HOME={self._FAKE_DIR}/home {env}")
+            await session.execute(f"source {self._RESILIENCE}")
+            await session.execute(cmd)
+            result = await session.execute(f"cat {self._FAKE_DIR}/git.log 2>/dev/null || true")
+            return result.stdout
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_push_https_injects_host_scoped_helper(self) -> None:
+        """HTTPS GitHub push without existing credentials gets an env-ref helper gated on github.com hosts."""
+        log = await self._run(
+            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken"),
+            "git push origin main",
+        )
+        assert 'host=*) host="${line#host=}"' in log
+        assert '"github.com"' in log
+        assert 'password="${GITHUB_TOKEN}"' in log
+        assert "password=ghp_testtoken" not in log
+
+    @pytest.mark.asyncio
+    async def test_push_ssh_passthrough(self) -> None:
+        """SSH remote never receives a credential helper injection."""
+        log = await self._run(
+            self._env(remote="git@github.com:owner/repo.git", token="ghp_testtoken"),
+            "git push origin main",
+        )
+        assert "-c credential.helper=" not in log
+        assert "origin main" in log
+
+    @pytest.mark.asyncio
+    async def test_push_existing_helper_passthrough(self) -> None:
+        """Existing credential.helper config suppresses injection."""
+        log = await self._run(
+            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken", cred_helper="osxkeychain"),
+            "git push origin main",
+        )
+        assert "-c credential.helper=" not in log
+
+    @pytest.mark.asyncio
+    async def test_push_https_non_github_remote_passthrough(self) -> None:
+        """HTTPS push to a third-party git host never gets the GitHub token."""
+        log = await self._run(
+            self._env(remote="https://gitlab.example.com/owner/repo.git", token="ghp_testtoken"),
+            "git push origin main",
+        )
+        assert "-c credential.helper=" not in log
+        assert "origin main" in log
+
+    @pytest.mark.asyncio
+    async def test_push_www_github_host_scope(self) -> None:
+        """www.github.com HTTPS push gets the host-scoped helper."""
+        log = await self._run(
+            self._env(remote="https://www.github.com/owner/repo.git", token="ghp_testtoken"),
+            "git push origin main",
+        )
+        assert 'host=*) host="${line#host=}"' in log
+        assert '"www.github.com"' in log
+        assert "password=ghp_testtoken" not in log
+
+    @pytest.mark.asyncio
+    async def test_push_no_token_passthrough(self) -> None:
+        """No GITHUB_TOKEN → no credential helper injection."""
+        log = await self._run(
+            self._env(remote="https://github.com/owner/repo.git", token=""),
+            "git push origin main",
+        )
+        assert "-c credential.helper=" not in log
+        assert "origin main" in log
+
+    @pytest.mark.asyncio
+    async def test_commit_injects_resolved_identity(self) -> None:
+        """Commit with no sandbox identity resolves GitHub login and injects user.name/email."""
+        log = await self._run(
+            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken"),
+            "git commit -m x",
+        )
+        assert "-c user.name=octocat" in log
+        assert "user.email=octocat@users.noreply.github.com" in log
+
+    @pytest.mark.asyncio
+    async def test_commit_passthrough_with_identity(self) -> None:
+        """Commit with configured identity passes through without injection."""
+        log = await self._run(
+            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken", name="Jane", email="jane@example.com"),
+            "git commit -m x",
+        )
+        assert "user.name=" not in log
+        assert "-m x" in log
+
+    @pytest.mark.asyncio
+    async def test_commit_non_repo_passthrough(self) -> None:
+        """Commit outside a work tree passes through without identity resolution."""
+        log = await self._run(
+            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken", is_repo="0"),
+            "git commit -m x",
+        )
+        assert "user.name=" not in log
+        assert "-m x" in log
+
+    @pytest.mark.asyncio
+    async def test_commit_uses_cached_identity(self) -> None:
+        """Commit identity resolution reuses the TMPDIR cache instead of calling the GitHub API."""
+        log = await self._run(
+            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken"),
+            "git commit -m x",
+            pre_cache="cacheduser|cacheduser@users.noreply.github.com",
+        )
+        assert "-c user.name=cacheduser" in log
+        assert "user.email=cacheduser@users.noreply.github.com" in log
 
 
 class TestKillProcessTreeEdgeCases:

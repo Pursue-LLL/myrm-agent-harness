@@ -44,7 +44,7 @@ Bash tool module.
 | _background/ | Submodule | Background bash job registry, durable ledger, stdout spill, progress parsing. See [_background/_ARCH.md](_background/_ARCH.md). | ✅ |
 | command_classifier.py | Core | Command classifier. Auto-classifies commands by type (READ/WRITE/DANGEROUS/NETWORK/GIT/SEARCH/PYTHON | ✅ |
 | mcp_citation_handler.py | Core | MCP Metadata Extractor | ✅ |
-| scripts/resilience_init.sh | Core | Sandbox resilience script injected into BashExecutor for git/npm fallback | ✅ |
+| scripts/resilience_init.sh | Core | Sandbox resilience script injected into BashExecutor: git/npm fallbacks, GitHub push credential (host-scoped) + commit identity injection | ✅ |
 | sensitive_parameter_redactor.py | Core | Command parameter redactor. Automatically redacts sensitive parameters (--token, --password, --api-k | ✅ |
 | workspace_manager.py | Core | Thin delegation over `WorkspaceService`; lazy instantiation uses aggregate root bound by `toolkits.code_execution.workspace.storage_root_bind` during `setup_workspace`. | ✅ |
 | skill_workspace_manager.py | Core | Skill file staging paths under active workspace dirs; resolves `WorkspaceService` using the bound aggregate root. | ✅ |

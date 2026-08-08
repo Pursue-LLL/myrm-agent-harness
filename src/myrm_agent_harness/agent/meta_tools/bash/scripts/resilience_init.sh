@@ -79,7 +79,7 @@ _git_resolve_identity() {
                 [ -z "$email" ] && email="$cemail"
             fi
             if [ -z "$name" ] || [ -z "$email" ]; then
-                login=$(curl -fsSL --max-time 5 -H "Authorization: token ${GITHUB_TOKEN}" \
+                login=$(curl -fsSL --max-time 5 -H "Authorization: Bearer ${GITHUB_TOKEN}" \
                     https://api.github.com/user 2>/dev/null \
                     | grep -o '"login":"[^"]*"' | head -n 1 | cut -d'"' -f4)
                 if [ -n "$login" ]; then
@@ -100,13 +100,22 @@ _git_push() {
     if [ -n "$GITHUB_TOKEN" ]; then
         url=$(_git_remote_url)
         if _git_is_https_github_remote "$url" && ! _git_has_existing_credentials; then
-            extra_args+=(-c "credential.helper=!f() { echo username=git; echo password=${GITHUB_TOKEN}; }; f")
+            # The token is referenced via the environment (never inlined), so it
+            # cannot inject shell metacharacters into the credential helper. The
+            # helper is host-scoped: it only answers for github.com hosts, so the
+            # token is never handed to third-party HTTPS git servers the agent may
+            # push to (e.g. a self-hosted GitLab remote or a raw HTTPS URL).
+            extra_args+=(-c 'credential.helper=!f() { host=""; while IFS= read -r line; do case "$line" in host=*) host="${line#host=}";; esac; done; if [ "$host" = "github.com" ] || [ "$host" = "www.github.com" ]; then echo username=git; echo password="${GITHUB_TOKEN}"; fi; }; f')
         fi
     fi
     command git "${extra_args[@]}" "$@"
 }
 
 _git_commit() {
+    if ! command git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        command git "$@"
+        return $?
+    fi
     if ! command git config --get user.name >/dev/null 2>&1 || ! command git config --get user.email >/dev/null 2>&1; then
         local ident name email
         ident=$(_git_resolve_identity)
@@ -159,12 +168,12 @@ git() {
                 local repo_name=$(basename "$url" .git)
                 
                 # Download zip
-                local curl_cmd="curl -sSL"
+                local curl_args=(-sSL)
                 if [ -n "$GITHUB_TOKEN" ]; then
-                    curl_cmd="$curl_cmd -H \"Authorization: token $GITHUB_TOKEN\""
+                    curl_args+=(-H "Authorization: token ${GITHUB_TOKEN}")
                 fi
                 
-                if eval "$curl_cmd \"${url}/archive/HEAD.zip\" -o \"${repo_name}.zip\"" && [ -s "${repo_name}.zip" ]; then
+                if curl "${curl_args[@]}" "${url}/archive/HEAD.zip" -o "${repo_name}.zip" && [ -s "${repo_name}.zip" ]; then
                     echo "[Fallback] Zipball downloaded. Extracting..."
                     unzip -q "${repo_name}.zip"
                     # Find the extracted directory (it might be repo-main or repo-master)

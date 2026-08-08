@@ -442,7 +442,8 @@ Agent 执行循环需要实时访问业务数据（检查配额、读取记忆�
 The `BashExecutor` automatically injects a `resilience_init.sh` script into every bash execution context. This script defines shell functions (like `git()` and `npm()`) that intercept specific commands to provide:
 
 1.  **Transparent Fallbacks**: For example, if `git clone` times out, it automatically falls back to shallow clone (`--depth 1`) or zipball download. If `npm install` fails, it falls back to `bun install` or retries with a clean cache.
-2.  **Pre-execution Command Rewriting**: For commands that produce highly verbose or human-centric output (which wastes LLM tokens and breaks parsing in non-English locales), the script intercepts and rewrites them into machine-readable formats.
+2.  **GitHub Credential & Identity Injection**: When `GITHUB_TOKEN` is present (injected by the credential pipeline), `git push` to HTTPS `github.com` remotes gets an inline credential helper when the sandbox has no existing credentials, and `git commit` resolves a `user.name`/`user.email` from the GitHub account (cached, with a local fallback) when the sandbox has no global git identity. The credential helper is **host-scoped**: it only answers for `github.com`/`www.github.com` hosts, so the token is never handed to third-party HTTPS git servers the agent pushes to (e.g. a self-hosted GitLab remote or a raw HTTPS URL).
+3.  **Pre-execution Command Rewriting**: For commands that produce highly verbose or human-centric output (which wastes LLM tokens and breaks parsing in non-English locales), the script intercepts and rewrites them into machine-readable formats.
     *   `git status` is rewritten to `git status --porcelain -b -uall`.
     *   `git diff` (without specific formatting flags) is rewritten to first show a `--stat` summary, followed by the actual diff.
     

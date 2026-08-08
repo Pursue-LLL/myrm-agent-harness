@@ -69,6 +69,7 @@ DecisionKind = Literal[
     "CANARY_LEAKED",
     "INJECTION_DETECTED",
     "INJECTION_BLOCKED",
+    "MAP_ALLOWLIST_SKIPPED",
 ]
 
 

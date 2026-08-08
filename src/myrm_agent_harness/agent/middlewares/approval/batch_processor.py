@@ -132,7 +132,7 @@ async def evaluate_tool_batch(
     )
     from myrm_agent_harness.agent.security.managed_policy_gates import (
         effective_auto_mode_enabled,
-        yolo_allowed,
+        yolo_allowed_for_model,
     )
     from myrm_agent_harness.agent.security.managed_policy_gates import (
         honor_allowlist as map_honor_allowlist,
@@ -144,7 +144,9 @@ async def evaluate_tool_batch(
         config, map_policy, agent_primary_model
     )
 
-    if is_yolo_mode_active(config, session_key=session_key) and yolo_allowed(map_policy):
+    if is_yolo_mode_active(config, session_key=session_key) and yolo_allowed_for_model(
+        map_policy, agent_primary_model
+    ):
         suffix = (
             ""
             if not config.yolo_mode_timeout
@@ -284,13 +286,21 @@ async def evaluate_tool_batch(
             )
 
             shell_command = extract_shell_command(tool_input)
-            if map_honor_allowlist(map_policy, agent_primary_model) and allowlist.check(
+            allowlist_would_match = allowlist.check(
                 user_id,
                 permission_type,
                 effective_tool_name,
                 args_hash,
                 command=shell_command,
-            ):
+            )
+            if not map_honor_allowlist(map_policy, agent_primary_model):
+                if allowlist_would_match:
+                    record_decision(
+                        tool_name,
+                        "MAP_ALLOWLIST_SKIPPED",
+                        f"org policy ignores allowlist for model {agent_primary_model}",
+                    )
+            elif allowlist_would_match:
                 action = PermissionAction.ALLOW
                 reason = f"Allowlist auto-approve: {effective_tool_name}"
                 record_decision(tool_name, "ALLOWLIST_AUTO_APPROVE", reason)

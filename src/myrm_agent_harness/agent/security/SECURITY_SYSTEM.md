@@ -568,6 +568,24 @@ Step 6:    Transcript Classifier → 当 auto_mode_enabled 时，对所有 engin
 
 安全保证：YOLO 模式仅跳过 ASK 审批弹窗，不影响 DENY 规则、Layer 1-3 的权限检查和能力围栏。
 
+### 5.0.1 Managed Approval Policy (MAP) — 组织审批下限
+
+Org 管理员可通过 Control Plane 配置 **Managed Approval Policy (MAP)**，经 sandbox env 注入并在 harness 进程内由 `managed_approval_policy.py` 加载。MAP 是组织级**下限**（floor），不替代用户/Agent 的 SecurityConfig，仅在匹配模型上收紧审批路径。
+
+**模型匹配**：`forceAutoReviewForModels` / `ignoreAllowlistForModels` 使用 fnmatch glob（`fnmatchcase`，大小写敏感），对 Agent 的 primary model 字符串匹配。
+
+**与 YOLO 的 precedence**（`managed_policy_gates.yolo_allowed_for_model` → `batch_processor.evaluate_tool_batch`）：
+
+1. `disableYolo=True` → 全局禁用 YOLO 快速路径。
+2. 否则，若 primary model 命中 `forceAutoReviewForModels` **或** `ignoreAllowlistForModels` → 该 model 不走 YOLO（仍走正常 ASK / auto-review 路径）。
+3. 否则 YOLO 按 §5.0 生效；DENY 仍 always wins。
+
+**Allowlist**：模型命中 `ignoreAllowlistForModels` 时跳过 allowlist 查表（审计 `MAP_ALLOWLIST_SKIPPED`）。`disableAllowAlways=True` 时 HITL 弹窗隐藏「始终允许」且后端拒绝 allow-always 写入（`allow_always_writes_blocked`）。
+
+**Auto-review**：模型命中 `forceAutoReviewForModels` 时 `effective_auto_mode_enabled` 强制为 True（Smart Guard 审查路径），即使用户关闭了 auto mode。
+
+**热同步**：Control Plane upsert/delete 后 fanout 到 ACTIVE sandbox，调用 server internal `POST /api/admin/org-managed-approval-policy-sync` → `configure_process_managed_approval_policy()`。
+
 ### 5.1 Allowlist — 持久化白名单（细粒度匹配）
 
 ```python
