@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -81,7 +80,17 @@ def _clear_background_registry() -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_background_spawn_automount_list_output_kill(tmp_path: Path) -> None:
+@pytest.mark.parametrize("trailing_ampersand", [False, True])
+async def test_background_spawn_automount_list_output_kill(
+    tmp_path: Path, trailing_ampersand: bool
+) -> None:
+    """Real background spawn stays manageable even with a trailing ``&``.
+
+    Regression for the orphan-process fix: ``run_in_background=true`` combined
+    with a bare trailing ``&`` used to make ``sh -c`` return immediately while
+    the real process ran detached, so the registered PID pointed at an exited
+    shell and list/output/kill silently failed.
+    """
     executor = _make_local_executor(tmp_path)
     set_executor(executor)
     bind_workspace_storage_root(tmp_path)
@@ -105,6 +114,8 @@ async def test_background_spawn_automount_list_output_kill(tmp_path: Path) -> No
         f"{sys.executable} -c "
         f"\"import sys,time; print('{marker}', flush=True); time.sleep(120)\""
     )
+    if trailing_ampersand:
+        spawn_cmd += " &"
 
     with (
         patch(
@@ -134,7 +145,9 @@ async def test_background_spawn_automount_list_output_kill(tmp_path: Path) -> No
 
     list_result = await process_tool.ainvoke({"action": "list"}, config=config)
     processes = list_result["content"]["processes"]  # type: ignore[index]
-    assert any(p["pid"] == pid for p in processes)
+    assert any(p["pid"] == pid for p in processes), (
+        "Spawned job must remain registered even when the command had a trailing '&'"
+    )
 
     stdout_found = False
     for _ in range(20):

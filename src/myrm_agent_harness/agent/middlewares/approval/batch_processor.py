@@ -126,7 +126,23 @@ async def evaluate_tool_batch(
     auto_denied: list[tuple[int, ToolCall, str]] = []
     pending_approval: list[tuple[int, ToolCall, str, str, dict[str, Any] | None]] = []
 
-    if is_yolo_mode_active(config, session_key=session_key):
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_agent_primary_model_slug,
+        get_managed_approval_policy,
+    )
+    from myrm_agent_harness.agent.security.managed_policy_gates import (
+        effective_auto_mode_enabled,
+        honor_allowlist as map_honor_allowlist,
+        yolo_allowed,
+    )
+
+    map_policy = get_managed_approval_policy()
+    agent_primary_model = get_agent_primary_model_slug()
+    auto_mode_enabled = effective_auto_mode_enabled(
+        config, map_policy, agent_primary_model
+    )
+
+    if is_yolo_mode_active(config, session_key=session_key) and yolo_allowed(map_policy):
         suffix = (
             ""
             if not config.yolo_mode_timeout
@@ -266,7 +282,7 @@ async def evaluate_tool_batch(
             )
 
             shell_command = extract_shell_command(tool_input)
-            if allowlist.check(
+            if map_honor_allowlist(map_policy, agent_primary_model) and allowlist.check(
                 user_id,
                 permission_type,
                 effective_tool_name,
@@ -324,7 +340,7 @@ async def evaluate_tool_batch(
 
                 # Smart Intent Guard: Try LLM review for taint conflict if enabled
                 if (
-                    config.auto_mode_enabled
+                    auto_mode_enabled
                     and _batch_review._security_reviewer is not None
                     and is_threshold_breached() == ThresholdBreach.NONE
                 ):
@@ -391,7 +407,7 @@ async def evaluate_tool_batch(
                 # to prevent prompt-injection → malicious-delegation attacks.
                 if (
                     permission_type == "delegate_agent"
-                    and config.auto_mode_enabled
+                    and auto_mode_enabled
                     and _batch_review._security_reviewer is not None
                     and is_threshold_breached() == ThresholdBreach.NONE
                 ):
@@ -461,7 +477,7 @@ async def evaluate_tool_batch(
                 # Prevents user-defined broad ALLOW rules from bypassing Classifier.
                 if (
                     permission_type in ("shell_exec", "code_interpreter")
-                    and config.auto_mode_enabled
+                    and auto_mode_enabled
                     and _batch_review._security_reviewer is not None
                     and is_threshold_breached() == ThresholdBreach.NONE
                 ):
@@ -690,7 +706,7 @@ async def evaluate_tool_batch(
                     continue
 
         if (
-            config.auto_mode_enabled
+            auto_mode_enabled
             and _batch_review._security_reviewer is not None
             and is_threshold_breached() == ThresholdBreach.NONE
         ):
@@ -766,9 +782,7 @@ async def evaluate_tool_batch(
                     extra_ctx = extra_ctx or {}
                     extra_ctx["high_risk"] = True
 
-        elif (
-            config.auto_mode_enabled and is_threshold_breached() != ThresholdBreach.NONE
-        ):
+        elif auto_mode_enabled and is_threshold_breached() != ThresholdBreach.NONE:
             breach = is_threshold_breached()
             logger.warning(
                 "[AUTO_MODE_SUSPENDED] Denial threshold breached (%s) — "

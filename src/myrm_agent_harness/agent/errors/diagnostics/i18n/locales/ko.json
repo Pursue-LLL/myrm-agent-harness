@@ -85,6 +85,14 @@
     "작업을 더 작은 단계로 나누세요",
     "출력 파일의 완전성을 확인하세요"
   ],
+  "text_continuation_user_message": "응답이 잘려서 자동으로 이어서 생성하고 있습니다",
+  "text_continuation_resolution_steps": [],
+  "text_continuation_exhausted_user_message": "3회 연속 시도 후에도 응답이 계속 잘렸습니다",
+  "text_continuation_exhausted_resolution_steps": [
+    "모델 설정에서 max_tokens 값을 늘리세요",
+    "모델에게 더 간결하게 답변하도록 요청하세요",
+    "질문을 더 작은 부분으로 나누세요"
+  ],
   "thinking_signature_user_message": "사고 체인 서명이 무효화되었습니다 — 자동으로 재시도 중",
   "thinking_signature_resolution_steps": [],
   "image_too_large_user_message": "이미지가 제공업체의 크기 제한을 초과했습니다 — 자동으로 압축 후 재시도 중",

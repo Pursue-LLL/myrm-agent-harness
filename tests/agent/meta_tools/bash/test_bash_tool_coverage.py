@@ -156,7 +156,10 @@ def _patch_bash_tool_success(mock_execute_result: dict[str, object]):
     mock_executor.get_executor_name.return_value = "test"
     mock_bash_executor = AsyncMock()
     mock_bash_executor.execute.return_value = mock_execute_result
-    mock_bash_executor.consume_python_c_transform_hint.return_value = None
+    mock_bash_executor.set_skill_oauth_issuers = MagicMock()
+    mock_bash_executor.set_skill_env_map = MagicMock()
+    mock_bash_executor.set_global_env = MagicMock()
+    mock_bash_executor.consume_python_c_transform_hint = MagicMock(return_value=None)
 
     return (
         mock_bash_executor,
@@ -319,7 +322,10 @@ async def test_bash_tool_foreground_with_truncation_eviction_and_hint() -> None:
         "generated_files": [],
         "evicted_ref": "vault://big",
     }
-    mock_bash_executor.consume_python_c_transform_hint.return_value = "rewrite hint"
+    mock_bash_executor.set_skill_oauth_issuers = MagicMock()
+    mock_bash_executor.set_skill_env_map = MagicMock()
+    mock_bash_executor.set_global_env = MagicMock()
+    mock_bash_executor.consume_python_c_transform_hint = MagicMock(return_value="rewrite hint")
 
     with (
         patch(
@@ -395,7 +401,10 @@ async def test_bash_tool_restores_stashed_executor() -> None:
         "mcp_metadata": {},
         "generated_files": [],
     }
-    mock_bash_executor.consume_python_c_transform_hint.return_value = None
+    mock_bash_executor.set_skill_oauth_issuers = MagicMock()
+    mock_bash_executor.set_skill_env_map = MagicMock()
+    mock_bash_executor.set_global_env = MagicMock()
+    mock_bash_executor.consume_python_c_transform_hint = MagicMock(return_value=None)
 
     with (
         patch(

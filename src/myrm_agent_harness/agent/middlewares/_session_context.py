@@ -33,6 +33,10 @@ from typing import TYPE_CHECKING
 from myrm_agent_harness.agent.security.terminal_error_registry import (
     TerminalErrorRegistry,
 )
+from myrm_agent_harness.agent.security.managed_approval_policy import (
+    ManagedApprovalPolicy,
+    get_process_managed_approval_policy,
+)
 from myrm_agent_harness.agent.security.types import PrivacyPolicy, SecurityConfig
 
 if TYPE_CHECKING:
@@ -57,6 +61,10 @@ _active_message_id_var: ContextVar[str | None] = ContextVar(
     "active_message_id", default=None
 )
 _agent_id_var: ContextVar[str] = ContextVar("agent_id", default="")
+_agent_primary_model_var: ContextVar[str] = ContextVar("agent_primary_model", default="")
+_managed_approval_policy_var: ContextVar[ManagedApprovalPolicy | None] = ContextVar(
+    "managed_approval_policy", default=None
+)
 _user_id_var: ContextVar[str] = ContextVar("approval_user_id", default="")
 _event_logger_var: ContextVar[EventLogger | None] = ContextVar(
     "event_logger", default=None
@@ -171,6 +179,29 @@ def set_agent_id(agent_id: str) -> None:
 def get_agent_id() -> str:
     """Get the agent ID for the current async context."""
     return _agent_id_var.get()
+
+
+def set_agent_primary_model_slug(model_slug: str) -> None:
+    """Set the agent primary LLM model slug for MAP model matching."""
+    _agent_primary_model_var.set(model_slug.strip())
+
+
+def get_agent_primary_model_slug() -> str:
+    """Get the agent primary LLM model slug for the current async context."""
+    return _agent_primary_model_var.get()
+
+
+def set_managed_approval_policy(policy: ManagedApprovalPolicy | None) -> None:
+    """Bind session-scoped MAP; None resets to process default at read time."""
+    _managed_approval_policy_var.set(policy)
+
+
+def get_managed_approval_policy() -> ManagedApprovalPolicy:
+    """Return session MAP or process-wide default when unset."""
+    session_policy = _managed_approval_policy_var.get()
+    if session_policy is not None:
+        return session_policy
+    return get_process_managed_approval_policy()
 
 
 def set_approval_user_id(user_id: str) -> None:

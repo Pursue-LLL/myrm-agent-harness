@@ -85,6 +85,14 @@
     "Teilen Sie die Aufgabe in kleinere Schritte auf",
     "Überprüfen Sie die Vollständigkeit der Ausgabedatei"
   ],
+  "text_continuation_user_message": "Die Antwort wurde abgeschnitten — Fortsetzung wird automatisch erzeugt",
+  "text_continuation_resolution_steps": [],
+  "text_continuation_exhausted_user_message": "Die Antwort blieb nach 3 Fortsetzungsversuchen abgeschnitten",
+  "text_continuation_exhausted_resolution_steps": [
+    "Erhöhen Sie max_tokens in der Modellkonfiguration",
+    "Bitten Sie das Modell, prägnanter zu antworten",
+    "Teilen Sie die Frage in kleinere Teile auf"
+  ],
   "thinking_signature_user_message": "Denkblock-Signatur ungültig — automatischer Wiederholungsversuch",
   "thinking_signature_resolution_steps": [],
   "image_too_large_user_message": "Bild überschreitet das Größenlimit des Anbieters — automatische Komprimierung und Wiederholung",

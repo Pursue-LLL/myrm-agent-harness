@@ -371,10 +371,19 @@ async def run_agent_loop(
                 channel, None, local_mode=True
             )
         set_security_config(runtime_security)
+        from myrm_agent_harness.agent.config.parsers import parse_litellm_model
         from myrm_agent_harness.agent.middlewares._session_context import (
             set_active_message_id,
+            set_agent_primary_model_slug,
+            set_managed_approval_policy,
+        )
+        from myrm_agent_harness.agent.security.managed_approval_policy import (
+            get_process_managed_approval_policy,
         )
 
+        _, primary_model_slug = parse_litellm_model(agent_state.config.llm.model)
+        set_agent_primary_model_slug(primary_model_slug)
+        set_managed_approval_policy(get_process_managed_approval_policy())
         set_active_message_id(message_id)
         session_key = (
             str(context.get("approval_session_key") or context.get("session_id") or "")

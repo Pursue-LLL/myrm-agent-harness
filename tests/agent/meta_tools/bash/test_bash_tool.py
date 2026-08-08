@@ -15,8 +15,10 @@ def _patch_bash_tool_deps():
     mock_executor.get_executor_name.return_value = "test"
 
     mock_bash_executor = AsyncMock()
+    mock_bash_executor.set_skill_oauth_issuers = MagicMock()
     mock_bash_executor.set_skill_env_map = MagicMock()
     mock_bash_executor.set_global_env = MagicMock()
+    mock_bash_executor.consume_python_c_transform_hint = MagicMock(return_value=None)
 
     return (
         mock_bash_executor,

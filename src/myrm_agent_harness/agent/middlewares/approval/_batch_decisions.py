@@ -51,6 +51,15 @@ def _should_block_allow_always(
     extra_ctx: dict[str, Any] | None,
 ) -> bool:
     """Unified guard: returns True when allowAlways must be blocked."""
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_managed_approval_policy,
+    )
+    from myrm_agent_harness.agent.security.managed_policy_gates import (
+        allow_always_writes_blocked,
+    )
+
+    if allow_always_writes_blocked(get_managed_approval_policy()):
+        return True
     if extra_ctx and (extra_ctx.get("high_risk") or extra_ctx.get("smart_denied")):
         return True
     return _integration_mutation_blocks_allow_always(tool_call)

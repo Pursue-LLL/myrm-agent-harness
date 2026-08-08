@@ -17,7 +17,6 @@ import os
 from typing import Final
 
 DEFAULT_LOCALE: Final[str] = "en"
-SUPPORTED_CATALOG_LOCALES: Final[frozenset[str]] = frozenset({"en", "zh-CN"})
 
 # Chinese-first IM platforms when no user preference is available.
 PLATFORM_DEFAULT_LOCALES: Final[dict[str, str]] = {
@@ -75,11 +74,3 @@ def resolve_locale(
 def is_chinese(locale: str | None) -> bool:
     """Return True when locale resolves to Chinese."""
     return normalize_locale(locale) == "zh-CN"
-
-
-def catalog_locale(locale: str | None) -> str:
-    """Map any locale to a catalog file key."""
-    normalized = normalize_locale(locale)
-    if normalized == "zh-CN":
-        return "zh-CN"
-    return normalized

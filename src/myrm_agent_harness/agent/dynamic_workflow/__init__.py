@@ -27,6 +27,7 @@ import asyncio
 import hashlib
 import logging
 from collections.abc import AsyncIterable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
@@ -276,6 +277,7 @@ async def run_dynamic_workflow_stream(
     resume_value: dict[str, object] | None = None,
     pinned_template_id: str | None = None,
     template_args: dict[str, str] | None = None,
+    harness_root: Path | str | None = None,
 ) -> AsyncIterable[dict[str, object]]:
     """Core Dynamic Workflow Engine with full capability inheritance."""
     hash_input = f"{chat_id}:{message_id}".encode()
@@ -295,7 +297,11 @@ async def run_dynamic_workflow_stream(
 
     from myrm_agent_harness.agent.dynamic_workflow.paths import resolve_workflow_events_db_path
 
-    workflow_db_path = resolve_workflow_events_db_path()
+    workflow_db_path = (
+        resolve_workflow_events_db_path(harness_root=harness_root)
+        if harness_root is not None
+        else resolve_workflow_events_db_path()
+    )
     store = WorkflowEventStore(workflow_db_path)
     template_store = WorkflowTemplateStore(workflow_db_path)
 
