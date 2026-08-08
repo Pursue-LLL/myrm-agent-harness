@@ -155,8 +155,6 @@ class OpenAPIExecutor:
         merged_query = {**(query_params or {}), **auth_query}
 
         client = await self._get_client()
-        last_error: Exception | None = None
-
         for attempt in range(self._max_retries + 1):
             try:
                 response = await secure_request(
@@ -214,11 +212,6 @@ class OpenAPIExecutor:
                     return self._format_response(response)
 
                 # 5xx: retry
-                last_error = httpx.HTTPStatusError(
-                    f"Server error {response.status_code}",
-                    request=response.request,
-                    response=response,
-                )
                 if attempt < self._max_retries:
                     logger.warning(
                         "OpenAPI request %s %s returned %d, retrying (%d/%d)",
@@ -233,7 +226,6 @@ class OpenAPIExecutor:
                 logger.warning("SSRF policy blocked request: %s", exc)
                 return "Error: Blocked by SSRF policy"
             except httpx.RequestError as e:
-                last_error = e
                 if attempt < self._max_retries:
                     logger.warning(
                         "OpenAPI request %s %s failed: %s, retrying (%d/%d)",

@@ -85,7 +85,7 @@ async def _compute_regression_penalty(
             )
             if not passed:
                 failed += 1
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.debug("EvalCase timed out for skill '%s', treating as pass", skill.name)
         except Exception:
             logger.debug("EvalCase error for skill '%s', treating as pass", skill.name, exc_info=True)
@@ -163,7 +163,10 @@ def _check_imports(code: str, module_name: str) -> bool:
             for alias in node.names:
                 if alias.name == module_name or alias.name.startswith(f"{module_name}."):
                     return True
-        elif isinstance(node, ast.ImportFrom):
-            if node.module and (node.module == module_name or node.module.startswith(f"{module_name}.")):
-                return True
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and (node.module == module_name or node.module.startswith(f"{module_name}."))
+        ):
+            return True
     return False

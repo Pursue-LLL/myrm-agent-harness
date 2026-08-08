@@ -296,8 +296,6 @@ def classify_content(content: str, policy: PrivacyPolicy) -> PIIClassification:
     for name, pat in _S3_PATTERNS:
         for m in pat.finditer(content):
             val = m.group(0)
-            if _is_placeholder(val):
-                continue
             if name == "china_id_card" and not _china_id_valid(val):
                 continue
             if name == "bank_card" and not _luhn_valid(val.replace("-", "").replace(" ", "")):

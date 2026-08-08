@@ -19,14 +19,14 @@ import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.observability.metrics.goal_metrics import (
     record_goal_created,
-    record_goal_objective_updated,
     record_goal_resumed,
     record_goal_terminal,
 )
+
 from .manager_queue_mixin import GoalManagerQueueMixin
 from .protocols import GoalProvider
 from .storage import GoalStorage

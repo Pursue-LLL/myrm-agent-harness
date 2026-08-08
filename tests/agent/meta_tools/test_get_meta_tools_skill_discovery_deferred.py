@@ -1,13 +1,13 @@
 """Tests that skill_market_tool is NOT created by get_meta_tools (server/user_tools SSOT)."""
 
 from __future__ import annotations
-from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 from unittest.mock import MagicMock
 
 import pytest
 
 from myrm_agent_harness.agent.meta_tools import get_meta_tools
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 
 

@@ -6,7 +6,6 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.middlewares.dangling_tool_call_middleware import (
     _INTERRUPTED_CONTENT,
-    _INVALID_ARGS_CONTENT,
     _MAX_ERROR_DETAIL_LEN,
     _build_patched_messages,
     _extract_tool_calls,

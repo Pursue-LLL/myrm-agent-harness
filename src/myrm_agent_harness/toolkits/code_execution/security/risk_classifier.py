@@ -43,7 +43,7 @@ SpanRiskReason = Literal[
     "invalid_flags",
 ]
 
-from myrm_agent_harness.toolkits.code_execution.security.safe_command_configs import (
+from myrm_agent_harness.toolkits.code_execution.security.safe_command_configs import (  # noqa: E402
     SUBCOMMAND_CONFIGS,
     FlagArgType,
     SubcommandConfig,

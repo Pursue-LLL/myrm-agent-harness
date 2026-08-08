@@ -34,7 +34,10 @@ from __future__ import annotations
 import logging
 import os
 import ssl
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +134,7 @@ def build_httpx_verify() -> ssl.SSLContext | bool:
     return True
 
 
-def create_httpx_client(**kwargs: Any) -> "httpx.AsyncClient":
+def create_httpx_client(**kwargs: Any) -> httpx.AsyncClient:
     """Factory for ``httpx.AsyncClient`` with enterprise TLS auto-injection.
 
     When ``MYRM_TLS_STRICT=0`` and the caller does **not** supply an explicit

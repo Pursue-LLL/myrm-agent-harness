@@ -86,14 +86,14 @@ from .dialog_manager import DialogManager, DialogPolicy
 from .download_manager import DownloadConfig, DownloadManager, DownloadResult
 from .extractor import Extractor
 from .interactor import Interactor
-from .network_logger import NetworkLogger
 from .network_intelligence import NetworkIntelligence
+from .network_logger import NetworkLogger
 from .page_analyzer import PageAnalyzer
 from .session_persistence import SessionPersistence
 from .snapshot_manager import SnapshotManager, SnapshotResult
+from .structured_extractor import StructuredExtractor
 from .tab_controller import TabController
 from .vision_verifier import VisionVerifier
-from .structured_extractor import StructuredExtractor
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel

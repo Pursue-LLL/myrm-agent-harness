@@ -16,6 +16,7 @@ from __future__ import annotations
 from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import (
     preserve_frontmatter_on_edit,
 )
+
 from ..utils.vault_scope import is_vault_markdown_path
 
 

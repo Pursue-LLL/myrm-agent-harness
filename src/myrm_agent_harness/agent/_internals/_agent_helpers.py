@@ -80,14 +80,14 @@ def reset_all_guards(
     from myrm_agent_harness.agent.security.guards.frequency_guard import (
         reset_frequency_guard,
     )
-    from myrm_agent_harness.agent.security.guards.tool_turn_budget_guard import (
-        reset_tool_turn_budget_guard,
-    )
     from myrm_agent_harness.agent.security.guards.privacy_tracker import (
         reset_privacy_tracker,
     )
     from myrm_agent_harness.agent.security.guards.taint_tracker import (
         reset_taint_tracker,
+    )
+    from myrm_agent_harness.agent.security.guards.tool_turn_budget_guard import (
+        reset_tool_turn_budget_guard,
     )
 
     reset_loop_guard(
@@ -157,7 +157,7 @@ def schedule_post_run_idle_tasks(merged_context: dict[str, object]) -> None:
 
             # Simple length-based safety valve (approx 4 chars per token)
             # Limit to ~4000 tokens => 16000 chars total
-            MAX_CHARS = 16000
+            MAX_CHARS = 16000  # noqa: N806  # module-level constant semantics
             current_chars = 0
 
             for m in reversed(raw_messages):

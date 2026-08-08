@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-from myrm_agent_harness.toolkits.acp.toolchains import TOOLCHAIN_BASE_DIR
+from myrm_agent_harness.toolkits.acp.toolchains import TOOLCHAIN_BASE_DIR  # noqa: E402
 
 _KNOWN_BACKENDS = ("claude", "codex", "gemini")
 

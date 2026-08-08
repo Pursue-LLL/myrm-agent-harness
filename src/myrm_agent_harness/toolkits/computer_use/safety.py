@@ -175,9 +175,8 @@ def is_sensitive_app(
     lower_name = app_name.lower()
     lower_title = window_title.lower() if window_title else ""
 
-    if custom_allowed:
-        if any(a.lower() in lower_name for a in custom_allowed):
-            return None
+    if custom_allowed and any(a.lower() in lower_name for a in custom_allowed):
+        return None
 
     effective_blocked = _SENSITIVE_APPS | (custom_blocked or frozenset())
     for keyword in effective_blocked:

@@ -6,8 +6,8 @@ import tempfile
 
 import pytest
 
-from myrm_agent_harness.agent.security.guards.loop_guard.stats import LoopGuardStatsDB
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopKind
+from myrm_agent_harness.agent.security.guards.loop_guard.stats import LoopGuardStatsDB
 
 
 @pytest.fixture

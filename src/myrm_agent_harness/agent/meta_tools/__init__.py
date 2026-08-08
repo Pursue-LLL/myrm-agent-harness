@@ -22,29 +22,29 @@ Bash, File Ops, File Search, and Skill system.
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
-
 from typing import TYPE_CHECKING
+
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
     from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
-    from myrm_agent_harness.backends.skills.market_protocols import (
-        SkillMarketBackend,
-    )
     from myrm_agent_harness.backends.skills.protocols import SkillBackend
-    from myrm_agent_harness.backends.skills.scanning_write_backend import (
-        ScanningSkillWriteBackend,
-    )
-    from myrm_agent_harness.backends.skills.similarity import SkillSimilarityChecker
-    from myrm_agent_harness.backends.skills.types import SkillMetadata, SkillInstance
+    from myrm_agent_harness.backends.skills.types import SkillInstance, SkillMetadata
     from myrm_agent_harness.toolkits.memory.protocols.cache import (
         EmbeddingCacheProtocol,
     )
     from myrm_agent_harness.toolkits.retriever.embedding.factory import EmbeddingConfig
 
 # Agent 专属工具(本模块)
+from myrm_agent_harness.agent.skills.runtime.catalog_display import (
+    SKILL_CORE_MAX,
+    SKILL_INLINE_THRESHOLD,
+    SKILL_SELECT_INLINE_MAX,
+    resolve_catalog_display_skills,
+)
+
 from .answer_user_tool import request_answer_user_tool
 from .bash import create_bash_code_execute_tool, create_bash_process_tool
 from .file_ops import (
@@ -53,19 +53,12 @@ from .file_ops import (
     create_file_write_tool,
 )
 from .file_search import create_glob_tool, create_grep_tool
-from .skills.market import create_skill_market_tool
 from .skills.manage import create_skill_manage_tool
+from .skills.market import create_skill_market_tool
 from .skills.select import create_select_skill_tool
 from .spawn_subagent import (
     create_delegate_task_tool,
     create_subagent_control_tool,
-)
-
-from myrm_agent_harness.agent.skills.runtime.catalog_display import (
-    SKILL_CORE_MAX,
-    SKILL_INLINE_THRESHOLD,
-    SKILL_SELECT_INLINE_MAX,
-    resolve_catalog_display_skills,
 )
 
 
@@ -251,19 +244,19 @@ __all__ = [
     "SKILL_CORE_MAX",
     "SKILL_INLINE_THRESHOLD",
     "SKILL_SELECT_INLINE_MAX",
+    "FileAccessMode",
     "create_bash_code_execute_tool",
     "create_bash_process_tool",
     "create_delegate_task_tool",
-    "create_subagent_control_tool",
     "create_file_edit_tool",
     "create_file_read_tool",
     "create_file_write_tool",
     "create_glob_tool",
     "create_grep_tool",
     "create_select_skill_tool",
-    "create_skill_market_tool",
     "create_skill_manage_tool",
-    "FileAccessMode",
+    "create_skill_market_tool",
+    "create_subagent_control_tool",
     "get_meta_tools",
     "request_answer_user_tool",
 ]

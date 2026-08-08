@@ -30,12 +30,12 @@ from __future__ import annotations
 from contextvars import ContextVar, Token
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.security.terminal_error_registry import (
-    TerminalErrorRegistry,
-)
 from myrm_agent_harness.agent.security.managed_approval_policy import (
     ManagedApprovalPolicy,
     get_process_managed_approval_policy,
+)
+from myrm_agent_harness.agent.security.terminal_error_registry import (
+    TerminalErrorRegistry,
 )
 from myrm_agent_harness.agent.security.types import PrivacyPolicy, SecurityConfig
 

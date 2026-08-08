@@ -11,6 +11,7 @@ import json
 from datetime import UTC, datetime
 
 import pytest
+from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.toolkits.kanban.kanban_agent_tools import (
     create_kanban_tools,
@@ -2162,7 +2163,7 @@ class TestCancelDependencyRelease:
         store = InMemoryKanbanStore()
         await _make_board(store)
         await _make_task(store, "parent", status=TaskStatus.READY)
-        child = await _make_task(store, "child", status=TaskStatus.BACKLOG)
+        await _make_task(store, "child", status=TaskStatus.BACKLOG)
         await store.add_edge("parent", "child")
 
         assert not await store.are_dependencies_met("child")

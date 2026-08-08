@@ -29,8 +29,8 @@ from .search_results_processor import (
 )
 
 if TYPE_CHECKING:
-    from .litellm_search import LiteLLMSearch
     from .engine import WebSearchTools
+    from .litellm_search import LiteLLMSearch
     from .web_searcher import SearchServiceConfig
 
 __all__ = [

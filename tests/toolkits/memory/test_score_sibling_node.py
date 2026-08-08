@@ -14,7 +14,6 @@ from myrm_agent_harness.toolkits.memory._internal.maintenance_enrichment import 
     _score_sibling_node,
 )
 
-
 _NOW = datetime(2026, 8, 1, tzinfo=UTC)
 
 

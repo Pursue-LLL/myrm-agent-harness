@@ -13,12 +13,12 @@ from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.pairing i
 from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.service import (
     run_contradiction_synthesis_pass,
 )
+from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.types import ConceptPair, ConflictVerdict
 from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.writer import (
     build_evolution_concept_path,
     build_synthesis_page,
     parse_synthesis_backlink_targets,
 )
-from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.types import ConceptPair, ConflictVerdict
 
 
 @pytest.fixture

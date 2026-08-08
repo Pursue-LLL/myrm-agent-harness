@@ -11,8 +11,8 @@ from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup import (
     CorpusDedupGovernor,
     CorpusDedupScanner,
     CorpusEligibilityFilter,
-    DispositionAction,
     DedupTier,
+    DispositionAction,
     GroupStatus,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.queue import WikiIngestionQueue

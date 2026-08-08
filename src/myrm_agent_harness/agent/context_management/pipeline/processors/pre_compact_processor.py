@@ -18,12 +18,12 @@ Pipeline processor that preserves durable memory constraints before context comp
 
 from __future__ import annotations
 
+from myrm_agent_harness.agent.context_management.infra.retention_helpers import extract_user_goal_hint
 from myrm_agent_harness.agent.context_management.infra.schemas import (
     PRE_COMPACT_INJECTION_METADATA_KEY,
     PRE_COMPACT_MESSAGE_METADATA_KEY,
     ContextPreCompactCallback,
 )
-from myrm_agent_harness.agent.context_management.infra.retention_helpers import extract_user_goal_hint
 from myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor import (
     CompressProcessor,
 )

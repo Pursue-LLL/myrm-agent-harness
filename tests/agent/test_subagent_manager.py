@@ -330,10 +330,8 @@ async def test_spawn_child_times_out_when_execution_is_too_slow() -> None:
     task = manager._children.get("timeout_child")
     if task is not None:
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError, Exception):
             await task
-        except (asyncio.CancelledError, Exception):
-            pass
     await asyncio.sleep(0.05)
 
 

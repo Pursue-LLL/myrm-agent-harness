@@ -26,8 +26,8 @@ from myrm_agent_harness.agent._internals.memory_extraction import (
 from myrm_agent_harness.agent._skill_agent_context import (
     get_memory_manager,
     get_memory_runtime_budget,
-    get_memory_runtime_injection_contract,
     get_memory_runtime_injection,
+    get_memory_runtime_injection_contract,
     get_task_intent,
     invalidate_permissions,
     set_permission_invalidation_callback,
@@ -37,13 +37,6 @@ from myrm_agent_harness.agent.context_management.infra.evicted_content import (
     EVICTED_BASENAME_PATTERN,
     build_evicted_basename,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
-    get_background_registry,
-)
-from myrm_agent_harness.agent.meta_tools.bash._background.store_sync import (
-    persist_terminal_state,
-    persist_vault_log_ref,
-)
 from myrm_agent_harness.agent.meta_tools.bash._background.job_store import (
     configure_background_job_store,
     get_background_job_store,
@@ -52,9 +45,16 @@ from myrm_agent_harness.agent.meta_tools.bash._background.job_store_core import 
     BackgroundJobRecord,
     map_store_status_to_shell_task_status,
 )
+from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
+    get_background_registry,
+)
+from myrm_agent_harness.agent.meta_tools.bash._background.store_sync import (
+    persist_terminal_state,
+    persist_vault_log_ref,
+)
 from myrm_agent_harness.agent.meta_tools.bash._background.types import (
-    BackgroundProcessInfo,
     INPUT_WAIT_IDLE_SECONDS,
+    BackgroundProcessInfo,
 )
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_event_logger,
@@ -77,30 +77,30 @@ def count_running_background_shell_jobs(session_id: str | None = None) -> int:
 
 
 __all__ = [
-    "auto_extract_memories",
+    "EVICTED_BASENAME_PATTERN",
+    "INPUT_WAIT_IDLE_SECONDS",
     "BackgroundJobFinishHandler",
     "BackgroundJobFinishResult",
     "BackgroundJobRecord",
     "BackgroundProcessInfo",
+    "auto_extract_memories",
+    "build_evicted_basename",
+    "build_step_data",
     "configure_background_job_store",
     "count_running_background_shell_jobs",
     "create_extraction_llm_func",
-    "EVICTED_BASENAME_PATTERN",
     "get_background_job_store",
     "get_background_registry",
     "get_event_logger",
     "get_global_background_job_finish_handler",
     "get_memory_manager",
     "get_memory_runtime_budget",
-    "get_memory_runtime_injection_contract",
     "get_memory_runtime_injection",
+    "get_memory_runtime_injection_contract",
     "get_task_intent",
     "get_terminal_errors",
-    "INPUT_WAIT_IDLE_SECONDS",
     "invalidate_permissions",
     "map_store_status_to_shell_task_status",
-    "build_evicted_basename",
-    "build_step_data",
     "persist_extracted_memories",
     "persist_terminal_state",
     "persist_vault_log_ref",

@@ -345,7 +345,7 @@ class TestRepetitionTracking:
         ):
             await hook2.on_approval_correction("approval_correction", payload)
 
-        prefs, rules = hook2.drain_pending()
+        _prefs, rules = hook2.drain_pending()
         assert len(rules) == 1
         assert rules[0].tool_rule_priority == ToolRulePriority.NORMAL
 

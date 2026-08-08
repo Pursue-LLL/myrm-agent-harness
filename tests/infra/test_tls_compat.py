@@ -75,8 +75,8 @@ class TestBuildHttpxVerify:
 
     def test_custom_ca_replacement(self, tmp_path: pytest.TempPathFactory) -> None:
         ca_file = tmp_path / "ca-bundle.crt"  # type: ignore[operator]
-        ca_file.write_bytes(ssl.get_default_verify_paths().cafile and
-                            open(ssl.get_default_verify_paths().cafile, "rb").read() or b"")
+        ca_file.write_bytes((ssl.get_default_verify_paths().cafile and
+                            open(ssl.get_default_verify_paths().cafile, "rb").read()) or b"")
         if ca_file.stat().st_size == 0:
             pytest.skip("No system CA bundle available for test")
         with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0", "SSL_CERT_FILE": str(ca_file)}):
@@ -90,8 +90,8 @@ class TestBuildHttpxVerify:
 
     def test_additive_ca_via_node_extra(self, tmp_path: pytest.TempPathFactory) -> None:
         ca_file = tmp_path / "extra-ca.crt"  # type: ignore[operator]
-        ca_file.write_bytes(ssl.get_default_verify_paths().cafile and
-                            open(ssl.get_default_verify_paths().cafile, "rb").read() or b"")
+        ca_file.write_bytes((ssl.get_default_verify_paths().cafile and
+                            open(ssl.get_default_verify_paths().cafile, "rb").read()) or b"")
         if ca_file.stat().st_size == 0:
             pytest.skip("No system CA bundle available for test")
         with patch.dict(os.environ, {"MYRM_TLS_STRICT": "0", "NODE_EXTRA_CA_CERTS": str(ca_file)}):

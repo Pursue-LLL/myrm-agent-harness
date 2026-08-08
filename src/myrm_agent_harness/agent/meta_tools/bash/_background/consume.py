@@ -30,11 +30,11 @@ from myrm_agent_harness.agent.meta_tools.bash._background.types import (
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.code_execution.executors.models import (
-        AsyncProcessProtocol,
-    )
     from myrm_agent_harness.agent.meta_tools.bash._background.output_spill import (
         BackgroundOutputSpillWriter,
+    )
+    from myrm_agent_harness.toolkits.code_execution.executors.models import (
+        AsyncProcessProtocol,
     )
 
 logger = logging.getLogger(__name__)

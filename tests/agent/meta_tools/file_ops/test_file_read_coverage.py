@@ -296,9 +296,8 @@ async def test_file_read_tool_raises_tool_error_on_missing_file() -> None:
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
         new_callable=AsyncMock,
         side_effect=FileNotFoundError("missing"),
-    ):
-        with pytest.raises(ToolError, match="missing"):
-            await tool.ainvoke({"paths": ["missing.txt"]}, config=_DUMMY_CONFIG)
+    ), pytest.raises(ToolError, match="missing"):
+        await tool.ainvoke({"paths": ["missing.txt"]}, config=_DUMMY_CONFIG)
 
 
 @pytest.mark.asyncio
@@ -311,9 +310,8 @@ async def test_file_read_tool_raises_tool_error_on_permission_error() -> None:
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
         new_callable=AsyncMock,
         side_effect=PermissionError("denied"),
-    ):
-        with pytest.raises(ToolError, match="denied"):
-            await tool.ainvoke({"paths": ["secret.txt"]}, config=_DUMMY_CONFIG)
+    ), pytest.raises(ToolError, match="denied"):
+        await tool.ainvoke({"paths": ["secret.txt"]}, config=_DUMMY_CONFIG)
 
 
 @pytest.mark.asyncio
@@ -322,9 +320,8 @@ async def test_file_read_tool_raises_tool_error_on_unexpected() -> None:
     with patch(
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
         side_effect=RuntimeError("boom"),
-    ):
-        with pytest.raises(ToolError, match="Unexpected error"):
-            await tool.ainvoke({"paths": ["x.txt"]}, config=_DUMMY_CONFIG)
+    ), pytest.raises(ToolError, match="Unexpected error"):
+        await tool.ainvoke({"paths": ["x.txt"]}, config=_DUMMY_CONFIG)
 
 
 @pytest.mark.asyncio
@@ -509,9 +506,8 @@ async def test_file_read_blocks_disabled_skill_path() -> None:
     with patch(
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
         return_value=mock_executor,
-    ):
-        with pytest.raises(ToolError, match="blocked"):
-            await tool.ainvoke({"paths": ["skills/off/secret.md"]}, config=config)
+    ), pytest.raises(ToolError, match="blocked"):
+        await tool.ainvoke({"paths": ["skills/off/secret.md"]}, config=config)
 
 
 @pytest.mark.asyncio
@@ -529,9 +525,8 @@ async def test_file_read_file_not_found_includes_similar_path_hint(tmp_path: Pat
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
         new_callable=AsyncMock,
         side_effect=FileNotFoundError(f"not found: {target}"),
-    ):
-        with pytest.raises(ToolError) as exc_info:
-            await tool.ainvoke({"paths": [target]}, config=_DUMMY_CONFIG)
+    ), pytest.raises(ToolError) as exc_info:
+        await tool.ainvoke({"paths": [target]}, config=_DUMMY_CONFIG)
 
     assert exc_info.value.user_hint is not None
     assert "Did you mean" in exc_info.value.user_hint
@@ -555,9 +550,8 @@ async def test_file_read_raises_value_error_when_no_valid_paths() -> None:
     with patch(
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
         return_value=MagicMock(),
-    ):
-        with pytest.raises(ToolError) as exc_info:
-            await tool.ainvoke({"paths": []}, config=_DUMMY_CONFIG)
+    ), pytest.raises(ToolError) as exc_info:
+        await tool.ainvoke({"paths": []}, config=_DUMMY_CONFIG)
     assert exc_info.value.user_hint is not None
     assert "Invalid parameter" in exc_info.value.user_hint
 
@@ -573,9 +567,8 @@ async def test_file_read_permission_error_wrapped() -> None:
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
         new_callable=AsyncMock,
         side_effect=PermissionError("denied"),
-    ):
-        with pytest.raises(ToolError) as exc_info:
-            await tool.ainvoke({"paths": ["secret.txt"]}, config=_DUMMY_CONFIG)
+    ), pytest.raises(ToolError) as exc_info:
+        await tool.ainvoke({"paths": ["secret.txt"]}, config=_DUMMY_CONFIG)
     assert exc_info.value.user_hint is not None
     assert "Permission denied" in exc_info.value.user_hint
 
@@ -591,10 +584,9 @@ async def test_file_read_disabled_path_when_resolve_raises_value_error() -> None
     with patch(
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
         return_value=mock_executor,
-    ):
-        with pytest.raises(ToolError, match="blocked"):
-            await tool.ainvoke(
-                {"paths": ["/workspace/skills/off/secret.md"]},
-                config=config,
-            )
+    ), pytest.raises(ToolError, match="blocked"):
+        await tool.ainvoke(
+            {"paths": ["/workspace/skills/off/secret.md"]},
+            config=config,
+        )
 

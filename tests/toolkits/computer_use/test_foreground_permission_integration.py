@@ -19,6 +19,7 @@ import pytest
 from PIL import Image
 
 from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
+from myrm_agent_harness.toolkits.computer_use.dref.types import BBox, ElementRef
 from myrm_agent_harness.toolkits.computer_use.execution.healer import try_bbox_click
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
@@ -28,7 +29,6 @@ from myrm_agent_harness.toolkits.computer_use.types import (
     ForegroundPermissionScope,
     ScreenInfo,
 )
-from myrm_agent_harness.toolkits.computer_use.dref.types import BBox, ElementRef
 
 
 def _realistic_png_bytes() -> bytes:
@@ -236,10 +236,9 @@ class TestDesktopVisionActionPermissionIntegration:
         with patch(
             "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
             return_value=_NON_SENSITIVE_FG_INFO,
-        ):
-            with patch.object(session, "wait_seconds", new_callable=AsyncMock) as mock_wait:
-                mock_wait.return_value = ActionResult(success=True)
-                result = await session.desktop_vision_action(action="wait")
+        ), patch.object(session, "wait_seconds", new_callable=AsyncMock) as mock_wait:
+            mock_wait.return_value = ActionResult(success=True)
+            result = await session.desktop_vision_action(action="wait")
 
         callback.assert_not_called()
         assert "permission denied" not in result.lower() if isinstance(result, str) else True
@@ -667,5 +666,5 @@ class TestCallbackArgsIntegration:
 
         call_kwargs = callback.call_args.kwargs
         assert "AX invoke failed for @e0" in call_kwargs["reason"]
-        assert "bbox_click(120, 210)" == call_kwargs["operation"]
+        assert call_kwargs["operation"] == "bbox_click(120, 210)"
         assert call_kwargs["estimated_duration_seconds"] == 3.0

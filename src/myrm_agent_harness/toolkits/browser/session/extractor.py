@@ -347,8 +347,8 @@ class Extractor:
             max_videos: Maximum number of videos to return
             max_audios: Maximum number of audio items to return
         """
-        js_script = f"""
-            (params) => {{
+        js_script = """
+            (params) => {
                 const maxImages = params.maxImages;
                 const maxVideos = params.maxVideos;
                 const maxAudios = params.maxAudios;
@@ -359,19 +359,19 @@ class Extractor:
                     : document.body;
 
                 const seen = new Set();
-                function abs(url) {{
+                function abs(url) {
                     if (!url || url.startsWith('data:') || url.startsWith('blob:')) return null;
-                    try {{ return new URL(url, document.baseURI).href; }}
-                    catch {{ return null; }}
-                }}
-                function dedup(url) {{
+                    try { return new URL(url, document.baseURI).href; }
+                    catch { return null; }
+                }
+                function dedup(url) {
                     if (!url || seen.has(url)) return null;
                     seen.add(url);
                     return url;
-                }}
+                }
 
                 const ICON_PATTERNS = /icon|logo|favicon|sprite|avatar|badge|arrow|caret|chevron|spinner/i;
-                function isDecorativeImg(el) {{
+                function isDecorativeImg(el) {
                     const src = el.getAttribute('src') || '';
                     const cls = el.className || '';
                     const id = el.id || '';
@@ -382,33 +382,33 @@ class Extractor:
                     const rect = el.getBoundingClientRect();
                     if (rect.width > 0 && rect.height > 0 && rect.width < 50 && rect.height < 50) return true;
                     return false;
-                }}
+                }
 
-                function parseSrcset(srcset) {{
+                function parseSrcset(srcset) {
                     if (!srcset) return null;
                     const candidates = srcset.split(',').map(s => s.trim().split(/\\s+/));
                     let best = null;
                     let bestW = 0;
-                    for (const [url, descriptor] of candidates) {{
+                    for (const [url, descriptor] of candidates) {
                         const w = parseInt(descriptor) || 0;
-                        if (w > bestW || !best) {{ best = url; bestW = w; }}
-                    }}
+                        if (w > bestW || !best) { best = url; bestW = w; }
+                    }
                     return abs(best);
-                }}
+                }
 
-                function findLazySrc(el) {{
-                    for (const attr of el.attributes) {{
-                        if (attr.name !== 'src' && /^data-.*src/i.test(attr.name)) {{
+                function findLazySrc(el) {
+                    for (const attr of el.attributes) {
+                        if (attr.name !== 'src' && /^data-.*src/i.test(attr.name)) {
                             const resolved = abs(attr.value);
                             if (resolved) return resolved;
-                        }}
-                    }}
+                        }
+                    }
                     return null;
-                }}
+                }
 
                 // Collect images
                 const images = [];
-                for (const img of root.querySelectorAll('img')) {{
+                for (const img of root.querySelectorAll('img')) {
                     if (isDecorativeImg(img)) continue;
                     const src = abs(img.getAttribute('src'))
                         || abs(img.getAttribute('data-src'))
@@ -422,74 +422,74 @@ class Extractor:
                     const w = img.naturalWidth || img.width || parseInt(img.getAttribute('width')) || null;
                     const h = img.naturalHeight || img.height || parseInt(img.getAttribute('height')) || null;
                     const alt = (img.getAttribute('alt') || '').slice(0, 80);
-                    images.push({{ url, w, h, alt }});
+                    images.push({ url, w, h, alt });
                     if (images.length >= maxImages) break;
-                }}
+                }
 
                 // <picture><source> elements
-                if (images.length < maxImages) {{
-                    for (const pic of root.querySelectorAll('picture')) {{
-                        for (const source of pic.querySelectorAll('source')) {{
+                if (images.length < maxImages) {
+                    for (const pic of root.querySelectorAll('picture')) {
+                        for (const source of pic.querySelectorAll('source')) {
                             const url = dedup(parseSrcset(source.getAttribute('srcset')) || abs(source.getAttribute('src')));
                             if (!url) continue;
-                            images.push({{ url, w: null, h: null, alt: '' }});
+                            images.push({ url, w: null, h: null, alt: '' });
                             if (images.length >= maxImages) break;
-                        }}
+                        }
                         if (images.length >= maxImages) break;
-                    }}
-                }}
+                    }
+                }
 
                 // Collect videos
                 const videos = [];
-                for (const vid of root.querySelectorAll('video')) {{
+                for (const vid of root.querySelectorAll('video')) {
                     const src = abs(vid.getAttribute('src'));
                     const poster = abs(vid.getAttribute('poster'));
-                    if (src) {{
+                    if (src) {
                         const url = dedup(src);
-                        if (url) videos.push({{ url, poster: poster || null }});
-                    }}
-                    for (const source of vid.querySelectorAll('source')) {{
+                        if (url) videos.push({ url, poster: poster || null });
+                    }
+                    for (const source of vid.querySelectorAll('source')) {
                         const url = dedup(abs(source.getAttribute('src')));
-                        if (url) videos.push({{ url, poster: poster || null }});
-                    }}
+                        if (url) videos.push({ url, poster: poster || null });
+                    }
                     if (videos.length >= maxVideos) break;
-                }}
+                }
                 // iframe embeds (YouTube, Vimeo, etc.)
-                if (videos.length < maxVideos) {{
-                    for (const iframe of root.querySelectorAll('iframe[src]')) {{
+                if (videos.length < maxVideos) {
+                    for (const iframe of root.querySelectorAll('iframe[src]')) {
                         const src = iframe.getAttribute('src') || '';
-                        if (/youtube|vimeo|dailymotion|wistia/.test(src)) {{
+                        if (/youtube|vimeo|dailymotion|wistia/.test(src)) {
                             const url = dedup(abs(src));
-                            if (url) videos.push({{ url, poster: null }});
+                            if (url) videos.push({ url, poster: null });
                             if (videos.length >= maxVideos) break;
-                        }}
-                    }}
-                }}
+                        }
+                    }
+                }
 
                 // Collect audio
                 const audios = [];
-                for (const aud of root.querySelectorAll('audio')) {{
+                for (const aud of root.querySelectorAll('audio')) {
                     const src = abs(aud.getAttribute('src'));
-                    if (src) {{
+                    if (src) {
                         const url = dedup(src);
-                        if (url) audios.push({{ url }});
-                    }}
-                    for (const source of aud.querySelectorAll('source')) {{
+                        if (url) audios.push({ url });
+                    }
+                    for (const source of aud.querySelectorAll('source')) {
                         const url = dedup(abs(source.getAttribute('src')));
-                        if (url) audios.push({{ url }});
-                    }}
+                        if (url) audios.push({ url });
+                    }
                     if (audios.length >= maxAudios) break;
-                }}
+                }
 
                 // Meta images (OG, Twitter)
                 const metaImages = [];
-                for (const meta of document.querySelectorAll('meta[property="og:image"], meta[name="twitter:image"], meta[property="og:image:url"]')) {{
+                for (const meta of document.querySelectorAll('meta[property="og:image"], meta[name="twitter:image"], meta[property="og:image:url"]')) {
                     const url = dedup(abs(meta.getAttribute('content')));
-                    if (url) metaImages.push({{ property: meta.getAttribute('property') || meta.getAttribute('name'), url }});
-                }}
+                    if (url) metaImages.push({ property: meta.getAttribute('property') || meta.getAttribute('name'), url });
+                }
 
-                return {{ images, videos, audios, metaImages }};
-            }}
+                return { images, videos, audios, metaImages };
+            }
         """
 
         all_media: dict[str, list[dict[str, str | int | None]]] = {"images": [], "videos": [], "audios": [], "metaImages": []}

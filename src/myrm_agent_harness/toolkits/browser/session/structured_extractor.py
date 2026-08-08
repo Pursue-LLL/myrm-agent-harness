@@ -181,9 +181,8 @@ def _validate_schema_complexity(schema: dict[str, Any], depth: int = 0) -> bool:
                 return False
         elif prop.get("type") == "array":
             items = prop.get("items", {})
-            if items.get("type") == "object":
-                if not _validate_schema_complexity(items, depth + 1):
-                    return False
+            if items.get("type") == "object" and not _validate_schema_complexity(items, depth + 1):
+                return False
 
     return True
 

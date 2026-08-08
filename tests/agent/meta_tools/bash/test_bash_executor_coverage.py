@@ -105,10 +105,9 @@ async def test_execute_raises_bash_execution_error_on_failure() -> None:
         patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
         patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
-        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
+        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),pytest.raises(BashExecutionError)
     ):
-        with pytest.raises(BashExecutionError):
-            await bash_exec.execute("false", session_id="sess-1")
+        await bash_exec.execute("false", session_id="sess-1")
 
 
 @pytest.mark.asyncio

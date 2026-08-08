@@ -462,7 +462,7 @@ class TestIntegration:
         guard = FrequencyGuard(global_limit=50, per_tool_limit=20, warning_ratio=0.9)
 
         # Simulate attacker rapidly calling bash_tool
-        for i in range(20):
+        for _ in range(20):
             verdict = guard.check("bash_code_execute_tool")
             guard.record("bash_code_execute_tool")
 
@@ -556,7 +556,7 @@ class TestPerformance:
 
         # Measure check performance
         start_time = time.time()
-        for i in range(100):
+        for _ in range(100):
             guard.check("test_tool")
         elapsed = time.time() - start_time
 

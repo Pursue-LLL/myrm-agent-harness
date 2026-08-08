@@ -171,7 +171,7 @@ async def test_process_text_paths_via_service(tmp_path: Path) -> None:
         return_value="=== hello.txt ===\nhello\n",
     ) as mock_read:
         parts = await process_text_paths(
-            [f"hello.txt:1-1"],
+            ["hello.txt:1-1"],
             mock_executor,
             None,
             None,

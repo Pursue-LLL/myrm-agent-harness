@@ -91,7 +91,7 @@ class TestAtomicWriteErrorHandling:
             with pytest.raises(OSError):
                 atomic_write(target, "data")
         finally:
-            os.chmod(target.parent, 0o755)
+            os.chmod(target.parent, 0o755)  # noqa: S103  # restore standard dir permissions after test
 
     def test_original_preserved_on_error(self, tmp_path: Path) -> None:
         target = tmp_path / "preserve.json"
@@ -104,7 +104,7 @@ class TestAtomicWriteErrorHandling:
             with pytest.raises(OSError):
                 atomic_write(readonly_target, "new data")
         finally:
-            os.chmod(read_only_dir, 0o755)
+            os.chmod(read_only_dir, 0o755)  # noqa: S103  # restore standard dir permissions after test
         assert target.read_text() == "original"
 
     def test_accepts_str_path(self, tmp_path: Path) -> None:

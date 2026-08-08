@@ -1,11 +1,10 @@
 """Tests for step_builder module — build_step_data and _inject_diff."""
 
-import pytest
 
 from myrm_agent_harness.agent.streaming.step_builder import (
+    _inject_diff,
     build_step_data,
     get_step_key,
-    _inject_diff,
 )
 
 

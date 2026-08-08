@@ -58,10 +58,6 @@ from myrm_agent_harness.agent.middlewares.concurrency_limiter import (
     create_concurrency_limiter,
     get_subagent_semaphore,
 )
-from myrm_agent_harness.agent.middlewares.plan_confirm_middleware import (
-    PlanConfirmMiddleware,
-    reset_plan_confirm_state,
-)
 from myrm_agent_harness.agent.middlewares.context_pipeline_middleware import (
     create_context_pipeline_middleware,
 )
@@ -75,6 +71,10 @@ from myrm_agent_harness.agent.middlewares.filesystem_search_middleware import (
 from myrm_agent_harness.agent.middlewares.guardrails import (
     GuardrailMiddleware,
     SkillBoundaryProvider,
+)
+from myrm_agent_harness.agent.middlewares.plan_confirm_middleware import (
+    PlanConfirmMiddleware,
+    reset_plan_confirm_state,
 )
 from myrm_agent_harness.agent.middlewares.progress_middleware import progress_middleware
 from myrm_agent_harness.agent.middlewares.rate_limit import RateLimitMiddleware

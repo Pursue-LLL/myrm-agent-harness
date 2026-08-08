@@ -196,7 +196,7 @@ async def test_enrich_respects_sibling_limit():
     ]
     vector.get.return_value = docs
 
-    results = await enrich_with_graph([res1], "query", 10, graph, vector, config)
+    await enrich_with_graph([res1], "query", 10, graph, vector, config)
 
     vector.get.assert_called_once()
     requested_ids = vector.get.call_args[0][1]

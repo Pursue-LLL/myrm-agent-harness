@@ -132,7 +132,6 @@ context and capabilities.
         logger.info("acp_delegate agent=%s mode=%s task_length=%d", agent_name, mode, len(task))
 
         t0 = time.monotonic()
-        last_error: str = ""
         for attempt in range(_MAX_RETRIES + 1):
             try:
                 result, meta = await _run_turn_and_collect(
@@ -199,7 +198,6 @@ context and capabilities.
                         attempt + 1,
                         exc,
                     )
-                    last_error = f"{type(exc).__name__}: {exc}"
                     continue
 
                 logger.error("acp_delegate_error agent=%s error=%s", agent_name, exc, exc_info=True)

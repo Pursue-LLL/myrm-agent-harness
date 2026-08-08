@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.conversation_search import ConversationSearchProtocol

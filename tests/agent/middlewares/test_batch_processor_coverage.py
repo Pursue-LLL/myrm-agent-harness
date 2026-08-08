@@ -530,32 +530,6 @@ class TestLLMReviewer:
 
 class TestInternalHelpers:
     @pytest.mark.asyncio
-    async def test_get_runtime_domains_lookup_error(self):
-        """_get_runtime_domains creates new set when ContextVar is unset."""
-        # Force ContextVar to raise LookupError by using a fresh context
-        import contextvars
-
-        from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
-            _get_runtime_domains,
-            _runtime_allowed_domains,
-        )
-
-        ctx = contextvars.copy_context()
-
-        def _run_in_fresh():
-            # In a new context, the ContextVar is unset
-            token = _runtime_allowed_domains.set(set())
-            _runtime_allowed_domains.reset(token)
-            # After reset, accessing should raise LookupError internally
-            # but _get_runtime_domains catches it
-            domains = _get_runtime_domains()
-            assert isinstance(domains, set)
-            return domains
-
-        result = ctx.run(_run_in_fresh)
-        assert isinstance(result, set)
-
-    @pytest.mark.asyncio
     async def test_evaluate_skill_hooks_no_skills_loaded(self, monkeypatch):
         """_evaluate_skill_hooks_for_tool returns None when no skills loaded."""
         from myrm_agent_harness.agent.middlewares.approval.batch_processor import _evaluate_skill_hooks_for_tool
@@ -2060,7 +2034,7 @@ class TestShellThreatHighRiskMarking:
             )
         ]
 
-        payload, indices = build_interrupt_payload(pending, "session-hr2")
+        payload, _indices = build_interrupt_payload(pending, "session-hr2")
 
         assert payload["reviewConfigs"][0].get("hideAllowAlways") is True
 
@@ -2076,7 +2050,7 @@ class TestShellThreatHighRiskMarking:
             )
         ]
 
-        payload, indices = build_interrupt_payload(pending, "session-normal")
+        payload, _indices = build_interrupt_payload(pending, "session-normal")
 
         assert payload["reviewConfigs"][0].get("hideAllowAlways") is None or payload["reviewConfigs"][0].get("hideAllowAlways") is not True
 
@@ -2130,7 +2104,7 @@ class TestEditBranchBlocksAllowAlwaysForHighRisk:
         decisions = [{"type": "edit", "args": {"query": "safe query"}, "extensions": {"allowAlways": True}}]
 
         with patch("myrm_agent_harness.agent.middlewares.approval._batch_decisions.add_to_allowlist_if_needed") as mock_add:
-            revised, messages, _guidance = await apply_approval_decisions(
+            revised, _messages, _guidance = await apply_approval_decisions(
                 decisions, last_ai_msg, [], pending, [0], {0: None}
             )
 
@@ -2153,7 +2127,7 @@ class TestEditBranchBlocksAllowAlwaysForHighRisk:
         decisions = [{"type": "edit", "args": {"query": "hello"}, "extensions": {"allowAlways": True}}]
 
         with patch("myrm_agent_harness.agent.middlewares.approval._batch_decisions.add_to_allowlist_if_needed") as mock_add:
-            revised, messages, _guidance = await apply_approval_decisions(
+            revised, _messages, _guidance = await apply_approval_decisions(
                 decisions, last_ai_msg, [], pending, [0], {0: None}
             )
 

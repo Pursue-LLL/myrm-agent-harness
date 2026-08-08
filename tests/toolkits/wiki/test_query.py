@@ -110,7 +110,11 @@ async def test_wiki_query_hot_only_when_no_matches(wiki_structure, mock_llm) -> 
     config = WikiConfig(enable_semantic_search=True)
     engine = WikiQueryEngine(llm=mock_llm, structure=wiki_structure, config=config)
 
-    from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
+    from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
+        WikiCognitiveMapService,
+        WikiMapEvent,
+        WikiMapEventType,
+    )
 
     WikiCognitiveMapService(wiki_structure).refresh(
         WikiMapEvent(event_type=WikiMapEventType.COMPILE, summary="Test refresh for hot-only query"),

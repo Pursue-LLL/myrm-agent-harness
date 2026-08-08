@@ -123,7 +123,7 @@ class PostCompactionRereadProcessor(BaseProcessor):
             "after context compaction. They reflect the latest on-disk state of files "
             "you were recently working on. No need to re-read them with file_read_tool.]"
         )
-        injection = "\n".join(["<post-compaction-reread>", header, ""] + parts + ["</post-compaction-reread>"])
+        injection = "\n".join(["<post-compaction-reread>", header, "", *parts, "</post-compaction-reread>"])
 
         reread_msg = HumanMessage(content=injection)
         context.messages.append(reread_msg)

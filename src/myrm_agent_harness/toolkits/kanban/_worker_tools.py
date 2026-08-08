@@ -31,8 +31,8 @@ from myrm_agent_harness.toolkits.kanban.kanban_agent_tools import (
     _parse_until,
 )
 from myrm_agent_harness.toolkits.kanban.types import (
-    BlockKind,
     KANBAN_COMPLETION_INTENT_KEY,
+    BlockKind,
     KanbanTask,
     TaskEventKind,
     TaskStatus,

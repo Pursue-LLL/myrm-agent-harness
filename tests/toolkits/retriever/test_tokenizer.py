@@ -137,10 +137,9 @@ async def test_async_initialize_runs_in_executor() -> None:
 
 def test_jieba_import_failure_uses_fallback() -> None:
     service = TokenizerService()
-    with patch.dict("sys.modules", {"jieba": None}):
-        with patch.object(tokenizer_module, "logger"):
-            service._jieba = None
-            service._initialized = False
-            with patch("builtins.__import__", side_effect=ImportError("no jieba")):
-                service._init_jieba_sync()
+    with patch.dict("sys.modules", {"jieba": None}), patch.object(tokenizer_module, "logger"):
+        service._jieba = None
+        service._initialized = False
+        with patch("builtins.__import__", side_effect=ImportError("no jieba")):
+            service._init_jieba_sync()
     assert service._jieba is None

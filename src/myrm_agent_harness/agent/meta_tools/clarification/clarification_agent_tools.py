@@ -18,7 +18,7 @@ import json
 from collections.abc import Awaitable, Callable
 
 from langchain_core.tools import BaseTool
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr
 
 from myrm_agent_harness.agent.meta_tools.clarification.ask_question import (
     AskQuestionInput,
@@ -45,7 +45,7 @@ class AskQuestionTool(BaseTool):
     """Tool for asking the user structured questions."""
 
     name: str = "ask_question_tool"
-    tags: list[str] = ["interactive"]
+    tags: list[str] = Field(default_factory=lambda: ["interactive"])
     description: str = (
         "Ask the user one or more clarifying questions. Use this when the request is ambiguous, "
         "or when you need to confirm intent, choose between options, or gather missing details "

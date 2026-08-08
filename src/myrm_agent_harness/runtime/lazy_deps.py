@@ -39,7 +39,7 @@ _SAFE_SPEC = re.compile(
 )
 
 
-class FeatureUnavailable(RuntimeError):
+class FeatureUnavailableError(RuntimeError):
     """Lazy feature cannot be installed or is disabled."""
 
     def __init__(self, feature: str, missing: tuple[str, ...], reason: str) -> None:
@@ -60,9 +60,7 @@ class _InstallResult:
 
 
 def _allow_lazy_installs() -> bool:
-    if os.environ.get("MYRM_DISABLE_LAZY_INSTALLS", "").strip() in {"1", "true", "yes"}:
-        return False
-    return True
+    return os.environ.get("MYRM_DISABLE_LAZY_INSTALLS", "").strip() not in {"1", "true", "yes"}
 
 
 def _spec_is_safe(spec: str) -> bool:
@@ -141,7 +139,7 @@ def _venv_pip_install(specs: tuple[str, ...], *, timeout: int = 300) -> _Install
 
     pip_cmd = [sys.executable, "-m", "pip"]
     try:
-        probe = subprocess.run(pip_cmd + ["--version"], capture_output=True, text=True, timeout=15)
+        probe = subprocess.run([*pip_cmd, "--version"], capture_output=True, text=True, timeout=15)
         if probe.returncode != 0:
             raise FileNotFoundError("pip not in venv")
     except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -158,7 +156,7 @@ def _venv_pip_install(specs: tuple[str, ...], *, timeout: int = 300) -> _Install
 
     try:
         proc = subprocess.run(
-            pip_cmd + ["install", *specs],
+            [*pip_cmd, "install", *specs],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -194,7 +192,7 @@ def ensure(feature: str, *, prompt: bool = False) -> None:
     """Install allowlisted packages for ``feature`` into the active venv."""
     del prompt  # GUI/server callers always disable TTY prompts
     if feature not in LAZY_DEPS:
-        raise FeatureUnavailable(feature, (), f"feature {feature!r} not in LAZY_DEPS allowlist")
+        raise FeatureUnavailableError(feature, (), f"feature {feature!r} not in LAZY_DEPS allowlist")
 
     missing = feature_missing(feature)
     if not missing:
@@ -202,10 +200,10 @@ def ensure(feature: str, *, prompt: bool = False) -> None:
 
     for spec in missing:
         if not _spec_is_safe(spec):
-            raise FeatureUnavailable(feature, missing, f"refusing to install unsafe spec {spec!r}")
+            raise FeatureUnavailableError(feature, missing, f"refusing to install unsafe spec {spec!r}")
 
     if not _allow_lazy_installs():
-        raise FeatureUnavailable(
+        raise FeatureUnavailableError(
             feature,
             missing,
             "lazy installs disabled (MYRM_DISABLE_LAZY_INSTALLS=1)",
@@ -215,12 +213,12 @@ def ensure(feature: str, *, prompt: bool = False) -> None:
     result = _venv_pip_install(missing)
     if not result.success:
         snippet = (result.stderr or result.stdout or "").strip()[-2000:]
-        raise FeatureUnavailable(feature, missing, f"install failed: {snippet or 'no error output'}")
+        raise FeatureUnavailableError(feature, missing, f"install failed: {snippet or 'no error output'}")
 
     _clear_metadata_cache()
     still_missing = feature_missing(feature)
     if still_missing:
-        raise FeatureUnavailable(
+        raise FeatureUnavailableError(
             feature,
             still_missing,
             "install reported success but packages still missing (may require process restart)",
@@ -242,7 +240,7 @@ def ensure_and_bind(
     """Ensure feature deps, then merge ``importer()`` into ``target_globals``."""
     try:
         ensure(feature, prompt=False)
-    except (FeatureUnavailable, Exception):
+    except (FeatureUnavailableError, Exception):
         return False
     try:
         bindings = importer()

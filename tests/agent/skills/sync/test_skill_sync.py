@@ -6,10 +6,7 @@ This module covers LocalFSSyncBackend, SkillSyncManager, idle integration, and s
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
-import json
-import sqlite3
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -27,7 +24,6 @@ from myrm_agent_harness.agent.skills.sync.types import (
     SyncDirection,
     SyncStatus,
 )
-
 
 # ──────────────────────────────────────────────
 #  Data Types
@@ -349,8 +345,8 @@ class TestIdleIntegration:
 
     @pytest.mark.asyncio
     async def test_handle_with_valid_manager(self) -> None:
-        from myrm_agent_harness.agent.skills.sync.manager import SkillSyncManager
         from myrm_agent_harness.agent.skills.sync import idle_integration
+        from myrm_agent_harness.agent.skills.sync.manager import SkillSyncManager
 
         mock_manager = MagicMock(spec=SkillSyncManager)
         mock_manager.is_syncing = False
@@ -372,8 +368,8 @@ class TestIdleIntegration:
 
     @pytest.mark.asyncio
     async def test_handle_skips_when_syncing(self) -> None:
-        from myrm_agent_harness.agent.skills.sync.manager import SkillSyncManager
         from myrm_agent_harness.agent.skills.sync import idle_integration
+        from myrm_agent_harness.agent.skills.sync.manager import SkillSyncManager
 
         mock_manager = MagicMock(spec=SkillSyncManager)
         mock_manager.is_syncing = True

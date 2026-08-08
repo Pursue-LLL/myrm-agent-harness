@@ -5,7 +5,6 @@ not via a separate deferred discovery pool.
 """
 
 from __future__ import annotations
-from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 from unittest.mock import MagicMock
 
@@ -15,6 +14,7 @@ from myrm_agent_harness.agent.meta_tools import get_meta_tools
 from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
     sync_discover_capability_tool,
 )
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 

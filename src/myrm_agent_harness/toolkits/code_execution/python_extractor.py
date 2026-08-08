@@ -258,9 +258,7 @@ def _is_bare_stdin_python_receiver(segment: str) -> bool:
         return False
     if re.search(r"\.py\b", stripped, re.IGNORECASE):
         return False
-    if re.search(r"\s-m\b", stripped, re.IGNORECASE):
-        return False
-    return True
+    return not re.search(r"\s-m\b", stripped, re.IGNORECASE)
 
 
 def _extract_feeder_quoted_payload(segment: str) -> str | None:

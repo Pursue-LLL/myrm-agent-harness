@@ -13,18 +13,20 @@ SSOT for scanning text **before** it is written to durable stores (Memory, Wiki 
 
 ## Profiles
 
-| Profile | Credential leaks | Prompt injection | Harmful state |
-| --- | --- | --- | --- |
-| `MEMORY_WRITE` | redact/block + optional PII pseudonymization | block ≥0.8 | block |
-| `WIKI_RAW` | redact/block | **agent** caller block ≥0.8; settings/chat warn+log | — |
-| `WIKI_PUBLISH` | redact/block | warn only | — |
+| Profile | Credential leaks | Prompt injection | Instruction shape | Harmful state |
+| --- | --- | --- | --- | --- |
+| `MEMORY_WRITE` | redact/block + optional PII pseudonymization | block ≥0.8 | warn | block |
+| `WIKI_RAW` | redact/block | **agent** caller block ≥0.8; settings/chat warn+log | warn | — |
+| `WIKI_PUBLISH` | redact/block | warn only | warn | — |
+
+Instruction-shape detection (guardrail bypass / unattended execution / exfiltration / spoofed approval / agent command) always results in WARN — it never blocks, because a human may legitimately hold such preferences. Password-like tokens (keyword + mixed-char heuristic) are redacted alongside structured credential patterns.
 
 ## Key Dependencies
 
-- `core.security.detection.*` (leak, prompt, harmful-state, content-boundary)
+- `core.security.detection.*` (leak + password-like, prompt, instruction-shape, harmful-state, content-boundary)
 
 ## Consumers
 
-- `toolkits.memory.memory_scanner` — delegates Memory writes
+- `toolkits.memory._internal.memory_scanner` — delegates Memory writes
 - `toolkits.wiki.pipeline.raw_gate.security_hook` — raw + publish choke points
 - `toolkits.wiki.resilience.sanitize` — display redaction

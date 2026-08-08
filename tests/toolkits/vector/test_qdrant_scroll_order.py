@@ -4,7 +4,6 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from qdrant_client.models import ScoredPoint
 
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
 from myrm_agent_harness.toolkits.vector.config import DeploymentMode, VectorStoreConfig
@@ -45,7 +44,7 @@ class TestScrollOrderBy:
 
     @pytest.mark.asyncio
     async def test_scroll_with_order_by_asc(self, store, mock_client):
-        from qdrant_client.http.models import Direction, OrderBy
+        from qdrant_client.http.models import Direction
 
         mock_client.scroll.return_value = ([], None)
         await store.scroll("col", limit=5, order_by=("importance", "asc"))

@@ -113,8 +113,8 @@ def test_create_skill_agent_is_async_factory() -> None:
 
 @pytest.mark.api
 def test_distribution_helpers_report_source_mode_in_dev() -> None:
-    from myrm_agent_harness.distribution import DistributionMode
     from myrm_agent_harness.api import get_distribution_mode, is_compiled_distribution
+    from myrm_agent_harness.distribution import DistributionMode
 
     assert get_distribution_mode() is DistributionMode.SOURCE
     assert is_compiled_distribution() is False

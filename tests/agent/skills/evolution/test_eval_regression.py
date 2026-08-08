@@ -251,7 +251,7 @@ async def test_single_case_failure_penalty():
         {"sandbox_assertions": [{"type": "code_contains", "target": "deploy"}]},
     ])
     variant = "just random stuff"
-    surviving, penalties = await filter_variants_by_regression(
+    _surviving, penalties = await filter_variants_by_regression(
         skill, [variant], logging.getLogger("test"),
     )
     assert penalties[variant] > 0
@@ -290,7 +290,7 @@ async def test_mixed_assertion_partial_fail():
         },
     ])
     variant = "import os\ndef hello():\n    pass"
-    surviving, penalties = await filter_variants_by_regression(
+    _surviving, penalties = await filter_variants_by_regression(
         skill, [variant], logging.getLogger("test"),
     )
     assert penalties[variant] > 0
@@ -321,7 +321,7 @@ async def test_many_eval_cases_performance():
     ]
     skill = _make_skill(eval_cases=cases)
     start = time.monotonic()
-    surviving, penalties = await filter_variants_by_regression(
+    _surviving, penalties = await filter_variants_by_regression(
         skill, ["pattern_0 pattern_1"], logging.getLogger("test"),
     )
     elapsed = time.monotonic() - start

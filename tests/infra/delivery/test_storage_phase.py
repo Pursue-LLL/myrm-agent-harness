@@ -108,11 +108,11 @@ async def test_load_pending_skips_corrupt_json(tmp_path: Path) -> None:
     from myrm_agent_harness.infra.delivery.storage import (
         QUEUE_DIRNAME,
         _queued_delivery_from_pending_dict,
+        delete_failed_delivery,
         generate_delivery_id,
+        load_failed_deliveries,
         move_to_failed,
         move_to_pending,
-        load_failed_deliveries,
-        delete_failed_delivery,
     )
 
     queue_dir = tmp_path / QUEUE_DIRNAME
@@ -245,8 +245,6 @@ async def test_load_failed_skips_corrupt_json(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_delete_failed_storage_provider_not_found() -> None:
     from myrm_agent_harness.infra.delivery.storage import (
-        FAILED_DIRNAME,
-        QUEUE_DIRNAME,
         delete_failed_delivery,
     )
 

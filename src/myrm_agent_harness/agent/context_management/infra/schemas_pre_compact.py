@@ -12,6 +12,7 @@ from typing import Protocol
 
 from langchain_core.messages import BaseMessage
 
+
 @dataclass(frozen=True, slots=True)
 class PreCompactInjection:
     """Result of a pre-compaction semantic memory recall."""

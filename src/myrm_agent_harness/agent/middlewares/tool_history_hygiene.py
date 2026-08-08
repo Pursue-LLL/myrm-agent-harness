@@ -138,7 +138,7 @@ def _apply_within_message_tool_call_reid(msg: BaseMessage) -> tuple[bool, list[s
     if tool_calls:
         updated, final_ids, list_changed = _reid_duplicate_tool_call_entries(tool_calls)
         if list_changed:
-            setattr(msg, "tool_calls", updated)
+            msg.tool_calls = updated
             changed = True
         expected_ids.extend(final_ids)
 
@@ -148,7 +148,7 @@ def _apply_within_message_tool_call_reid(msg: BaseMessage) -> tuple[bool, list[s
             invalid_tool_calls
         )
         if list_changed:
-            setattr(msg, "invalid_tool_calls", updated)
+            msg.invalid_tool_calls = updated
             changed = True
         expected_ids.extend(final_ids)
 
@@ -162,7 +162,7 @@ def _apply_within_message_tool_call_reid(msg: BaseMessage) -> tuple[bool, list[s
             if list_changed:
                 updated_kwargs = dict(additional_kwargs)
                 updated_kwargs["tool_calls"] = updated
-                setattr(msg, "additional_kwargs", updated_kwargs)
+                msg.additional_kwargs = updated_kwargs
                 changed = True
             expected_ids.extend(final_ids)
 
@@ -282,7 +282,7 @@ def _replace_first_tool_call_id(
     tool_calls = getattr(msg, "tool_calls", None) or []
     updated_tool_calls, replaced = _replace_id_in_dict_list(tool_calls, old_id, new_id)
     if replaced:
-        setattr(msg, "tool_calls", updated_tool_calls)
+        msg.tool_calls = updated_tool_calls
         changed = True
 
     invalid_tool_calls = getattr(msg, "invalid_tool_calls", None) or []
@@ -290,7 +290,7 @@ def _replace_first_tool_call_id(
         invalid_tool_calls, old_id, new_id
     )
     if replaced:
-        setattr(msg, "invalid_tool_calls", updated_invalid)
+        msg.invalid_tool_calls = updated_invalid
         changed = True
 
     additional_kwargs = getattr(msg, "additional_kwargs", None)
@@ -301,7 +301,7 @@ def _replace_first_tool_call_id(
             if replaced:
                 updated_kwargs = dict(additional_kwargs)
                 updated_kwargs["tool_calls"] = updated_raw
-                setattr(msg, "additional_kwargs", updated_kwargs)
+                msg.additional_kwargs = updated_kwargs
                 changed = True
 
     return changed

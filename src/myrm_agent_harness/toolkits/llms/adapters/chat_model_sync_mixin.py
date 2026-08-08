@@ -77,7 +77,6 @@ class ChatLiteLLMSyncMixin:
         self._inject_allowed_params(params)
         self._apply_ephemeral_output_override(params)
 
-        import time
 
         max_attempts = self.empty_retry_max_attempts if self.empty_retry_enabled else 1
         last_error: Exception | None = None
@@ -261,7 +260,6 @@ class ChatLiteLLMSyncMixin:
         run_manager: Any | None = None,
         **kwargs: Any,
     ) -> Iterator[ChatGenerationChunk]:
-        import time
 
         available_tools, tool_schemas = self._extract_tool_context_from_kwargs(kwargs)
         message_dicts, params = self._create_message_dicts(messages, stop)

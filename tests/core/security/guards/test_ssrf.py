@@ -31,7 +31,7 @@ class TestSSRFShield:
         assert is_internal_ip("10.0.0.1") is True
         assert is_internal_ip("172.16.0.1") is True
         assert is_internal_ip("169.254.169.254") is True
-        assert is_internal_ip("0.0.0.0") is True
+        assert is_internal_ip("0.0.0.0") is True  # noqa: S104  # IP string assertion, not a bind
         assert is_internal_ip("::1") is True
 
         assert is_internal_ip("8.8.8.8") is False

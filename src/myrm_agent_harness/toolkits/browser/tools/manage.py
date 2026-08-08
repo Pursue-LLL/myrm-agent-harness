@@ -353,7 +353,7 @@ def create_manage_tool(session: BrowserSession):
             return str(result)
         except TimeoutError:
             return f"Error: domain tool '{skill_id}:{tool_name}' timed out after 30s"
-        except Exception as e:
+        except Exception:
             return f"Error executing domain tool '{skill_id}:{tool_name}'"
         finally:
             import os as _os
@@ -375,12 +375,12 @@ def create_manage_tool(session: BrowserSession):
         for skill in skills:
             domains = ", ".join(skill.domains[:3])
             lines.append(f"\n  [{skill.id}] {skill.name} ({domains})")
-            for tool in skill.python_tools.values():
+            for dom_tool in skill.python_tools.values():
                 args_str = ", ".join(
                     f"{k}{'?' if a.get('required') != 'true' else ''}"
-                    for k, a in tool.args.items()
+                    for k, a in dom_tool.args.items()
                 )
-                lines.append(f"    - {tool.name}({args_str}): {tool.description}")
+                lines.append(f"    - {dom_tool.name}({args_str}): {dom_tool.description}")
         return "\n".join(lines)
 
     return browser_manage

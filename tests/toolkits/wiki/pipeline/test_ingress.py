@@ -19,7 +19,6 @@ from myrm_agent_harness.toolkits.wiki.pipeline.ingress.types import (
     ClipAssetInput,
     ClipIngressRequest,
     ClipMode,
-    IngressAssetStats,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.ingress.wikiignore import (
     load_wikiignore_patterns,
@@ -118,11 +117,11 @@ async def test_publish_clip_ingress_writes_raw(temp_structure: WikiStructure) ->
 async def test_publish_url_markdown_ingress_writes_raw(
     temp_structure: WikiStructure,
 ) -> None:
-    from myrm_agent_harness.toolkits.wiki.pipeline.ingress.types import (
-        UrlMarkdownIngressRequest,
-    )
     from myrm_agent_harness.toolkits.wiki.pipeline.ingress.publish import (
         publish_url_markdown_ingress,
+    )
+    from myrm_agent_harness.toolkits.wiki.pipeline.ingress.types import (
+        UrlMarkdownIngressRequest,
     )
 
     result = await publish_url_markdown_ingress(

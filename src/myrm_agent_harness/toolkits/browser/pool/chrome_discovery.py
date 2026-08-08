@@ -28,8 +28,8 @@ import os
 import platform
 import socket
 import urllib.request
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -127,8 +127,8 @@ def _probe_http_version(port: int) -> str | None:
     """HTTP GET /json/version to validate CDP and get webSocketDebuggerUrl."""
     try:
         url = f"http://127.0.0.1:{port}/json/version"
-        req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=_HTTP_PROBE_TIMEOUT_S) as resp:
+        req = urllib.request.Request(url, method="GET")  # noqa: S310
+        with urllib.request.urlopen(req, timeout=_HTTP_PROBE_TIMEOUT_S) as resp:  # noqa: S310
             if resp.status != 200:
                 return None
             data = json.loads(resp.read())

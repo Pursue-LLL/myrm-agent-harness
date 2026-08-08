@@ -48,6 +48,7 @@ import re
 from collections import deque
 
 from .detectors import LoopDetectorMixin
+from .suggestions import evaluate_success_level
 from .types import (
     VERDICT_ALLOW,
     AgentPhase,
@@ -59,7 +60,6 @@ from .types import (
     SuccessLevel,
     VerificationCategory,
 )
-from .suggestions import evaluate_success_level
 
 try:
     from .stats import LoopGuardStatsDB

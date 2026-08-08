@@ -17,9 +17,9 @@ import pytest
 
 from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
 from myrm_agent_harness.agent.security.guards.loop_guard import (
-    LoopGuard,
     AgentPhase,
     LoopAction,
+    LoopGuard,
     LoopKind,
     SuccessLevel,
     VerificationCategory,

@@ -12,7 +12,6 @@ import tempfile
 
 import pytest
 from docx import Document
-from docx.shared import Inches
 
 from myrm_agent_harness.agent.meta_tools.file_ops.utils.document_reader import (
     is_document_path,
@@ -134,7 +133,7 @@ class TestDocumentReaderDocxIntegration:
             result = await read_document_as_text(tmp, executor)
             # In the merged table, "Span" appears only once, merged cell is empty
             merged_section = result[result.index("## Merged Table"):]
-            table_lines = [l for l in merged_section.split("\n") if "|" in l and "---" not in l]
+            table_lines = [line for line in merged_section.split("\n") if "|" in line and "---" not in line]
             header_cells = [c.strip() for c in table_lines[0].split("|")[1:-1]]
             assert header_cells[0] != ""
             assert header_cells[1] == ""

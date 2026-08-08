@@ -1,12 +1,14 @@
 """Memory write-path security scanner.
 
 Scans memory content before persistence for prompt injection, credential
-leaks, and invisible Unicode. Reuses existing security components from
-``agent.security.detection`` — no new detection logic.
+leaks, instruction-shape poisoning, password-like secrets, and invisible
+Unicode. Reuses existing security components from
+``core.security.detection``.
 
 Processing tiers:
   - HIGH injection (score >= threshold): block write entirely
-  - Credential leak detected: auto-redact, then store
+  - Credential leak / password-like detected: auto-redact, then store
+  - Instruction-shape found: warn + store
   - Invisible Unicode found: auto-strip, then store
   - LOW injection (score < threshold): warn + store
   - Clean: store as-is
@@ -19,10 +21,12 @@ Processing tiers:
 
 [POS]
 Memory write-path security scanner. Scans content, raw_exchange (ConversationMemory),
-and trigger/action (ProceduralMemory) fields. Reuses prompt_guard (7+2 class injection detection),
-leak_detector (25+ credential patterns + smart masking), content_boundary (zero-width
-character stripping). Tiered processing: BLOCKED/REDACTED/WARN/CLEAN. Enforces worst-verdict
-propagation across fields. Used in store/store_batch/update_memory/set_profile paths.
+and trigger/action (ProceduralMemory) fields. Reuses prompt_guard (9-class injection detection),
+leak_detector (25+ credential patterns + smart masking + password-like heuristic),
+instruction_shape (6-class bilingual instruction-shape detection),
+content_boundary (zero-width character stripping). Tiered processing:
+BLOCKED/REDACTED/WARN/CLEAN. Enforces worst-verdict propagation across fields.
+Used in store/store_batch/update_memory/set_profile paths.
 """
 
 from __future__ import annotations
@@ -37,6 +41,8 @@ from myrm_agent_harness.core.security.persistence.content_scan import (
     PersistScanProfile,
     PersistScanVerdict,
     scan_persistable_content,
+)
+from myrm_agent_harness.core.security.persistence.content_scan import (
     set_pii_pseudonymizer as _set_core_pii_pseudonymizer,
 )
 
@@ -67,6 +73,7 @@ class ScanResult:
     injection_score: float = 0.0
     injection_patterns: list[str] = field(default_factory=list)
     credential_patterns: list[str] = field(default_factory=list)
+    instruction_shape_patterns: list[str] = field(default_factory=list)
     harmful_state_patterns: list[str] = field(default_factory=list)
     had_invisible_unicode: bool = False
 
@@ -97,6 +104,7 @@ def scan_memory_content(text: str, *, block_threshold: float = 0.8) -> ScanResul
         injection_score=persist.injection_score,
         injection_patterns=persist.injection_patterns,
         credential_patterns=persist.credential_patterns,
+        instruction_shape_patterns=persist.instruction_shape_patterns,
         harmful_state_patterns=persist.harmful_state_patterns,
         had_invisible_unicode=persist.had_invisible_unicode,
     )
@@ -232,10 +240,14 @@ def _log_scan_result(result: ScanResult, content: str) -> None:
         logger.warning("[MEMORY_SCAN] BLOCKED %s snippet=%.100s", " ".join(reason_parts), snippet)
     elif result.verdict == ScanVerdict.REDACTED:
         reason_parts.append(f"credentials={','.join(result.credential_patterns)}")
+        if result.instruction_shape_patterns:
+            reason_parts.append(f"instruction_shape={','.join(result.instruction_shape_patterns)}")
         logger.warning("[MEMORY_SCAN] REDACTED %s snippet=%.100s", " ".join(reason_parts), snippet)
     elif result.verdict == ScanVerdict.WARN:
         if result.injection_patterns:
             reason_parts.append(f"injection={','.join(result.injection_patterns)}")
+        if result.instruction_shape_patterns:
+            reason_parts.append(f"instruction_shape={','.join(result.instruction_shape_patterns)}")
         if result.had_invisible_unicode:
             reason_parts.append("invisible_unicode=stripped")
         logger.warning("[MEMORY_SCAN] WARN %s snippet=%.100s", " ".join(reason_parts), snippet)

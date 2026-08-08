@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from .store import WebCorpusStore
 
@@ -40,7 +40,7 @@ def run_aging(store: WebCorpusStore, policy: CorpusAgingPolicy | None = None) ->
         policy = CorpusAgingPolicy()
 
     evicted = 0
-    cutoff = datetime.now(timezone.utc) - timedelta(days=policy.max_age_days)
+    cutoff = datetime.now(UTC) - timedelta(days=policy.max_age_days)
     cutoff_iso = cutoff.isoformat()
 
     for norm_url in store.list_stale(cutoff_iso):

@@ -90,4 +90,4 @@ class BashExecutor(
         self._global_env = global_env
 
 
-__all__ = ["BashExecutionError", "BashExecutor", "_MCP_MIN_TIMEOUT"]
+__all__ = ["_MCP_MIN_TIMEOUT", "BashExecutionError", "BashExecutor"]

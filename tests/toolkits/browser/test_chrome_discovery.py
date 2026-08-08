@@ -12,8 +12,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from myrm_agent_harness.toolkits.browser.pool.chrome_discovery import (
     _build_ws_endpoint,
     _read_devtools_active_port,

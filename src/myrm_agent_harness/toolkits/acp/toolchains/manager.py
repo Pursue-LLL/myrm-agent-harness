@@ -83,7 +83,7 @@ class IsolatedToolchainManager:
 
                 def extract():
                     with tarfile.open(tar_path, "r:gz") as tar:
-                        tar.extractall(path=self.base_dir)
+                        tar.extractall(path=self.base_dir, filter="data")
                         # Rename extracted folder to standard node_dir
                         extracted_folder = tar.getnames()[0].split("/")[0]
                         extracted_path = self.base_dir / extracted_folder

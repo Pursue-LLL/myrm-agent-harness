@@ -70,7 +70,7 @@ class TestIsBlockedIp:
 
     # --- Unspecified ---
     def test_unspecified_v4(self) -> None:
-        assert is_blocked_ip("0.0.0.0") is True
+        assert is_blocked_ip("0.0.0.0") is True  # noqa: S104  # IP string assertion, not a bind
 
     def test_unspecified_v6(self) -> None:
         assert is_blocked_ip("::") is True

@@ -69,7 +69,6 @@ class TestDialogActions:
     @pytest.mark.asyncio
     async def test_dialog_policy_valid(self) -> None:
         session = _make_session()
-        from myrm_agent_harness.toolkits.browser.session.dialog_manager import DialogPolicy
 
         session._dialog_manager = MagicMock()
         tool = create_manage_tool(session)

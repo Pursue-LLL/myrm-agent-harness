@@ -63,7 +63,7 @@ async def _fetch_oembed_metadata(
 
     def _do_fetch() -> dict[str, str]:
         oembed_url = _OEMBED_ENDPOINT.format(video_id=video_id)
-        req = urllib.request.Request(oembed_url, headers={"User-Agent": "Mozilla/5.0"})
+        req = urllib.request.Request(oembed_url, headers={"User-Agent": "Mozilla/5.0"})  # noqa: S310
 
         if proxy_pool:
             proxy_config = proxy_pool.get_next()
@@ -78,7 +78,7 @@ async def _fetch_oembed_metadata(
 
         result: dict[str, str] = {}
         for key in ("title", "author_name", "author_url", "thumbnail_url"):
-            if key in data and data[key]:
+            if data.get(key):
                 result[key] = str(data[key])
         return result
 

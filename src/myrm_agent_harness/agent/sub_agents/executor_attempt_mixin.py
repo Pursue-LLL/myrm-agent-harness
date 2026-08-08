@@ -27,6 +27,8 @@ from typing import TYPE_CHECKING
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.security.guards.taint_tracker import get_taint_tracker
+from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
+from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.runtime.progress_sink import ToolProgressSink
 from myrm_agent_harness.utils.runtime.steering import SteeringToken
@@ -44,14 +46,10 @@ from .executor_helpers import (
     _parse_handover_state,
 )
 from .types import (
-    SubagentBudgetExceededError,
     SubagentConfig,
     SubAgentResult,
     SubAgentStatus,
 )
-
-from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
-from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent

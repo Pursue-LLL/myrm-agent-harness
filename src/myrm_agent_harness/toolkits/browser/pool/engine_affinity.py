@@ -129,7 +129,7 @@ _global_store: EngineAffinityStore | None = None
 
 def get_engine_affinity_store() -> EngineAffinityStore:
     """Return the module-level singleton store instance."""
-    global _global_store  # noqa: PLW0603
+    global _global_store
     if _global_store is None:
         _global_store = EngineAffinityStore()
     return _global_store

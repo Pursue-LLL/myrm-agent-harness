@@ -17,12 +17,12 @@ from myrm_agent_harness.infra.incremental.set_monitor import SetMonitor
 from myrm_agent_harness.infra.incremental.types import MonitorConfig, MonitorState, MonitorType, ResetReason
 
 __all__ = [
+    "HashMonitor",
     "IncrementalMonitor",
     "IncrementalMonitorManager",
     "MonitorConfig",
     "MonitorState",
     "MonitorType",
     "ResetReason",
-    "HashMonitor",
     "SetMonitor",
 ]

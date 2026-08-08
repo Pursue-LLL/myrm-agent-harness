@@ -8,12 +8,12 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.domain_filter import DomainAllowlist
 from myrm_agent_harness.toolkits.browser.pool.extension_bridge import (
-    ExtensionBridgeNotAvailable,
+    ExtensionBridgeNotAvailableError,
     ExtensionTab,
 )
 from myrm_agent_harness.toolkits.browser.session.browser_session_navigation_mixin import (
-    BrowserSessionNavigationMixin,
     _NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES,
+    BrowserSessionNavigationMixin,
 )
 from myrm_agent_harness.utils.errors import ToolError
 
@@ -107,7 +107,7 @@ async def test_navigate_via_extension_prefers_navigate_url_path() -> None:
 async def test_navigate_via_extension_unknown_action_requires_extension_upgrade() -> None:
     bridge = MagicMock()
     bridge.is_connected.return_value = True
-    bridge.navigate_to_url = AsyncMock(side_effect=ExtensionBridgeNotAvailable("Unknown action: navigate_url"))
+    bridge.navigate_to_url = AsyncMock(side_effect=ExtensionBridgeNotAvailableError("Unknown action: navigate_url"))
     bridge.connect_to_domain = AsyncMock()
 
     probe = _ExtensionNavigationProbe(bridge)
@@ -122,7 +122,7 @@ async def test_navigate_via_extension_unknown_action_requires_extension_upgrade(
 async def test_navigate_via_extension_maps_disconnected_to_extension_lost() -> None:
     bridge = MagicMock()
     bridge.is_connected.return_value = True
-    bridge.navigate_to_url = AsyncMock(side_effect=ExtensionBridgeNotAvailable("Browser extension is not connected"))
+    bridge.navigate_to_url = AsyncMock(side_effect=ExtensionBridgeNotAvailableError("Browser extension is not connected"))
     bridge.connect_to_domain = AsyncMock()
 
     probe = _ExtensionNavigationProbe(bridge)

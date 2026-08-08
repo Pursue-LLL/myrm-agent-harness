@@ -33,10 +33,10 @@ from typing import Any
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
+from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_terminal_errors,
 )
-from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
 from myrm_agent_harness.agent.middlewares._tool_helpers import (
     apply_validation_result,
     build_hook_failure_result,
@@ -59,12 +59,12 @@ from myrm_agent_harness.agent.security.guards.frequency_guard import (
     FrequencyAction,
     get_frequency_guard,
 )
+from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction, LoopGuard
 from myrm_agent_harness.agent.security.guards.tool_turn_budget_guard import (
     TurnBudgetAction,
     get_tool_turn_budget_guard,
     resolve_turn_budget_units,
 )
-from myrm_agent_harness.agent.security.guards.loop_guard import LoopAction, LoopGuard
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.runtime.steering import (
     STEERING_SKIP_MESSAGE,
@@ -146,11 +146,11 @@ async def run_pre_call_guards(
     """Execute all pre-call guards. Returns ToolMessage if blocked, PreCallResult to proceed."""
     from myrm_agent_harness.agent.hooks.executor import fire_hook
     from myrm_agent_harness.agent.hooks.types import HookEvent
-    from myrm_agent_harness.agent.middlewares._session_context import (
-        get_active_message_id,
-    )
     from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
         set_current_message_id,
+    )
+    from myrm_agent_harness.agent.middlewares._session_context import (
+        get_active_message_id,
     )
 
     active_message_id = get_active_message_id()

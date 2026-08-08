@@ -11,7 +11,7 @@ from myrm_agent_harness.agent.sub_agents._verifier_round import (
     _build_verifier_tool_registry_getter,
     verify_worker_output,
 )
-from myrm_agent_harness.agent.sub_agents.types import SubAgentResult, SubAgentStatus, SubagentConfig, WorkspacePolicy
+from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, SubAgentResult, SubAgentStatus, WorkspacePolicy
 
 
 class _ReadonlyTool:

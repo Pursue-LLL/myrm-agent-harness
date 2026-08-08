@@ -26,11 +26,18 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from langchain_core.tools.convert import tool
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools.convert import tool
 
 from myrm_agent_harness.agent.context_management.context import (
     extract_context_from_runnable_config,
+)
+from myrm_agent_harness.agent.meta_tools._context_recovery import (
+    ensure_executor,
+    restore_context_vars,
+)
+from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
+    get_background_registry,
 )
 from myrm_agent_harness.agent.meta_tools.bash._preflight_checks import (
     check_command_url_exfiltration,
@@ -40,18 +47,15 @@ from myrm_agent_harness.agent.meta_tools.bash._preflight_checks import (
     check_sensitive_paths,
 )
 from myrm_agent_harness.agent.meta_tools.bash._tool_description import TOOL_DESCRIPTION
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
-    build_background_listeners,
-    classify_background_exit,
-)
 from myrm_agent_harness.agent.meta_tools.bash.bash_auto_yield import (
     build_auto_yield_return,
     resolve_yield_seconds,
     should_auto_yield,
     wait_for_yield_window,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
-    get_background_registry,
+from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
+    build_background_listeners,
+    classify_background_exit,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import (
     interpret_exit_code,
@@ -59,10 +63,6 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import (
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_formatting import (
     format_result,
     truncate_bash_output,
-)
-from myrm_agent_harness.agent.meta_tools._context_recovery import (
-    ensure_executor,
-    restore_context_vars,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_helpers import (
     CONTEXT_PATH_PATTERNS,
@@ -76,6 +76,8 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_tool_multimodal import (
 )
 
 if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
+
     from myrm_agent_harness.backends.skills.types import SkillMetadata
 
 logger = logging.getLogger(__name__)
@@ -200,11 +202,11 @@ def create_bash_code_execute_tool(
                     finish_listener=finish_listener,
                     progress_listener=progress_listener,
                 )
-                from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
-                    activate_session_spawn_tool,
-                )
                 from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
                     BASH_PROCESS_TOOL_NAME,
+                )
+                from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
+                    activate_session_spawn_tool,
                 )
 
                 activate_session_spawn_tool(session_id, BASH_PROCESS_TOOL_NAME)
@@ -377,7 +379,6 @@ def create_bash_code_execute_tool(
 __all__ = [
     "MAX_IMAGES_PER_RETURN",
     "BashInput",
-    "create_bash_code_execute_tool",
     "_build_background_listeners",
     "_classify_background_exit",
     "_format_result",
@@ -387,4 +388,5 @@ __all__ = [
     "_restore_context_vars",
     "_track_context_access_in_command",
     "_truncate_bash_output",
+    "create_bash_code_execute_tool",
 ]

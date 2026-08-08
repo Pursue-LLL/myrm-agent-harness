@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
-from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta
+from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef
 
 
 @pytest.fixture
@@ -138,7 +138,7 @@ async def test_fill_credential_no_password_returns_error(mock_backend, mock_conf
 async def test_fill_credential_success_message_with_multimodal_blocks(mock_backend, mock_config):
     """fill_credential with multimodal follow_up should prepend CREDENTIAL_FILLED marker."""
     session = DesktopSession(backend=mock_backend, config=mock_config)
-    elem = _setup_session_with_ref(session)
+    _setup_session_with_ref(session)
 
     block = MagicMock()
     block.text = "tree text"

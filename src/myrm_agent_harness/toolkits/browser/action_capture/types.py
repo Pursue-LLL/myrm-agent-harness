@@ -17,11 +17,11 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     """Capturable browser action types."""
 
     CLICK = "click"

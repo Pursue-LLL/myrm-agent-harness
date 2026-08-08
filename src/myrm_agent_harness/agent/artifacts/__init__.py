@@ -101,9 +101,6 @@ __all__ = [
     "get_inline_artifact_queue",
     "get_realtime_content_queue",
     "get_ui_registry",
-    "register_ui_artifact",
-    "register_ui_data_update",
-    "pop_pending_ui_events_for_message",
     # Types
     "infer_artifact_type",
     "infer_artifact_type_from_extension",
@@ -113,10 +110,13 @@ __all__ = [
     "is_active_content",
     "is_file_id",
     "is_text_content",
+    "pop_pending_ui_events_for_message",
     "push_inline_artifact",
     "push_realtime_content",
     "register_file",
     "register_generated_files",
+    "register_ui_artifact",
+    "register_ui_data_update",
     "resolve_file_id",
     "resolve_file_ids_in_text",
     # Filters

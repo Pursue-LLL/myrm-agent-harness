@@ -16,9 +16,9 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
 from myrm_agent_harness.toolkits.browser.pool.engine_affinity import (
-    EngineAffinityStore,
     _MAX_ENTRIES,
     _TTL_SECONDS,
+    EngineAffinityStore,
     get_engine_affinity_store,
 )
 

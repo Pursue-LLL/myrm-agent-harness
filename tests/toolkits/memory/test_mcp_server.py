@@ -624,8 +624,8 @@ class TestManagerResolver:
     @pytest.mark.asyncio
     async def test_contextvar_takes_priority_over_resolver(self, mock_manager):
         from myrm_agent_harness.toolkits.memory.mcp_server import (
-            set_request_memory_manager,
             reset_request_memory_manager,
+            set_request_memory_manager,
         )
 
         resolver_manager = AsyncMock()
@@ -665,7 +665,8 @@ class TestManagerResolver:
         mock_manager.search.assert_called_once()
 
     def test_factory_accepts_manager_resolver(self, mock_manager):
-        resolver = lambda: mock_manager
+        def resolver():
+            return mock_manager
         server = create_memory_mcp_server(
             mock_manager,
             server_name="factory-resolver",

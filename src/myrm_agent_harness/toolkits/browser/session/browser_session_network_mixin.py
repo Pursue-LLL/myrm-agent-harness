@@ -82,5 +82,5 @@ class BrowserSessionNetworkMixin:
         try:
             result = await page.evaluate(js_code)
             return str(result) if result else "Empty response"
-        except Exception as exc:
+        except Exception:
             return "Error replaying request"

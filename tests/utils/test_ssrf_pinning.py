@@ -6,7 +6,6 @@ create_pinned_transport, and build_host_resolver_rules.
 
 from __future__ import annotations
 
-import ipaddress
 import socket
 from unittest.mock import patch
 
@@ -110,7 +109,7 @@ class TestCheckIPBlocked:
         assert is_blocked_ip("::ffff:8.8.8.8") is False
 
     def test_unspecified_blocked(self) -> None:
-        assert is_blocked_ip("0.0.0.0") is True
+        assert is_blocked_ip("0.0.0.0") is True  # noqa: S104  # IP string assertion, not a bind
 
     def test_doc_test_net_blocked(self) -> None:
         assert is_blocked_ip("192.0.2.1") is True

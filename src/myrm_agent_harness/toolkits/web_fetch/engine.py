@@ -83,8 +83,8 @@ __all__ = [
     "AccessStats",
     "BackgroundTask",
     "CachedDocument",
-    "FetchEngine",
     "FailedResult",
+    "FetchEngine",
     "SuccessResult",
 ]
 

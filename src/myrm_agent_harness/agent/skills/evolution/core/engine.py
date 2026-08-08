@@ -47,7 +47,6 @@ from myrm_agent_harness.agent.skills.evolution.core.proposal_builder import (
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EnvironmentFingerprint,
     EvolutionProposal,
-    EvolutionRequest,
     EvolutionType,
     SkillEvidenceGroup,
     SkillRecord,
@@ -60,6 +59,7 @@ from myrm_agent_harness.agent.skills.evolution.pipeline.trace_analyzer import (
 from myrm_agent_harness.agent.skills.evolution.pipeline.variant_generator import (
     VariantGenerator,
 )
+
 from .engine_batch_mixin import SkillEvolutionEngineBatchMixin
 from .eval_regression import filter_variants_by_regression
 
@@ -271,7 +271,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
             return None
 
         # Improvement Gate: inject original as baseline to prevent quality regression
-        variants_with_baseline = [old_skill.content] + variants
+        variants_with_baseline = [old_skill.content, *variants]
 
         best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
             original_skill=old_skill,
@@ -408,7 +408,7 @@ class SkillEvolutionEngine(SkillEvolutionEngineBatchMixin):
         )
 
         # Improvement Gate: inject original as baseline to prevent quality regression
-        variants_with_baseline = [old_skill.content] + variants
+        variants_with_baseline = [old_skill.content, *variants]
 
         best_variant, score, reason, is_general = await self._evaluator.evaluate_variants(
             original_skill=old_skill,

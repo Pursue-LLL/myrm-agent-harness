@@ -98,9 +98,8 @@ class TestRunAxSnapshot:
         with patch(
             "myrm_agent_harness.toolkits.computer_use.perception.macos_ax.subprocess.run",
             side_effect=subprocess.TimeoutExpired(cmd="osascript", timeout=15),
-        ):
-            with pytest.raises(AXTreeEmptyError, match="timed out"):
-                _run_ax_snapshot("fake script")
+        ), pytest.raises(AXTreeEmptyError, match="timed out"):
+            _run_ax_snapshot("fake script")
 
 
 class TestParseAxOutput:
@@ -119,7 +118,7 @@ class TestParseAxOutput:
         assert snapshot.meta.pid == 12345
         assert snapshot.meta.scope == "foreground"
         assert len(snapshot.refs) == 1
-        ref = list(snapshot.refs.values())[0]
+        ref = next(iter(snapshot.refs.values()))
         assert ref.role == "AXButton"
         assert ref.name == "Save"
 
@@ -182,7 +181,7 @@ class TestParseAxOutput:
             "1|||AXTextField|||Email||||||10|||20|||80|||30\n"
         )
         snapshot = _parse_ax_output(self._make_result(stdout), effective_scope="foreground")
-        ref = list(snapshot.refs.values())[0]
+        ref = next(iter(snapshot.refs.values()))
         assert "fill" in ref.actions
         assert "click" in ref.actions
 

@@ -94,9 +94,10 @@ class TestRegisterToolLayer:
 
 class TestCommonLayerSortKey:
     def test_memory_block_before_web_search(self) -> None:
+        from langchain_core.tools import StructuredTool
+
         from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
         from myrm_agent_harness.agent.tool_management.types import ToolSource
-        from langchain_core.tools import StructuredTool
 
         def _tool(name: str) -> StructuredTool:
             return StructuredTool.from_function(

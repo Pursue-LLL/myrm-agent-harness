@@ -79,9 +79,8 @@ async def test_volcengine_search_raises_on_api_error_code() -> None:
     with patch(
         "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
         return_value=mock_http,
-    ):
-        with pytest.raises(SearchAPIError, match="10406"):
-            await client.search("quota test", num_results=1)
+    ), pytest.raises(SearchAPIError, match="10406"):
+        await client.search("quota test", num_results=1)
 
 
 @pytest.mark.asyncio
@@ -98,9 +97,8 @@ async def test_volcengine_search_raises_on_http_429() -> None:
     with patch(
         "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
         return_value=mock_http,
-    ):
-        with pytest.raises(SearchAPIError, match="429"):
-            await client.search("rate limit test", num_results=1)
+    ), pytest.raises(SearchAPIError, match="429"):
+        await client.search("rate limit test", num_results=1)
 
 
 def test_volcengine_requires_non_empty_api_key() -> None:
@@ -137,9 +135,8 @@ async def test_volcengine_search_timeout_raises() -> None:
     with patch(
         "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
         return_value=mock_http,
-    ):
-        with pytest.raises(SearchAPIError, match="timed out"):
-            await client.search("timeout test", num_results=1)
+    ), pytest.raises(SearchAPIError, match="timed out"):
+        await client.search("timeout test", num_results=1)
 
 
 @pytest.mark.asyncio
@@ -153,9 +150,8 @@ async def test_volcengine_search_http_error_raises() -> None:
     with patch(
         "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
         return_value=mock_http,
-    ):
-        with pytest.raises(SearchAPIError, match="HTTP error"):
-            await client.search("connect test", num_results=1)
+    ), pytest.raises(SearchAPIError, match="HTTP error"):
+        await client.search("connect test", num_results=1)
 
 
 @pytest.mark.asyncio
@@ -171,9 +167,8 @@ async def test_volcengine_search_http_500_raises() -> None:
     with patch(
         "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
         return_value=mock_http,
-    ):
-        with pytest.raises(SearchAPIError, match="HTTP 500"):
-            await client.search("server error", num_results=1)
+    ), pytest.raises(SearchAPIError, match="HTTP 500"):
+        await client.search("server error", num_results=1)
 
 
 @pytest.mark.asyncio
@@ -189,9 +184,8 @@ async def test_volcengine_search_invalid_json_raises() -> None:
     with patch(
         "myrm_agent_harness.toolkits.web_search.volcengine_doubao_search.create_httpx_client",
         return_value=mock_http,
-    ):
-        with pytest.raises(SearchAPIError, match="invalid JSON"):
-            await client.search("bad json", num_results=1)
+    ), pytest.raises(SearchAPIError, match="invalid JSON"):
+        await client.search("bad json", num_results=1)
 
 
 @pytest.mark.asyncio

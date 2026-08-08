@@ -6,7 +6,7 @@ Covers cited_memory_ref, _bounded_text, and emit_sources.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -72,7 +72,7 @@ class TestCitedMemoryRef:
         assert "source_message_id" not in ref
 
     def test_created_at_iso_format(self) -> None:
-        dt = datetime(2026, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+        dt = datetime(2026, 1, 15, 10, 30, 0, tzinfo=UTC)
         memory = FakeMemory(created_at=dt, scope=FakeScope())
         ref = cited_memory_ref(memory, MemoryType.EPISODIC, 0.9)
         assert ref["created_at"] == "2026-01-15T10:30:00+00:00"

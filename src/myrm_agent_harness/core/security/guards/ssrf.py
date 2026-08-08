@@ -35,8 +35,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "SSRFResult",
-    "SSRFVerdict",
     "SSRFSecurityError",
+    "SSRFVerdict",
     "URLAllowlistGuard",
     "async_pin_url",
     "async_validate_url_for_ssrf",

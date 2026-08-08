@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING
 import httpx
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
-
 from myrm_agent_harness.toolkits.llms._media_shared.types import (
     ModeCapabilities,
     ProviderModeCapabilities,

@@ -8,7 +8,6 @@ from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.queue import WikiIngestionQueue
 from myrm_agent_harness.toolkits.wiki.pipeline.survey import build_compile_survey
 from myrm_agent_harness.toolkits.wiki.pipeline.survey.types import (
-    FAST_PATH_MAX_FOLDER_DEPTH,
     FAST_PATH_MAX_RAW_COUNT,
 )
 
@@ -85,7 +84,7 @@ def test_chunk_sibling_grouping(wiki_structure: WikiStructure) -> None:
     ]
     # Force full survey via depth
     _raw_path(wiki_structure, "raw/deep/extra.md")
-    context = build_compile_survey(wiki_structure, paths + [wiki_structure.base_dir / "raw/deep/extra.md"])
+    context = build_compile_survey(wiki_structure, [*paths, wiki_structure.base_dir / "raw/deep/extra.md"])
     group_key = "raw/manual"
     assert group_key in context.chunk_groups
     assert len(context.chunk_groups[group_key]) == 3

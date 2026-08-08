@@ -16,6 +16,7 @@ metadata) — this component handles asynchronous CDP body queries.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import time
 from collections import deque
@@ -107,10 +108,8 @@ class NetworkIntelligence:
     async def detach(self) -> None:
         """Detach CDP monitoring and release resources."""
         if self._cdp_session is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await self._cdp_session.detach()
-            except Exception:
-                pass
             self._cdp_session = None
         self._bound_page = None
         self._enabled = False

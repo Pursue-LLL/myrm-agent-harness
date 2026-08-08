@@ -1387,9 +1387,7 @@ class TestSlowHookWarning:
     @pytest.mark.asyncio
     async def test_slow_hook_logs_warning(self):
         import asyncio as _asyncio
-        import logging
 
-        from myrm_agent_harness.agent.hooks.executor import _SLOW_HOOK_THRESHOLD_MS
 
         async def slow_hook(event: str, payload: dict[str, object]) -> HookResult:
             await _asyncio.sleep(0.01)
@@ -1436,7 +1434,7 @@ class TestSlowHookWarning:
             "logger",
         ) as mock_logger:
             mock_logger.warning = unittest.mock.MagicMock()
-            result = await executor.execute(HookEvent.SESSION_START, {})
+            await executor.execute(HookEvent.SESSION_START, {})
             slow_calls = [
                 call for call in mock_logger.warning.call_args_list
                 if "Slow hook" in str(call)

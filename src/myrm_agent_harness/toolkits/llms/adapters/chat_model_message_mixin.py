@@ -21,26 +21,25 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
+from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
+    _DEVELOPER_ROLE_PATTERN,
+    _SYSTEM_MESSAGE_DENYLIST_HINTS,
+    EmptyChoicesError,
+)
 from myrm_agent_harness.toolkits.llms.adapters.converters import (
     convert_dict_to_message,
     convert_message_to_dict,
     create_usage_metadata,
 )
-from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import (
-    build_final_tool_call_chunk as _build_final_tool_call_chunk_fn,
-)
-
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
-    EmptyChoicesError,
-    _DEVELOPER_ROLE_PATTERN,
-    _SYSTEM_MESSAGE_DENYLIST_HINTS,
-)
 from myrm_agent_harness.toolkits.llms.adapters.model_capability import ModelCapabilityDetector
 from myrm_agent_harness.toolkits.llms.adapters.safety_termination_detector import (
     detect_safety_termination,
     suppress_tool_calls_for_safety,
+)
+from myrm_agent_harness.toolkits.llms.adapters.tool_recovery import (
+    build_final_tool_call_chunk as _build_final_tool_call_chunk_fn,
 )
 
 logger = logging.getLogger(__name__)

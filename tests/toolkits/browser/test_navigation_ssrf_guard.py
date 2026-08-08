@@ -20,9 +20,8 @@ async def test_assert_browser_navigation_allowed_blocks_private() -> None:
     with patch(
         "myrm_agent_harness.core.security.guards.ssrf.async_pin_url",
         side_effect=SSRFSecurityError("blocked"),
-    ):
-        with pytest.raises(BrowserNavigationBlockedError, match="SSRF blocked"):
-            await assert_browser_navigation_allowed("http://169.254.169.254/")
+    ), pytest.raises(BrowserNavigationBlockedError, match="SSRF blocked"):
+        await assert_browser_navigation_allowed("http://169.254.169.254/")
 
 
 @pytest.mark.asyncio

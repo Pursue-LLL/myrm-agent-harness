@@ -19,7 +19,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from myrm_agent_harness.toolkits.web_fetch.url_normalizer import normalize_url
@@ -128,13 +128,12 @@ class WebCorpusStore:
     ) -> None:
         """Insert or update a web page entry (UPSERT semantics on normalized URL)."""
         norm_url = normalize_url(url)
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         content_hash = ""
 
-        content_path: str | None = None
         if content:
             content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
-            content_path = self._write_content(norm_url, content)
+            self._write_content(norm_url, content)
 
         with self._conn:
             existing = self._conn.execute(
@@ -217,7 +216,7 @@ class WebCorpusStore:
         else:
             self._miss_count += 1
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         row_ids = [str(r["id"]) for r in rows]
         if row_ids:
             placeholders = ",".join("?" for _ in row_ids)

@@ -233,7 +233,7 @@ def _scan_rules_subdir(
 
 def _scan_directory(directory: Path) -> list[RuleFile]:
     """Scan a single directory for rule files.
-    
+
     Uses First-Match-Wins for global rule files to prevent conflicts,
     but always loads specific rule directories (.myrm/rules, .cursor/rules).
     """

@@ -25,6 +25,7 @@ that allows the user to directly operate the browser when automation is insuffic
 from __future__ import annotations
 
 import base64
+import contextlib
 import logging
 import time
 from typing import TYPE_CHECKING
@@ -92,10 +93,8 @@ def create_takeover_tool(session: BrowserSession):
             logger.debug("Failed to capture screenshot for takeover request")
 
         current_url = ""
-        try:
+        with contextlib.suppress(Exception):
             current_url = page.url
-        except Exception:
-            pass
 
         event_payload = {
             "reason": reason,
@@ -134,10 +133,8 @@ def create_takeover_tool(session: BrowserSession):
         })
 
         post_url = ""
-        try:
+        with contextlib.suppress(Exception):
             post_url = page.url
-        except Exception:
-            pass
 
         post_screenshot_desc = ""
         try:

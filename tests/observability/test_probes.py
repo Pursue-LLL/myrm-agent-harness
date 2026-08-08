@@ -254,12 +254,11 @@ class TestCheckDesktopPermissionsHealth:
         mock_session.check_permissions = AsyncMock(return_value=mock_status)
         mock_session.close = AsyncMock()
 
-        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False):
-            with patch(
-                "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
-                return_value=mock_session,
-            ):
-                report = await check_desktop_permissions_health()
+        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False), patch(
+            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+            return_value=mock_session,
+        ):
+            report = await check_desktop_permissions_health()
 
         assert report.status == "pass"
         assert report.code == "OK_DESKTOP_PERMISSIONS"
@@ -283,12 +282,11 @@ class TestCheckDesktopPermissionsHealth:
         mock_session.check_permissions = AsyncMock(return_value=mock_status)
         mock_session.close = AsyncMock()
 
-        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False):
-            with patch(
-                "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
-                return_value=mock_session,
-            ):
-                report = await check_desktop_permissions_health()
+        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False), patch(
+            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+            return_value=mock_session,
+        ):
+            report = await check_desktop_permissions_health()
 
         assert report.status == "warn"
         assert report.code == "WARN_DESKTOP_PERMISSIONS_MISSING"
@@ -315,12 +313,11 @@ class TestCheckDesktopPermissionsHealth:
         mock_session.check_permissions = AsyncMock(return_value=mock_status)
         mock_session.close = AsyncMock()
 
-        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False):
-            with patch(
-                "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
-                return_value=mock_session,
-            ):
-                report = await check_desktop_permissions_health()
+        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False), patch(
+            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+            return_value=mock_session,
+        ):
+            report = await check_desktop_permissions_health()
 
         assert report.status == "warn"
         assert report.code == "WARN_DESKTOP_PERMISSIONS_MISSING"
@@ -331,12 +328,11 @@ class TestCheckDesktopPermissionsHealth:
     async def test_create_session_failure_returns_fail(self):
         from myrm_agent_harness.observability.diagnostics.probes import check_desktop_permissions_health
 
-        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False):
-            with patch(
-                "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
-                side_effect=RuntimeError("harness unavailable"),
-            ):
-                report = await check_desktop_permissions_health()
+        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False), patch(
+            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+            side_effect=RuntimeError("harness unavailable"),
+        ):
+            report = await check_desktop_permissions_health()
 
         assert report.status == "fail"
         assert report.code == "ERR_DESKTOP_PERMISSIONS_PROBE"
@@ -350,12 +346,11 @@ class TestCheckDesktopPermissionsHealth:
         mock_session.check_permissions = AsyncMock(side_effect=OSError("AX probe crash"))
         mock_session.close = AsyncMock()
 
-        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False):
-            with patch(
-                "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
-                return_value=mock_session,
-            ):
-                report = await check_desktop_permissions_health()
+        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False), patch(
+            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+            return_value=mock_session,
+        ):
+            report = await check_desktop_permissions_health()
 
         assert report.status == "fail"
         assert report.code == "ERR_DESKTOP_PERMISSIONS_PROBE"

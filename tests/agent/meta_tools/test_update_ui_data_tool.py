@@ -22,10 +22,10 @@ def _clean_ui_globals(monkeypatch):
     _RUN_MESSAGE_ID_BY_SESSION.clear()
     _PENDING_BY_MESSAGE_ID.clear()
     monkeypatch.setattr(_ui_reg_mod, "_CURRENT_RUN_UI_MESSAGE_ID", None)
-    from myrm_agent_harness.agent.middlewares._session_context import _active_message_id_var
     from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
         _current_message_id as _snapshot_msg_id_var,
     )
+    from myrm_agent_harness.agent.middlewares._session_context import _active_message_id_var
     _active_message_id_var.set(None)
     _snapshot_msg_id_var.set(None)
     yield

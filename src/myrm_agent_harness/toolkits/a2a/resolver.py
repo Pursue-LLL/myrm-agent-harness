@@ -23,12 +23,11 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from myrm_agent_harness.infra.tls_compat import create_httpx_client
-
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
 from myrm_agent_harness.toolkits.a2a.types import (
-    AgentCard,
     WELL_KNOWN_AGENT_CARD_PATH,
+    AgentCard,
 )
 
 logger = logging.getLogger(__name__)

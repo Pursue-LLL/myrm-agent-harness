@@ -14,6 +14,7 @@ with localized user messages and resolution steps.
 """
 
 import re
+from typing import ClassVar
 
 from myrm_agent_harness.agent.errors.diagnostics.i18n import get_locale_manager
 from myrm_agent_harness.agent.errors.diagnostics.types import (
@@ -377,20 +378,20 @@ class LLMErrorDiagnostic:
             locale=locale,
         )
 
-    _RECOVERY_ACTION_DEFS: dict[str, list[tuple[str, str]]] = {
+    _RECOVERY_ACTION_DEFS: ClassVar[dict[str, list[tuple[str, str]]]] = {
         "api_key": [("update_key", "/settings")],
         "billing": [("top_up", "/settings")],
         "model": [("change_model", "/settings")],
         "custom_model_not_found": [("change_model", "/settings")],
     }
 
-    _RECOVERY_LABELS: dict[str, str] = {
+    _RECOVERY_LABELS: ClassVar[dict[str, str]] = {
         "update_key": "Update API Key",
         "top_up": "Top Up Balance",
         "change_model": "Change Model",
     }
 
-    _RECOVERY_LABELS_I18N: dict[str, dict[str, str]] = {
+    _RECOVERY_LABELS_I18N: ClassVar[dict[str, dict[str, str]]] = {
         "zh-CN": {"update_key": "更新 API 密钥", "top_up": "充值余额", "change_model": "切换模型"},
         "ja": {"update_key": "APIキーを更新", "top_up": "残高をチャージ", "change_model": "モデルを変更"},
         "ko": {"update_key": "API 키 업데이트", "top_up": "잔액 충전", "change_model": "모델 변경"},

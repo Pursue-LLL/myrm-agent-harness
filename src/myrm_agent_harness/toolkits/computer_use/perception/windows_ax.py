@@ -5,9 +5,9 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 from myrm_agent_harness.toolkits.computer_use.dref.errors import AXPermissionRequiredError, AXTreeEmptyError
 from myrm_agent_harness.toolkits.computer_use.dref.types import BBox, ElementRef, SnapshotMeta, SnapshotScope
+from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 
 logger = logging.getLogger(__name__)
 

@@ -19,7 +19,7 @@ import json
 import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -29,15 +29,12 @@ from myrm_agent_harness.toolkits.memory._internal.hash_utils import (
     compute_normalized_hash,
 )
 from myrm_agent_harness.toolkits.memory.strategies.deduplicator import (
-    DeduplicationDecision,
     SmartDeduplicator,
 )
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
-    MemoryType,
     SemanticMemory,
 )
-
 
 # ── Fixtures ─────────────────────────────────────────────────────────
 

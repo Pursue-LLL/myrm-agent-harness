@@ -7,6 +7,7 @@ Queue/subgoal/stash operations mixin for GoalManager.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from myrm_agent_harness.agent.goals.types import Goal, GoalStatus
 from myrm_agent_harness.observability.metrics.goal_metrics import record_goal_objective_updated

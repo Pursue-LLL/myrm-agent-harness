@@ -21,7 +21,6 @@ from myrm_agent_harness.toolkits.llms.core.llm import (
     _LOCAL_FIRST_EVENT_TIMEOUT,
     _LOCAL_INTER_CHUNK_TIMEOUT,
     _LOCAL_REQUEST_TIMEOUT,
-    _is_local_endpoint,
     create_litellm_model,
 )
 

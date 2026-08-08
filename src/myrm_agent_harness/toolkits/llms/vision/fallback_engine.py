@@ -22,7 +22,7 @@ import base64
 import io
 import logging
 from collections.abc import Sequence
-from typing import Any, Protocol
+from typing import Any, ClassVar, Protocol
 
 from langchain_core.messages import HumanMessage
 
@@ -93,12 +93,14 @@ def pick_video_fallback_model_cfgs(
     vision_fallback_model_cfgs: object | None,
 ) -> list[object]:
     """Prefer video fallback slot configs, then vision fallback slot."""
-    if video_fallback_model_cfgs is not None:
-        if isinstance(video_fallback_model_cfgs, (list, tuple)) and video_fallback_model_cfgs:
-            return list(video_fallback_model_cfgs)
-    if vision_fallback_model_cfgs is not None:
-        if isinstance(vision_fallback_model_cfgs, (list, tuple)) and vision_fallback_model_cfgs:
-            return list(vision_fallback_model_cfgs)
+    if video_fallback_model_cfgs is not None and isinstance(
+        video_fallback_model_cfgs, (list, tuple)
+    ) and video_fallback_model_cfgs:
+        return list(video_fallback_model_cfgs)
+    if vision_fallback_model_cfgs is not None and isinstance(
+        vision_fallback_model_cfgs, (list, tuple)
+    ) and vision_fallback_model_cfgs:
+        return list(vision_fallback_model_cfgs)
     return []
 
 
@@ -151,7 +153,7 @@ class VisionFallbackEngine:
 
     _FOCUS_HINT_MAX_CHARS = 500
 
-    _HINT_LABELS: dict[str, str] = {
+    _HINT_LABELS: ClassVar[dict[str, str]] = {
         "user": "The user's current request, so you know which details matter most:",
         "assistant": "Why the assistant decided to view this image, so you know which details matter most:",
     }

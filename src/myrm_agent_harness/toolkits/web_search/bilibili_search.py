@@ -77,8 +77,8 @@ async def search_bilibili(
         try:
             params = urllib.parse.urlencode({"keyword": keyword, "page": 1})
             url = f"{_SEARCH_API}?{params}"
-            req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)
-            with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:
+            req = urllib.request.Request(url, headers=_DEFAULT_HEADERS)  # noqa: S310
+            with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT) as resp:  # noqa: S310
                 data = json.loads(resp.read().decode("utf-8"))
 
             if data.get("code") != 0:

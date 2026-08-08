@@ -1,6 +1,5 @@
 """Tests for list_by_type sort_by/tag_filter and tag normalization in converters."""
 
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
@@ -20,7 +19,6 @@ from myrm_agent_harness.toolkits.memory.types import (
     MemoryType,
     SemanticMemory,
 )
-from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
 
 class TestSortFieldMap:

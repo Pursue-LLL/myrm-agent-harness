@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from myrm_agent_harness.toolkits.retriever.embedding.cloud_embedding import (
-    CloudEmbedding,
     _MAX_CHARS_PER_BATCH,
     _MAX_TEXTS_PER_BATCH,
+    CloudEmbedding,
 )
 
 

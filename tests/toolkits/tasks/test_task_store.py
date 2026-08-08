@@ -330,7 +330,7 @@ async def test_update_task_can_clear_result_as_sql_null(temp_store):
     assert updated.status == TaskStatus.PENDING
     assert updated.result is None
 
-    conn = temp_store._conn()  # noqa: SLF001 - test-only DB-level assertion
+    conn = temp_store._conn()
     try:
         row = conn.execute("SELECT result FROM tasks WHERE task_id = ?", ("test-clear-result",)).fetchone()
     finally:

@@ -104,7 +104,7 @@ def create_interact_tool(session: BrowserSession):
     vault = get_global_credential_vault()
     labels = vault.list_labels()
     labels_str = ", ".join([f"'{lbl}'" for lbl in labels]) if labels else "none available"
-    InteractInput = _build_interact_input_model(labels_str=labels_str)
+    InteractInput = _build_interact_input_model(labels_str=labels_str)  # noqa: N806  # dynamically built model class
 
     async def _run_single(action: str, ref: str, text: str, verify_goal: str | None) -> str:
         count_before = len(session.list_downloads())

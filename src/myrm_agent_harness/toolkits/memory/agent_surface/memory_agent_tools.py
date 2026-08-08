@@ -31,8 +31,6 @@ from myrm_agent_harness.toolkits.memory.agent_surface._memory_agent_tool_descrip
     build_memory_search_tool_description,
     resolve_memory_manage_tool_description,
 )
-from myrm_agent_harness.toolkits.memory.config import RecallMode
-from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_budget import (
     DEFAULT_RECALL_LIMIT,
     normalize_recall_limit,
@@ -40,6 +38,8 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_budget impor
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     format_preference_save_ack,
     format_profile_recall_output,
+)
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     parse_time_bound as _parse_time_bound,
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
@@ -53,12 +53,14 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy impor
     MemorySearchPolicy,
     resolve_search_corpora,
 )
-from myrm_agent_harness.toolkits.memory.types import MemoryType, RuleSource
 from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     looks_like_wiki_document,
     record_wiki_memory_save_rejection,
     wiki_memory_save_rejection_message,
 )
+from myrm_agent_harness.toolkits.memory.config import RecallMode
+from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+from myrm_agent_harness.toolkits.memory.types import MemoryType, RuleSource
 
 logger = logging.getLogger(__name__)
 

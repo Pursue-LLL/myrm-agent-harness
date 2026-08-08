@@ -1558,7 +1558,7 @@ class TestBuildMonitorConfig:
         assert clear is True
 
     def test_off_case_insensitive(self):
-        err, cfg, clear = _build_monitor_config("  OFF  ", False)
+        err, _cfg, clear = _build_monitor_config("  OFF  ", False)
         assert err is None
         assert clear is True
 

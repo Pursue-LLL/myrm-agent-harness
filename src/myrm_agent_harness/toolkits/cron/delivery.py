@@ -29,7 +29,6 @@ from datetime import UTC, datetime
 import httpx
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
-
 from myrm_agent_harness.toolkits.cron.types import CronJob, JobResult
 
 logger = logging.getLogger(__name__)

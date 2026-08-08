@@ -11,7 +11,6 @@ from myrm_agent_harness.toolkits.memory._memory_agent_tool_descriptions import (
     MEMORY_SAVE_CORE_ZH,
     MEMORY_SAVE_TOOL_DESCRIPTION,
     MEMORY_SAVE_TOOL_DESCRIPTION_EN,
-    MEMORY_SAVE_TOOL_DESCRIPTION_ZH,
     build_memory_save_tool_description,
     build_memory_search_tool_description,
     resolve_memory_manage_tool_description,

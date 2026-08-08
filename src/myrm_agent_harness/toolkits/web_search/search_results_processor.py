@@ -160,9 +160,8 @@ def combine_search_results_unified(
 
             # Layer 1: URL arbitration (same URL, keep longest content)
             prev = url_best.get(normalized_url_dedup)
-            if prev is not None:
-                if content_len <= prev[0]:
-                    continue
+            if prev is not None and content_len <= prev[0]:
+                continue
             url_best[normalized_url_dedup] = (content_len, doc, normalized_url_semantic)
 
     total_queries = len(search_results)

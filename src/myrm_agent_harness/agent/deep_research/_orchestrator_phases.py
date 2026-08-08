@@ -24,8 +24,13 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 
-from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.meta_tools.clarification import AskQuestionInput, QuestionItem
+from myrm_agent_harness.agent.orchestration.signals.deep_research import (
+    FINALIZE_TOOL_NAME,
+    build_orchestrator_tools,
+    build_signal_schema,
+)
+from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .helpers import (
@@ -34,11 +39,6 @@ from .helpers import (
     extract_tool_calls,
 )
 from .prompts import CLARIFICATION_PROMPT
-from myrm_agent_harness.agent.orchestration.signals.deep_research import (
-    FINALIZE_TOOL_NAME,
-    build_orchestrator_tools,
-    build_signal_schema,
-)
 
 if TYPE_CHECKING:
     pass

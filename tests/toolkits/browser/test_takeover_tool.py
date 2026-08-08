@@ -113,7 +113,7 @@ class TestTakeoverToolInterruptFlow:
         ):
             mock_interrupt.return_value = {"decision": "approve", "message": "Done!"}
 
-            result = asyncio.run(tool.ainvoke({"reason": "Please complete payment"}))
+            asyncio.run(tool.ainvoke({"reason": "Please complete payment"}))
 
             assert mock_dispatch.call_count == 2
             first_call = mock_dispatch.call_args_list[0]

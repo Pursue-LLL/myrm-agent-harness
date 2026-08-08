@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
@@ -173,7 +172,7 @@ async def test_drop_oversized_from_index(store: ShadowGitSnapshotStore, workspac
     large = workspace / "oversized.bin"
     large.write_bytes(b"\x00" * (11 * 1024 * 1024))
 
-    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "with oversized")
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "with oversized")
     snaps = await store.list_snapshots(str(workspace))
     assert snaps[0].file_count == 1  # only file.txt, not oversized.bin
 

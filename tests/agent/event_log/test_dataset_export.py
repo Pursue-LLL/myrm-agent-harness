@@ -28,11 +28,9 @@ from myrm_agent_harness.agent.event_log.trace_types import (
     ExecutionTrace,
     LLMCallRecord,
     ToolCallRecord,
-    TraceMetadata,
     TraceOutcome,
 )
 from myrm_agent_harness.agent.event_log.types import EventFilter, EventPayload, StructuredEvent
-
 
 # ---------------------------------------------------------------------------
 # Test helpers

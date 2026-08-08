@@ -34,10 +34,10 @@ from pathlib import Path
 from typing import Protocol
 
 from myrm_agent_harness.utils.image_utils import (
+    MAX_IMAGE_READ_BYTES,
     get_image_url,
     is_base64_data_url,
     is_image_content_item,
-    MAX_IMAGE_READ_BYTES,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -156,7 +156,9 @@ class MediaResolverProcessor(BaseProcessor):
         )
 
         resolved_count = 0
-        for (msg_idx, item_idx, original_url), result in zip(resolve_tasks, results):
+        for (msg_idx, item_idx, original_url), result in zip(
+            resolve_tasks, results, strict=True
+        ):
             if isinstance(result, Exception):
                 logger.warning("[MediaResolver] Failed to resolve %s: %s", original_url[:80], result)
                 continue

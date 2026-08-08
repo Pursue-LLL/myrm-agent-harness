@@ -23,7 +23,6 @@ import logging
 import subprocess
 from dataclasses import dataclass
 
-from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 from myrm_agent_harness.toolkits.computer_use.dref.errors import AXPermissionRequiredError, AXTreeEmptyError
 from myrm_agent_harness.toolkits.computer_use.dref.types import (
     INTERACTIVE_AX_ROLES,
@@ -33,6 +32,7 @@ from myrm_agent_harness.toolkits.computer_use.dref.types import (
     SnapshotScope,
 )
 from myrm_agent_harness.toolkits.computer_use.perception.overlay_roles import normalize_desktop_role
+from myrm_agent_harness.toolkits.computer_use.types import ActionResult
 
 logger = logging.getLogger(__name__)
 

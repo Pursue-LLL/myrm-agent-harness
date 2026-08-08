@@ -8,13 +8,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaHandleResult, CaptchaType
-from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
+from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
 from myrm_agent_harness.toolkits.browser.pool import ContextType
+from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
 from myrm_agent_harness.toolkits.browser.session.browser_session_navigation_mixin import (
     _camoufox_launch_tool_error,
 )
-from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
 from myrm_agent_harness.utils.errors import ToolError
 
 from ..test_browser_session import _FakePool
@@ -23,6 +23,7 @@ from ..test_browser_session import _FakePool
 @pytest.fixture()
 def store_dir(tmp_path: object) -> str:
     import os
+
     import myrm_agent_harness.toolkits.browser.pool.engine_affinity as mod
 
     old_global = mod._global_store

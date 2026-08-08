@@ -23,11 +23,6 @@ from langchain_core.language_models.chat_models import agenerate_from_stream
 from langchain_core.messages import (
     AIMessageChunk,
     BaseMessage,
-    BaseMessageChunk,
-    FunctionMessageChunk,
-    HumanMessageChunk,
-    SystemMessageChunk,
-    ToolCallChunk,
 )
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 
@@ -44,7 +39,6 @@ from myrm_agent_harness.toolkits.llms.adapters.stream_aggregator import (
     XmlStreamBuffer,
     finalize_stream,
 )
-from myrm_agent_harness.toolkits.llms.adapters.streaming import build_tool_call_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -314,7 +308,7 @@ class ChatLiteLLMAsyncMixin:
                                     if run_manager:
                                         await run_manager.on_llm_new_token(safe_content, chunk=safe_cg_chunk)
                                     yield safe_cg_chunk
-                except TimeoutError:
+                except TimeoutError as exc:
                     timeout_val = self.first_event_timeout if stall_phase == "first_event" else self.inter_chunk_timeout
                     logger.warning(
                         " Stream stall detected (phase=%s, model=%s, timeout=%.0fs)",
@@ -325,7 +319,7 @@ class ChatLiteLLMAsyncMixin:
                         model=model_name,
                         phase=stall_phase,
                         elapsed_s=timeout_val,
-                    )
+                    ) from exc
 
                 logger.debug(f" Stream completed: total {agg.chunk_count} chunks")
 

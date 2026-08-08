@@ -6,13 +6,13 @@ This module re-exports them for backward compatibility within agent/.
 
 from myrm_agent_harness.core.hooks.types import *  # noqa: F403
 from myrm_agent_harness.core.hooks.types import (
-    ApprovalCorrectionPayload as ApprovalCorrectionPayload,
-)
-from myrm_agent_harness.core.hooks.types import (
     EMPTY_RESULT as EMPTY_RESULT,
 )
 from myrm_agent_harness.core.hooks.types import (
     AggregatedHookResult as AggregatedHookResult,
+)
+from myrm_agent_harness.core.hooks.types import (
+    ApprovalCorrectionPayload as ApprovalCorrectionPayload,
 )
 from myrm_agent_harness.core.hooks.types import (
     CallableHookDefinition as CallableHookDefinition,

@@ -10,15 +10,15 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from harness_packaging.codegen import (  # noqa: E402
+from harness_packaging.codegen import (
     generated_core_ip_manifest_path,
     render_compiled_core_sections,
     render_core_ip_manifest_module,
 )
-from harness_packaging.integrity import manifest_import_names, manifest_source_relpaths  # noqa: E402
-from harness_packaging.manifest import load_core_manifest  # noqa: E402
-from harness_packaging.version import read_harness_version  # noqa: E402
-from myrm_agent_harness.distribution.core_ip_manifest import CORE_IP_IMPORTS  # noqa: E402
+from harness_packaging.integrity import manifest_import_names, manifest_source_relpaths
+from harness_packaging.manifest import load_core_manifest
+from harness_packaging.version import read_harness_version
+from myrm_agent_harness.distribution.core_ip_manifest import CORE_IP_IMPORTS
 
 
 @pytest.mark.architecture
@@ -34,7 +34,7 @@ def test_core_manifest_directory_expansion_covers_algorithm_subtrees() -> None:
 def test_generated_core_ip_manifest_matches_yaml_ssot() -> None:
     """Generated runtime manifest must match YAML-derived import paths."""
     yaml_names = manifest_import_names()
-    assert CORE_IP_IMPORTS == yaml_names
+    assert yaml_names == CORE_IP_IMPORTS
 
 
 @pytest.mark.architecture
@@ -99,8 +99,8 @@ def test_nuitka_compile_input_uses_package_dir_for_init() -> None:
 @pytest.mark.architecture
 def test_runtime_platform_key_is_supported() -> None:
     """Runtime platform detection must resolve to a published core wheel key."""
-    from harness_packaging.runtime_platform import get_runtime_platform_key
     from harness_packaging.platforms import SUPPORTED_PLATFORMS
+    from harness_packaging.runtime_platform import get_runtime_platform_key
     from myrm_agent_harness.distribution.runtime_platform import get_runtime_platform_key as shipped_key
 
     key = get_runtime_platform_key()

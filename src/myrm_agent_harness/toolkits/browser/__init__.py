@@ -74,6 +74,13 @@ from .retry_policy import (
 from .session import BrowserSession
 
 if TYPE_CHECKING:
+    from .action_capture import (
+        ActionCaptureEngine,
+        ActionStep,
+        ActionType,
+        CaptureCallback,
+        CaptureSession,
+    )
     from .checkpoint import (
         AutoRecoveryOrchestrator,
         BrowserCheckpointHelper,
@@ -99,13 +106,6 @@ if TYPE_CHECKING:
         format_report,
         run_doctor,
     )
-    from .action_capture import (
-        ActionCaptureEngine,
-        ActionStep,
-        ActionType,
-        CaptureCallback,
-        CaptureSession,
-    )
     from .observability import BrowserObservability, RecordingConfig
     from .session_vault import SessionVault
     from .session_vault_exceptions import (
@@ -121,8 +121,6 @@ __all__ = [
     "ActionCaptureEngine",
     "ActionStep",
     "ActionType",
-    "CaptureCallback",
-    "CaptureSession",
     "AutoRecoveryOrchestrator",
     "BrowserCheckpointHelper",
     "BrowserClosedError",
@@ -138,6 +136,8 @@ __all__ = [
     "BrowserShutdownError",
     "BrowserTimeoutError",
     "BrowserToolError",
+    "CaptureCallback",
+    "CaptureSession",
     "CheckStatus",
     "CheckpointMetadata",
     "CheckpointMetrics",

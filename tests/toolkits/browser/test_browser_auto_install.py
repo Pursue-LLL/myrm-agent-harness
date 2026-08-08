@@ -17,7 +17,6 @@ from myrm_agent_harness.toolkits.browser.pool.browser_launcher import (
 )
 from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine, LaunchMode
 
-
 # ---------------------------------------------------------------------------
 # _is_executable_missing
 # ---------------------------------------------------------------------------
@@ -345,7 +344,6 @@ class TestLaunchNewBrowserAutoInstall:
         mock_install_proc.returncode = 0
         mock_install_proc.communicate = AsyncMock(return_value=(b"OK", b""))
 
-        original_create = asyncio.create_subprocess_exec
 
         async def count_installs(*args: object, **kwargs: object) -> AsyncMock:
             nonlocal install_call_count
@@ -354,10 +352,9 @@ class TestLaunchNewBrowserAutoInstall:
 
         with (
             patch.object(launcher, "_ensure_playwright", return_value=mock_pw),
-            patch("asyncio.create_subprocess_exec", side_effect=count_installs),
+            patch("asyncio.create_subprocess_exec", side_effect=count_installs),pytest.raises(BrowserLaunchError)
         ):
-            with pytest.raises(BrowserLaunchError):
-                await launcher._launch_new_browser()
+            await launcher._launch_new_browser()
 
         assert install_call_count == 1
 

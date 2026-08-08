@@ -26,6 +26,7 @@ from myrm_agent_harness.toolkits.a2a.resolver import (
 )
 from myrm_agent_harness.toolkits.a2a.types import (
     A2A_PROTOCOL_VERSION,
+    WELL_KNOWN_AGENT_CARD_PATH,
     AgentCapabilities,
     AgentCard,
     AgentExtension,
@@ -33,11 +34,11 @@ from myrm_agent_harness.toolkits.a2a.types import (
     AgentProvider,
     AgentSkill,
     TransportProtocol,
-    WELL_KNOWN_AGENT_CARD_PATH,
 )
 
 __all__ = [
     "A2A_PROTOCOL_VERSION",
+    "WELL_KNOWN_AGENT_CARD_PATH",
     "A2ACardResolver",
     "A2AResolveError",
     "AgentCapabilities",
@@ -49,5 +50,4 @@ __all__ = [
     "AgentSkill",
     "SSRFBlockedError",
     "TransportProtocol",
-    "WELL_KNOWN_AGENT_CARD_PATH",
 ]

@@ -32,7 +32,6 @@ from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.context_management.infra.evicted_content import (
     build_delivery_footer,
-    cap_content_for_storage,
 )
 from myrm_agent_harness.agent.context_management.strategies.filter import should_filter
 from myrm_agent_harness.agent.context_management.strategies.filters.base import (
@@ -46,6 +45,9 @@ from myrm_agent_harness.agent.context_management.strategies.filters.structural_f
 from myrm_agent_harness.utils.text_utils import get_token_count, smart_truncate
 
 if TYPE_CHECKING:
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        EvictedPersistResult,
+    )
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 
 logger = logging.getLogger(__name__)
@@ -87,7 +89,7 @@ async def maybe_evict_large_output(
         return EvictionResult(text=stdout)
 
     file_path: str | None = None
-    persist_stats: "EvictedPersistResult | None" = None
+    persist_stats: EvictedPersistResult | None = None
     try:
         if executor is not None:
             file_path, persist_stats = await _save_to_file(executor, stdout)
@@ -165,7 +167,7 @@ async def maybe_evict_large_output(
 
 async def _save_to_file(
     executor: CodeExecutor, content: str
-) -> tuple[str | None, "EvictedPersistResult | None"]:
+) -> tuple[str | None, EvictedPersistResult | None]:
     """Persist large bash output under `.context/{session_id}/evicted/`.
 
     Uses the same workspace_root_var + chat_id_var path as web_fetch UECD spill

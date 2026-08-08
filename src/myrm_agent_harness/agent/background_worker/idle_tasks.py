@@ -240,74 +240,73 @@ async def default_idle_callback(session_id: str, registry: IdleTaskRegistry) -> 
                         extractor = SessionEvidenceExtractor(event_logger._backend)
                         digest = await extractor.extract_digest(session_id)
                         proposal_dict = None
-                        if digest:
+                        if digest and digest.anti_patterns:
                             # Trigger CAPTURED evolution if there are anti-patterns (failures/corrections)
-                            if digest.anti_patterns:
-                                logger.info(
-                                    "Found %d anti-patterns in session %s, triggering CAPTURED evolution",
-                                    len(digest.anti_patterns),
-                                    session_id,
+                            logger.info(
+                                "Found %d anti-patterns in session %s, triggering CAPTURED evolution",
+                                len(digest.anti_patterns),
+                                session_id,
+                            )
+                            try:
+                                from pathlib import Path
+
+                                from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
+                                from myrm_agent_harness.agent.skills.evolution.core.engine import (
+                                    SkillEvolutionEngine,
                                 )
-                                try:
-                                    from pathlib import Path
+                                from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
 
-                                    from myrm_agent_harness.agent.middlewares._session_context import get_workspace_root
-                                    from myrm_agent_harness.agent.skills.evolution.core.engine import (
-                                        SkillEvolutionEngine,
-                                    )
-                                    from myrm_agent_harness.agent.skills.evolution.db.store import SkillStore
+                                events = await event_logger._backend.get_events(session_id)
+                                trajectory = "\n".join([f"[{e.event_type}] {e.data}" for e in events])
 
-                                    events = await event_logger._backend.get_events(session_id)
-                                    trajectory = "\n".join([f"[{e.event_type}] {e.data}" for e in events])
+                                memory_manager = get_memory_manager()
+                                llm = (
+                                    memory_manager._consolidation_llm.keywords.get("llm")
+                                    if memory_manager and hasattr(memory_manager, "_consolidation_llm")
+                                    else None
+                                )
 
-                                    memory_manager = get_memory_manager()
-                                    llm = (
-                                        memory_manager._consolidation_llm.keywords.get("llm")
-                                        if memory_manager and hasattr(memory_manager, "_consolidation_llm")
-                                        else None
-                                    )
+                                if llm is None:
+                                    logger.warning("No LLM found for CAPTURED evolution in session %s", session_id)
+                                else:
+                                    workspace_root = Path(get_workspace_root())
+                                    store = SkillStore(db_path=workspace_root / ".myrm" / "skills.db")
+                                    try:
+                                        engine = SkillEvolutionEngine(
+                                            store=store, llm=llm, event_log_backend=event_logger._backend
+                                        )
 
-                                    if llm is None:
-                                        logger.warning("No LLM found for CAPTURED evolution in session %s", session_id)
-                                    else:
-                                        workspace_root = Path(get_workspace_root())
-                                        store = SkillStore(db_path=workspace_root / ".myrm" / "skills.db")
-                                        try:
-                                            engine = SkillEvolutionEngine(
-                                                store=store, llm=llm, event_log_backend=event_logger._backend
+                                        agent_id = task.payload.get("agent_id", "default")
+                                        chat_id = task.payload.get("chat_id")
+
+                                        proposal = await engine.capture_skill_from_trajectory(
+                                            trajectory=trajectory, session_id=session_id
+                                        )
+
+                                        if proposal:
+                                            logger.info(
+                                                "Successfully extracted skill proposal '%s' from session %s",
+                                                proposal.skill_id,
+                                                session_id,
                                             )
+                                            proposal_dict = {
+                                                "skill_id": proposal.skill_id,
+                                                "reasoning": proposal.reasoning,
+                                                "proposed_content": proposal.proposed_content,
+                                                "score": float(proposal.score),
+                                                "agent_id": agent_id,
+                                                "chat_id": chat_id,
+                                            }
+                                    finally:
+                                        store.close()
 
-                                            agent_id = task.payload.get("agent_id", "default")
-                                            chat_id = task.payload.get("chat_id")
-
-                                            proposal = await engine.capture_skill_from_trajectory(
-                                                trajectory=trajectory, session_id=session_id
-                                            )
-
-                                            if proposal:
-                                                logger.info(
-                                                    "Successfully extracted skill proposal '%s' from session %s",
-                                                    proposal.skill_id,
-                                                    session_id,
-                                                )
-                                                proposal_dict = {
-                                                    "skill_id": proposal.skill_id,
-                                                    "reasoning": proposal.reasoning,
-                                                    "proposed_content": proposal.proposed_content,
-                                                    "score": float(proposal.score),
-                                                    "agent_id": agent_id,
-                                                    "chat_id": chat_id,
-                                                }
-                                        finally:
-                                            store.close()
-
-                                except Exception as e:
-                                    logger.error(
-                                        "Failed to trigger CAPTURED evolution for session %s: %s",
-                                        session_id,
-                                        e,
-                                        exc_info=True,
-                                    )
+                            except Exception as e:
+                                logger.error(
+                                    "Failed to trigger CAPTURED evolution for session %s: %s",
+                                    session_id,
+                                    e,
+                                    exc_info=True,
+                                )
 
                         event_data = {
                             "extracted": bool(digest),

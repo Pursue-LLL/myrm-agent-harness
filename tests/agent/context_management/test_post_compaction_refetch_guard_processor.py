@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from langchain_core.messages import HumanMessage
@@ -32,7 +32,7 @@ def _clear_metrics() -> None:
 async def test_injects_hint_when_archive_refetch_loops() -> None:
     chat_id = "chat-loop"
     metrics = create_task_metrics(chat_id)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for _ in range(2):
         metrics.refetch_events.append(
             RefetchEvent(
@@ -114,7 +114,7 @@ async def test_skips_when_metrics_missing() -> None:
 async def test_skips_when_refetch_events_do_not_loop() -> None:
     chat_id = "chat-no-loop"
     metrics = create_task_metrics(chat_id)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     metrics.refetch_events.append(
         RefetchEvent(
             timestamp=now,

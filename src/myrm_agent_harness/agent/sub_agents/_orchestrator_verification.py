@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 
 logger = get_agent_logger(__name__)
 
-__all__ = ["VerificationVerdict", "run_with_verification", "verify_worker_output", "_parse_verdict"]
+__all__ = ["VerificationVerdict", "_parse_verdict", "run_with_verification", "verify_worker_output"]
 
 
 def _format_worker_output_for_verifier(result: object) -> str:

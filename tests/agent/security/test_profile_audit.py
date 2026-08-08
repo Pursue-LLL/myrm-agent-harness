@@ -1,12 +1,10 @@
 """Tests for security.profile_audit module — engine, scoring, and all checkers."""
 
-import pytest
 
 from myrm_agent_harness.agent.security.profile_audit import (
     AuditFinding,
     AuditSeverity,
     ProfileAuditInput,
-    ProfileAuditResult,
     RiskLevel,
     run_profile_audit,
 )

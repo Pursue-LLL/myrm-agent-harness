@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock
 import pytest
 
 from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
-from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
 from myrm_agent_harness.toolkits.wiki.pipeline.queue import WikiIngestionQueue
@@ -19,6 +18,7 @@ from myrm_agent_harness.toolkits.wiki.pipeline.resilience import (
     resolve_llm_failure,
     sanitize_display_message,
 )
+from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
 
 
 @pytest.fixture

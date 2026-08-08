@@ -30,7 +30,6 @@ from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.errors import RawGateErr
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.security_hook import (
     scan_publish_article_content,
 )
-
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.types import RawGateCaller
 
 

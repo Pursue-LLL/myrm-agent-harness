@@ -15,8 +15,8 @@ Subagent executor aggregate root. MRO: Retry → Attempt → Delegation (locked 
 Public import path: ``from ...executor import SubagentExecutor``.
 """
 
-from .executor_delegation_mixin import SubagentExecutorDelegationMixin
 from .executor_attempt_mixin import SubagentExecutorAttemptMixin
+from .executor_delegation_mixin import SubagentExecutorDelegationMixin
 from .executor_helpers import (
     _auto_vault_or_truncate,
     _cascade_cancel_descendants,

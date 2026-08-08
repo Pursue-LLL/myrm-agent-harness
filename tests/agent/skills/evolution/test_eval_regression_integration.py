@@ -116,7 +116,7 @@ class _StructuredOutputWrapper:
         elif isinstance(input, list) and input:
             last = input[-1]
             if isinstance(last, HumanMessage):
-                input = input[:-1] + [HumanMessage(content=last.content + field_hint)]
+                input = [*input[:-1], HumanMessage(content=last.content + field_hint)]
 
         result = self._llm.invoke(input)
         text = result.content
@@ -294,10 +294,11 @@ async def test_derive_skill_with_eval_cases_coevolution(tmp_path: Path):
 @pytest.mark.skipif(_llm is None, reason=_skip_reason)
 async def test_regression_gate_hard_filters_destructive_variant(tmp_path: Path):
     """Verify regression gate hard-filters variants that fail ALL eval_cases."""
+    import logging
+
     from myrm_agent_harness.agent.skills.evolution.core.eval_regression import (
         filter_variants_by_regression,
     )
-    import logging
 
     skill = SkillRecord(
         skill_id="gate_test_1",

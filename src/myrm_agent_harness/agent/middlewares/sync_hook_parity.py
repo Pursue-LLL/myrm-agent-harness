@@ -14,9 +14,9 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
+from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
-from langchain_core.messages import ToolMessage
 
 
 class SyncHookParityAdapter(AgentMiddleware):  # type: ignore[type-arg]

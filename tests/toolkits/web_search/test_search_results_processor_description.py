@@ -7,8 +7,6 @@ RAG traceability improvement.
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.toolkits.web_search.common import SearchResult
 from myrm_agent_harness.toolkits.web_search.search_results_processor import (
     search_results_to_documents,
@@ -98,7 +96,7 @@ class TestSearchResultsEdgeCases:
         ]
         docs = search_results_to_documents(results)
         assert len(docs) == 5
-        for i, doc in enumerate(docs):
+        for _i, doc in enumerate(docs):
             assert len(doc.metadata["description"]) > 100
 
     def test_metadata_url_preserved(self) -> None:
@@ -174,6 +172,7 @@ class TestCombineSearchResultsMetadataPreservation:
 
     def test_date_and_summary_survive_combine(self) -> None:
         from langchain_core.documents import Document
+
         from myrm_agent_harness.toolkits.web_search.search_results_processor import (
             combine_search_results_unified,
         )
@@ -200,6 +199,7 @@ class TestCombineSearchResultsMetadataPreservation:
 
     def test_url_normalized_but_other_metadata_intact(self) -> None:
         from langchain_core.documents import Document
+
         from myrm_agent_harness.toolkits.web_search.search_results_processor import (
             combine_search_results_unified,
         )

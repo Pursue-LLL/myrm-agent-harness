@@ -48,7 +48,7 @@ def test_feature_missing_lists_unsatisfied(monkeypatch: pytest.MonkeyPatch) -> N
 def test_ensure_raises_when_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(lazy_deps, "_is_satisfied", lambda _spec: False)
     monkeypatch.setattr(lazy_deps, "_allow_lazy_installs", lambda: False)
-    with pytest.raises(lazy_deps.FeatureUnavailable, match="MYRM_DISABLE_LAZY_INSTALLS"):
+    with pytest.raises(lazy_deps.FeatureUnavailableError, match="MYRM_DISABLE_LAZY_INSTALLS"):
         lazy_deps.ensure("platform.matrix", prompt=False)
 
 
@@ -62,7 +62,7 @@ def test_ensure_skips_install_when_already_satisfied(monkeypatch: pytest.MonkeyP
 
 
 def test_ensure_unknown_feature_raises() -> None:
-    with pytest.raises(lazy_deps.FeatureUnavailable, match="not in LAZY_DEPS allowlist"):
+    with pytest.raises(lazy_deps.FeatureUnavailableError, match="not in LAZY_DEPS allowlist"):
         lazy_deps.ensure("platform.unknown", prompt=False)
 
 
@@ -70,7 +70,7 @@ def test_ensure_rejects_unsafe_spec(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(lazy_deps, "_is_satisfied", lambda _spec: False)
     monkeypatch.setattr(lazy_deps, "LAZY_DEPS", {"platform.test": ("bad;rm",)})
 
-    with pytest.raises(lazy_deps.FeatureUnavailable, match="unsafe spec"):
+    with pytest.raises(lazy_deps.FeatureUnavailableError, match="unsafe spec"):
         lazy_deps.ensure("platform.test", prompt=False)
 
 
@@ -98,7 +98,7 @@ def test_ensure_install_failure(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda _specs: lazy_deps._InstallResult(False, "", "pip exploded"),
     )
 
-    with pytest.raises(lazy_deps.FeatureUnavailable, match="install failed"):
+    with pytest.raises(lazy_deps.FeatureUnavailableError, match="install failed"):
         lazy_deps.ensure("platform.matrix", prompt=False)
 
 
@@ -110,7 +110,7 @@ def test_ensure_still_missing_after_install(monkeypatch: pytest.MonkeyPatch) -> 
         lambda _specs: lazy_deps._InstallResult(True, "ok", ""),
     )
 
-    with pytest.raises(lazy_deps.FeatureUnavailable, match="still missing"):
+    with pytest.raises(lazy_deps.FeatureUnavailableError, match="still missing"):
         lazy_deps.ensure("platform.matrix", prompt=False)
 
 
@@ -320,7 +320,7 @@ def test_ensure_and_bind_success(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_ensure_and_bind_returns_false_on_feature_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
     def _raise(*_args: object, **_kwargs: object) -> None:
-        raise lazy_deps.FeatureUnavailable("platform.matrix", ("mautrix>=0.21.0",), "nope")
+        raise lazy_deps.FeatureUnavailableError("platform.matrix", ("mautrix>=0.21.0",), "nope")
 
     monkeypatch.setattr(lazy_deps, "ensure", _raise)
     assert lazy_deps.ensure_and_bind("platform.matrix", lambda: {}, {}) is False
@@ -336,7 +336,7 @@ def test_ensure_and_bind_returns_false_on_import_error(monkeypatch: pytest.Monke
 
 
 def test_feature_unavailable_attributes() -> None:
-    exc = lazy_deps.FeatureUnavailable("platform.matrix", ("mautrix>=0.21.0",), "test reason")
+    exc = lazy_deps.FeatureUnavailableError("platform.matrix", ("mautrix>=0.21.0",), "test reason")
     assert exc.feature == "platform.matrix"
     assert exc.missing == ("mautrix>=0.21.0",)
     assert exc.reason == "test reason"

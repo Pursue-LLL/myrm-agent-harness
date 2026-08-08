@@ -17,10 +17,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.vnc.server import (
-    VncServer,
-    VncStatus,
     _HEALTH_CHECK_INTERVAL_S,
     _MAX_RESTART_ATTEMPTS,
+    VncServer,
+    VncStatus,
 )
 
 
@@ -55,7 +55,7 @@ class TestCleanupProcessesWaitAfterKill:
         async def fake_wait_for(coro: object, *, timeout: float) -> None:
             if asyncio.iscoroutine(coro):
                 coro.close()
-            raise asyncio.TimeoutError
+            raise TimeoutError
 
         srv = VncServer()
         srv._x11vnc_proc = mock_proc
@@ -209,7 +209,6 @@ class TestHealthLoopBackoff:
 
         loop_iterations = 0
 
-        original_sleep = asyncio.sleep
 
         async def mock_sleep(duration: float) -> None:
             nonlocal loop_iterations

@@ -78,10 +78,10 @@ class TestProgressMiddlewareNoMutation:
 
     @pytest.mark.asyncio
     async def test_progress_does_not_mutate_original_message(self) -> None:
+        from myrm_agent_harness.agent.meta_tools.progress.schemas import TodoItem, TodoStatus, TodoStore
         from myrm_agent_harness.agent.middlewares.progress_middleware import (
             progress_middleware,
         )
-        from myrm_agent_harness.agent.meta_tools.progress.schemas import TodoItem, TodoStatus, TodoStore
 
         store = TodoStore(
             goal="test goal",

@@ -44,15 +44,15 @@ from myrm_agent_harness.backends.skills.decorators import (
     VersionAwareSkillBackend,
     session_id_var,
 )
-from myrm_agent_harness.backends.skills.market_protocols import (
-    SkillInstallResult,
-    SkillMarketBackend,
-    SkillSearchResult,
-)
 from myrm_agent_harness.backends.skills.factory import SkillBackend
 from myrm_agent_harness.backends.skills.local import (
     LocalSkillBackend,
     scan_workspace_skills,
+)
+from myrm_agent_harness.backends.skills.market_protocols import (
+    SkillInstallResult,
+    SkillMarketBackend,
+    SkillSearchResult,
 )
 from myrm_agent_harness.backends.skills.memory import InMemorySkillBackend
 from myrm_agent_harness.backends.skills.permission_templates import (
@@ -96,8 +96,8 @@ __all__ = [
     "SkillBackend",
     "SkillBackendProtocol",
     "SkillDeleteResult",
-    "SkillMarketBackend",
     "SkillInstallResult",
+    "SkillMarketBackend",
     # Permission system
     "SkillPermission",
     "SkillResourceWriteResult",

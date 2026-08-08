@@ -12,6 +12,9 @@ from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     BackgroundProcessRegistry,
     get_background_registry,
 )
+from myrm_agent_harness.agent.meta_tools.bash._background.types import (
+    BackgroundProcessInfo,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_auto_yield import (
     DEFAULT_YIELD_AFTER_SECONDS,
     build_auto_yield_return,
@@ -22,13 +25,9 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_auto_yield import (
 from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
     create_bash_process_tool,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background.types import (
-    BackgroundProcessInfo,
-)
 from myrm_agent_harness.toolkits.code_execution.executors.models import (
     AsyncProcessProtocol,
 )
-
 from tests.agent.meta_tools.bash.test_background_registry import _FakeProc
 
 

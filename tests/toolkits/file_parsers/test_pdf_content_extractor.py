@@ -301,7 +301,7 @@ class TestBranchCoverage:
 
         with patch("myrm_agent_harness.toolkits.file_parsers.pdf.PDFPlumberParser") as mock_parser:
             mock_parser.return_value.parse_sync.return_value = fake_result
-            text, page_count, parsed_pages, tables = _extract_text_sync("/fake.pdf", max_pages=2)
+            _text, page_count, parsed_pages, tables = _extract_text_sync("/fake.pdf", max_pages=2)
 
         assert page_count == 3
         assert parsed_pages == 2
@@ -328,7 +328,7 @@ class TestBranchCoverage:
 
         with patch("myrm_agent_harness.toolkits.file_parsers.pdf.PDFPlumberParser") as mock_parser:
             mock_parser.return_value.parse_sync.return_value = fake_result
-            text, page_count, parsed_pages, tables = _extract_text_sync("/fake.pdf", max_pages=500)
+            _text, page_count, parsed_pages, tables = _extract_text_sync("/fake.pdf", max_pages=500)
 
         assert page_count == 2
         assert parsed_pages == 2

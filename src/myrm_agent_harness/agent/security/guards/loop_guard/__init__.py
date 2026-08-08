@@ -4,7 +4,7 @@ Re-exports the public API so callers can use
 ``from ...guards.loop_guard import LoopGuard``.
 """
 
-from .guard import LoopGuard, _stable_hash
+from .guard import LoopGuard, _stable_hash  # noqa: F401
 from .types import (
     VERDICT_ALLOW,
     AgentPhase,
@@ -23,6 +23,7 @@ from .types import (
 )
 
 __all__ = [
+    "VERDICT_ALLOW",
     "AgentPhase",
     "CallRecord",
     "ErrorPattern",
@@ -34,7 +35,6 @@ __all__ = [
     "SuccessLevel",
     "SuggestionPriority",
     "ToolGroup",
-    "VERDICT_ALLOW",
     "VerificationCategory",
     "WarningLevel",
     "get_tool_group",

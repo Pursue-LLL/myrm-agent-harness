@@ -19,7 +19,6 @@ from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
 from myrm_agent_harness.agent.sub_agents.types import (
     SubagentBudgetExceededError,
     SubagentConfig,
-    SubAgentResult,
     SubAgentStatus,
 )
 from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
@@ -239,24 +238,23 @@ class TestAttemptMixinPartialOutput:
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=child_agent,
-        ):
-            with pytest.raises(asyncio.CancelledError):
-                await executor._run_single_attempt(
-                    task_id="cancel",
-                    agent_type="worker",
-                    task_description="task",
-                    config=config,
-                    context={},
-                    tool_registry_getter=lambda: [],
-                    start_time=0.0,
-                    parent_tracker=None,
-                    parent_taint=MagicMock(),
-                    parent_agent=parent_agent,
-                    cancel_flags={},
-                    children_agents={},
-                    fire_hook=AsyncMock(),
-                    hook_event_cls=MagicMock(),
-                )
+        ), pytest.raises(asyncio.CancelledError):
+            await executor._run_single_attempt(
+                task_id="cancel",
+                agent_type="worker",
+                task_description="task",
+                config=config,
+                context={},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_tracker=None,
+                parent_taint=MagicMock(),
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                fire_hook=AsyncMock(),
+                hook_event_cls=MagicMock(),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -601,7 +599,7 @@ class TestRetryPartialOutputBehavior:
         self, executor: SubagentExecutor, config: SubagentConfig
     ) -> None:
         """First attempt fails with partial, second succeeds → normal result returned."""
-        from myrm_agent_harness.agent.sub_agents.types import SubAgentResult as SAR
+        from myrm_agent_harness.agent.sub_agents.types import SubAgentResult as SAR  # noqa: N817
 
         config_retry = SubagentConfig(
             system_prompt="test",
@@ -753,24 +751,23 @@ class TestAttemptMixinEdgeCases:
         with patch(
             "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
             return_value=child_agent,
-        ):
-            with pytest.raises(ValueError):
-                await executor._run_single_attempt(
-                    task_id="ctx-test",
-                    agent_type="worker",
-                    task_description="task",
-                    config=config,
-                    context={},
-                    tool_registry_getter=lambda: [],
-                    start_time=0.0,
-                    parent_tracker=None,
-                    parent_taint=MagicMock(),
-                    parent_agent=parent_agent,
-                    cancel_flags={},
-                    children_agents={},
-                    fire_hook=AsyncMock(),
-                    hook_event_cls=MagicMock(),
-                )
+        ), pytest.raises(ValueError):
+            await executor._run_single_attempt(
+                task_id="ctx-test",
+                agent_type="worker",
+                task_description="task",
+                config=config,
+                context={},
+                tool_registry_getter=lambda: [],
+                start_time=0.0,
+                parent_tracker=None,
+                parent_taint=MagicMock(),
+                parent_agent=parent_agent,
+                cancel_flags={},
+                children_agents={},
+                fire_hook=AsyncMock(),
+                hook_event_cls=MagicMock(),
+            )
 
         assert get_is_subagent() is False
 

@@ -11,7 +11,7 @@ real production code paths.
 from __future__ import annotations
 
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,12 +19,9 @@ from myrm_agent_harness.agent.base_agent import BaseAgent
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
 from myrm_agent_harness.agent.sub_agents.types import (
-    SubagentBudgetExceededError,
     SubagentConfig,
     SubAgentStatus,
 )
-from myrm_agent_harness.toolkits.llms.errors.error_types import FailoverReason
-from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
@@ -32,10 +29,10 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 class _StubLLM:
     """Minimal LLM stub for BaseAgent construction."""
 
-    def bind(self, **kwargs: object) -> "_StubLLM":
+    def bind(self, **kwargs: object) -> _StubLLM:
         return self
 
-    def bind_tools(self, tools: list[object], **kwargs: object) -> "_StubLLM":
+    def bind_tools(self, tools: list[object], **kwargs: object) -> _StubLLM:
         return self
 
     async def ainvoke(self, messages: list[object], config: object = None) -> object:

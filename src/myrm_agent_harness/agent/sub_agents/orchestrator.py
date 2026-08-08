@@ -578,9 +578,9 @@ async def wait_children(
 
     if running_tasks:
         if timeout:
-            done, pending = await asyncio.wait(running_tasks, timeout=timeout)
+            done, _ = await asyncio.wait(running_tasks, timeout=timeout)
         else:
-            done, pending = await asyncio.wait(running_tasks)
+            done, _ = await asyncio.wait(running_tasks)
 
         for idx, task in enumerate(running_tasks):
             tid = running_ids[idx]

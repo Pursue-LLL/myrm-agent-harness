@@ -168,7 +168,7 @@ async def test_incremental_summary_updates_blocked_and_next_steps() -> None:
         "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._get_structured_llm_or_parser",
         side_effect=_force_parser_fallback,
     ):
-        new_msgs, summary = await generate_structured_summary(
+        _new_msgs, summary = await generate_structured_summary(
             messages=new_messages,
             llm=llm,
             chat_id="test-integration-incremental",

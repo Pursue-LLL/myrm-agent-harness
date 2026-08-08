@@ -250,7 +250,7 @@ def evaluate_state_assertions(
                 "None": None,
             }
             try:
-                result = eval(assertion.expected, {"__builtins__": safe_builtins}, {"output": actual_output})
+                result = eval(assertion.expected, {"__builtins__": safe_builtins}, {"output": actual_output})  # noqa: S307  # eval-assert DSL, builtins stripped
                 if not result:
                     return False, f"State assertion failed: custom expression '{assertion.expected}' evaluated to False"
             except Exception as exc:

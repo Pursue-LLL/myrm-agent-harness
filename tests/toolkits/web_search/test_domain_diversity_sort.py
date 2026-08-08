@@ -272,7 +272,7 @@ class TestCombineSearchResultsUnified:
         doc1 = _search_doc("https://example.com/page1", content="same content")
         doc2 = _search_doc("https://example.com/page1", content="same content")
         data = [("q1", [doc1], None), ("q2", [doc2], None)]
-        urls, docs = combine_search_results_unified(data)
+        _urls, docs = combine_search_results_unified(data)
         assert len(docs) == 1
 
     def test_dedup_same_url_different_content_keeps_longest(self) -> None:
@@ -280,7 +280,7 @@ class TestCombineSearchResultsUnified:
         doc1 = _search_doc("https://example.com/page1", content="short")
         doc2 = _search_doc("https://example.com/page1", content="much longer content here")
         data = [("q1", [doc1], None), ("q2", [doc2], None)]
-        urls, docs = combine_search_results_unified(data)
+        _urls, docs = combine_search_results_unified(data)
         assert len(docs) == 1
         assert "much longer" in docs[0].page_content
 
@@ -298,7 +298,7 @@ class TestCombineSearchResultsUnified:
         doc1 = _search_doc("https://a.com/page1", content="same content")
         doc2 = _search_doc("https://b.com/page2", content="same content")
         data = [("q1", [doc1, doc2], None)]
-        urls, docs = combine_search_results_unified(data)
+        _urls, docs = combine_search_results_unified(data)
         assert len(docs) == 1
 
     def test_mixed_success_and_failure(self) -> None:
@@ -307,7 +307,7 @@ class TestCombineSearchResultsUnified:
             ("q1", [doc], None),
             ("q2", [], RuntimeError("fail")),
         ]
-        urls, docs = combine_search_results_unified(data)
+        _urls, docs = combine_search_results_unified(data)
         assert len(docs) == 1
 
     def test_doc_missing_url_skipped(self) -> None:
@@ -317,14 +317,14 @@ class TestCombineSearchResultsUnified:
             metadata={"title": "T", "description": "d"},
         )
         data = [("q1", [doc_ok, doc_no_url], None)]
-        urls, docs = combine_search_results_unified(data)
+        _urls, docs = combine_search_results_unified(data)
         assert len(docs) == 1
 
     def test_url_normalization_semantic_keeps_fragment(self) -> None:
         """metadata['url'] uses normalized_url_semantic which keeps fragment."""
         doc = _search_doc("https://Example.COM/Page#fragment")
         data = [("q1", [doc], None)]
-        urls, docs = combine_search_results_unified(data)
+        _urls, docs = combine_search_results_unified(data)
         assert len(docs) == 1
         assert "example.com" in docs[0].metadata["url"]
         assert "#fragment" in docs[0].metadata["url"]
@@ -352,7 +352,7 @@ class TestCombineSearchResultsUnified:
         """When normalize_url returns empty dedup key, doc is skipped."""
         doc = _search_doc("not-a-valid-url-at-all")
         data = [("q1", [doc], None)]
-        urls, docs = combine_search_results_unified(data)
+        _urls, docs = combine_search_results_unified(data)
         assert len(docs) <= 1
 
     def test_normalize_url_returns_empty_dedup_key(self) -> None:
@@ -360,7 +360,7 @@ class TestCombineSearchResultsUnified:
         doc = _search_doc("https://valid-looking.com/page")
         data = [("q1", [doc], None)]
         with patch(f"{_MODULE}.normalize_url", return_value=("", "")):
-            urls, docs = combine_search_results_unified(data)
+            _urls, docs = combine_search_results_unified(data)
         assert len(docs) == 0
 
     def test_long_content_truncation_hash(self) -> None:
@@ -369,7 +369,7 @@ class TestCombineSearchResultsUnified:
         doc1 = _search_doc("https://a.com/page", content=long_content)
         doc2 = _search_doc("https://a.com/page", content=long_content)
         data = [("q1", [doc1], None), ("q2", [doc2], None)]
-        urls, docs = combine_search_results_unified(data)
+        _urls, docs = combine_search_results_unified(data)
         assert len(docs) == 1
 
     def test_long_content_different_suffix_dedup(self) -> None:
@@ -378,7 +378,7 @@ class TestCombineSearchResultsUnified:
         doc1 = _search_doc("https://a.com/page", content=base + "AAAA")
         doc2 = _search_doc("https://a.com/page", content=base + "BBBB")
         data = [("q1", [doc1], None), ("q2", [doc2], None)]
-        urls, docs = combine_search_results_unified(data)
+        _urls, docs = combine_search_results_unified(data)
         assert len(docs) == 1
 
     def test_search_api_error_context_metadata(self) -> None:
@@ -399,7 +399,7 @@ class TestCombineSearchResultsUnified:
             ("q2", [], None),
             ("q3", [], RuntimeError("timeout")),
         ]
-        urls, docs = combine_search_results_unified(data)
+        _urls, docs = combine_search_results_unified(data)
         assert len(docs) == 1
 
     def test_all_docs_skipped_but_total_nonzero(self) -> None:

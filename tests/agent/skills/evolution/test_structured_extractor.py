@@ -5,7 +5,7 @@ form routing, structured LLM path and JSON fallback path.
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

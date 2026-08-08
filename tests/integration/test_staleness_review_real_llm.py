@@ -17,7 +17,6 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from myrm_agent_harness.toolkits.memory.strategies.staleness_review import (
-    StalenessAction,
     StalenessReviewConfig,
     StalenessReviewer,
     select_stale_candidates,
@@ -110,7 +109,7 @@ async def test_staleness_review_real_llm_produces_valid_decisions() -> None:
     total_decisions = result.kept_count + result.extended_count + result.removed_count
     assert total_decisions == result.reviewed_count
 
-    for mid, days in result.extended_updates:
+    for _mid, days in result.extended_updates:
         assert days > 0
         assert days <= config.max_extension_days
 

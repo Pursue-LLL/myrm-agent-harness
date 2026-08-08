@@ -571,13 +571,12 @@ class TestComputerSessionCoordinateIo:
         )
         with patch.object(
             session._processor, "process", return_value=("b64", (800, 600))
+        ), patch.object(
+            session._processor,
+            "crop_and_process",
+            return_value=("b64crop", (200, 200)),
         ):
-            with patch.object(
-                session._processor,
-                "crop_and_process",
-                return_value=("b64crop", (200, 200)),
-            ):
-                result = await session.zoom_region(100, 100, size=400)
+            result = await session.zoom_region(100, 100, size=400)
         assert result.success is True
         assert session.scaler is not None
 

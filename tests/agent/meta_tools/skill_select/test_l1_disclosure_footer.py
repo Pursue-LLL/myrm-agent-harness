@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -37,7 +37,7 @@ def _make_skill(**overrides: object) -> SkillMetadata:
 
 
 def _make_instance(**config_overrides: object) -> SkillInstance:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     config = SkillInstanceConfig(
         instance_name="personal",
         skill_name="deploy_skill",

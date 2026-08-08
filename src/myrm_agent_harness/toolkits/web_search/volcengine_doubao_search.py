@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 import logging
-
 from dataclasses import replace
 
 import httpx

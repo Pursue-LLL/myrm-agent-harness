@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 
 from myrm_agent_harness.agent.meta_tools.skills.select.skill_document_loader import (
     build_reload_summary,

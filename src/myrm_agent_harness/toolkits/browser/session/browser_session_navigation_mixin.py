@@ -288,7 +288,9 @@ class BrowserSessionNavigationMixin:
                             # CAMOUFOX succeeded — record affinity for this domain
                             from urllib.parse import urlparse
 
-                            from myrm_agent_harness.toolkits.browser.pool.engine_affinity import get_engine_affinity_store
+                            from myrm_agent_harness.toolkits.browser.pool.engine_affinity import (
+                                get_engine_affinity_store,
+                            )
 
                             upgrade_domain = urlparse(url).netloc
                             if upgrade_domain:
@@ -366,10 +368,10 @@ class BrowserSessionNavigationMixin:
         """
         from urllib.parse import urlparse
 
-        from myrm_agent_harness.toolkits.browser.pool.extension_bridge import ExtensionBridgeNotAvailable
+        from myrm_agent_harness.toolkits.browser.pool.extension_bridge import ExtensionBridgeNotAvailableError
         from myrm_agent_harness.utils.errors import ToolError
 
-        assert self._extension_bridge is not None  # noqa: S101 — guaranteed by caller
+        assert self._extension_bridge is not None
 
         if not self._extension_bridge.is_connected():
             raise ToolError(
@@ -397,7 +399,7 @@ class BrowserSessionNavigationMixin:
                 f"Navigated to {tab.url} (title={tab.title}) "
                 "[via extension bridge — private network]"
             )
-        except ExtensionBridgeNotAvailable as exc:
+        except ExtensionBridgeNotAvailableError as exc:
             error_text = str(exc).lower()
             if "not connected" in error_text or "disconnected" in error_text:
                 raise ToolError(

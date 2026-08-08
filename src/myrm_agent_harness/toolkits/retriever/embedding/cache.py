@@ -123,7 +123,7 @@ class EmbeddingCache:
             cursor = conn.execute("SELECT embedding FROM embeddings WHERE key = ?", (cache_key,))
             row = cursor.fetchone()
             if row:
-                embedding = pickle.loads(row[0])
+                embedding = pickle.loads(row[0])  # noqa: S301  # cache row written by this module
                 conn.execute(
                     "UPDATE embeddings SET access_count = access_count + 1 WHERE key = ?",
                     (cache_key,),
@@ -212,7 +212,7 @@ class EmbeddingCache:
                 cursor = conn.execute("SELECT embedding FROM embeddings WHERE key = ?", (key,))
                 row = cursor.fetchone()
                 if row:
-                    results[idx] = pickle.loads(row[0])
+                    results[idx] = pickle.loads(row[0])  # noqa: S301  # cache row written by this module
                     updates.append((key,))
             if updates:
                 conn.executemany(

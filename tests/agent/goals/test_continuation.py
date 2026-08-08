@@ -904,7 +904,6 @@ async def test_budget_limited_steering_takes_priority():
 @pytest.mark.asyncio
 async def test_judge_parse_failure_increments_counter():
     """Parse failure increments consecutive_judge_parse_failures but continues."""
-    from myrm_agent_harness.agent.goals.continuation import _MAX_CONSECUTIVE_JUDGE_PARSE_FAILURES
 
     provider = AsyncMock()
     goal = Goal(

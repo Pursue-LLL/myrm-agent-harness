@@ -111,15 +111,15 @@ class TestSearch:
             )
 
             async def github_search(
-                _query: str, _limit: int
+                _query: str, _limit: int, *, _delay: float = github_delay
             ) -> list[SkillSearchResult]:
-                await asyncio.sleep(github_delay)
+                await asyncio.sleep(_delay)
                 return [github_result]
 
             async def skills_sh_search(
-                _query: str, _limit: int
+                _query: str, _limit: int, *, _delay: float = skills_sh_delay
             ) -> list[SkillSearchResult]:
-                await asyncio.sleep(skills_sh_delay)
+                await asyncio.sleep(_delay)
                 return [skills_sh_result]
 
             svc._sources = [

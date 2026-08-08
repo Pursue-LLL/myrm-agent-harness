@@ -54,6 +54,10 @@ LargeDocIngestCallback = Callable[[str, str, str], Coroutine[Any, Any, None]]
 
 _ingest_callback: LargeDocIngestCallback | None = None
 
+# Holds references to fire-and-forget RAG ingest tasks so the event loop
+# does not garbage-collect them mid-flight.
+_pending_ingest_tasks: set[asyncio.Task[None]] = set()
+
 
 def register_large_doc_ingest_callback(cb: LargeDocIngestCallback) -> None:
     """Register the wiki ingest callback for large document auto-indexing.
@@ -105,9 +109,9 @@ async def _fire_and_forget_ingest(filename: str, full_text: str, doc_hash: str) 
 async def _schedule_rag_ingest(
     path: str,
     raw_bytes: bytes,
-    result: "PDFExtractResult",  # noqa: F821
+    result: PDFExtractResult,  # noqa: F821
     cfg_cls: type,
-    extract_fn: "Callable[..., Coroutine[Any, Any, Any]]",
+    extract_fn: Callable[..., Coroutine[Any, Any, Any]],
 ) -> None:
     """Extract full text (if truncated) and schedule background wiki ingest.
 
@@ -189,9 +193,11 @@ async def read_pdf_as_content_blocks(
     rag_triggered = is_large_doc and _ingest_callback is not None
 
     if rag_triggered:
-        asyncio.create_task(
+        task = asyncio.create_task(
             _schedule_rag_ingest(path, raw_bytes, result, PDFExtractConfig, extract_pdf_content)
         )
+        _pending_ingest_tasks.add(task)
+        task.add_done_callback(_pending_ingest_tasks.discard)
 
     if len(text) > _FALLBACK_MAX_CHARS:
         text = text[:_FALLBACK_MAX_CHARS] + f"\n\n... [truncated at {_FALLBACK_MAX_CHARS} chars]"

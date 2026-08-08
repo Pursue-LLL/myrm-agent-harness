@@ -29,9 +29,9 @@ Dangling tool call repair middleware.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from json import JSONDecodeError, loads
-from collections.abc import Awaitable, Callable
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
 from langchain_core.messages import BaseMessage, ToolMessage
@@ -168,7 +168,7 @@ def _sanitize_ai_message(msg: BaseMessage) -> bool:
     if tc_changed:
         changed = True
     if hasattr(msg, "tool_calls"):
-        setattr(msg, "tool_calls", tool_calls)
+        msg.tool_calls = tool_calls
 
     invalid_tool_calls, itc_changed = _sanitize_invalid_tool_calls_list(
         getattr(msg, "invalid_tool_calls", None)
@@ -176,7 +176,7 @@ def _sanitize_ai_message(msg: BaseMessage) -> bool:
     if itc_changed:
         changed = True
     if hasattr(msg, "invalid_tool_calls"):
-        setattr(msg, "invalid_tool_calls", invalid_tool_calls)
+        msg.invalid_tool_calls = invalid_tool_calls
 
     additional_kwargs = getattr(msg, "additional_kwargs", None)
     if isinstance(additional_kwargs, dict) and "tool_calls" in additional_kwargs:
@@ -186,7 +186,7 @@ def _sanitize_ai_message(msg: BaseMessage) -> bool:
             changed = True
             updated_kwargs = dict(additional_kwargs)
             updated_kwargs["tool_calls"] = sanitized_raw_calls
-            setattr(msg, "additional_kwargs", updated_kwargs)
+            msg.additional_kwargs = updated_kwargs
 
     return changed
 

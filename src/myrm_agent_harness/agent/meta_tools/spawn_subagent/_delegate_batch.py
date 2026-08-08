@@ -17,10 +17,8 @@ Batch and parallel delegation execution engines invoked by delegate_task_tool mo
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (

@@ -26,8 +26,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.storage.base import StorageProvider
     from myrm_agent_harness.infra.delivery.notification_ledger import PermanentFailureNotificationLedger
+    from myrm_agent_harness.toolkits.storage.base import StorageProvider
 
 import contextlib
 

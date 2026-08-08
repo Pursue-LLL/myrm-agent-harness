@@ -13,9 +13,7 @@ from myrm_agent_harness.agent.security.types import SecurityConfig
 
 
 def honor_allowlist(policy: ManagedApprovalPolicy, agent_primary_model: str) -> bool:
-    if policy.should_ignore_allowlist(agent_primary_model):
-        return False
-    return True
+    return not policy.should_ignore_allowlist(agent_primary_model)
 
 
 def yolo_allowed(policy: ManagedApprovalPolicy) -> bool:

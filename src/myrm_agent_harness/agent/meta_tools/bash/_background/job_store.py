@@ -267,7 +267,7 @@ def configure_background_job_store(db_path: str | Path) -> BackgroundJobStore:
     """Configure the process-wide BackgroundJobStore (idempotent)."""
     global _STORE, _CONFIGURED_PATH
     resolved = Path(db_path).expanduser().resolve()
-    if _STORE is not None and _CONFIGURED_PATH == resolved:
+    if _STORE is not None and resolved == _CONFIGURED_PATH:
         return _STORE
     _CONFIGURED_PATH = resolved
     _STORE = BackgroundJobStore(resolved)

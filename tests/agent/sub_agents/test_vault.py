@@ -92,4 +92,4 @@ class TestVaultConcurrency:
         uris = [vault.put(f"content-{i}", f"file-{i}.txt") for i in range(10)]
         assert len(set(uris)) == 10
         for i, uri in enumerate(uris):
-            assert vault.get(uri) == f"content-{i}".encode("utf-8")
+            assert vault.get(uri) == f"content-{i}".encode()

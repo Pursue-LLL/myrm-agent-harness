@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import mimetypes
-import zipfile
 import xml.etree.ElementTree as ET
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -42,7 +42,7 @@ def extract_docx_embedded_images(file_path: str | Path) -> dict[str, DocxEmbedde
             rels_path = "word/_rels/document.xml.rels"
             if rels_path not in archive.namelist():
                 return {}
-            rel_root = ET.fromstring(archive.read(rels_path))
+            rel_root = ET.fromstring(archive.read(rels_path))  # noqa: S314  # expat blocks external entities by default
             for rel in rel_root:
                 rel_id = rel.get("Id")
                 rel_type = rel.get("Type", "")

@@ -152,7 +152,7 @@ def goal_focus_middleware() -> Any:
 
 
 __all__ = [
-    "goal_focus_middleware",
     "_build_goal_focus_line",
     "_has_goal_continuation_prompt",
+    "goal_focus_middleware",
 ]

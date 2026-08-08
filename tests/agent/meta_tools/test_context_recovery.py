@@ -11,7 +11,6 @@ from myrm_agent_harness.agent.meta_tools._context_recovery import (
     restore_context_vars,
 )
 
-
 # ---------------------------------------------------------------------------
 # restore_context_vars tests
 # ---------------------------------------------------------------------------
@@ -149,7 +148,6 @@ class TestEnsureExecutor:
             patch(
                 f"{_CTX_MGMT}.extract_context_from_runnable_config",
                 return_value=mock_context,
-            ),
+            ),pytest.raises(RuntimeError, match="CodeExecutor not available")
         ):
-            with pytest.raises(RuntimeError, match="CodeExecutor not available"):
-                ensure_executor(mock_config)  # type: ignore[arg-type]
+            ensure_executor(mock_config)  # type: ignore[arg-type]

@@ -53,7 +53,7 @@ from myrm_agent_harness.toolkits.web_search.search_results_processor import (
 from myrm_agent_harness.utils.lru_cache import LRUCache
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.web_search.litellm_search import LiteLLMSearch
+    pass
 
 _search_cache: LRUCache[list[SearchResult]] = LRUCache(
     maxsize=200, ttl=900, id="web_search_api_cache"

@@ -379,7 +379,7 @@ class TestIdMapResolution:
         manager = _make_manager_mock()
         id_map = {"short-id": "full-uuid-1234-5678-abcd"}
         ops = [CorrectOp(memory_id="short-id", corrected_content="new", importance=0.9, accuracy_score=0.5)]
-        stats = await _execute_operations(ops, manager, id_map, on_conflict=callback)
+        await _execute_operations(ops, manager, id_map, on_conflict=callback)
 
         ctx = callback.call_args[0][0]
         assert ctx.old_memory_id == "full-uuid-1234-5678-abcd"

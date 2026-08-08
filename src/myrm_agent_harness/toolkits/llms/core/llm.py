@@ -28,9 +28,10 @@ import logging
 from typing import Any
 from urllib.parse import urlparse
 
+from myrm_agent_harness.infra.tls_compat import build_httpx_verify, tls_strict_disabled
+
 # Side-effect import: registers custom providers into litellm.custom_provider_map
 from myrm_agent_harness.toolkits.llms import providers  # noqa: F401
-from myrm_agent_harness.infra.tls_compat import build_httpx_verify, tls_strict_disabled
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM, clean_model_kwargs
 from myrm_agent_harness.toolkits.llms.core.openrouter_verbosity import apply_openrouter_reasoning_effort
 from myrm_agent_harness.toolkits.llms.core.reasoning_timeout import get_reasoning_timeout_floor
@@ -57,7 +58,7 @@ def _is_local_endpoint(url: str | None) -> bool:
     if not url:
         return False
     host = (urlparse(url).hostname or "").lower()
-    if host in ("localhost", "0.0.0.0"):
+    if host in ("localhost", "0.0.0.0"):  # noqa: S104  # hostname compare, not a bind
         return True
     try:
         addr = ipaddress.ip_address(host)

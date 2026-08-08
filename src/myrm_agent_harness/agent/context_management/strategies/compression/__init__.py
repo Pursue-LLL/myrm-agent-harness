@@ -15,9 +15,9 @@ from .compression_streak_store import (
 
 __all__ = [
     "ANTI_THRASHING_STREAK_LIMIT",
-    "CompressionStreakStore",
     "EFFECTIVE_SAVINGS_THRESHOLD",
     "SAFETY_NET_RATIO",
+    "CompressionStreakStore",
     "get_compression_streak_store",
     "record_compression_effectiveness",
     "register_compression_streak_store",

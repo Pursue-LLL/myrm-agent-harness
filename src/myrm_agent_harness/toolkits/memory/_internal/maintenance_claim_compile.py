@@ -16,15 +16,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from myrm_agent_harness.toolkits.memory._internal.storage import _user_filter
-from myrm_agent_harness.toolkits.memory.types import (
-    ClaimConflictState,
-    ClaimGraphState,
-    DigestKind,
-    EvaporationState,
-    MemoryTier,
-)
-
 from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
     _build_claim_model_summary,
     _classify_claim_relation,
@@ -37,9 +28,17 @@ from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support impo
     _scope_from_digest_doc,
     _scope_properties,
 )
+from myrm_agent_harness.toolkits.memory._internal.storage import _user_filter
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.protocols.graph import GraphStoreProtocol
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
+from myrm_agent_harness.toolkits.memory.types import (
+    ClaimConflictState,
+    ClaimGraphState,
+    DigestKind,
+    EvaporationState,
+    MemoryTier,
+)
 
 
 async def compile_claim_graph(

@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -380,7 +381,7 @@ class TestWindowsBackendWindowText:
 
     @pytest.mark.asyncio
     async def test_has_blocking_dialog_true(self, backend, _mock_windows_env) -> None:
-        win_mod, _, mock_windll = _mock_windows_env
+        _win_mod, _, mock_windll = _mock_windows_env
         mock_windll.user32.GetForegroundWindow.return_value = 12345
 
         def mock_get_class_name(hwnd, buf, size):
@@ -403,7 +404,7 @@ class TestWindowsBackendWindowText:
 
     @pytest.mark.asyncio
     async def test_has_blocking_dialog_false(self, backend, _mock_windows_env) -> None:
-        win_mod, _, mock_windll = _mock_windows_env
+        _win_mod, _, mock_windll = _mock_windows_env
         mock_windll.user32.GetForegroundWindow.return_value = 12345
 
         def mock_get_class_name(hwnd, buf, size):
@@ -417,7 +418,7 @@ class TestWindowsBackendWindowText:
 
     @pytest.mark.asyncio
     async def test_has_blocking_dialog_exception(self, backend, _mock_windows_env) -> None:
-        win_mod, _, mock_windll = _mock_windows_env
+        _win_mod, _, mock_windll = _mock_windows_env
         mock_windll.user32.GetForegroundWindow.side_effect = Exception("error")
 
         with patch("asyncio.to_thread", side_effect=lambda fn, *args: fn(*args)):
@@ -426,7 +427,7 @@ class TestWindowsBackendWindowText:
 
     @pytest.mark.asyncio
     async def test_is_browser_active_true(self, backend, _mock_windows_env) -> None:
-        win_mod, _, mock_windll = _mock_windows_env
+        _win_mod, _, mock_windll = _mock_windows_env
         mock_windll.user32.GetForegroundWindow.return_value = 12345
 
         def mock_get_window_text_length(hwnd):
@@ -444,7 +445,7 @@ class TestWindowsBackendWindowText:
 
     @pytest.mark.asyncio
     async def test_is_browser_active_false(self, backend, _mock_windows_env) -> None:
-        win_mod, _, mock_windll = _mock_windows_env
+        _win_mod, _, mock_windll = _mock_windows_env
         mock_windll.user32.GetForegroundWindow.return_value = 12345
 
         def mock_get_window_text_length(hwnd):

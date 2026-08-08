@@ -120,9 +120,8 @@ def normalize_explicit_params(
     elif provider == "searxng":
         if isinstance(time_range, str) and time_range:
             result["time_range"] = time_range
-    elif provider == "tavily":
-        if isinstance(time_range, str) and time_range:
-            result["days"] = tavily_time_range_to_days(time_range)
+    elif provider == "tavily" and isinstance(time_range, str) and time_range:
+        result["days"] = tavily_time_range_to_days(time_range)
 
     return result or None
 

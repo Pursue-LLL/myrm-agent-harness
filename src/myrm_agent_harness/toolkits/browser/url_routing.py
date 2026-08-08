@@ -111,7 +111,7 @@ def _resolve_is_private(hostname: str) -> bool:
         addr_info = socket.getaddrinfo(
             hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM, proto=socket.IPPROTO_TCP,
         )
-    except (socket.gaierror, socket.timeout, OSError):
+    except (TimeoutError, socket.gaierror, OSError):
         return False
 
     if not addr_info:

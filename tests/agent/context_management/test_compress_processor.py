@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.infra.retention_helpers import (
     effective_keep_recent_calls,
     extract_failed_tool_call_ids,
@@ -13,6 +12,7 @@ from myrm_agent_harness.agent.context_management.infra.retention_helpers import 
     extract_focus_modules,
     extract_user_goal_hint,
 )
+from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor import (
     CompressProcessor,
 )

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import inspect
 
-import pytest
-
 from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
 from myrm_agent_harness.agent.skill_agent import SkillAgent
 from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS

@@ -13,6 +13,13 @@ from pathlib import Path
 
 from myrm_agent_harness.toolkits.wiki.core.claims_contract import sha256_raw_file
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
+from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.events import (
+    WikiMapEvent,
+    WikiMapEventType,
+)
+from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.writer import (
+    append_log_entry,
+)
 from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.path_utils import (
     normalize_raw_relative_path,
 )
@@ -29,17 +36,9 @@ from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.types import (
     TrashedRawEntry,
     VaultHygieneSnapshot,
 )
-from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.events import (
-    WikiMapEvent,
-    WikiMapEventType,
-)
-from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.writer import (
-    append_log_entry,
-)
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.evidence_removal import (
     remove_raw_evidence,
 )
-
 
 logger = logging.getLogger(__name__)
 

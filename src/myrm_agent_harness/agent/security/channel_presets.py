@@ -315,7 +315,7 @@ def _merge_user_and_agent(
 
     ruleset = merge(user.ruleset, agent.ruleset)
 
-    from myrm_agent_harness.core.security.types import AccessRoot, access_roots_from_paths
+    from myrm_agent_harness.core.security.types import AccessRoot
 
     path_set: dict[str, AccessRoot] = {
         r.path: r for r in user.path_policy.access_roots

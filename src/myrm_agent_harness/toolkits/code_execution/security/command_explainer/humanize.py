@@ -315,7 +315,7 @@ def humanize_command(
 
     en_parts: list[str] = []
     zh_parts: list[str] = []
-    for idx, (i, exp) in enumerate(meaningful):
+    for idx, (_i, exp) in enumerate(meaningful):
         if idx > 0:
             en_parts.append(_CHAIN_AND_EXPLANATION["en"])
             zh_parts.append(_CHAIN_AND_EXPLANATION["zh"])

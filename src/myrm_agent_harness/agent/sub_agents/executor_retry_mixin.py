@@ -26,12 +26,11 @@ from typing import TYPE_CHECKING
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.security.guards.taint_tracker import get_taint_tracker
+from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.runtime.progress_sink import ToolProgressSink
 from myrm_agent_harness.utils.runtime.steering import SteeringToken
 from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
-
-from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
 
 from .executor_helpers import _cascade_cancel_descendants, _compact_error_message
 from .types import (

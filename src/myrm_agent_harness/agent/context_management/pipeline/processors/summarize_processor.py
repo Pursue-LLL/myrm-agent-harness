@@ -38,6 +38,7 @@ Provides SummarizeProcessor with progress-aware timeout and cancellation-safe ta
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import time
 
@@ -620,7 +621,7 @@ async def _guarded_summarize(
     inactivity_s = config.compaction_inactivity_timeout_s
     ceiling_s = config.compaction_total_ceiling_s
     tracker = ProgressClock()
-    _DEBOUNCE_SECONDS = 3.0
+    _DEBOUNCE_SECONDS = 3.0  # noqa: N806  # constant within closure scope
 
     async def _emit_compaction_event(
         phase: str, elapsed_s: float = 0, **extra: object
@@ -684,10 +685,8 @@ async def _guarded_summarize(
 
         for task in pending:
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
-            except (asyncio.CancelledError, Exception):
-                pass
 
         for task in done:
             exc = task.exception()

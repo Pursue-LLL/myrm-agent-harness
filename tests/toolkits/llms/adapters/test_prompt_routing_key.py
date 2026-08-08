@@ -7,7 +7,6 @@ import pytest
 from myrm_agent_harness.core.context_vars import prompt_routing_key_var
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM
 
-
 # ---------------------------------------------------------------------------
 # _is_openai_native_endpoint detection
 # ---------------------------------------------------------------------------

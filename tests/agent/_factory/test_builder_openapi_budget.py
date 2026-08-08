@@ -46,12 +46,11 @@ async def test_create_skill_agent_raises_when_openapi_exceeds_direct_budget() ->
     with patch(
         "myrm_agent_harness.toolkits.openapi_bridge.OpenAPIBridge",
         return_value=mock_bridge,
-    ):
-        with pytest.raises(ConfigIncompleteError) as exc_info:
-            await create_skill_agent(
-                spec=spec,
-                llm=MagicMock(),
-                executor=MagicMock(),
-            )
+    ), pytest.raises(ConfigIncompleteError) as exc_info:
+        await create_skill_agent(
+            spec=spec,
+            llm=MagicMock(),
+            executor=MagicMock(),
+        )
 
     assert exc_info.value.error_code == "openapi_direct_budget_exceeded"

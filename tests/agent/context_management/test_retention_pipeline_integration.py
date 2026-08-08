@@ -8,8 +8,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
-from myrm_agent_harness.agent.context_management.pipeline.engine import build_default_processors
-from myrm_agent_harness.agent.context_management.pipeline.engine import ContextPipeline
+from myrm_agent_harness.agent.context_management.pipeline.engine import ContextPipeline, build_default_processors
 
 
 def _large_error_body() -> str:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer, _TOOL_LAYERS
+from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS, ToolLayer
 
 _HARNESS_ROOT = Path(__file__).resolve().parents[2]
 _MONOREPO_ROOT = _HARNESS_ROOT.parent

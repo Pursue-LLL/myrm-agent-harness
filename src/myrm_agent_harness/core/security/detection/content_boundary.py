@@ -247,7 +247,7 @@ _SUSPICIOUS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "role_header",
         re.compile(r"\[\s*(System\s*Message|System|Assistant|Internal)\s*\]", re.I),
     ),
-    ("system_prefix", re.compile(r"^\s*System:\s+", re.I | re.M)),
+    ("system_prefix", re.compile(r"^\s*(?:System|Assistant):\s+", re.I | re.M)),
     (
         "ignore_instructions_zh",
         re.compile(r"忽略.{0,4}(?:之前|上面|所有).{0,4}(?:指令|规则|提示词)"),

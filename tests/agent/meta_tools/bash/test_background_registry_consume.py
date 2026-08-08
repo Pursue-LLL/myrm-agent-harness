@@ -261,7 +261,7 @@ async def test_consume_background_entry_skips_stream_without_readline() -> None:
     proc.finish()
     await task
 
-    assert entry.stdout_buffer == deque([])
+    assert entry.stdout_buffer == deque()
     assert entry.info.status == "exited"
 
 

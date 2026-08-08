@@ -19,7 +19,6 @@ import pytest
 from langchain_core.tools import BaseTool
 
 from myrm_agent_harness.agent.base_agent import BaseAgent
-from myrm_agent_harness.agent.sub_agents._orchestrator_council import run_council
 from myrm_agent_harness.agent.sub_agents.manager import SubagentManager
 from myrm_agent_harness.agent.sub_agents.types import (
     CouncilOpinion,
@@ -34,10 +33,10 @@ from myrm_agent_harness.core.events.types import AgentEventType
 class _StubLLM:
     """Minimal LLM stub satisfying BaseAgent construction."""
 
-    def bind(self, **kwargs: object) -> "_StubLLM":
+    def bind(self, **kwargs: object) -> _StubLLM:
         return self
 
-    def bind_tools(self, tools: list[BaseTool], **kwargs: object) -> "_StubLLM":
+    def bind_tools(self, tools: list[BaseTool], **kwargs: object) -> _StubLLM:
         return self
 
     async def ainvoke(self, messages: list[object], config: object = None) -> object:
@@ -123,8 +122,8 @@ class TestCouncilImportIntegration:
         assert callable(rc)
 
     async def test_council_types_importable(self) -> None:
-        from myrm_agent_harness.agent.sub_agents.types import CouncilOpinion as CO
-        from myrm_agent_harness.agent.sub_agents.types import CouncilResult as CR
+        from myrm_agent_harness.agent.sub_agents.types import CouncilOpinion as CO  # noqa: N817
+        from myrm_agent_harness.agent.sub_agents.types import CouncilResult as CR  # noqa: N817
         assert CO is CouncilOpinion
         assert CR is CouncilResult
 

@@ -25,6 +25,15 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.memory._internal.storage_context import (
+    WORKING_STATE_PROFILE_KEY,
+    WORKING_STATE_TTL_DAYS,
+    WORKING_STATE_UPDATED_AT_KEY,
+    load_context,
+)
+from myrm_agent_harness.toolkits.memory._internal.storage_conversation import (
+    store_conversations_batch,
+)
 from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
     _lifecycle_from_metadata,
     _lifecycle_payload,
@@ -38,15 +47,6 @@ from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
     doc_to_semantic,
     episodic_to_doc,
     semantic_to_doc,
-)
-from myrm_agent_harness.toolkits.memory._internal.storage_context import (
-    WORKING_STATE_PROFILE_KEY,
-    WORKING_STATE_TTL_DAYS,
-    WORKING_STATE_UPDATED_AT_KEY,
-    load_context,
-)
-from myrm_agent_harness.toolkits.memory._internal.storage_conversation import (
-    store_conversations_batch,
 )
 from myrm_agent_harness.toolkits.memory._internal.storage_search import (
     _get_adaptive_threshold,
@@ -76,57 +76,58 @@ if TYPE_CHECKING:
         RelationalStoreProtocol,
     )
     from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
+    from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
 
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    # Converters
-    "doc_to_semantic",
-    "doc_to_episodic",
-    "doc_to_conversation",
-    "semantic_to_doc",
-    "episodic_to_doc",
-    # Converter internals
-    "_safe_float",
-    "_safe_int",
-    "_user_filter",
-    "_scope_payload",
-    "_scope_from_metadata",
-    "_lifecycle_payload",
-    "_lifecycle_from_metadata",
-    # Search
-    "search_profile",
-    "search_semantic",
-    "search_episodic",
-    "search_procedural",
-    "search_bm25",
-    "search_conversation",
-    "_get_adaptive_threshold",
-    # Embed
-    "embed_single",
-    "embed_batch",
-    # Store
-    "store_semantic",
-    "store_semantics_batch",
-    "store_episodic",
-    "store_episodics_batch",
-    "store_conversations_batch",
-    # CRUD
-    "get_from_vector",
-    "update_vector_memory",
-    "delete_from_vector",
-    "list_by_type",
-    "count_by_type",
-    "delete_by_type",
-    "load_context",
+    # Constants
+    "WORKING_STATE_PROFILE_KEY",
+    "WORKING_STATE_TTL_DAYS",
+    "WORKING_STATE_UPDATED_AT_KEY",
     # Errors
     "MemoryError",
     "MemoryNotFoundError",
-    # Constants
-    "WORKING_STATE_PROFILE_KEY",
-    "WORKING_STATE_UPDATED_AT_KEY",
-    "WORKING_STATE_TTL_DAYS",
+    "_get_adaptive_threshold",
+    "_lifecycle_from_metadata",
+    "_lifecycle_payload",
+    # Converter internals
+    "_safe_float",
+    "_safe_int",
+    "_scope_from_metadata",
+    "_scope_payload",
+    "_user_filter",
+    "count_by_type",
+    "delete_by_type",
+    "delete_from_vector",
+    "doc_to_conversation",
+    "doc_to_episodic",
+    # Converters
+    "doc_to_semantic",
+    "embed_batch",
+    # Embed
+    "embed_single",
+    "episodic_to_doc",
+    # CRUD
+    "get_from_vector",
+    "list_by_type",
+    "load_context",
+    "search_bm25",
+    "search_conversation",
+    "search_episodic",
+    "search_procedural",
+    # Search
+    "search_profile",
+    "search_semantic",
+    "semantic_to_doc",
+    "store_conversations_batch",
+    "store_episodic",
+    "store_episodics_batch",
+    # Store
+    "store_semantic",
+    "store_semantics_batch",
+    "update_vector_memory",
 ]
 
 

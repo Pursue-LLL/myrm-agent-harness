@@ -14,6 +14,7 @@ import time
 import pytest
 from langchain_core.messages import AIMessage, ToolCall
 
+from myrm_agent_harness.agent.middlewares._session_context import get_security_config
 from myrm_agent_harness.agent.middlewares.approval import (
     ToolApprovalMiddleware,
     add_to_allowlist_if_needed,
@@ -24,7 +25,6 @@ from myrm_agent_harness.agent.middlewares.approval import (
     set_security_config,
     set_workspace_root,
 )
-from myrm_agent_harness.agent.middlewares._session_context import get_security_config
 from myrm_agent_harness.agent.security.approval_flow import AllowlistEntry
 from myrm_agent_harness.agent.security.types import (
     PermissionAction,
@@ -817,6 +817,7 @@ async def test_middleware_yolo_from_runtime_context_when_contextvar_missing():
     from unittest.mock import patch
 
     from langchain_core.messages import ToolCall
+
     from myrm_agent_harness.agent.middlewares._session_context import (
         EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY,
         set_security_config,

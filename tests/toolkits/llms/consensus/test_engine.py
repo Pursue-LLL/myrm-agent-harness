@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.toolkits.llms.consensus import (
     ConsensusConfig,
@@ -13,8 +14,6 @@ from myrm_agent_harness.toolkits.llms.consensus import (
     ConsensusStreamEvent,
     ReferenceResponse,
 )
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-
 from myrm_agent_harness.toolkits.llms.consensus._prompts import AGGREGATOR_SYSTEM
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 

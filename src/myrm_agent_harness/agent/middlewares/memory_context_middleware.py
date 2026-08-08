@@ -38,7 +38,6 @@ Memory context injection middleware bridging MemoryManager snapshots into the mo
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, cast
@@ -49,9 +48,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from myrm_agent_harness.toolkits.memory.config import RecallMode
 
 from .memory_context_format import (
-    _memory_search_tool_bound,
     _format_memory_context,
     _has_memory_context,
+    _memory_search_tool_bound,
 )
 
 if TYPE_CHECKING:
@@ -61,7 +60,7 @@ logger = logging.getLogger(__name__)
 
 
 def _set_memory_injection_status(
-    _manager: "MemoryManager",
+    _manager: MemoryManager,
     *,
     state: str,
     source: str | None = None,

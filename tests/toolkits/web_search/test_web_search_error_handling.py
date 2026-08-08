@@ -479,9 +479,8 @@ class TestProviderChain:
 
         with patch.object(
             searcher, "_get_search_service", return_value=primary_service
-        ):
-            with pytest.raises(SearchAPIError, match="quota exceeded"):
-                await searcher.search("test", 5)
+        ), pytest.raises(SearchAPIError, match="quota exceeded"):
+            await searcher.search("test", 5)
 
     @pytest.mark.asyncio
     async def test_chain_all_fail_raises_error(self):
@@ -528,9 +527,8 @@ class TestProviderChain:
 
         with patch.object(
             WebSearcher, "_get_search_service", return_value=primary_service
-        ):
-            with pytest.raises(AllQueriesFailedError, match="timeout"):
-                await searcher.search("test", 5)
+        ), pytest.raises(AllQueriesFailedError, match="timeout"):
+            await searcher.search("test", 5)
 
         assert metrics.chain_hop_count == 0
 

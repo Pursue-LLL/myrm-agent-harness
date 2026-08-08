@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 import pytest
 from langchain_core.messages import AIMessage
 
-from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig, WikiQueryConfig
+from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.retrieval.best_first import score_claim_overlap
 from myrm_agent_harness.toolkits.wiki.retrieval.query import WikiQueryEngine

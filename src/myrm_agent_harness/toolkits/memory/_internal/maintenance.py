@@ -32,6 +32,15 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_compile import (
+    compile_claim_graph,  # noqa: F401 — re-export
+)
+from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
+    search_claim_graph as _search_claim_graph,  # noqa: F401 — re-export
+)
+from myrm_agent_harness.toolkits.memory._internal.maintenance_enrichment import (
+    enrich_with_graph,  # noqa: F401 — re-export
+)
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     _user_filter,
     doc_to_episodic,
@@ -52,11 +61,6 @@ from myrm_agent_harness.toolkits.memory.types import (
     ProceduralMemory,
     SemanticMemory,
 )
-from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_compile import compile_claim_graph  # noqa: F401 — re-export
-from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
-    search_claim_graph as _search_claim_graph,  # noqa: F401 — re-export
-)
-from myrm_agent_harness.toolkits.memory._internal.maintenance_enrichment import enrich_with_graph  # noqa: F401 — re-export
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
@@ -69,7 +73,7 @@ if TYPE_CHECKING:
         RelationalStoreProtocol,
     )
     from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
-    from myrm_agent_harness.toolkits.memory.strategies.forgetting import (  # noqa: F401
+    from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
         ForgettingConfig,
         ForgettingResult,
         ForgettingStrategy,

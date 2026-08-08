@@ -7,12 +7,12 @@ See module docstring.
 from __future__ import annotations
 
 from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.events import WikiMapEvent, WikiMapEventType
-from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.snapshot import HotSnapshot, build_hot_snapshot
 from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.schema_writer import (
     read_index_context,
     render_schema_markdown,
     write_schema_markdown,
 )
+from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.snapshot import HotSnapshot, build_hot_snapshot
 from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.writer import (
     CognitiveMapRefreshResult,
     WikiCognitiveMapService,
@@ -36,8 +36,8 @@ __all__ = [
     "count_log_entries",
     "hot_updated_at_iso",
     "read_hot_context",
-    "read_log_context",
     "read_index_context",
+    "read_log_context",
     "render_schema_markdown",
     "write_hot_markdown",
     "write_index_markdown",

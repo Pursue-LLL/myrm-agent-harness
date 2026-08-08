@@ -36,13 +36,13 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from .core.frontmatter_contract import WikiProvenance
 from .core.structure import WikiStructure
 from .maintenance.linter import WikiLinter
-from .pipeline.compiler import WikiCompiler
 from .pipeline.apply import (
     WikiApplyError,
     WikiApplyOp,
     WikiApplyRequest,
     apply_wiki_mutation,
 )
+from .pipeline.compiler import WikiCompiler
 from .retrieval.indexer import WikiIndexer
 from .retrieval.query import WikiQueryEngine
 from .retrieval.source_citations import attach_wiki_scope_id, build_wiki_query_sources

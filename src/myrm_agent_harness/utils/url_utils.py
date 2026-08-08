@@ -137,7 +137,7 @@ def is_valid_image_url(url: str) -> bool:
         return False
 
     # 本地服务地址不能直接访问
-    local_hosts = ["localhost", "127.0.0.1", "0.0.0.0"]
+    local_hosts = ["localhost", "127.0.0.1", "0.0.0.0"]  # noqa: S104  # hostname list, not a bind
     if parsed.hostname in local_hosts:
         return False
 

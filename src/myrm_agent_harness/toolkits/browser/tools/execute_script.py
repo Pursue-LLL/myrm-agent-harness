@@ -55,12 +55,11 @@ class _PrivilegedAPIScanner(ast.NodeVisitor):
             parent_attr = node.value.attr
             if parent_attr == "request" and node.attr in _PRIVILEGED_API_METHODS:
                 self.violations.append(f".request.{node.attr}()")
-        if node.attr in _PRIVILEGED_API_ATTRS:
-            if isinstance(node.ctx, ast.Load):
-                if isinstance(node.value, ast.Name) and node.value.id in ("session", "refs"):
-                    pass
-                else:
-                    self.violations.append(f".{node.attr}")
+        if node.attr in _PRIVILEGED_API_ATTRS and isinstance(node.ctx, ast.Load):
+            if isinstance(node.value, ast.Name) and node.value.id in ("session", "refs"):
+                pass
+            else:
+                self.violations.append(f".{node.attr}")
         self.generic_visit(node)
 
 
@@ -264,7 +263,7 @@ def create_execute_script_tool(session: BrowserSession):
 
         # 5. Compile and execute the function definition
         try:
-            exec(safe_code, globals_dict, locals_dict)
+            exec(safe_code, globals_dict, locals_dict)  # noqa: S102  # safe_builtins stripped above
         except Exception as e:
             return f"Compilation error: {e}"
 

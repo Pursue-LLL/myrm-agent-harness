@@ -13,10 +13,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from myrm_agent_harness.toolkits.computer_use.types import ActionResult
-
 
 class TestInvokeInputValidation:
     """Input validation guard at invoke_ax_element entry."""

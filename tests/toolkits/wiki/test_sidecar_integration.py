@@ -131,7 +131,7 @@ async def test_sidecar_incremental_rebuild_skips_unchanged(tmp_path):
     )
     assert first.rebuilt_directories >= 2
 
-    llm_call_count_before = llm.ainvoke.call_count if hasattr(llm.ainvoke, "call_count") else None
+    llm.ainvoke.call_count if hasattr(llm.ainvoke, "call_count") else None
 
     second = await build_directory_sidecars(
         llm, structure, WikiCompileConfig(), touched_concepts=[], indexer=indexer,

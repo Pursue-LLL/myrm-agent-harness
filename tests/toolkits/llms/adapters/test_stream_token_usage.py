@@ -7,9 +7,8 @@ downstream dispatch to collect pending token events.
 
 from __future__ import annotations
 
-import asyncio
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from langchain_core.messages import AIMessageChunk, HumanMessage
@@ -214,7 +213,7 @@ class TestSyncStreamSentinel:
         chunks = _make_tool_call_stream_chunks()
         model.client.completion = MagicMock(return_value=_mock_stream(chunks))
 
-        results = list(model._stream([HumanMessage(content="hi")]))
+        list(model._stream([HumanMessage(content="hi")]))
 
         # Usage should still be recorded regardless of tool call presence
         events = get_pending_token_events()

@@ -15,6 +15,7 @@ Reuses core SSRF guards; does not duplicate IP blocklists.
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
@@ -88,10 +89,8 @@ async def goto_with_ssrf_guard(
     async def handler(route: Route, request: Request) -> None:
         nonlocal blocked_error
         if blocked_error is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await route.abort()
-            except Exception:
-                pass
             return
         if not _is_document_navigation(page, request):
             await _continue_route_safely(route)
@@ -101,10 +100,8 @@ async def goto_with_ssrf_guard(
         except BrowserNavigationBlockedError as exc:
             if request.frame == page.main_frame:
                 blocked_error = exc
-            try:
+            with contextlib.suppress(Exception):
                 await route.abort()
-            except Exception:
-                pass
             return
         await _continue_route_safely(route)
 

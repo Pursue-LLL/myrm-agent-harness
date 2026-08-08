@@ -16,13 +16,13 @@ from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.events import (
 from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map.writer import (
     append_log_entry,
 )
+from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.errors import RawGateError
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.evidence_removal import (
     remove_raw_evidence,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.security_hook import (
     apply_raw_security_scan,
 )
-
 from myrm_agent_harness.toolkits.wiki.pipeline.raw_gate.types import RawGateCaller
 
 

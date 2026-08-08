@@ -502,7 +502,7 @@ class TestPtcRpcServer:
         server = PtcRpcServer(PtcConfig(timeout_seconds=10), dispatcher)
         await server.start()
         try:
-            reader, writer = await asyncio.open_unix_connection(server.socket_path)
+            _reader, writer = await asyncio.open_unix_connection(server.socket_path)
             writer.close()
             await writer.wait_closed()
             await asyncio.sleep(0.1)
@@ -615,7 +615,7 @@ class TestPtcInjection:
         from tests.toolkits.code_execution._executor_stub import InProcessExecutor
 
         inner_executor = InProcessExecutor()
-        bash_exec = BashExecutor(executor=inner_executor, enable_skill_execution=False)
+        BashExecutor(executor=inner_executor, enable_skill_execution=False)
 
         context = ExecutionContext(
             code="print('plain')",

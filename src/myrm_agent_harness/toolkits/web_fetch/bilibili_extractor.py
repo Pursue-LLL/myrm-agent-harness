@@ -107,7 +107,7 @@ def _api_request(url: str, opener: urllib.request.OpenerDirector, cookies: dict[
         cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items())
         headers["Cookie"] = cookie_str
 
-    req = urllib.request.Request(url, headers=headers)
+    req = urllib.request.Request(url, headers=headers)  # noqa: S310
     with opener.open(req, timeout=_REQUEST_TIMEOUT) as resp:
         return json.loads(resp.read().decode("utf-8"))
 

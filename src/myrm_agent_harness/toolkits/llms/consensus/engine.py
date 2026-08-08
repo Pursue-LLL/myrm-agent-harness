@@ -29,18 +29,18 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
-from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import (
-    apply_privacy_to_ref,
-    inject_privacy_mode,
-    sse_privacy_mode,
-)
 from myrm_agent_harness.toolkits.llms.consensus._history import flatten_tool_free_history
 from myrm_agent_harness.toolkits.llms.consensus._prompts import (
     build_aggregation_messages,
 )
 from myrm_agent_harness.toolkits.llms.consensus._streaming import collect_stream
+from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import (
+    apply_privacy_to_ref,
+    inject_privacy_mode,
+    sse_privacy_mode,
+)
 from myrm_agent_harness.toolkits.llms.consensus.types import (
     ConsensusConfig,
     ConsensusResult,
@@ -197,7 +197,7 @@ class ConsensusEngine:
                 asyncio.ensure_future(self._query_single(llm, query, system_prompt, flat_history))
                 for llm in self._refs
             ]
-            task_to_llm = dict(zip(tasks, self._refs))
+            task_to_llm = dict(zip(tasks, self._refs, strict=True))
             try:
                 for coro in asyncio.as_completed(tasks, timeout=cfg.timeout_total):
                     ref = await coro

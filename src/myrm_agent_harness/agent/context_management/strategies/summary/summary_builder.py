@@ -66,7 +66,7 @@ def extract_protected_head(messages: list[BaseMessage]) -> list[BaseMessage]:
     return head
 
 
-from myrm_agent_harness.utils.token_estimation import estimate_message_tokens
+from myrm_agent_harness.utils.token_estimation import estimate_message_tokens  # noqa: E402
 
 
 def _align_boundary_backward(messages: list[BaseMessage], idx: int) -> int:

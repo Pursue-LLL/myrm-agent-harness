@@ -44,6 +44,8 @@ async def store_conversations_batch(
     from myrm_agent_harness.toolkits.memory._internal.storage import embed_batch
     from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
         _lifecycle_payload as lc_payload,
+    )
+    from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
         _scope_payload as sc_payload,
     )
     from myrm_agent_harness.toolkits.vector.base import VectorStore

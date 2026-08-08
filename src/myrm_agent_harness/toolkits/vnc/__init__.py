@@ -25,4 +25,4 @@ from myrm_agent_harness.toolkits.vnc.takeover import (
     TakeoverState,
 )
 
-__all__ = ["VncServer", "TakeoverCoordinator", "TakeoverLifecycleHook", "TakeoverState", "get_environment_hint"]
+__all__ = ["TakeoverCoordinator", "TakeoverLifecycleHook", "TakeoverState", "VncServer", "get_environment_hint"]

@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import threading
 
-import pytest
-
 from myrm_agent_harness.toolkits.llms.fallback.probe_throttle import (
     GlobalProbeThrottle,
     get_global_probe_throttle,

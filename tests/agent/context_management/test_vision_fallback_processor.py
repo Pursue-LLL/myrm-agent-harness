@@ -7,12 +7,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from langchain_core.messages import HumanMessage, ToolMessage
 
+from myrm_agent_harness.agent.config.llm import LLMConfig
 from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
 from myrm_agent_harness.agent.context_management.pipeline.processors.vision_fallback_processor import (
     VisionFallbackProcessor,
     apply_vision_fallback_to_messages,
 )
-from myrm_agent_harness.agent.config.llm import LLMConfig
 
 
 def _vision_cfg() -> LLMConfig:

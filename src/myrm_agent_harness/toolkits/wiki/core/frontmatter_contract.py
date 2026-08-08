@@ -16,11 +16,11 @@ and server repair API.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum, StrEnum
 from pathlib import Path
-import re
 
 import yaml
 

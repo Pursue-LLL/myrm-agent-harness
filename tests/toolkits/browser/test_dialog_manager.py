@@ -7,7 +7,7 @@ Also tests attach/detach, format_for_snapshot, and respond flows.
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -15,7 +15,6 @@ from myrm_agent_harness.toolkits.browser.session.dialog_manager import (
     DialogManager,
     DialogPolicy,
     DialogRecord,
-    _PendingDialog,
 )
 
 

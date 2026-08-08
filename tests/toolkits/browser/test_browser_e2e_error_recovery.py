@@ -425,7 +425,7 @@ async def test_error_interact_with_disabled_element(browser_session: BrowserSess
         await page.click("#btn", timeout=2000)
     except Exception:
         # Expected to fail or do nothing
-        pass
+        pass  # deliberate: assert no hang and no re-raise
 
     # Session should still be usable
     text = await browser_session.extract_text()

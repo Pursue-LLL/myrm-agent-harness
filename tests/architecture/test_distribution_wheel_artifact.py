@@ -13,17 +13,18 @@ _ARCH_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(_ARCH_DIR))
 
-from harness_packaging.integrity import (  # noqa: E402
+from distribution_wheel_helpers import (
+    write_minimal_core_wheel,
+    write_minimal_release_wheel,
+)
+
+from harness_packaging.integrity import (
     DistributionWheelArtifactError,
     DistributionWheelRole,
     distribution_wheel_artifact_violations,
     verify_distribution_wheel_artifact,
 )
-from harness_packaging.release import finalize_stripped_release_wheel, manifest_source_paths  # noqa: E402
-from distribution_wheel_helpers import (  # noqa: E402
-    write_minimal_core_wheel,
-    write_minimal_release_wheel,
-)
+from harness_packaging.release import finalize_stripped_release_wheel, manifest_source_paths
 
 
 def _assert_wheel_record_matches_archive(wheel_path: Path) -> None:

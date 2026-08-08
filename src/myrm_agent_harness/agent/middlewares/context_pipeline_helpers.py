@@ -21,7 +21,6 @@ import json
 from collections.abc import Mapping, Sequence
 
 from langchain.agents.middleware import ModelRequest
-
 from langchain_core.messages import BaseMessage
 
 from myrm_agent_harness.agent.context_management.infra.cache_metrics_collector import (

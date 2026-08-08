@@ -21,5 +21,7 @@ __all__ = [
     "SpanRiskLevel",
     "build_shell_approval_fields",
     "extract_command_spans",
+    "extract_shell_command_text",
     "humanize_command",
+    "is_shell_approval_tool",
 ]

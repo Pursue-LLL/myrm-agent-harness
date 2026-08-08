@@ -415,7 +415,7 @@ def cleanup_run(
 
 
 def collect_tracker_stats(
-    stats: AgentRunStatistics, *, tracker: "TokenTracker | None" = None
+    stats: AgentRunStatistics, *, tracker: TokenTracker | None = None
 ) -> None:
     """Extract token usage and cost from the current TokenTracker into stats.
 

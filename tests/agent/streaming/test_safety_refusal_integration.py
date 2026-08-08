@@ -18,7 +18,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.agent.streaming.stream_executor import StreamContext, StreamExecutor
 from myrm_agent_harness.agent.types import AgentRunStatistics

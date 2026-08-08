@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_from_content
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     FrontmatterValidationError,
     WikiPageType,
@@ -15,7 +16,6 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     repair_missing_types,
     validate_wiki_frontmatter,
 )
-from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_from_content
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.pending import WikiPendingEditsManager
 

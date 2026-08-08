@@ -162,7 +162,7 @@ class ExtensionBridge(Protocol):
         ...
 
 
-class ExtensionBridgeNotAvailable(Exception):
+class ExtensionBridgeNotAvailableError(Exception):
     """Raised when extension bridge is required but not connected."""
 
     def __init__(self, message: str = "Browser extension is not connected") -> None:

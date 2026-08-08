@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from myrm_agent_harness.agent.sub_agents.types import (
+    DELEGATION_CAPABILITY_MANIFEST,
     AgentHandoverState,
     CouncilOpinion,
     CouncilResult,
-    DELEGATION_CAPABILITY_MANIFEST,
     DelegationCapabilityManifest,
     SubAgentResult,
     SubAgentStatus,
@@ -28,7 +28,7 @@ def test_default_manifest_blocks_hitl_and_delegation_tools() -> None:
 
 
 def test_module_manifest_matches_default_factory() -> None:
-    assert DELEGATION_CAPABILITY_MANIFEST == DelegationCapabilityManifest.default()
+    assert DelegationCapabilityManifest.default() == DELEGATION_CAPABILITY_MANIFEST
 
 
 def test_sub_agent_result_to_dict_includes_optional_fields() -> None:

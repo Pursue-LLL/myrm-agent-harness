@@ -10,11 +10,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import AIMessage
 
+from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
 from myrm_agent_harness.toolkits.wiki.core.config import WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import PUBLISH_STATUS_KEY, WikiPublishStatus
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.maintenance.linter import WikiLinter
-from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
 from myrm_agent_harness.toolkits.wiki.pipeline.pending import WikiPendingEditsManager
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
     ConceptPathMapping,
@@ -97,7 +97,6 @@ async def test_link_enrichment_uses_publish_gate(wiki_structure: WikiStructure, 
 
 @pytest.mark.asyncio
 async def test_publish_stamps_frontmatter_on_disk(wiki_structure: WikiStructure) -> None:
-    from myrm_agent_harness.toolkits.wiki.pipeline.publication import publish_concept_article
 
     content = "---\ntype: concept\n---\n\n## Compiled Truth\nPublished body.\n"
     await publish_concept_article(wiki_structure, None, "live/page", content)

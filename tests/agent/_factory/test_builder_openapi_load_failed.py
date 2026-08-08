@@ -42,13 +42,12 @@ async def test_create_skill_agent_raises_when_openapi_load_raises() -> None:
     with patch(
         "myrm_agent_harness.toolkits.openapi_bridge.OpenAPIBridge",
         return_value=mock_bridge,
-    ):
-        with pytest.raises(ConfigIncompleteError) as exc_info:
-            await create_skill_agent(
-                spec=spec,
-                llm=MagicMock(),
-                executor=MagicMock(),
-            )
+    ), pytest.raises(ConfigIncompleteError) as exc_info:
+        await create_skill_agent(
+            spec=spec,
+            llm=MagicMock(),
+            executor=MagicMock(),
+        )
 
     assert exc_info.value.error_code == "openapi_load_failed"
 
@@ -77,13 +76,12 @@ async def test_create_skill_agent_raises_when_enabled_openapi_produces_zero_tool
     with patch(
         "myrm_agent_harness.toolkits.openapi_bridge.OpenAPIBridge",
         return_value=mock_bridge,
-    ):
-        with pytest.raises(ConfigIncompleteError) as exc_info:
-            await create_skill_agent(
-                spec=spec,
-                llm=MagicMock(),
-                executor=MagicMock(),
-            )
+    ), pytest.raises(ConfigIncompleteError) as exc_info:
+        await create_skill_agent(
+            spec=spec,
+            llm=MagicMock(),
+            executor=MagicMock(),
+        )
 
     assert exc_info.value.error_code == "openapi_load_failed"
 
@@ -107,16 +105,15 @@ async def test_create_skill_agent_skips_load_failed_when_all_openapi_disabled() 
     with patch(
         "myrm_agent_harness.toolkits.openapi_bridge.OpenAPIBridge",
         return_value=mock_bridge,
-    ):
-        with patch(
-            "myrm_agent_harness.agent.skill_agent.SkillAgent",
-        ) as mock_skill_agent_cls:
-            mock_skill_agent_cls.return_value = MagicMock()
-            await create_skill_agent(
-                spec=spec,
-                llm=MagicMock(),
-                executor=MagicMock(),
-            )
+    ), patch(
+        "myrm_agent_harness.agent.skill_agent.SkillAgent",
+    ) as mock_skill_agent_cls:
+        mock_skill_agent_cls.return_value = MagicMock()
+        await create_skill_agent(
+            spec=spec,
+            llm=MagicMock(),
+            executor=MagicMock(),
+        )
 
     mock_bridge.get_tools.assert_not_called()
 
@@ -157,16 +154,15 @@ async def test_create_skill_agent_allows_partial_openapi_load_success() -> None:
     with patch(
         "myrm_agent_harness.toolkits.openapi_bridge.OpenAPIBridge",
         return_value=mock_bridge,
-    ):
-        with patch(
-            "myrm_agent_harness.agent.skill_agent.SkillAgent",
-        ) as mock_skill_agent_cls:
-            mock_skill_agent_cls.return_value = MagicMock()
-            await create_skill_agent(
-                spec=spec,
-                llm=MagicMock(),
-                executor=MagicMock(),
-            )
+    ), patch(
+        "myrm_agent_harness.agent.skill_agent.SkillAgent",
+    ) as mock_skill_agent_cls:
+        mock_skill_agent_cls.return_value = MagicMock()
+        await create_skill_agent(
+            spec=spec,
+            llm=MagicMock(),
+            executor=MagicMock(),
+        )
 
     call_kwargs = mock_skill_agent_cls.call_args.kwargs
     bound_tools = call_kwargs.get("tools") or []
@@ -197,16 +193,15 @@ async def test_create_skill_agent_binds_openapi_tools_when_load_succeeds_under_b
     with patch(
         "myrm_agent_harness.toolkits.openapi_bridge.OpenAPIBridge",
         return_value=mock_bridge,
-    ):
-        with patch(
-            "myrm_agent_harness.agent.skill_agent.SkillAgent",
-        ) as mock_skill_agent_cls:
-            mock_skill_agent_cls.return_value = MagicMock()
-            await create_skill_agent(
-                spec=spec,
-                llm=MagicMock(),
-                executor=MagicMock(),
-            )
+    ), patch(
+        "myrm_agent_harness.agent.skill_agent.SkillAgent",
+    ) as mock_skill_agent_cls:
+        mock_skill_agent_cls.return_value = MagicMock()
+        await create_skill_agent(
+            spec=spec,
+            llm=MagicMock(),
+            executor=MagicMock(),
+        )
 
     call_kwargs = mock_skill_agent_cls.call_args.kwargs
     bound_tools = call_kwargs.get("tools") or []
@@ -250,16 +245,15 @@ async def test_create_skill_agent_allows_openapi_over_budget_in_direct_fc_mode()
     with patch(
         "myrm_agent_harness.toolkits.openapi_bridge.OpenAPIBridge",
         return_value=mock_bridge,
-    ):
-        with patch(
-            "myrm_agent_harness.agent.skill_agent.SkillAgent",
-        ) as mock_skill_agent_cls:
-            mock_skill_agent_cls.return_value = MagicMock()
-            await create_skill_agent(
-                spec=spec,
-                llm=MagicMock(),
-                executor=MagicMock(),
-            )
+    ), patch(
+        "myrm_agent_harness.agent.skill_agent.SkillAgent",
+    ) as mock_skill_agent_cls:
+        mock_skill_agent_cls.return_value = MagicMock()
+        await create_skill_agent(
+            spec=spec,
+            llm=MagicMock(),
+            executor=MagicMock(),
+        )
 
     call_kwargs = mock_skill_agent_cls.call_args.kwargs
     bound_tools = call_kwargs.get("tools") or []

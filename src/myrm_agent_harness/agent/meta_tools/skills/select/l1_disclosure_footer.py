@@ -110,7 +110,7 @@ def _schema_property_keys(config_schema: dict[str, object]) -> list[str]:
     props = config_schema.get("properties")
     if not isinstance(props, dict):
         return []
-    return sorted(str(key) for key in props.keys())
+    return sorted(str(key) for key in props)
 
 
 def _schema_default_values(config_schema: dict[str, object]) -> dict[str, object]:

@@ -165,10 +165,7 @@ def validate_compile_claims(claims: tuple[WikiClaim, ...]) -> bool:
     """Return True when parsed claims are sufficient for compile output."""
     if not claims:
         return False
-    for claim in claims:
-        if not claim.id.strip() or not claim.text.strip():
-            return False
-    return True
+    return all(not (not claim.id.strip() or not claim.text.strip()) for claim in claims)
 
 
 def _claim_slug(concept_name: str) -> str:

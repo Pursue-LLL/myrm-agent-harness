@@ -9,8 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent._internals.run_lifecycle import (
-    collect_tracker_stats,
     cleanup_run,
+    collect_tracker_stats,
     compute_context_budget_snapshot,
     post_run_events,
     resolve_context_budget_breakdown,

@@ -7,19 +7,18 @@ from pathlib import Path
 import pytest
 import tiktoken
 
+import myrm_agent_harness.agent.artifacts.ui_registry as _ui_reg_mod
 from myrm_agent_harness.agent.artifacts.context import ArtifactContextManager
+from myrm_agent_harness.agent.artifacts.ui_artifact import UIComponentType
 from myrm_agent_harness.agent.artifacts.ui_registry import (
-    _CURRENT_RUN_UI_MESSAGE_ID,
     _PENDING_BY_MESSAGE_ID,
     _RUN_MESSAGE_ID_BY_SESSION,
     get_ui_registry,
 )
-from myrm_agent_harness.agent.artifacts.ui_artifact import UIComponentType
 from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
     A2UI_REFERENCE_FILENAME,
     allowed_component_type_names,
     format_adjacency_error,
-    format_allowed_types_line,
     format_validation_error,
     get_bundled_reference_content,
     normalize_component_dicts,
@@ -28,7 +27,6 @@ from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
     validate_ui_adjacency,
 )
 from myrm_agent_harness.agent.meta_tools.interaction.render_ui_tool import render_ui, render_ui_tool
-import myrm_agent_harness.agent.artifacts.ui_registry as _ui_reg_mod
 
 
 @pytest.fixture(autouse=True)
@@ -37,10 +35,10 @@ def _clean_ui_globals(monkeypatch):
     _RUN_MESSAGE_ID_BY_SESSION.clear()
     _PENDING_BY_MESSAGE_ID.clear()
     monkeypatch.setattr(_ui_reg_mod, "_CURRENT_RUN_UI_MESSAGE_ID", None)
-    from myrm_agent_harness.agent.middlewares._session_context import _active_message_id_var
     from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
         _current_message_id as _snapshot_msg_id_var,
     )
+    from myrm_agent_harness.agent.middlewares._session_context import _active_message_id_var
     _active_message_id_var.set(None)
     _snapshot_msg_id_var.set(None)
     yield

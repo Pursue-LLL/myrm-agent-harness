@@ -8,7 +8,6 @@ Covers:
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import MagicMock
 
 import pytest
@@ -21,12 +20,14 @@ class TestHandleOversizedOutput:
     """Test MCPAgent._handle_oversized_output static method."""
 
     def test_handler_returns_summary(self) -> None:
-        handler: OversizedResultHandler = lambda c, t: f"summary of {t}"
+        def handler(c, t):
+            return f"summary of {t}"
         result = MCPAgent._handle_oversized_output("x" * 200_000, "big_tool", 100_000, handler)
         assert result == "summary of big_tool"
 
     def test_handler_returns_none_falls_back_to_truncation(self) -> None:
-        handler: OversizedResultHandler = lambda c, t: None
+        def handler(c, t):
+            return None
         content = "a" * 150_000
         result = MCPAgent._handle_oversized_output(content, "tool_x", 100_000, handler)
         assert "[Output truncated" in result
@@ -253,7 +254,8 @@ class TestBoundaryConditions:
 
     def test_handler_returns_empty_string_accepted(self) -> None:
         """Handler returning empty string (not None) should be accepted as valid."""
-        handler: OversizedResultHandler = lambda c, t: ""
+        def handler(c, t):
+            return ""
         result = MCPAgent._handle_oversized_output("x" * 200_000, "empty_ret", 100_000, handler)
         assert result == ""
 

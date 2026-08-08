@@ -76,7 +76,7 @@ def _setup_libreoffice_macro(profile_dir: Path, timeout: int) -> tuple[str | Non
 
     try:
         (macro_dir / _MACRO_FILENAME).write_text(_RECALCULATE_MACRO, encoding="utf-8")
-    except OSError as exc:
+    except OSError:
         return None, "Could not install recalculation macro"
 
     return profile_url, None
@@ -164,7 +164,7 @@ def _recalc_workbook_sync(file_path: Path, *, timeout_seconds: int) -> list[str]
                 f"Excel recalc timed out for {file_path.name} after {remaining_timeout}s; "
                 "formula errors may remain undetected."
             ]
-        except OSError as exc:
+        except OSError:
             return [f"Excel recalc failed to run soffice for {file_path.name}"]
 
         if result.returncode != 0:

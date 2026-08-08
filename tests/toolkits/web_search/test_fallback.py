@@ -113,9 +113,8 @@ class TestProviderChain:
 
         with patch.object(
             WebSearcher, "_get_search_service", return_value=mock_primary
-        ):
-            with pytest.raises(AllQueriesFailedError):
-                await searcher.search("no_chain_retryable_unique", num_results=5)
+        ), pytest.raises(AllQueriesFailedError):
+            await searcher.search("no_chain_retryable_unique", num_results=5)
 
         assert metrics.chain_hop_count == 0
 

@@ -714,9 +714,7 @@ async def test_execute_escalation_triggers_continue(fire_hook_mock, base_ctx):
 
     async def _mock_escalation(collected):
         escalation_call[0] += 1
-        if escalation_call[0] == 1:
-            return True
-        return False
+        return escalation_call[0] == 1
 
     with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
         with patch.object(executor, "_handle_escalation", side_effect=_mock_escalation):
@@ -741,9 +739,7 @@ async def test_execute_length_truncation_triggers_continue(fire_hook_mock, base_
 
     async def _mock_truncation(collected, retries):
         trunc_call[0] += 1
-        if trunc_call[0] == 1:
-            return True
-        return False
+        return trunc_call[0] == 1
 
     with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
         with patch.object(executor, "_handle_length_truncation", side_effect=_mock_truncation):
@@ -768,9 +764,7 @@ async def test_execute_safety_refusal_triggers_continue(fire_hook_mock, base_ctx
 
     async def _mock_refusal():
         refusal_call[0] += 1
-        if refusal_call[0] == 1:
-            return True
-        return False
+        return refusal_call[0] == 1
 
     with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
         with patch.object(executor, "_handle_safety_refusal_fallback", side_effect=_mock_refusal):
@@ -795,9 +789,7 @@ async def test_execute_empty_response_triggers_continue(fire_hook_mock, base_ctx
 
     async def _mock_empty(collected, retries):
         empty_call[0] += 1
-        if empty_call[0] == 1:
-            return True
-        return False
+        return empty_call[0] == 1
 
     with patch.object(executor, "_dispatch_chunk", new_callable=AsyncMock):
         with patch.object(executor, "_handle_empty_response", side_effect=_mock_empty):

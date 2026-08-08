@@ -184,8 +184,8 @@ class TestDesktopInteractSensitiveGuard:
     @pytest.mark.asyncio
     async def test_interact_revalidation_blocks_sensitive_app(self) -> None:
         from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
-        from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig
         from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
+        from myrm_agent_harness.toolkits.computer_use.types import ComputerUseConfig
 
         backend = MagicMock()
         session = DesktopSession(backend=backend, config=ComputerUseConfig())

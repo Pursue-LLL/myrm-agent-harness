@@ -119,7 +119,7 @@ _CATEGORIES: tuple[tuple[str, float, re.Pattern[str]], ...] = (
         0.7,
         re.compile(
             r"(?:</?system>|\[\s*(?:System\s*Message|System|Assistant|Internal)\s*\]"
-            r"|^\s*System:\s+)",
+            r"|^\s*(?:System|Assistant):\s+)",
             re.I | re.M,
         ),
     ),

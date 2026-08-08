@@ -56,13 +56,10 @@ class MediaFilterProcessor(BaseProcessor):
         return "media_filter"
 
     async def should_process(self, context: ProcessorContext) -> bool:
-        if self._should_skip_for_cache_preservation(context):
-            return False
-
         # We now process EVERY request:
         # - Text-only models: strip ALL media
         # - Vision models: strip HISTORICAL media (save tokens)
-        return True
+        return not self._should_skip_for_cache_preservation(context)
 
     async def process(self, context: ProcessorContext) -> ProcessorContext:
         stripped_count = 0

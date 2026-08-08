@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -14,7 +14,7 @@ from myrm_agent_harness.toolkits.browser.pool.browser_launcher import (
 from myrm_agent_harness.toolkits.browser.pool.config import LaunchMode
 from myrm_agent_harness.toolkits.browser.pool.extension_bridge import (
     ExtensionBridge,
-    ExtensionBridgeNotAvailable,
+    ExtensionBridgeNotAvailableError,
     ExtensionStatus,
     ExtensionTab,
 )
@@ -32,7 +32,7 @@ class MockExtensionBridge:
     async def connect(self, *, timeout: float = 10.0) -> BrowserInstance:
         self.connect_called = True
         if self._should_fail:
-            raise ExtensionBridgeNotAvailable("Extension not connected")
+            raise ExtensionBridgeNotAvailableError("Extension not connected")
         browser = MagicMock()
         browser.contexts = []
         return BrowserInstance(
@@ -196,11 +196,11 @@ class TestLaunchModeExtension:
             await launcher.create_browser()
 
 
-class TestExtensionBridgeNotAvailable:
+class TestExtensionBridgeNotAvailableError:
     def test_default_message(self) -> None:
-        exc = ExtensionBridgeNotAvailable()
+        exc = ExtensionBridgeNotAvailableError()
         assert "not connected" in str(exc)
 
     def test_custom_message(self) -> None:
-        exc = ExtensionBridgeNotAvailable("Custom error")
+        exc = ExtensionBridgeNotAvailableError("Custom error")
         assert str(exc) == "Custom error"

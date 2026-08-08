@@ -1,13 +1,13 @@
 """Tests for todo_write conditional registration."""
 
 from __future__ import annotations
-from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 from myrm_agent_harness.agent.skill_agent import SkillAgent
 from myrm_agent_harness.backends.skills.types import SkillMetadata
 

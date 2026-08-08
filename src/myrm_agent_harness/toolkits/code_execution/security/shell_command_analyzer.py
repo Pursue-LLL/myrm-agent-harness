@@ -289,7 +289,7 @@ def _integration_write_patterns_compiled() -> tuple[tuple[re.Pattern[str], str],
 # Quote-aware preprocessing & recursive shell wrapper analysis
 # ---------------------------------------------------------------------------
 
-from .shell_command_strip import _strip_quoted_content
+from .shell_command_strip import _strip_quoted_content  # noqa: E402
 
 _MAX_RECURSIVE_DEPTH = 8
 
@@ -346,11 +346,7 @@ def is_destructive_command(command: str) -> bool:
         r">\s*\S+",  # Redirection overwrite
     ]
 
-    for pattern in destructive_patterns:
-        if re.search(pattern, normalized, re.IGNORECASE):
-            return True
-
-    return False
+    return any(re.search(pattern, normalized, re.IGNORECASE) for pattern in destructive_patterns)
 
 
 def analyze_command(command: str, *, _depth: int = 0) -> tuple[CommandThreat, ...]:
@@ -487,10 +483,7 @@ def is_integration_mutation_command(command: str) -> bool:
     """Return True when a shell command performs a third-party integration write."""
     stripped = _strip_quoted_content(command)
     normalized = " ".join(stripped.split())
-    for pattern, _desc in _integration_write_patterns_compiled():
-        if pattern.search(normalized):
-            return True
-    return False
+    return any(pattern.search(normalized) for pattern, _desc in _integration_write_patterns_compiled())
 
 
 def has_block_threat(command: str) -> CommandThreat | None:

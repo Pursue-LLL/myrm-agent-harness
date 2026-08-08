@@ -135,7 +135,7 @@ def collect_docx_opc_metrics(file_path: Path) -> DocxOpcMetrics | None:
 
 def collect_xlsx_formulas(file_path: Path) -> XlsxFormulaSnapshot | None:
     """Collect formula cells from a workbook (data_only=False)."""
-    if file_path.suffix.lower() not in {".xlsx", ".xls", ".xlsm", ".xls"}:
+    if file_path.suffix.lower() not in {".xlsx", ".xls", ".xlsm"}:
         return None
     if not file_path.is_file():
         return None

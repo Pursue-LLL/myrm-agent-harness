@@ -11,10 +11,10 @@ import pytest
 from langchain_core.messages import AIMessage, ToolCall
 
 from myrm_agent_harness.agent.middlewares.approval import (
-    set_approval_session,
     set_approval_user_id,
-    set_security_config,
-    set_workspace_root,
+)
+from myrm_agent_harness.agent.middlewares.approval._batch_decisions import (
+    _should_block_allow_always,
 )
 from myrm_agent_harness.agent.middlewares.approval.batch_processor import (
     apply_approval_decisions,
@@ -27,14 +27,9 @@ from myrm_agent_harness.agent.middlewares.approval.helpers import (
     record_denial,
     reset_denial_counter,
 )
-from myrm_agent_harness.agent.middlewares.approval._batch_decisions import (
-    _should_block_allow_always,
-)
 from myrm_agent_harness.agent.security.types import (
     PermissionAction,
     PermissionRule,
-    ReviewDecision,
-    ReviewResult,
     SecurityConfig,
 )
 

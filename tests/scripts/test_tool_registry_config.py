@@ -16,7 +16,7 @@ from scripts.tool_registry_config import (
 
 
 def test_ptc_runtime_tool_names_contains_dw_bridge_tools() -> None:
-    assert PTC_RUNTIME_TOOL_NAMES == frozenset({"spawn_subagent", "notify"})
+    assert frozenset({"spawn_subagent", "notify"}) == PTC_RUNTIME_TOOL_NAMES
 
 
 def test_is_test_path_detects_tests_directory() -> None:

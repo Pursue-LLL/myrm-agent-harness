@@ -18,15 +18,17 @@ import hashlib
 import logging
 from datetime import UTC, datetime
 
-from myrm_agent_harness.toolkits.memory._internal.storage import doc_to_episodic
 from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
     _QUERY_TOKEN_PATTERN,
+)
+from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support import (
     search_claim_graph as _search_claim_graph,
 )
-from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, MemorySearchResult, MemoryType
+from myrm_agent_harness.toolkits.memory._internal.storage import doc_to_episodic
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.protocols.graph import GraphStoreProtocol
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
+from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, MemorySearchResult, MemoryType
 
 logger = logging.getLogger(__name__)
 

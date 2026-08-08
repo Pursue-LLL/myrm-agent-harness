@@ -480,7 +480,7 @@ class TestFormatDocumentsWithMetadata:
                 },
             ),
         ]
-        sources, _context, stats = format_documents_with_metadata(
+        sources, _context, _stats = format_documents_with_metadata(
             docs, total_max_tokens=500
         )
         assert len(sources) >= 1

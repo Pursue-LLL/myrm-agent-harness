@@ -12,14 +12,14 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
-from myrm_agent_harness.agent.streaming.types import AgentEventType
-from myrm_agent_harness.utils.logger_utils import get_agent_logger
-
-from .helpers import accumulate_usage, extract_tool_calls
 from myrm_agent_harness.agent.orchestration.signals.deep_research import (
     FINALIZE_TOOL_NAME,
     build_orchestrator_tools,
 )
+from myrm_agent_harness.agent.streaming.types import AgentEventType
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
+from .helpers import accumulate_usage, extract_tool_calls
 
 if TYPE_CHECKING:
     pass
@@ -63,7 +63,11 @@ class DeepResearchPlanResearchMixin:
         self, history: list[BaseMessage], message_id: str, datetime_str: str
     ) -> AsyncGenerator[dict[str, object]]:
         """Phase 3: Orchestrator loop — dispatch research agents and think."""
-        from langchain_core.messages import ToolMessage
+
+        from myrm_agent_harness.agent.orchestration.signals.deep_research import (
+            DISPATCH_TOOL_NAME,
+            THINK_TOOL_NAME,
+        )
 
         from .config import DeepResearchPhase
         from .helpers import (
@@ -75,10 +79,6 @@ class DeepResearchPlanResearchMixin:
             FIRST_CYCLE_REMINDER,
             build_orchestrator_prompt,
             build_orchestrator_reminder,
-        )
-        from myrm_agent_harness.agent.orchestration.signals.deep_research import (
-            DISPATCH_TOOL_NAME,
-            THINK_TOOL_NAME,
         )
 
         self._phase = DeepResearchPhase.RESEARCH  # type: ignore[attr-defined]

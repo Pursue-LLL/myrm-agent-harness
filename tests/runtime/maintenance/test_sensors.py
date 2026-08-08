@@ -100,7 +100,7 @@ class TestDeviceLoadSensor:
 
         mock_file.side_effect = open_side_effect_1
 
-        cgroup_cpu, cgroup_mem = sensor._get_cgroup_metrics()
+        cgroup_cpu, _ = sensor._get_cgroup_metrics()
         assert cgroup_cpu is None  # First read returns None for CPU delta
 
         # Second read, 1 second later, used 0.5 CPU seconds

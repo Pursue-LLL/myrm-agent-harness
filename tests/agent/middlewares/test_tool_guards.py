@@ -25,7 +25,6 @@ from myrm_agent_harness.agent.security.guards.loop_guard import (
     LoopAction,
 )
 
-
 # ---------------------------------------------------------------------------
 # 1. _emit_loop_guard_event unit tests
 # ---------------------------------------------------------------------------

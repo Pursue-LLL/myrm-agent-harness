@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 _HARNESS_ROOT = Path(__file__).resolve().parents[2]
 _META_TOOLS_INIT = _HARNESS_ROOT / "src/myrm_agent_harness/agent/meta_tools/__init__.py"
 _BASH_CODE_EXECUTE = _HARNESS_ROOT / "src/myrm_agent_harness/agent/meta_tools/bash/bash_code_execute_tool.py"

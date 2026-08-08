@@ -2,7 +2,7 @@
 
 import asyncio
 import shutil
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -352,8 +352,8 @@ async def test_on_popup_close_switches_to_parent() -> None:
 async def test_on_popup_close_fallback_when_parent_gone() -> None:
     """When parent tab is already closed, popup close falls back to another tab."""
     tc = _make_mock_tc()
-    t1 = await _add_mock_tab(tc)
-    t2 = await _add_mock_tab(tc)
+    await _add_mock_tab(tc)
+    await _add_mock_tab(tc)
 
     popup_page = _make_mock_page()
     await tc._on_popup(popup_page)

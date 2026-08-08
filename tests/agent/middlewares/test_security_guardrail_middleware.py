@@ -720,37 +720,6 @@ class TestHelperFunctions:
         set_security_config(None)
 
 
-
-    def test_apply_pii_actions_redact_removes_pii(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
-            _apply_pii_actions,
-        )
-
-        policy = PrivacyPolicy(
-            enabled=True, s2_action=PIIAction.REDACT, s3_action=PIIAction.REDACT,
-        )
-        text = "Phone 13812345678"
-        result = _apply_pii_actions(text, [SensitivityLevel.S2], policy, "test")
-        assert result is not None
-        assert "13812345678" not in result
-
-    def test_before_model_warn_does_not_modify_message(self) -> None:
-        """WARN action detects PII but does not modify the message content."""
-        config = SecurityConfig(
-            privacy_policy=PrivacyPolicy(
-                enabled=True, s2_action=PIIAction.WARN, s3_action=PIIAction.WARN,
-            )
-        )
-        set_security_config(config)
-        mw = SecurityGuardrailMiddleware()
-        state = _make_state([HumanMessage(content="Phone 13812345678")])
-        result = mw.before_model(state, None)
-        if result is not None:
-            msg = result["messages"][0]
-            assert "13812345678" in msg.content, "WARN must not modify PII"
-        set_security_config(None)
-
-
 class TestAfterModel:
     """Tests for after_model (Leak Detector + History Redact)."""
 

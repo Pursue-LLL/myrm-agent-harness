@@ -10,7 +10,6 @@ import contextlib
 import json
 import sqlite3
 from datetime import UTC, datetime
-from pathlib import Path
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.path_utils import (
@@ -516,7 +515,6 @@ class CorpusDedupStore:
 
     def build_stats(self, *, eligible_raw_count: int) -> DedupStats:
         open_groups = self.list_groups(status=GroupStatus.OPEN)
-        blocked = len(self.get_excluded_paths()) + len(self.get_trashed_paths())
         return DedupStats(
             duplicate_groups_pending=len(open_groups),
             compile_jobs_prevented=self.get_compile_jobs_prevented(),

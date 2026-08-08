@@ -8,8 +8,6 @@ Covers: take_snapshot, restore, diff, list_snapshots, delete_snapshot, cleanup,
 
 from __future__ import annotations
 
-import os
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -326,7 +324,7 @@ async def test_large_file_excluded_from_snapshot(store: ShadowGitSnapshotStore, 
     large_file = workspace / "bigfile.bin"
     large_file.write_bytes(b"\x00" * (11 * 1024 * 1024))  # 11 MB
 
-    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "with large")
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "with large")
 
     snaps = await store.list_snapshots(str(workspace))
     assert len(snaps) == 1
@@ -350,7 +348,7 @@ async def test_default_excludes_node_modules(store: ShadowGitSnapshotStore, work
     nm.mkdir()
     (nm / "pkg.js").write_text("module.exports = {}\n")
 
-    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "with node_modules")
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "with node_modules")
     snaps = await store.list_snapshots(str(workspace))
     assert snaps[0].file_count == 2  # hello.py + sub/data.txt
 
@@ -362,7 +360,7 @@ async def test_default_excludes_pycache(store: ShadowGitSnapshotStore, workspace
     cache.mkdir()
     (cache / "module.pyc").write_bytes(b"\x00" * 100)
 
-    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "with pycache")
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "with pycache")
     snaps = await store.list_snapshots(str(workspace))
     assert snaps[0].file_count == 2
 

@@ -130,12 +130,11 @@ def test_fuzzy_apply_with_hint() -> None:
         patch(
             "myrm_agent_harness.agent.meta_tools.file_ops.core.batch_str_replace.find_closest_lines",
             return_value="\nDid you mean line 2?",
-        ),
+        ),pytest.raises(ValueError, match="Did you mean")
     ):
-        with pytest.raises(ValueError, match="Did you mean"):
-            apply_batch_str_replace(
-                "content", (StrReplaceEdit(old_str="missing", new_str="x"),)
-            )
+        apply_batch_str_replace(
+            "content", (StrReplaceEdit(old_str="missing", new_str="x"),)
+        )
 
 
 def test_apply_preserves_crlf_via_line_endings() -> None:

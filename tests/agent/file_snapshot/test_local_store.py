@@ -105,7 +105,7 @@ async def test_take_snapshot_skips_large_file(store: LocalFileSnapshotStore, wor
 
 @pytest.mark.asyncio
 async def test_list_snapshots(store: LocalFileSnapshotStore, workspace: Path):
-    sid1 = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "first")
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "first")
     sid2 = await store.take_snapshot(str(workspace), SnapshotTrigger.WRITE_FILE, "second")
 
     snaps = await store.list_snapshots(str(workspace))

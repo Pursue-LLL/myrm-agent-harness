@@ -10,14 +10,14 @@ from .compress_processor import CompressProcessor
 from .filter_processor import FilterProcessor
 from .media_filter import MediaFilterProcessor
 from .media_resolver import MediaResolverProcessor
-from .vision_fallback_processor import VisionFallbackProcessor
 from .normalize_processor import NormalizeProcessor
-from .post_compaction_reread_processor import PostCompactionRereadProcessor
 from .post_compaction_refetch_guard_processor import PostCompactionRefetchGuardProcessor
+from .post_compaction_reread_processor import PostCompactionRereadProcessor
 from .pre_compact_processor import PreCompactProcessor
 from .session_notes_processor import SessionNotesProcessor
 from .summarize_processor import SummarizeProcessor
 from .thinking_cleaner import ThinkingBlockCleaner
+from .vision_fallback_processor import VisionFallbackProcessor
 
 __all__ = [
     "ActiveToolResultPruneProcessor",
@@ -28,8 +28,8 @@ __all__ = [
     "MediaFilterProcessor",
     "MediaResolverProcessor",
     "NormalizeProcessor",
-    "PostCompactionRereadProcessor",
     "PostCompactionRefetchGuardProcessor",
+    "PostCompactionRereadProcessor",
     "PreCompactProcessor",
     "SessionNotesProcessor",
     "SummarizeProcessor",

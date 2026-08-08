@@ -49,7 +49,7 @@ class TestApplyParallelWriteIsolation:
     def test_skips_readonly_tasks(self) -> None:
         config = SubagentConfig(system_prompt="test")
         ctx: dict[str, object] = {}
-        new_config, new_ctx = apply_parallel_write_isolation(
+        new_config, _new_ctx = apply_parallel_write_isolation(
             config=config,
             child_context=ctx,
             readonly=True,

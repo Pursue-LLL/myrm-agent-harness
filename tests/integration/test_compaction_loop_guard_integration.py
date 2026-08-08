@@ -22,7 +22,6 @@ from myrm_agent_harness.agent.context_management.pipeline import (
 from myrm_agent_harness.agent.context_management.pipeline.base import BaseProcessor
 from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
     _loop_guard_var,
-    get_loop_guard,
 )
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
 

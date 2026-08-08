@@ -8,17 +8,16 @@ Covers:
 
 from __future__ import annotations
 
-import asyncio
 import urllib.error
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from myrm_agent_harness.toolkits.browser.pool.browser_launcher import (
-    _build_install_failure_message,
     _CDN_PROBE_URL,
     _CN_MIRROR_CHROMIUM_HOST,
     _CN_MIRROR_HOST,
+    _build_install_failure_message,
     _get_install_env,
 )
 

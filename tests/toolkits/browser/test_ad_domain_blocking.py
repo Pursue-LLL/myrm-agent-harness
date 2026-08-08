@@ -10,7 +10,7 @@ Tests:
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -20,7 +20,6 @@ from myrm_agent_harness.toolkits.browser.domain_filter import (
     install_domain_filter,
 )
 from myrm_agent_harness.toolkits.browser.pool.config import ResourceBlockConfig
-
 
 # =============================================================================
 # _is_ad_domain: suffix matching algorithm

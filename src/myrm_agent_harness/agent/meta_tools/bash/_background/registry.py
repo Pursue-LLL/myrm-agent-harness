@@ -45,24 +45,24 @@ from contextlib import suppress
 from threading import Lock
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.meta_tools.bash._background.consume import (
+    BackgroundRegistryEntry,
+    consume_background_entry,
+)
 from myrm_agent_harness.agent.meta_tools.bash._background.types import (
     BackgroundProcessInfo,
     BackgroundQuotaError,
     FinishListener,
     ProgressListener,
 )
-from myrm_agent_harness.agent.meta_tools.bash._background.consume import (
-    BackgroundRegistryEntry,
-    consume_background_entry,
-)
 from myrm_agent_harness.utils.os_compat import kill_process_group
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.code_execution.executors.models import (
-        AsyncProcessProtocol,
-    )
     from myrm_agent_harness.agent.meta_tools.bash._background.output_spill import (
         BackgroundOutputSpillWriter,
+    )
+    from myrm_agent_harness.toolkits.code_execution.executors.models import (
+        AsyncProcessProtocol,
     )
 
 logger = logging.getLogger(__name__)

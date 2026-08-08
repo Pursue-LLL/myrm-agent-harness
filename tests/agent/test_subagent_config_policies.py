@@ -121,12 +121,6 @@ class TestSubagentDefaultBlacklist:
     def test_send_teammate_in_blacklist(self):
         assert "send_teammate_message_tool" in _SUBAGENT_DEFAULT_BLACKLIST
 
-    def test_subagent_control_in_blacklist(self):
-        assert "subagent_control_tool" in _SUBAGENT_DEFAULT_BLACKLIST
-
-    def test_send_teammate_in_blacklist(self):
-        assert "send_teammate_message_tool" in _SUBAGENT_DEFAULT_BLACKLIST
-
     def test_legacy_list_subagents_in_blacklist(self):
         assert "list_subagents_tool" in _SUBAGENT_DEFAULT_BLACKLIST
 

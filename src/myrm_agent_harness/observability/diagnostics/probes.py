@@ -17,8 +17,8 @@ Health diagnostic probes. Registered into the global diagnostic manager and exec
 by /health/doctor to produce the system health dashboard.
 """
 
-import logging
 import asyncio
+import logging
 import os
 import sqlite3
 from pathlib import Path

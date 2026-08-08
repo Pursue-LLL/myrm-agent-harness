@@ -120,7 +120,7 @@ async def test_spawn_full_duplex_communication(workspace: Path) -> None:
                     process.stdout.readline(),  # type: ignore[union-attr]
                     timeout=2.0,
                 )
-            except (TimeoutError, asyncio.TimeoutError):
+            except TimeoutError:
                 break
             if not data:
                 break

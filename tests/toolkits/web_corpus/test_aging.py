@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -21,7 +20,7 @@ def store(tmp_path: Path) -> WebCorpusStore:
 
 def test_aging_evicts_old_entries(store: WebCorpusStore) -> None:
     store.upsert(url="https://old.com", title="Old", snippet="old page")
-    past = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    past = (datetime.now(UTC) - timedelta(days=60)).isoformat()
     store._conn.execute(
         "UPDATE web_corpus_meta SET last_accessed = ?", (past,)
     )

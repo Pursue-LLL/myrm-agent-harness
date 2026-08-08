@@ -20,9 +20,8 @@ from typing import Literal
 
 import httpx
 
-from myrm_agent_harness.infra.tls_compat import create_httpx_client
-
 from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 logger = logging.getLogger(__name__)
 

@@ -92,8 +92,8 @@ def _get_install_env() -> dict[str, str]:
     import urllib.request
 
     try:
-        req = urllib.request.Request(_CDN_PROBE_URL, method="HEAD")
-        urllib.request.urlopen(req, timeout=_CDN_PROBE_TIMEOUT_S_INSTALL)
+        req = urllib.request.Request(_CDN_PROBE_URL, method="HEAD")  # noqa: S310
+        urllib.request.urlopen(req, timeout=_CDN_PROBE_TIMEOUT_S_INSTALL)  # noqa: S310
     except urllib.error.HTTPError:
         pass  # HTTP 4xx/5xx means server is reachable
     except Exception:
@@ -109,7 +109,7 @@ async def _auto_install_chromium() -> bool:
     Returns True if installation succeeded, False otherwise.
     Prevents repeated attempts within _INSTALL_COOLDOWN_S after a failure.
     """
-    global _last_install_failure_at, _install_lock  # noqa: PLW0603
+    global _last_install_failure_at, _install_lock
 
     if _last_install_failure_at and (time.monotonic() - _last_install_failure_at) < _INSTALL_COOLDOWN_S:
         remaining = int(_INSTALL_COOLDOWN_S - (time.monotonic() - _last_install_failure_at))
@@ -413,7 +413,8 @@ class BrowserLauncher:
 
                         loop = asyncio.get_running_loop()
                         camoufox_config = await loop.run_in_executor(
-                            None, lambda: build_camoufox_options(**build_kwargs),
+                            None,
+                            lambda kw=build_kwargs: build_camoufox_options(**kw),
                         )
 
                         if fp_file:
@@ -513,7 +514,7 @@ class BrowserLauncher:
         Raises:
             BrowserLaunchError: If extension bridge is not available or connection fails.
         """
-        from .extension_bridge import ExtensionBridge, ExtensionBridgeNotAvailable
+        from .extension_bridge import ExtensionBridge, ExtensionBridgeNotAvailableError
 
         if self._extension_bridge is None:
             raise BrowserLaunchError(
@@ -532,7 +533,7 @@ class BrowserLauncher:
             self._total_browsers += 1
             logger.info("EXTENSION mode: connected to user's browser via extension bridge")
             return instance
-        except ExtensionBridgeNotAvailable as exc:
+        except ExtensionBridgeNotAvailableError as exc:
             raise BrowserLaunchError(str(exc)) from exc
         except Exception as exc:
             raise BrowserLaunchError(

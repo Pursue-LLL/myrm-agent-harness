@@ -116,19 +116,18 @@ class ConfigProtectionValidator(Validator):
         if not (is_config or is_lockfile):
             return
 
-        if context.operation in (OperationType.CREATE, OperationType.STR_REPLACE):
-            if os.path.exists(path):
-                if is_lockfile:
-                    raise PermissionError(
-                        f"BLOCKED: 严禁手动修改锁文件 '{basename}'。\n"
-                        f"请使用合法的包管理器命令（如 uv sync, npm install, pnpm install）来解决依赖，\n"
-                        f"绝对不要尝试通过字符串替换或直接编辑来解决版本冲突！"
-                    )
-                else:
-                    raise PermissionError(
-                        f"BLOCKED: Modifying '{basename}' is not allowed.\n"
-                        f"Fix the source code to satisfy linter/formatter rules "
-                        f"instead of weakening the configuration.\n"
-                        f"If you encounter lint errors, fix the actual code that "
-                        f"violates the rules rather than disabling or relaxing them."
-                    )
+        if context.operation in (OperationType.CREATE, OperationType.STR_REPLACE) and os.path.exists(path):
+            if is_lockfile:
+                raise PermissionError(
+                    f"BLOCKED: 严禁手动修改锁文件 '{basename}'。\n"
+                    f"请使用合法的包管理器命令（如 uv sync, npm install, pnpm install）来解决依赖，\n"
+                    f"绝对不要尝试通过字符串替换或直接编辑来解决版本冲突！"
+                )
+            else:
+                raise PermissionError(
+                    f"BLOCKED: Modifying '{basename}' is not allowed.\n"
+                    f"Fix the source code to satisfy linter/formatter rules "
+                    f"instead of weakening the configuration.\n"
+                    f"If you encounter lint errors, fix the actual code that "
+                    f"violates the rules rather than disabling or relaxing them."
+                )

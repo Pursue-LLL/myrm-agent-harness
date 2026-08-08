@@ -15,14 +15,13 @@ LangChain adapter for vision toolkit. Mounted only when vision-toolkit skill is 
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Literal
+from typing import Literal
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
     FileExecutor,
-    VisionFallbackEngine,
     create_vision_fallback_engine,
 )
 from myrm_agent_harness.toolkits.llms.vision.geometry_engine import VisionGeometryEngine

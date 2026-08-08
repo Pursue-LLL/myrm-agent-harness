@@ -21,6 +21,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .suggestions import (
+    generate_dynamic_suggestion,
+    get_severity_level,
+)
 from .types import (
     VERDICT_ALLOW,
     AgentPhase,
@@ -31,10 +35,6 @@ from .types import (
     LoopVerdict,
     SuccessLevel,
     get_tool_group,
-)
-from .suggestions import (
-    generate_dynamic_suggestion,
-    get_severity_level,
 )
 
 if TYPE_CHECKING:

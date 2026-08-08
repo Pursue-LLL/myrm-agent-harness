@@ -30,8 +30,8 @@ from myrm_agent_harness.agent.deep_research.helpers import (
     truncate_for_orchestrator,
 )
 from myrm_agent_harness.agent.deep_research.orchestrator import DeepResearchOrchestrator
-from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.meta_tools.clarification import AskQuestionInput
+from myrm_agent_harness.agent.streaming.types import AgentEventType
 
 if TYPE_CHECKING:
     pass
@@ -1476,7 +1476,7 @@ class TestOrchestratorRun:
             on_explore=on_explore,
         )
 
-        events = [e async for e in orch.run("query")]
+        [e async for e in orch.run("query")]
         assert orch.result.report == "Report"
         assert orch.result.error is None
 

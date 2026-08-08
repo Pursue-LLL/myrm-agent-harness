@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
-    from myrm_agent_harness.toolkits.vector.base import CollectionInfo, VectorStore
+    from myrm_agent_harness.toolkits.vector.base import VectorStore
 
 logger = logging.getLogger(__name__)
 

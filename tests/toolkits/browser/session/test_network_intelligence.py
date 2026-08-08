@@ -1,7 +1,8 @@
 """Unit tests for NetworkIntelligence — CDP-based lazy response body retrieval."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from myrm_agent_harness.toolkits.browser.session.network_intelligence import (
     CdpRequestRecord,
@@ -247,7 +248,7 @@ class TestNetworkIntelligence:
         ni._cdp_session = mock_cdp
 
         result = await ni.get_response_body(1)
-        assert '{"users": [1, 2, 3]}' == result
+        assert result == '{"users": [1, 2, 3]}'
         mock_cdp.send.assert_awaited_once_with(
             "Network.getResponseBody", {"requestId": "req-1"}
         )

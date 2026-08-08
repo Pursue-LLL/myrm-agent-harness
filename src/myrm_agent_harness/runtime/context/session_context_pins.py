@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from myrm_agent_harness.runtime.execution_paths import PERSISTENT_ROOT
@@ -59,7 +59,7 @@ def write_pinned_files(session_id: str, files: list[str]) -> PinnedContextFiles:
     normalized = _normalize_files(files)
     path = _pin_path(session_id)
     path.parent.mkdir(parents=True, exist_ok=True)
-    updated_at = datetime.now(timezone.utc).isoformat()
+    updated_at = datetime.now(UTC).isoformat()
     path.write_text(
         json.dumps({"files": normalized, "updated_at": updated_at}, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -72,7 +72,7 @@ def add_pinned_file(session_id: str, file_path: str) -> PinnedContextFiles:
     current = read_pinned_files(session_id)
     normalized_path = file_path.strip()
     if not normalized_path:
-        return PinnedContextFiles(files=tuple(current), updated_at=datetime.now(timezone.utc).isoformat())
+        return PinnedContextFiles(files=tuple(current), updated_at=datetime.now(UTC).isoformat())
     without_dup = [item for item in current if item != normalized_path]
     without_dup.append(normalized_path)
     if len(without_dup) > _MAX_PINNED_FILES:

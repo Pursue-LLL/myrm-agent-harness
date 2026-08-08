@@ -29,7 +29,7 @@ from myrm_agent_harness.toolkits.llms.media_task_types import TASK_TYPE_IMAGE_GE
 from myrm_agent_harness.toolkits.tasks import SQLiteTaskStore, Task, TaskStatus
 
 from .models import ImageGenerationConfig
-from .validator import ImageValidator, ValidationError
+from .validator import ImageValidator
 
 logger = logging.getLogger(__name__)
 

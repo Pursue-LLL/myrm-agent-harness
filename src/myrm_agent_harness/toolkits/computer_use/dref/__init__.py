@@ -28,6 +28,7 @@ from myrm_agent_harness.toolkits.computer_use.dref.types import (
 )
 
 __all__ = [
+    "INTERACTIVE_AX_ROLES",
     "AXPermissionRequiredError",
     "AXTreeEmptyError",
     "BBox",
@@ -35,7 +36,6 @@ __all__ = [
     "DRefStaleError",
     "ElementRef",
     "ElementRefError",
-    "INTERACTIVE_AX_ROLES",
     "SnapshotMeta",
     "SnapshotScope",
 ]

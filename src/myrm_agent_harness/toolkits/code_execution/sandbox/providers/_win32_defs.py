@@ -53,14 +53,14 @@ JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
 # --- ctypes structures ---
 
 
-class SID_AND_ATTRIBUTES(ctypes.Structure):
+class SID_AND_ATTRIBUTES(ctypes.Structure):  # noqa: N801  # Win32 SDK struct name
     _fields_ = [
         ("Sid", ctypes.c_void_p),
         ("Attributes", ctypes.wintypes.DWORD),
     ]
 
 
-class SECURITY_CAPABILITIES(ctypes.Structure):
+class SECURITY_CAPABILITIES(ctypes.Structure):  # noqa: N801  # Win32 SDK struct name
     _fields_ = [
         ("AppContainerSid", ctypes.c_void_p),
         ("Capabilities", ctypes.POINTER(SID_AND_ATTRIBUTES)),
@@ -99,7 +99,7 @@ class STARTUPINFOEXW(ctypes.Structure):
     ]
 
 
-class PROCESS_INFORMATION(ctypes.Structure):
+class PROCESS_INFORMATION(ctypes.Structure):  # noqa: N801  # Win32 SDK struct name
     _fields_ = [
         ("hProcess", ctypes.wintypes.HANDLE),
         ("hThread", ctypes.wintypes.HANDLE),
@@ -108,7 +108,7 @@ class PROCESS_INFORMATION(ctypes.Structure):
     ]
 
 
-class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):  # noqa: N801  # Win32 SDK struct name
     _fields_ = [
         ("PerProcessUserTimeLimit", ctypes.c_int64),
         ("PerJobUserTimeLimit", ctypes.c_int64),
@@ -122,7 +122,7 @@ class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
     ]
 
 
-class IO_COUNTERS(ctypes.Structure):
+class IO_COUNTERS(ctypes.Structure):  # noqa: N801  # Win32 SDK struct name
     _fields_ = [
         ("ReadOperationCount", ctypes.c_uint64),
         ("WriteOperationCount", ctypes.c_uint64),
@@ -133,7 +133,7 @@ class IO_COUNTERS(ctypes.Structure):
     ]
 
 
-class JOBOBJECT_EXTENDED_LIMIT_INFORMATION_STRUCT(ctypes.Structure):
+class JOBOBJECT_EXTENDED_LIMIT_INFORMATION_STRUCT(ctypes.Structure):  # noqa: N801  # Win32 SDK struct name
     _fields_ = [
         ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
         ("IoInfo", IO_COUNTERS),
@@ -345,7 +345,7 @@ async def wrap_handles_as_process(
     stdout_file = os.fdopen(stdout_fd, "rb", buffering=0)
 
     loop = asyncio.get_running_loop()
-    transport, protocol = await loop.connect_read_pipe(
+    _transport, protocol = await loop.connect_read_pipe(
         lambda: asyncio.StreamReaderProtocol(asyncio.StreamReader()),
         stdout_file,
     )

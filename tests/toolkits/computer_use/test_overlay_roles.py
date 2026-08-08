@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, BBox
+from myrm_agent_harness.toolkits.computer_use.dref.types import BBox, ElementRef
 from myrm_agent_harness.toolkits.computer_use.perception.overlay_roles import (
-    normalize_desktop_role,
     is_interactive_for_overlay,
+    normalize_desktop_role,
 )
 
 

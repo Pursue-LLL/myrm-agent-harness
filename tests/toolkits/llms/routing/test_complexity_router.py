@@ -14,7 +14,6 @@ Covers:
 
 from __future__ import annotations
 
-import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -278,13 +277,13 @@ class TestModelSelection:
         assert fb is not None and fb.model == "claude-3-opus"
 
     def test_graceful_degradation_no_light(self) -> None:
-        cfg, fb = _select_model_for_tier(
+        cfg, _fb = _select_model_for_tier(
             RoutingTier.SIMPLE, STD_CFG, None, REASON_CFG, STD_FALLBACK, None, REASON_FALLBACK
         )
         assert cfg.model == "gpt-4o"
 
     def test_graceful_degradation_no_reasoning(self) -> None:
-        cfg, fb = _select_model_for_tier(
+        cfg, _fb = _select_model_for_tier(
             RoutingTier.REASONING, STD_CFG, LIGHT_CFG, None, STD_FALLBACK, LIGHT_FALLBACK, None
         )
         assert cfg.model == "gpt-4o"
@@ -301,7 +300,7 @@ class TestMomentum:
 
     def test_short_msg_with_reasoning_history_upgrades(self) -> None:
         recent = [RoutingTier.REASONING] * 5
-        tier, overridden = _apply_momentum(RoutingTier.SIMPLE, "ok", recent)
+        tier, _overridden = _apply_momentum(RoutingTier.SIMPLE, "ok", recent)
         assert tier in (RoutingTier.STANDARD, RoutingTier.REASONING)
 
     def test_long_msg_no_momentum(self) -> None:

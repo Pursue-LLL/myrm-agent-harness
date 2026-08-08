@@ -24,9 +24,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader import (
+    _FALLBACK_MAX_CHARS,
     RAG_MAX_PAGES_LIMIT,
     RAG_PAGE_THRESHOLD,
-    _FALLBACK_MAX_CHARS,
     _fire_and_forget_ingest,
     _schedule_rag_ingest,
     _write_to_temp,
@@ -35,7 +35,6 @@ from myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader import (
     register_large_doc_ingest_callback,
     unregister_large_doc_ingest_callback,
 )
-
 
 # ---------------------------------------------------------------------------
 # Shared test fixtures
@@ -316,7 +315,7 @@ class TestReadPdfAsContentBlocks:
     @pytest.mark.asyncio
     async def test_read_bytes_generic_error(self) -> None:
         executor = AsyncMock()
-        executor.read_file_bytes = AsyncMock(side_effect=IOError("disk"))
+        executor.read_file_bytes = AsyncMock(side_effect=OSError("disk"))
         result = await read_pdf_as_content_blocks("/tmp/bad.pdf", executor, False)
         assert "Failed to read" in result
 
@@ -522,12 +521,13 @@ class TestNonBlockingCreateTask:
 
         register_large_doc_ingest_callback(slow_ingest)
         result = FakePDFResult(text="text", page_count=5)
-        asyncio.create_task(_schedule_rag_ingest(
+        task = asyncio.create_task(_schedule_rag_ingest(
             "/tmp/test.pdf", b"bytes", result, FakeConfig, AsyncMock()
         ))
         events.append("main_returned")
 
         assert events == ["main_returned"]
         await asyncio.sleep(0.2)
+        await task
         assert "ingest_done" in events
         unregister_large_doc_ingest_callback()

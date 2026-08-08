@@ -36,11 +36,11 @@ from myrm_agent_harness.agent.middlewares.safety_dispatcher import (
 from myrm_agent_harness.agent.middlewares.security_boundary_middleware import (
     SecurityBoundaryMiddleware,
 )
-from myrm_agent_harness.agent.middlewares.session_access_middleware import (
-    SessionAccessMiddleware,
-)
 from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
     SecurityGuardrailMiddleware,
+)
+from myrm_agent_harness.agent.middlewares.session_access_middleware import (
+    SessionAccessMiddleware,
 )
 from myrm_agent_harness.agent.middlewares.subagent_limit_middleware import (
     subagent_limit_middleware,

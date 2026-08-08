@@ -341,10 +341,9 @@ class MaintenanceService:
 
         Returns (reviewed_count, removed_count, extended_count).
         """
-        from myrm_agent_harness.toolkits.memory.strategies.forgetting import ForgettableMemory
         from myrm_agent_harness.toolkits.memory.strategies.staleness_review import (
-            StalenessReviewer,
             StalenessReviewConfig,
+            StalenessReviewer,
             select_stale_candidates,
         )
         from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, MemoryStatus, SemanticMemory

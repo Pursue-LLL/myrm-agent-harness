@@ -59,9 +59,11 @@ _MAX_VERIFICATION_RETRIES = 3
 
 _WAIT_TIMEOUT_PAUSE_REASON = "Wait timeout exceeded — goal paused"
 
-from .continuation_checkpoint import check_todo_checkpoint as _check_todo_checkpoint
-from .continuation_drift import (
+from .continuation_checkpoint import check_todo_checkpoint as _check_todo_checkpoint  # noqa: E402
+from .continuation_drift import (  # noqa: E402
     _DRIFT_CHECK_INTERVAL,
+)
+from .continuation_drift import (  # noqa: E402
     check_goal_drift as _check_goal_drift,
 )
 

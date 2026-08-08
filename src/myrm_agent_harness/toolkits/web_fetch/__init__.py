@@ -18,8 +18,8 @@ from .engine import FailedResult, FetchEngine, SuccessResult
 web_fetch_tools = FetchEngine()
 
 __all__ = [
-    "FetchEngine",
     "FailedResult",
+    "FetchEngine",
     "SuccessResult",
     "web_fetch_tools",
 ]

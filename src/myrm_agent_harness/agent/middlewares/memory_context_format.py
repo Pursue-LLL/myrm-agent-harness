@@ -6,17 +6,16 @@ Pure formatting helpers for MemoryContextMiddleware prompt injection.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import logging
+from collections.abc import Sequence
 
 from langchain.agents.middleware import ModelRequest
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
 from myrm_agent_harness.agent.security.detection.content_boundary import sanitize, wrap_untrusted
 from myrm_agent_harness.agent.security.guards.prompt_budget import (
-    BudgetedSection,
     CHARS_PER_TOKEN,
+    BudgetedSection,
 )
 
 logger = logging.getLogger(__name__)

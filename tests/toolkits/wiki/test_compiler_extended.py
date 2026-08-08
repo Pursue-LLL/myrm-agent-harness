@@ -116,7 +116,10 @@ async def test_filter_changed_files_modified(wiki_structure: WikiStructure, mock
     raw = wiki_structure.raw_dir / "test.md"
     raw.write_text("content")
 
-    from myrm_agent_harness.toolkits.wiki.core.claims_contract import LAST_COMPILE_RAW_HASHES_KEY, raw_relative_storage_key
+    from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
+        LAST_COMPILE_RAW_HASHES_KEY,
+        raw_relative_storage_key,
+    )
 
     metadata_path = wiki_structure.get_wiki_metadata_path()
     storage_key = raw_relative_storage_key(wiki_structure, raw)
@@ -240,7 +243,10 @@ async def test_save_metadata(wiki_structure: WikiStructure, mock_llm: AsyncMock)
     await compiler._save_metadata(5, 3)
     metadata_path = wiki_structure.get_wiki_metadata_path()
     assert metadata_path.exists()
-    from myrm_agent_harness.toolkits.wiki.core.claims_contract import LAST_COMPILE_RAW_HASHES_KEY, raw_relative_storage_key
+    from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
+        LAST_COMPILE_RAW_HASHES_KEY,
+        raw_relative_storage_key,
+    )
 
     metadata = json.loads(metadata_path.read_text())
     assert metadata["total_concepts"] == 5

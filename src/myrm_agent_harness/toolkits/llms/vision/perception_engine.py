@@ -21,7 +21,6 @@ import logging
 import re
 from pathlib import PurePosixPath
 
-from langchain_core.messages import HumanMessage
 from PIL import Image
 
 from myrm_agent_harness.toolkits.llms.vision.cache import build_cache_key, get_vision_cache_store

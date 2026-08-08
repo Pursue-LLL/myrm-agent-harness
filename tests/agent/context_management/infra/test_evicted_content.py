@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from myrm_agent_harness.agent.context_management.infra.evicted_content import (
     EVICTED_BASENAME_PATTERN,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1047,10 +1048,8 @@ class TestWaitChildren:
         assert any("still_running" in str(f) for f in result["failures"])
         assert not task.cancelled(), "task must NOT be cancelled after timeout"
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
     @pytest.mark.asyncio
     async def test_mixed_completed_and_running(self):
@@ -1576,7 +1575,7 @@ class TestRunAlternatives:
     @pytest.mark.asyncio
     async def test_single_alternative_success(self):
         mgr = MagicMock()
-        ok_result = _ok("alt-xxxxxxxx-0-writer", "writer", "solution A")
+        _ok("alt-xxxxxxxx-0-writer", "writer", "solution A")
         mgr.children = {}
         mgr.child_results = {}
 

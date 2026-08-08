@@ -81,7 +81,7 @@ def filter_wiki_document_vector_memories(
     enabled: bool,
 ) -> tuple[list[AnyMemory], int]:
     """Drop document-like semantic/episodic memories when wiki boundary is enabled."""
-    from myrm_agent_harness.toolkits.memory.types import AnyMemory, EpisodicMemory, SemanticMemory
+    from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, SemanticMemory
 
     if not enabled or not memories:
         return memories, 0

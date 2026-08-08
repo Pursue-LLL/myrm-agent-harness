@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from myrm_agent_harness.agent.meta_tools.file_search._formatter import (
+    _DENSIFY_MIN_MATCHES,
     MAX_LINE_CHARS,
     NON_CODE_MATCH_CAP,
-    _DENSIFY_MIN_MATCHES,
     compact_match_line,
     format_grep_results,
 )

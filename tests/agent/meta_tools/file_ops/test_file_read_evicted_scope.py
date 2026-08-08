@@ -218,9 +218,8 @@ async def test_file_read_tool_evicted_policy_blocks_workspace_path() -> None:
     ), patch(
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
         return_value={"chat_id": chat_id},
-    ):
-        with pytest.raises(ToolError, match="blocked"):
-            await tool.ainvoke({"paths": ["src/main.py"]}, config=_DUMMY_CONFIG)
+    ), pytest.raises(ToolError, match="blocked"):
+        await tool.ainvoke({"paths": ["src/main.py"]}, config=_DUMMY_CONFIG)
 
 
 @pytest.mark.asyncio
@@ -292,13 +291,12 @@ async def test_assert_paths_allowed_for_read_blocks_disabled_skill() -> None:
     ), patch(
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.is_under_disabled_skill_root",
         return_value=True,
-    ):
-        with pytest.raises(ToolError, match="Path blocked"):
-            await _assert_paths_allowed_for_read(
-                ["skill/readme.md"],
-                _DUMMY_CONFIG,
-                _Executor(),
-            )
+    ), pytest.raises(ToolError, match="Path blocked"):
+        await _assert_paths_allowed_for_read(
+            ["skill/readme.md"],
+            _DUMMY_CONFIG,
+            _Executor(),
+        )
 
 
 @pytest.mark.asyncio
@@ -383,9 +381,8 @@ async def test_file_read_permission_error_raises_tool_error(tmp_path) -> None:
     ), patch(
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
         side_effect=PermissionError("denied"),
-    ):
-        with pytest.raises(ToolError, match="denied"):
-            await tool.ainvoke({"paths": [rel]}, config=_DUMMY_CONFIG)
+    ), pytest.raises(ToolError, match="denied"):
+        await tool.ainvoke({"paths": [rel]}, config=_DUMMY_CONFIG)
 
 
 @pytest.mark.asyncio
@@ -414,6 +411,5 @@ async def test_file_read_not_found_raises_tool_error(tmp_path) -> None:
     ), patch(
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.format_path_not_found_hint",
         return_value="Try another path",
-    ):
-        with pytest.raises(ToolError, match="missing.md"):
-            await tool.ainvoke({"paths": [rel]}, config=_DUMMY_CONFIG)
+    ), pytest.raises(ToolError, match="missing.md"):
+        await tool.ainvoke({"paths": [rel]}, config=_DUMMY_CONFIG)

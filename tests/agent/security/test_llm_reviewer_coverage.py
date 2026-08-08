@@ -16,9 +16,9 @@ from unittest.mock import AsyncMock, MagicMock, call
 import pytest
 
 from myrm_agent_harness.agent.security.transcript_classifier import (
+    _CLASSIFIER_LLM_OVERRIDES,
     ClassifierResultSchema,
     TranscriptClassifier,
-    _CLASSIFIER_LLM_OVERRIDES,
 )
 from myrm_agent_harness.agent.security.types import RecentToolCall, ReviewDecision
 

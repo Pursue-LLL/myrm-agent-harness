@@ -66,13 +66,13 @@ from .archive_restore_guard import (
     evaluate_archive_full_read_before_content,
     format_archive_restore_block,
 )
-from .file_conflict_guard import check_conflict_pre_write
 from .batch_str_replace import apply_batch_str_replace, compute_batch_edit_line_range
+from .file_conflict_guard import check_conflict_pre_write
+from .file_integrity_guard import get_file_integrity_guard
 from .file_path_lock_manager import acquire_file_path_lock
 from .operation_context import OperationContext, OperationType
 from .read_semaphore import get_read_semaphore
 from .result_formatter import DirectoryListing, FileContent, ResultFormatter
-from .file_integrity_guard import get_file_integrity_guard
 
 logger = logging.getLogger(__name__)
 

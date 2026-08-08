@@ -8,7 +8,7 @@ from .lifecycle_protocol import LifecycleAwareTool
 from .registry import ToolRegistry
 from .tool_catalog import ToolCatalogRole, build_tool_catalog_row, get_tool_catalog_role
 from .tool_layers import ToolLayer, get_tool_layer, register_tool_layer, tool_layer_snapshot_label
-from .types import ToolBindMode, ToolEntry, ToolSnapshot, ToolSource
+from .types import ToolBindMode, ToolSnapshot, ToolSource
 from .utils import with_dynamic_hints
 
 __all__ = [

@@ -17,6 +17,10 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     logger,
 )
 
+# Fire-and-forget maintenance tasks keep a strong reference here so they are
+# not garbage-collected by the event loop before completion.
+_pending_tasks: set[asyncio.Task[object]] = set()
+
 
 class MemoryManagerRetrievalWriteMixin:
     async def store(self, memory: AnyMemory, *, _bypass_approval: bool = False) -> AnyMemory:
@@ -67,10 +71,12 @@ class MemoryManagerRetrievalWriteMixin:
         if track_access and results and self._vector:
             from myrm_agent_harness.toolkits.memory._internal.maintenance import bump_access_counts
 
-            asyncio.create_task(
+            task = asyncio.create_task(
                 bump_access_counts(results, self._vector, self._config, self._relational),
                 name="bump_access_counts",
             )
+            _pending_tasks.add(task)
+            task.add_done_callback(_pending_tasks.discard)
         return results
 
     async def get_context(

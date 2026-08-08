@@ -99,7 +99,7 @@ async def get_skill_document(
             skill_doc = await skill_backend.get_skill_content(
                 skill_meta.storage_skill_id
             )
-        except Exception as e:
+        except Exception:
             return f"# {skill_meta.name}\n\nError: failed to load skill document"
 
         if skill_doc and skill_meta.storage_path:

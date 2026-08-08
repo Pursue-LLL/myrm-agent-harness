@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 
 import pytest
@@ -150,7 +151,7 @@ class TestProcessGroupKill:
     @pytest.mark.asyncio
     async def test_cancel_during_close_still_kills_child(self) -> None:
         """Shield ensures _kill_process_group completes even under cancellation."""
-        from unittest.mock import AsyncMock, patch
+        from unittest.mock import patch
 
         session = LocalPersistentSession(_make_config())
         await session.start()
@@ -181,10 +182,8 @@ class TestProcessGroupKill:
                 close_task = asyncio.create_task(session.close())
                 await asyncio.sleep(0.05)
                 close_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await close_task
-                except asyncio.CancelledError:
-                    pass
 
             await asyncio.sleep(0.5)
             assert kill_completed, "shield must let _kill_process_group finish"

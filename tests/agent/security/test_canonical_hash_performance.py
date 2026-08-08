@@ -41,7 +41,7 @@ class TestCanonicalHashPerformance:
         start_unified = time.perf_counter()
         for _ in range(iterations):
             hashes = {idx: compute_canonical_args_hash(tc["name"], tc["args"]) for idx, tc in enumerate(tool_calls)}
-            for idx, tc in enumerate(tool_calls):
+            for idx, _ in enumerate(tool_calls):
                 _ = hashes[idx]
                 _ = hashes[idx]
                 _ = hashes[idx]

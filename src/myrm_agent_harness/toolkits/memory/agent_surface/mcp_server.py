@@ -58,28 +58,34 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_budget impor
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
     RECALL_DRIFT_DEFENSE_FOOTER,
-    channel_label as _channel_label,
     finalize_recall_tool_output,
     format_preference_save_ack,
     format_profile_recall_output,
     format_recall_source_error_suffix,
-    is_stale as _is_stale,
     memory_age_label,
-    parse_time_bound as _parse_time_bound,
     recall_drift_defense_footer_chars,
     recall_preamble_overhead_chars,
     sanitize_recalled_content,
+)
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
+    channel_label as _channel_label,
+)
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
+    is_stale as _is_stale,
+)
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting import (
+    parse_time_bound as _parse_time_bound,
+)
+from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
+    looks_like_wiki_document,
+    record_wiki_memory_save_rejection,
+    wiki_memory_save_rejection_message,
 )
 from myrm_agent_harness.toolkits.memory.types import (
     ClaimMemory,
     MemoryType,
     RuleSource,
     SemanticMemory,
-)
-from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
-    looks_like_wiki_document,
-    record_wiki_memory_save_rejection,
-    wiki_memory_save_rejection_message,
 )
 
 if TYPE_CHECKING:

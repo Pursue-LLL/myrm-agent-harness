@@ -26,7 +26,7 @@ import os
 import shutil
 import tempfile
 from collections.abc import AsyncGenerator, Callable, Coroutine
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -58,10 +58,8 @@ def _estimate_clone_size(src: Path, ignore_dirs: frozenset[str]) -> int:
     for dirpath, dirs, files in os.walk(src):
         dirs[:] = [d for d in dirs if d not in ignore_dirs]
         for f in files:
-            try:
+            with suppress(OSError):
                 total += os.path.getsize(os.path.join(dirpath, f))
-            except OSError:
-                pass
     return total
 
 

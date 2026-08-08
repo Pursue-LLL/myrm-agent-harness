@@ -69,7 +69,7 @@ def restore_context_vars(context: dict[str, object], executor: object) -> None:
             bind_workspace_storage_root(Path(str(ws_root)))
 
 
-def ensure_executor(config: "RunnableConfig") -> "CodeExecutor":
+def ensure_executor(config: RunnableConfig) -> CodeExecutor:
     """Acquire a CodeExecutor, falling back to session stash if ContextVar is lost.
 
     Resolution order:

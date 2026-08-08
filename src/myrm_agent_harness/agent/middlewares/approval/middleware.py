@@ -43,7 +43,7 @@ import logging
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
-from langchain_core.messages import AIMessage, ToolCall, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.types import interrupt
 
 from myrm_agent_harness.agent.middlewares._session_context import (
@@ -380,7 +380,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
             if decision_type not in ("edit", "reject"):
                 continue
 
-            idx, tool_call, _perm_type, _reason, _ = pending_approval[i]
+            _idx, tool_call, _perm_type, _reason, _ = pending_approval[i]
             tool_name = tool_call.get("name", "unknown")
             original_args = (
                 dict(tool_call.get("args", {}))

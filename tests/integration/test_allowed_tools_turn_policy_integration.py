@@ -83,7 +83,7 @@ def _get_agnes_llm_config_from_env_test() -> tuple[str, str, str] | None:
 async def test_unsupported_gateway_skips_allowed_tools_but_execution_blocks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    api_key, base_url, model = _get_basic_llm_config()
+    _api_key, base_url, model = _get_basic_llm_config()
     assert model_supports_allowed_tools_tool_choice(model, api_base=base_url) is False
 
     monkeypatch.setattr(

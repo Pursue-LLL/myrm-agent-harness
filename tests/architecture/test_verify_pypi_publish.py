@@ -9,13 +9,13 @@ from unittest.mock import patch
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 
-from harness_packaging.platforms import (  # noqa: E402
+from harness_packaging.platforms import (
     ALL_PLATFORMS,
     MUSL_PLATFORMS,
     PUBLISH_PLATFORMS,
     PYPI_VERIFY_PLATFORMS,
 )
-from scripts.verify_pypi_publish import (  # noqa: E402
+from scripts.verify_pypi_publish import (
     _expected_packages,
     missing_packages,
     verify_platform_keys,

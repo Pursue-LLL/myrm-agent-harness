@@ -137,11 +137,11 @@ ProgressListener = Callable[[BackgroundProcessInfo, dict[str, object]], Awaitabl
 
 
 __all__ = [
+    "INPUT_WAIT_IDLE_SECONDS",
     "BackgroundProcessInfo",
     "BackgroundQuotaError",
     "FinishListener",
     "ProgressListener",
-    "INPUT_WAIT_IDLE_SECONDS",
-    "compute_waiting_for_input",
     "build_input_wait_hint",
+    "compute_waiting_for_input",
 ]

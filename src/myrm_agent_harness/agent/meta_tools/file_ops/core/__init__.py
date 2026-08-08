@@ -3,6 +3,7 @@
 提供文件操作的核心服务和抽象。
 """
 
+from .file_integrity_guard import FileIntegrityGuard, get_file_integrity_guard
 from .file_operation_service import FileOperationService
 from .operation_context import (
     OperationContext,
@@ -11,15 +12,14 @@ from .operation_context import (
     ViewRange,
 )
 from .result_formatter import ResultFormatter
-from .file_integrity_guard import FileIntegrityGuard, get_file_integrity_guard
 
 __all__ = [
+    "FileIntegrityGuard",
     "FileOperationService",
     "OperationContext",
     "OperationType",
-    "StrReplaceEdit",
     "ResultFormatter",
-    "FileIntegrityGuard",
+    "StrReplaceEdit",
     "ViewRange",
     "get_file_integrity_guard",
 ]

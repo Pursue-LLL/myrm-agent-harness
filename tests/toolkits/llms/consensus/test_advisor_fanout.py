@@ -83,15 +83,14 @@ async def test_advisor_fanout_cache_hit_replays_on_ref_done() -> None:
     llm = MagicMock(model_name="ref-a")
     runner = AdvisorFanoutRunner([llm], MoAOverlayConfig(fanout="per_iteration"))
     ref = ReferenceResponse(model="ref-a", content="cached", elapsed_seconds=0.1, success=True)
-    runner._cache["seed"] = [ref]  # noqa: SLF001
+    runner._cache["seed"] = [ref]
 
     on_ref_done = AsyncMock()
     with patch(
         "myrm_agent_harness.toolkits.llms.consensus.advisor_fanout._state_cache_key",
         return_value="seed",
-    ):
-        with patch.object(AdvisorFanoutRunner, "_query_references", new_callable=AsyncMock) as query_mock:
-            refs = await runner.run([HumanMessage(content="hello")], on_ref_done=on_ref_done)
+    ), patch.object(AdvisorFanoutRunner, "_query_references", new_callable=AsyncMock) as query_mock:
+        refs = await runner.run([HumanMessage(content="hello")], on_ref_done=on_ref_done)
 
     assert refs == [ref]
     query_mock.assert_not_called()

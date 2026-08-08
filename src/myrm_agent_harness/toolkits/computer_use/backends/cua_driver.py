@@ -33,7 +33,7 @@ import logging
 import os
 import re
 import shutil
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, suppress
 from typing import Any
 
 from myrm_agent_harness.toolkits.computer_use.backends.protocols import ComputerBackend
@@ -131,10 +131,8 @@ class _McpSession:
 
     async def _reconnect(self) -> None:
         if self._exit_stack is not None:
-            try:
+            with suppress(Exception):
                 await self._exit_stack.aclose()
-            except Exception:
-                pass
         self._started = False
         await self._connect()
         self._started = True
@@ -281,7 +279,7 @@ class CuaDriverBackend:
         is_totp = label.endswith("-totp")
         try:
             secret_text = vault.get_totp_token(label) if is_totp else vault.get_password(label)
-        except Exception as exc:
+        except Exception:
             return ActionResult(success=False, error=f"Failed to retrieve credential '{label}'")
 
         try:
@@ -314,7 +312,7 @@ class CuaDriverBackend:
                     key_name = part
 
             if key_name and mods:
-                out = await self._mcp.call_tool("hotkey", {"pid": pid, "keys": mods + [key_name]})
+                out = await self._mcp.call_tool("hotkey", {"pid": pid, "keys": [*mods, key_name]})
             elif key_name:
                 out = await self._mcp.call_tool("press_key", {"pid": pid, "key": key_name})
             else:

@@ -53,8 +53,8 @@ time_to_first_action_seconds = create_histogram(
     buckets=(0.1, 0.5, 1, 2, 5, 10, 30, 60),
 )
 
-import time
-from contextvars import ContextVar
+import time  # noqa: E402
+from contextvars import ContextVar  # noqa: E402
 
 _ttfa_start_time: ContextVar[float | None] = ContextVar("ttfa_start_time", default=None)
 

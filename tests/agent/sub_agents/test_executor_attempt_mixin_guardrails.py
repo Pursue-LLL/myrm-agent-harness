@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.agent.sub_agents.executor import SubagentExecutor
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, SubAgentStatus
-from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.toolkits.llms.errors.exceptions import MyrmLLMError
 
 
@@ -39,24 +39,23 @@ async def test_run_single_attempt_cancel_flag_exits(executor: SubagentExecutor, 
     with patch(
         "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
         return_value=child_agent,
-    ):
-        with pytest.raises(asyncio.CancelledError):
-            await executor._run_single_attempt(
-                task_id="cancel-me",
-                agent_type="browser",
-                task_description="task",
-                config=basic_config,
-                context={},
-                tool_registry_getter=lambda: [],
-                start_time=0.0,
-                parent_tracker=None,
-                parent_taint=MagicMock(),
-                parent_agent=parent_agent,
-                cancel_flags={"cancel-me": True},
-                children_agents={},
-                fire_hook=AsyncMock(),
-                hook_event_cls=MagicMock(SUBAGENT_CANCEL_START="cancel_start"),
-            )
+    ), pytest.raises(asyncio.CancelledError):
+        await executor._run_single_attempt(
+            task_id="cancel-me",
+            agent_type="browser",
+            task_description="task",
+            config=basic_config,
+            context={},
+            tool_registry_getter=lambda: [],
+            start_time=0.0,
+            parent_tracker=None,
+            parent_taint=MagicMock(),
+            parent_agent=parent_agent,
+            cancel_flags={"cancel-me": True},
+            children_agents={},
+            fire_hook=AsyncMock(),
+            hook_event_cls=MagicMock(SUBAGENT_CANCEL_START="cancel_start"),
+        )
 
 
 @pytest.mark.asyncio
@@ -77,24 +76,23 @@ async def test_run_single_attempt_raises_on_child_error_event(
     with patch(
         "myrm_agent_harness.agent.sub_agents.executor_attempt_mixin.build_child_agent",
         return_value=child_agent,
-    ):
-        with pytest.raises(MyrmLLMError, match="Subagent error"):
-            await executor._run_single_attempt(
-                task_id="err",
-                agent_type="browser",
-                task_description="task",
-                config=basic_config,
-                context={},
-                tool_registry_getter=lambda: [],
-                start_time=0.0,
-                parent_tracker=None,
-                parent_taint=MagicMock(),
-                parent_agent=parent_agent,
-                cancel_flags={},
-                children_agents={},
-                fire_hook=AsyncMock(),
-                hook_event_cls=MagicMock(),
-            )
+    ), pytest.raises(MyrmLLMError, match="Subagent error"):
+        await executor._run_single_attempt(
+            task_id="err",
+            agent_type="browser",
+            task_description="task",
+            config=basic_config,
+            context={},
+            tool_registry_getter=lambda: [],
+            start_time=0.0,
+            parent_tracker=None,
+            parent_taint=MagicMock(),
+            parent_agent=parent_agent,
+            cancel_flags={},
+            children_agents={},
+            fire_hook=AsyncMock(),
+            hook_event_cls=MagicMock(),
+        )
 
 
 @pytest.mark.asyncio

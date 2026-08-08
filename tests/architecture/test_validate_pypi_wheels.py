@@ -13,13 +13,14 @@ _ARCH_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_REPO_ROOT))
 sys.path.insert(0, str(_ARCH_DIR))
 
-from harness_packaging.platforms import PUBLISH_PLATFORMS  # noqa: E402
-from harness_packaging.release import manifest_source_paths  # noqa: E402
-from scripts.validate_pypi_wheels import expected_wheel_count, validate_upload_dir  # noqa: E402
-from distribution_wheel_helpers import (  # noqa: E402
+from distribution_wheel_helpers import (
     write_minimal_core_wheel,
     write_minimal_release_wheel,
 )
+
+from harness_packaging.platforms import PUBLISH_PLATFORMS
+from harness_packaging.release import manifest_source_paths
+from scripts.validate_pypi_wheels import expected_wheel_count, validate_upload_dir
 
 
 def _touch_valid_wheel(dir_path: Path, name: str) -> Path:

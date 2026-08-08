@@ -20,7 +20,6 @@ from pydantic import BaseModel
 
 from myrm_agent_harness.toolkits.browser.session.structured_extractor import (
     StructuredExtractor,
-    _build_model,
     _extract_json_from_text,
     _json_type_to_python,
     _schema_to_pydantic,

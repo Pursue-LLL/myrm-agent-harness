@@ -212,7 +212,7 @@ class TestStateAssertions:
         from myrm_agent_harness.eval.assertions import evaluate_state_assertions
         from myrm_agent_harness.eval.protocols import StateAssertion
 
-        passed, details = evaluate_state_assertions(
+        passed, _ = evaluate_state_assertions(
             [StateAssertion(type="contains", expected="hello")], "hello world"
         )
         assert passed is True
@@ -328,7 +328,7 @@ class TestStateAssertions:
         from myrm_agent_harness.eval.assertions import evaluate_state_assertions
         from myrm_agent_harness.eval.protocols import StateAssertion
 
-        passed, details = evaluate_state_assertions(
+        passed, _ = evaluate_state_assertions(
             [StateAssertion(type="exact_match", expected="hello")], "hello"
         )
         assert passed is True

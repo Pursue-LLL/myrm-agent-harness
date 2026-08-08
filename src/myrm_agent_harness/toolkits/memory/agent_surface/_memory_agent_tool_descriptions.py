@@ -479,9 +479,6 @@ def resolve_memory_manage_tool_description(
 
 
 __all__ = [
-    "build_mcp_memory_store_tool_description",
-    "build_memory_save_tool_description",
-    "build_memory_search_tool_description",
     "DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE",
     "MEMORY_MANAGE_TOOL_DESCRIPTION",
     "MEMORY_MANAGE_TOOL_DESCRIPTION_EN",
@@ -492,6 +489,9 @@ __all__ = [
     "MEMORY_SAVE_TOOL_DESCRIPTION_EN",
     "MEMORY_SAVE_TOOL_DESCRIPTION_ZH",
     "MemoryToolDescriptionSurface",
+    "build_mcp_memory_store_tool_description",
+    "build_memory_save_tool_description",
+    "build_memory_search_tool_description",
     "resolve_memory_manage_tool_description",
     "resolve_memory_save_tool_description",
 ]

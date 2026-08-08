@@ -101,7 +101,7 @@ class BrowserSessionExtractionMixin:
 
         try:
             schema = json_mod.loads(schema_json)
-        except json_mod.JSONDecodeError as e:
+        except json_mod.JSONDecodeError:
             return "[Error] Invalid JSON Schema"
 
         already_collected: list[dict] | None = None

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class RequestTrustZone(str, Enum):
+class RequestTrustZone(StrEnum):
     LOCAL_TRUSTED = "local_trusted"
     REMOTE_EXPOSED = "remote_exposed"
     MANAGED = "managed"

@@ -7,10 +7,8 @@ Tests cover:
 - MemoryManagerDeletionMixin.count_by_source_chat_id
 """
 
-import asyncio
-import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

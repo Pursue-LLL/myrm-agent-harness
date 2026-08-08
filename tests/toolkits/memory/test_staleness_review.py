@@ -19,16 +19,12 @@ from unittest.mock import AsyncMock
 import pytest
 
 from myrm_agent_harness.toolkits.memory.strategies.staleness_review import (
-    StalenessAction,
-    StalenessDecision,
     StalenessReviewConfig,
-    StalenessReviewResult,
     StalenessReviewer,
     select_stale_candidates,
 )
 from myrm_agent_harness.toolkits.memory.types import (
     MemoryStatus,
-    MemoryType,
     SemanticMemory,
 )
 

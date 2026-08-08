@@ -12,7 +12,6 @@ Pure I/O helpers for paginated GUI/API reads of `.context/.../evicted/` files.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 

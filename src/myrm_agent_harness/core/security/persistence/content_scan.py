@@ -15,7 +15,12 @@ from myrm_agent_harness.core.security.detection.content_boundary import (
     strip_invisible_unicode,
 )
 from myrm_agent_harness.core.security.detection.harmful_state_detector import scan_for_harmful_states
-from myrm_agent_harness.core.security.detection.leak_detector import redact_leaks, scan_for_leaks
+from myrm_agent_harness.core.security.detection.instruction_shape import detect_instruction_shapes
+from myrm_agent_harness.core.security.detection.leak_detector import (
+    looks_like_password,
+    redact_leaks,
+    scan_for_leaks,
+)
 from myrm_agent_harness.core.security.detection.prompt_guard import scan_input
 
 PseudonymizeFn = Callable[[str], str]
@@ -46,6 +51,7 @@ class PersistScanResult:
     injection_score: float = 0.0
     injection_patterns: list[str] = field(default_factory=list)
     credential_patterns: list[str] = field(default_factory=list)
+    instruction_shape_patterns: list[str] = field(default_factory=list)
     harmful_state_patterns: list[str] = field(default_factory=list)
     had_invisible_unicode: bool = False
 
@@ -85,6 +91,7 @@ def scan_persistable_content(
     injection_score = 0.0
     injection_patterns: list[str] = []
     credential_patterns: list[str] = []
+    instruction_shape_patterns: list[str] = []
     harmful_state_patterns: list[str] = []
     had_invisible = False
 
@@ -150,6 +157,20 @@ def scan_persistable_content(
             verdict = PersistScanVerdict.WARN
         finding_codes.append("invisible_unicode_stripped")
 
+    shape_hits = detect_instruction_shapes(cleaned)
+    if shape_hits:
+        instruction_shape_patterns = [label.value for label in shape_hits]
+        if verdict == PersistScanVerdict.CLEAN:
+            verdict = PersistScanVerdict.WARN
+        finding_codes.append("instruction_shape")
+
+    password_hint = looks_like_password(cleaned)
+    if password_hint is not None:
+        cleaned = cleaned.replace(password_hint, "[REDACTED]")
+        credential_patterns.append("password_like")
+        verdict = PersistScanVerdict.REDACTED
+        finding_codes.append("password_like_redacted")
+
     if profile == PersistScanProfile.MEMORY_WRITE and _pii_pseudonymizer is not None:
         cleaned = _pii_pseudonymizer(cleaned)
 
@@ -160,6 +181,7 @@ def scan_persistable_content(
         injection_score=injection_score,
         injection_patterns=injection_patterns,
         credential_patterns=credential_patterns,
+        instruction_shape_patterns=instruction_shape_patterns,
         harmful_state_patterns=harmful_state_patterns,
         had_invisible_unicode=had_invisible,
     )

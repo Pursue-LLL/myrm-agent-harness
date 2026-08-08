@@ -97,7 +97,7 @@ async def test_delegate_task_with_verifier_prompt_fallback_type(mock_run_with_ve
     )
     mock_run_with_verification.return_value = mock_result
 
-    result = await tool.coroutine(
+    await tool.coroutine(
         agent_type="coder",
         objective="Write a function",
         wait=True,

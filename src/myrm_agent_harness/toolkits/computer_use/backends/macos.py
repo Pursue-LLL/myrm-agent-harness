@@ -122,7 +122,7 @@ class MacOSBackend:
                 secret_text = vault.get_totp_token(label)
             else:
                 secret_text = vault.get_password(label)
-        except Exception as e:
+        except Exception:
             return ActionResult(success=False, error=f"Failed to retrieve credential for label '{label}'")
 
         try:

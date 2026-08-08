@@ -53,12 +53,11 @@ async def test_middleware_emits_overlay_active_before_fanout() -> None:
         "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
         new_callable=AsyncMock,
         return_value=[],
+    ), patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_active",
+        active_mock,
     ):
-        with patch(
-            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_active",
-            active_mock,
-        ):
-            await middleware.awrap_model_call(request, handler)
+        await middleware.awrap_model_call(request, handler)
 
     active_mock.assert_awaited_once()
     assert active_mock.await_args.args[0] == ["ref-a"]
@@ -101,12 +100,11 @@ async def test_middleware_emits_ref_done_via_callback() -> None:
     with patch(
         "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
         side_effect=run_with_callback,
+    ), patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
+        emit_mock,
     ):
-        with patch(
-            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
-            emit_mock,
-        ):
-            await middleware.awrap_model_call(request, handler)
+        await middleware.awrap_model_call(request, handler)
 
     assert emit_mock.await_count == 2
     handler.assert_awaited_once()
@@ -128,16 +126,14 @@ async def test_middleware_emits_overlay_skipped_on_budget_pressure() -> None:
     with patch(
         "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._budget_pressure_active",
         return_value=True,
+    ), patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
+        skip_mock,
+    ), patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
+        run_mock,
     ):
-        with patch(
-            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
-            skip_mock,
-        ):
-            with patch(
-                "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
-                run_mock,
-            ):
-                await middleware.awrap_model_call(request, handler)
+        await middleware.awrap_model_call(request, handler)
 
     skip_mock.assert_awaited_once_with("budget_pressure")
     run_mock.assert_not_called()
@@ -159,13 +155,12 @@ async def test_middleware_budget_skip_toast_emits_once_per_turn() -> None:
     with patch(
         "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._budget_pressure_active",
         return_value=True,
+    ), patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
+        skip_mock,
     ):
-        with patch(
-            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
-            skip_mock,
-        ):
-            await middleware.awrap_model_call(request, handler)
-            await middleware.awrap_model_call(request, handler)
+        await middleware.awrap_model_call(request, handler)
+        await middleware.awrap_model_call(request, handler)
 
     skip_mock.assert_awaited_once_with("budget_pressure")
 
@@ -194,12 +189,11 @@ async def test_middleware_injects_advisor_block_on_success() -> None:
         "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
         new_callable=AsyncMock,
         return_value=refs,
+    ), patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
+        new_callable=AsyncMock,
     ):
-        with patch(
-            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_ref_done",
-            new_callable=AsyncMock,
-        ):
-            await middleware.awrap_model_call(request, handler)
+        await middleware.awrap_model_call(request, handler)
 
     handler.assert_awaited_once()
     passed_request = handler.await_args.args[0]
@@ -240,12 +234,11 @@ async def test_middleware_emits_overlay_skipped_on_insufficient_refs() -> None:
         "myrm_agent_harness.agent.middlewares.moa_advisor_middleware.AdvisorFanoutRunner.run",
         new_callable=AsyncMock,
         return_value=refs,
+    ), patch(
+        "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
+        skip_mock,
     ):
-        with patch(
-            "myrm_agent_harness.agent.middlewares.moa_advisor_middleware._emit_overlay_skipped",
-            skip_mock,
-        ):
-            await middleware.awrap_model_call(request, handler)
+        await middleware.awrap_model_call(request, handler)
 
     skip_mock.assert_awaited_once_with("insufficient_refs")
     handler.assert_awaited_once()

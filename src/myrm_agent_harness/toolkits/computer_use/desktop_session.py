@@ -18,20 +18,27 @@ import logging
 import time
 from collections.abc import Callable
 
+from myrm_agent_harness.toolkits.computer_use.dref.errors import (
+    AXPermissionRequiredError,
+    AXTreeEmptyError,
+    DRefStaleError,
+)
+from myrm_agent_harness.toolkits.computer_use.dref.registry import DRefRegistry
+from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotScope
 from myrm_agent_harness.toolkits.computer_use.execution.healer import try_bbox_click
+from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import compute_ref_diff
 from myrm_agent_harness.toolkits.computer_use.perception.ax_dispatch import (
     capture_snapshot,
     inspect_backend,
     invoke_element,
 )
 from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import refs_for_view_update
-from myrm_agent_harness.toolkits.computer_use.perception.ax_diff import compute_ref_diff
 from myrm_agent_harness.toolkits.computer_use.perception.renderer import render_diff_tree, render_snapshot_tree
+from myrm_agent_harness.toolkits.computer_use.session import ComputerSession, create_computer_session
 from myrm_agent_harness.toolkits.computer_use.som_overlay import (
     apply_som_overlay_to_jpeg_base64,
     build_som_index_map,
 )
-from myrm_agent_harness.toolkits.computer_use.session import ComputerSession, create_computer_session
 from myrm_agent_harness.toolkits.computer_use.types import (
     ActionResult,
     ComputerUseConfig,
@@ -42,13 +49,6 @@ from myrm_agent_harness.toolkits.computer_use.types import (
     PermissionStatus,
     ScrollDirection,
 )
-from myrm_agent_harness.toolkits.computer_use.dref.errors import (
-    AXPermissionRequiredError,
-    AXTreeEmptyError,
-    DRefStaleError,
-)
-from myrm_agent_harness.toolkits.computer_use.dref.registry import DRefRegistry
-from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotScope
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +262,7 @@ class DesktopSession(ComputerSession):
                         effective_text = vault.get_totp_token(text)
                     else:
                         effective_text = vault.get_password(text)
-                except Exception as e:
+                except Exception:
                     return f"Failed to retrieve credential for label '{text}'"
                 effective_action = "fill"
             elif action == "set_value":

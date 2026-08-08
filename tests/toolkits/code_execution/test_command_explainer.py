@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.toolkits.code_execution.security.command_explainer.extract import (
     build_shell_approval_fields,
     classify_span_risk_levels,
@@ -13,10 +11,9 @@ from myrm_agent_harness.toolkits.code_execution.security.command_explainer.extra
     is_shell_approval_tool,
 )
 from myrm_agent_harness.toolkits.code_execution.security.command_explainer.humanize import (
-    BilingualExplanation,
-    humanize_command,
     _detect_dangerous_pipe,
     _explain_segment,
+    humanize_command,
 )
 
 

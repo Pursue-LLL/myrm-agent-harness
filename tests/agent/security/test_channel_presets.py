@@ -183,7 +183,7 @@ class TestLocalBrowserRelaxation:
     def test_allows_zero_bind(self) -> None:
         """0.0.0.0 binding must be allowed for local dev servers."""
         rules = get_local_browser_relaxation()
-        zero_rules = [r for r in rules if "0.0.0.0" in r.pattern]
+        zero_rules = [r for r in rules if "0.0.0.0" in r.pattern]  # noqa: S104  # hostname pattern, not a bind
         assert any(r.action == PermissionAction.ALLOW for r in zero_rules)
 
     def test_allows_class_c_private(self) -> None:

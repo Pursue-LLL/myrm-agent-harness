@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
-from myrm_agent_harness.toolkits.computer_use.types import ScreenInfo
 from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef, SnapshotMeta
+from myrm_agent_harness.toolkits.computer_use.types import ScreenInfo
 
 
 @pytest.fixture
@@ -62,15 +62,14 @@ async def test_desktop_vision_action_refreshes_stale_screenshot(mock_backend, mo
     with patch(
         "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
         return_value={"app_name": "Test", "window_title": "Test"},
-    ):
-        with patch.object(session, "take_screenshot", new_callable=AsyncMock) as mock_shot:
-            shot = MagicMock()
-            shot.success = True
-            mock_shot.return_value = shot
-            with patch.object(session, "click_at", new_callable=AsyncMock) as mock_click:
-                mock_click.return_value.success = True
-                mock_click.return_value.screenshot_base64 = ""
-                result = await session.desktop_vision_action(action="left_click", coordinate=[100, 100])
+    ), patch.object(session, "take_screenshot", new_callable=AsyncMock) as mock_shot:
+        shot = MagicMock()
+        shot.success = True
+        mock_shot.return_value = shot
+        with patch.object(session, "click_at", new_callable=AsyncMock) as mock_click:
+            mock_click.return_value.success = True
+            mock_click.return_value.screenshot_base64 = ""
+            result = await session.desktop_vision_action(action="left_click", coordinate=[100, 100])
 
     mock_shot.assert_called_once()
     assert "completed" in result
@@ -94,11 +93,10 @@ async def test_desktop_vision_action_requires_app_approval(mock_backend, mock_co
     with patch(
         "myrm_agent_harness.toolkits.computer_use.desktop_session.inspect_backend",
         return_value={"app_name": "Safari", "window_title": "Example"},
-    ):
-        with patch.object(session, "click_at", new_callable=AsyncMock) as mock_click:
-            mock_click.return_value.success = True
-            mock_click.return_value.screenshot_base64 = ""
-            await session.desktop_vision_action(action="left_click", coordinate=[100, 100])
+    ), patch.object(session, "click_at", new_callable=AsyncMock) as mock_click:
+        mock_click.return_value.success = True
+        mock_click.return_value.screenshot_base64 = ""
+        await session.desktop_vision_action(action="left_click", coordinate=[100, 100])
 
     assert callback.call_count == 1
     assert callback.call_args.kwargs["app_name"] == "Safari"

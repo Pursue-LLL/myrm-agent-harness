@@ -56,9 +56,7 @@ def _should_include_vault_file(path: Path, vault_base: Path) -> bool:
         return False
     if path.name in _EXCLUDED_FILE_NAMES:
         return False
-    if path.suffix.lower() in {".sqlite", ".sqlite3", ".db"}:
-        return False
-    return True
+    return path.suffix.lower() not in {".sqlite", ".sqlite3", ".db"}
 
 
 def iter_vault_files(structure: WikiStructure) -> list[tuple[Path, str]]:
@@ -84,7 +82,6 @@ def build_vault_archive_zip(
     extra_entries: dict[str, str | bytes] | None = None,
 ) -> io.BytesIO:
     """Build a portable zip of the full agent wiki vault directory."""
-    vault_base = structure.base_dir
     memory_file = io.BytesIO()
     included_paths: list[str] = []
 

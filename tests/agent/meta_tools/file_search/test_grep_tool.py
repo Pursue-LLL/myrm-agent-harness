@@ -826,12 +826,11 @@ class TestGrepLiteralMode:
         with patch(
             "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
             return_value=mock_executor,
-        ):
-            with pytest.raises(ToolError):
-                await tool_fn.ainvoke(
-                    {"pattern": "", "literal": True},
-                    config=runnable_config,
-                )
+        ), pytest.raises(ToolError):
+            await tool_fn.ainvoke(
+                {"pattern": "", "literal": True},
+                config=runnable_config,
+            )
 
     async def test_literal_default_false_preserves_regex(
         self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig

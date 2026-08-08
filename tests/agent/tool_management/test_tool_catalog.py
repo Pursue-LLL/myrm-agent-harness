@@ -19,7 +19,7 @@ from myrm_agent_harness.agent.tool_management.tool_catalog import (
     validate_layer_product_consistency,
     validate_tool_catalog,
 )
-from myrm_agent_harness.agent.tool_management.tool_layers import ToolLayer, _TOOL_LAYERS
+from myrm_agent_harness.agent.tool_management.tool_layers import _TOOL_LAYERS, ToolLayer
 
 
 def test_action_tools_only_in_tool_layers() -> None:

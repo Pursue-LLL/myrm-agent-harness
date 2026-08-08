@@ -6,6 +6,7 @@ Requires TAVILY_API_KEY in environment or .env.test.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from collections import Counter
 from pathlib import Path
@@ -109,7 +110,7 @@ class TestDomainDiversityIntegration:
         Uses a niche query likely to return many results from the same domain.
         """
         tools = _make_search_tools()
-        results, context = await tools.fast_search_with_questions(
+        results, _context = await tools.fast_search_with_questions(
             questions=["site:github.com langchain agent tools"],
             search_results_per_query=10,
             top_k=10,
@@ -120,14 +121,12 @@ class TestDomainDiversityIntegration:
     async def test_search_empty_query_handled(self) -> None:
         """Search with a very obscure query should not crash."""
         tools = _make_search_tools()
-        try:
-            results, _ = await tools.fast_search_with_questions(
+        with contextlib.suppress(Exception):
+            _results, _ = await tools.fast_search_with_questions(
                 questions=["xyzzyplugh_nonexistent_query_42"],
                 search_results_per_query=5,
                 top_k=5,
             )
-        except Exception:
-            pass
 
     @pytest.mark.asyncio
     async def test_top_results_not_all_same_domain(self) -> None:

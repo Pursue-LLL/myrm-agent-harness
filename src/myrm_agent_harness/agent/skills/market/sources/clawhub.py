@@ -28,13 +28,11 @@ import os
 
 import httpx
 
-from myrm_agent_harness.infra.tls_compat import create_httpx_client
-
-from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
 from myrm_agent_harness.agent.skills.market.sources.clawhub_registry import (
-    CLAWHUB_DEFAULT_URL as CLAWHUB_API_BASE,
     resolve_registry_base_url,
 )
+from myrm_agent_harness.backends.skills.market_protocols import SkillSearchResult
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 logger = logging.getLogger(__name__)
 

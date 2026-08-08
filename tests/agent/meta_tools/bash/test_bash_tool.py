@@ -1,11 +1,11 @@
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pathlib import Path
 
 from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutionError
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import create_bash_code_execute_tool
+from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutionError
 from myrm_agent_harness.utils.errors import ToolError
 
 

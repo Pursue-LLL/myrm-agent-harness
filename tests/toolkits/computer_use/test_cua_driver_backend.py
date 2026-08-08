@@ -19,7 +19,6 @@ from myrm_agent_harness.toolkits.computer_use.types import (
     WindowTextResult,
 )
 
-
 # ── Fixtures ──────────────────────────────────────────────────────
 
 @pytest.fixture

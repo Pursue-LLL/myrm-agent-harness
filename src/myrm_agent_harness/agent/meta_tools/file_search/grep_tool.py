@@ -41,8 +41,8 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.config import DEFAULT_FILE_IO_CONFIG, FileIOConfig
-from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.agent.meta_tools._context_recovery import ensure_executor
+from myrm_agent_harness.agent.security.redact import redact_sensitive_text
 from myrm_agent_harness.utils.errors import ToolError
 
 from ._formatter import format_grep_results

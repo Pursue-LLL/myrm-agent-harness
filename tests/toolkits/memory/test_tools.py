@@ -11,7 +11,11 @@ from myrm_agent_harness.toolkits.memory.memory_agent_tools import (
 )
 from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
     channel_label as _channel_label,
+)
+from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
     is_stale as _is_stale,
+)
+from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
     memory_age_label,
 )
 from myrm_agent_harness.toolkits.memory.types import (

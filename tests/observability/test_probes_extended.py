@@ -17,23 +17,21 @@ import pytest
 class TestCheckNetworkHealth:
     @pytest.mark.asyncio
     async def test_httpx_missing_returns_warn(self):
-        with patch.dict("sys.modules", {"httpx": None}):
-            with patch(
-                "myrm_agent_harness.observability.diagnostics.probes.httpx",
-                None,
-            ):
-                from importlib import reload
+        with patch.dict("sys.modules", {"httpx": None}), patch(
+            "myrm_agent_harness.observability.diagnostics.probes.httpx",
+            None,
+        ):
 
-                import myrm_agent_harness.observability.diagnostics.probes as probes_mod
+            import myrm_agent_harness.observability.diagnostics.probes as probes_mod
 
-                original_httpx = probes_mod.httpx
-                probes_mod.httpx = None
-                try:
-                    report = await probes_mod.check_network_health()
-                    assert report.status == "warn"
-                    assert "httpx" in report.detail.lower()
-                finally:
-                    probes_mod.httpx = original_httpx
+            original_httpx = probes_mod.httpx
+            probes_mod.httpx = None
+            try:
+                report = await probes_mod.check_network_health()
+                assert report.status == "warn"
+                assert "httpx" in report.detail.lower()
+            finally:
+                probes_mod.httpx = original_httpx
 
     @pytest.mark.asyncio
     async def test_successful_probe(self):
@@ -206,14 +204,12 @@ class TestCheckQdrantHealth:
         with patch(
             "myrm_agent_harness.observability.diagnostics.probes.check_qdrant_health",
             wraps=check_qdrant_health,
+        ), patch.dict("sys.modules", {"myrm_agent_harness.toolkits.vector": None}), patch(
+            "builtins.__import__",
+            side_effect=ImportError("No module named 'myrm_agent_harness.toolkits.vector'"),
         ):
-            with patch.dict("sys.modules", {"myrm_agent_harness.toolkits.vector": None}):
-                with patch(
-                    "builtins.__import__",
-                    side_effect=ImportError("No module named 'myrm_agent_harness.toolkits.vector'"),
-                ):
-                    report = await check_qdrant_health()
-                    assert report.status == "warn"
+            report = await check_qdrant_health()
+            assert report.status == "warn"
 
     @pytest.mark.asyncio
     async def test_successful_qdrant(self):

@@ -54,7 +54,6 @@ from myrm_agent_harness.agent.sub_agents.types import (
     ControlScope,
     DelegateRole,
     SubagentCatalog,
-    SubagentConfig,
     SubAgentResult,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger

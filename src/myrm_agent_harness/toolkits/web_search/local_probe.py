@@ -10,7 +10,6 @@ import httpx
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
-
 from myrm_agent_harness.toolkits.web_search.constants import SEARXNG_PROBE_CANDIDATE_URLS
 
 logger = logging.getLogger(__name__)

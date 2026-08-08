@@ -7,15 +7,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from myrm_agent_harness.agent.meta_tools._context_recovery import (
+    restore_context_vars,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     create_bash_code_execute_tool,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
     build_background_listeners,
     classify_background_exit,
-)
-from myrm_agent_harness.agent.meta_tools._context_recovery import (
-    restore_context_vars,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_helpers import (
     get_os_hint,

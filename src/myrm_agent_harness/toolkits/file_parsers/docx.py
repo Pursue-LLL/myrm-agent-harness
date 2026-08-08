@@ -89,8 +89,8 @@ class DocxParser(FileParser):
         self,
         doc: object,
         qn: object,
-        Paragraph: type,
-        Table: type,
+        Paragraph: type,  # noqa: N803  # python-docx class name parity
+        Table: type,  # noqa: N803
     ) -> str:
         """Build Markdown content from document."""
         blocks: list[str] = []
@@ -138,14 +138,13 @@ class DocxParser(FileParser):
         self,
         doc: object,
         qn: object,
-        Paragraph: type,
-        Table: type,
+        Paragraph: type,  # noqa: N803  # python-docx class name parity
+        Table: type,  # noqa: N803
     ) -> str:
         """Return JSON structural metadata for the document."""
         elements: list[dict[str, object]] = []
-        element_idx = 0
 
-        for element in doc.element.body:  # type: ignore[attr-defined]
+        for element_idx, element in enumerate(doc.element.body):  # type: ignore[attr-defined]
             tag = element.tag
             if tag == qn("w:p"):  # type: ignore[operator]
                 para = Paragraph(element, doc)
@@ -213,8 +212,6 @@ class DocxParser(FileParser):
                     if cell_map:
                         tbl_info["cells"] = cell_map
                 elements.append(tbl_info)
-
-            element_idx += 1
 
         doc_meta = self._extract_doc_metadata(doc)
 

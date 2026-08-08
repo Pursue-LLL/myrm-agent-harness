@@ -365,7 +365,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
             with self._reader() as conn:
                 rows = conn.execute(
                     """
-                    SELECT skill_id, path FROM skills 
+                    SELECT skill_id, path FROM skills
                     WHERE json_extract(environment, '$.custom_tags.scope_agent_id') = ?
                     """,
                     (agent_id,),

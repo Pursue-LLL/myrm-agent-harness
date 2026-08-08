@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 import logging
 import uuid
@@ -175,10 +176,8 @@ class ActionCaptureEngine:
         self._callbacks.append(cb)
 
     def remove_callback(self, cb: CaptureCallback) -> None:
-        try:
+        with contextlib.suppress(ValueError):
             self._callbacks.remove(cb)
-        except ValueError:
-            pass
 
     async def start(self, start_url: str = "") -> CaptureSession:
         """Start a new capture session on the attached page."""
@@ -210,10 +209,8 @@ class ActionCaptureEngine:
             if not self._session:
                 return None
             self._session.status = "stopped"
-            try:
+            with contextlib.suppress(Exception):
                 await self._page.evaluate("window.__myrmCaptureActive = false")
-            except Exception:
-                pass
             session = self._session
             logger.info(
                 f"Action capture stopped: session={session.session_id}, "
@@ -225,19 +222,15 @@ class ActionCaptureEngine:
         """Pause capture (events are silently dropped on the JS side)."""
         if self._session and self._session.status == "recording":
             self._session.status = "paused"
-            try:
+            with contextlib.suppress(Exception):
                 await self._page.evaluate("window.__myrmCaptureActive = false")
-            except Exception:
-                pass
 
     async def resume(self) -> None:
         """Resume paused capture."""
         if self._session and self._session.status == "paused":
             self._session.status = "recording"
-            try:
+            with contextlib.suppress(Exception):
                 await self._page.evaluate("window.__myrmCaptureActive = true")
-            except Exception:
-                pass
 
     async def _on_action_event(self, raw_json: str) -> None:
         """Bridge callback invoked from JS — parse and dispatch."""

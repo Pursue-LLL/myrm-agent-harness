@@ -17,7 +17,6 @@ switching. Framework-only — no business-layer imports.
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from collections.abc import Callable
@@ -166,7 +165,7 @@ class MatrixRunner:
 
     def __init__(
         self,
-        executors: dict[str, "AgentExecutor"],
+        executors: dict[str, AgentExecutor],
         *,
         max_concurrency_per_profile: int = 3,
         on_profile_start: OnProfileStart | None = None,
@@ -191,7 +190,7 @@ class MatrixRunner:
         self,
         cases: list[EvalCase],
         *,
-        manifest_builder: Callable[[str], "EvalManifest | None"] | None = None,
+        manifest_builder: Callable[[str], EvalManifest | None] | None = None,
     ) -> MatrixResult:
         """Run all single-turn cases against each profile sequentially."""
         start = time.perf_counter()
@@ -208,8 +207,8 @@ class MatrixRunner:
             def _make_callback(pid: str) -> Callable[[EvalTurnResult], None] | None:
                 if not self._on_case_complete:
                     return None
-                def _cb(result: EvalTurnResult) -> None:
-                    self._on_case_complete(pid, result)  # type: ignore[misc]
+                def _cb(turn_result: EvalTurnResult) -> None:
+                    self._on_case_complete(pid, turn_result)  # type: ignore[misc]
                 return _cb
 
             runner = EvalRunner(
@@ -236,9 +235,9 @@ class MatrixRunner:
 
     async def run_multi_turn(
         self,
-        cases: list["MultiTurnEvalCase"],
+        cases: list[MultiTurnEvalCase],
         *,
-        manifest_builder: Callable[[str], "EvalManifest | None"] | None = None,
+        manifest_builder: Callable[[str], EvalManifest | None] | None = None,
     ) -> MatrixResult:
         """Run multi-turn cases against each profile sequentially.
 
@@ -261,8 +260,8 @@ class MatrixRunner:
             def _make_callback(pid: str) -> Callable[[EvalTurnResult], None] | None:
                 if not self._on_case_complete:
                     return None
-                def _cb(result: EvalTurnResult) -> None:
-                    self._on_case_complete(pid, result)  # type: ignore[misc]
+                def _cb(turn_result: EvalTurnResult) -> None:
+                    self._on_case_complete(pid, turn_result)  # type: ignore[misc]
                 return _cb
 
             runner = EvalRunner(

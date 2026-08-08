@@ -44,7 +44,6 @@ following OpenAI's recommended priority hierarchy (system > developer > user).
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import types
 from collections.abc import Sequence
@@ -56,7 +55,7 @@ from typing import (
 
 from langchain_core.language_models import LanguageModelInput
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import JsonOutputParser, PydanticOutputParser
 from langchain_core.runnables import Runnable, RunnableMap, RunnablePassthrough
 from langchain_core.tools import BaseTool
@@ -69,11 +68,11 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin import (
     ChatLiteLLMAsyncMixin,
 )
 from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
+    _DEVELOPER_ROLE_PATTERN,
+    _FRAMEWORK_REQUIRED_OPENAI_PARAMS,
     EmptyChoicesError,
     EmptyStreamError,
     StreamStallTimeoutError,
-    _DEVELOPER_ROLE_PATTERN,
-    _FRAMEWORK_REQUIRED_OPENAI_PARAMS,
 )
 from myrm_agent_harness.toolkits.llms.adapters.chat_model_message_mixin import (
     ChatLiteLLMMessageMixin,
@@ -97,11 +96,11 @@ _BM = TypeVar("_BM", bound=BaseModel)
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "_DEVELOPER_ROLE_PATTERN",
     "ChatLiteLLM",
     "EmptyChoicesError",
     "EmptyStreamError",
     "StreamStallTimeoutError",
-    "_DEVELOPER_ROLE_PATTERN",
     "clean_model_kwargs",
 ]
 
@@ -306,10 +305,7 @@ class ChatLiteLLM(
         if provider and provider != "openai":
             return False
 
-        if not api_base or "api.openai.com" in api_base:
-            return True
-
-        return False
+        return bool(not api_base or "api.openai.com" in api_base)
 
     @property
     def _identifying_params(self) -> dict[str, Any]:

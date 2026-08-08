@@ -111,10 +111,11 @@ class HookExecutor:
     Each hook runs in its own try/except — one failure never affects others.
     """
 
-    __slots__ = "_registry"
+    __slots__ = ("_background_tasks", "_registry")
 
     def __init__(self, registry: HookRegistry) -> None:
         self._registry = registry
+        self._background_tasks: set[asyncio.Task[None]] = set()
 
     @property
     def registry(self) -> HookRegistry:
@@ -221,7 +222,9 @@ class HookExecutor:
 
     async def _run_http(self, hook: HttpHookDefinition, event: str, payload: dict[str, object]) -> HookResult:
         if hook.fire_and_forget:
-            asyncio.create_task(self._http_fire_and_forget(hook, event, payload))
+            task = asyncio.create_task(self._http_fire_and_forget(hook, event, payload))
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
             return HookResult(hook_type="http", success=True, output="fire-and-forget dispatched")
 
         return await self._http_send(hook, event, payload)
@@ -240,7 +243,7 @@ class HookExecutor:
         from myrm_agent_harness.core.security.http.secure_fetch import secure_request
 
         try:
-            import httpx
+            import httpx  # noqa: F401  # optional dependency guard
         except (ImportError, TypeError):
             return HookResult(
                 hook_type="http",

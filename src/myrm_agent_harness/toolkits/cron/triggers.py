@@ -278,7 +278,7 @@ def generate_webhook_secret() -> str:
 # Security utilities
 # ---------------------------------------------------------------------------
 
-_PRIVATE_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
+_PRIVATE_HOSTNAMES = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})  # noqa: S104  # hostname list, not a bind
 
 
 def validate_webhook_secret(expected: str, provided: str) -> bool:

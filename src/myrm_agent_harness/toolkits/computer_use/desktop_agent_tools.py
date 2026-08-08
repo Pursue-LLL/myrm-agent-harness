@@ -21,13 +21,13 @@ from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.toolkits.computer_use.desktop_session import DesktopSession
+from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotScope
 from myrm_agent_harness.toolkits.computer_use.types import (
     DesktopInteractAction,
     DesktopVisionAction,
     ModifierKey,
     ScrollDirection,
 )
-from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotScope
 
 
 def create_desktop_tools(session: DesktopSession) -> list[object]:

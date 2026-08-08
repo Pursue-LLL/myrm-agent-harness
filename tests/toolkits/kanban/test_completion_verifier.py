@@ -263,7 +263,7 @@ async def test_verifier_timeout_treated_as_failure(store: InMemoryKanbanStore, b
         if old_verifier:
 
             class _QuickTimeoutVerifier:
-                async def verify(self_v: object, task: KanbanTask, result: str) -> VerificationResult:
+                async def verify(self, task: KanbanTask, result: str) -> VerificationResult:
                     await asyncio.sleep(5)
                     return VerificationResult(passed=True)
 

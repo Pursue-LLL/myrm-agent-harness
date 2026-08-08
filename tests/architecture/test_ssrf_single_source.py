@@ -51,9 +51,11 @@ def _defines_ssrf_helper(path: Path, tree: ast.Module) -> list[str]:
         return violations
 
     for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
-            if any(pattern in node.name for pattern in _FORBIDDEN_SSRF_PATTERNS):
-                violations.append(f"{rel}:{node.lineno} defines {node.name}")
+        if (
+            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+            and any(pattern in node.name for pattern in _FORBIDDEN_SSRF_PATTERNS)
+        ):
+            violations.append(f"{rel}:{node.lineno} defines {node.name}")
     return violations
 
 

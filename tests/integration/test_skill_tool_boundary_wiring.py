@@ -6,7 +6,6 @@ Key path uses real ToolRegistry and stub protocol backends (no MagicMock on regi
 """
 
 from __future__ import annotations
-from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 from unittest.mock import AsyncMock
 
@@ -16,6 +15,7 @@ from myrm_agent_harness.agent.meta_tools import get_meta_tools
 from myrm_agent_harness.agent.meta_tools.discover_capability.discover_capability_tool import (
     sync_discover_capability_tool,
 )
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 from myrm_agent_harness.agent.meta_tools.skills.market.skill_market_tool import (
     create_skill_market_tool,
 )
@@ -320,10 +320,10 @@ async def test_skill_select_static_description_and_catalog_delivery_wiring() -> 
     """get_meta_tools static skill_select + SkillAgent stream catalog reinject (no tool XML)."""
     from langchain_core.messages import HumanMessage
 
+    from myrm_agent_harness.agent._internals._agent_build import _weave_dynamic_schemas
     from myrm_agent_harness.agent._internals.agent_runtime import (
         apply_bound_skill_catalog_for_stream,
     )
-    from myrm_agent_harness.agent._internals._agent_build import _weave_dynamic_schemas
     from myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool import (
         build_skill_select_static_description,
     )

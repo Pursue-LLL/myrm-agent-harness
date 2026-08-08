@@ -30,7 +30,7 @@ from __future__ import annotations
 import hashlib
 from typing import TYPE_CHECKING
 
-from langchain_core.messages import BaseMessage, ToolMessage
+from langchain_core.messages import ToolMessage
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_content_tokens
@@ -38,10 +38,10 @@ from myrm_agent_harness.utils.token_estimation import estimate_content_tokens
 from ...infra.archive_reference import build_tool_result_archive_reference
 from ...infra.retention_helpers import effective_keep_recent_calls, find_keep_recent_prune_cutoff
 from ...infra.schemas import (
+    TOOL_PROTECTION_CONFIG,
     ContextCompressOffloadCallback,
     ContextOffloadResult,
     normalize_context_offload_result,
-    TOOL_PROTECTION_CONFIG,
 )
 from ...tracking.task_metrics import get_task_metrics
 from ..base import BaseProcessor, ProcessorContext
@@ -74,7 +74,7 @@ class ActiveToolResultPruneProcessor(BaseProcessor):
         *,
         threshold_tokens: int = 2048,
         keep_recent_calls: int = 5,
-        on_prune_offload: "ContextCompressOffloadCallback | None" = None,
+        on_prune_offload: ContextCompressOffloadCallback | None = None,
     ) -> None:
         self._threshold_tokens = max(threshold_tokens, 256)
         self._keep_recent_calls = max(keep_recent_calls, 0)

@@ -18,7 +18,7 @@ def test_default_policy_registers_ask_question_tool() -> None:
 
 
 def test_module_policy_matches_default_factory() -> None:
-    assert HITL_TOOL_POLICY == HitlToolPolicy.default()
+    assert HitlToolPolicy.default() == HITL_TOOL_POLICY
 
 
 def test_delegation_manifest_blocks_hitl_policy_tools() -> None:

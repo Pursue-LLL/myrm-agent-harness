@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import re
+from datetime import UTC
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -381,10 +381,10 @@ class TestYamlSafeValue:
         lines = md.split("\n")
         first_end = lines.index("---", 1)
         frontmatter_block = lines[1:first_end]
-        trigger_lines = [l for l in frontmatter_block if l.startswith("trigger:")]
+        trigger_lines = [line for line in frontmatter_block if line.startswith("trigger:")]
         assert len(trigger_lines) == 1, "trigger should be a single frontmatter line"
         assert "\\n" in trigger_lines[0], "newline should be escaped"
-        orphan = [l for l in frontmatter_block if l.strip() == "about Python version"]
+        orphan = [line for line in frontmatter_block if line.strip() == "about Python version"]
         assert not orphan, "newline content must not become orphan line"
 
     def test_claim_title_with_newline(self) -> None:
@@ -403,9 +403,9 @@ class TestYamlSafeValue:
         lines = md.split("\n")
         first_end = lines.index("---", 1)
         frontmatter_block = lines[1:first_end]
-        title_lines = [l for l in frontmatter_block if l.startswith("title:")]
+        title_lines = [line for line in frontmatter_block if line.startswith("title:")]
         assert len(title_lines) == 1
-        orphan = [l for l in frontmatter_block if l.strip() == "Dark Mode"]
+        orphan = [line for line in frontmatter_block if line.strip() == "Dark Mode"]
         assert not orphan
 
     def test_normal_values_unaffected(self) -> None:
@@ -505,7 +505,7 @@ class TestExportMarkdownIntegration:
 
     @pytest.mark.asyncio
     async def test_export_since_filter(self, tmp_export_dir: Path) -> None:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         mock_data = {
             "semantic": [
@@ -533,7 +533,7 @@ class TestExportMarkdownIntegration:
         mixin = MemoryManagerImportExportMixin()
         mixin.export_all = AsyncMock(return_value=mock_data)  # type: ignore[method-assign]
 
-        since = datetime(2024, 3, 1, tzinfo=timezone.utc)
+        since = datetime(2024, 3, 1, tzinfo=UTC)
         counts = await mixin.export_markdown(tmp_export_dir, since_ts=since)
 
         assert counts["semantic"] == 1

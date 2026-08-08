@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 from collections import deque
 from typing import cast
@@ -10,12 +9,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from myrm_agent_harness.agent.meta_tools.bash._background.consume import (
+    BackgroundRegistryEntry,
+)
 from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     BackgroundProcessRegistry,
     get_background_registry,
-)
-from myrm_agent_harness.agent.meta_tools.bash._background.consume import (
-    BackgroundRegistryEntry,
 )
 from myrm_agent_harness.agent.meta_tools.bash._background.types import (
     INPUT_WAIT_IDLE_SECONDS,

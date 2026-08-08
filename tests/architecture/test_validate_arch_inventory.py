@@ -10,7 +10,7 @@ import pytest
 _repo_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_repo_root))
 
-from scripts.validate_arch_inventory import (  # noqa: E402
+from scripts.validate_arch_inventory import (
     _is_inventory_file_cell,
     _listed_py_in_arch,
     scan_directory,

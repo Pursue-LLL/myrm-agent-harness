@@ -6,7 +6,6 @@ the normal, error, and metadata extraction paths of _handle_tool_result.
 """
 
 import json
-from pathlib import Path
 
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage

@@ -5,9 +5,6 @@ Verifies: COW clone, _sync_tree, _merge_tree_additive, size guards, cleanup.
 
 from __future__ import annotations
 
-import asyncio
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -134,7 +131,7 @@ class TestIsolatedWorkspaceContextManager:
     @pytest.mark.asyncio()
     async def test_context_manager_creates_and_cleans_up(self, parent_workspace: Path) -> None:
         child_path: Path | None = None
-        async with isolated_workspace(parent_workspace) as (child_ws, sync_back):
+        async with isolated_workspace(parent_workspace) as (child_ws, _sync_back):
             child_path = child_ws
             assert child_ws.exists()
             assert (child_ws / "plan.md").exists()

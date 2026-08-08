@@ -58,6 +58,13 @@ def test_large_output_eviction_read_hint_documented() -> None:
     assert ".context/.../evicted/" in TOOL_DESCRIPTION
 
 
+def test_failure_root_cause_guidance_documented() -> None:
+    """失败处理引导：先读 stderr/错误提示定位根因，勿盲目重试同一命令."""
+    assert "stderr" in TOOL_DESCRIPTION
+    assert "盲目重试" in TOOL_DESCRIPTION
+    assert "定位根因" in TOOL_DESCRIPTION
+
+
 def test_merge_rules_and_output_format_documented() -> None:
     assert "asyncio.gather" in TOOL_DESCRIPTION
     assert "[OBSERVATION]" in TOOL_DESCRIPTION

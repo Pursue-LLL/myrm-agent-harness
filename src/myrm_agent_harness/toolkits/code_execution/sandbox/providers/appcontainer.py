@@ -39,6 +39,8 @@ if sys.platform == "win32":
     import ctypes
     import ctypes.wintypes
 
+import contextlib
+
 from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import (
     SandboxPolicy,
 )
@@ -83,7 +85,7 @@ async def _set_acl(path: str, sid: str, permission: str, *, timeout: int = 30) -
             logger.warning(f"icacls failed for {path}: {stderr.decode(errors='replace')}")
             return False
         return True
-    except (asyncio.TimeoutError, OSError) as e:
+    except (TimeoutError, OSError) as e:
         logger.warning(f"ACL setup failed for {path}: {e}")
         return False
 
@@ -120,7 +122,7 @@ async def _apply_acls(
         return True, []
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
-    applied = [e for e, r in zip(entries, results) if r is True]
+    applied = [e for e, r in zip(entries, results, strict=True) if r is True]
     failures = len(results) - len(applied)
     if failures > 0:
         logger.warning(f"ACL setup: {failures}/{len(results)} paths failed")
@@ -385,7 +387,7 @@ class AppContainerProvider:
                 asyncio.get_event_loop().run_until_complete(
                     asyncio.wait_for(proc.communicate(), timeout=15)
                 )
-            except (OSError, asyncio.TimeoutError, RuntimeError):
+            except (TimeoutError, OSError, RuntimeError):
                 _remove_acl_sync(path, self._container_sid)
 
 
@@ -436,7 +438,7 @@ class AppContainerProcess:
         self.send_signal(9)
 
     async def communicate(
-        self, input: bytes | None = None  # noqa: A002
+        self, input: bytes | None = None
     ) -> tuple[bytes, bytes]:
         """Send input and read all output."""
         if input and self.stdin:
@@ -450,7 +452,5 @@ class AppContainerProcess:
 
     def __del__(self) -> None:
         if self._handle:
-            try:
+            with contextlib.suppress(OSError, TypeError):
                 self._kernel32.CloseHandle(self._handle)
-            except (OSError, TypeError):
-                pass

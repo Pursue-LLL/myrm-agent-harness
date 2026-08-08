@@ -21,7 +21,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -34,7 +34,7 @@ _MAX_RECENT = 10
 _MAX_PENDING = 5
 
 
-class DialogPolicy(str, Enum):
+class DialogPolicy(StrEnum):
     """Dialog handling strategy.
 
     SMART: alert/confirm/beforeunload→accept, prompt→dismiss (safest default)
@@ -203,7 +203,7 @@ class DialogManager:
 
         try:
             await asyncio.wait_for(pending.resolved.wait(), timeout=self._timeout_s)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "DialogManager: WAIT_FOR_AGENT timeout (%.0fs) for %s '%s'. Falling back to SMART.",
                 self._timeout_s,

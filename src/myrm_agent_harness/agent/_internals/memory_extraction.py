@@ -49,10 +49,9 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Literal, Protocol
 
-from myrm_agent_harness.toolkits.memory.observability import MemoryOperationStatus
-
 from langchain_core.language_models import BaseChatModel
 
+from myrm_agent_harness.toolkits.memory.observability import MemoryOperationStatus
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -99,8 +98,8 @@ async def _notify_extraction_lifecycle(
         logger.debug("Extraction lifecycle observer failed: %s", exc)
 
 
-from myrm_agent_harness.toolkits.memory.types import AnyMemory, ConversationMemory
-from myrm_agent_harness.utils.chat_utils import ChatHistoryReq
+from myrm_agent_harness.toolkits.memory.types import AnyMemory, ConversationMemory  # noqa: E402
+from myrm_agent_harness.utils.chat_utils import ChatHistoryReq  # noqa: E402
 
 logger = get_agent_logger(__name__)
 

@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from myrm_agent_harness.runtime.execution_paths import PERSISTENT_ROOT
@@ -101,7 +101,7 @@ def append_context_branch(
         branch_id=uuid.uuid4().hex[:12],
         label=normalized_label,
         snapshot_path=normalized_snapshot,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
     )
     merged = [*existing, record]
     if len(merged) > _MAX_BRANCHES:

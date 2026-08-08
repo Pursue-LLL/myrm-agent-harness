@@ -69,7 +69,7 @@ def get_environment_hint() -> str:
     Returns '' when VNC is unavailable (macOS, Windows, no Xvfb), meaning zero
     token cost for non-sandbox environments.
     """
-    global _ENV_HINT_CACHE  # noqa: PLW0603
+    global _ENV_HINT_CACHE
     if _ENV_HINT_CACHE is not None:
         return _ENV_HINT_CACHE
 
@@ -209,7 +209,7 @@ class VncServer:
             raise RuntimeError(f"Cannot parse DISPLAY number from {display!r}") from exc
 
     async def _create_passwd_file(self) -> None:
-        tmp = NamedTemporaryFile(suffix=".vnc_passwd", delete=False)
+        tmp = NamedTemporaryFile(suffix=".vnc_passwd", delete=False)  # noqa: SIM115
         tmp.close()
         os.chmod(tmp.name, 0o600)
         self._passwd_file = Path(tmp.name)
@@ -268,7 +268,7 @@ class VncServer:
                 proc.terminate()
                 try:
                     await asyncio.wait_for(proc.wait(), timeout=5)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     proc.kill()
                     await proc.wait()
         self._x11vnc_proc = None

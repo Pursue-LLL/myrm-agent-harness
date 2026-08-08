@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from myrm_agent_harness.backends.skills.types import SkillMetadata
+from myrm_agent_harness.backends.skills.types import SkillInstance, SkillMetadata
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
@@ -155,7 +155,7 @@ class SkillAgentPreloadMixin:
 
     async def _resolve_skill_instance_for_l1(
         self, skill_name: str
-    ) -> "SkillInstance | None":
+    ) -> SkillInstance | None:
         """Resolve bound SkillInstance for L1 config footer (matches select tool SSOT)."""
         from myrm_agent_harness.backends.skills.types import SkillInstance
 

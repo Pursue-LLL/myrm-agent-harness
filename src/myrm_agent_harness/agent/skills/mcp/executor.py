@@ -23,11 +23,13 @@ import logging
 import re
 from dataclasses import dataclass
 
+from myrm_agent_harness.toolkits.code_execution import MCPConfigItem
 from myrm_agent_harness.toolkits.code_execution.python_extractor import (
     SKILL_IMPORT_RE as SKILL_NAME_PATTERN,
+)
+from myrm_agent_harness.toolkits.code_execution.python_extractor import (
     TOOLS_IMPORT_RE as TOOLS_IMPORT_PATTERN,
 )
-from myrm_agent_harness.toolkits.code_execution import MCPConfigItem
 
 logger = logging.getLogger(__name__)
 

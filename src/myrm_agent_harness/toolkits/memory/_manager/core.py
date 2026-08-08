@@ -38,7 +38,10 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from myrm_agent_harness.toolkits.memory.session import MemorySession
-    from myrm_agent_harness.toolkits.memory.strategies.consolidation import ConflictCallback, ConsolidationCompleteCallback
+    from myrm_agent_harness.toolkits.memory.strategies.consolidation import (
+        ConflictCallback,
+        ConsolidationCompleteCallback,
+    )
     from myrm_agent_harness.toolkits.memory.strategies.preference_stability_store import PreferenceFacetStoreProtocol
     from myrm_agent_harness.toolkits.memory.types import MemorySearchResult
     FTS5SearcherFunc = Callable[[str, int], Awaitable[list[MemorySearchResult]]]

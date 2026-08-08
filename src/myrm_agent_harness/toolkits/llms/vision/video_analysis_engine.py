@@ -203,7 +203,6 @@ class VideoAnalysisEngine:
         return self._models[index]
 
     async def _invoke_with_failover(self, msg: HumanMessage) -> str:
-        last_error: str | None = None
         for index in range(len(self.fallback_configs)):
             model = self._get_model(index)
             try:
@@ -215,7 +214,6 @@ class VideoAnalysisEngine:
                     should_vision_capacity_failover(reason)
                     and index < len(self.fallback_configs) - 1
                 ):
-                    last_error = str(exc)
                     logger.warning(
                         "Video provider %s capacity failure, trying next provider: %s",
                         self.fallback_configs[index].model,
@@ -301,7 +299,7 @@ class VideoAnalysisEngine:
         if supports_video:
             try:
                 raw_bytes = await executor.read_file_bytes(path)
-            except Exception as e:
+            except Exception:
                 return f"[Video file could not be read: {path}]"
 
             analyze_bytes = raw_bytes

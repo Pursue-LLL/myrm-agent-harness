@@ -34,7 +34,7 @@ from myrm_agent_harness.agent.context_management.context import extract_context_
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
-    from myrm_agent_harness.backends.skills.market_protocols import SkillMarketBackend, SkillInstallResult
+    from myrm_agent_harness.backends.skills.market_protocols import SkillInstallResult, SkillMarketBackend
 
 TOOL_DESCRIPTION = """Install NEW skills from external markets (GitHub, skills.sh, etc.).
 

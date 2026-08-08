@@ -10,6 +10,7 @@ Detection strategy:
   3. Structural formats (JWT, PEM block-level, database URLs, blockchain, cloud infra)
   4. Shannon entropy analysis (catches unknown credential formats)
   5. Context-aware blockchain patterns (mnemonic seed phrases)
+  6. Password-like heuristic (standalone secrets + numeric PIN/OTP/2FA codes)
 
 Smart redaction preserves first 6 / last 4 characters of long tokens
 for debugging while keeping the credential unusable. PEM blocks are
@@ -22,6 +23,7 @@ fully redacted (BEGIN to END) with type label preserved.
 - scan_for_leaks(): detect credential patterns, returns matched pattern names
 - redact_leaks(): smart-redact credentials with partial visibility
 - log_leaks(): log leak detections at WARNING level
+- looks_like_password(): conservative heuristic for unlabeled secrets (incl. numeric PIN/OTP/2FA anchored to keywords, skipping year/CN-mobile look-alikes)
 
 [POS]
 Output-side credential leak detector. 40+ credential pattern matchers (API key prefixes + blockchain + cloud infra + ENV/JSON/Header context + Shannon entropy + PEM block-level multiline redaction) for preventing secret exfiltration.
@@ -374,3 +376,103 @@ def log_leaks(matches: list[str], content: str) -> None:
     """Log credential leak detections at WARNING level."""
     snippet = content[:200].replace("\n", " ")
     logger.warning("[CREDENTIAL_LEAK] patterns=%s snippet=%.200s", ",".join(matches), snippet)
+
+
+# ---------------------------------------------------------------------------
+# Password-like heuristic (conservative triple-signal)
+# ---------------------------------------------------------------------------
+# Detects standalone secrets that have no vendor prefix and no high entropy
+# (e.g. "Zk9#mango42"), which prefix/context/entropy detectors all miss.
+# Requires ALL THREE signals to fire, keeping false positives near zero:
+#   1. length in [6, 64]
+#   2. mixed char classes (lower + upper or symbol)
+#   3. a nearby "password" keyword or an assignment/declaration context
+# This is a heuristic, never a hard block — callers decide severity.
+_PASSWORD_KEYWORD_RE = re.compile(
+    r"(?i)\b(?:password|passwd|passphrase|pwd|p@ssword|api secret|secret key|master password|"
+    r"passcode|pass code|otp|2fa code|2fa|pin|verification code)\b|密码|口令|验证码"
+)
+_PASSWORD_CANDIDATE_RE = re.compile(r"\b(?=[A-Za-z0-9@#$%^&*!?_]*[a-z])(?=[A-Za-z0-9@#$%^&*!?_]*[A-Z@#$%^&*!?_])[A-Za-z0-9@#$%^&*!?_]{6,64}\b")
+_PASSWORD_ASSIGNMENT_RE = re.compile(
+    r"(?i)(?:password|passwd|pwd|passphrase|密码|口令)\s*[:：=]\s*['\"]?[^\s'\";]+|['\"]password['\"]\s*:\s*['\"][^'\"]+['\"]"
+)
+# Numeric credentials (PIN/OTP/2FA/passcode) use a dedicated keyword group so
+# a bare numeric token is only treated as a secret when it appears next to a
+# numeric-credential keyword. "password: 1234567890" (example value) stays
+# benign, while "the OTP code is 582013" is redacted.
+_NUMERIC_CREDENTIAL_KEYWORD_RE = re.compile(
+    r"(?i)\b(?:otp|2fa code|2fa|passcode|pass code|pin|verification code)\b|验证码|一次性密码"
+)
+_NUMERIC_CREDENTIAL_RE = re.compile(r"\b\d{4,12}\b")
+# Year (19xx/20xx) and CN-mobile (1[3-9]\d{9}) tokens are the common
+# false positives when they share a window with a numeric-credential
+# keyword ("2FA enabled since 2024", "phone 13800138000 ... OTP") —
+# redacting them would corrupt the stored memory.
+_YEAR_TOKEN_RE = re.compile(r"(?:19|20)\d{2}")
+_CN_MOBILE_TOKEN_RE = re.compile(r"1[3-9]\d{9}")
+# Maximum distance (chars) between a numeric-credential keyword and its code.
+_NUMERIC_CREDENTIAL_WINDOW = 60
+# Fallback window *before* the keyword. Tighter than the after-window so a
+# stray number that merely precedes the keyword (e.g. a phone number) is not
+# mistaken for the code when no code follows it.
+_NUMERIC_CREDENTIAL_BEFORE_WINDOW = 20
+
+
+def _find_numeric_credential(text: str) -> str | None:
+    """Return the 4-12 digit token anchored to a numeric-credential keyword.
+
+    Scans the whole text (so token boundaries are never truncated), preferring
+    a token after the keyword, then before it, both within a tight window.
+    Year/CN-mobile shaped tokens are skipped: they are far more likely to be
+    dates/contacts than PINs, and redacting them would corrupt the memory.
+    """
+    kw = _NUMERIC_CREDENTIAL_KEYWORD_RE.search(text)
+    if kw is None:
+        return None
+
+    def _is_ignored(token: str) -> bool:
+        return bool(_YEAR_TOKEN_RE.fullmatch(token) or _CN_MOBILE_TOKEN_RE.fullmatch(token))
+
+    def _first_in(lo: int, hi: int) -> str | None:
+        for match in _NUMERIC_CREDENTIAL_RE.finditer(text):
+            if (
+                lo <= match.start()
+                and match.end() <= hi
+                and not _is_ignored(match.group(0))
+            ):
+                return match.group(0)
+        return None
+
+    after = _first_in(kw.end(), kw.end() + _NUMERIC_CREDENTIAL_WINDOW)
+    if after is not None:
+        return after
+    return _first_in(max(0, kw.start() - _NUMERIC_CREDENTIAL_BEFORE_WINDOW), kw.start())
+
+
+def looks_like_password(text: str) -> str | None:
+    """Return the suspected password token, or None.
+
+    Conservative heuristic requiring length + char-class mix + keyword or
+    assignment context. Never called on blank input.
+    """
+    if not text:
+        return None
+
+    keyword_nearby = bool(_PASSWORD_KEYWORD_RE.search(text))
+    assignment_nearby = bool(_PASSWORD_ASSIGNMENT_RE.search(text))
+    if not (keyword_nearby or assignment_nearby):
+        return None
+
+    candidate = _PASSWORD_CANDIDATE_RE.search(text)
+    if candidate is not None:
+        token = candidate.group(0)
+        # Skip trivial sequences ("1234567890ab" style) and the keyword itself.
+        if token.lower() not in {"password", "passwd", "passphrase"}:
+            return token
+
+    numeric = _find_numeric_credential(text)
+    if numeric is not None:
+        return numeric
+
+    return None
+

@@ -18,7 +18,7 @@ ToolSnapshot provides a serializable view of resolved tools for API exposure.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ class ToolSource(Enum):
     MIDDLEWARE = "middleware"
 
 
-class ToolBindMode(str, Enum):
+class ToolBindMode(StrEnum):
     """How a tool participates in Turn1 bind_tools.
 
     LLM Action Tool mode:

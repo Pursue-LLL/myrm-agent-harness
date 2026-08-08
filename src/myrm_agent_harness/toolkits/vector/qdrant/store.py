@@ -422,7 +422,7 @@ class QdrantVectorStore(VectorStore):
         filters: FilterDict | None = None,
         order_by: tuple[str, str] | None = None,
     ) -> tuple[list[VectorDocument], str | None]:
-        from qdrant_client.http.models import OrderBy, Direction
+        from qdrant_client.http.models import Direction, OrderBy
 
         scroll_filter = build_qdrant_filter(filters)
 

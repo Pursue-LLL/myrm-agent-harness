@@ -176,7 +176,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"daily_report_skill": "# Daily Report\n\nGenerate reports."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill(
+        query, matched, _preloaded = await agent._preload_explicit_skill(
             "[use daily_report_skill] generate today's report"
         )
 
@@ -227,7 +227,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"test_skill": "# Test\n\nSOP content."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, _, preloaded = await agent._preload_explicit_skill("[use test_skill] my custom args here")
+        query, _, _preloaded = await agent._preload_explicit_skill("[use test_skill] my custom args here")
         assert query.endswith("my custom args here")
 
     @pytest.mark.asyncio
@@ -237,7 +237,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"test_skill": "# Test\n\nSOP."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use test_skill]")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use test_skill]")
         assert matched is not None
         assert "# Test" in query
         assert not query.rstrip().endswith("\n\n")
@@ -248,7 +248,7 @@ class TestPreloadExplicitSkill:
         agent = _make_agent(skills=None, backend=None)
         agent.skill_backend = None
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use test_skill] args")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use test_skill] args")
         assert matched is None
         assert query == "[use test_skill] args"
 
@@ -258,7 +258,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend()
         agent = _make_agent(skills=[], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill(
+        query, matched, _preloaded = await agent._preload_explicit_skill(
             "[use nonexistent_skill] do something"
         )
         assert matched is None
@@ -271,7 +271,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend()
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use broken_skill] args")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use broken_skill] args")
         assert matched is None
         assert query == "[use broken_skill] args"
 
@@ -282,7 +282,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"empty_skill": ""})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use empty_skill] args")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use empty_skill] args")
         assert matched is None
         assert query == "[use empty_skill] args"
 
@@ -292,7 +292,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend()
         agent = _make_agent(skills=[], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("Just a normal question")
+        query, matched, _preloaded = await agent._preload_explicit_skill("Just a normal question")
         assert matched is None
         assert query == "Just a normal question"
 
@@ -303,7 +303,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"test_skill": "# Test\n\nContent."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, _, preloaded = await agent._preload_explicit_skill("[use test_skill] args")
+        query, _, _preloaded = await agent._preload_explicit_skill("[use test_skill] args")
         first_line = query.split("\n")[0]
         assert first_line.startswith("[IMPORTANT:")
         assert "test_skill" in first_line
@@ -318,7 +318,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"ffmpeg_skill": "# FFmpeg\n\nConvert videos."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use ffmpeg_skill] convert file.mp4")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use ffmpeg_skill] convert file.mp4")
         assert matched is not None
         assert "WARNING" in query
         assert "UNAVAILABLE" in query
@@ -332,7 +332,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"test_skill": "# Test\n\nContent."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, _, preloaded = await agent._preload_explicit_skill("[use test_skill] args")
+        query, _, _preloaded = await agent._preload_explicit_skill("[use test_skill] args")
         assert "UNAVAILABLE" not in query
         assert "WARNING" not in query
 
@@ -345,7 +345,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"gpu_skill": "# GPU\n\nAccelerate."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use gpu_skill] run")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use gpu_skill] run")
         assert matched is not None
         assert "dependency requirements not met" in query
 
@@ -362,7 +362,7 @@ class TestPreloadExplicitSkill:
             "myrm_agent_harness.agent.meta_tools.skills.select.get_skill_document",
             side_effect=RuntimeError("unexpected failure"),
         ):
-            query, matched, preloaded = await agent._preload_explicit_skill("[use crash_skill] test")
+            query, matched, _preloaded = await agent._preload_explicit_skill("[use crash_skill] test")
 
         assert matched is None
         assert query == "[use crash_skill] test"
@@ -387,7 +387,7 @@ class TestPreloadExplicitSkill:
         )
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use deploy_skill] prod")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use deploy_skill] prod")
         assert matched is not None
         assert "[Linked files]" in query
         assert "scripts/deploy.sh" in query
@@ -402,7 +402,7 @@ class TestPreloadExplicitSkill:
         )
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use err_skill] test")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use err_skill] test")
         assert matched is None
         assert query == "[use err_skill] test"
 
@@ -437,7 +437,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"found_skill": "# Found\n\nContent."})
         agent = _make_agent(skills=[s1], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill(
+        query, matched, _preloaded = await agent._preload_explicit_skill(
             "[use found_skill,missing_skill] args"
         )
         assert matched is not None
@@ -452,7 +452,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend()
         agent = _make_agent(skills=[], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use x,y,z] args")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use x,y,z] args")
         assert matched is None
         assert query == "[use x,y,z] args"
 
@@ -466,7 +466,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"big": big_sop, "small": small_sop})
         agent = _make_agent(skills=[s1, s2], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use big,small] test")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use big,small] test")
         assert matched is not None
         assert "# Big Skill" in query
         assert "# Small Skill" not in query
@@ -478,7 +478,7 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"solo": "# Solo\n\nContent."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, _, preloaded = await agent._preload_explicit_skill("[use solo] go")
+        query, _, _preloaded = await agent._preload_explicit_skill("[use solo] go")
         assert "bundle" not in query.lower()
         assert '"solo" has been preloaded' in query
 
@@ -492,7 +492,7 @@ class TestPreloadExplicitSkill:
         )
         agent = _make_agent(skills=[s1, s2], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill(
+        query, matched, _preloaded = await agent._preload_explicit_skill(
             "[use a,b] [instruction: be concise] do it"
         )
         assert matched is not None
@@ -519,7 +519,7 @@ class TestSkillDirTemplateVariable:
         backend = _StubSkillBackend(content_map={"script_skill": sop_with_template})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use script_skill] run it")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use script_skill] run it")
         assert matched is not None
         assert "${SKILL_DIR}" not in query
         assert "/home/user/.claude/skills/script_skill/scripts/main.py" in query
@@ -536,7 +536,7 @@ class TestSkillDirTemplateVariable:
         backend = _StubSkillBackend(content_map={"mcp_skill": sop})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use mcp_skill] test")
+        query, matched, _preloaded = await agent._preload_explicit_skill("[use mcp_skill] test")
         assert matched is not None
         assert "${SKILL_DIR}" in query
 

@@ -589,7 +589,6 @@ async def test_consecutive_overloaded_resets_on_success(ctx):
 
     executor._consecutive_overloaded = 0
 
-    from myrm_agent_harness.agent.streaming.stream_recovery import _MAX_CONSECUTIVE_OVERLOADED_BEFORE_FAILOVER
 
     with patch(
         "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",

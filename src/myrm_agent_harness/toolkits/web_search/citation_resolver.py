@@ -54,12 +54,7 @@ def _needs_citation_redirect_resolution(url: str) -> bool:
         return bool(_DUCKDUCKGO_L_PATH.match(path))
     if host.endswith("bing.com"):
         return bool(_BING_CK_PATH.match(path))
-    if (
-        path.rstrip("/").lower() == "/redirect"
-        and "url=" in (parsed.query or "").lower()
-    ):
-        return True
-    return False
+    return bool(path.rstrip("/").lower() == "/redirect" and "url=" in (parsed.query or "").lower())
 
 
 async def resolve_citation_url(url: str) -> str:

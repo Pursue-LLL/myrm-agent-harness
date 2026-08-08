@@ -20,7 +20,6 @@ Base Agent — lightweight agent with streaming, token tracking, and artifacts.
 import copy
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, cast
-from uuid import uuid4
 
 from langchain.agents import create_agent
 from langchain_core.language_models import BaseChatModel
@@ -37,7 +36,6 @@ from ._internals.langgraph_guard import (
 )
 from .base_agent_modes_mixin import BaseAgentModesMixin
 from .streaming.channel_output_hints import resolve_channel_output_hint
-from .streaming.message_builder import build_messages
 from .streaming.model_discipline import resolve_escalation_contract, resolve_execution_discipline
 from .streaming.utils import DATETIME_SYSTEM_RULES
 from .sub_agents.manager import SubagentManager, SubagentTask
@@ -49,18 +47,8 @@ if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
     from langgraph.checkpoint.base import BaseCheckpointSaver
 
-    from myrm_agent_harness.agent.deep_research import DeepResearchConfig
-    from myrm_agent_harness.agent.deep_research.orchestrator import (
-        ClarifyCallback,
-        CycleCallback,
-        PlanCallback,
-    )
     from myrm_agent_harness.agent.extensions.protocols import AgentExtension
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
-    from myrm_agent_harness.toolkits.llms.consensus.types import (
-        ConsensusConfig,
-        ConsensusResult,
-    )
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
     from myrm_agent_harness.utils.runtime.steering import SteeringToken
     from myrm_agent_harness.utils.token_economics.budget_guard import BudgetChecker
@@ -279,7 +267,8 @@ class BaseAgent(BaseAgentModesMixin):
         for tool in normalized:
             self._tool_registry.register(tool, source=ToolSource.USER)
 
-        sort_key = lambda t: get_tool_registry_sort_key(t.name, get_tool_layer(t.name))
+        def sort_key(t):
+            return get_tool_registry_sort_key(t.name, get_tool_layer(t.name))
 
         if self._agent is None:
             if self._cached_tools is None:

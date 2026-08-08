@@ -4,8 +4,8 @@ from myrm_agent_harness.core.security.persistence.content_scan import (
     PersistScanProfile,
     PersistScanResult,
     PersistScanVerdict,
-    scan_persistable_content,
     sanitize_display_secrets,
+    scan_persistable_content,
 )
 
 __all__ = [

@@ -8,9 +8,9 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from myrm_agent_harness.utils.token_economics.budget_boundary_middleware import (
     _HINT_PREFIX,
+    BudgetBoundaryMiddleware,
     _build_finalize_hint,
     _build_warning_hint,
-    BudgetBoundaryMiddleware,
 )
 from myrm_agent_harness.utils.token_economics.budget_guard import BudgetStatus
 

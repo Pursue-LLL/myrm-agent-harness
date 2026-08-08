@@ -643,7 +643,7 @@ class TestApplyBoundSkillCatalogForResume:
 
     @pytest.mark.asyncio
     async def test_resume_no_op_when_aget_state_fails(self) -> None:
-        from unittest.mock import AsyncMock, MagicMock
+        from unittest.mock import AsyncMock
 
         from langgraph.types import Command
 

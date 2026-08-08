@@ -24,7 +24,7 @@ async def test_hitl_caller_set_during_execution(mock_session: MagicMock) -> None
     tool = create_execute_script_tool(mock_session)
     seen: list[str | None] = []
 
-    async def _fake_wait(coro, timeout):  # noqa: ANN001
+    async def _fake_wait(coro, timeout):
         async def _run_and_capture():
             seen.append(mock_session._hitl_caller_tool)
             return await coro
@@ -56,7 +56,7 @@ async def test_hitl_caller_reset_after_timeout(mock_session: MagicMock) -> None:
 async def test_hitl_caller_reset_after_runtime_error(mock_session: MagicMock) -> None:
     tool = create_execute_script_tool(mock_session)
 
-    async def _fake_wait(coro, timeout):  # noqa: ANN001
+    async def _fake_wait(coro, timeout):
         return await coro
 
     with patch("asyncio.wait_for", side_effect=_fake_wait):
@@ -77,7 +77,7 @@ async def test_syntax_error_returns_message(mock_session: MagicMock) -> None:
 async def test_successful_print_output(mock_session: MagicMock) -> None:
     tool = create_execute_script_tool(mock_session)
 
-    async def _fake_wait(coro, timeout):  # noqa: ANN001
+    async def _fake_wait(coro, timeout):
         return await coro
 
     with patch("asyncio.wait_for", side_effect=_fake_wait):
@@ -90,7 +90,7 @@ async def test_successful_print_output(mock_session: MagicMock) -> None:
 async def test_no_output_returns_success_message(mock_session: MagicMock) -> None:
     tool = create_execute_script_tool(mock_session)
 
-    async def _fake_wait(coro, timeout):  # noqa: ANN001
+    async def _fake_wait(coro, timeout):
         return await coro
 
     with patch("asyncio.wait_for", side_effect=_fake_wait):
@@ -116,7 +116,7 @@ async def test_privileged_api_blocked_when_rejected(mock_session: MagicMock) -> 
 async def test_privileged_api_allowed_when_approved(mock_session: MagicMock) -> None:
     tool = create_execute_script_tool(mock_session)
 
-    async def _fake_wait(coro, timeout):  # noqa: ANN001
+    async def _fake_wait(coro, timeout):
         return await coro
 
     with (
@@ -133,7 +133,7 @@ async def test_privileged_api_allowed_when_approved(mock_session: MagicMock) -> 
 async def test_getattr_blocked_in_runtime(mock_session: MagicMock) -> None:
     tool = create_execute_script_tool(mock_session)
 
-    async def _fake_wait(coro, timeout):  # noqa: ANN001
+    async def _fake_wait(coro, timeout):
         return await coro
 
     with patch("asyncio.wait_for", side_effect=_fake_wait):
@@ -153,7 +153,7 @@ async def test_verify_goal_with_mock_page(mock_session: MagicMock) -> None:
 
     tool = create_execute_script_tool(mock_session)
 
-    async def _fake_wait(coro, timeout):  # noqa: ANN001
+    async def _fake_wait(coro, timeout):
         return await coro
 
     with patch("asyncio.wait_for", side_effect=_fake_wait):
@@ -168,7 +168,7 @@ async def test_verify_goal_screenshot_failure_graceful(mock_session: MagicMock) 
 
     tool = create_execute_script_tool(mock_session)
 
-    async def _fake_wait(coro, timeout):  # noqa: ANN001
+    async def _fake_wait(coro, timeout):
         return await coro
 
     with patch("asyncio.wait_for", side_effect=_fake_wait):

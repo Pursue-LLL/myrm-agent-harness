@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 from pathlib import Path
 
 import pytest
@@ -96,8 +95,8 @@ def test_api_hooks_session_context_defaults() -> None:
         get_event_logger,
         get_memory_manager,
         get_memory_runtime_budget,
-        get_memory_runtime_injection_contract,
         get_memory_runtime_injection,
+        get_memory_runtime_injection_contract,
         get_terminal_errors,
     )
 

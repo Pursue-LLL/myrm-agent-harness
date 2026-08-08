@@ -18,21 +18,21 @@ from myrm_agent_harness.agent.orchestration.signals.deep_research import (
     DISPATCH_TOOL_NAME,
     FINALIZE_TOOL_NAME,
     THINK_TOOL_NAME,
+    DispatchResearchInput,
     build_orchestrator_tools,
     build_signal_schema,
-    DispatchResearchInput,
 )
 from myrm_agent_harness.agent.orchestration.signals.verifier import (
     SUBMIT_VERDICT_SIGNAL_NAME,
     create_submit_verdict_tool,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
-from myrm_agent_harness.agent.tool_management.types import ToolBindMode, ToolSource
+from myrm_agent_harness.agent.tool_management.types import ToolSource
 
 
 def test_runtime_hook_ssot() -> None:
     assert COMPLETION_CHECK_TOOL_NAME == "_completion_check"
-    assert RUNTIME_HOOK_NAMES == frozenset({COMPLETION_CHECK_TOOL_NAME})
+    assert frozenset({COMPLETION_CHECK_TOOL_NAME}) == RUNTIME_HOOK_NAMES
 
 
 def test_is_runtime_hook_membership() -> None:

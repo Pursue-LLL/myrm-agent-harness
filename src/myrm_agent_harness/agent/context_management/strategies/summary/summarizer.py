@@ -41,10 +41,8 @@ from myrm_agent_harness.utils.token_estimation import (
 
 from ...infra.schemas import ContextConfig, StructuredSummary
 from .progress_timeout import (
-    InactivityTimeoutError,
     ProgressClock,
     SummaryProgressTracker,
-    TotalCeilingTimeoutError,
 )
 from .summary_builder import create_summary_message, extract_recent_messages
 from .summary_parser import (

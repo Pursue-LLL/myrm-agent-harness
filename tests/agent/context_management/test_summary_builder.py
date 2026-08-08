@@ -279,7 +279,9 @@ class TestCreateSummaryMessage:
 
 class TestExtractProtectedHead:
     def test_extract_system_and_first_turn(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import extract_protected_head
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            extract_protected_head,
+        )
 
         messages = [
             SystemMessage(content="sys1"),
@@ -297,7 +299,9 @@ class TestExtractProtectedHead:
         assert isinstance(head[3], AIMessage)
 
     def test_extract_only_systems(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import extract_protected_head
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            extract_protected_head,
+        )
 
         messages = [
             SystemMessage(content="sys1"),
@@ -308,7 +312,9 @@ class TestExtractProtectedHead:
         assert isinstance(head[0], SystemMessage)
 
     def test_extract_no_system(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import extract_protected_head
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            extract_protected_head,
+        )
 
         messages = [
             HumanMessage(content="h1"),
@@ -321,6 +327,8 @@ class TestExtractProtectedHead:
         assert isinstance(head[1], AIMessage)
 
     def test_extract_empty(self) -> None:
-        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import extract_protected_head
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            extract_protected_head,
+        )
 
         assert extract_protected_head([]) == []

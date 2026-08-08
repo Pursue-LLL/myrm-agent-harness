@@ -1264,7 +1264,7 @@ class TestTemporalOrderChecking:
                 success_level=SuccessLevel.FULL_SUCCESS,
             ),
         ]
-        checklist, has_critical = build_checklist(records)
+        _checklist, has_critical = build_checklist(records)
         assert not has_critical
 
     def test_failed_verification_not_used_as_anchor(self) -> None:

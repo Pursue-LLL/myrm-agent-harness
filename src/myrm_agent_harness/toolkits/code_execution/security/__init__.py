@@ -90,13 +90,14 @@ __all__ = [
     "get_dangerous_modules",
     "has_block_threat",
     "has_escalate_threat",
-    "is_integration_mutation_command",
     "is_command_allowed",
+    "is_integration_mutation_command",
     # Simplified interfaces
     "is_module_allowed",
     "is_path_allowed",
     "is_path_component_safe",
     # Archive sanitization
+    "register_integration_write_patterns",
     "sanitize_archive_command",
     "sanitize_env",
     "validate_command",

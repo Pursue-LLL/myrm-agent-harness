@@ -689,9 +689,14 @@ class ContextSnapshotCallback(Protocol):
         self, *, messages: list[BaseMessage], chat_id: str | None, user_id: str | None
     ) -> Coroutine[object, object, str]: ...
 
-from .schemas_pre_compact import (
+
+# Re-export pre-compact schema names as part of the public context-management API.
+# These are imported from the module path by downstream processors.  Kept at the
+# bottom to avoid a circular import with schemas_pre_compact.
+from .schemas_pre_compact import (  # noqa: F401, E402
     PRE_COMPACT_INJECTION_METADATA_KEY,
     PRE_COMPACT_MESSAGE_METADATA_KEY,
     ContextPreCompactCallback,
     PreCompactInjection,
 )
+

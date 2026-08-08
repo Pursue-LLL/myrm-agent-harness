@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.toolkits.browser.pool.config import LaunchMode
 from myrm_agent_harness.toolkits.web_fetch.escalation.context import (
     bind_web_fetch_escalation_context,

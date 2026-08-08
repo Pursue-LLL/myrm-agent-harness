@@ -8,7 +8,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.browser.session.interactor import Interactor
-from myrm_agent_harness.toolkits.browser.snapshot import RefInfo
 
 _WAIT_PATCH = "myrm_agent_harness.toolkits.browser.wait_strategies.wait_for_page_ready"
 

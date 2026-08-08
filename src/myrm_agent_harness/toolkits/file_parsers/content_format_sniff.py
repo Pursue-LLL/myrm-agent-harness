@@ -80,9 +80,8 @@ def _sniff_zip_container(path: Path) -> str | None:
                 mapped = _ZIP_EXTENSIONS.get(raw_mimetype.split(";")[0].strip())
                 if mapped:
                     return mapped
-            if "[Content_Types].xml" in archive.namelist():
-                if "word/" in archive.namelist()[0:20]:
-                    return ".docx"
+            if "[Content_Types].xml" in archive.namelist() and "word/" in archive.namelist()[0:20]:
+                return ".docx"
             if "META-INF/container.xml" in archive.namelist():
                 return ".epub"
             if "content.xml" in archive.namelist():

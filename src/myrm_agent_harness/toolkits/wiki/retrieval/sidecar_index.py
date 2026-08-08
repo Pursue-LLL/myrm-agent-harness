@@ -54,8 +54,8 @@ class SidecarIndexMixin:
     """
 
     _config: WikiConfig
-    _vector: "VectorStoreProtocol | None"
-    _embedding: "EmbeddingProtocol | None"
+    _vector: VectorStoreProtocol | None
+    _embedding: EmbeddingProtocol | None
     _collection_name: str
     _collection_ready: bool
 

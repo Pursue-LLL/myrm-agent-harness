@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
 
@@ -37,7 +37,7 @@ class JsonFormatter(logging.Formatter):
 
         payload: dict[str, str | float] = {
             "timestamp": datetime.fromtimestamp(
-                record.created, tz=timezone.utc
+                record.created, tz=UTC
             ).isoformat(),
             "level": record.levelname,
             "logger": record.name,

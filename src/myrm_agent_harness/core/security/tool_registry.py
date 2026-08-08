@@ -552,7 +552,7 @@ def resolve_safety_metadata(tool_name: str) -> SafetyMetadata:
     return _FAIL_CLOSED_DEFAULTS
 
 
-from myrm_agent_harness.core.security.tool_registry_safety import check_safety_coverage
+from myrm_agent_harness.core.security.tool_registry_safety import check_safety_coverage  # noqa: E402
 
 _check_safety_coverage = check_safety_coverage
 check_safety_coverage()

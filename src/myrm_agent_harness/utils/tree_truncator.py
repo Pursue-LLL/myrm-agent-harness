@@ -216,7 +216,7 @@ def truncate_aria_tree(nodes: list["EnhancedNode"], max_tokens: int) -> tuple[li
     indexed_nodes.sort(key=lambda x: x[3], reverse=True)
 
     remaining_budget = max_chars
-    kept: list[tuple[int, "EnhancedNode"]] = []
+    kept: list[tuple[int, EnhancedNode]] = []
 
     for orig_idx, n, n_size, _weight in indexed_nodes:
         if remaining_budget <= 0:

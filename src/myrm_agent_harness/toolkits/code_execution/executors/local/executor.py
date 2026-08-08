@@ -60,8 +60,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-from myrm_agent_harness.toolkits.code_execution.interceptor import trigger_destructive_action_hook
-from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import is_destructive_command
+from myrm_agent_harness.toolkits.code_execution.interceptor import trigger_destructive_action_hook  # noqa: E402
+from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (  # noqa: E402
+    is_destructive_command,
+)
 
 
 class LocalExecutor(LocalFileOpsMixin, CodeExecutor):

@@ -6,7 +6,7 @@ from myrm_agent_harness.eval.builder import (
     build_skill_eval_cases,
     extract_case_from_trajectory,
 )
-from myrm_agent_harness.eval.protocols import EvalCase, MultiTurnEvalCase
+from myrm_agent_harness.eval.protocols import MultiTurnEvalCase
 
 
 class TestExtractCaseFromTrajectory:

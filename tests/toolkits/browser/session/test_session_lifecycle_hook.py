@@ -23,7 +23,6 @@ from myrm_agent_harness.toolkits.browser.session.session_lifecycle_hook import (
     SessionLifecycleHookProtocol,
 )
 
-
 # ===========================================================================
 # Protocol conformance
 # ===========================================================================

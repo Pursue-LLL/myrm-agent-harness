@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
+if TYPE_CHECKING:
+    from myrm_agent_harness.toolkits.cron.runners import NotificationRunner
 
 from myrm_agent_harness.toolkits.cron.runners import ShellJobRunner
 from myrm_agent_harness.toolkits.cron.types import (
@@ -128,12 +132,12 @@ class TestShellJobRunner:
 
 class TestNotificationRunner:
     @pytest.fixture
-    def runner(self) -> "NotificationRunner":
+    def runner(self) -> NotificationRunner:
         from myrm_agent_harness.toolkits.cron.runners import NotificationRunner
 
         return NotificationRunner()
 
-    async def test_delivers_prompt(self, runner: "NotificationRunner") -> None:
+    async def test_delivers_prompt(self, runner: NotificationRunner) -> None:
         job = CronJob(
             id="r1",
             user_id="u1",
@@ -150,7 +154,7 @@ class TestNotificationRunner:
         assert result.output == "Stand up now"
         assert result.exit_code == 1
 
-    async def test_missing_prompt(self, runner: "NotificationRunner") -> None:
+    async def test_missing_prompt(self, runner: NotificationRunner) -> None:
         job = CronJob(
             id="r2",
             user_id="u1",

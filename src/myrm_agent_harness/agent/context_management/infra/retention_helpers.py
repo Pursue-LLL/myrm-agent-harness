@@ -25,9 +25,9 @@ from langchain_core.messages import BaseMessage, ToolMessage
 
 from myrm_agent_harness.utils.text_utils import get_token_count
 
-from .message_priority import _is_tool_error
 from ..strategies.priority_signals import group_matches_focus_signals, group_matches_goal_hint
 from ..strategies.tool_call_groups import ToolCallGroup, build_tool_call_groups
+from .message_priority import _is_tool_error
 
 _ECO_KEEP_RECENT_REDUCTION = 2
 _ECO_KEEP_RECENT_MIN = 2

@@ -9,8 +9,6 @@ from __future__ import annotations
 import threading
 import time
 
-import pytest
-
 from myrm_agent_harness.toolkits.llms.fallback.circuit_breaker import (
     CircuitBreaker,
     CircuitState,

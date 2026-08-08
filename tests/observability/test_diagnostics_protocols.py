@@ -8,8 +8,6 @@ Covers:
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.observability.diagnostics.protocols import (
     DiagnosticProtocol,
     HealthReport,

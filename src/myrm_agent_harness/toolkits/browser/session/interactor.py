@@ -28,6 +28,7 @@ Single responsibility: only handles element interaction logic; does not handle n
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import random
 import time
@@ -190,10 +191,8 @@ def _parse_scroll_params(text: str) -> dict[str, int]:
         key = key.strip()
         val = val.strip()
         if key in params:
-            try:
+            with contextlib.suppress(ValueError):
                 params[key] = int(val)
-            except ValueError:
-                pass
 
     params["max_steps"] = max(1, min(params["max_steps"], _SCROLL_TO_BOTTOM_MAX_STEPS_CAP))
     params["delay_ms"] = max(100, params["delay_ms"])
@@ -381,7 +380,7 @@ class Interactor:
             # Attempt spatial-fingerprint self-healing
             from myrm_agent_harness.toolkits.browser.snapshot.self_healer import SelfHealer
 
-            healed_loc, new_name, distance = await SelfHealer.heal(frame, ref_info)
+            healed_loc, new_name, _distance = await SelfHealer.heal(frame, ref_info)
             if healed_loc:
                 locator = healed_loc
                 healed_msg = f" [Auto-Healed to '{new_name or ref_info.name}']"

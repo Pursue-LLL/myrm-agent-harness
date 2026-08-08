@@ -61,12 +61,12 @@ async def execute_with_retry(
     - Exponential backoff with jitter
     - Terminal error circuit breaker registration
     """
+    from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGuard
     from myrm_agent_harness.observability.metrics.agent_metrics import (
         record_ttfa_first_action,
         tool_execution_failed_total,
         tool_execution_total,
     )
-    from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGuard
 
     record_ttfa_first_action()
     if tool_execution_total is not None:

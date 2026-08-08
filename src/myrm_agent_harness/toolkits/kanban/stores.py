@@ -24,8 +24,8 @@ from myrm_agent_harness.toolkits.kanban.protocols import KanbanStore
 from myrm_agent_harness.toolkits.kanban.types import (
     _PRIORITY_ORDER,
     _TERMINAL_STATUSES,
-    BlockKind,
     KANBAN_SOURCE_CHAT_METADATA_KEY,
+    BlockKind,
     KanbanBoard,
     KanbanTask,
     TaskEdge,

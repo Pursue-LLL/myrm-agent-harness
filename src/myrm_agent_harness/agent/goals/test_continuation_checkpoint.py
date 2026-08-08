@@ -73,9 +73,8 @@ async def test_skip_when_no_workspace() -> None:
 async def test_skip_when_no_todos_file() -> None:
     goal = _make_goal()
     provider = AsyncMock()
-    with tempfile.TemporaryDirectory() as tmpdir:
-        with patch(_PATCH_WS_ROOT, return_value=tmpdir):
-            result = await check_todo_checkpoint(provider, goal)
+    with tempfile.TemporaryDirectory() as tmpdir, patch(_PATCH_WS_ROOT, return_value=tmpdir):
+        result = await check_todo_checkpoint(provider, goal)
     assert result is None
 
 

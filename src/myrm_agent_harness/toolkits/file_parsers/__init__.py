@@ -58,7 +58,6 @@ from myrm_agent_harness.toolkits.file_parsers.content_format_sniff import (
 from myrm_agent_harness.toolkits.file_parsers.csv_parser import CsvParser
 from myrm_agent_harness.toolkits.file_parsers.docx import DocxParser
 from myrm_agent_harness.toolkits.file_parsers.excel import ExcelParser
-from myrm_agent_harness.toolkits.file_parsers.rtf_parser import RtfParser
 from myrm_agent_harness.toolkits.file_parsers.ipynb import IpynbParser
 from myrm_agent_harness.toolkits.file_parsers.ocr import OCRLine, OCRParser, OCRResult
 from myrm_agent_harness.toolkits.file_parsers.pdf import PDFPlumberParser
@@ -69,6 +68,7 @@ from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
     extract_pdf_content,
 )
 from myrm_agent_harness.toolkits.file_parsers.pptx import PptxParser
+from myrm_agent_harness.toolkits.file_parsers.rtf_parser import RtfParser
 from myrm_agent_harness.toolkits.file_parsers.text import TextParser
 
 __all__ = [
@@ -183,7 +183,7 @@ class LegacyFormatParser(FileParser):
                 )
                 shutil.rmtree(tmpdir, ignore_errors=True)
                 return None
-        except (asyncio.TimeoutError, OSError) as exc:
+        except (TimeoutError, OSError) as exc:
             _logger.warning("soffice conversion failed for %s: %s", path.name, exc)
             shutil.rmtree(tmpdir, ignore_errors=True)
             return None

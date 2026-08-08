@@ -488,6 +488,4 @@ class SkillEvidenceGroup:
         if self.total_evidence >= min_total and len(self.failure_cases) >= min_failures:
             return True
         # Trend fallback: slow-degrading skills (e.g. 1 fail/week)
-        if self.trend_failure_count >= min_total and self.trend_failure_count >= min_failures:
-            return True
-        return False
+        return bool(self.trend_failure_count >= min_total and self.trend_failure_count >= min_failures)

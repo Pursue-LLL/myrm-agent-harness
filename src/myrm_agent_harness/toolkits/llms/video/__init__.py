@@ -16,6 +16,7 @@ Quick start:
     result = await tools.execute(action="generate", prompt="A sunset over the ocean")
 """
 
+from .async_video_engine import AsyncVideoGenerationTools
 from .generator import VideoGenerator
 from .models import (
     FailoverAttempt,
@@ -33,7 +34,6 @@ from .models import (
 )
 from .providers import ProviderRegistry, VideoGenerationProvider, get_registry
 from .task_store import FileVideoTaskStore, InMemoryVideoTaskStore, VideoTaskStore
-from .async_video_engine import AsyncVideoGenerationTools
 from .video_engine import VideoGenerationTools
 
 __all__ = [

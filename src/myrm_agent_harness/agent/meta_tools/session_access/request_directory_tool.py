@@ -11,7 +11,7 @@ import json
 from collections.abc import Awaitable, Callable
 
 from langchain_core.tools import BaseTool
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr
 
 from myrm_agent_harness.agent.meta_tools.session_access.request_directory import (
     RequestDirectoryInput,
@@ -35,7 +35,7 @@ def _interrupt_directory_request(form: RequestDirectoryInput) -> str:
 
 class RequestDirectoryTool(BaseTool):
     name: str = "request_directory_tool"
-    tags: list[str] = ["interactive"]
+    tags: list[str] = Field(default_factory=lambda: ["interactive"])
     description: str = (
         "Ask the user to grant access to a directory outside the current workspace roots. "
         "Use when the task requires reading or writing files in a folder you cannot reach yet. "

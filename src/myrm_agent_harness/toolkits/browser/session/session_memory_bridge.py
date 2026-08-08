@@ -25,7 +25,7 @@ exist, enabling cross-session identity reuse at zero extra inference cost.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -38,7 +38,7 @@ _MAX_TRACKED_SESSIONS = 10
 
 
 def _format_entry(domain: str) -> str:
-    date_str = datetime.now(timezone.utc).strftime("%b %d")
+    date_str = datetime.now(UTC).strftime("%b %d")
     return f"{domain} ({date_str})"
 
 

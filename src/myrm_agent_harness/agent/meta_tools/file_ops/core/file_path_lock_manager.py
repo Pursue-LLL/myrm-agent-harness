@@ -44,7 +44,7 @@ async def _get_file_path_lock(normalized_path: str) -> asyncio.Lock:
 
 
 @asynccontextmanager
-async def acquire_file_path_lock(path: str) -> AsyncGenerator[str, None]:
+async def acquire_file_path_lock(path: str) -> AsyncGenerator[str]:
     """Acquire an in-process lock keyed by normalized absolute file path."""
     normalized_path = _normalize_lock_path(path)
     lock = await _get_file_path_lock(normalized_path)

@@ -10,6 +10,13 @@
 """
 
 from .attenuator import AttenuationResult, attenuate_tools
+from .catalog_display import (
+    SKILL_CORE_MAX,
+    SKILL_INLINE_THRESHOLD,
+    SKILL_SELECT_INLINE_MAX,
+    CatalogDisplayResolution,
+    resolve_catalog_display_skills,
+)
 from .env import (
     detect_skill_script_command,
     extract_skill_name,
@@ -18,13 +25,6 @@ from .env import (
     rewrite_skill_paths,
 )
 from .loader import SkillMdLoader, skill_md_loader
-from .catalog_display import (
-    SKILL_CORE_MAX,
-    SKILL_INLINE_THRESHOLD,
-    SKILL_SELECT_INLINE_MAX,
-    CatalogDisplayResolution,
-    resolve_catalog_display_skills,
-)
 from .registry import SkillRegistry, get_metadata_summary, skill_registry
 from .skill_catalog_delivery import (
     build_bound_skills_block,
@@ -33,11 +33,11 @@ from .skill_catalog_delivery import (
 )
 
 __all__ = [
-    "AttenuationResult",
-    "CatalogDisplayResolution",
     "SKILL_CORE_MAX",
     "SKILL_INLINE_THRESHOLD",
     "SKILL_SELECT_INLINE_MAX",
+    "AttenuationResult",
+    "CatalogDisplayResolution",
     "SkillMdLoader",
     "SkillRegistry",
     "attenuate_tools",

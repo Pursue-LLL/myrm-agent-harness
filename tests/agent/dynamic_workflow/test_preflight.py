@@ -75,7 +75,7 @@ async def test_estimate_workflow_cost_with_catalog():
         max_cost_usd=1.0,
     )
 
-    cost, remaining, status = await estimate_workflow_cost(parent, catalog, 2, "audit apis")
+    cost, _remaining, status = await estimate_workflow_cost(parent, catalog, 2, "audit apis")
     assert cost == 2.0
     assert status == "configured_max_cost"
 
@@ -90,7 +90,7 @@ async def test_estimate_workflow_cost_unavailable():
     catalog = AsyncMock()
     catalog.resolve.return_value = None
 
-    cost, remaining, status = await estimate_workflow_cost(parent, catalog, 1, "task")
+    cost, _remaining, status = await estimate_workflow_cost(parent, catalog, 1, "task")
     assert cost is None
     assert status == "agent_config_unavailable"
 
@@ -101,7 +101,7 @@ async def test_estimate_workflow_cost_exception():
     catalog = AsyncMock()
     catalog.resolve.side_effect = RuntimeError("boom")
 
-    cost, remaining, status = await estimate_workflow_cost(parent, catalog, 1, "task")
+    cost, _remaining, status = await estimate_workflow_cost(parent, catalog, 1, "task")
     assert cost is None
     assert status == "unavailable"
 

@@ -16,9 +16,8 @@ async def test_resolve_image_inputs_blocks_ssrf() -> None:
         "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
         new_callable=AsyncMock,
         side_effect=SSRFSecurityError("private IP"),
-    ):
-        with pytest.raises(ValueError, match="URL blocked by SSRF protection"):
-            await _resolve_image_inputs(["http://169.254.169.254/x.png"])
+    ), pytest.raises(ValueError, match="URL blocked by SSRF protection"):
+        await _resolve_image_inputs(["http://169.254.169.254/x.png"])
 
 
 @pytest.mark.asyncio

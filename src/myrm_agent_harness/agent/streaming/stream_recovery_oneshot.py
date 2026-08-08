@@ -19,9 +19,8 @@ via llm_info for capability learning.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
-
 import re
+from typing import TYPE_CHECKING, cast
 
 from langgraph.types import Command
 
@@ -462,7 +461,7 @@ def _strip_all_media_from_messages(messages: list[BaseMessage]) -> int:
     return stripped_count
 
 
-import re as _re
+import re as _re  # noqa: E402
 
 _IMAGE_MAX_DIM_RE = _re.compile(
     r"(?:maximum|max).*?(?:allowed\s+)?size.*?(\d{3,5})"

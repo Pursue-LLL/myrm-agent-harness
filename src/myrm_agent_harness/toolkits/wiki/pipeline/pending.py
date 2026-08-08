@@ -74,10 +74,8 @@ class WikiPendingEditsManager:
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_status ON pending_edits(status)")
-            try:
+            with contextlib.suppress(sqlite3.OperationalError):
                 conn.execute("ALTER TABLE pending_edits ADD COLUMN provenance TEXT")
-            except sqlite3.OperationalError:
-                pass
 
     async def stage_pending_edit(
         self,

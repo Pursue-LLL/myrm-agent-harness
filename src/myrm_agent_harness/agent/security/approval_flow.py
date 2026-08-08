@@ -239,11 +239,7 @@ class Allowlist:
             ):
                 return True
 
-        for entry in entries:
-            if entry.permission == permission_type and entry.tool_name is None:
-                return True
-
-        return False
+        return any(entry.permission == permission_type and entry.tool_name is None for entry in entries)
 
     async def add(self, user_id: str, entry: AllowlistEntry) -> None:
         """Add an allow-always entry for a user (concurrent-safe)."""

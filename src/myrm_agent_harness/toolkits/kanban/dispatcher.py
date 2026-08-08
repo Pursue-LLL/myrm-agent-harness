@@ -24,13 +24,13 @@ import asyncio
 import contextlib
 import uuid
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.kanban.dispatcher_failure import (
-    KanbanDispatcherFailureMixin,
+from myrm_agent_harness.toolkits.kanban.dispatcher_failure import (  # noqa: F401
     _TRANSIENT_BACKOFF_SECONDS,
     _TRANSIENT_ERROR_RE,
+    KanbanDispatcherFailureMixin,
 )
 from myrm_agent_harness.toolkits.kanban.dispatcher_zombie import (
     KanbanDispatcherZombieMixin,

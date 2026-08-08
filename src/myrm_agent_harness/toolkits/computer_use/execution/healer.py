@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.computer_use.types import ActionResult, ModifierKey
 from myrm_agent_harness.toolkits.computer_use.dref.types import ElementRef
+from myrm_agent_harness.toolkits.computer_use.types import ActionResult, ModifierKey
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.computer_use.session import ComputerSession

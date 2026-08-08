@@ -24,7 +24,7 @@ async def test_update_procedural_memory_reasoning_application():
     mock_rel.get_rule.return_value = existing
     mock_rel.update_rule.return_value = existing
 
-    updated = await manager.update_memory(
+    await manager.update_memory(
         "mem-1",
         reasoning="new reasoning",
         application="new app"

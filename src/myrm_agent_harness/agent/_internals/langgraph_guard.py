@@ -160,7 +160,7 @@ def apply_langgraph_tool_args_guard() -> None:
         ToolNode._inject_tool_args = _safe_inject  # type: ignore[method-assign]
 
     def _tool_output_failed(out: object) -> bool:
-        if hasattr(out, "status") and getattr(out, "status") == "error":
+        if hasattr(out, "status") and out.status == "error":
             return True
         if isinstance(out, list):
             return any(getattr(m, "status", None) == "error" for m in out)

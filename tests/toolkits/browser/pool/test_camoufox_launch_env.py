@@ -8,11 +8,6 @@ from myrm_agent_harness.toolkits.browser.pool.browser_launcher import _camoufox_
 
 
 def test_camoufox_launch_env_sanitizes_host_and_preserves_fingerprint_keys() -> None:
-    host_env = {
-        "PATH": "/usr/bin",
-        "AWS_SECRET_ACCESS_KEY": "leak-me",
-        "MOZ_HEADLESS": "0",
-    }
     fingerprint_env = {"MOZ_HEADLESS": "1", "CAMOUFOX_FINGERPRINT": "abc"}
 
     with patch(

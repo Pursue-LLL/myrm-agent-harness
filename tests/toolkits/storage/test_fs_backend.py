@@ -99,7 +99,7 @@ class TestWriteTextErrnoHandling:
             with pytest.raises((PermissionError, StorageError, OSError)):
                 await backend.write_text("subdir/new.txt", "content")
         finally:
-            os.chmod(str(readonly_dir), 0o755)
+            os.chmod(str(readonly_dir), 0o755)  # noqa: S103  # restore standard dir permissions after test
 
 
 class TestInfoTryExcept:

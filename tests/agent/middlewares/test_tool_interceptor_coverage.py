@@ -486,21 +486,19 @@ def test_reset_loop_guard():
     )
 
     guard = get_loop_guard()
-    with patch.object(guard, "reset") as mock_reset:
-        with patch.object(guard, "_configure_budget"):
-            reset_loop_guard()
-            mock_reset.assert_called_once_with(
-                preserve_error_signatures=False,
-                preserve_call_window=False,
-            )
+    with patch.object(guard, "reset") as mock_reset, patch.object(guard, "_configure_budget"):
+        reset_loop_guard()
+        mock_reset.assert_called_once_with(
+            preserve_error_signatures=False,
+            preserve_call_window=False,
+        )
 
-    with patch.object(guard, "reset") as mock_reset:
-        with patch.object(guard, "_configure_budget"):
-            reset_loop_guard(is_resume=True)
-            mock_reset.assert_called_once_with(
-                preserve_error_signatures=True,
-                preserve_call_window=True,
-            )
+    with patch.object(guard, "reset") as mock_reset, patch.object(guard, "_configure_budget"):
+        reset_loop_guard(is_resume=True)
+        mock_reset.assert_called_once_with(
+            preserve_error_signatures=True,
+            preserve_call_window=True,
+        )
 
     guard.pre_check(
         "bash_code_execute_tool",

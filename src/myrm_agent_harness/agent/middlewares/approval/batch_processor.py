@@ -132,8 +132,10 @@ async def evaluate_tool_batch(
     )
     from myrm_agent_harness.agent.security.managed_policy_gates import (
         effective_auto_mode_enabled,
-        honor_allowlist as map_honor_allowlist,
         yolo_allowed,
+    )
+    from myrm_agent_harness.agent.security.managed_policy_gates import (
+        honor_allowlist as map_honor_allowlist,
     )
 
     map_policy = get_managed_approval_policy()

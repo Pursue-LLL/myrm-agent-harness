@@ -211,3 +211,64 @@ class TestS3ShortCircuit:
         content = "password=secret123 call 13812345678"
         result = classify_content(content, _ENABLED)
         assert result.level == SensitivityLevel.S3
+
+
+class TestCoverageGaps:
+    """Boundary branches: keyword boundaries, placeholder S3, invalid regex, tool paths."""
+
+    def test_keyword_preceded_by_alnum_misses(self):
+        assert not _keyword_matches("spinners", "pin")
+
+    def test_custom_s2_keyword_within_word_misses(self):
+        policy = PrivacyPolicy(enabled=True, custom_keywords_s2=["pin"])
+        result = classify_content("the spinners ran fast", policy)
+        assert result.level == SensitivityLevel.S1
+
+    def test_china_id_non_digit_body_invalid(self):
+        assert not _china_id_valid("110101a99003074530")
+
+    def test_custom_s3_invalid_regex_ignored(self):
+        policy = PrivacyPolicy(enabled=True, custom_patterns_s3=["(["])
+        assert classify_content("hello world", policy).level == SensitivityLevel.S1
+
+    def test_custom_s2_invalid_regex_ignored(self):
+        policy = PrivacyPolicy(enabled=True, custom_patterns_s2=["(["])
+        result = classify_content("hello world", policy)
+        assert result.level == SensitivityLevel.S1
+
+    def test_credential_leak_delegates_to_s3(self):
+        result = classify_content(
+            "the token is sk-ant-abcdefghijklmnopqrstuvwxyz123456", _ENABLED
+        )
+        assert result.level == SensitivityLevel.S3
+        assert any(p.startswith("credential:") for p in result.patterns)
+
+    def test_custom_s2_pattern_matches(self):
+        policy = PrivacyPolicy(enabled=True, custom_patterns_s2=["项目代号"])
+        result = classify_content("本周项目代号为 alpha", policy)
+        assert result.level == SensitivityLevel.S2
+
+    def test_sensitive_tool_s2(self):
+        policy = PrivacyPolicy(enabled=True, sensitive_tools_s2=["search"])
+        result = classify_tool_params("web_search", {"query": "weather"}, policy)
+        assert result.level == SensitivityLevel.S2
+
+    def test_default_sensitive_extension(self):
+        result = classify_tool_params("read_file", {"path": "/tmp/app.jks"}, _ENABLED)
+        assert result.level == SensitivityLevel.S3
+
+    def test_default_sensitive_name(self):
+        result = classify_tool_params("read_file", {"path": "/root/.ssh/config"}, _ENABLED)
+        assert result.level == SensitivityLevel.S3
+
+    def test_non_string_param_value_skipped(self):
+        result = classify_tool_params("echo", {"count": 42, "flag": True}, _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+    def test_clean_params_return_s1(self):
+        result = classify_tool_params("echo", {"message": "hello world"}, _ENABLED)
+        assert result.level == SensitivityLevel.S1
+
+    def test_command_paths_extracted(self):
+        result = classify_tool_params("bash", {"command": "cat /etc/passwd"}, _ENABLED)
+        assert result.level == SensitivityLevel.S1

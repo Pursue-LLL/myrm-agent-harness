@@ -11,7 +11,6 @@ from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_f
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     PUBLISH_STATUS_KEY,
     WikiPublishStatus,
-    ensure_published_frontmatter,
     repair_publication_on_disk,
 )
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure

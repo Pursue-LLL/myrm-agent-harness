@@ -7,18 +7,18 @@ single answer that surpasses any individual model.
 Based on arXiv:2406.04692 "Mixture-of-Agents Enhances LLM Capabilities".
 """
 
-from myrm_agent_harness.toolkits.llms.consensus.engine import (
-    ConsensusEngine,
-    ConsensusStreamEvent,
-)
 from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
 from myrm_agent_harness.toolkits.llms.consensus.advisor_prompts import (
     ADVISOR_SYSTEM,
     build_advisor_injection_block,
 )
+from myrm_agent_harness.toolkits.llms.consensus.engine import (
+    ConsensusEngine,
+    ConsensusStreamEvent,
+)
 from myrm_agent_harness.toolkits.llms.consensus.moa_overlay_types import (
-    MoAOverlayConfig,
     MoAFanoutMode,
+    MoAOverlayConfig,
 )
 from myrm_agent_harness.toolkits.llms.consensus.types import (
     ConsensusConfig,
@@ -34,8 +34,8 @@ __all__ = [
     "ConsensusEngine",
     "ConsensusResult",
     "ConsensusStreamEvent",
-    "MoAOverlayConfig",
     "MoAFanoutMode",
+    "MoAOverlayConfig",
     "PrivacyFilterMode",
     "ReferenceResponse",
     "build_advisor_injection_block",

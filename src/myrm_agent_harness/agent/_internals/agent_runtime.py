@@ -241,7 +241,7 @@ async def apply_bound_skill_catalog_for_resume(
 
 def _sync_skill_search_index_after_catalog_change(
     agent_state: BaseAgent,
-    bound_skills: list["SkillMetadata"],
+    bound_skills: list[SkillMetadata],
 ) -> None:
     """Rebuild or remove ``skill_search_tool`` when stream or resume refreshed bind catalog."""
     from myrm_agent_harness.agent.skill_agent import SkillAgent

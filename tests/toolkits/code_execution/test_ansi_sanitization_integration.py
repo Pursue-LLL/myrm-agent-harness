@@ -55,10 +55,10 @@ class TestAnsiSanitizationIntegration:
 
             full_sse_output = "".join(captured_chunks)
             assert "\x1b" not in full_sse_output, (
-                f"ANSI ESC byte leaked to SSE: {repr(full_sse_output)}"
+                f"ANSI ESC byte leaked to SSE: {full_sse_output!r}"
             )
             assert "[31m" not in full_sse_output, (
-                f"ANSI CSI fragment visible in SSE: {repr(full_sse_output)}"
+                f"ANSI CSI fragment visible in SSE: {full_sse_output!r}"
             )
             assert "RED_TEXT" in full_sse_output
             assert "normal_text" in full_sse_output

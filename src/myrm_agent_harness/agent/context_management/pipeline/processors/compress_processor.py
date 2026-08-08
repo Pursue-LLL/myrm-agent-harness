@@ -35,7 +35,6 @@ from langchain_core.messages import BaseMessage
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import (
     estimate_messages_tokens,
-    estimate_request_tools_tokens,
 )
 
 from ...infra.context_budget import (
@@ -43,18 +42,18 @@ from ...infra.context_budget import (
     estimate_processor_context_tokens,
     resolve_budget_kwargs_from_metadata,
 )
-from ...infra.schemas import (
-    ContextCompressEvictionCallback,
-    ContextCompressOffloadCallback,
-    ContextConfig,
-    ContextSnapshotCallback,
-)
 from ...infra.retention_helpers import (
     effective_keep_recent_calls,
     extract_failed_tool_call_ids,
     extract_focus_files,
     extract_focus_modules,
     extract_user_goal_hint,
+)
+from ...infra.schemas import (
+    ContextCompressEvictionCallback,
+    ContextCompressOffloadCallback,
+    ContextConfig,
+    ContextSnapshotCallback,
 )
 from ...strategies.compactor.compactor import compress_messages_async
 from ...strategies.compactor.smart_fallback import apply_smart_fallback

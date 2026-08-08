@@ -168,7 +168,7 @@ class TestDocxParserTable:
         try:
             parser = DocxParser()
             result = await parser.parse(tmp)
-            lines = [l for l in result.split("\n") if "|" in l and "---" not in l]
+            lines = [line for line in result.split("\n") if "|" in line and "---" not in line]
             # Split keeping empty segments between pipes
             raw_cells = lines[0].split("|")
             # Trim leading/trailing empty from outer pipes, keep inner cells
@@ -412,7 +412,7 @@ class TestDocxParserEdgeCases:
             # "Span" should appear in the table output
             assert "Span" in result
             # The table should still have valid Markdown structure
-            table_lines = [l for l in result.split("\n") if l.startswith("|")]
+            table_lines = [line for line in result.split("\n") if line.startswith("|")]
             assert len(table_lines) >= 3  # header + separator + at least 1 data row
         finally:
             os.unlink(tmp)

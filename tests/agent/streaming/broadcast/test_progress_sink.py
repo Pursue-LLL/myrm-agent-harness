@@ -14,7 +14,6 @@ import asyncio
 import pytest
 
 from myrm_agent_harness.utils.runtime.progress_sink import (
-    ToolProgressSink,
     _QueueSink,
     create_queue_sink,
     get_tool_progress_sink,

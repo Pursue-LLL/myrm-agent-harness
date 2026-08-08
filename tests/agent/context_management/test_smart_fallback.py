@@ -3,11 +3,11 @@
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
+from myrm_agent_harness.agent.context_management.strategies.compactor.smart_fallback import apply_smart_fallback
 from myrm_agent_harness.agent.context_management.strategies.compression.compression_formatting import (
     _shrink_value,
     shrink_tool_call_args,
 )
-from myrm_agent_harness.agent.context_management.strategies.compactor.smart_fallback import apply_smart_fallback
 
 
 class TestSmartFallback:

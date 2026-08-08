@@ -220,8 +220,8 @@ def test_main_incremental_runs_layer_product_gate(
     """Incremental pre-commit must still fail on invalid COMMON layer assignments."""
     import scripts.validate_tool_registry as cli
     from myrm_agent_harness.agent.tool_management.tool_layers import (
-        ToolLayer,
         _TOOL_LAYERS,
+        ToolLayer,
     )
 
     bad_layers = dict(_TOOL_LAYERS)
@@ -376,8 +376,8 @@ def test_main_prints_catalog_and_parity_errors(
 ) -> None:
     import scripts.validate_tool_registry as cli
     from myrm_agent_harness.agent.tool_management.tool_layers import (
-        ToolLayer,
         _TOOL_LAYERS,
+        ToolLayer,
     )
 
     bad_layers = dict(_TOOL_LAYERS)

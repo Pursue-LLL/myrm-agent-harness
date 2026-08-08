@@ -63,11 +63,11 @@ class PickleSerde:
         if type_str == "dill":
             import dill
 
-            return dill.loads(payload)
+            return dill.loads(payload)  # noqa: S301  # checkpoint data serialized by this harness
         elif type_str == "pickle":
             import pickle
 
-            return pickle.loads(payload)
+            return pickle.loads(payload)  # noqa: S301  # checkpoint data serialized by this harness
         raise ValueError(f"Unsupported serialization type: {type_str}")
 
 

@@ -184,12 +184,12 @@ async def create_skill_agent(
 
     openapi_direct_tools: list[BaseTool] = []
     if spec.openapi_services:
+        from myrm_agent_harness.agent.config.exceptions import (
+            ConfigIncompleteError,
+        )
         from myrm_agent_harness.toolkits.openapi_bridge import (
             OpenAPIBridge,
             OpenAPIServiceConfig,
-        )
-        from myrm_agent_harness.agent.config.exceptions import (
-            ConfigIncompleteError,
         )
 
         bridge = OpenAPIBridge()

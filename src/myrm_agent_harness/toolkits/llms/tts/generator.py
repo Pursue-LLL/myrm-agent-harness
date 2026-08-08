@@ -19,8 +19,6 @@ import logging
 import time
 from typing import Any
 
-import httpx
-
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 from .models import (

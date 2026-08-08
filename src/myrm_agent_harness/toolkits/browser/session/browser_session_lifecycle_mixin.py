@@ -17,14 +17,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import logging
+from pathlib import Path
+
+from myrm_agent_harness.toolkits.browser.recording_manager import RecordingManager
 
 from ..navigation import Navigator
-from myrm_agent_harness.toolkits.browser.recording_manager import RecordingManager
 from .extractor import Extractor
 from .interactor import Interactor
-from .network_logger import NetworkLogger
 from .session_persistence import SessionPersistence
 from .snapshot_manager import SnapshotManager
 
@@ -163,7 +163,7 @@ class BrowserSessionLifecycleMixin:
             try:
                 await self.navigate(current_url)
                 return f"Successfully restarted browser session with engine '{engine or 'default'}' and restored URL."
-            except Exception as e:
+            except Exception:
                 return "Restarted browser session, but failed to restore URL"
 
         return f"Successfully restarted browser session with engine '{engine or 'default'}'."

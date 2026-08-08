@@ -7,7 +7,6 @@ import pytest
 
 from myrm_agent_harness.agent.skills.security import (
     ContentSanitizer,
-    Redaction,
     SanitizationResult,
     content_sanitizer,
 )

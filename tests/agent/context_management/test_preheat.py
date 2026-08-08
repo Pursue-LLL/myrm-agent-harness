@@ -14,6 +14,7 @@ Unit tests for preheat.py — provider detection, async cache warming, init preh
 """
 
 import asyncio
+import contextlib
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -265,10 +266,8 @@ class TestCacheKeepAliveManager:
                 mgr.touch()
             mgr.stop()
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
         mock_preheat.assert_not_called()
 
@@ -294,10 +293,8 @@ class TestCacheKeepAliveManager:
             await asyncio.sleep(0.15)
             mgr.stop()
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
         assert mock_preheat.call_count >= 1
 
@@ -323,10 +320,8 @@ class TestCacheKeepAliveManager:
             await asyncio.sleep(0.15)
             mgr.stop()
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
     @pytest.mark.asyncio
     async def test_loop_exits_on_cancel(self) -> None:
@@ -337,10 +332,8 @@ class TestCacheKeepAliveManager:
         task = asyncio.create_task(mgr._loop())
         await asyncio.sleep(0.01)
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
 
     @pytest.mark.asyncio
     async def test_loop_respects_stopped_flag_after_sleep(self) -> None:
@@ -366,10 +359,8 @@ class TestCacheKeepAliveManager:
             mgr.stop()
             await asyncio.sleep(0.2)
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
         mock_preheat.assert_not_called()
 
@@ -397,10 +388,8 @@ class TestCacheKeepAliveManager:
                 mgr.touch()
             mgr.stop()
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
         mock_preheat.assert_not_called()
 

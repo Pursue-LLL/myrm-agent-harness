@@ -117,7 +117,7 @@ class MCPIPCServer:
         self._server = await asyncio.start_unix_server(self._handle_client, path=self.socket_path)
 
         # 设置 socket 文件权限（允许 Docker 容器访问）
-        os.chmod(self.socket_path, 0o666)
+        os.chmod(self.socket_path, 0o666)  # noqa: S103  # Docker containers need read/write on IPC socket
 
         self._running = True
         logger.info(f"MCP IPC Server started at {self.socket_path}")

@@ -217,8 +217,8 @@ async def _preflight_cost_check(
     Returns None if approved or estimation unavailable; returns rejection dict otherwise.
     """
     from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
-        TaskRequest,
         _DEFAULT_COST_APPROVAL_THRESHOLD_USD,
+        TaskRequest,
     )
     from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
         _estimate_batch_cost,

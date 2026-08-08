@@ -237,9 +237,7 @@ def _is_read_only_tool(tool_name: str) -> bool:
         return True
 
     safety = resolve_safety_metadata(tool_name)
-    if safety.is_read_only and not safety.is_destructive:
-        return True
-    return False
+    return bool(safety.is_read_only and not safety.is_destructive)
 
 
 def _has_keyword(text: str, keywords: tuple[str, ...]) -> bool:

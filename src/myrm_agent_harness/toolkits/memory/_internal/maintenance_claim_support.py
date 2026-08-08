@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.memory.types import (
     ClaimMemory,
@@ -24,8 +25,6 @@ from myrm_agent_harness.toolkits.memory.types import (
     MemorySearchResult,
     MemoryType,
 )
-
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.graph import GraphNode, GraphStoreProtocol

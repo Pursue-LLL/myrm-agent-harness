@@ -45,13 +45,13 @@ from ..core.types import (
 )
 from ..pipeline.cognitive_map import read_hot_context, read_log_context
 from ..pipeline.cognitive_map.index_routing import (
-    IndexRouteEntry,
     INDEX_ROUTING_SECTION,
+    IndexRouteEntry,
     format_index_route_context,
     match_index_entries,
     read_index_entries,
 )
-from .asset_index import AssetSearchHit, WikiAssetIndexer
+from .asset_index import WikiAssetIndexer
 from .best_first import RetrievalSeed, converge_retrieval_candidates
 from .indexer import WikiIndexer
 from .tokenizer import extract_query_terms

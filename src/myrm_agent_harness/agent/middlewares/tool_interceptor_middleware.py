@@ -51,6 +51,9 @@ from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
+from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
+    BASH_PROCESS_TOOL_NAME,
+)
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_agent_id,
     get_approval_session,
@@ -71,9 +74,6 @@ from myrm_agent_harness.agent.middlewares._tool_guards import (
 )
 from myrm_agent_harness.agent.middlewares.tool_executor import execute_with_retry
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
-from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
-    BASH_PROCESS_TOOL_NAME,
-)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_economics.tracker import (
     get_token_tracker,
@@ -181,18 +181,14 @@ async def tool_interceptor_middleware(
     """Unified tool interception middleware with metrics collection."""
     tool_name = request.tool_call.get("name", "unknown")
 
-    import time
-
     from myrm_agent_harness.infra.tracing import get_tracer
 
     tracer = get_tracer("tool.execute")
     with tracer.start_as_current_span("tool.execute") as span:
         span.set_attribute("tool.name", tool_name)
-        start_time = time.perf_counter()
 
         try:
             result = await _tool_interceptor_middleware_inner(request, handler)
-            elapsed_time = time.perf_counter() - start_time
 
             status = "success"
             error_message = ""

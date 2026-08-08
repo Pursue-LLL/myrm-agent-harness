@@ -20,7 +20,6 @@ from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
 from myrm_agent_harness.toolkits.code_execution.executors.models import (
     AsyncProcessProtocol,
 )
-
 from tests.agent.meta_tools.bash.test_background_registry import _FakeProc
 
 

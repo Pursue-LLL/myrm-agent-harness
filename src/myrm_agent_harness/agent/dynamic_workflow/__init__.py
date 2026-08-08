@@ -507,14 +507,6 @@ async def run_dynamic_workflow_stream(
         "data": {"message": "Executing workflow (spawning sub-agents)..."},
     }
 
-    from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext
-    from myrm_agent_harness.toolkits.code_execution.factory import create_executor
-    from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (
-        inject_ptc_for_python_execution,
-    )
-    from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
-        WorkspacePathResolver,
-    )
     from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
         set_current_message_id,
     )
@@ -524,6 +516,14 @@ async def run_dynamic_workflow_stream(
     )
     from myrm_agent_harness.agent.workspace_coordination.merge_snapshots import (
         build_merge_snapshot_context,
+    )
+    from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext
+    from myrm_agent_harness.toolkits.code_execution.factory import create_executor
+    from myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection import (
+        inject_ptc_for_python_execution,
+    )
+    from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
+        WorkspacePathResolver,
     )
 
     set_current_message_id(message_id)

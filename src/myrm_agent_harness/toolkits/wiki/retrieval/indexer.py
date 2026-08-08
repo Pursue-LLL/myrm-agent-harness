@@ -29,17 +29,16 @@ import re
 import sqlite3
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
 from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
 from myrm_agent_harness.utils.db.fts5 import fts5_auto_heal, fts5_integrity_check, fts5_rebuild
-
-from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
 
 from ..core.config import WikiConfig
 from ..core.frontmatter_contract import PUBLISH_STATUS_KEY, WIKI_PUBLISH_STATUSES, WikiPublishStatus
 from ..core.structure import WikiStructure
 from .graph_store import WikiGraphStore
-from .sidecar_index import SidecarIndexMixin, _SIDECAR_PREFIX
+from .sidecar_index import _SIDECAR_PREFIX, SidecarIndexMixin
 from .tokenizer import tokenize_for_fts
 
 if TYPE_CHECKING:

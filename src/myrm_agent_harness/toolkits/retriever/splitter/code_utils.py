@@ -206,7 +206,7 @@ def split_large_code_block(code_content: str, language: str, max_tokens: int = 2
         return _split_by_lines(code_content, max_tokens)
 
     try:
-        Language, RecursiveCharacterTextSplitter = _get_langchain_splitters()
+        Language, RecursiveCharacterTextSplitter = _get_langchain_splitters()  # noqa: N806  # third-party class names
         splitter = RecursiveCharacterTextSplitter.from_language(
             language=Language[lang_key.upper()],
             chunk_size=max_tokens,

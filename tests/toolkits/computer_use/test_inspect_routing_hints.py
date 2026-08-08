@@ -12,8 +12,6 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-import pytest
-
 
 class TestMacOSNativeApiHint:
     """Tests for macOS _native_api_hint and _SCRIPTABLE_APPS."""
@@ -71,11 +69,11 @@ class TestMacOSNativeApiHint:
 
     @patch("myrm_agent_harness.toolkits.computer_use.perception.macos_ax.capture_ax_snapshot")
     def test_inspect_foreground_appends_hint(self, mock_snapshot):
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
         from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
             MacAxSnapshot,
             inspect_foreground,
         )
-        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         meta = SnapshotMeta(ref_count=5, app_name="Finder", window_title="Desktop", scope="foreground")
         mock_snapshot.return_value = MacAxSnapshot(meta=meta, refs={})
@@ -89,11 +87,11 @@ class TestMacOSNativeApiHint:
 
     @patch("myrm_agent_harness.toolkits.computer_use.perception.macos_ax.capture_ax_snapshot")
     def test_inspect_foreground_no_hint_for_unknown(self, mock_snapshot):
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
         from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
             MacAxSnapshot,
             inspect_foreground,
         )
-        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         meta = SnapshotMeta(ref_count=3, app_name="UnknownApp", window_title="", scope="foreground")
         mock_snapshot.return_value = MacAxSnapshot(meta=meta, refs={})
@@ -130,11 +128,11 @@ class TestMacOSNativeApiHint:
     @patch("myrm_agent_harness.toolkits.computer_use.perception.macos_ax.capture_ax_snapshot")
     def test_inspect_foreground_adobe_photoshop(self, mock_snapshot):
         """New app Adobe Photoshop should trigger hint in inspect flow."""
+        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
         from myrm_agent_harness.toolkits.computer_use.perception.macos_ax import (
             MacAxSnapshot,
             inspect_foreground,
         )
-        from myrm_agent_harness.toolkits.computer_use.dref.types import SnapshotMeta
 
         meta = SnapshotMeta(ref_count=10, app_name="Adobe Photoshop", window_title="Untitled-1", scope="foreground")
         mock_snapshot.return_value = MacAxSnapshot(meta=meta, refs={})

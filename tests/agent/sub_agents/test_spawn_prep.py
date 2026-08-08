@@ -61,9 +61,9 @@ def test_merge_candidate_detects_isolated_paths() -> None:
 
 
 def test_sanitize_spawn_result_for_store() -> None:
-    from myrm_agent_harness.agent.sub_agents.spawn_prep import sanitize_spawn_result_for_store
-
     import json
+
+    from myrm_agent_harness.agent.sub_agents.spawn_prep import sanitize_spawn_result_for_store
 
     def sync_back() -> None:
         return None

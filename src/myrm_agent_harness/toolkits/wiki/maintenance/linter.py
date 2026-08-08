@@ -40,14 +40,14 @@ from myrm_agent_harness.toolkits.wiki.diagnostics.structural_lint import (
     collect_invalid_frontmatter_type_issues,
     collect_provenance_gap_issues,
 )
+from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import (
+    action_kind_for_issue_type,
+)
+from myrm_agent_harness.toolkits.wiki.maintenance.modes import MaintainMode
 from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
     WikiCognitiveMapService,
     WikiMapEvent,
     WikiMapEventType,
-)
-from myrm_agent_harness.toolkits.wiki.maintenance.modes import MaintainMode
-from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import (
-    action_kind_for_issue_type,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
     publish_concept_article,

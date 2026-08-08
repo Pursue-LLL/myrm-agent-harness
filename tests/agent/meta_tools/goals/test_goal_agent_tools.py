@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.goals.types import Goal, GoalStatus
+from myrm_agent_harness.agent.goals.types import Goal
 from myrm_agent_harness.agent.goals.verification.base import VerificationResult
 from myrm_agent_harness.agent.meta_tools.goals.goal_agent_tools import create_goal_tools
 

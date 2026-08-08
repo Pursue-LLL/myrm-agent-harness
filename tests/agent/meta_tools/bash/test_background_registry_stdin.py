@@ -9,15 +9,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from myrm_agent_harness.agent.meta_tools.bash._background.consume import (
+    BackgroundRegistryEntry,
+)
 from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     BackgroundProcessRegistry,
     get_background_registry,
 )
 from myrm_agent_harness.agent.meta_tools.bash._background.stdin import (
     write_background_stdin,
-)
-from myrm_agent_harness.agent.meta_tools.bash._background.consume import (
-    BackgroundRegistryEntry,
 )
 from myrm_agent_harness.agent.meta_tools.bash._background.types import (
     BackgroundProcessInfo,

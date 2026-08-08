@@ -3,15 +3,14 @@
 Tests the LocalFilesScanner directory filtering and file discovery behavior.
 """
 
-import asyncio
 import os
 import time
 
 import pytest
 
 from myrm_agent_harness.toolkits.code_execution.executors.common.file_scanner import (
-    LocalFilesScanner,
     _SCAN_SKIP_DIRS,
+    LocalFilesScanner,
 )
 
 

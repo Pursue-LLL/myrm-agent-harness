@@ -7,19 +7,19 @@ empty-state handling, error resilience, and profile key cleanup.
 
 from __future__ import annotations
 
+from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from myrm_agent_harness.toolkits.browser.session.session_memory_bridge import (
+    _MAX_TRACKED_SESSIONS,
     PROFILE_KEY,
     SessionMemoryBridge,
-    _MAX_TRACKED_SESSIONS,
     _format_entry,
     _parse_entries,
     _serialize,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -104,9 +104,9 @@ class TestFormatEntry:
         "myrm_agent_harness.toolkits.browser.session.session_memory_bridge.datetime"
     )
     def test_date_format(self, mock_dt: MagicMock) -> None:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        mock_dt.now.return_value = datetime(2026, 1, 15, tzinfo=timezone.utc)
+        mock_dt.now.return_value = datetime(2026, 1, 15, tzinfo=UTC)
         mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
         result = _format_entry("test.com")
         assert result == "test.com (Jan 15)"
@@ -198,7 +198,7 @@ class TestOnSessionSaved:
         self, bridge: SessionMemoryBridge, mock_mm: MagicMock
     ) -> None:
         mock_mm.get_profile_attribute.return_value = None
-        mock_mm.set_system_profile_attribute.side_effect = IOError("disk full")
+        mock_mm.set_system_profile_attribute.side_effect = OSError("disk full")
 
         await bridge.on_session_saved("fail.com", 1, 0)
 
@@ -294,7 +294,7 @@ class TestOnSessionDeleted:
         self, bridge: SessionMemoryBridge, mock_mm: MagicMock
     ) -> None:
         mock_mm.get_profile_attribute.return_value = "a.com (Jun 01), b.com (Jun 01)"
-        mock_mm.set_system_profile_attribute.side_effect = IOError("write fail")
+        mock_mm.set_system_profile_attribute.side_effect = OSError("write fail")
 
         await bridge.on_session_deleted("a.com")
 
@@ -303,7 +303,7 @@ class TestOnSessionDeleted:
         self, bridge: SessionMemoryBridge, mock_mm: MagicMock
     ) -> None:
         mock_mm.get_profile_attribute.return_value = "only.com (Jun 01)"
-        mock_mm.delete_system_profile_attribute.side_effect = IOError("delete fail")
+        mock_mm.delete_system_profile_attribute.side_effect = OSError("delete fail")
 
         await bridge.on_session_deleted("only.com")
 
@@ -394,7 +394,7 @@ class TestOnSessionsExpired:
         self, bridge: SessionMemoryBridge, mock_mm: MagicMock
     ) -> None:
         mock_mm.get_profile_attribute.return_value = "a.com (Jun 01), b.com (Jun 01)"
-        mock_mm.set_system_profile_attribute.side_effect = IOError("disk full")
+        mock_mm.set_system_profile_attribute.side_effect = OSError("disk full")
 
         await bridge.on_sessions_expired(["a.com"])
 

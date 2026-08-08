@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.agent.security.managed_approval_policy import (
     ManagedApprovalPolicy,
     load_managed_approval_policy_from_env,

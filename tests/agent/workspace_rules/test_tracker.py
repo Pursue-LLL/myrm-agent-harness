@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.agent.workspace_rules.tracker import (
-    SubdirectoryContextTracker,
     _PATH_ARG_KEYS,
+    SubdirectoryContextTracker,
     check_and_append_rules,
     get_subdirectory_tracker,
     init_subdirectory_tracker,
@@ -39,7 +39,7 @@ class TestSubdirectoryContextTracker:
         (subdir / "AGENTS.md").write_text("# Subdirectory rules")
 
         tracker = SubdirectoryContextTracker(str(workspace_dir))
-        result1 = tracker.check_tool_call("read_file", {"path": str(subdir / "main.py")}, "")
+        tracker.check_tool_call("read_file", {"path": str(subdir / "main.py")}, "")
         result2 = tracker.check_tool_call("read_file", {"path": str(subdir / "other.py")}, "")
 
         assert result2 is None

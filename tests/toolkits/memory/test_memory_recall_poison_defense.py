@@ -6,13 +6,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from myrm_agent_harness.toolkits.memory.mcp_server import MemoryMCPServer
 from myrm_agent_harness.toolkits.memory.memory_recall_formatting import (
     RECALL_TOOL_UNTRUSTED_PREAMBLE,
 )
 from myrm_agent_harness.toolkits.memory.memory_search_execution import (
     search_memory_corpus,
 )
-from myrm_agent_harness.toolkits.memory.mcp_server import MemoryMCPServer
 from myrm_agent_harness.toolkits.memory.types import (
     MemorySearchResult,
     MemoryType,

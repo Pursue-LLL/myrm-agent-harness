@@ -173,12 +173,12 @@ class CacheKeepAliveManager:
     """
 
     __slots__ = (
-        "_llm",
-        "_system_prompt",
-        "_model_name",
-        "_task",
         "_last_activity",
+        "_llm",
+        "_model_name",
         "_stopped",
+        "_system_prompt",
+        "_task",
     )
 
     def __init__(

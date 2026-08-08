@@ -46,7 +46,7 @@ import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from langchain_core.messages import HumanMessage
 
@@ -117,7 +117,7 @@ class EvolutionScreener:
     # "balanced" allows everything (default). "innovate" allows all + lowers
     # LLM confirmation threshold. "harden" only allows FIX + OPTIMIZE_DESCRIPTION.
     # "repair-only" restricts to FIX only.
-    _STRATEGY_ALLOWED_TYPES: dict[str, frozenset[EvolutionType]] = {
+    _STRATEGY_ALLOWED_TYPES: ClassVar[dict[str, frozenset[EvolutionType]]] = {
         "balanced": frozenset(EvolutionType),
         "innovate": frozenset(EvolutionType),
         "harden": frozenset({EvolutionType.FIX, EvolutionType.OPTIMIZE_DESCRIPTION}),

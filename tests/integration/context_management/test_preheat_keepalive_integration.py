@@ -12,6 +12,7 @@ so keepalive is expected NOT to activate (validates the negative path).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import time
 
@@ -169,10 +170,8 @@ class TestCacheKeepAliveManagerIntegration:
             await asyncio.sleep(3.0)
             mgr.stop()
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
         assert probe_count >= 1, f"Expected at least 1 real probe, got {probe_count}"
 

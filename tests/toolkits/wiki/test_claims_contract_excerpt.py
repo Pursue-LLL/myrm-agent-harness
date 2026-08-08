@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import hashlib
-from unittest.mock import MagicMock
-
 from pathlib import Path
+from unittest.mock import MagicMock
 
 from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
     clear_raw_bytes_lru_cache,
