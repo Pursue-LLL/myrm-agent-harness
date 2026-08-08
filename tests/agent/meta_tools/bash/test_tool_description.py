@@ -78,9 +78,9 @@ def test_cross_call_persistence_uses_workspace_files_not_session_store() -> None
     assert "优先一次 bash 合并" in TOOL_DESCRIPTION
 
 
-def test_myrm_tools_blocked_in_prompt() -> None:
-    assert "myrm_tools" in TOOL_DESCRIPTION
-    assert "myrm_tools.web_search_tool" not in TOOL_DESCRIPTION
+def test_no_internal_module_name_leaked_to_prompt() -> None:
+    """内部模块名 myrm_tools 不得泄漏进 prompt（此地无银反模式）."""
+    assert "myrm_tools" not in TOOL_DESCRIPTION
 
 
 def test_background_contract_documented() -> None:

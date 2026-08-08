@@ -95,7 +95,6 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 - 禁止写注释(一次性脚本无需注释,节省 token)。
 - 严禁假设、猜测返回值结构。
 - 禁止调试代码、乱用 print。
-- 禁止 `import myrm_tools`(在此环境不可用,会被拦截)。
 
 ## 输出格式(仅允许以下两种)
 
@@ -104,7 +103,7 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 
 ## 后台长任务(可选)
 
-启动 dev server / 监听器 / 长爬虫时,传 `run_in_background=true`,立即返回 `{pid, status}` 而不阻塞当前轮。后台进程按 chat session 隔离,每会话最多 5 个并发。配套工具:
+启动 dev server / 监听器 / 长爬虫时,传 `run_in_background=true`,立即返回 `{pid, status}` 而不阻塞当前轮。后台进程按 chat session 隔离,每会话最多 5 个并发。
 
 配套工具 `bash_process_tool` 提供 7 个 action:list(会话内全部任务,含 `last_progress`) / output(增量轮询:传上次 `next_cursor` 为 `since_cursor`) / wait / kill / write_stdin / submit_stdin / close_stdin — 参数与规则详见其工具描述。
 
