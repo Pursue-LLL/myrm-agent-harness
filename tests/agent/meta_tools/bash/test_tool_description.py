@@ -131,6 +131,14 @@ def test_python_c_wrapper_discouraged() -> None:
     assert "python script.py" in TOOL_DESCRIPTION
 
 
+def test_prompt_leaks_no_internal_impl_or_cross_language_schema() -> None:
+    assert "文件模式" not in TOOL_DESCRIPTION
+    assert "框架自动识别" not in TOOL_DESCRIPTION
+    assert "TS 类型" not in TOOL_DESCRIPTION
+    assert "TS类型" not in TOOL_DESCRIPTION
+    assert "TypeScript" not in TOOL_DESCRIPTION
+
+
 def test_capabilities_section_documents_combo_modes() -> None:
     """能力段枚举管道/组合形态; merge/OBSERVATION 判定细则只在编写原则."""
     capabilities_end = TOOL_DESCRIPTION.index("## 优先使用专用工具")

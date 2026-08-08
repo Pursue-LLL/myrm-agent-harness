@@ -22,7 +22,7 @@ TOOL_DESCRIPTION = """
 
 1. **Shell 命令**:执行 shell 命令(mv/cp/rm、包管理、构建测试、git、curl 等)。
 2. **执行脚本**:运行已存在的脚本文件(python script.py / bash script.sh)。
-3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入,框架自动识别并以文件模式执行**。
+3. **执行 Python 代码**:**直接将 Python 源码作为 command 传入**。
    - 预装三方库:pandas, numpy, scipy, matplotlib, seaborn;Python 标准库(json, datetime, re 等)均可用。
    - **不要**使用 `python -c "..."` / `python3 -c "..."` 包装器 — shell 转义易破坏引号与多行字符串。直接传 Python 源码作为 command 即可。
 4. **组合执行提效(管道思想)**: 单次 invocation 内接多步 — ① Python 源码(gather/串行/控制流,含技能批量); ② Shell 用 `&&`/`|` 串联,或执行已有脚本(见 #2)。返回值具体才可接管道,否则先 `[OBSERVATION]` — 细则见「编写原则」。
@@ -43,7 +43,7 @@ bash_code_execute_tool 适用于:系统/运行时操作(mv/cp/rm、包管理、�
 
 #### 返回值具体性判定
 
-- **判定标准**:「具体」的唯一标准:**文档中明确写出每个字段的名称和类型**且能转换为 TS 类型代码,仅说「返回字典/列表」**不算**具体!
+- **判定标准**:「具体」的唯一标准:**文档中明确写出每个字段的名称和类型**(能直接索引取值),仅说「返回字典/列表」**不算**具体!
 - **引用类型展开**:**引用类型必须展开到基本类型**:dict 列出所有 key 名和 value 类型,list 说明元素类型。
 - **具体示例**:`{"code": str}` / `list[{"id": int}]` / `"yyyy-mm-dd 字符串"`。
 - **模糊示例(必须阻断)**:`返回xx字典` / `返回JSON` / `结果是车站信息列表`。
