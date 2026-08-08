@@ -554,5 +554,5 @@ async def test_classifier_result_schema_validation():
     valid3 = ClassifierResultSchema(decision="uncertain", reason="unsure")
     assert valid3.decision == "uncertain"
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         ClassifierResultSchema(decision="invalid_value", reason="test")

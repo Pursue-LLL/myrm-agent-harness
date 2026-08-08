@@ -1,10 +1,21 @@
-"""Extract embedded images from DOCX packages and localize markdown refs."""
+"""Extract embedded images from DOCX packages and localize markdown refs.
+
+[INPUT]
+- myrm_agent_harness.toolkits.wiki.pipeline.ingress.asset_store (POS: asset persistence)
+
+[OUTPUT]
+- extract_docx_embedded_images / find_docx_embed_ids / localize_docx_embedded_markdown
+
+[POS]
+DOCX OOXML relationship-id → image bytes extractor and markdown ref localizer.
+"""
 
 from __future__ import annotations
 
 import mimetypes
 import xml.etree.ElementTree as ET
 import zipfile
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +27,8 @@ _IMAGE_REL_TYPE = (
 _EMBED_ATTR = (
     "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}embed"
 )
+
+StoreAsset = Callable[[bytes, str], str | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,13 +92,12 @@ def docx_embed_markdown_ref(embed_id: str) -> str:
     return f"{_DOCX_EMBED_PREFIX}{embed_id}"
 
 
-def find_docx_embed_ids(element: object) -> list[str]:
+def find_docx_embed_ids(element: ET.Element) -> list[str]:
     """Collect r:embed ids from a paragraph/table OOXML element subtree."""
     ids: list[str] = []
     seen: set[str] = set()
-    for node in getattr(element, "iter", lambda: ())():
-        tag = getattr(node, "tag", "")
-        if not tag.endswith("}blip"):
+    for node in element.iter():
+        if not node.tag.endswith("}blip"):
             continue
         embed = node.get(_EMBED_ATTR)
         if embed and embed not in seen:
@@ -98,7 +110,7 @@ def localize_docx_embedded_markdown(
     markdown: str,
     images: dict[str, DocxEmbeddedImage],
     *,
-    store_asset: object,
+    store_asset: StoreAsset,
     raw_relative: str,
 ) -> str:
     """Rewrite ``docx-embed:rIdN`` refs to ``../wiki/assets/{hash}.ext`` paths."""
@@ -113,7 +125,7 @@ def localize_docx_embedded_markdown(
     for embed_id, image in images.items():
         filename = store_asset(data=image.data, content_type=image.mime_type)
         if filename:
-            ref_to_filename[docx_embed_markdown_ref(embed_id)] = str(filename)
+            ref_to_filename[docx_embed_markdown_ref(embed_id)] = filename
 
     if not ref_to_filename:
         return markdown

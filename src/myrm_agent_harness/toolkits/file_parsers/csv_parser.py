@@ -20,13 +20,16 @@ class CsvParser(FileParser):
         if not path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
 
-        raw = path.read_text(encoding="utf-8")
+        raw = path.read_text(encoding="utf-8", errors="replace")
         reader = csv.reader(StringIO(raw))
         rows = [row for row in reader if any(cell.strip() for cell in row)]
         if not rows:
             return ""
 
-        header = rows[0]
+        def _cell(value: str) -> str:
+            return value.replace("|", "\\|").strip()
+
+        header = [_cell(cell) for cell in rows[0]]
         body = rows[1:] if len(rows) > 1 else []
         lines = [
             "| " + " | ".join(header) + " |",
@@ -34,9 +37,9 @@ class CsvParser(FileParser):
         ]
         for row in body:
             padded = row + [""] * max(0, len(header) - len(row))
-            lines.append("| " + " | ".join(padded[: len(header)]) + " |")
+            lines.append("| " + " | ".join(_cell(cell) for cell in padded[: len(header)]) + " |")
 
-        logger.warning("CSV parsed: %s, rows=%d", path.name, len(rows))
+        logger.info("CSV parsed: %s, rows=%d", path.name, len(rows))
         return "\n".join(lines)
 
     @property
