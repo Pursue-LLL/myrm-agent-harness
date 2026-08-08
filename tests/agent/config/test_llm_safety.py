@@ -1,13 +1,9 @@
-"""Test Provider Safety — Message normalization and LLM wrapping."""
+"""Test Provider Safety — Message normalization."""
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from myrm_agent_harness.agent.config.llm_safety import (
-    SafetyWrappedChatModel,
-    normalize_messages,
-    wrap_chat_model_with_safety,
-)
+from myrm_agent_harness.agent.config.llm_safety import normalize_messages
 
 
 class TestNormalizeMessages:
@@ -72,11 +68,29 @@ class TestNormalizeMessages:
             ToolMessage(content="file2.txt", tool_call_id="call_1"),  # Duplicate
         ]
         result = normalize_messages(messages)
-        # Should keep only first response
+        # sanitize_tool_history keep-last runs before pairing normalization
         assert len(result) == 3
         tool_messages = [msg for msg in result if isinstance(msg, ToolMessage)]
         assert len(tool_messages) == 1
-        assert tool_messages[0].content == "file.txt"
+        assert tool_messages[0].content == "file2.txt"
+
+    def test_cross_turn_duplicate_ids_re_id_via_normalize(self) -> None:
+        messages = [
+            AIMessage(content="", tool_calls=[{"id": "call_x", "name": "grep_tool", "args": {}}]),
+            ToolMessage(content="a", tool_call_id="call_x", name="grep_tool"),
+            HumanMessage(content="continue"),
+            AIMessage(content="", tool_calls=[{"id": "call_x", "name": "grep_tool", "args": {}}]),
+            ToolMessage(content="b", tool_call_id="call_x", name="grep_tool"),
+        ]
+        result = normalize_messages(messages)
+        ai_tool_ids = [
+            tc["id"]
+            for m in result
+            if isinstance(m, AIMessage)
+            for tc in (m.tool_calls or [])
+        ]
+        assert len(ai_tool_ids) == len(set(ai_tool_ids))
+        assert "call_x@2" in ai_tool_ids
 
     def test_mixed_valid_invalid_tool_calls(self) -> None:
         """AIMessage with mixed valid/invalid tool calls keeps only valid ones (skip - LangChain validates at construction)."""
@@ -125,29 +139,6 @@ class TestNormalizeMessages:
         ai_msg = next(msg for msg in result if isinstance(msg, AIMessage))
         assert ai_msg.content == "I will run ls for you"
         assert len(ai_msg.tool_calls) == 0
-
-
-class TestSafetyWrappedChatModel:
-    """Test SafetyWrappedChatModel wrapper."""
-
-    def test_wrap_already_wrapped_no_double_wrap(self) -> None:
-        """Wrapping an already wrapped model should not double-wrap."""
-        from unittest.mock import MagicMock
-
-        mock_llm = MagicMock()
-        wrapped = SafetyWrappedChatModel(mock_llm)
-        double_wrapped = wrap_chat_model_with_safety(wrapped)
-        # Should return same instance
-        assert double_wrapped is wrapped
-
-    def test_wrap_chat_model_returns_wrapped_instance(self) -> None:
-        """wrap_chat_model_with_safety returns SafetyWrappedChatModel."""
-        from unittest.mock import MagicMock
-
-        mock_llm = MagicMock()
-        wrapped = wrap_chat_model_with_safety(mock_llm)
-        assert isinstance(wrapped, SafetyWrappedChatModel)
-        assert wrapped._wrapped is mock_llm
 
 
 if __name__ == "__main__":

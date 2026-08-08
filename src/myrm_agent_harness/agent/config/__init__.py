@@ -2,7 +2,7 @@
 
 子模块：
 - llm: LLM 与 Agent 配置（LLMConfig, AgentConfig, StorageConfig）
-- llm_safety: Provider Safety 包装器（normalize_messages, wrap_chat_model_with_safety）
+- llm_safety: Provider Safety 消息规范化（normalize_messages）
 - parsers: LiteLLM模型名解析和转换（to_litellm_model, parse_litellm_model）
 - file_io: 文件 I/O 资源限制与正则安全配置（FileIOConfig）
 - validator: 配置健康检查（ConfigIssue, check_config_health）
@@ -29,7 +29,6 @@ __all__ = [
     "normalize_messages",
     "parse_litellm_model",
     "to_litellm_model",
-    "wrap_chat_model_with_safety",
 ]
 
 _LAZY_IMPORTS = {
@@ -42,7 +41,6 @@ _LAZY_IMPORTS = {
     "LLMConfig": ("myrm_agent_harness.agent.config.llm", "LLMConfig"),
     "StorageConfig": ("myrm_agent_harness.agent.config.llm", "StorageConfig"),
     "normalize_messages": ("myrm_agent_harness.agent.config.llm_safety", "normalize_messages"),
-    "wrap_chat_model_with_safety": ("myrm_agent_harness.agent.config.llm_safety", "wrap_chat_model_with_safety"),
     "parse_litellm_model": ("myrm_agent_harness.agent.config.parsers", "parse_litellm_model"),
     "to_litellm_model": ("myrm_agent_harness.agent.config.parsers", "to_litellm_model"),
     "BUILTIN_PRESETS": ("myrm_agent_harness.agent.config.presets", "BUILTIN_PRESETS"),

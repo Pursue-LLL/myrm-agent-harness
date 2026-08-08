@@ -127,6 +127,8 @@ class TestBuildMiddlewares:
 
         result = build_middlewares(create_registry(), [])
         class_names = {type(_unwrap_middleware(mw)).__name__ for mw in result}
+        assert "ToolHistoryHygieneMiddleware" in class_names
+        assert "DanglingToolCallMiddleware" in class_names
         assert "ToolApprovalMiddleware" in class_names
         assert "CompletionGuard" in class_names
         assert "SecurityBoundaryMiddleware" in class_names

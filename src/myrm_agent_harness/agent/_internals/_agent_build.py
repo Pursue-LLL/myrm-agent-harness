@@ -45,8 +45,8 @@ from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
 from myrm_agent_harness.agent.middlewares.subagent_limit_middleware import (
     subagent_limit_middleware,
 )
-from myrm_agent_harness.agent.middlewares.tool_call_dedup_middleware import (
-    tool_call_dedup_middleware,
+from myrm_agent_harness.agent.middlewares.tool_history_hygiene import (
+    tool_history_hygiene_middleware,
 )
 from myrm_agent_harness.agent.streaming.utils import normalize_tool_names
 from myrm_agent_harness.agent.tool_management import ToolRegistry, ToolSource
@@ -93,7 +93,7 @@ def build_middlewares(
     params = engine_params or _EngineParams()
 
     middlewares: list[object] = [
-        tool_call_dedup_middleware,
+        tool_history_hygiene_middleware,
         dangling_tool_call_middleware,
         subagent_limit_middleware,
         tool_interceptor_middleware,

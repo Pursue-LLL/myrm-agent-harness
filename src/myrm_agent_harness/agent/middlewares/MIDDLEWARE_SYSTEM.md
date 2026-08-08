@@ -29,6 +29,7 @@
 │ GuardrailMiddleware (guardrails/)       │  ← 技能边界等
 │ security_*_middleware                   │  ← 安全边界/护栏
 │ subagent_limit / concurrency_limiter    │  ← 委派 fan-out 限制
+│ tool_history_hygiene.py                 │  ← ToolMessage dedup + within/cross-turn tool_call_id re-id
 │ dangling_tool_call_middleware           │  ← 悬空 tool_call 修复
 │ skill_attenuation_middleware            │  ← skill attenuation + runtime intent gating
 │ filesystem_search_middleware            │  ← glob/grep 注入
@@ -72,6 +73,7 @@
 | `security_boundary_middleware.py` | 安全边界 |
 | `security_guardrail_middleware.py` | 安全护栏 |
 | `subagent_limit_middleware.py` | 单轮 delegate 上限 |
+| `tool_history_hygiene.py` | within-AIMessage re-id → ToolMessage keep-last dedup → cross-turn AIMessage tool_call_id 确定性 re-id；导出 `sanitize_tool_history()` |
 | `dangling_tool_call_middleware.py` | 修复 strict provider 400 |
 | `skill_attenuation_middleware.py` | Skill attenuation + runtime intent-aware narrowing via `tool_choice.allowed_tools` when provider supports it; capability gate skips model-layer hint on unsupported gateways (e.g. `openai-like/*`); execution SSOT via `check_trust_attenuation`; dynamic tool resolution for ToolNode (no `request.tools` mutation) |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
@@ -81,7 +83,6 @@
 | `goal_focus_middleware.py` | ACTIVE goal objective 注入（末位 HumanMessage；跳过 continuation/wrap-up 轮） |
 | `moa_advisor_middleware.py` | Agent 环 MoA 顾问叠加（`moa_overlay_active` + 渐进 SSE `moa_ref_done` + 瞬态 HumanMessage 尾注入 + `privacy_filter` display/full 分流） |
 | `replan_middleware.py` | 动态重规划循环 |
-| `tool_call_dedup_middleware.py` | tool_call_id 去重 |
 | `rate_limit.py` | Provider 级主动 sleep |
 | `debug_logger_middleware.py` | 完整消息 debug 日志 |
 

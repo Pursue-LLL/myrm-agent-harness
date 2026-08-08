@@ -1,7 +1,7 @@
 """Tests for OneshotRecoveryMixin handlers.
 
-Covers _handle_thinking_signature, _handle_image_shrink,
-_handle_long_context_tier, and _shrink_oversized_images.
+Covers _handle_thinking_signature, _handle_duplicate_tool_use_id,
+_handle_image_shrink, _handle_long_context_tier, and _shrink_oversized_images.
 """
 
 import asyncio
@@ -9,7 +9,7 @@ import base64
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.types import Command
 
 from myrm_agent_harness.agent.streaming.stream_executor import (
@@ -244,6 +244,69 @@ class TestHandleThinkingSignature:
             isinstance(e, dict) and e.get("step_key") == "thinking_signature_recovery"
             for e in events
         )
+
+
+# ============================================================================
+# _handle_duplicate_tool_use_id
+# ============================================================================
+
+
+class TestHandleDuplicateToolUseId:
+    @pytest.mark.asyncio
+    async def test_sanitizes_messages_and_emits_recovery(self, ctx: StreamContext) -> None:
+        ctx.agent_input["messages"] = [
+            AIMessage(content="", tool_calls=[{"id": "call_x", "name": "grep_tool", "args": {}}]),
+            ToolMessage(content="a", tool_call_id="call_x", name="grep_tool"),
+            AIMessage(content="", tool_calls=[{"id": "call_x", "name": "grep_tool", "args": {}}]),
+            ToolMessage(content="b", tool_call_id="call_x", name="grep_tool"),
+        ]
+        exc = _FakeError("tool_use ids must be unique within a request", status_code=400)
+        executor = _make_executor(ctx)
+
+        result = await executor._handle_duplicate_tool_use_id(exc, attempted=False)
+        assert result is True
+        ai_ids = [
+            m.tool_calls[0]["id"]
+            for m in ctx.agent_input["messages"]
+            if isinstance(m, AIMessage) and m.tool_calls
+        ]
+        assert ai_ids == ["call_x", "call_x@2"]
+        assert executor._compactor.events
+        assert executor._compactor.events[0]["step_key"] == "tool_history_recovery"
+
+    @pytest.mark.asyncio
+    async def test_returns_false_if_already_attempted(self, ctx: StreamContext) -> None:
+        exc = _FakeError("duplicate tool_call_id", status_code=400)
+        executor = _make_executor(ctx)
+        result = await executor._handle_duplicate_tool_use_id(exc, attempted=True)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_returns_false_for_non_matching_error(self, ctx: StreamContext) -> None:
+        exc = _FakeError("generic error", status_code=400)
+        executor = _make_executor(ctx)
+        result = await executor._handle_duplicate_tool_use_id(exc, attempted=False)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_returns_false_in_command_mode(self, ctx: StreamContext) -> None:
+        ctx.agent_input = Command(resume="test")
+        exc = _FakeError("duplicate tool_call_id", status_code=400)
+        executor = _make_executor(ctx)
+        result = await executor._handle_duplicate_tool_use_id(exc, attempted=False)
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_returns_false_when_history_already_clean(self, ctx: StreamContext) -> None:
+        ctx.agent_input["messages"] = [
+            AIMessage(content="", tool_calls=[{"id": "call_a", "name": "grep_tool", "args": {}}]),
+            ToolMessage(content="a", tool_call_id="call_a", name="grep_tool"),
+        ]
+        exc = _FakeError("duplicate tool_call_id", status_code=400)
+        executor = _make_executor(ctx)
+        result = await executor._handle_duplicate_tool_use_id(exc, attempted=False)
+        assert result is False
+        assert not executor._compactor.events
 
 
 # ============================================================================

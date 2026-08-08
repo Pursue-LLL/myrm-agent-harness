@@ -42,7 +42,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `session_access_middleware.py` | Core | Inject per-turn HITL session directory access context (`<session-access>` block) before each model call; dedup via marker. | ✅ |
 | `subagent_limit_middleware.py` | Core | Max concurrent subagents per turn. | ✅ |
 | `sync_hook_parity.py` | Internal | `SyncHookParityAdapter` wraps middlewares missing sync `wrap_tool_call`/`wrap_model_call` so sync ToolNode paths don't raise; `apply_sync_hook_parity()` auto-wraps the middleware list. | ✅ |
-| `tool_call_dedup_middleware.py` | Core | tool_call_id deduplication. | ✅ |
+| `tool_history_hygiene.py` | Core | Sanitize pipeline: within-AIMessage re-id → ToolMessage dedup (keep-last) → cross-turn re-id; exports `sanitize_tool_history()` for grace-call / oneshot retry. Runs before dangling repair. | ✅ |
 | `tool_executor.py` | Core | Tool execution with timeout/retry/backoff; propagates ``ToolError.error_category`` into ToolMessage for SSE. | ✅ |
 | `tool_interceptor_middleware.py` | Core | Single interception point for all tool calls; `reset_loop_guard(is_resume=True)` preserves error signatures and the CallRecord window (`preserve_call_window`); session-key registry keeps LoopGuard across ContextVar loss after HITL resume. | ✅ |
 

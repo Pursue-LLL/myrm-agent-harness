@@ -102,6 +102,7 @@ _REASON_TO_ERROR_KIND: dict[FailoverReason, ErrorKind] = {
     FailoverReason.SESSION_EXPIRED: ErrorKind.AUTH,
     FailoverReason.SAFETY_BLOCK: ErrorKind.SAFETY_BLOCK,
     FailoverReason.THINKING_SIGNATURE: ErrorKind.FORMAT_ERROR,
+    FailoverReason.DUPLICATE_TOOL_USE_ID: ErrorKind.FORMAT_ERROR,
     FailoverReason.IMAGE_TOO_LARGE: ErrorKind.FORMAT_ERROR,
     FailoverReason.MEDIA_REJECTED: ErrorKind.FORMAT_ERROR,
     FailoverReason.FORMAT_ERROR: ErrorKind.FORMAT_ERROR,
@@ -248,6 +249,15 @@ _THINKING_SIGNATURE_RE = re.compile(
     re.IGNORECASE,
 )
 
+_DUPLICATE_TOOL_USE_ID_RE = re.compile(
+    r"tool_use.{0,40}(?:unique|duplicate|duplicat|must be)"
+    r"|duplicate.{0,40}tool_use"
+    r"|tool_call_id.{0,40}(?:unique|duplicate|duplicat|must be)"
+    r"|(?:unique|duplicate).{0,40}tool_call_id"
+    r"|messages\.\d+\.tool_calls\.\d+\.id",
+    re.IGNORECASE,
+)
+
 _IMAGE_TOO_LARGE_RE = re.compile(
     r"image exceeds|image.{0,6}too.{0,3}large|image_too_large|image size exceeds"
     r"|exceeds.+per.?image.+limit"
@@ -365,7 +375,7 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
     """Classify an LLM exception into a ``FailoverReason`` using deep inspection.
 
     Priority (specific → broad):
-      thinking_signature → image_too_large → long_context_tier → billing →
+      thinking_signature → duplicate_tool_use_id → image_too_large → long_context_tier → billing →
       rate_limit → overloaded → auth → provider_format → safety_block →
       provider_policy_blocked → model_not_found → context_overflow → timeout → UNKNOWN
     """
@@ -381,6 +391,10 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
     # 0a. Anthropic thinking block signature invalid (400) — must precede generic 400
     if normalized.status_code == 400 and _THINKING_SIGNATURE_RE.search(msg):
         return FailoverReason.THINKING_SIGNATURE
+
+    # 0a2. Duplicate tool_use / tool_call_id — must precede generic 400
+    if normalized.status_code == 400 and _DUPLICATE_TOOL_USE_ID_RE.search(msg):
+        return FailoverReason.DUPLICATE_TOOL_USE_ID
 
     # 0b. Per-image size limit exceeded — must precede generic 400 / overflow
     if _IMAGE_TOO_LARGE_RE.search(msg):

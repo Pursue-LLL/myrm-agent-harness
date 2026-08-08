@@ -179,6 +179,7 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
         length_continue_retries = 0
         empty_response_retries = 0
         thinking_sig_attempted = False
+        duplicate_tool_use_attempted = False
         image_shrink_attempted = False
         media_rejected_attempted = False
         allowed_tools_rejected_attempted = False
@@ -309,6 +310,12 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
                             astream_exc, thinking_sig_attempted
                         ):
                             thinking_sig_attempted = True
+                            continue
+
+                        if await self._handle_duplicate_tool_use_id(
+                            astream_exc, duplicate_tool_use_attempted
+                        ):
+                            duplicate_tool_use_attempted = True
                             continue
 
                         if await self._handle_image_shrink(

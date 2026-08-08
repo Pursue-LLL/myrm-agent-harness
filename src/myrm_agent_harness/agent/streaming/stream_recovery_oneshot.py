@@ -12,8 +12,8 @@ without entering backoff or failover loops.
 - OneshotRecoveryMixin: One-shot recovery handlers mixed into StreamRecoveryMixin
 
 [POS]
-Targeted one-shot recovery handlers for THINKING_SIGNATURE, IMAGE_TOO_LARGE,
-MEDIA_REJECTED, ALLOWED_TOOLS_TOOL_CHOICE_REJECTED, and LONG_CONTEXT_TIER errors. Includes model name resolution
+Targeted one-shot recovery handlers for THINKING_SIGNATURE, DUPLICATE_TOOL_USE_ID,
+IMAGE_TOO_LARGE, MEDIA_REJECTED, ALLOWED_TOOLS_TOOL_CHOICE_REJECTED, and LONG_CONTEXT_TIER errors. Includes model name resolution
 via llm_info for capability learning.
 """
 
@@ -123,6 +123,45 @@ class OneshotRecoveryMixin:
             stripped,
         )
         await self._emit_recovery_event("thinking_signature_recovery")
+        self.streaming_final_answer = False
+        return True
+
+    async def _handle_duplicate_tool_use_id(
+        self,
+        exc: Exception,
+        attempted: bool,
+    ) -> bool:
+        """Sanitize duplicate tool_call_ids in history and retry once.
+
+        Anthropic and some OpenAI-compatible gateways reject requests when the
+        same tool_use / tool_call_id appears in multiple AIMessages.
+        """
+        if attempted:
+            return False
+        reason = classify_failover_reason(exc)
+        if reason != FailoverReason.DUPLICATE_TOOL_USE_ID:
+            return False
+
+        from myrm_agent_harness.agent.middlewares.tool_history_hygiene import (
+            sanitize_tool_history,
+        )
+
+        ctx = self._ctx
+        if isinstance(ctx.agent_input, Command):
+            return False
+
+        messages_dict = ctx.agent_input
+        messages = cast(list["BaseMessage"], messages_dict.get("messages", []))
+        sanitized = sanitize_tool_history(messages)
+        if sanitized is messages:
+            return False
+
+        messages_dict["messages"] = sanitized
+        logger.warning(
+            " Duplicate tool_use id — sanitized tool history (%d messages), retrying",
+            len(sanitized),
+        )
+        await self._emit_recovery_event("tool_history_recovery")
         self.streaming_final_answer = False
         return True
 

@@ -541,6 +541,9 @@ class StreamRecoveryMixin(
         from myrm_agent_harness.agent.middlewares.dangling_tool_call_middleware import (
             repair_dangling_tool_calls,
         )
+        from myrm_agent_harness.agent.middlewares.tool_history_hygiene import (
+            sanitize_tool_history,
+        )
 
         llm = self._ctx.llm
         if llm is None:
@@ -558,7 +561,9 @@ class StreamRecoveryMixin(
                 "Respond in the same language as the conversation."
             ),
         )
-        repaired_messages = repair_dangling_tool_calls(list(collected_messages))
+        repaired_messages = repair_dangling_tool_calls(
+            sanitize_tool_history(list(collected_messages))
+        )
         tail = repaired_messages[-20:]
         while tail and getattr(tail[0], "type", None) == "tool":
             tail = tail[1:]

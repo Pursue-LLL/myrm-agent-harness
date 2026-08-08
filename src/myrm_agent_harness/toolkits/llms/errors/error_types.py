@@ -41,6 +41,7 @@ class FailoverReason(Enum):
     OVERLOADED = "overloaded"  # Service overloaded/high demand
     TIMEOUT = "timeout"  # Network timeout or service unavailable
     THINKING_SIGNATURE = "thinking_signature"  # Anthropic thinking block signature invalid (retryable after strip)
+    DUPLICATE_TOOL_USE_ID = "duplicate_tool_use_id"  # Duplicate tool_use / tool_call_id (retryable after sanitize)
     IMAGE_TOO_LARGE = "image_too_large"  # Per-image size limit exceeded (retryable after shrink)
     MEDIA_REJECTED = "media_rejected"  # Model does not support multimodal input (retryable after strip)
     UNKNOWN = "unknown"  # Unknown error (treat as transient)
@@ -99,6 +100,7 @@ _REASON_TO_RECOVERABILITY: dict[FailoverReason, RecoverabilityLevel] = {
     FailoverReason.OVERLOADED: RecoverabilityLevel.TRANSIENT,
     FailoverReason.TIMEOUT: RecoverabilityLevel.TRANSIENT,
     FailoverReason.THINKING_SIGNATURE: RecoverabilityLevel.TRANSIENT,
+    FailoverReason.DUPLICATE_TOOL_USE_ID: RecoverabilityLevel.TRANSIENT,
     FailoverReason.IMAGE_TOO_LARGE: RecoverabilityLevel.TRANSIENT,
     FailoverReason.MEDIA_REJECTED: RecoverabilityLevel.TRANSIENT,
     FailoverReason.UNKNOWN: RecoverabilityLevel.TRANSIENT,
@@ -171,6 +173,12 @@ _REASON_TO_PROBE_POLICY: dict[FailoverReason, ProbePolicy] = {
         interval_ms=0,
         max_attempts=0,
         cooldown_ms=0,  # One-shot recovery via _handle_thinking_signature
+    ),
+    FailoverReason.DUPLICATE_TOOL_USE_ID: ProbePolicy(
+        enabled=False,
+        interval_ms=0,
+        max_attempts=0,
+        cooldown_ms=0,  # One-shot recovery via _handle_duplicate_tool_use_id
     ),
     FailoverReason.IMAGE_TOO_LARGE: ProbePolicy(
         enabled=False,
