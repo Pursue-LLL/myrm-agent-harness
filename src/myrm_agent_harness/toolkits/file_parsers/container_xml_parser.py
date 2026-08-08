@@ -35,7 +35,7 @@ class EpubParser(FileParser):
                     chunks.append(normalized)
 
         joined = "\n\n".join(chunks)
-        logger.warning("EPUB parsed: %s, sections=%d", path.name, len(chunks))
+        logger.info("EPUB parsed: %s, sections=%d", path.name, len(chunks))
         return joined
 
     @property
@@ -64,7 +64,7 @@ class OdfParser(FileParser):
             node.text.strip() for node in root.iter() if node.text and node.text.strip()
         ]
         joined = "\n".join(texts)
-        logger.warning("ODF parsed: %s, nodes=%d", path.name, len(texts))
+        logger.info("ODF parsed: %s, nodes=%d", path.name, len(texts))
         return joined
 
     @property

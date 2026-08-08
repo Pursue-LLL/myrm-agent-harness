@@ -73,19 +73,21 @@ def _read_prefix(path: Path) -> bytes:
 def _sniff_zip_container(path: Path) -> str | None:
     try:
         with zipfile.ZipFile(path) as archive:
-            if "mimetype" in archive.namelist():
+            names = archive.namelist()
+            if "mimetype" in names:
                 raw_mimetype = (
                     archive.read("mimetype").decode("utf-8", errors="ignore").strip()
                 )
                 mapped = _ZIP_EXTENSIONS.get(raw_mimetype.split(";")[0].strip())
                 if mapped:
                     return mapped
-            if "[Content_Types].xml" in archive.namelist():
-                if any(name.startswith("word/") for name in archive.namelist()):
-                    return ".docx"
-            if "META-INF/container.xml" in archive.namelist():
+            if "[Content_Types].xml" in names and any(
+                name.startswith("word/") for name in names
+            ):
+                return ".docx"
+            if "META-INF/container.xml" in names:
                 return ".epub"
-            if "content.xml" in archive.namelist():
+            if "content.xml" in names:
                 return ".odt"
     except (OSError, zipfile.BadZipFile):
         return None
@@ -113,19 +115,21 @@ def _sniff_zip_container_bytes(content: bytes) -> str | None:
 
     try:
         with zipfile.ZipFile(io.BytesIO(content)) as archive:
-            if "mimetype" in archive.namelist():
+            names = archive.namelist()
+            if "mimetype" in names:
                 raw_mimetype = (
                     archive.read("mimetype").decode("utf-8", errors="ignore").strip()
                 )
                 mapped = _ZIP_EXTENSIONS.get(raw_mimetype.split(";")[0].strip())
                 if mapped:
                     return mapped
-            if "content.xml" in archive.namelist():
+            if "content.xml" in names:
                 return ".odt"
-            if "[Content_Types].xml" in archive.namelist():
-                if any(name.startswith("word/") for name in archive.namelist()):
-                    return ".docx"
-            if "META-INF/container.xml" in archive.namelist():
+            if "[Content_Types].xml" in names and any(
+                name.startswith("word/") for name in names
+            ):
+                return ".docx"
+            if "META-INF/container.xml" in names:
                 return ".epub"
     except (OSError, zipfile.BadZipFile):
         return None
