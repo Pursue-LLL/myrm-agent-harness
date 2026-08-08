@@ -37,6 +37,88 @@ _inject_smart_env() {
 }
 
 # -----------------------------------------------------------------------------
+# GitHub Credential & Identity Injection (push / commit)
+# -----------------------------------------------------------------------------
+# When GITHUB_TOKEN is present (injected by the credential pipeline), HTTPS
+# GitHub pushes authenticate automatically, and commits get a resolved identity
+# even in freshly-provisioned sandboxes that have no global git config.
+
+_git_is_https_github_remote() {
+    case "$1" in
+        https://github.com/* | http://github.com/* | https://www.github.com/*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+_git_has_existing_credentials() {
+    [ -n "$(command git config --get credential.helper 2>/dev/null)" ] && return 0
+    [ -f "$HOME/.git-credentials" ] && return 0
+    return 1
+}
+
+_git_remote_url() {
+    local branch remote
+    branch=$(command git symbolic-ref --short HEAD 2>/dev/null)
+    remote=$(command git config --get "branch.${branch}.remote" 2>/dev/null)
+    [ -z "$remote" ] && remote="origin"
+    command git remote get-url "$remote" 2>/dev/null
+}
+
+_git_resolve_identity() {
+    local name email login cached cname cemail cache_file
+    name=$(command git config --get user.name 2>/dev/null) || name=""
+    email=$(command git config --get user.email 2>/dev/null) || email=""
+    if [ -z "$name" ] || [ -z "$email" ]; then
+        if [ -n "$GITHUB_TOKEN" ]; then
+            cache_file="${TMPDIR:-/tmp}/myrm_gh_identity"
+            if [ -f "$cache_file" ]; then
+                cached=$(cat "$cache_file")
+                cname="${cached%%|*}"
+                cemail="${cached#*|}"
+                [ -z "$name" ] && name="$cname"
+                [ -z "$email" ] && email="$cemail"
+            fi
+            if [ -z "$name" ] || [ -z "$email" ]; then
+                login=$(curl -fsSL --max-time 5 -H "Authorization: token ${GITHUB_TOKEN}" \
+                    https://api.github.com/user 2>/dev/null \
+                    | grep -o '"login":"[^"]*"' | head -n 1 | cut -d'"' -f4)
+                if [ -n "$login" ]; then
+                    [ -z "$name" ] && name="$login"
+                    [ -z "$email" ] && email="${login}@users.noreply.github.com"
+                    printf '%s|%s' "$name" "$email" > "$cache_file" 2>/dev/null || true
+                fi
+            fi
+        fi
+    fi
+    [ -z "$name" ] && name="myrm-agent"
+    [ -z "$email" ] && email="myrm-agent@users.noreply.github.com"
+    printf '%s|%s' "$name" "$email"
+}
+
+_git_push() {
+    local extra_args=() url
+    if [ -n "$GITHUB_TOKEN" ]; then
+        url=$(_git_remote_url)
+        if _git_is_https_github_remote "$url" && ! _git_has_existing_credentials; then
+            extra_args+=(-c "credential.helper=!f() { echo username=git; echo password=${GITHUB_TOKEN}; }; f")
+        fi
+    fi
+    command git "${extra_args[@]}" "$@"
+}
+
+_git_commit() {
+    if ! command git config --get user.name >/dev/null 2>&1 || ! command git config --get user.email >/dev/null 2>&1; then
+        local ident name email
+        ident=$(_git_resolve_identity)
+        name="${ident%%|*}"
+        email="${ident#*|}"
+        command git -c "user.name=${name}" -c "user.email=${email}" "$@"
+        return $?
+    fi
+    command git "$@"
+}
+
+# -----------------------------------------------------------------------------
 # Command Hijacking
 # -----------------------------------------------------------------------------
 
@@ -149,6 +231,12 @@ git() {
         else
             LC_ALL=C command git diff "${diff_args[@]}"
         fi
+    elif [ "$1" = "push" ]; then
+        shift
+        _git_push "$@"
+    elif [ "$1" = "commit" ]; then
+        shift
+        _git_commit "$@"
     else
         command git "$@"
     fi

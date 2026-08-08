@@ -24,10 +24,10 @@ from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedI
 
 from ..core.frontmatter_contract import WikiPublishStatus
 from ..core.structure import WikiStructure
+from .indexer import WikiIndexer
 
 if TYPE_CHECKING:
     from .asset_index import WikiAssetIndexer
-    from .indexer import WikiIndexer
 
 logger = logging.getLogger(__name__)
 
@@ -79,11 +79,7 @@ async def reindex_published_vectors(
 ) -> WikiVectorReindexResult:
     """Re-upsert published concept, sidecar, and optional asset vectors."""
     if indexer is None:
-        from .indexer import WikiIndexer
-
         indexer = WikiIndexer(structure)
-
-    from .indexer import WikiIndexer as _WikiIndexer
 
     concepts_scanned = 0
     concepts_reindexed = 0
@@ -104,7 +100,7 @@ async def reindex_published_vectors(
         concepts_scanned += 1
         try:
             content = concept_path.read_text(encoding="utf-8")
-            publish_status = _WikiIndexer._resolve_publish_status(content)
+            publish_status = WikiIndexer._resolve_publish_status(content)
             if publish_status != WikiPublishStatus.PUBLISHED.value:
                 skipped_drafts += 1
                 continue
