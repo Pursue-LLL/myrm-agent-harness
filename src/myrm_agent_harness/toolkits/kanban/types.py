@@ -245,6 +245,10 @@ class KanbanTask:
     # Agent binding — allows different tasks to use different agent profiles
     agent_id: str | None = None
 
+    # Model override — per-task LLM model; overrides the agent profile default.
+    # Optional — when None, the task inherits the resolved profile model.
+    model_override: str | None = None
+
     # Hierarchy — simple parent-child, no complex DAG
     parent_task_id: str | None = None
 
@@ -305,6 +309,7 @@ class KanbanTask:
             "status": self.status.value,
             "priority": self.priority.value,
             "agent_id": self.agent_id,
+            "model_override": self.model_override,
             "parent_task_id": self.parent_task_id,
             "workspace_path": self.workspace_path,
             "branch": self.branch,

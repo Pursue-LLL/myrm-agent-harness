@@ -70,6 +70,7 @@ def build_orchestrator_tools(
         assign_agent_id: str = "",
         idempotency_key: str = "",
         skills: str = "",
+        model: str = "",
     ) -> str:
         """Add a new task to the kanban board.
 
@@ -85,6 +86,7 @@ def build_orchestrator_tools(
             assign_agent_id: Agent to assign this task to.
             idempotency_key: Unique key to prevent duplicate creation on retry.
             skills: Comma-separated extra skills for this task only (e.g. "translation,security-audit").
+            model: Per-task model override in 'provider/model' form (e.g. "anthropic/claude-sonnet-4"). Empty = inherit the agent profile default.
         """
         resolved_board_id = board_id or default_board_id or ""
         if not resolved_board_id:
@@ -139,6 +141,7 @@ def build_orchestrator_tools(
             ),
             max_retries=max_retries,
             extra_skill_ids=parsed_skills,
+            model_override=model or None,
         )
 
         if idempotency_key:

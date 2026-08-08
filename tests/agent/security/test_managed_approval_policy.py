@@ -83,3 +83,17 @@ def test_load_from_env_invalid_json() -> None:
         env={"MYRM_MANAGED_APPROVAL_POLICY_JSON": "not-json"},
     )
     assert policy == ManagedApprovalPolicy.empty()
+
+
+def test_configure_bumps_revision() -> None:
+    from myrm_agent_harness.agent.security.managed_approval_policy import (
+        configure_process_managed_approval_policy,
+        get_process_managed_approval_revision,
+    )
+
+    start = get_process_managed_approval_revision()
+    configure_process_managed_approval_policy(
+        ManagedApprovalPolicy.from_mapping({"disableYolo": True}),
+    )
+    assert get_process_managed_approval_revision() == start + 1
+    configure_process_managed_approval_policy(ManagedApprovalPolicy.empty())

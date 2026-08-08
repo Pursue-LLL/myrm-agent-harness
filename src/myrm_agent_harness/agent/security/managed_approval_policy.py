@@ -87,6 +87,7 @@ class ManagedApprovalPolicy:
 
 
 _process_policy: ManagedApprovalPolicy = ManagedApprovalPolicy.empty()
+_process_revision: int = 0
 
 
 def _parse_pattern_set(value: object) -> frozenset[str]:
@@ -101,12 +102,17 @@ def _parse_pattern_set(value: object) -> frozenset[str]:
 
 def configure_process_managed_approval_policy(policy: ManagedApprovalPolicy) -> None:
     """Set process-wide MAP (called from agent-server startup)."""
-    global _process_policy
+    global _process_policy, _process_revision
     _process_policy = policy
+    _process_revision += 1
 
 
 def get_process_managed_approval_policy() -> ManagedApprovalPolicy:
     return _process_policy
+
+
+def get_process_managed_approval_revision() -> int:
+    return _process_revision
 
 
 def load_managed_approval_policy_from_env(

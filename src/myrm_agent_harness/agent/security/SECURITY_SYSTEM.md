@@ -572,7 +572,7 @@ Step 6:    Transcript Classifier → 当 auto_mode_enabled 时，对所有 engin
 
 Org 管理员可通过 Control Plane 配置 **Managed Approval Policy (MAP)**，经 sandbox env 注入并在 harness 进程内由 `managed_approval_policy.py` 加载。MAP 是组织级**下限**（floor），不替代用户/Agent 的 SecurityConfig，仅在匹配模型上收紧审批路径。
 
-**模型匹配**：`forceAutoReviewForModels` / `ignoreAllowlistForModels` 使用 fnmatch glob（`fnmatchcase`，大小写敏感），对 Agent 的 primary model 字符串匹配。
+**模型匹配**：`forceAutoReviewForModels` / `ignoreAllowlistForModels` 使用 fnmatch glob（`fnmatchcase`，大小写敏感），对 Agent 的 **bare model slug** 匹配（与 `parse_litellm_model` 第二段一致，`agent_runtime.py` 注入 primary model）。Control Plane upsert 时会 strip 可选的 `provider/` 前缀后再存库与 fanout。
 
 **与 YOLO 的 precedence**（`managed_policy_gates.yolo_allowed_for_model` → `batch_processor.evaluate_tool_batch`）：
 
@@ -584,7 +584,9 @@ Org 管理员可通过 Control Plane 配置 **Managed Approval Policy (MAP)**，
 
 **Auto-review**：模型命中 `forceAutoReviewForModels` 时 `effective_auto_mode_enabled` 强制为 True（Smart Guard 审查路径），即使用户关闭了 auto mode。
 
-**热同步**：Control Plane upsert/delete 后 fanout 到 ACTIVE sandbox，调用 server internal `POST /api/admin/org-managed-approval-policy-sync` → `configure_process_managed_approval_policy()`。
+**热同步**：Control Plane upsert/delete 后 fanout 到 ACTIVE sandbox，调用 server internal `POST /api/admin/org-managed-approval-policy-sync` → `configure_process_managed_approval_policy()` → `AppEventType.MANAGED_POLICY_UPDATED` SSE 推送 FE refetch。
+
+**前端（myrm-agent）**：Settings/Chat 通过 `GET /api/v1/security/managed-policy/effective` 只读 MAP（页面 mount + CP sync SSE push + 标签页重新可见 / Tauri focus 时 refetch；含 monotonic `revision`）。`disableYolo=True` 时清除本地 stale YOLO 配置并展示 org 锁定文案；Agent 编辑页展示 per-model MAP badge；YOLO Banner 在 org 约束时展示真实审批提示（非「全自动批准」）。
 
 ### 5.1 Allowlist — 持久化白名单（细粒度匹配）
 

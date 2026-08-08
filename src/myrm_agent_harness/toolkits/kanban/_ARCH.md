@@ -234,10 +234,19 @@ Protocol-first architecture with strict framework-business separation.
     `PAUSED/NEEDS_HUMAN_REVIEW` → task failure with pause reason. The `GoalProvider`
     is unregistered from `GoalRegistry` in the runner's `finally` block to prevent leaks.
 
+24. **Per-task model override (model_override)**: Each `KanbanTask` carries an optional
+    `model_override: str | None` field in `'provider/model'` LiteLLM form. When set, the
+    server `TaskRunner` resolves this model for the task instead of the agent profile
+    default — enabling task-level cost governance and model specialization. Child tasks
+    created via decomposition inherit the parent's override unless they specify their own.
+    The `kanban_add_task` orchestrator tool accepts a `model` parameter; the API layer
+    validates overrides against enabled providers (400 on unresolvable models) to prevent
+    silent runtime fallback.
+
 ## Domain Model
 
 - `KanbanBoard`: Top-level grouping with `BoardSettings` (includes `default_workdir`, `block_recurrence_limit` for block→unblock→TRIAGE escalation)
-- `KanbanTask`: Unit of work with 8-state lifecycle (TRIAGE → BACKLOG → READY → RUNNING → COMPLETED/FAILED/BLOCKED/ARCHIVED), with `block_kind` (HUMAN/SCHEDULED/EXTERNAL) and `scheduled_until` for semantic blocking, `block_cycle_count` for detecting block→unblock cycling, `attachments: list[TaskAttachment]` for multimodal file references, `workspace_path` and `branch` for worktree isolation, `goal_mode` and `goal_max_turns` for autonomous multi-turn goal loop execution
+- `KanbanTask`: Unit of work with 8-state lifecycle (TRIAGE → BACKLOG → READY → RUNNING → COMPLETED/FAILED/BLOCKED/ARCHIVED), with `block_kind` (HUMAN/SCHEDULED/EXTERNAL) and `scheduled_until` for semantic blocking, `block_cycle_count` for detecting block→unblock cycling, `attachments: list[TaskAttachment]` for multimodal file references, `workspace_path` and `branch` for worktree isolation, `goal_mode` and `goal_max_turns` for autonomous multi-turn goal loop execution, and `model_override: str | None` for per-task LLM selection overriding the agent profile default
 - `TaskAttachment`: Immutable file attachment (file_id, filename, mime_type, size_bytes, content_ref) with polymorphic content_ref (HTTP URL / vault pointer / inline data)
 - `BlockKind`: Sub-type enum for BLOCKED tasks (HUMAN / SCHEDULED / EXTERNAL)
 - `TaskEdge`: Directed dependency edge (parent→child), forms a DAG with cycle rejection

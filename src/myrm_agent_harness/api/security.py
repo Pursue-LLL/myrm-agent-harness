@@ -15,6 +15,7 @@ from myrm_agent_harness.agent.security.managed_approval_policy import (
     ManagedApprovalPolicy,
     configure_process_managed_approval_policy,
     get_process_managed_approval_policy,
+    get_process_managed_approval_revision,
     load_managed_approval_policy_from_env,
 )
 
@@ -22,5 +23,6 @@ __all__ = [
     "ManagedApprovalPolicy",
     "configure_process_managed_approval_policy",
     "get_process_managed_approval_policy",
+    "get_process_managed_approval_revision",
     "load_managed_approval_policy_from_env",
 ]
