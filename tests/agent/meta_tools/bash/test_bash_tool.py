@@ -134,7 +134,7 @@ async def test_bash_tool_myrm_tools_cat_pipe_preflight_blocks_before_executor(
 async def test_bash_tool_git_clone_hint():
     mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
     mock_bash_exec.execute.side_effect = BashExecutionError(
-        "Command timed out", phase="execution", command="git clone"
+        "Command timed out", phase="execution"
     )
 
     with p_ctx, p_get, p_be, p_scope:
@@ -156,7 +156,7 @@ async def test_bash_tool_git_clone_hint():
 async def test_bash_tool_no_git_clone_hint_for_other_commands():
     mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
     mock_bash_exec.execute.side_effect = BashExecutionError(
-        "Command timed out", phase="execution", command="ls -la"
+        "Command timed out", phase="execution"
     )
 
     with p_ctx, p_get, p_be, p_scope:
@@ -176,7 +176,6 @@ async def test_bash_tool_failure_emits_stderr_evicted_ref():
     mock_bash_exec.execute.side_effect = BashExecutionError(
         "ValueError: bad row 150",
         phase="execution",
-        command="ls -la",
         stderr_evicted_ref="output_fail123.txt",
         stderr_evicted_stored_chars=1500,
         stderr_evicted_total_lines=12,
@@ -212,7 +211,6 @@ async def test_bash_tool_failure_emits_both_streams_evicted_refs():
     mock_bash_exec.execute.side_effect = BashExecutionError(
         "ValueError: bad row 150",
         phase="execution",
-        command="ls -la",
         stdout_evicted_ref="stdout_out_1.txt",
         stdout_evicted_stored_chars=32,
         stdout_evicted_total_lines=1,
@@ -246,6 +244,87 @@ async def test_bash_tool_failure_emits_both_streams_evicted_refs():
     assert stderr_call.kwargs["stream"] == "stderr"
     assert stderr_call.kwargs["stored_chars"] == 1500
     assert stderr_call.kwargs["total_lines"] == 12
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_failure_carries_error_category_diagnostic() -> None:
+    mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
+    mock_bash_exec.execute.side_effect = BashExecutionError(
+        "ValueError: bad row 150",
+        phase="execution",
+        error_category="EXEC",
+    )
+
+    with p_ctx, p_get, p_be, p_scope:
+        tool = create_bash_code_execute_tool()
+        with pytest.raises(ToolError) as exc_info:
+            await tool.ainvoke(
+                {"command": "ls -la", "reason": "verify diagnostic category"}
+            )
+
+    assert exc_info.value.diagnostic_info == {"error_category": "EXEC"}
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_emit_failure_does_not_mask_original_error() -> None:
+    mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
+    mock_bash_exec.execute.side_effect = BashExecutionError(
+        "ValueError: bad row 150",
+        phase="execution",
+        stderr_evicted_ref="output_fail123.txt",
+        stderr_evicted_stored_chars=1500,
+        stderr_evicted_total_lines=12,
+        stderr_evicted_storage_truncated=False,
+    )
+
+    with p_ctx, p_get, p_be, p_scope:
+        tool = create_bash_code_execute_tool()
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref",
+                new=AsyncMock(side_effect=RuntimeError("emit down")),
+            ),
+            pytest.raises(ToolError) as exc_info,
+        ):
+            await tool.ainvoke(
+                {"command": "ls -la", "reason": "verify emit failure isolation"}
+            )
+
+    assert str(exc_info.value) == "ValueError: bad row 150"
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_success_emits_stderr_evicted_ref() -> None:
+    mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
+    mock_bash_exec.execute.return_value = {
+        "stdout": "ok",
+        "stderr": "",
+        "exit_code": "0",
+        "mcp_metadata": None,
+        "generated_files": [],
+        "stderr_evicted_ref": "stderr_out_1.txt",
+        "stderr_evicted_stored_chars": 2048,
+        "stderr_evicted_total_lines": 100,
+        "stderr_evicted_storage_truncated": False,
+    }
+
+    with p_ctx, p_get, p_be, p_scope:
+        tool = create_bash_code_execute_tool()
+        with patch(
+            "myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref",
+            new=AsyncMock(),
+        ) as mock_emit:
+            await tool.ainvoke(
+                {"command": "ls -la", "reason": "verify success-path stderr emit"}
+            )
+
+    mock_emit.assert_awaited_once()
+    call = mock_emit.await_args
+    assert call.args[0] == "stderr_out_1.txt"
+    assert call.kwargs["stream"] == "stderr"
+    assert call.kwargs["stored_chars"] == 2048
+    assert call.kwargs["total_lines"] == 100
+    assert call.kwargs["storage_truncated"] is False
 
 
 def test_mcp_min_timeout_constant_exceeds_ipc_client() -> None:

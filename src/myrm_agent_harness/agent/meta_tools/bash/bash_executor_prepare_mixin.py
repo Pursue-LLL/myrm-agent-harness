@@ -174,9 +174,6 @@ class BashExecutorPrepareMixin:
         raise BashExecutionError(
             f"Python syntax validation failed: {error}",
             phase="preparation",
-            command=original_command,
-            stdout="",
-            stderr=error,
             error_hint=hint,
             error_category="syntax",
         )

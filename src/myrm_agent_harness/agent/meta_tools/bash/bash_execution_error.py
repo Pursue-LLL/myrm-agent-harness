@@ -24,9 +24,6 @@ class BashExecutionError(Exception):
         error_hint: str | None = None,
         error_category: str | None = None,
         phase: str | None = None,
-        command: str = "",
-        stdout: str = "",
-        stderr: str = "",
         stdout_evicted_ref: str | None = None,
         stdout_evicted_stored_chars: int | None = None,
         stdout_evicted_total_lines: int | None = None,
@@ -40,9 +37,6 @@ class BashExecutionError(Exception):
         self.error_hint = error_hint
         self.error_category = error_category
         self.phase = phase
-        self.command = command
-        self.stdout = stdout
-        self.stderr = stderr
         self.stdout_evicted_ref = stdout_evicted_ref
         self.stdout_evicted_stored_chars = stdout_evicted_stored_chars
         self.stdout_evicted_total_lines = stdout_evicted_total_lines

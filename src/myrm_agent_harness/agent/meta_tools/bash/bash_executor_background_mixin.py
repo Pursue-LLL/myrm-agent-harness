@@ -109,7 +109,6 @@ class BashExecutorBackgroundMixin:
             raise BashExecutionError(
                 f"Background execution is not supported by the active executor ({self._executor.get_executor_name()}).",
                 phase="validation",
-                command=command,
                 error_category="BACKGROUND_UNSUPPORTED",
                 error_hint="Use a LocalExecutor backend or omit run_in_background.",
             )
@@ -136,7 +135,6 @@ class BashExecutorBackgroundMixin:
             raise BashExecutionError(
                 str(exc),
                 phase="validation",
-                command=command,
                 error_category="BACKGROUND_QUOTA_EXCEEDED",
                 error_hint=(
                     "Stop or wait for an existing background job before starting a new one."

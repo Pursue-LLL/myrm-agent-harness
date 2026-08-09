@@ -249,10 +249,13 @@ Protocol-first architecture with strict framework-business separation.
     emits `REVIEW_REQUESTED`. `approve_task(task_id, approver)` promotes `IN_REVIEW` →
     `COMPLETED` (clears failure counters, records `APPROVED` event, promotes dependents);
     `reject_task(task_id, reason, approver)` returns the task to `READY` with the reason
-    echoed into `task.error` and a `REJECTED` event, so a re-run adapts. Both are
-    operator-driven (REST/GUI only — no LLM tool) and idempotent no-ops when the task is
-    not `IN_REVIEW`. Rejected reasons surface in the worker context under
-    `## Review history` (via `context_builder`).
+    echoed into `task.error`, resets `retry_count`/`consecutive_failures` so rework gets a
+    fresh budget, and records a `REJECTED` event. Both are operator-driven (REST/GUI only —
+    no LLM tool) and idempotent no-ops when the task is not `IN_REVIEW`. Both transitions
+    use the store's atomic `transition_task_status` CAS (`expected_status` guard), so
+    concurrent approve/reject calls resolve exactly once and loser calls observe the
+    post-transition state without emitting duplicate events. Rejected reasons surface in
+    the worker context under `## Review history` (via `context_builder`).
 
 ## Domain Model
 
@@ -277,7 +280,7 @@ Protocol-first architecture with strict framework-business separation.
 | File | POS |
 |------|-----|
 | `types.py` | Pure domain types (Board, Task, Status, Priority, Settings, Run, Event) |
-| `protocols.py` | KanbanStore (CRUD + edges + runs + events) + TaskRunner + CompletionVerifier + TaskSpecifier + TaskDecomposer protocol contracts |
+| `protocols.py` | KanbanStore (CRUD + edges + runs + events + `transition_task_status` 原子 CAS) + TaskRunner + CompletionVerifier + TaskSpecifier + TaskDecomposer protocol contracts |
 | `stores.py` | InMemoryKanbanStore (test/reference, with DFS cycle detection) |
 | `dispatcher.py` | Event-driven scheduler — dispatch loop, task execution, completion verification, dependency promotion, event emission |
 | `dispatcher_failure.py` | Failure/timeout/retry pipeline mixin for KanbanDispatcher |

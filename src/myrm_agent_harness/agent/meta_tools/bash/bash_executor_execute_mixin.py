@@ -60,7 +60,6 @@ class BashExecutorExecuteMixin:
                 "session_id is required for code execution. "
                 "Business layer must provide session_id in context (e.g., session_id = f'{user_id}_{chat_id}')",
                 phase="validation",
-                command=command,
                 error_category="MISSING_SESSION_ID",
                 error_hint="Provide session_id in execute() call",
             )
@@ -175,6 +174,11 @@ class BashExecutorExecuteMixin:
                 result.stderr or "", self._executor
             )
             message = self._build_error_details(result)
+            # stdout is symmetric with stderr: small output goes verbatim so the
+            # LLM sees partial progress context; large output is evicted and the
+            # banner + file_read_tool footer guides read-back instead of noise.
+            if stdout_eviction.text and stdout_eviction.text != message:
+                message = f"{message}\n\n{stdout_eviction.text}"
             if stderr_eviction.text and stderr_eviction.text != message:
                 message = f"{message}\n\n{stderr_eviction.text}"
 
@@ -191,7 +195,6 @@ class BashExecutorExecuteMixin:
             raise BashExecutionError(
                 message,
                 phase="execution",
-                command=command,
                 stdout_evicted_ref=stdout_eviction.evicted_ref,
                 stdout_evicted_stored_chars=stdout_eviction.stored_chars,
                 stdout_evicted_total_lines=stdout_eviction.total_lines,

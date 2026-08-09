@@ -1,7 +1,8 @@
 """Tests for the task-level human approval gate (IN_REVIEW state machine).
 
 Covers: require_approval routing on verified success, approve → COMPLETED +
-dependent promotion, reject → READY with reason echo, idempotency, and the
+dependent promotion, reject → READY with reason echo, idempotency, CAS
+(concurrent approve resolves once), retry budget reset on reject, and the
 review-history section surfaced in the worker context.
 """
 

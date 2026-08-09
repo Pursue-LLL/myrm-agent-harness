@@ -33,8 +33,6 @@ class TestBashExecutionError:
         err = BashExecutionError(
             "failed",
             phase="execution",
-            command="ls",
-            stderr="Traceback ...\nValueError: x",
             error_hint="fix it",
             error_category="EXEC",
             stderr_evicted_ref="output_abc.txt",
@@ -288,6 +286,7 @@ async def test_execute_failure_evicts_stderr_into_message() -> None:
     assert err.error_category == "EXEC"
     assert "ValueError: bad row 150" in str(err)
     assert "LARGE OUTPUT TRUNCATED" in str(err)
+    assert "LARGE STDOUT TRUNCATED" in str(err)
     assert "processed row" not in str(err)
     assert err.stdout_evicted_ref == "stdout_out_1.txt"
     assert err.stdout_evicted_stored_chars == 32
@@ -342,6 +341,47 @@ async def test_execute_failure_small_stderr_visible_in_message() -> None:
 
     err = exc_info.value
     assert str(err) == "boom: cannot find package"
+    assert err.stderr_evicted_ref is None
+
+
+@pytest.mark.asyncio
+async def test_execute_failure_small_stdout_visible_in_message() -> None:
+    executor = _mock_code_executor()
+    executor.execute_bash.return_value = ExecutionResult(
+        success=False,
+        result=1,
+        stdout="processed row 149\n",
+        stderr=(
+            "Traceback (most recent call last):\n"
+            "ValueError: bad row 150"
+        ),
+        error="ValueError: bad row 150",
+        error_category="EXEC",
+    )
+    bash_exec = BashExecutor(executor, enable_skill_execution=False)
+
+    with (
+        patch.object(
+            bash_exec._workspace_manager,
+            "get_or_create",
+            AsyncMock(return_value=(MagicMock(), None)),
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
+        patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
+        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
+        pytest.raises(BashExecutionError) as exc_info,
+    ):
+        await bash_exec.execute("bad python", session_id="sess-1")
+
+    err = exc_info.value
+    assert "processed row 149" in str(err)
+    assert "ValueError: bad row 150" in str(err)
+    assert err.stdout_evicted_ref is None
     assert err.stderr_evicted_ref is None
 
 
