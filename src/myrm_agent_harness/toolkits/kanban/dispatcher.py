@@ -116,8 +116,12 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
             return
         self._running = True
         await self._rescue_orphaned_tasks()
-        self._dispatch_task = asyncio.create_task(self._dispatch_loop(), name="kanban-dispatch")
-        self._zombie_task = asyncio.create_task(self._zombie_loop(), name="kanban-zombie")
+        self._dispatch_task = asyncio.create_task(
+            self._dispatch_loop(), name="kanban-dispatch"
+        )
+        self._zombie_task = asyncio.create_task(
+            self._zombie_loop(), name="kanban-zombie"
+        )
         logger.info(
             "Kanban dispatcher started for board=%s worker=%s",
             self._board.board_id,
@@ -237,13 +241,17 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
         """Approve an IN_REVIEW task: promote it to COMPLETED and release dependents.
 
         Operator-driven (REST/GUI) — there is no LLM tool for approval.
-        No-op when the task is not IN_REVIEW (idempotent, race-safe).
+        Atomic compare-and-swap on IN_REVIEW makes double-submits idempotent:
+        a task that already left IN_REVIEW is returned unchanged (no-op).
         """
-        task = await self._store.get_task(task_id)
-        if task is None or task.status != TaskStatus.IN_REVIEW:
-            return task
+        task = await self._store.transition_task_status(
+            task_id,
+            TaskStatus.IN_REVIEW,
+            TaskStatus.COMPLETED,
+        )
+        if task is None:
+            return await self._store.get_task(task_id)
 
-        task.status = TaskStatus.COMPLETED
         task.completed_at = datetime.now(UTC)
         task.consecutive_failures = 0
         task.block_cycle_count = 0
@@ -271,15 +279,18 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
 
         The rejection reason is persisted on the event trail and echoed into
         the worker context (via prior-attempt error) so a re-run adapts.
-        No-op when the task is not IN_REVIEW (idempotent, race-safe).
+        Atomic compare-and-swap on IN_REVIEW keeps double-submits idempotent.
         """
-        task = await self._store.get_task(task_id)
-        if task is None or task.status != TaskStatus.IN_REVIEW:
-            return task
+        task = await self._store.transition_task_status(
+            task_id,
+            TaskStatus.IN_REVIEW,
+            TaskStatus.READY,
+        )
+        if task is None:
+            return await self._store.get_task(task_id)
 
-        old_status = task.status
-        task.status = TaskStatus.READY
         task.consecutive_failures = 0
+        task.retry_count = 0
         task.error = reason
         task.last_heartbeat_at = None
         task.progress_note = None
@@ -290,7 +301,7 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
             payload={
                 "reason": reason,
                 "approver": approver or "human",
-                "from": old_status.value,
+                "from": TaskStatus.IN_REVIEW.value,
             },
         )
         self.emit("task_rejected", task)
@@ -308,13 +319,19 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
                 # claim are not lost — the next wait() returns immediately.
                 self._wake_event.clear()
 
-                running_count = len(await self._store.list_running_tasks(self._board.board_id))
+                running_count = len(
+                    await self._store.list_running_tasks(self._board.board_id)
+                )
                 available_slots = settings.max_concurrent_tasks - running_count
 
                 if available_slots > 0:
-                    ready_tasks = await self._store.list_ready_tasks(self._board.board_id)
+                    ready_tasks = await self._store.list_ready_tasks(
+                        self._board.board_id
+                    )
                     for task in ready_tasks[:available_slots]:
-                        claimed = await self._store.claim_task(task.task_id, self._worker_id)
+                        claimed = await self._store.claim_task(
+                            task.task_id, self._worker_id
+                        )
                         if claimed:
                             t = asyncio.create_task(
                                 self._execute_task(task.task_id),

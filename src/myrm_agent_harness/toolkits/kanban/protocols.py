@@ -155,6 +155,19 @@ class KanbanStore(Protocol):
         """
         ...
 
+    async def transition_task_status(
+        self,
+        task_id: str,
+        expected_status: TaskStatus,
+        new_status: TaskStatus,
+    ) -> KanbanTask | None:
+        """Atomically move a task from expected_status to new_status (CAS).
+
+        Returns the updated task when the transition succeeded, or None when the
+        task is missing or not in expected_status (caller should treat as a no-op).
+        """
+        ...
+
     async def list_ready_tasks(self, board_id: str) -> list[KanbanTask]:
         """Return READY tasks sorted by priority (urgent first), then created_at."""
         ...

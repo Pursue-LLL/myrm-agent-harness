@@ -538,7 +538,15 @@ exit 0
 """
 
     @staticmethod
-    def _env(*, remote: str, token: str, cred_helper: str = "", name: str = "", email: str = "", is_repo: str = "1") -> str:
+    def _env(
+        *,
+        remote: str,
+        token: str,
+        cred_helper: str = "",
+        name: str = "",
+        email: str = "",
+        is_repo: str = "1",
+    ) -> str:
         return (
             f"FAKE_GIT_LOG={TestResilienceGitCredentialInjection._FAKE_DIR}/git.log "
             f"FAKE_GIT_IS_REPO={is_repo} FAKE_GIT_NAME={name} FAKE_GIT_EMAIL={email} "
@@ -549,10 +557,14 @@ exit 0
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            await session.execute(f"rm -rf {self._FAKE_DIR} && mkdir -p {self._FAKE_DIR}/home")
+            await session.execute(
+                f"rm -rf {self._FAKE_DIR} && mkdir -p {self._FAKE_DIR}/home"
+            )
             await session.execute('rm -f "${TMPDIR:-/tmp}"/myrm_gh_identity')
             if pre_cache:
-                await session.execute(f"printf '%s' '{pre_cache}' > \"${{TMPDIR:-/tmp}}\"/myrm_gh_identity")
+                await session.execute(
+                    f"printf '%s' '{pre_cache}' > \"${{TMPDIR:-/tmp}}\"/myrm_gh_identity"
+                )
             for name, body in (("git", self._FAKE_GIT), ("curl", self._FAKE_CURL)):
                 b64 = base64.b64encode(body.encode()).decode()
                 await session.execute(
@@ -560,10 +572,14 @@ exit 0
                 )
             # Isolate HOME so a host-level ~/.git-credentials (e.g. gh auth) cannot
             # flip _git_has_existing_credentials and skip helper injection.
-            await session.execute(f"export PATH={self._FAKE_DIR}:$PATH HOME={self._FAKE_DIR}/home {env}")
+            await session.execute(
+                f"export PATH={self._FAKE_DIR}:$PATH HOME={self._FAKE_DIR}/home {env}"
+            )
             await session.execute(f"source {self._RESILIENCE}")
             await session.execute(cmd)
-            result = await session.execute(f"cat {self._FAKE_DIR}/git.log 2>/dev/null || true")
+            result = await session.execute(
+                f"cat {self._FAKE_DIR}/git.log 2>/dev/null || true"
+            )
             return result.stdout
         finally:
             await session.close()
@@ -572,7 +588,9 @@ exit 0
     async def test_push_https_injects_host_scoped_helper(self) -> None:
         """HTTPS GitHub push without existing credentials gets an env-ref helper gated on github.com hosts."""
         log = await self._run(
-            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken"),
+            self._env(
+                remote="https://github.com/owner/repo.git", token="ghp_testtoken"
+            ),
             "git push origin main",
         )
         assert 'host=*) host="${line#host=}"' in log
@@ -594,7 +612,11 @@ exit 0
     async def test_push_existing_helper_passthrough(self) -> None:
         """Existing credential.helper config suppresses injection."""
         log = await self._run(
-            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken", cred_helper="osxkeychain"),
+            self._env(
+                remote="https://github.com/owner/repo.git",
+                token="ghp_testtoken",
+                cred_helper="osxkeychain",
+            ),
             "git push origin main",
         )
         assert "-c credential.helper=" not in log
@@ -603,7 +625,10 @@ exit 0
     async def test_push_https_non_github_remote_passthrough(self) -> None:
         """HTTPS push to a third-party git host never gets the GitHub token."""
         log = await self._run(
-            self._env(remote="https://gitlab.example.com/owner/repo.git", token="ghp_testtoken"),
+            self._env(
+                remote="https://gitlab.example.com/owner/repo.git",
+                token="ghp_testtoken",
+            ),
             "git push origin main",
         )
         assert "-c credential.helper=" not in log
@@ -613,7 +638,9 @@ exit 0
     async def test_push_www_github_host_scope(self) -> None:
         """www.github.com HTTPS push gets the host-scoped helper."""
         log = await self._run(
-            self._env(remote="https://www.github.com/owner/repo.git", token="ghp_testtoken"),
+            self._env(
+                remote="https://www.github.com/owner/repo.git", token="ghp_testtoken"
+            ),
             "git push origin main",
         )
         assert 'host=*) host="${line#host=}"' in log
@@ -634,7 +661,9 @@ exit 0
     async def test_commit_injects_resolved_identity(self) -> None:
         """Commit with no sandbox identity resolves GitHub login and injects user.name/email."""
         log = await self._run(
-            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken"),
+            self._env(
+                remote="https://github.com/owner/repo.git", token="ghp_testtoken"
+            ),
             "git commit -m x",
         )
         assert "-c user.name=octocat" in log
@@ -644,7 +673,12 @@ exit 0
     async def test_commit_passthrough_with_identity(self) -> None:
         """Commit with configured identity passes through without injection."""
         log = await self._run(
-            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken", name="Jane", email="jane@example.com"),
+            self._env(
+                remote="https://github.com/owner/repo.git",
+                token="ghp_testtoken",
+                name="Jane",
+                email="jane@example.com",
+            ),
             "git commit -m x",
         )
         assert "user.name=" not in log
@@ -654,7 +688,11 @@ exit 0
     async def test_commit_non_repo_passthrough(self) -> None:
         """Commit outside a work tree passes through without identity resolution."""
         log = await self._run(
-            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken", is_repo="0"),
+            self._env(
+                remote="https://github.com/owner/repo.git",
+                token="ghp_testtoken",
+                is_repo="0",
+            ),
             "git commit -m x",
         )
         assert "user.name=" not in log
@@ -664,7 +702,9 @@ exit 0
     async def test_commit_uses_cached_identity(self) -> None:
         """Commit identity resolution reuses the TMPDIR cache instead of calling the GitHub API."""
         log = await self._run(
-            self._env(remote="https://github.com/owner/repo.git", token="ghp_testtoken"),
+            self._env(
+                remote="https://github.com/owner/repo.git", token="ghp_testtoken"
+            ),
             "git commit -m x",
             pre_cache="cacheduser|cacheduser@users.noreply.github.com",
         )
@@ -701,7 +741,11 @@ class TestKillProcessTreeEdgeCases:
         mock_sub = MagicMock()
         mock_sub.wait = AsyncMock(return_value=0)
 
-        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_sub) as mock_exec:
+        with patch(
+            "asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            return_value=mock_sub,
+        ) as mock_exec:
             await _kill_process_tree(mock_process, is_windows=True)
             mock_exec.assert_called_once()
             args = mock_exec.call_args[0]
@@ -722,7 +766,11 @@ class TestKillProcessTreeEdgeCases:
         mock_process.pid = 12345
         mock_process.kill = MagicMock()
 
-        with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, side_effect=OSError("fail")):
+        with patch(
+            "asyncio.create_subprocess_exec",
+            new_callable=AsyncMock,
+            side_effect=OSError("fail"),
+        ):
             await _kill_process_tree(mock_process, is_windows=True)
             mock_process.kill.assert_called_once()
 
@@ -764,7 +812,12 @@ class TestKillProcessTreeEdgeCases:
         real_my_pgid = os.getpgid(os.getpid())
         fake_child_pgid = 99999
         with (
-            patch("os.getpgid", side_effect=lambda pid: fake_child_pgid if pid == 99999 else real_my_pgid),
+            patch(
+                "os.getpgid",
+                side_effect=lambda pid: (
+                    fake_child_pgid if pid == 99999 else real_my_pgid
+                ),
+            ),
             patch("os.killpg") as mock_killpg,
         ):
             await _kill_process_tree(mock_process, is_windows=False, grace_period=0.1)
@@ -848,7 +901,12 @@ class TestRecoveryPath:
 
         session = LocalPersistentSession(_make_config())
 
-        with patch.object(session, "_create_process", new_callable=AsyncMock, side_effect=OSError("spawn fail")):
+        with patch.object(
+            session,
+            "_create_process",
+            new_callable=AsyncMock,
+            side_effect=OSError("spawn fail"),
+        ):
             with pytest.raises(OSError, match="spawn fail"):
                 await session.start()
             assert session.state == SessionState.TERMINATED
@@ -861,7 +919,12 @@ class TestRecoveryPath:
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            with patch.object(session, "_create_process", new_callable=AsyncMock, side_effect=OSError("fail")):
+            with patch.object(
+                session,
+                "_create_process",
+                new_callable=AsyncMock,
+                side_effect=OSError("fail"),
+            ):
                 result = await session._recover_and_retry("echo x", timeout=5)
                 assert not result.success
                 assert "Recovery failed" in result.error
@@ -881,7 +944,12 @@ class TestCheckHealthEdge:
         session = LocalPersistentSession(_make_config())
         await session.start()
         try:
-            with patch.object(session, "execute", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+            with patch.object(
+                session,
+                "execute",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("boom"),
+            ):
                 result = await session.check_health()
                 assert result is False
         finally:

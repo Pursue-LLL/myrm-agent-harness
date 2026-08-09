@@ -222,6 +222,19 @@ class InMemoryKanbanStore(KanbanStore):
         task.metadata["worker_id"] = worker_id
         return True
 
+    async def transition_task_status(
+        self,
+        task_id: str,
+        expected_status: TaskStatus,
+        new_status: TaskStatus,
+    ) -> KanbanTask | None:
+        task = self._tasks.get(task_id)
+        if task is None or task.status != expected_status:
+            return None
+        task.status = new_status
+        task.updated_at = datetime.now(UTC)
+        return copy.deepcopy(task)
+
     async def list_ready_tasks(self, board_id: str) -> list[KanbanTask]:
         ready = [t for t in self._tasks.values() if t.board_id == board_id and t.status == TaskStatus.READY]
         ready.sort(key=lambda t: (_PRIORITY_ORDER.get(t.priority, 2), t.created_at))

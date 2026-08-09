@@ -224,6 +224,44 @@ class TestApprovalGate:
         assert again.status == TaskStatus.IN_REVIEW
         assert len(await store.list_runs("t1")) >= 2
 
+    @pytest.mark.asyncio
+    async def test_reject_resets_retry_budget(self) -> None:
+        """Rejection grants a fresh retry budget for the rework attempt."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+        task = _make_task(status=TaskStatus.IN_REVIEW, require_approval=True)
+        task.retry_count = 2
+        task.consecutive_failures = 2
+        await store.save_task(task)
+
+        d = KanbanDispatcher(store, _FakeRunner(), board, verifier=_PassVerifier())
+        rejected = await d.reject_task("t1", reason="rework")
+
+        assert rejected is not None
+        assert rejected.status == TaskStatus.READY
+        assert rejected.retry_count == 0
+        assert rejected.consecutive_failures == 0
+
+    @pytest.mark.asyncio
+    async def test_concurrent_approve_succeeds_exactly_once(self) -> None:
+        """Two concurrent approve calls produce a single APPROVED event (CAS)."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+        task = _make_task(task_id="parent", status=TaskStatus.IN_REVIEW, require_approval=True)
+        task.result = "built & tested"
+        await store.save_task(task)
+
+        d = KanbanDispatcher(store, _FakeRunner(), board, verifier=_PassVerifier())
+        _, _ = await asyncio.gather(
+            d.approve_task("parent", approver="alice"),
+            d.approve_task("parent", approver="bob"),
+        )
+
+        events = [e for e in await store.list_events("parent") if e.kind == TaskEventKind.APPROVED]
+        assert len(events) == 1
+
 
 class TestReviewHistoryInContext:
 
