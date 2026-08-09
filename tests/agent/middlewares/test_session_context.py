@@ -120,6 +120,22 @@ class TestActiveToolRegistrySessionFallback:
     resolve runtime-only hooks such as ``_completion_check``.
     """
 
+    @pytest.fixture(autouse=True)
+    def _cleanup_session_registry(self):
+        """Drop the default-session registry/tools after each test so other
+        middleware tests never observe a leaked MagicMock via
+        ``get_active_tool_registry()`` (which prefers the session fallback)."""
+        import myrm_agent_harness.agent.middlewares._session_context as sc
+
+        yield
+        sc._session_tool_registries.pop("__default__", None)
+        sc._session_resolved_tools.pop("__default__", None)
+        try:
+            sc._active_tool_registry_var.set(None)
+            sc._active_resolved_tools_var.set(None)
+        except Exception:
+            pass
+
     def test_set_then_get_returns_same_registry(self) -> None:
         from unittest.mock import MagicMock
 
