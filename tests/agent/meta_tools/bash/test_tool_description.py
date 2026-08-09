@@ -65,6 +65,21 @@ def test_failure_root_cause_guidance_documented() -> None:
     assert "定位根因" in TOOL_DESCRIPTION
 
 
+def test_optimization_strategy_merge_control_flow_documented() -> None:
+    """L74: Python 源码合并 + 控制流，避免与专用工具优先歧义的旧表述."""
+    assert "多次操作合并进一次 Python 源码" in TOOL_DESCRIPTION
+    assert "while/if/try" in TOOL_DESCRIPTION
+    assert "避免多次往返调用" in TOOL_DESCRIPTION
+    assert "替代多次工具调用" not in TOOL_DESCRIPTION
+
+
+def test_optimization_strategy_output_summary_documented() -> None:
+    """L75: 大数据用 Python 分析，只给摘要."""
+    assert "只输出所需数据" in TOOL_DESCRIPTION
+    assert "只给摘要" in TOOL_DESCRIPTION
+    assert "CSV/JSON/日志" in TOOL_DESCRIPTION
+
+
 def test_merge_rules_and_output_format_documented() -> None:
     assert "asyncio.gather" in TOOL_DESCRIPTION
     assert "[OBSERVATION]" in TOOL_DESCRIPTION
@@ -176,8 +191,8 @@ def test_capabilities_section_documents_combo_modes() -> None:
 
 def test_async_section_documents_why_and_links_to_gather_examples() -> None:
     assert "技能/MCP 调用为 async" in TOOL_DESCRIPTION
-    assert "await 无法执行" in TOOL_DESCRIPTION
-    assert "gather 示例一致" in TOOL_DESCRIPTION
+    assert "必须 await" in TOOL_DESCRIPTION
+    assert "写法见上方 gather 示例" in TOOL_DESCRIPTION
 
 
 def test_shell_commands_include_common_ops() -> None:

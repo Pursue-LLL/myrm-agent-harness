@@ -54,9 +54,13 @@ bash_code_execute_tool 适用于:系统/运行时操作(mv/cp/rm、包管理、�
 
 ```python
 import asyncio
-date, codes = await asyncio.gather(fetch_date(), fetch_codes())
-tickets = await query_tickets(date=date, from_station=codes["from"], to_station=codes["to"])
-print(f"[RESULT] {tickets}")
+
+async def main():
+    date, codes = await asyncio.gather(fetch_date(), fetch_codes())
+    tickets = await query_tickets(date=date, from_station=codes["from"], to_station=codes["to"])
+    print(f"[RESULT] {tickets}")
+
+asyncio.run(main())
 ```
 
 #### 返回值不具体 → 先 OBSERVATION,下次再合并
@@ -65,8 +69,12 @@ print(f"[RESULT] {tickets}")
 
 ```python
 import asyncio
-date, codes = await asyncio.gather(fetch_date(), fetch_codes())
-print(f"[OBSERVATION] date={date}, codes={codes}")
+
+async def main():
+    date, codes = await asyncio.gather(fetch_date(), fetch_codes())
+    print(f"[OBSERVATION] date={date}, codes={codes}")
+
+asyncio.run(main())
 ```
 
 ### 优化策略
@@ -78,8 +86,7 @@ print(f"[OBSERVATION] date={date}, codes={codes}")
 
 ### 异步写法
 
-技能/MCP 调用为 async — 须用下列入口之一,否则 await 无法执行:
-`async def main(): ...` + `asyncio.run(main())`,或直接 top-level `await`(框架已支持,与上方 gather 示例一致)。
+技能/MCP 调用为 async — 必须 await。统一使用 `async def main(): ...` + `asyncio.run(main())` 入口(写法见上方示例)。
 
 ### 路径
 

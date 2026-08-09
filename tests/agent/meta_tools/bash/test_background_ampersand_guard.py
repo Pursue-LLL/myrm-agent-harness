@@ -114,6 +114,95 @@ async def test_spawn_background_strips_trailing_ampersand() -> None:
 
 
 @pytest.mark.asyncio
+async def test_spawn_background_clears_skill_cache_on_workspace_invalidation() -> None:
+    """Invalidated workspace id triggers skill cache clear before spawn."""
+    executor = _mock_executor()
+    proc = MagicMock()
+    executor.spawn_background_process = AsyncMock(return_value=proc)
+    executor.bind_workspace = MagicMock()
+
+    bash_exec = BashExecutor(executor, enable_skill_execution=False)
+    bash_exec._skill_manager.clear_workspace_cache = MagicMock()
+    fake_info = MagicMock(pid=5151, command="sleep 1", status="running")
+
+    with (
+        patch.object(
+            bash_exec._workspace_manager,
+            "get_or_create",
+            AsyncMock(return_value=(MagicMock(), "stale-ws-id")),
+        ),
+        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
+        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._background.registry.get_background_registry",
+        ) as mock_registry,
+    ):
+        mock_registry.return_value.register = AsyncMock(return_value=fake_info)
+        await bash_exec.spawn_background("sleep 1", session_id="sess-2")
+
+    bash_exec._skill_manager.clear_workspace_cache.assert_called_once_with("stale-ws-id")
+
+
+@pytest.mark.asyncio
+async def test_spawn_background_raises_when_executor_lacks_spawn() -> None:
+    """Executors without spawn_background_process surface BACKGROUND_UNSUPPORTED."""
+    from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import BashExecutionError
+
+    executor = _mock_executor()
+    del executor.spawn_background_process
+
+    bash_exec = BashExecutor(executor, enable_skill_execution=False)
+
+    with (
+        patch.object(
+            bash_exec._workspace_manager,
+            "get_or_create",
+            AsyncMock(return_value=(MagicMock(), None)),
+        ),
+        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
+        pytest.raises(BashExecutionError) as exc_info,
+    ):
+        await bash_exec.spawn_background("sleep 1", session_id="sess-3")
+
+    assert exc_info.value.error_category == "BACKGROUND_UNSUPPORTED"
+
+
+@pytest.mark.asyncio
+async def test_spawn_background_raises_on_quota_exceeded() -> None:
+    """BackgroundQuotaError kills the spawned proc and raises BashExecutionError."""
+    from myrm_agent_harness.agent.meta_tools.bash._background.registry import BackgroundQuotaError
+    from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import BashExecutionError
+
+    executor = _mock_executor()
+    proc = MagicMock()
+    proc.kill = MagicMock()
+    executor.spawn_background_process = AsyncMock(return_value=proc)
+    executor.bind_workspace = MagicMock()
+
+    bash_exec = BashExecutor(executor, enable_skill_execution=False)
+
+    with (
+        patch.object(
+            bash_exec._workspace_manager,
+            "get_or_create",
+            AsyncMock(return_value=(MagicMock(), None)),
+        ),
+        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._background.registry.get_background_registry",
+        ) as mock_registry,
+        pytest.raises(BashExecutionError) as exc_info,
+    ):
+        mock_registry.return_value.register = AsyncMock(
+            side_effect=BackgroundQuotaError("sess-4", 5),
+        )
+        await bash_exec.spawn_background("sleep 1", session_id="sess-4")
+
+    assert exc_info.value.error_category == "BACKGROUND_QUOTA_EXCEEDED"
+    proc.kill.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_spawn_background_strips_after_fence_unwrap() -> None:
     """A markdown-fenced command with trailing ``&`` is unwrapped then stripped."""
     executor = _mock_executor()
