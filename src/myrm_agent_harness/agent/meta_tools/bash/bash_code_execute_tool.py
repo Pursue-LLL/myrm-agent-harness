@@ -291,7 +291,9 @@ def create_bash_code_execute_tool(
             office_warnings = result.get("office_warnings")
             if isinstance(office_warnings, list) and office_warnings:
                 warning_lines = "\n".join(
-                    f"Office: {item}" for item in office_warnings if isinstance(item, str)
+                    f"Office: {item}"
+                    for item in office_warnings
+                    if isinstance(item, str)
                 )
                 if warning_lines:
                     formatted_content = f"{formatted_content}\n\n{warning_lines}"
@@ -318,7 +320,9 @@ def create_bash_code_execute_tool(
                     evicted_ref,
                     tool_name="bash_code_execute_tool",
                     preview_stdout=preview_stdout,
-                    stored_chars=_coerce_optional_int(result.get("evicted_stored_chars")),
+                    stored_chars=_coerce_optional_int(
+                        result.get("evicted_stored_chars")
+                    ),
                     total_lines=_coerce_optional_int(result.get("evicted_total_lines")),
                     storage_truncated=bool(result.get("evicted_storage_truncated")),
                     stream="stdout",
@@ -334,9 +338,15 @@ def create_bash_code_execute_tool(
                 await emit_evicted_ref(
                     stderr_evicted_ref,
                     tool_name="bash_code_execute_tool",
-                    stored_chars=_coerce_optional_int(result.get("stderr_evicted_stored_chars")),
-                    total_lines=_coerce_optional_int(result.get("stderr_evicted_total_lines")),
-                    storage_truncated=bool(result.get("stderr_evicted_storage_truncated")),
+                    stored_chars=_coerce_optional_int(
+                        result.get("stderr_evicted_stored_chars")
+                    ),
+                    total_lines=_coerce_optional_int(
+                        result.get("stderr_evicted_total_lines")
+                    ),
+                    storage_truncated=bool(
+                        result.get("stderr_evicted_storage_truncated")
+                    ),
                     stream="stderr",
                     config=config,
                 )
@@ -409,6 +419,10 @@ def create_bash_code_execute_tool(
                                 emit_exc,
                             )
 
+                    # Failure path intentionally omits preview_stdout: step.stdout
+                    # keeps the partial output accumulated during execution (the
+                    # "how far did it get" context), while the drawer still exposes
+                    # the full evicted stream for read-back.
                     if e.stdout_evicted_ref:
                         await _emit_evicted(
                             e.stdout_evicted_ref,

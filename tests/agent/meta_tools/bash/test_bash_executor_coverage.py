@@ -7,7 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import BashExecutionError
+from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
+    BashExecutionError,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutor
 from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult
 
@@ -68,12 +70,18 @@ async def test_execute_bash_success_returns_eviction_fields() -> None:
             "get_or_create",
             AsyncMock(return_value=(workspace, None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
-        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
-            AsyncMock(return_value=MagicMock(text="evicted-text", evicted_ref="vault://x")),
+            AsyncMock(
+                return_value=MagicMock(text="evicted-text", evicted_ref="vault://x")
+            ),
         ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
     ):
@@ -117,8 +125,12 @@ async def test_execute_symmetrically_evicts_stderr() -> None:
             "get_or_create",
             AsyncMock(return_value=(MagicMock(), None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
-        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
@@ -160,8 +172,12 @@ async def test_execute_empty_stderr_passes_through_eviction() -> None:
             "get_or_create",
             AsyncMock(return_value=(MagicMock(), None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
-        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
@@ -194,11 +210,15 @@ async def test_execute_raises_bash_execution_error_on_failure() -> None:
             "get_or_create",
             AsyncMock(return_value=(MagicMock(), None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
-        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
-        pytest.raises(BashExecutionError)
+        pytest.raises(BashExecutionError),
     ):
         await bash_exec.execute("false", session_id="sess-1")
 
@@ -211,7 +231,7 @@ async def test_execute_failure_evicts_stderr_into_message() -> None:
         result=1,
         stdout="processed row 149\n",
         stderr=(
-            'Traceback (most recent call last):\n'
+            "Traceback (most recent call last):\n"
             '  File "<string>", line 152\n'
             "    float(row['amount'])\n"
             "ValueError: bad row 150"
@@ -248,8 +268,12 @@ async def test_execute_failure_evicts_stderr_into_message() -> None:
             "get_or_create",
             AsyncMock(return_value=(MagicMock(), None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
-        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()) as mock_log,
         patch(
@@ -304,8 +328,12 @@ async def test_execute_failure_small_stderr_visible_in_message() -> None:
             "get_or_create",
             AsyncMock(return_value=(MagicMock(), None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
-        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
         pytest.raises(BashExecutionError) as exc_info,
@@ -337,7 +365,9 @@ async def test_spawn_background_unsupported_executor() -> None:
             "get_or_create",
             AsyncMock(return_value=(MagicMock(), None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
         pytest.raises(BashExecutionError) as exc_info,
     ):
         await bash_exec.spawn_background("sleep 1", session_id="sess-1")
@@ -361,7 +391,9 @@ async def test_spawn_background_registers_process() -> None:
             "get_or_create",
             AsyncMock(return_value=(MagicMock(), None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._background.registry.get_background_registry",
@@ -444,18 +476,25 @@ def test_rewrite_skill_paths_and_container_paths() -> None:
     bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
     workspace = MagicMock()
 
-    with patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/tmp/ws"):
+    with patch.object(
+        bash_exec._workspace_manager, "get_workspace_path", return_value="/tmp/ws"
+    ):
         paths = bash_exec._convert_to_container_paths(["/tmp/ws/skills/a"], workspace)
     assert paths
 
-    code, skill = bash_exec._rewrite_skill_paths("import skills.demo", ["/tmp/ws/skills/demo"])
+    code, skill = bash_exec._rewrite_skill_paths(
+        "import skills.demo", ["/tmp/ws/skills/demo"]
+    )
     assert isinstance(code, str)
     assert skill is None or isinstance(skill, str)
 
 
 def test_detect_skill_from_import_pattern() -> None:
     bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
-    assert bash_exec._detect_skill_from_code("from skills.my_skill import run") == "my_skill"
+    assert (
+        bash_exec._detect_skill_from_code("from skills.my_skill import run")
+        == "my_skill"
+    )
 
 
 @pytest.mark.asyncio
@@ -473,8 +512,12 @@ async def test_execute_strips_markdown_fence_and_clears_invalidated_cache() -> N
             "get_or_create",
             AsyncMock(return_value=(workspace, "old-ws")),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
-        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
         patch.object(bash_exec._skill_manager, "clear_workspace_cache") as mock_clear,
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch(
@@ -507,8 +550,12 @@ async def test_execute_with_skill_paths_stages_detected_skill() -> None:
             "get_or_create",
             AsyncMock(return_value=(workspace, None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
-        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch.object(
             bash_exec._skill_manager,
@@ -560,10 +607,16 @@ async def test_execute_python_path_and_generated_files() -> None:
             "get_or_create",
             AsyncMock(return_value=(workspace, None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
-        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
-        patch.object(bash_exec, "_prepare_execution", return_value=(True, "print(1)", None)),
+        patch.object(
+            bash_exec, "_prepare_execution", return_value=(True, "print(1)", None)
+        ),
         patch.object(bash_exec, "_register_generated_files") as mock_register,
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
@@ -594,8 +647,12 @@ async def test_execute_nonzero_exit_without_error_logs_warning() -> None:
             "get_or_create",
             AsyncMock(return_value=(MagicMock(), None)),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
-        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
@@ -624,7 +681,9 @@ async def test_spawn_background_strips_fence_and_handles_quota() -> None:
             "get_or_create",
             AsyncMock(return_value=(MagicMock(), "stale-ws")),
         ),
-        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
         patch.object(bash_exec._skill_manager, "clear_workspace_cache") as mock_clear,
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
         patch(
@@ -647,9 +706,22 @@ async def test_spawn_background_strips_fence_and_handles_quota() -> None:
 
 def test_build_error_details_prefers_stdout_then_stderr() -> None:
     bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
-    assert bash_exec._build_error_details(ExecutionResult(success=False, result=1, stdout="out")) == "out"
-    assert bash_exec._build_error_details(ExecutionResult(success=False, result=1, stderr="err")) == "err"
-    assert bash_exec._build_error_details(ExecutionResult(success=False, result=1)) == "Unknown error"
+    assert (
+        bash_exec._build_error_details(
+            ExecutionResult(success=False, result=1, stdout="out")
+        )
+        == "out"
+    )
+    assert (
+        bash_exec._build_error_details(
+            ExecutionResult(success=False, result=1, stderr="err")
+        )
+        == "err"
+    )
+    assert (
+        bash_exec._build_error_details(ExecutionResult(success=False, result=1))
+        == "Unknown error"
+    )
 
 
 def test_register_generated_files_delegates() -> None:
@@ -664,7 +736,9 @@ def test_register_generated_files_delegates() -> None:
         "myrm_agent_harness.agent.artifacts.registry.register_generated_files",
     ) as mock_register:
         bash_exec._register_generated_files(result)
-    mock_register.assert_called_once_with(generated_files=["/tmp/a.png"], container_id="cid")
+    mock_register.assert_called_once_with(
+        generated_files=["/tmp/a.png"], container_id="cid"
+    )
 
 
 def test_resolve_allowed_credential_issuers() -> None:
@@ -697,7 +771,9 @@ def test_build_execution_context_skill_env_only() -> None:
 @pytest.mark.asyncio
 async def test_ensure_mcp_proxy_skips_when_executor_uses_direct_callback() -> None:
     executor = _mock_code_executor()
-    executor.get_mcp_communication_config.return_value = MagicMock(skip_local_proxy=True)
+    executor.get_mcp_communication_config.return_value = MagicMock(
+        skip_local_proxy=True
+    )
     bash_exec = BashExecutor(executor, enable_skill_execution=False)
 
     with patch(
@@ -740,7 +816,9 @@ def test_prepare_execution_skill_path_when_enabled() -> None:
     bash_exec = BashExecutor(executor, enable_skill_execution=True)
     bash_exec._skill_executor = skill_executor
 
-    use_py, code, mcp_items = bash_exec._prepare_execution("run skill", session_id="s1", workspace_root="/ws")
+    use_py, code, mcp_items = bash_exec._prepare_execution(
+        "run skill", session_id="s1", workspace_root="/ws"
+    )
 
     assert use_py is True
     assert code == "print('skill')"
@@ -758,7 +836,6 @@ def test_validate_python_syntax_raises_bash_execution_error() -> None:
     with pytest.raises(BashExecutionError) as exc_info:
         bash_exec._validate_python_syntax("def broken(", "print bad")
     assert exc_info.value.error_category == "syntax"
-
 
 
 def test_inject_resilience_script_prepends_when_present() -> None:
@@ -781,13 +858,17 @@ def test_rewrite_skill_paths_returns_detected_skill() -> None:
 def test_convert_to_container_paths_empty_root() -> None:
     bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
     workspace = MagicMock()
-    with patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value=""):
+    with patch.object(
+        bash_exec._workspace_manager, "get_workspace_path", return_value=""
+    ):
         assert bash_exec._convert_to_container_paths(["/x"], workspace) == []
 
 
 def test_maybe_extend_timeout_for_mcp() -> None:
     bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
-    from myrm_agent_harness.agent.meta_tools.bash.bash_executor_constants import MCP_MIN_TIMEOUT
+    from myrm_agent_harness.agent.meta_tools.bash.bash_executor_constants import (
+        MCP_MIN_TIMEOUT,
+    )
 
     assert bash_exec._maybe_extend_timeout_for_mcp([MagicMock()], 5) == MCP_MIN_TIMEOUT
     assert bash_exec._maybe_extend_timeout_for_mcp(None, 30) == 30

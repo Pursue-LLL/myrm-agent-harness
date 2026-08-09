@@ -19,7 +19,9 @@ from contextlib import suppress
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.artifacts.file_id_registry import resolve_file_ids_in_text
-from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import BashExecutionError
+from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
+    BashExecutionError,
+)
 from myrm_agent_harness.toolkits.code_execution import ExecutionContext
 
 if TYPE_CHECKING:
@@ -75,7 +77,9 @@ class BashExecutorBackgroundMixin:
             )
             command = normalized
 
-        workspace, invalidated_workspace_id = await self._workspace_manager.get_or_create(session_id)
+        workspace, invalidated_workspace_id = (
+            await self._workspace_manager.get_or_create(session_id)
+        )
         if invalidated_workspace_id:
             self._skill_manager.clear_workspace_cache(invalidated_workspace_id)
 
@@ -134,7 +138,9 @@ class BashExecutorBackgroundMixin:
                 phase="validation",
                 command=command,
                 error_category="BACKGROUND_QUOTA_EXCEEDED",
-                error_hint=("Stop or wait for an existing background job before starting a new one."),
+                error_hint=(
+                    "Stop or wait for an existing background job before starting a new one."
+                ),
             ) from exc
 
         await self._log_bash_command_execution(

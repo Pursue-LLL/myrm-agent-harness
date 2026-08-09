@@ -4,7 +4,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
-from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import create_bash_code_execute_tool
+from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
+    create_bash_code_execute_tool,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutionError
 from myrm_agent_harness.utils.errors import ToolError
 
@@ -103,13 +105,18 @@ async def test_bash_tool_myrm_tools_python_m_preflight_blocks_before_executor() 
 
 
 @pytest.mark.asyncio
-async def test_bash_tool_myrm_tools_cat_pipe_preflight_blocks_before_executor(tmp_path: Path) -> None:
+async def test_bash_tool_myrm_tools_cat_pipe_preflight_blocks_before_executor(
+    tmp_path: Path,
+) -> None:
     script_path = tmp_path / "merge.py"
     script_path.write_text("import myrm_tools\n", encoding="utf-8")
     mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
 
     with p_ctx as mock_ctx, p_get, p_be, p_scope:
-        mock_ctx.return_value = {"session_id": "test-session", "workspace_root": str(tmp_path)}
+        mock_ctx.return_value = {
+            "session_id": "test-session",
+            "workspace_root": str(tmp_path),
+        }
         tool = create_bash_code_execute_tool()
         with pytest.raises(ToolError, match="myrm_tools") as exc_info:
             await tool.ainvoke(
@@ -134,7 +141,10 @@ async def test_bash_tool_git_clone_hint():
         tool = create_bash_code_execute_tool()
         with pytest.raises(ToolError) as exc_info:
             await tool.ainvoke(
-                {"command": "git clone https://github.com/owner/repo.git", "reason": "test cloning from remote repo"}
+                {
+                    "command": "git clone https://github.com/owner/repo.git",
+                    "reason": "test cloning from remote repo",
+                }
             )
 
         assert "git clone" in exc_info.value.user_hint
@@ -152,7 +162,9 @@ async def test_bash_tool_no_git_clone_hint_for_other_commands():
     with p_ctx, p_get, p_be, p_scope:
         tool = create_bash_code_execute_tool()
         with pytest.raises(ToolError) as exc_info:
-            await tool.ainvoke({"command": "ls -la", "reason": "test cloning from remote repo"})
+            await tool.ainvoke(
+                {"command": "ls -la", "reason": "test cloning from remote repo"}
+            )
 
         assert "git clone" not in exc_info.value.user_hint
         assert "curl" not in exc_info.value.user_hint
@@ -180,7 +192,9 @@ async def test_bash_tool_failure_emits_stderr_evicted_ref():
             ) as mock_emit,
             pytest.raises(ToolError) as exc_info,
         ):
-            await tool.ainvoke({"command": "ls -la", "reason": "verify failure eviction emit"})
+            await tool.ainvoke(
+                {"command": "ls -la", "reason": "verify failure eviction emit"}
+            )
 
     assert str(exc_info.value) == "ValueError: bad row 150"
     mock_emit.assert_awaited_once()
@@ -218,7 +232,9 @@ async def test_bash_tool_failure_emits_both_streams_evicted_refs():
             ) as mock_emit,
             pytest.raises(ToolError),
         ):
-            await tool.ainvoke({"command": "ls -la", "reason": "verify both-stream eviction emit"})
+            await tool.ainvoke(
+                {"command": "ls -la", "reason": "verify both-stream eviction emit"}
+            )
 
     calls = mock_emit.await_args_list
     assert len(calls) == 2

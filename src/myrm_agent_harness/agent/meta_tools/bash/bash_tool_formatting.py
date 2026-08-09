@@ -20,7 +20,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import interpret_exit_code
+from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import (
+    interpret_exit_code,
+)
 
 # Single source of truth for the bash output hard truncation limit.
 # _output_eviction uses the same threshold as its character-level eviction gate
@@ -28,7 +30,9 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import in
 BASH_OUTPUT_MAX_CHARS = 8000
 
 
-def truncate_bash_output(output: str, max_chars: int = BASH_OUTPUT_MAX_CHARS) -> tuple[str, bool, dict[str, object]]:
+def truncate_bash_output(
+    output: str, max_chars: int = BASH_OUTPUT_MAX_CHARS
+) -> tuple[str, bool, dict[str, object]]:
     """Smart middle-truncation for bash output to preserve errors at the end."""
     if len(output) <= max_chars:
         return output, False, {}
@@ -52,7 +56,9 @@ def truncate_bash_output(output: str, max_chars: int = BASH_OUTPUT_MAX_CHARS) ->
     return f"{head}\n\n...{hint}...\n\n{tail}", True, meta
 
 
-def format_result(result: Mapping[str, object], command: str = "") -> tuple[str, bool, dict[str, object]]:
+def format_result(
+    result: Mapping[str, object], command: str = ""
+) -> tuple[str, bool, dict[str, object]]:
     """Format execution result with exit code semantic annotations."""
     from myrm_agent_harness.utils.context_format import wrap_with_tool_output_tag
 
@@ -73,7 +79,9 @@ def format_result(result: Mapping[str, object], command: str = "") -> tuple[str,
         )
 
     stdout_str, stdout_trunc, stdout_meta = truncate_bash_output(stdout_raw)
-    stderr_str, stderr_trunc, stderr_meta = truncate_bash_output(str(result.get("stderr", "")))
+    stderr_str, stderr_trunc, stderr_meta = truncate_bash_output(
+        str(result.get("stderr", ""))
+    )
 
     output_parts: list[str] = []
 

@@ -19,7 +19,9 @@ import logging
 from pathlib import Path
 
 from myrm_agent_harness.agent.artifacts.file_id_registry import resolve_file_ids_in_text
-from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import BashExecutionError
+from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
+    BashExecutionError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +68,9 @@ class BashExecutorExecuteMixin:
         executor = self._executor
         logger.info(f" Using executor: {executor.get_executor_name()}")
 
-        workspace, invalidated_workspace_id = await self._workspace_manager.get_or_create(session_id)
+        workspace, invalidated_workspace_id = (
+            await self._workspace_manager.get_or_create(session_id)
+        )
         if invalidated_workspace_id:
             self._skill_manager.clear_workspace_cache(invalidated_workspace_id)
 
@@ -81,7 +85,9 @@ class BashExecutorExecuteMixin:
         )
 
         if not use_python_execution:
-            from myrm_agent_harness.toolkits.code_execution.security.archive_sanitizer import sanitize_archive_command
+            from myrm_agent_harness.toolkits.code_execution.security.archive_sanitizer import (
+                sanitize_archive_command,
+            )
 
             prepared_code = sanitize_archive_command(prepared_code)
             prepared_code = self._inject_resilience_script(prepared_code)
@@ -98,13 +104,17 @@ class BashExecutorExecuteMixin:
                     break
 
             if used_skill_paths:
-                workspace_skill_paths = await self._skill_manager.ensure_skills_in_workspace(
-                    workspace, used_skill_paths
+                workspace_skill_paths = (
+                    await self._skill_manager.ensure_skills_in_workspace(
+                        workspace, used_skill_paths
+                    )
                 )
                 logger.warning(f" Copying detected skill only: {detected_skill_name}")
 
         if workspace_skill_paths:
-            prepared_code, detected_skill_name = self._rewrite_skill_paths(prepared_code, workspace_skill_paths)
+            prepared_code, detected_skill_name = self._rewrite_skill_paths(
+                prepared_code, workspace_skill_paths
+            )
 
         skill_names: list[str] = [detected_skill_name] if detected_skill_name else []
 
@@ -112,7 +122,9 @@ class BashExecutorExecuteMixin:
         working_dir: str | None = None
 
         if workspace_skill_paths and workspace:
-            env_paths = self._convert_to_container_paths(workspace_skill_paths, workspace)
+            env_paths = self._convert_to_container_paths(
+                workspace_skill_paths, workspace
+            )
             if detected_skill_name:
                 working_dir = f"/workspace/.claude/skills/{detected_skill_name}"
 
@@ -126,7 +138,9 @@ class BashExecutorExecuteMixin:
             OfficeBashAudit,
         )
 
-        office_snapshots = OfficeBashAudit.prepare_snapshots(workspace_root_str, command)
+        office_snapshots = OfficeBashAudit.prepare_snapshots(
+            workspace_root_str, command
+        )
 
         context = self._build_execution_context(
             prepared_code=prepared_code,
@@ -202,7 +216,9 @@ class BashExecutorExecuteMixin:
             list(result.generated_files or []),
         )
 
-        clean_stdout, mcp_metadata = self._metadata_extractor.extract_metadata(result.stdout)
+        clean_stdout, mcp_metadata = self._metadata_extractor.extract_metadata(
+            result.stdout
+        )
 
         eviction_result = await maybe_evict_large_output(clean_stdout, self._executor)
         # stderr gets the same eviction treatment as stdout: a large warning/error

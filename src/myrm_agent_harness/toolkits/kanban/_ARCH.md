@@ -243,10 +243,21 @@ Protocol-first architecture with strict framework-business separation.
     validates overrides against enabled providers (400 on unresolvable models) to prevent
     silent runtime fallback.
 
+25. **Human approval gate (require_approval → IN_REVIEW)**: Each `KanbanTask` carries an
+    optional `require_approval: bool = False`. When a `require_approval` task's run passes
+    verification, `_handle_success` routes it to `IN_REVIEW` instead of `COMPLETED` and
+    emits `REVIEW_REQUESTED`. `approve_task(task_id, approver)` promotes `IN_REVIEW` →
+    `COMPLETED` (clears failure counters, records `APPROVED` event, promotes dependents);
+    `reject_task(task_id, reason, approver)` returns the task to `READY` with the reason
+    echoed into `task.error` and a `REJECTED` event, so a re-run adapts. Both are
+    operator-driven (REST/GUI only — no LLM tool) and idempotent no-ops when the task is
+    not `IN_REVIEW`. Rejected reasons surface in the worker context under
+    `## Review history` (via `context_builder`).
+
 ## Domain Model
 
 - `KanbanBoard`: Top-level grouping with `BoardSettings` (includes `default_workdir`, `block_recurrence_limit` for block→unblock→TRIAGE escalation)
-- `KanbanTask`: Unit of work with 8-state lifecycle (TRIAGE → BACKLOG → READY → RUNNING → COMPLETED/FAILED/BLOCKED/ARCHIVED), with `block_kind` (HUMAN/SCHEDULED/EXTERNAL) and `scheduled_until` for semantic blocking, `block_cycle_count` for detecting block→unblock cycling, `attachments: list[TaskAttachment]` for multimodal file references, `workspace_path` and `branch` for worktree isolation, `goal_mode` and `goal_max_turns` for autonomous multi-turn goal loop execution, and `model_override: str | None` for per-task LLM selection overriding the agent profile default
+- `KanbanTask`: Unit of work with 9-state lifecycle (TRIAGE → BACKLOG → READY → RUNNING → COMPLETED/FAILED/BLOCKED/ARCHIVED, plus IN_REVIEW on the verified-success path of `require_approval` tasks), with `block_kind` (HUMAN/SCHEDULED/EXTERNAL) and `scheduled_until` for semantic blocking, `block_cycle_count` for detecting block→unblock cycling, `attachments: list[TaskAttachment]` for multimodal file references, `workspace_path` and `branch` for worktree isolation, `goal_mode` and `goal_max_turns` for autonomous multi-turn goal loop execution, `model_override: str | None` for per-task LLM selection overriding the agent profile default, and `require_approval: bool` for the human approval gate
 - `TaskAttachment`: Immutable file attachment (file_id, filename, mime_type, size_bytes, content_ref) with polymorphic content_ref (HTTP URL / vault pointer / inline data)
 - `BlockKind`: Sub-type enum for BLOCKED tasks (HUMAN / SCHEDULED / EXTERNAL)
 - `TaskEdge`: Directed dependency edge (parent→child), forms a DAG with cycle rejection
@@ -255,7 +266,7 @@ Protocol-first architecture with strict framework-business separation.
 - `TaskRun`: Independent record per execution attempt (run_id, worker_id, outcome, duration)
 - `TaskRunOutcome`: COMPLETED / BLOCKED / CRASHED / RECLAIMED / TIMED_OUT
 - `TaskEvent`: Persistent lifecycle event for audit and catch-up
-- `TaskEventKind`: CREATED / CLAIMED / ASSIGNED / COMPLETED / FAILED / BLOCKED / UNBLOCKED / RETRYING / RECLAIMED / PROMOTED / ARCHIVED / HEARTBEAT / USER_COMMENT / VERIFICATION_FAILED / BRANCH_SWITCHED / SPECIFIED / DECOMPOSED / TIMED_OUT
+- `TaskEventKind`: CREATED / CLAIMED / ASSIGNED / COMPLETED / FAILED / BLOCKED / UNBLOCKED / RETRYING / RECLAIMED / PROMOTED / ARCHIVED / HEARTBEAT / USER_COMMENT / VERIFICATION_FAILED / BRANCH_SWITCHED / SPECIFIED / DECOMPOSED / TIMED_OUT / REVIEW_REQUESTED / APPROVED / REJECTED
 - `TaskTimeoutError`: Exception raised when a task exceeds its `max_runtime_seconds` limit (carries `elapsed_seconds`, `limit_seconds`)
 - `SpecifyOutcome`: Result of a single Specifier pass (ok, new_title, new_body, reason, prompt_tokens, completion_tokens, persisted)
 - `DecomposeChildSpec`: Spec for a single child task (title, body, assignee, parent_indices)
