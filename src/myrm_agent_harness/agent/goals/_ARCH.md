@@ -39,7 +39,6 @@ Goal-based autonomous loop engine. Enables agents to pursue long-running objecti
 | goal_prompt_prefixes.py | Core | `GOAL_CONTINUATION_PREFIX` / `GOAL_WRAPUP_PREFIX` SSOT | ✅ |
 | continuation.py | 核心 | guard chain → ContinuationDecision；WAIT 早退；tool-complete deferred 解析；白名单 background bash 自动 enter_wait；Sandbox Boundary HITL (step 6.5a)；delegates drift to continuation_drift；delegates checkpoint to continuation_checkpoint | ✅ |
 | continuation_checkpoint.py | 核心 | Per-Todo Checkpoint (step 6.5c) — 检测新完成的 todo 并 PAUSE Goal 等待用户确认，produce checkpoint_pause verdict | ✅ |
-| test_continuation_checkpoint.py | 测试 | continuation_checkpoint 模块内快速回归测试（per-todo checkpoint guard） | ✅ |
 | continuation_drift.py | 核心 | Goal Drift Detection (step 6.5b) — LLM judge 评估轨迹偏离度，produce drift_nudge/drift_pause verdicts | ✅ |
 | wait_background_bash.py | 核心 | 窄域 build/test/CI 白名单 + LoopGuard 窗口解析 background spawn；metadata `wait_on_background_job_id` 绑定 BSDL job_id；Server finish 时 exit_wait + `trigger_goal_stream_with_failure_policy` 闭环 | ✅ |
 | audit.py | 核心 | 三段式 judge criteria + 行为引导 continuation prompt（含 Fidelity 防目标缩水、Evidence-based 防历史幻觉、Progress visibility 激活 todo_write 进度推送、8 步 audit protocol、历史 learnings 注入、收敛引导指令）+ budget wrap-up prompt | ✅ |

@@ -16,8 +16,6 @@ Skill backend implementations — read/write/discovery protocols, local/memory/s
 | credential_checker.py | Core | Optional DX helper for detecting missing skill credentials. | ✅ |
 | credential_validator.py | Core | Validates skill credential files without full file_ops validators. | ✅ |
 | market_protocols.py | Core | SkillMarketBackend protocol and search/install result types. | ✅ |
-| env_example_generator.py | Core | Generates .env.example snippets from skill env requirements. | ✅ |
-| env_mapper.py | Core | Maps skill env declarations to runtime environment variables. | ✅ |
 | factory.py | Core | SkillBackend factory for local, storage, memory, and composite backends. | ✅ |
 | forgetting_strategy.py | Core | Curator forgetting strategies (pinned, evolution lock, grace, source-aware). | ✅ |
 | instance_templates.py | Core | Predefined skill instance configuration templates. | ✅ |
