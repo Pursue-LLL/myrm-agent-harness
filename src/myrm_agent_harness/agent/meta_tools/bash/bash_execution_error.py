@@ -4,7 +4,7 @@
 - None (stdlib only)
 
 [OUTPUT]
-- BashExecutionError: Exception with phase/category/hint and stderr eviction
+- BashExecutionError: Exception with phase/category/hint and stdout/stderr eviction
   references for failure-path large-output persistence.
 
 [POS]
