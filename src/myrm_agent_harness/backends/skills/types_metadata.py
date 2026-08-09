@@ -120,16 +120,6 @@ class SkillMetadata:
     missing_credentials and the skill may be marked unavailable depending on policy.
     """
 
-    credential_env_mapping: dict[str, str] = field(default_factory=dict)
-    """Environment variable mappings for credential files.
-
-    Maps environment variable names to credential file paths (relative to workspace).
-    Example: {"GOOGLE_TOKEN_PATH": "google_token.json"}
-
-    The framework automatically sets these environment variables pointing to the
-    resolved absolute paths within the workspace.
-    """
-
     always: bool = False
     """If True, always included in skill_select_tool XML (get_metadata_summary), not SystemMessage."""
 

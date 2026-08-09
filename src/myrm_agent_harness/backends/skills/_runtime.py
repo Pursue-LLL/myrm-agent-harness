@@ -145,7 +145,6 @@ def build_skill_metadata(
         requires_tool_groups=frontmatter.requires_tool_groups,
         fallback_for_tool_groups=frontmatter.fallback_for_tool_groups,
         required_credential_files=frontmatter.required_credential_files,
-        credential_env_mapping=frontmatter.credential_env_mapping,
         always=frontmatter.always,
         model_invocable=frontmatter.model_invocable,
         user_invocable=frontmatter.user_invocable,

@@ -122,9 +122,6 @@ class SkillFrontmatter:
     required_credential_files: list[str] = field(default_factory=list)
     """Required credential files for this skill (relative to workspace root)."""
 
-    credential_env_mapping: dict[str, str] = field(default_factory=dict)
-    """Environment variable mappings for credential files."""
-
     evolution_locked: bool = False
     """If True, this skill is locked from automatic evolution."""
 
@@ -209,8 +206,6 @@ _KNOWN_FRONTMATTER_FIELDS = frozenset(
         "oauth_issuer",
         "required-credential-files",
         "required_credential_files",
-        "credential-env-mapping",
-        "credential_env_mapping",
         "evolution-locked",
         "evolution_locked",
         "config-schema",
@@ -625,16 +620,6 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
     if raw_cred_files and isinstance(raw_cred_files, list):
         required_credential_files = [str(f).strip() for f in raw_cred_files if str(f).strip()]
 
-    # credential-env-mapping: optional, dict mapping env vars to credential files
-    credential_env_mapping: dict[str, str] = {}
-    raw_env_mapping = parsed.get("credential-env-mapping") or parsed.get("credential_env_mapping")
-    if raw_env_mapping and isinstance(raw_env_mapping, dict):
-        for k, v in raw_env_mapping.items():
-            env_name = str(k).strip()
-            file_path = str(v).strip()
-            if env_name and file_path:
-                credential_env_mapping[env_name] = file_path
-
     # evolution-locked: optional (default False)
     evolution_locked = False
     if "evolution-locked" in parsed:
@@ -678,7 +663,6 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         primary_env=primary_env,
         oauth_issuer=oauth_issuer,
         required_credential_files=required_credential_files,
-        credential_env_mapping=credential_env_mapping,
         evolution_locked=evolution_locked,
         config_schema=config_schema,
         contract=contract,

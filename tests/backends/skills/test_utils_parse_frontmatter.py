@@ -16,8 +16,6 @@ user-invocable: true
 primary_env: OPENAI_API_KEY
 required_credential_files:
   - test.json
-credential_env_mapping:
-  OPENAI_API_KEY: test.json
 evolution-locked: true
 ---
 def main(): pass"""
@@ -30,7 +28,6 @@ def main(): pass"""
     assert fm.user_invocable is True
     assert fm.primary_env == "OPENAI_API_KEY"
     assert fm.required_credential_files == ["test.json"]
-    assert fm.credential_env_mapping == {"OPENAI_API_KEY": "test.json"}
     assert fm.evolution_locked is True
 
 
