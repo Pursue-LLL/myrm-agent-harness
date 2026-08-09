@@ -158,6 +158,80 @@ async def test_bash_tool_no_git_clone_hint_for_other_commands():
         assert "curl" not in exc_info.value.user_hint
 
 
+@pytest.mark.asyncio
+async def test_bash_tool_failure_emits_stderr_evicted_ref():
+    mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
+    mock_bash_exec.execute.side_effect = BashExecutionError(
+        "ValueError: bad row 150",
+        phase="execution",
+        command="ls -la",
+        stderr_evicted_ref="output_fail123.txt",
+        stderr_evicted_stored_chars=1500,
+        stderr_evicted_total_lines=12,
+        stderr_evicted_storage_truncated=False,
+    )
+
+    with p_ctx, p_get, p_be, p_scope:
+        tool = create_bash_code_execute_tool()
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref",
+                new=AsyncMock(),
+            ) as mock_emit,
+            pytest.raises(ToolError) as exc_info,
+        ):
+            await tool.ainvoke({"command": "ls -la", "reason": "verify failure eviction emit"})
+
+    assert str(exc_info.value) == "ValueError: bad row 150"
+    mock_emit.assert_awaited_once()
+    call = mock_emit.await_args
+    assert call.args[0] == "output_fail123.txt"
+    kwargs = call.kwargs
+    assert kwargs["stream"] == "stderr"
+    assert kwargs["stored_chars"] == 1500
+    assert kwargs["total_lines"] == 12
+
+
+@pytest.mark.asyncio
+async def test_bash_tool_failure_emits_both_streams_evicted_refs():
+    mock_bash_exec, p_ctx, p_get, p_be, p_scope = _patch_bash_tool_deps()
+    mock_bash_exec.execute.side_effect = BashExecutionError(
+        "ValueError: bad row 150",
+        phase="execution",
+        command="ls -la",
+        stdout_evicted_ref="stdout_out_1.txt",
+        stdout_evicted_stored_chars=32,
+        stdout_evicted_total_lines=1,
+        stdout_evicted_storage_truncated=False,
+        stderr_evicted_ref="output_fail123.txt",
+        stderr_evicted_stored_chars=1500,
+        stderr_evicted_total_lines=12,
+        stderr_evicted_storage_truncated=False,
+    )
+
+    with p_ctx, p_get, p_be, p_scope:
+        tool = create_bash_code_execute_tool()
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.infra.evicted_content.emit_evicted_ref",
+                new=AsyncMock(),
+            ) as mock_emit,
+            pytest.raises(ToolError),
+        ):
+            await tool.ainvoke({"command": "ls -la", "reason": "verify both-stream eviction emit"})
+
+    calls = mock_emit.await_args_list
+    assert len(calls) == 2
+    stdout_call, stderr_call = calls
+    assert stdout_call.args[0] == "stdout_out_1.txt"
+    assert stdout_call.kwargs["stream"] == "stdout"
+    assert stdout_call.kwargs["stored_chars"] == 32
+    assert stderr_call.args[0] == "output_fail123.txt"
+    assert stderr_call.kwargs["stream"] == "stderr"
+    assert stderr_call.kwargs["stored_chars"] == 1500
+    assert stderr_call.kwargs["total_lines"] == 12
+
+
 def test_mcp_min_timeout_constant_exceeds_ipc_client() -> None:
     """_MCP_MIN_TIMEOUT must be > IPC client TOTAL_TIMEOUT (90s)."""
     from myrm_agent_harness.agent.meta_tools.bash.bash_executor import _MCP_MIN_TIMEOUT

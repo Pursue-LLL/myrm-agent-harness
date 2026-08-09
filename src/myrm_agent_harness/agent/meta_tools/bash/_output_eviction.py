@@ -19,12 +19,14 @@
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 
 [OUTPUT]
-- maybe_evict_large_output: Args:
+- maybe_evict_large_output: 大输出即时落盘 + 智能预览替换（stdout/stderr 通用）
 - EvictionResult: Structured result with preview text and optional evicted file reference.
 - EVICTION_BANNER_PREFIX (POS: eviction preview banner 前缀，供 output_compressor 跳过二次压缩)
 
 [POS]
-Provides maybe_evict_large_output and EvictionResult.
+Provides maybe_evict_large_output and EvictionResult. Used for both stdout and
+stderr streams (bash_executor_execute_mixin evicts them symmetrically); each
+stream persists to its own evicted file and carries an independent GUI ref.
 """
 
 from __future__ import annotations
@@ -73,7 +75,7 @@ class EvictionResult:
     """Structured result from output eviction.
 
     Attributes:
-        text: The preview text (or original stdout if no eviction occurred).
+        text: The preview text (or original content if no eviction occurred).
         evicted_ref: Filename of the evicted output file (basename only, e.g. "output_a3f5c8d1.txt").
                      None when output was not evicted.
     """
@@ -86,38 +88,39 @@ class EvictionResult:
 
 
 async def maybe_evict_large_output(
-    stdout: str, executor: CodeExecutor | None = None
+    content: str, executor: CodeExecutor | None = None
 ) -> EvictionResult:
     """大输出截断为智能预览，可选持久化到沙箱文件
 
     触发条件（任一满足）：token 数超过 FILTER_TOKEN_THRESHOLD，或字符数超过
     BASH_OUTPUT_MAX_CHARS。字符口径与 bash_tool_formatting 的硬截断阈值对齐，
     保证所有会被格式层硬截断的输出都先落盘可读，避免中间数据不可达。
+    stdout 与 stderr 两条流共用本函数（bash_executor_execute_mixin 对称调用）。
 
     Args:
-        stdout: 清理后的标准输出
+        content: 清理后的流内容（stdout 或 stderr）
         executor: 沙箱执行器（提供时将大输出保存到文件）
 
     Returns:
         EvictionResult with preview text and optional evicted file reference.
     """
-    if not should_filter(stdout) and len(stdout) <= BASH_OUTPUT_MAX_CHARS:
-        return EvictionResult(text=stdout)
+    if not should_filter(content) and len(content) <= BASH_OUTPUT_MAX_CHARS:
+        return EvictionResult(text=content)
 
     file_path: str | None = None
     persist_stats: EvictedPersistResult | None = None
     try:
         if executor is not None:
-            file_path, persist_stats = await _save_to_file(executor, stdout)
+            file_path, persist_stats = await _save_to_file(executor, content)
     except Exception as e:
         logger.warning(" [Eviction] Failed to save to file: %s", e)
 
     try:
-        content_type = detect_content_type(stdout)
+        content_type = detect_content_type(content)
 
         if content_type in STRUCTURAL_CONTENT_TYPES:
             result = await _structural_filter.filter(
-                FilterContext(content=stdout, file_path="", content_type=content_type)
+                FilterContext(content=content, file_path="", content_type=content_type)
             )
             preview = (
                 f"[LARGE OUTPUT TRUNCATED ({result.total_lines} lines, ~{result.estimated_tokens} tokens)]\n\n"
@@ -128,7 +131,7 @@ async def maybe_evict_large_output(
             # derive a read offset so the footer falls back to a plain read.
             footer_head: str | None = None
         else:
-            preview = _create_smart_preview(stdout)
+            preview = _create_smart_preview(content)
             footer_head = _footer_head_part(preview)
 
         if file_path:
@@ -156,7 +159,7 @@ async def maybe_evict_large_output(
 
     except Exception as e:
         logger.warning(" [Eviction] Failed: %s, falling back to smart_truncate", e)
-        fallback = _create_smart_preview(stdout)
+        fallback = _create_smart_preview(content)
         if file_path:
             fallback += build_delivery_footer(
                 evicted_basename=os.path.basename(file_path),

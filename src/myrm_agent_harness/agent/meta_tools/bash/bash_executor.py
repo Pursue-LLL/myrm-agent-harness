@@ -1,11 +1,11 @@
 """Bash code execution orchestrator (aggregate root).
 
 [INPUT]
-- .bash_executor_execute_mixin::BashExecutorExecuteMixin (POS: Synchronous execute() orchestration.)
+- .bash_executor_execute_mixin::BashExecutorExecuteMixin (POS: Primary synchronous bash/python/skill execution orchestration for BashExecutor)
 - .bash_executor_background_mixin::BashExecutorBackgroundMixin (POS: Background spawn via process registry.)
 - .bash_executor_prepare_mixin::BashExecutorPrepareMixin (POS: MCP proxy, code-type detection, skill staging.)
 - .bash_executor_context_mixin::BashExecutorContextMixin (POS: ExecutionContext build, logging, artifacts.)
-- .bash_execution_error::BashExecutionError (POS: Structured execution error with diagnostics.)
+- .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 - .bash_executor_constants::MCP_MIN_TIMEOUT (POS: MCP skill execution timeout floor.)
 
 [OUTPUT]

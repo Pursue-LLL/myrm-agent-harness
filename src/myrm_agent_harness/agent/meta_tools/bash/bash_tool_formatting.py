@@ -11,6 +11,9 @@
 
 [POS]
 Formats BashExecutor results for LLM consumption with compression and redaction.
+Both stdout and stderr run through truncate_bash_output; large streams are
+already evicted upstream (see _output_eviction) and arrive as compact previews
+with a read-back footer, so the 8k hard-truncation only ever touches small streams.
 """
 
 from __future__ import annotations

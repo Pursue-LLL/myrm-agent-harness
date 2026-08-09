@@ -6,6 +6,7 @@ import asyncio
 import base64
 import contextlib
 import os
+import shutil
 
 import pytest
 
@@ -448,6 +449,10 @@ class TestSmartEnvInjection:
             await session.close()
 
     @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        shutil.which("npm") is None,
+        reason="npm is not installed in the current environment",
+    )
     async def test_smart_local_env_injection_for_build(self) -> None:
         """Test that SKIP_ENV_VALIDATION is injected for build commands but not for normal commands."""
         config = _make_config()

@@ -2,9 +2,9 @@
 
 [INPUT]
 - agent.artifacts.file_id_registry::resolve_file_ids_in_text (POS: File ID resolution)
-- ._output_eviction::maybe_evict_large_output (POS: Large output eviction)
+- ._output_eviction::maybe_evict_large_output (POS: Provides maybe_evict_large_output and EvictionResult for stdout/stderr large-output persistence)
 - .mcp_citation_handler::MCPMetadataExtractor (POS: MCP citation handler)
-- .bash_execution_error::BashExecutionError (POS: Structured execution error)
+- .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 
 [OUTPUT]
 - BashExecutorExecuteMixin.execute
@@ -34,9 +34,19 @@ class BashExecutorExecuteMixin:
         skill_paths: list[str] | None = None,
         timeout: int | None = None,
     ) -> dict[str, object]:
-        """Execute a command (Bash or Python) through the injected CodeExecutor."""
+        """Execute a command (Bash or Python) through the injected CodeExecutor.
+
+        stdout and stderr are evicted symmetrically: either stream that is large
+        (token or char threshold) is persisted to `.context/.../evicted/` and
+        replaced by a preview + `file_read_tool` read-back footer. The returned
+        dict carries both ``evicted_ref`` (stdout) and ``stderr_evicted_ref`` so
+        the GUI can offer independent "view full output" drawers per stream.
+        """
         command = resolve_file_ids_in_text(command)
 
+        from myrm_agent_harness.agent.meta_tools.bash._output_eviction import (
+            maybe_evict_large_output,
+        )
         from myrm_agent_harness.utils.text_utils import unwrap_markdown_fence
 
         unwrapped = unwrap_markdown_fence(command)
@@ -143,22 +153,39 @@ class BashExecutorExecuteMixin:
 
         if not result.success and result.error:
             exit_code_val = result.result if isinstance(result.result, int) else 1
+
+            stdout_eviction = await maybe_evict_large_output(
+                result.stdout or "", self._executor
+            )
+            stderr_eviction = await maybe_evict_large_output(
+                result.stderr or "", self._executor
+            )
+            message = self._build_error_details(result)
+            if stderr_eviction.text and stderr_eviction.text != message:
+                message = f"{message}\n\n{stderr_eviction.text}"
+
             await self._log_bash_command_execution(
                 command=command,
                 session_id=session_id,
                 exit_code=exit_code_val,
-                stdout=result.stdout or "",
-                stderr=result.stderr or "",
+                stdout=stdout_eviction.text,
+                stderr=stderr_eviction.text,
                 duration_ms=getattr(result, "duration_ms", 0),
                 success=False,
-                error_message=result.error or "",
+                error_message=message,
             )
             raise BashExecutionError(
-                self._build_error_details(result),
+                message,
                 phase="execution",
                 command=command,
-                stdout=result.stdout or "",
-                stderr=result.stderr or "",
+                stdout_evicted_ref=stdout_eviction.evicted_ref,
+                stdout_evicted_stored_chars=stdout_eviction.stored_chars,
+                stdout_evicted_total_lines=stdout_eviction.total_lines,
+                stdout_evicted_storage_truncated=stdout_eviction.storage_truncated,
+                stderr_evicted_ref=stderr_eviction.evicted_ref,
+                stderr_evicted_stored_chars=stderr_eviction.stored_chars,
+                stderr_evicted_total_lines=stderr_eviction.total_lines,
+                stderr_evicted_storage_truncated=stderr_eviction.storage_truncated,
                 error_hint=result.error_hint,
                 error_category=result.error_category,
             )
@@ -177,9 +204,13 @@ class BashExecutorExecuteMixin:
 
         clean_stdout, mcp_metadata = self._metadata_extractor.extract_metadata(result.stdout)
 
-        from myrm_agent_harness.agent.meta_tools.bash._output_eviction import maybe_evict_large_output
-
         eviction_result = await maybe_evict_large_output(clean_stdout, self._executor)
+        # stderr gets the same eviction treatment as stdout: a large warning/error
+        # stream must be persisted and read back via file_read_tool instead of being
+        # middle-truncated by format_result. Empty stderr is a no-op short circuit.
+        stderr_eviction_result = await maybe_evict_large_output(
+            result.stderr or "", self._executor
+        )
 
         exit_code_val = result.result if isinstance(result.result, int) else 0
         await self._log_bash_command_execution(
@@ -187,14 +218,14 @@ class BashExecutorExecuteMixin:
             session_id=session_id,
             exit_code=exit_code_val,
             stdout=eviction_result.text,
-            stderr=result.stderr or "",
+            stderr=stderr_eviction_result.text,
             duration_ms=getattr(result, "duration_ms", 0),
             success=True,
         )
 
         return {
             "stdout": eviction_result.text,
-            "stderr": result.stderr,
+            "stderr": stderr_eviction_result.text,
             "exit_code": str(result.result) if result.result is not None else "0",
             "container_id": result.container_id or "",
             "mcp_metadata": mcp_metadata,
@@ -204,5 +235,9 @@ class BashExecutorExecuteMixin:
             "evicted_stored_chars": eviction_result.stored_chars,
             "evicted_total_lines": eviction_result.total_lines,
             "evicted_storage_truncated": eviction_result.storage_truncated,
+            "stderr_evicted_ref": stderr_eviction_result.evicted_ref,
+            "stderr_evicted_stored_chars": stderr_eviction_result.stored_chars,
+            "stderr_evicted_total_lines": stderr_eviction_result.total_lines,
+            "stderr_evicted_storage_truncated": stderr_eviction_result.storage_truncated,
             "office_warnings": office_warnings,
         }

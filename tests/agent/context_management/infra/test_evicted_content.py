@@ -163,6 +163,55 @@ async def test_emit_evicted_ref_dispatches_event() -> None:
         )
 
 
+@pytest.mark.asyncio
+async def test_emit_evicted_ref_stderr_stream_marker() -> None:
+    """stderr eviction must carry a stream marker so the GUI stores it separately."""
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        emit_evicted_ref,
+    )
+
+    with patch(
+        "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+        new_callable=AsyncMock,
+    ) as dispatch:
+        await emit_evicted_ref(
+            "output_abcd1234.txt",
+            tool_name="bash_code_execute_tool",
+            stored_chars=12345,
+            total_lines=321,
+            storage_truncated=True,
+            stream="stderr",
+        )
+        dispatch.assert_awaited_once_with(
+            "tool_evicted_ref",
+            {
+                "evicted_ref": "output_abcd1234.txt",
+                "tool_name": "bash_code_execute_tool",
+                "stored_chars": 12345,
+                "total_lines": 321,
+                "storage_truncated": True,
+                "stream": "stderr",
+            },
+        )
+
+
+@pytest.mark.asyncio
+async def test_emit_evicted_ref_default_stream_omitted() -> None:
+    """Default stdout stream must not pollute the payload (backwards compatible)."""
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        emit_evicted_ref,
+    )
+
+    with patch(
+        "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
+        new_callable=AsyncMock,
+    ) as dispatch:
+        await emit_evicted_ref("output_abcd1234.txt")
+        assert dispatch.await_args is not None
+        _, payload = dispatch.await_args.args
+        assert "stream" not in payload
+
+
 def test_build_evicted_basename_normalizes_invalid_extension() -> None:
     name = build_evicted_basename("web_fetch", ext="exe")
     assert name.endswith(".txt")

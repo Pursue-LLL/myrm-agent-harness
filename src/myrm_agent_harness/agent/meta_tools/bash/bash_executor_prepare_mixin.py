@@ -3,7 +3,7 @@
 [INPUT]
 - toolkits.code_execution.code_detector::code_detector, CodeType (POS: Code type detector)
 - agent.skills.mcp.executor::skill_executor (POS: Skill MCP execution bridge)
-- .bash_execution_error::BashExecutionError (POS: Structured execution error)
+- .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 - .bash_executor_constants::MCP_MIN_TIMEOUT (POS: MCP timeout floor)
 
 [OUTPUT]

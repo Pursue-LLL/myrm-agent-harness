@@ -64,6 +64,7 @@ class EvictedRefPayload:
     stored_chars: int | None = None
     total_lines: int | None = None
     storage_truncated: bool = False
+    stream: str = "stdout"
 
     def to_event_dict(self) -> dict[str, str | int | bool]:
         payload: dict[str, str | int | bool] = {"evicted_ref": self.evicted_ref}
@@ -79,6 +80,8 @@ class EvictedRefPayload:
             payload["total_lines"] = self.total_lines
         if self.storage_truncated:
             payload["storage_truncated"] = True
+        if self.stream != "stdout":
+            payload["stream"] = self.stream
         return payload
 
 
@@ -271,6 +274,7 @@ def build_evicted_ref_payload(
     stored_chars: int | None = None,
     total_lines: int | None = None,
     storage_truncated: bool = False,
+    stream: str = "stdout",
     config: RunnableConfig | None = None,
 ) -> EvictedRefPayload:
     """Build the SSOT payload for tool_evicted_ref SSE/DB binding."""
@@ -288,6 +292,7 @@ def build_evicted_ref_payload(
         stored_chars=stored_chars,
         total_lines=total_lines,
         storage_truncated=storage_truncated,
+        stream=stream,
     )
 
 
@@ -300,6 +305,7 @@ async def emit_evicted_ref(
     stored_chars: int | None = None,
     total_lines: int | None = None,
     storage_truncated: bool = False,
+    stream: str = "stdout",
     config: RunnableConfig | None = None,
 ) -> None:
     """Notify the GUI that full content is available in the evicted drawer."""
@@ -313,6 +319,7 @@ async def emit_evicted_ref(
         stored_chars=stored_chars,
         total_lines=total_lines,
         storage_truncated=storage_truncated,
+        stream=stream,
         config=config,
     )
     event_payload = payload.to_event_dict()

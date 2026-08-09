@@ -75,8 +75,9 @@ class TaskStatus(StrEnum):
 
     State machine::
 
-        TRIAGE ──► BACKLOG ──► READY ──► RUNNING ──► COMPLETED
-           │          │           │          │
+        TRIAGE ──► BACKLOG ──► READY ──► RUNNING ──► IN_REVIEW ──► COMPLETED
+           │          │           │          │         │ (approve)
+           │          │           │          │         │
            │          │           │          ├──► FAILED
            │          │           │          │
            │          │           │          └──► BLOCKED
@@ -86,6 +87,12 @@ class TaskStatus(StrEnum):
     TRIAGE is the inbox for rough ideas pending LLM-driven Specifier rewrite.
     A TRIAGE task is opaque to the dispatcher (never claimed) — it can only
     transition to BACKLOG/READY (via specify) or to ARCHIVED (manual discard).
+
+    IN_REVIEW is the human-approval gate for tasks created with
+    ``require_approval=True``. The dispatcher lands a successfully verified
+    task in IN_REVIEW (never COMPLETED) until an operator approves it
+    (→ COMPLETED, then dependents are promoted) or rejects it (→ READY for
+    rework). Approval is operator-driven via REST/GUI — no LLM tool.
     """
 
     TRIAGE = "triage"
@@ -93,6 +100,7 @@ class TaskStatus(StrEnum):
     READY = "ready"
     RUNNING = "running"
     BLOCKED = "blocked"
+    IN_REVIEW = "in_review"
     COMPLETED = "completed"
     FAILED = "failed"
     ARCHIVED = "archived"
@@ -100,7 +108,9 @@ class TaskStatus(StrEnum):
 
 _TERMINAL_STATUSES: frozenset[TaskStatus] = frozenset({TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.ARCHIVED})
 
-_ACTIVE_STATUSES: frozenset[TaskStatus] = frozenset({TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.BLOCKED})
+_ACTIVE_STATUSES: frozenset[TaskStatus] = frozenset(
+    {TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.BLOCKED, TaskStatus.IN_REVIEW}
+)
 
 # Allowed transitions out of TRIAGE — protects state-machine integrity.
 # TRIAGE → BACKLOG (after specify, if deps unmet) / READY (after specify, no deps) /
@@ -260,6 +270,10 @@ class KanbanTask:
     goal_mode: bool = False
     goal_max_turns: int | None = None
 
+    # Human approval gate — when True, a successfully verified task lands in
+    # IN_REVIEW and waits for an operator approve/reject before completion.
+    require_approval: bool = False
+
     # Execution tracking
     max_runtime_seconds: int | None = None
     extra_skill_ids: list[str] = field(default_factory=list)
@@ -315,6 +329,7 @@ class KanbanTask:
             "branch": self.branch,
             "goal_mode": self.goal_mode,
             "goal_max_turns": self.goal_max_turns,
+            "require_approval": self.require_approval,
             "retry_count": self.retry_count,
             "max_retries": self.max_retries,
             "consecutive_failures": self.consecutive_failures,
@@ -447,6 +462,9 @@ class TaskEventKind(StrEnum):
     TIMED_OUT = "timed_out"
     COMPLETION_REQUESTED = "completion_requested"
     EDITED = "edited"
+    REVIEW_REQUESTED = "review_requested"
+    APPROVED = "approved"
+    REJECTED = "rejected"
 
 
 @dataclass(frozen=True)

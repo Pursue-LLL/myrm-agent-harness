@@ -2,7 +2,7 @@
 
 [INPUT]
 - ._background.registry::get_background_registry, BackgroundQuotaError (POS: Background job registry)
-- .bash_execution_error::BashExecutionError (POS: Structured execution error)
+- .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 - agent.artifacts.file_id_registry::resolve_file_ids_in_text (POS: File ID resolution)
 
 [OUTPUT]

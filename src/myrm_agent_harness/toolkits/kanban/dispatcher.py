@@ -228,6 +228,76 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
         )
         return True
 
+    async def approve_task(
+        self,
+        task_id: str,
+        *,
+        approver: str | None = None,
+    ) -> KanbanTask | None:
+        """Approve an IN_REVIEW task: promote it to COMPLETED and release dependents.
+
+        Operator-driven (REST/GUI) — there is no LLM tool for approval.
+        No-op when the task is not IN_REVIEW (idempotent, race-safe).
+        """
+        task = await self._store.get_task(task_id)
+        if task is None or task.status != TaskStatus.IN_REVIEW:
+            return task
+
+        task.status = TaskStatus.COMPLETED
+        task.completed_at = datetime.now(UTC)
+        task.consecutive_failures = 0
+        task.block_cycle_count = 0
+        task.progress_note = None
+        await self._store.save_task(task)
+        await self._store.append_event(
+            task_id,
+            TaskEventKind.APPROVED,
+            payload={"approver": approver or "human"},
+        )
+        self.emit("task_completed", task)
+        await self._promote_dependents(task_id)
+        self.wake()
+        logger.info("Task %s approved and completed", task_id[:8])
+        return task
+
+    async def reject_task(
+        self,
+        task_id: str,
+        *,
+        reason: str = "",
+        approver: str | None = None,
+    ) -> KanbanTask | None:
+        """Reject an IN_REVIEW task: send it back to READY for rework.
+
+        The rejection reason is persisted on the event trail and echoed into
+        the worker context (via prior-attempt error) so a re-run adapts.
+        No-op when the task is not IN_REVIEW (idempotent, race-safe).
+        """
+        task = await self._store.get_task(task_id)
+        if task is None or task.status != TaskStatus.IN_REVIEW:
+            return task
+
+        old_status = task.status
+        task.status = TaskStatus.READY
+        task.consecutive_failures = 0
+        task.error = reason
+        task.last_heartbeat_at = None
+        task.progress_note = None
+        await self._store.save_task(task)
+        await self._store.append_event(
+            task_id,
+            TaskEventKind.REJECTED,
+            payload={
+                "reason": reason,
+                "approver": approver or "human",
+                "from": old_status.value,
+            },
+        )
+        self.emit("task_rejected", task)
+        self.wake()
+        logger.info("Task %s rejected for rework: %s", task_id[:8], reason)
+        return task
+
     # -- Dispatch loop --
 
     async def _dispatch_loop(self) -> None:
@@ -411,6 +481,29 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
                 self.emit("verification_failed", task)
                 await self._handle_failure(task_id, reason, run_id)
                 return
+
+        if task.require_approval:
+            task.status = TaskStatus.IN_REVIEW
+            task.result = result
+            task.consecutive_failures = 0
+            task.block_cycle_count = 0
+            task.progress_note = None
+            task.metadata = clear_completion_intent(dict(task.metadata))
+            await self._store.save_task(task)
+            await self._store.complete_run(
+                run_id,
+                TaskRunOutcome.COMPLETED,
+                summary=result,
+            )
+            await self._store.append_event(
+                task_id,
+                TaskEventKind.REVIEW_REQUESTED,
+                run_id=run_id,
+            )
+            self.emit("task_review_requested", task)
+            self.wake()
+            logger.info("Task %s submitted for review", task_id[:8])
+            return
 
         task.status = TaskStatus.COMPLETED
         task.result = result

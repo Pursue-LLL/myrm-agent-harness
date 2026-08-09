@@ -27,24 +27,26 @@ def _mock_code_executor() -> MagicMock:
 
 
 class TestBashExecutionError:
-    def test_format_diagnostic_without_phase_returns_message(self) -> None:
-        err = BashExecutionError("plain error")
-        assert err.format_diagnostic() == "plain error"
-
-    def test_format_diagnostic_with_phase_includes_previews(self) -> None:
+    def test_construction_keeps_diagnostics(self) -> None:
         err = BashExecutionError(
             "failed",
             phase="execution",
             command="ls",
-            stdout="out" * 200,
-            stderr="err",
+            stderr="Traceback ...\nValueError: x",
             error_hint="fix it",
-            error_category="TIMEOUT",
+            error_category="EXEC",
+            stderr_evicted_ref="output_abc.txt",
+            stderr_evicted_stored_chars=1200,
+            stderr_evicted_total_lines=10,
+            stderr_evicted_storage_truncated=True,
         )
-        report = err.format_diagnostic()
-        assert "Phase:    execution" in report
-        assert "Hint: fix it" in report
-        assert "Stdout Preview:" in report
+        assert str(err) == "failed"
+        assert err.error_hint == "fix it"
+        assert err.error_category == "EXEC"
+        assert err.stderr_evicted_ref == "output_abc.txt"
+        assert err.stderr_evicted_stored_chars == 1200
+        assert err.stderr_evicted_total_lines == 10
+        assert err.stderr_evicted_storage_truncated is True
 
 
 @pytest.mark.asyncio
@@ -84,6 +86,96 @@ async def test_execute_bash_success_returns_eviction_fields() -> None:
 
 
 @pytest.mark.asyncio
+async def test_execute_symmetrically_evicts_stderr() -> None:
+    """Large stderr gets the same eviction treatment as stdout.
+
+    The execute() return must carry the stderr eviction preview and a separate
+    stderr_evicted_ref so the GUI can offer an independent "view full stderr".
+    """
+    executor = _mock_code_executor()
+    executor.execute_bash.return_value = ExecutionResult(
+        success=True,
+        result=0,
+        stdout="ok",
+        stderr="warning" * 5000,
+        container_id="c1",
+    )
+    bash_exec = BashExecutor(executor, enable_skill_execution=False)
+
+    def _fake_evict(text: str, _executor=None):
+        return MagicMock(
+            text=f"preview:{len(text)}",
+            evicted_ref=f"ref-{len(text)}",
+            stored_chars=len(text),
+            total_lines=1,
+            storage_truncated=False,
+        )
+
+    with (
+        patch.object(
+            bash_exec._workspace_manager,
+            "get_or_create",
+            AsyncMock(return_value=(MagicMock(), None)),
+        ),
+        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
+        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            AsyncMock(side_effect=_fake_evict),
+        ),
+        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
+    ):
+        result = await bash_exec.execute("echo hi", session_id="sess-1")
+
+    assert result["stdout"] == "preview:2"
+    assert result["evicted_ref"] == "ref-2"
+    assert result["stderr"] == f"preview:{len('warning' * 5000)}"
+    assert result["stderr_evicted_ref"] == f"ref-{len('warning' * 5000)}"
+    assert result["stderr_evicted_stored_chars"] == len("warning" * 5000)
+    assert result["stderr_evicted_total_lines"] == 1
+
+
+@pytest.mark.asyncio
+async def test_execute_empty_stderr_passes_through_eviction() -> None:
+    """Empty stderr passes through the eviction path unchanged.
+
+    Bash path always merges stderr into stdout (local_session uses
+    asyncio.subprocess.STDOUT), so stderr is ``""`` here — the symmetric
+    eviction call is a harmless no-op that yields no evicted ref.
+    """
+    executor = _mock_code_executor()
+    executor.execute_bash.return_value = ExecutionResult(
+        success=True,
+        result=0,
+        stdout="hello",
+        stderr="",
+        container_id="c1",
+    )
+    bash_exec = BashExecutor(executor, enable_skill_execution=False)
+
+    with (
+        patch.object(
+            bash_exec._workspace_manager,
+            "get_or_create",
+            AsyncMock(return_value=(MagicMock(), None)),
+        ),
+        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
+        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            AsyncMock(return_value=MagicMock(text="out", evicted_ref=None)),
+        ),
+        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
+    ):
+        result = await bash_exec.execute("echo hi", session_id="sess-1")
+
+    assert result["stderr"] == "out"
+    assert result["stderr_evicted_ref"] is None
+
+
+@pytest.mark.asyncio
 async def test_execute_raises_bash_execution_error_on_failure() -> None:
     executor = _mock_code_executor()
     executor.execute_bash.return_value = ExecutionResult(
@@ -105,9 +197,124 @@ async def test_execute_raises_bash_execution_error_on_failure() -> None:
         patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
         patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
-        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),pytest.raises(BashExecutionError)
+        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
+        pytest.raises(BashExecutionError)
     ):
         await bash_exec.execute("false", session_id="sess-1")
+
+
+@pytest.mark.asyncio
+async def test_execute_failure_evicts_stderr_into_message() -> None:
+    executor = _mock_code_executor()
+    executor.execute_bash.return_value = ExecutionResult(
+        success=False,
+        result=1,
+        stdout="processed row 149\n",
+        stderr=(
+            'Traceback (most recent call last):\n'
+            '  File "<string>", line 152\n'
+            "    float(row['amount'])\n"
+            "ValueError: bad row 150"
+        ),
+        error="ValueError: bad row 150",
+        error_category="EXEC",
+    )
+    bash_exec = BashExecutor(executor, enable_skill_execution=False)
+
+    async def _fake_evict(content: str, _executor=None) -> MagicMock:
+        if content.startswith("processed row"):
+            return MagicMock(
+                text="[LARGE STDOUT TRUNCATED (1 lines, ~2 tokens)]\n\nRead the full output with file_read_tool.",
+                evicted_ref="stdout_out_1.txt",
+                stored_chars=32,
+                total_lines=1,
+                storage_truncated=False,
+            )
+        return MagicMock(
+            text=(
+                "[LARGE OUTPUT TRUNCATED (12 lines, ~60 tokens)]\n\n"
+                "Traceback ...\n\n"
+                "Read the full output with file_read_tool."
+            ),
+            evicted_ref="output_abc123.txt",
+            stored_chars=1500,
+            total_lines=12,
+            storage_truncated=False,
+        )
+
+    with (
+        patch.object(
+            bash_exec._workspace_manager,
+            "get_or_create",
+            AsyncMock(return_value=(MagicMock(), None)),
+        ),
+        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
+        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
+        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()) as mock_log,
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            AsyncMock(side_effect=_fake_evict),
+        ),
+        pytest.raises(BashExecutionError) as exc_info,
+    ):
+        await bash_exec.execute("bad python", session_id="sess-1")
+
+    err = exc_info.value
+    assert err.error_category == "EXEC"
+    assert "ValueError: bad row 150" in str(err)
+    assert "LARGE OUTPUT TRUNCATED" in str(err)
+    assert "processed row" not in str(err)
+    assert err.stdout_evicted_ref == "stdout_out_1.txt"
+    assert err.stdout_evicted_stored_chars == 32
+    assert err.stdout_evicted_total_lines == 1
+    assert err.stderr_evicted_ref == "output_abc123.txt"
+    assert err.stderr_evicted_stored_chars == 1500
+    assert err.stderr_evicted_total_lines == 12
+
+    log_kwargs = mock_log.await_args.kwargs
+    assert log_kwargs["stdout"] == (
+        "[LARGE STDOUT TRUNCATED (1 lines, ~2 tokens)]\n\n"
+        "Read the full output with file_read_tool."
+    )
+    assert log_kwargs["stderr"] == (
+        "[LARGE OUTPUT TRUNCATED (12 lines, ~60 tokens)]\n\n"
+        "Traceback ...\n\n"
+        "Read the full output with file_read_tool."
+    )
+    assert log_kwargs["success"] is False
+
+
+@pytest.mark.asyncio
+async def test_execute_failure_small_stderr_visible_in_message() -> None:
+    executor = _mock_code_executor()
+    executor.execute_bash.return_value = ExecutionResult(
+        success=False,
+        result=1,
+        stdout="",
+        stderr="boom: cannot find package",
+        error="boom: cannot find package",
+        error_category="EXEC",
+    )
+    bash_exec = BashExecutor(executor, enable_skill_execution=False)
+
+    with (
+        patch.object(
+            bash_exec._workspace_manager,
+            "get_or_create",
+            AsyncMock(return_value=(MagicMock(), None)),
+        ),
+        patch.object(bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"),
+        patch.object(bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()),
+        patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
+        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
+        pytest.raises(BashExecutionError) as exc_info,
+    ):
+        await bash_exec.execute("false", session_id="sess-1")
+
+    err = exc_info.value
+    assert str(err) == "boom: cannot find package"
+    assert err.stderr_evicted_ref is None
 
 
 @pytest.mark.asyncio

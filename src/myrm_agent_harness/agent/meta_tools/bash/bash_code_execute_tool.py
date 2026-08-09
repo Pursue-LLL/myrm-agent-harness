@@ -3,7 +3,8 @@
 [INPUT]
 - ._tool_description::TOOL_DESCRIPTION (POS: Static LLM-facing description prompt)
 - ._preflight_checks (POS: Security preflight checks)
-- .bash_executor::BashExecutor, BashExecutionError (POS: Code execution orchestrator)
+- .bash_executor::BashExecutor (POS: Bash executor aggregate root. MRO: Execute → Background → Prepare → Context)
+- .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 - .bash_tool_helpers (POS: BashInput, OS hint, context tracking)
 - .bash_tool_formatting (POS: Output formatting and truncation)
 - .bash_tool_background_listeners (POS: Background ptc_notify listeners)
@@ -320,6 +321,23 @@ def create_bash_code_execute_tool(
                     stored_chars=_coerce_optional_int(result.get("evicted_stored_chars")),
                     total_lines=_coerce_optional_int(result.get("evicted_total_lines")),
                     storage_truncated=bool(result.get("evicted_storage_truncated")),
+                    stream="stdout",
+                    config=config,
+                )
+
+            stderr_evicted_ref = result.get("stderr_evicted_ref")
+            if stderr_evicted_ref and isinstance(stderr_evicted_ref, str):
+                from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+                    emit_evicted_ref,
+                )
+
+                await emit_evicted_ref(
+                    stderr_evicted_ref,
+                    tool_name="bash_code_execute_tool",
+                    stored_chars=_coerce_optional_int(result.get("stderr_evicted_stored_chars")),
+                    total_lines=_coerce_optional_int(result.get("stderr_evicted_total_lines")),
+                    storage_truncated=bool(result.get("stderr_evicted_storage_truncated")),
+                    stream="stderr",
                     config=config,
                 )
 
@@ -359,6 +377,54 @@ def create_bash_code_execute_tool(
                 hint = e.error_hint
                 if e.error_category:
                     diagnostic = {"error_category": e.error_category}
+
+                if e.stdout_evicted_ref or e.stderr_evicted_ref:
+                    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+                        emit_evicted_ref,
+                    )
+
+                    async def _emit_evicted(
+                        ref: str,
+                        *,
+                        stream: str,
+                        stored_chars: int | None,
+                        total_lines: int | None,
+                        storage_truncated: bool,
+                    ) -> None:
+                        try:
+                            await emit_evicted_ref(
+                                ref,
+                                tool_name="bash_code_execute_tool",
+                                stored_chars=stored_chars,
+                                total_lines=total_lines,
+                                storage_truncated=storage_truncated,
+                                stream=stream,
+                                config=config,
+                            )
+                        except Exception as emit_exc:
+                            logger.warning(
+                                "Failed to emit %s evicted ref %s: %s",
+                                stream,
+                                ref,
+                                emit_exc,
+                            )
+
+                    if e.stdout_evicted_ref:
+                        await _emit_evicted(
+                            e.stdout_evicted_ref,
+                            stream="stdout",
+                            stored_chars=e.stdout_evicted_stored_chars,
+                            total_lines=e.stdout_evicted_total_lines,
+                            storage_truncated=e.stdout_evicted_storage_truncated,
+                        )
+                    if e.stderr_evicted_ref:
+                        await _emit_evicted(
+                            e.stderr_evicted_ref,
+                            stream="stderr",
+                            stored_chars=e.stderr_evicted_stored_chars,
+                            total_lines=e.stderr_evicted_total_lines,
+                            storage_truncated=e.stderr_evicted_storage_truncated,
+                        )
 
                 if "git clone" in command and "github.com" in command:
                     git_hint = (

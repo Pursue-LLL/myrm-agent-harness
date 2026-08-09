@@ -149,6 +149,29 @@ class TestParseExecutionOutput:
         assert result.success is True
         assert result.stdout == "captured"
 
+    def test_stderr_fallback_to_subprocess_when_json_empty(self) -> None:
+        """Empty JSON stderr key must not discard the real subprocess stderr.
+
+        The wrapper JSON always carries a (possibly empty) ``stderr`` key, so a
+        plain ``.get("stderr", default)`` never falls back. When the wrapper saw
+        no exception (empty key), the captured subprocess stderr — warnings and
+        user ``sys.stderr`` writes — must win.
+        """
+        stdout = '__RESULT_START__\n{"success": true, "result": null, "error": null, "stdout": "ok", "stderr": ""}\n__RESULT_END__'
+        subprocess_stderr = "WARN: download http://example/0 retry\nWARN: skip row 3"
+        result = parse_execution_output(stdout, subprocess_stderr, 0)
+        assert result.success is True
+        assert result.stderr == subprocess_stderr
+
+    def test_stderr_json_traceback_still_preferred(self) -> None:
+        """A non-empty JSON stderr (wrapper traceback) must not be overwritten."""
+        stdout = '__RESULT_START__\n{"success": false, "result": null, "error": "ValueError: bad", "stdout": "", "stderr": "Traceback (most recent call last):\\nValueError: bad"}\n__RESULT_END__'
+        subprocess_stderr = "unrelated subprocess noise"
+        result = parse_execution_output(stdout, subprocess_stderr, 1)
+        assert result.success is False
+        assert result.stderr.startswith("Traceback")
+        assert "unrelated" not in result.stderr
+
 
 class TestGenerateWrapperScript:
     """generate_wrapper_script produces a valid, compilable Python script."""

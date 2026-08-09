@@ -17,7 +17,10 @@ Shared wrapper for all executors. Handles:
 - parse_execution_output: function — parse_execution_output
 
 [POS]
-Unified execution wrapper script.
+Unified execution wrapper script. User-code stderr is not captured inside the
+wrapper (only stdout is bounded); parse_execution_output therefore falls back to
+the subprocess stderr pipe whenever the JSON stderr key is empty, so warnings and
+user sys.stderr writes are not discarded.
 """
 
 import json
@@ -390,7 +393,12 @@ def parse_execution_output(stdout: str, stderr: str, exit_code: int) -> Executio
                 success=result_json.get("success", False),
                 result=result_json.get("result"),
                 stdout=result_json.get("stdout", user_stdout),
-                stderr=result_json.get("stderr", stderr),
+                # JSON always carries a "stderr" key (empty string unless the wrapper
+                # captured a traceback), so a plain `.get(key, default)` never falls
+                # back. Empty means the wrapper saw no exception — the real
+                # subprocess stderr (warnings, user sys.stderr writes) lives in the
+                # captured pipe and must win here, not be discarded.
+                stderr=result_json.get("stderr") or stderr,
                 error=result_json.get("error"),
             )
         except json.JSONDecodeError:

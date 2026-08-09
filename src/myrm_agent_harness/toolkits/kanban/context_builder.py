@@ -129,6 +129,25 @@ async def build_task_context(store: KanbanStore, task_id: str) -> str:
             lines.append(f"@{author} ({ts}): {_cap(str(body), 2000)}")
         lines.append("")
 
+    rejected = [
+        e
+        for e in events
+        if e.kind in (TaskEventKind.REVIEW_REQUESTED, TaskEventKind.REJECTED)
+    ]
+    if rejected:
+        review_lines: list[str] = []
+        for e in rejected[-2:]:
+            ts = e.created_at.strftime("%Y-%m-%d %H:%M")
+            if e.kind == TaskEventKind.REJECTED:
+                reason = str((e.payload or {}).get("reason", "")) or "no reason given"
+                review_lines.append(f"- Rejected ({ts}): {_cap(reason, 2000)}")
+            else:
+                review_lines.append(f"- Submitted for human review ({ts})")
+        if review_lines:
+            lines.append("## Review history")
+            lines.extend(review_lines)
+            lines.append("")
+
     return "\n".join(lines)
 
 
