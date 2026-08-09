@@ -781,3 +781,22 @@ class TestPopCheckpointIncompatibleMergedContext:
         }
         assert merged == {"keep": "value"}
         assert stripped["goal_provider"] is goal_provider
+
+
+class TestRunAgentLoopModelSlugSource:
+    """Regression: run_agent_loop must resolve the primary model slug from the agent LLM.
+
+    AgentRuntimeConfig has no ``llm`` field; reading ``agent_state.config.llm.model``
+    raised AttributeError on every agent run before this regression test was added.
+    """
+
+    def test_model_slug_reads_from_agent_llm_not_config(self) -> None:
+        from pathlib import Path
+
+        source = (
+            Path(__file__).resolve().parents[3]
+            / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
+        ).read_text(encoding="utf-8")
+        assert "parse_litellm_model(llm_model or \"\")" in source
+        assert "agent_state.llm.model_name" in source
+        assert "agent_state.config.llm" not in source

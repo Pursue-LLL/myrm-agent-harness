@@ -7,7 +7,6 @@ ContextVar integration, and awrap_model_call injection semantics.
 
 from __future__ import annotations
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -688,7 +687,8 @@ class TestInjectMemoryContext:
         }
 
     @pytest.mark.asyncio
-    async def test_gather_outer_failure_returns_without_leak_warnings(self, _inject_fn):
+    async def test_get_context_failure_returns_without_leak_warnings(self, _inject_fn):
+        """When static memory context load fails, middleware degrades to not_applied/load_error."""
         handler = AsyncMock()
         req = _make_request()
         mock_manager = MagicMock()
@@ -698,28 +698,12 @@ class TestInjectMemoryContext:
         mock_manager.user_id = "u123"
         mock_manager.recall_mode = RecallMode.HYBRID
 
-        async def _static() -> dict[str, object]:
-            return {}
+        async def exploding_get_context(*args: object, **_: object) -> dict[str, object]:
+            raise RuntimeError("simulated_load_failure")
 
-        async def _learned() -> dict[str, list[dict[str, str]]]:
-            return dict(_EMPTY_LEARNED)
+        mock_manager.get_context = exploding_get_context
 
-        mock_manager.get_context = _static
-        mock_manager.get_learned_context = _learned
-
-        async def exploding_gather(*args: object, **_: object) -> None:
-            for maybe in args:
-                if asyncio.iscoroutine(maybe):
-                    maybe.close()
-            raise RuntimeError("simulated_gather_failure")
-
-        with (
-            patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager),
-            patch(
-                "myrm_agent_harness.agent.middlewares.memory_context_middleware.asyncio.gather",
-                exploding_gather,
-            ),
-        ):
+        with patch("myrm_agent_harness.agent._skill_agent_context.get_memory_manager", return_value=mock_manager):
             await _inject_fn(req, handler)
 
         handler.assert_awaited_once_with(req)

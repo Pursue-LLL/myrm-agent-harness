@@ -7,12 +7,14 @@
 - ToolAssertion: assertion specification
 - evaluate_tool_assertions(): tool evaluator
 - evaluate_state_assertions(): state/output evaluator
-- evaluate_sandbox_assertions(): sandbox evaluator
+- evaluate_sandbox_assertions(): sandbox evaluator (file/cmd/json + test_suite Rule judge)
 - evaluate_semantic_assertions(): LLM-as-a-judge semantic evaluator
+- suite_judge: task-native suite scoring helpers (TestSuiteResult/parse_junit_result/parse_reward_result)
 
 [POS]
 Provides pass/fail verification of agent tool calls, output text,
-sandbox states, and subjective semantic evaluations via lightweight LLMs.
+sandbox states, task-native test suites, and subjective semantic evaluations
+via lightweight LLMs.
 """
 
 from __future__ import annotations
@@ -22,6 +24,13 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+
+from .suite_judge import (
+    TestSuiteResult,
+    evaluate_test_suite_assertion,
+    parse_junit_result,
+    parse_reward_result,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.eval.protocols import SandboxAssertion, SemanticAssertion, StateAssertion
@@ -72,12 +81,16 @@ def evaluate_tool_assertions(
 async def evaluate_sandbox_assertions(
     assertions: list[SandboxAssertion],
     executor: CodeExecutor | None,
+    *,
+    scores_out: dict[str, float] | None = None,
 ) -> tuple[bool | None, str | None]:
     """Evaluate sandbox state assertions.
 
     Args:
         assertions: List of SandboxAssertion objects.
         executor: CodeExecutor instance to interact with the sandbox.
+        scores_out: Optional mutable dict to collect numeric per-assertion
+            scores (e.g. test pass_rate) alongside the binary verdict.
 
     Returns:
         (passed, details) where passed is None if no assertions provided.
@@ -91,7 +104,15 @@ async def evaluate_sandbox_assertions(
     from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext
 
     for assertion in assertions:
-        if assertion.type == "file_exists":
+        if assertion.type == "test_suite":
+            suite = await evaluate_test_suite_assertion(assertion, executor)
+            if scores_out is not None:
+                scores_out["pass_rate"] = suite.pass_rate
+                scores_out["tests_passed"] = float(suite.tests_passed)
+                scores_out["tests_total"] = float(suite.tests_total)
+            if not suite.passed:
+                return False, f"Sandbox assertion failed: {suite.details}"
+        elif assertion.type == "file_exists":
             exists = await executor.file_exists(assertion.target)
             if not exists:
                 return False, f"Sandbox assertion failed: File {assertion.target} does not exist."

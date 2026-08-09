@@ -280,26 +280,50 @@ _active_tool_registry_var: ContextVar[ToolRegistry | None] = ContextVar(
 _active_resolved_tools_var: ContextVar[list[BaseTool] | None] = ContextVar(
     "active_resolved_tools", default=None
 )
+# LangGraph executes graph nodes in copied contexts, so ContextVar state set in
+# run_agent_loop does not survive into ToolNode execution. Mirror the loop-guard
+# pattern (ContextVar + session-key fallback) so runtime-only hooks such as
+# `_completion_check` can still be resolved by resolve_dynamic_tool.
+_session_tool_registries: dict[str, ToolRegistry] = {}
+_session_resolved_tools: dict[str, list[BaseTool]] = {}
+
+
+def _active_tools_session_key() -> str:
+    from myrm_agent_harness.core.context_vars import chat_id_var
+
+    try:
+        session_key = chat_id_var.get()
+    except LookupError:
+        session_key = ""
+    return session_key if session_key else get_approval_session() or "__default__"
 
 
 def set_active_tool_registry(registry: ToolRegistry) -> None:
     """Publish the agent's ToolRegistry for dynamic tool resolution during execution."""
     _active_tool_registry_var.set(registry)
+    _session_tool_registries[_active_tools_session_key()] = registry
 
 
 def get_active_tool_registry() -> ToolRegistry | None:
     """Return the ToolRegistry for the current agent run, if set."""
-    return _active_tool_registry_var.get()
+    registry = _active_tool_registry_var.get()
+    if registry is not None:
+        return registry
+    return _session_tool_registries.get(_active_tools_session_key())
 
 
 def set_active_resolved_tools(tools: list[BaseTool]) -> None:
     """Publish the resolved tool instances bound to the current agent graph."""
     _active_resolved_tools_var.set(tools)
+    _session_resolved_tools[_active_tools_session_key()] = tools
 
 
 def get_active_resolved_tools() -> list[BaseTool] | None:
     """Return resolved tools for the current agent run, if set."""
-    return _active_resolved_tools_var.get()
+    tools = _active_resolved_tools_var.get()
+    if tools is not None:
+        return tools
+    return _session_resolved_tools.get(_active_tools_session_key())
 
 
 def set_is_subagent(is_subagent: bool) -> None:

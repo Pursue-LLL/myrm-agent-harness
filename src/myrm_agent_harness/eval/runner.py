@@ -2,7 +2,7 @@
 
 [INPUT]
 - protocol::AgentExecutor, (POS: Protocol contract. Framework provides FileEventLogBackend; business layer may extend with SQLite / PostgreSQL implementations.)
-- assertions::ToolAssertion, (POS: Provides pass/fail verification of agent tool calls, output text, sandbox states, and subjective semantic evaluations via lightweight LLMs.)
+- assertions::ToolAssertion, (POS: Provides pass/fail verification of agent tool calls, output text, sandbox states, task-native test suites, and subjective semantic evaluations via lightweight LLMs.)
 
 [OUTPUT]
 - EvalRunner: main eval runner with single-turn, multi-turn, and concurrent support
@@ -171,11 +171,16 @@ class EvalRunner:
         )
 
         passed, details = evaluate_tool_assertions(response.tools_called, assertion)
+        sb_scores: dict[str, float] = {}
 
         if passed is not False and case.sandbox_assertions:
             # Pass sid to get the sandbox executor for this specific session
             sandbox_executor = getattr(self._executor, "get_sandbox_executor", lambda session_id: None)(session_id=sid)
-            sb_passed, sb_details = await evaluate_sandbox_assertions(case.sandbox_assertions, sandbox_executor)
+            sb_passed, sb_details = await evaluate_sandbox_assertions(
+                case.sandbox_assertions,
+                sandbox_executor,
+                scores_out=sb_scores,
+            )
             if sb_passed is not None:
                 passed = sb_passed if passed is None else (passed and sb_passed)
                 if sb_details:
@@ -206,6 +211,7 @@ class EvalRunner:
             assertion_passed=passed,
             assertion_details=details,
             timings=timings,
+            scores=sb_scores,
         )
 
         self._notify(result)

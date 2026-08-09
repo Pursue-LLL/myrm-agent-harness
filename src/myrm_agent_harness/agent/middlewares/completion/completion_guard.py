@@ -57,6 +57,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from copy import deepcopy
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
@@ -126,12 +127,14 @@ def is_mutating_tool(tool_name: str) -> bool:
 
 
 _rejection_count: int = 0
+_forced_finish: bool = False
 
 
 def reset_completion_guard() -> None:
     """Reset guard state — call at the start of each agent run."""
-    global _rejection_count
+    global _rejection_count, _forced_finish
     _rejection_count = 0
+    _forced_finish = False
 
 
 @tool(COMPLETION_CHECK_TOOL_NAME)
@@ -292,8 +295,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
         self, state: dict[str, Any], runtime: Any
     ) -> dict[str, Any] | None:
         """Intercept completion attempts and inject verification when critical errors exist."""
-        global _rejection_count
-        if not self._enabled:
+        global _rejection_count, _forced_finish
+        if not self._enabled or _forced_finish:
             return None
 
         messages = state.get("messages", [])
@@ -345,8 +348,9 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                             "final response with %d read-only tool_calls — stripping to terminate early.",
                             len(last_ai_msg.tool_calls),
                         )
-                        last_ai_msg.tool_calls = []
-                        return {"messages": [last_ai_msg]}
+                        patched = deepcopy(last_ai_msg)
+                        patched.tool_calls = []
+                        return {"messages": [patched]}
             return None
 
         from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
@@ -422,6 +426,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 "[CompletionGuard] Max rejections (%d) reached. Allowing agent to finish despite critical errors.",
                 self._max_rejections,
             )
+            _forced_finish = True
             tool_call_id = f"call_{uuid.uuid4().hex[:24]}"
             forced_args: dict[str, object] = {
                 "workspace_root": (str(workspace_root) if workspace_root else ""),
@@ -431,7 +436,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 forced_args["evidence_reason"] = evidence_reason
             if deliverable_write_reason is not None:
                 forced_args["deliverable_write_reason"] = deliverable_write_reason
-            last_ai_msg.tool_calls = [
+            patched = deepcopy(last_ai_msg)
+            patched.tool_calls = [
                 {
                     "name": COMPLETION_CHECK_TOOL_NAME,
                     "args": forced_args,
@@ -439,8 +445,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                     "type": "tool_call",
                 }
             ]
-            _rejection_count = 0
-            return {"messages": [last_ai_msg]}
+            return {"messages": [patched]}
 
         _rejection_count = current_rejections + 1
         logger.warning(
@@ -457,7 +462,8 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
             tool_args["evidence_reason"] = evidence_reason
         if deliverable_write_reason is not None:
             tool_args["deliverable_write_reason"] = deliverable_write_reason
-        last_ai_msg.tool_calls = [
+        patched = deepcopy(last_ai_msg)
+        patched.tool_calls = [
             {
                 "name": COMPLETION_CHECK_TOOL_NAME,
                 "args": tool_args,
@@ -465,7 +471,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                 "type": "tool_call",
             }
         ]
-        return {"messages": [last_ai_msg]}
+        return {"messages": [patched]}
 
 
 __all__ = [

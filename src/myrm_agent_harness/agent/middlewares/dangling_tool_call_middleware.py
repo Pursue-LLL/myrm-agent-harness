@@ -295,15 +295,16 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
         for tc_id, _, _ in tool_calls:
             referenced_ids.add(tc_id)
 
-    existing_ids: set[str] = set()
+    # Count per-id ToolMessage availability. A tool_call_id declared N times needs
+    # N matching ToolMessages; anything beyond the available count is dangling.
+    tool_count: dict[str, int] = {}
     for msg in working:
-        if not isinstance(msg, ToolMessage):
+        if not isinstance(msg, ToolMessage) or not msg.tool_call_id:
             continue
-        if msg.tool_call_id in referenced_ids:
-            existing_ids.add(msg.tool_call_id)
+        tool_count[msg.tool_call_id] = tool_count.get(msg.tool_call_id, 0) + 1
 
     patched: list[BaseMessage] = []
-    patched_ids: set[str] = set()
+    consumed_so_far: dict[str, int] = {}
     patched_names: list[str] = []
     dropped_orphan_ids: list[str] = []
 
@@ -319,20 +320,19 @@ def _build_patched_messages(messages: list[BaseMessage]) -> list[BaseMessage] | 
         tool_calls = ai_tool_calls_by_msg.get(id(msg), [])
         invalid_errors = invalid_errors_by_msg.get(id(msg), {})
         for tc_id, tool_name, is_invalid in tool_calls:
-            if tc_id in existing_ids or tc_id in patched_ids:
-                continue
-            error = invalid_errors.get(tc_id) if is_invalid else None
-            patched.append(
-                ToolMessage(
-                    content=_synthetic_content(is_invalid, error),
-                    tool_call_id=tc_id,
-                    name=tool_name,
-                    status="error",
+            consumed_so_far[tc_id] = consumed_so_far.get(tc_id, 0) + 1
+            if consumed_so_far[tc_id] > tool_count.get(tc_id, 0):
+                error = invalid_errors.get(tc_id) if is_invalid else None
+                patched.append(
+                    ToolMessage(
+                        content=_synthetic_content(is_invalid, error),
+                        tool_call_id=tc_id,
+                        name=tool_name,
+                        status="error",
+                    )
                 )
-            )
-            patched_ids.add(tc_id)
-            patched_names.append(tool_name)
-            changed = True
+                patched_names.append(tool_name)
+                changed = True
 
     if not changed:
         return None

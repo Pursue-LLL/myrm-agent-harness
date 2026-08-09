@@ -255,8 +255,80 @@ class TestCompletionGuardTriggerConditions:
             result = await self.guard.aafter_model(state, None)
 
         assert result is not None
-        assert _cg_mod._rejection_count == 0
+        assert _cg_mod._forced_finish is True
         assert result["messages"][0].tool_calls[0]["args"].get("force_fail") is True
+
+    @pytest.mark.asyncio
+    async def test_after_forced_finish_guard_releases(self) -> None:
+        """After max-rejections force-finish, subsequent completions pass through."""
+        self.guard._max_rejections = 2
+        _cg_mod._rejection_count = 2
+        state = _make_state(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "tc_answer",
+                            "name": "request_answer_user_tool",
+                            "args": {"reason": "Task complete"},
+                        }
+                    ],
+                )
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = [
+                CallRecord(
+                    tool_name="file_write_tool",
+                    args_hash="abc",
+                    args={"path": "/tmp/a.py"},
+                    success_level=SuccessLevel.FULL_SUCCESS,
+                )
+            ]
+            first = await self.guard.aafter_model(state, None)
+        assert first is not None and _cg_mod._forced_finish is True
+        # Next completion attempt is released without further injections.
+        released = await self.guard.aafter_model(state, None)
+        assert released is None
+
+    @pytest.mark.asyncio
+    async def test_guard_injection_does_not_mutate_original_message(self) -> None:
+        """aafter_model must deep-copy the last AI message instead of mutating the
+        state reference. Mutating the reference duplicates the tool_call declaration
+        (two AIMessages, one ToolMessage) which hard-fails strict providers with
+        'insufficient tool messages following tool_calls message'."""
+        state = _make_state(
+            [
+                AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "id": "tc_answer",
+                            "name": "request_answer_user_tool",
+                            "args": {"reason": "Task complete"},
+                        }
+                    ],
+                )
+            ]
+        )
+        original_ai = state["messages"][0]
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = [
+                CallRecord(
+                    tool_name="file_write_tool",
+                    args_hash="abc",
+                    args={"path": "/tmp/a.py"},
+                    success_level=SuccessLevel.FULL_SUCCESS,
+                )
+            ]
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is not None
+        injected = result["messages"][0]
+        assert injected is not original_ai
+        assert injected.tool_calls[0]["name"] == COMPLETION_CHECK_TOOL_NAME
+        assert original_ai.tool_calls[0]["name"] == "request_answer_user_tool"
 
 
 class TestCompletionGuardReset:
@@ -264,8 +336,10 @@ class TestCompletionGuardReset:
 
     def test_reset_clears_rejection_count(self) -> None:
         _cg_mod._rejection_count = 5
+        _cg_mod._forced_finish = True
         reset_completion_guard()
         assert _cg_mod._rejection_count == 0
+        assert _cg_mod._forced_finish is False
 
 
 class TestBuildChecklist:
@@ -1537,6 +1611,42 @@ class TestExtractLatestHumanText:
 
         messages = [HumanMessage(content="What is the latest news?")]
         assert extract_latest_human_text(messages) == "What is the latest news?"
+
+    def test_strips_bound_skills_catalog(self) -> None:
+        """System-injected <bound_skills> catalog must not leak into freshness detection."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            extract_latest_human_text,
+        )
+
+        messages = [
+            HumanMessage(
+                content=(
+                    '<bound_skills hash="abc">\n<skills>\n<row><name>live search</name></row>\n'
+                    "</skills>\n</bound_skills>\n\n只回复 OK"
+                )
+            )
+        ]
+        assert extract_latest_human_text(messages) == "只回复 OK"
+
+    def test_strips_bound_skills_from_multimodal(self) -> None:
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            extract_latest_human_text,
+        )
+
+        messages = [
+            HumanMessage(
+                content=[
+                    {
+                        "type": "text",
+                        "text": (
+                            '<bound_skills hash="abc">\n<skills>\n<row><name>live stats</name></row>\n'
+                            "</skills>\n</bound_skills>\n\n只回复 OK"
+                        ),
+                    }
+                ]
+            )
+        ]
+        assert extract_latest_human_text(messages) == "只回复 OK"
 
     def test_multimodal_list_content(self) -> None:
         from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (

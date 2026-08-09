@@ -35,7 +35,10 @@ _MIMO_HOSTS = ("api.xiaomimimo.com",)
 def _matches_prefix(model: str, prefixes: tuple[str, ...]) -> bool:
     """Check if model matches any of the given prefixes."""
     lower = (model or "").lower()
-    return any(lower.startswith(p) or f"/{p}" in lower for p in prefixes)
+    return any(
+        lower.startswith(p) or f"/{p}" in lower or f"/{p.rstrip('/')}" in lower
+        for p in prefixes
+    )
 
 
 def _matches_host(base_url: str, hosts: tuple[str, ...]) -> bool:
@@ -103,9 +106,11 @@ class ModelCapabilityDetector:
             True if the model is MiMo
         """
         provider_lower = (provider or "").lower()
+        model_lower = (model or "").lower()
         return (
             provider_lower in {"xiaomi", "mimo"}
             or _matches_prefix(model, _MIMO_PREFIXES)
+            or model_lower.startswith("mimo")
             or _matches_host(base_url, _MIMO_HOSTS)
         )
 
@@ -130,9 +135,11 @@ class ModelCapabilityDetector:
             True if the model is DeepSeek
         """
         provider_lower = (provider or "").lower()
+        model_lower = (model or "").lower()
         return (
             provider_lower == "deepseek"
             or _matches_prefix(model, _DEEPSEEK_PREFIXES)
+            or model_lower.startswith("deepseek")
             or _matches_host(base_url, _DEEPSEEK_HOSTS)
         )
 
@@ -157,8 +164,10 @@ class ModelCapabilityDetector:
             True if the model is Kimi/Moonshot
         """
         provider_lower = (provider or "").lower()
+        model_lower = (model or "").lower()
         return (
             provider_lower in {"kimi-coding", "kimi-coding-cn"}
             or _matches_prefix(model, _KIMI_PREFIXES)
+            or model_lower.startswith(("kimi", "moonshot"))
             or _matches_host(base_url, _KIMI_HOSTS)
         )

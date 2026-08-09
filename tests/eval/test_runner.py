@@ -660,6 +660,7 @@ class TestEdgeCases:
             "tools_called",
             "assertion_passed",
             "assertion_details",
+            "scores",
             "total_ms",
             "token_usage",
             "cost",

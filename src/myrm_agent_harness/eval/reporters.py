@@ -56,12 +56,23 @@ class JsonlReporter:
                             {"type": a.type, "expected": a.expected, "threshold": a.threshold}
                             for a in getattr(turn.case, "state_assertions", [])
                         ],
+                        "sandbox_assertions": [
+                            {
+                                "type": a.type,
+                                "target": a.target,
+                                "expected": a.expected,
+                                "result_file": a.result_file,
+                                "timeout": a.timeout,
+                            }
+                            for a in getattr(turn.case, "sandbox_assertions", [])
+                        ],
                     },
                     "actual_tools": turn.response.tools_called,
                     "actual_output": turn.response.answer,
                     "usage": turn.response.token_usage,
                     "time_secs": round(time_secs, 3),
                     "details": turn.assertion_details,
+                    "scores": turn.scores,
                     "error": turn.error,
                 }
                 turn_lines.append(json.dumps(turn_data, ensure_ascii=False))
@@ -79,6 +90,8 @@ class JsonlReporter:
                 "avg_time_secs": round(total_time_secs / case_count, 3) if case_count else 0.0,
                 "avg_total_tokens": round(total_tokens_sum / case_count) if case_count else 0,
             }
+            if result.avg_pass_rate is not None:
+                summary["avg_pass_rate"] = result.avg_pass_rate
             if result.manifest is not None:
                 summary["manifest"] = result.manifest.to_dict()
             f.write(json.dumps(summary, ensure_ascii=False) + "\n")
@@ -112,6 +125,8 @@ class MarkdownReporter:
             f"- **Pass Rate**: {result.pass_rate * 100:.1f}%",
             f"- **Total Time**: {result.total_ms:.0f}ms",
         ]
+        if result.avg_pass_rate is not None:
+            lines.append(f"- **Avg Test Pass Rate**: {result.avg_pass_rate * 100:.1f}%")
 
         if total_tokens > 0:
             avg_tokens = total_tokens // result.total_cases if result.total_cases else 0
@@ -160,6 +175,15 @@ class MarkdownReporter:
                     "",
                 ]
             )
+
+            if turn.scores:
+                score_desc = ", ".join(f"{k}: {v:g}" for k, v in sorted(turn.scores.items()))
+                lines.extend(
+                    [
+                        f"- **Scores**: `{score_desc}`",
+                        "",
+                    ]
+                )
 
             if turn.assertion_details:
                 lines.extend(

@@ -116,7 +116,13 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
     sandbox_assertions = []
     for a in item.get("sandbox_assertions", []):
         sandbox_assertions.append(
-            SandboxAssertion(type=a.get("type"), target=a.get("target"), expected=a.get("expected"))
+            SandboxAssertion(
+                type=a.get("type"),
+                target=a.get("target"),
+                expected=a.get("expected"),
+                result_file=a.get("result_file"),
+                timeout=a.get("timeout"),
+            )
         )
 
     state_assertions = []

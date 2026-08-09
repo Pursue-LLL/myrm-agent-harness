@@ -198,6 +198,115 @@ async def test_json_matches(executor, tmp_path):
     assert "not valid JSON" in details
 
 
+@pytest.mark.asyncio
+async def test_test_suite_junit_pass(executor, tmp_path):
+    """A pytest suite writing JUnit XML with all green tests passes."""
+    tests_dir = tmp_path / ".wb_bench" / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "test_app.py").write_text("def test_ok(): assert True\n")
+
+    assertion = SandboxAssertion(
+        type="test_suite",
+        target="python -m pytest -q .wb_bench/tests --junitxml=.wb_bench/results.xml",
+        result_file=".wb_bench/results.xml",
+    )
+    scores: dict[str, float] = {}
+    passed, details = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
+    assert passed is True
+    assert scores["pass_rate"] == 1.0
+    assert scores["tests_total"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_test_suite_junit_partial_fail(executor, tmp_path):
+    """A pytest suite with failing tests is scored with the partial pass_rate."""
+    tests_dir = tmp_path / ".wb_bench" / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "test_app.py").write_text(
+        "def test_ok(): assert True\n\ndef test_bad(): assert False\n"
+    )
+
+    assertion = SandboxAssertion(
+        type="test_suite",
+        target="python -m pytest -q .wb_bench/tests --junitxml=.wb_bench/results.xml",
+        result_file=".wb_bench/results.xml",
+    )
+    scores: dict[str, float] = {}
+    passed, details = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
+    assert passed is False
+    assert scores["pass_rate"] == 0.5
+    assert scores["tests_passed"] == 1.0
+    assert scores["tests_total"] == 2.0
+
+
+@pytest.mark.asyncio
+async def test_test_suite_json_reward_pass(executor, tmp_path):
+    """A scorer writing a numeric reward.json passes at reward >= 1.0."""
+    tests_dir = tmp_path / ".wb_bench" / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "scoring.py").write_text(
+        "import json\njson.dump({'reward': 1.0}, open('.wb_bench/reward.json', 'w'))\n"
+    )
+    (tests_dir / "test.sh").write_text("#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n")
+
+    assertion = SandboxAssertion(
+        type="test_suite",
+        target="bash .wb_bench/tests/test.sh",
+        result_file=".wb_bench/reward.json",
+    )
+    scores: dict[str, float] = {}
+    passed, details = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
+    assert passed is True
+    assert scores["pass_rate"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_test_suite_missing_result_file_fails(executor, tmp_path):
+    """A command that produces no result file yields a clear failure."""
+    assertion = SandboxAssertion(
+        type="test_suite",
+        target="echo nothing",
+        result_file=".wb_bench/results.xml",
+    )
+    passed, details = await evaluate_sandbox_assertions([assertion], executor)
+    assert passed is False
+    assert "unreadable" in details
+
+
+@pytest.mark.asyncio
+async def test_test_suite_command_failure_without_result_file(executor, tmp_path):
+    """A failing command with no result file falls back to exit-code verdict."""
+    assertion = SandboxAssertion(
+        type="test_suite",
+        target="exit 3",
+    )
+    passed, details = await evaluate_sandbox_assertions([assertion], executor)
+    assert passed is False
+    assert "failed" in details
+
+
+def test_parse_junit_result_malformed() -> None:
+    """Malformed or non-numeric JUnit attributes degrade to zero counts."""
+    from myrm_agent_harness.eval.assertions import parse_junit_result
+
+    assert parse_junit_result("<not-xml") == (0, 0)
+    assert parse_junit_result("<testsuite tests='abc' failures='x'/>") == (0, 0)
+    assert parse_junit_result("<testsuite tests='' />") == (0, 0)
+
+
+def test_parse_junit_result_multi_suite() -> None:
+    """Multiple testsuites under a testsuites root are aggregated."""
+    from myrm_agent_harness.eval.assertions import parse_junit_result
+
+    xml = (
+        "<testsuites>"
+        "<testsuite tests='3' failures='1' errors='0'/>"
+        "<testsuite tests='2' failures='0' errors='1'/>"
+        "</testsuites>"
+    )
+    assert parse_junit_result(xml) == (3, 5)
+
+
 class TestStateAssertions:
     """Tests for evaluate_state_assertions including new types."""
 

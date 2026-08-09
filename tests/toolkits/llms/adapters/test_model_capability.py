@@ -49,6 +49,32 @@ class TestModelCapabilityDetector:
             provider="custom", model="", base_url="https://api.moonshot.ai/v1"
         )
 
+    def test_deepseek_through_openai_like_gateway(self, detector):
+        """DeepSeek via openai-like gateways keeps model-name detection.
+
+        Regression: `openai-like/deepseek-v4-flash` (console-gateway) is neither
+        provider "deepseek", a "deepseek/" prefix, nor an api.deepseek.com host,
+        so reasoning_content echo-back was skipped and replays returned HTTP 400.
+        """
+        assert detector.needs_reasoning_content_echo(
+            provider="openai-like", model="deepseek-v4-flash", base_url="https://gateway.example/v1"
+        )
+        assert detector.is_deepseek_model(
+            provider="openai-like", model="deepseek-v4-flash", base_url="https://gateway.example/v1"
+        )
+        assert detector.is_deepseek_model(
+            provider="openai", model="openai/deepseek-v4-flash", base_url="https://gateway.example/v1"
+        )
+
+    def test_kimi_through_other_gateway(self, detector):
+        """Kimi model-name detection works regardless of the gateway host."""
+        assert detector.is_kimi_model(
+            provider="openai-like", model="kimi-k2.5", base_url="https://gateway.example/v1"
+        )
+        assert detector.is_mimo_model(
+            provider="openai-like", model="mimo-v2.5-pro", base_url="https://gateway.example/v1"
+        )
+
     def test_needs_reasoning_content_echo_other(self, detector):
         """Other models do not require reasoning_content echo-back."""
         assert not detector.needs_reasoning_content_echo(

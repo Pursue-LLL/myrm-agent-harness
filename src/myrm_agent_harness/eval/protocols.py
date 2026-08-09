@@ -13,7 +13,7 @@
 - AgentExecutor: protocol for business-layer implementation
 - EvalTimings: performance timing data
 - StateAssertion: output text assertion (supports contains/not_contains/regex/json_valid/json_schema/custom_python)
-- SandboxAssertion: sandbox state assertion
+- SandboxAssertion: sandbox state assertion (file/cmd/json/test_suite with result_file + timeout)
 - SemanticAssertion: LLM-as-a-Judge assertion (supports custom judge_prompt/judge_model/threshold soft-scoring)
 
 [POS]
@@ -36,9 +36,11 @@ if TYPE_CHECKING:
 class SandboxAssertion:
     """Sandbox state assertion definition."""
 
-    type: str  # e.g., "file_exists", "file_contains", "cmd_success"
+    type: str  # e.g., "file_exists", "file_contains", "cmd_success", "test_suite"
     target: str  # e.g., file path or command
     expected: str | None = None  # e.g., expected text content
+    result_file: str | None = None  # e.g., test_suite: path to JUnit/reward result file
+    timeout: int | None = None  # e.g., test_suite: command timeout in seconds (default 600)
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +118,7 @@ class EvalTurnResult:
     assertion_details: str | None = None
     timings: EvalTimings = field(default_factory=EvalTimings)
     error: str | None = None
+    scores: dict[str, float] = field(default_factory=dict)  # numeric verdicts (e.g. test_suite pass_rate)
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,6 +197,19 @@ class EvalResult:
         return self.pass_count / asserted if asserted > 0 else 0.0
 
     @property
+    def avg_pass_rate(self) -> float | None:
+        """Mean of per-turn test pass_rates (None when no turn reports scores).
+
+        Unlike ``pass_rate`` (binary case-level pass/fail), this aggregates the
+        numeric Rule-judge pass_rates so partial successes (e.g. 62/80 tests)
+        are not flattened away at the report level.
+        """
+        rates = [r.scores["pass_rate"] for r in self.turn_results if r.scores.get("pass_rate") is not None]
+        if not rates:
+            return None
+        return round(sum(rates) / len(rates), 4)
+
+    @property
     def all_passed(self) -> bool:
         return self.fail_count == 0 and self.error_count == 0
 
@@ -221,6 +237,8 @@ class EvalResult:
             "total_tokens": self.total_tokens,
             "total_cost": round(self.total_cost, 6),
         }
+        if self.avg_pass_rate is not None:
+            result["avg_pass_rate"] = self.avg_pass_rate
         if self.manifest is not None:
             result["manifest"] = self.manifest.to_dict()
         result["turns"] = [
@@ -228,7 +246,14 @@ class EvalResult:
                 "message": r.case.message,
                 "expected_tools": r.case.expected_tools,
                 "sandbox_assertions": [
-                    {"type": a.type, "target": a.target, "expected": a.expected} for a in r.case.sandbox_assertions
+                    {
+                        "type": a.type,
+                        "target": a.target,
+                        "expected": a.expected,
+                        "result_file": a.result_file,
+                        "timeout": a.timeout,
+                    }
+                    for a in r.case.sandbox_assertions
                 ],
                 "state_assertions": [
                     {"type": a.type, "expected": a.expected, "threshold": a.threshold}
@@ -247,6 +272,7 @@ class EvalResult:
                 "tools_called": r.response.tools_called,
                 "assertion_passed": r.assertion_passed,
                 "assertion_details": r.assertion_details,
+                "scores": r.scores,
                 "total_ms": round(r.timings.total_ms, 2),
                 "token_usage": r.response.token_usage,
                 "cost": r.response.cost,

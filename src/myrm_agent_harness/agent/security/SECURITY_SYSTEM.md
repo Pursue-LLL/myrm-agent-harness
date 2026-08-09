@@ -273,6 +273,7 @@ BLOCK → DENY（硬拒绝），ESCALATE → ASK（提升审批）。保留 `|`,
    * **主动式提前续期**：`OpenAPIExecutor` 在执行 HTTP 外部请求前，检测到凭证 expiring（距离失效小于 5 分钟），自动触发协程刷新回调 `refresh_callback` 进行主动续期。
    * **被动式 401 挑战**：若遇到服务响应 `401 Unauthorized` 挑战，客户端自动拦截并执行 `refresh_callback`。获取到新凭证后重新签署 headers `Authorization: Bearer <new_token>` 并在内存中静默发起第二次重试，实现长链条复杂任务的零感静默续期。
    * **并发刷新防踩踏（Double-Checked Locking）**：针对高并发并行刷新三方 Token 的情况，为了防止单次旋转刷新 Token 废除机制（Refresh Token Rotation）引起授权失效，在 `oauth_refresher.py` 中实现了基于 `asyncio.Lock` 锁和双重检查锁定（Double-Checked Locking）机制。当多个并发协程尝试刷新时，仅第一个请求获取锁并向厂商发起实际的 POST 网络请求，其余协程在锁释放后二次验证，直接从数据库/加密缓存中拉取已刷新的 Token 复用，杜绝多次重复刷新造成的授权下线。
+   * **跨 issuer 写合并串行化**：不同 issuer 刷新各自持有独立锁，但共享同一 `oauthCredentials` 加密 blob。写回统一经 `oauth_store.oauth_credentials_lock` 锁内重新读取最新 blob、合并单 issuer 变更后加密落盘，避免并发刷新时快 issuer 覆盖慢 issuer 的更新（lost update）。
 
 ### 3.3 统一安全验证器
 
@@ -584,7 +585,7 @@ Org 管理员可通过 Control Plane 配置 **Managed Approval Policy (MAP)**，
 
 **Auto-review**：模型命中 `forceAutoReviewForModels` 时 `effective_auto_mode_enabled` 强制为 True（Smart Guard 审查路径），即使用户关闭了 auto mode。
 
-**热同步**：Control Plane upsert/delete 后 fanout 到 ACTIVE sandbox，调用 server internal `POST /api/admin/org-managed-approval-policy-sync` → `configure_process_managed_approval_policy()` → `AppEventType.MANAGED_POLICY_UPDATED` SSE 推送 FE refetch。
+**热同步**：Control Plane upsert/delete 后 fanout 到 ACTIVE sandbox（`org_approval_policy_sync` + `agent_server_fanout`），调用 server internal `POST /api/admin/org-managed-approval-policy-sync` → `configure_process_managed_approval_policy()` → `AppEventType.MANAGED_POLICY_UPDATED` SSE 推送 FE refetch。SLEEPING sandbox 在 wake/join 时 replay 补偿。
 
 **前端（myrm-agent）**：Settings/Chat 通过 `GET /api/v1/security/managed-policy/effective` 只读 MAP（页面 mount + CP sync SSE push + 标签页重新可见 / Tauri focus 时 refetch；含 monotonic `revision`）。`disableYolo=True` 时清除本地 stale YOLO 配置并展示 org 锁定文案；Agent 编辑页展示 per-model MAP badge；YOLO Banner 在 org 约束时展示真实审批提示（非「全自动批准」）。
 

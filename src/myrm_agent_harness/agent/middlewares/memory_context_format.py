@@ -142,7 +142,7 @@ No memories yet. Actively learn about this user during the conversation:
 - Note their name, role, and tech stack when mentioned
 - Observe communication style preferences (language, verbosity, formality)
 - Track project context and domain expertise
-- Use memory_save to persist key observations
+- Use memory_save_tool to persist key observations
 
 This guidance will be replaced by real user context as memories accumulate.
 

@@ -33,6 +33,7 @@ def test_jsonl_reporter(tmp_path: Path):
                 assertion_passed=False,
                 assertion_details="Failed",
                 timings=EvalTimings(total_ms=200),
+                scores={"pass_rate": 0.5, "tests_passed": 1.0, "tests_total": 2.0},
                 error="Some error",
             ),
         ],
@@ -69,6 +70,7 @@ def test_jsonl_reporter(tmp_path: Path):
     assert turn2["passed"] is False
     assert turn2["error"] == "Some error"
     assert turn2["time_secs"] == 0.2
+    assert turn2["scores"] == {"pass_rate": 0.5, "tests_passed": 1.0, "tests_total": 2.0}
 
     # Verify summary aggregates
     assert summary["avg_time_secs"] == 0.15
@@ -94,6 +96,7 @@ def test_markdown_reporter(tmp_path: Path):
                 assertion_passed=False,
                 assertion_details="Failed",
                 timings=EvalTimings(total_ms=200),
+                scores={"pass_rate": 0.5, "tests_passed": 1.0, "tests_total": 2.0},
                 error="Some error",
             ),
         ],
@@ -113,6 +116,7 @@ def test_markdown_reporter(tmp_path: Path):
     assert " PASS" in content
     assert " ERROR" in content
     assert "Some error" in content
+    assert "**Scores**: `pass_rate: 0.5, tests_passed: 1, tests_total: 2`" in content
 
 
 def _make_manifest() -> EvalManifest:

@@ -85,11 +85,15 @@ _EXTERNAL_WEB_HINT_KEYWORDS: tuple[str, ...] = (
 
 
 def extract_latest_human_text(messages: list[object]) -> str | None:
+    from myrm_agent_harness.agent.skills.runtime.skill_catalog_delivery import (
+        strip_catalog_blocks,
+    )
+
     for message in reversed(messages):
         if not isinstance(message, HumanMessage):
             continue
         if isinstance(message.content, str):
-            text = message.content.strip()
+            text = strip_catalog_blocks(message.content).strip()
             if text:
                 return text
             continue
@@ -99,7 +103,9 @@ def extract_latest_human_text(messages: list[object]) -> str | None:
                 if isinstance(item, dict):
                     text = item.get("text")
                     if isinstance(text, str) and text.strip():
-                        parts.append(text.strip())
+                        cleaned = strip_catalog_blocks(text).strip()
+                        if cleaned:
+                            parts.append(cleaned)
             if parts:
                 return " ".join(parts)
     return None

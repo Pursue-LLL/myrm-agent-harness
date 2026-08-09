@@ -109,3 +109,53 @@ class TestTerminalErrorsRegistry:
         registry_after = get_terminal_errors()
         all_errors = registry_after.get_all()
         assert "test_error" not in all_errors
+
+
+class TestActiveToolRegistrySessionFallback:
+    """Dynamic tool resolution must survive LangGraph copied-context execution.
+
+    run_agent_loop publishes the agent ToolRegistry via ContextVar, but LangGraph
+    executes graph nodes in copied contexts where that ContextVar is None.
+    The session-key fallback (mirroring the loop-guard pattern) must still
+    resolve runtime-only hooks such as ``_completion_check``.
+    """
+
+    def test_set_then_get_returns_same_registry(self) -> None:
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.agent.middlewares._session_context import (
+            get_active_tool_registry,
+            set_active_tool_registry,
+        )
+
+        registry = MagicMock()
+        set_active_tool_registry(registry)
+        assert get_active_tool_registry() is registry
+
+    def test_get_falls_back_when_context_var_missing(self) -> None:
+        from unittest.mock import MagicMock
+
+        import myrm_agent_harness.agent.middlewares._session_context as sc
+
+        registry = MagicMock()
+        sc.set_active_tool_registry(registry)
+
+        token = sc._active_tool_registry_var.set(None)
+        try:
+            assert sc.get_active_tool_registry() is registry
+        finally:
+            sc._active_tool_registry_var.reset(token)
+
+    def test_resolved_tools_falls_back_when_context_var_missing(self) -> None:
+        from unittest.mock import MagicMock
+
+        import myrm_agent_harness.agent.middlewares._session_context as sc
+
+        tools = [MagicMock()]
+        sc.set_active_resolved_tools(tools)
+
+        token = sc._active_resolved_tools_var.set(None)
+        try:
+            assert sc.get_active_resolved_tools() == tools
+        finally:
+            sc._active_resolved_tools_var.reset(token)
