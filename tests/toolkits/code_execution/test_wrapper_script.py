@@ -163,14 +163,34 @@ class TestParseExecutionOutput:
         assert result.success is True
         assert result.stderr == subprocess_stderr
 
-    def test_stderr_json_traceback_still_preferred(self) -> None:
-        """A non-empty JSON stderr (wrapper traceback) must not be overwritten."""
+    def test_stderr_merges_json_traceback_with_pipe_user_stderr(self) -> None:
+        """Non-empty JSON stderr (wrapper traceback) merges, not replaces.
+
+        When user code wrote to sys.stderr before raising, the subprocess pipe
+        carries that output while the wrapper JSON carries only the traceback.
+        Both are diagnostic context for the LLM, so they merge pipe-first with
+        the traceback last.
+        """
         stdout = '__RESULT_START__\n{"success": false, "result": null, "error": "ValueError: bad", "stdout": "", "stderr": "Traceback (most recent call last):\\nValueError: bad"}\n__RESULT_END__'
-        subprocess_stderr = "unrelated subprocess noise"
+        subprocess_stderr = "row 149 failed\nrow 150 failed"
         result = parse_execution_output(stdout, subprocess_stderr, 1)
         assert result.success is False
-        assert result.stderr.startswith("Traceback")
-        assert "unrelated" not in result.stderr
+        assert result.stderr.startswith("row 149 failed")
+        assert "ValueError: bad" in result.stderr
+        assert result.stderr.index("row 149 failed") < result.stderr.index("Traceback")
+
+    def test_stderr_keeps_pipe_when_it_already_contains_traceback(self) -> None:
+        """A pipe that already carries the traceback is kept verbatim."""
+        traceback_text = "Traceback (most recent call last):\nValueError: bad"
+        stdout = (
+            '__RESULT_START__\n{"success": false, "result": null, "error": "ValueError: bad", '
+            f'"stdout": "", "stderr": "{traceback_text}"}}\n__RESULT_END__'
+        )
+        subprocess_stderr = f"prefix noise\n{traceback_text}"
+        result = parse_execution_output(stdout, subprocess_stderr, 1)
+        assert result.success is False
+        assert result.stderr == subprocess_stderr
+        assert result.stderr.count("ValueError") == 1
 
 
 class TestGenerateWrapperScript:

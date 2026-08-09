@@ -176,15 +176,8 @@ def _truncate_messages_head_tail(
     return [*head, marker, *tail], dropped
 
 
-class ExtractionMode(StrEnum):
-    EXPLICIT = "explicit"
-    IMPLICIT = "implicit"
-    HYBRID = "hybrid"
-
-
 @dataclass
 class ExtractionConfig:
-    mode: ExtractionMode = ExtractionMode.HYBRID
     extract_profile: bool = True
     extract_semantic: bool = True
     extract_episodic: bool = True
@@ -192,7 +185,6 @@ class ExtractionConfig:
     enable_task_digest: bool = False
     min_confidence: float = 0.8
     min_importance: float = 0.6
-    require_confirmation: bool = True
     max_extractions_per_turn: int = 5
     extraction_model: str = "gpt-4o-mini"
     max_input_chars: int = 80_000

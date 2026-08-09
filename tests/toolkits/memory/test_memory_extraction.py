@@ -10,7 +10,6 @@ import pytest
 
 from myrm_agent_harness.toolkits.memory.strategies.extractor import (
     ExtractionConfig,
-    ExtractionMode,
     ExtractionResult,
     FeedbackSignal,
     MemoryExtractor,
@@ -41,7 +40,6 @@ from myrm_agent_harness.toolkits.memory.types import (
 def default_config() -> ExtractionConfig:
     """Create default extraction config."""
     return ExtractionConfig(
-        mode=ExtractionMode.HYBRID,
         extract_profile=True,
         extract_semantic=True,
         extract_episodic=True,
@@ -352,6 +350,27 @@ class TestResponseParsing:
         raw = "invalid json {{"
         memories = _parse_response(raw)
         assert memories == []
+
+    def test_parse_non_list_object_returns_empty(self):
+        """Test non-list JSON payload returns empty list."""
+        raw = '{"memory_type": "semantic", "content": "should be an array"}'
+        memories = _parse_response(raw)
+        assert memories == []
+
+    def test_parse_invalid_evd_ignored(self):
+        """Test non-positive or non-numeric expected_valid_days is ignored."""
+        raw = """[
+            {"memory_type": "semantic", "content": "A", "expected_valid_days": -5},
+            {"memory_type": "semantic", "content": "B", "expected_valid_days": 0},
+            {"memory_type": "semantic", "content": "C", "expected_valid_days": "invalid"},
+            {"memory_type": "semantic", "content": "D", "expected_valid_days": 30}
+        ]"""
+        memories = _parse_response(raw)
+        valid = [m for m in memories if m.content in {"A", "B", "C", "D"}]
+        assert len(valid) == 4
+        assert all(m.expected_valid_days is None or m.expected_valid_days == 30 for m in valid)
+        d_memory = next(m for m in memories if m.content == "D")
+        assert d_memory.expected_valid_days == 30
 
     def test_parse_multiple_memories(self):
         """Test parsing multiple memories."""
@@ -931,23 +950,6 @@ class TestExtractionConfiguration:
     """Test extraction configuration."""
 
     @pytest.mark.asyncio
-    async def test_extraction_mode_configuration(self, mock_llm_func):
-        """Test extraction mode configuration."""
-        mock_llm_func.return_value = "[]"
-
-        config = ExtractionConfig(mode=ExtractionMode.HYBRID)
-        extractor = MemoryExtractor(config=config, llm_func=mock_llm_func)
-        messages = [{"role": "user", "content": "Test"}]
-
-        await extractor.extract(messages)
-
-        assert mock_llm_func.called
-        call_args = mock_llm_func.call_args
-        system_prompt = call_args[0][0]
-        assert len(system_prompt) > 0
-        assert "You are a strict memory gatekeeper" in system_prompt
-
-    @pytest.mark.asyncio
     async def test_custom_thresholds(self, mock_llm_func):
         """Test custom confidence and importance thresholds."""
         mock_llm_func.return_value = """[
@@ -1103,6 +1105,24 @@ class TestExtractionQualityRules:
         prompt = _build_system_prompt(config)
         assert "Empty array" in prompt
         assert "Third Person" not in prompt
+
+    def test_domain_preset_section_included_when_set(self):
+        """Domain preset hints are injected when domain_preset is non-none."""
+        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
+            _build_system_prompt,
+        )
+
+        prompt = _build_system_prompt(ExtractionConfig(domain_preset="persona"))
+        assert "Domain Priority Attributes" in prompt
+
+    def test_domain_preset_section_absent_when_none(self):
+        """Domain preset hints are skipped for the default none preset."""
+        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
+            _build_system_prompt,
+        )
+
+        prompt = _build_system_prompt(ExtractionConfig(domain_preset="none"))
+        assert "Domain Priority Attributes" not in prompt
 
 
 # ============================================================================

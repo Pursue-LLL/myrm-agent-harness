@@ -6,6 +6,7 @@ Raw publication gate — single SSOT for stable-path writes into vault `raw/`.
 
 | File | Role | Description | I/O/P |
 | --- | --- | --- | --- |
+| `__init__.py` | Package | Package marker for raw gate. | — |
 | `types.py` | Types | `RawConflictPolicy`, `RawPublishRequest`, `RawPublishResult` (+ security fields) | ✅ |
 | `errors.py` | Types | `RawGateError` structured failures | ✅ |
 | `security_hook.py` | Core | `apply_raw_security_scan`, `scan_publish_article_content` | ✅ |

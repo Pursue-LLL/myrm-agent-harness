@@ -8,7 +8,6 @@ Agent configuration package — unified export of all config types and utilities
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Agent configuration package — unified export of all config types and utilities. | — |
-| docs_generator.py | Core | Configuration documentation generator. Auto-generates config reference docs by reflecting Pydantic s | ✅ |
 | exceptions.py | Core | Framework-level exception definitions. Business layer can inherit these | ✅ |
 | file_io.py | Core | File I/O configuration. Defines resource limits (concurrent reads, file size caps), regex safety (Re | ✅ |
 | llm.py | Core | Agent configuration layer. Re-exports CustomModelDef/LLMConfig from core.config.llm (SSoT) and defines agent-specific AgentConfig, StorageConfig, TracingConfig. | ✅ |

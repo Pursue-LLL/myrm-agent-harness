@@ -23,7 +23,6 @@ Skill Optimization Toolkit
 | dlq.py | Core | Dead Letter Queue with Persistence | ✅ |
 | event_adapter.py | Core | EventLog adapter (framework layer). Implements the SkillExecutionProvider protocol for event-driven  | ✅ |
 | event_emitter.py | Core | Event system (framework layer). Decouples inter-component notifications via publish-subscribe patter | ✅ |
-| file_system_storage.py | Core | File system storage (framework layer). Ready-to-use persistent storage implementation. | ✅ |
 | health_check.py | Core | Health check protocol (framework layer). Unified health check interface for all components. | ✅ |
 | in_memory_storage.py | Core | In-memory storage (framework layer). Ready-to-use volatile storage implementation. | ✅ |
 | insights.py | Core | Insights analysis system (framework layer). Provides deep statistical analysis of skill executions. | ✅ |

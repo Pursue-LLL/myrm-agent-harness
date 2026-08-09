@@ -11,7 +11,7 @@ Agent meta-tools for skills (select, search, manage, discovery). Bound skill **c
 
 | Submodule | Description |
 |-----------|-------------|
-| discovery/ | Skill discovery meta-tool. |
 | manage/ | Skill management meta tool. |
+| market/ | External marketplace skill install meta-tool. |
 | search/ | Skill search module. |
 | select/ | Skill selection tool module. |

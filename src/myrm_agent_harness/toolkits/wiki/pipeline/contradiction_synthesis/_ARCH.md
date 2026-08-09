@@ -10,6 +10,7 @@ comparison pages through the existing HITL pending queue.
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
+| __init__.py | Package | Package marker for contradiction synthesis. | — |
 | types.py | Types | ConceptPair, ConflictVerdict, SynthesisPassResult | — |
 | pairing.py | Core | Zero-LLM pair prefilter (canonical, related, slug, vault) | ✅ |
 | detector.py | Core | Structured LLM conflict verdict | ✅ |

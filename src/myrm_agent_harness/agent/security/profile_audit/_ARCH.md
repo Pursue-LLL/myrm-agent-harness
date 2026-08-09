@@ -14,19 +14,8 @@ Agent Profile configuration exposure aggregation audit engine. Deterministic rul
 
 | Submodule | Description |
 |-----------|-------------|
-| checkers/ | Plugin-style checker modules. Each implements `BaseChecker`. |
+| checkers/ | Plugin-style checker modules. Each implements `BaseChecker`. See [checkers/_ARCH.md](checkers/_ARCH.md). |
 
-### checkers/
-
-| File | Role | Description |
-|------|------|-------------|
-| base.py | ABC | `BaseChecker` protocol — `check(input) -> list[AuditFinding]`. |
-| tool_exposure.py | Checker | High-privilege built-in tool combination detection. |
-| mcp_auth.py | Checker | MCP server authentication & transport security audit. |
-| skill_aggregate.py | Checker | Aggregates skill scan summaries into profile-level findings. |
-| subagent_risk.py | Checker | Sub-agent recursive delegation risk assessment. |
-| cron_risk.py | Checker | Unattended cron job risk evaluation. |
-| policy_gap.py | Checker | Security policy coverage gap detection. |
 
 ## Design Principles
 

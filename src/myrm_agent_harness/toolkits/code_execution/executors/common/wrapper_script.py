@@ -18,9 +18,9 @@ Shared wrapper for all executors. Handles:
 
 [POS]
 Unified execution wrapper script. User-code stderr is not captured inside the
-wrapper (only stdout is bounded); parse_execution_output therefore falls back to
-the subprocess stderr pipe whenever the JSON stderr key is empty, so warnings and
-user sys.stderr writes are not discarded.
+wrapper (only stdout is bounded); parse_execution_output therefore merges the
+subprocess stderr pipe (user sys.stderr writes) with the JSON stderr key
+(wrapper-captured traceback) so neither diagnostic stream is discarded.
 """
 
 import json
@@ -393,16 +393,26 @@ def parse_execution_output(stdout: str, stderr: str, exit_code: int) -> Executio
             user_stdout = stdout[: result_match.start()] + stdout[result_match.end() :]
             user_stdout = user_stdout.strip()
 
+            json_stderr = result_json.get("stderr") or ""
+            pipe_stderr = stderr or ""
+            # The wrapper only captures a traceback into the JSON stderr key;
+            # user sys.stderr writes (logs, progress) stay in the subprocess
+            # pipe. Both carry diagnostics, so merge instead of preferring one:
+            # pipe-first (user output precedes the exception) then the JSON
+            # traceback. When the pipe already carries the traceback (wrapper
+            # crash path) it is kept verbatim so nothing is duplicated.
+            if not json_stderr:
+                merged_stderr = pipe_stderr
+            elif not pipe_stderr or json_stderr in pipe_stderr:
+                merged_stderr = pipe_stderr or json_stderr
+            else:
+                merged_stderr = f"{pipe_stderr.rstrip()}\n\n{json_stderr}"
+
             return ExecutionOutput(
                 success=result_json.get("success", False),
                 result=result_json.get("result"),
                 stdout=result_json.get("stdout", user_stdout),
-                # JSON always carries a "stderr" key (empty string unless the wrapper
-                # captured a traceback), so a plain `.get(key, default)` never falls
-                # back. Empty means the wrapper saw no exception — the real
-                # subprocess stderr (warnings, user sys.stderr writes) lives in the
-                # captured pipe and must win here, not be discarded.
-                stderr=result_json.get("stderr") or stderr,
+                stderr=merged_stderr,
                 error=result_json.get("error"),
             )
         except json.JSONDecodeError:

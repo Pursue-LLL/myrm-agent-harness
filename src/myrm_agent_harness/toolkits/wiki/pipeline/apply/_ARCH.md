@@ -9,6 +9,7 @@ All operations route through `publish_concept_article` (WPG) after section-aware
 
 | File | Role |
 |------|------|
+| __init__.py | Package marker for the apply module. |
 | types.py | `WikiApplyOp`, `WikiApplyRequest`, `WikiApplyResult` |
 | errors.py | `WikiApplyError` structured failures |
 | handlers.py | Section/metadata transforms (no I/O) |

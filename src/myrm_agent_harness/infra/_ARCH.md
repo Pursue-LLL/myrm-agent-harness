@@ -14,7 +14,6 @@ Infrastructure layer.
 
 | Submodule | Description |
 |-----------|-------------|
-| cache/ | Framework infrastructure layer. Used by config caching, storage caching, etc. |
 | concurrency/ | Async coordination primitives for bounded parallel work and serialized state merges. |
 | delivery/ | Message delivery queue. Disk-persistent with automatic retry on failure and pending delivery recover |
 | incremental/ | Incremental state tracking for monitoring data changes. |

@@ -11,6 +11,7 @@ Parent index: [../_ARCH.md](../_ARCH.md). System design: [../MEMORY_SYSTEM.md](.
 
 | File | Role | Description | I/O/P |
 | --- | --- | --- | --- |
+| `__init__.py` | Package | Agent-facing memory I/O package marker. | — |
 | `memory_agent_tools.py` | Core | Agent tool factory: memory_search/save/manage. | ✅ |
 | `_memory_agent_tool_descriptions.py` | Core | LLM-visible tool description SSOT (EN/ZH). | ✅ |
 | `memory_search_policy.py` | Core | Corpus ACL and optional wiki/sessions backends. | ✅ |
