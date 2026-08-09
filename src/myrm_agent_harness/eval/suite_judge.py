@@ -53,7 +53,9 @@ def parse_junit_result(xml_text: str) -> tuple[int, int]:
     skipped).
     """
     try:
-        root = ET.fromstring(xml_text)
+        # Python 3.13+ ElementTree 默认禁止 entity expansion 与外部实体（billion-laughs 防护），
+        # 沙箱内 JUnit 报告视为不可信输入，仍只读取 tests/failures/errors/skipped 属性。
+        root = ET.fromstring(xml_text)  # noqa: S314
     except ET.ParseError:
         return 0, 0
 
@@ -107,8 +109,8 @@ def _suite_failure(details: str) -> TestSuiteResult:
 
 
 async def evaluate_test_suite_assertion(
-    assertion: "SandboxAssertion",
-    executor: "CodeExecutor",
+    assertion: SandboxAssertion,
+    executor: CodeExecutor,
 ) -> TestSuiteResult:
     """Run a task-native test suite command and derive a numeric verdict.
 

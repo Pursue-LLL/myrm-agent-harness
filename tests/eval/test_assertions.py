@@ -1,6 +1,8 @@
 """Tests for Eval Sandbox Assertions."""
 
 import json
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -27,7 +29,11 @@ def executor(tmp_path, monkeypatch):
     monkeypatch.setattr(
         "myrm_agent_harness.toolkits.code_execution.sandbox.detector.detect_sandbox_provider", _fake
     )
-    ex = LocalExecutor(ExecutionConfig())
+    # test_suite assertions run `python -m pytest` inside the sandbox bash session;
+    # point the shared venv at the interpreter running the tests so pytest resolves.
+    config = ExecutionConfig()
+    config.local.shared_venv_path = sys.prefix
+    ex = LocalExecutor(config)
     ex.bind_workspace(str(tmp_path))
     return ex
 
@@ -211,7 +217,7 @@ async def test_test_suite_junit_pass(executor, tmp_path):
         result_file=".wb_bench/results.xml",
     )
     scores: dict[str, float] = {}
-    passed, details = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
     assert passed is True
     assert scores["pass_rate"] == 1.0
     assert scores["tests_total"] == 1.0
@@ -232,7 +238,7 @@ async def test_test_suite_junit_partial_fail(executor, tmp_path):
         result_file=".wb_bench/results.xml",
     )
     scores: dict[str, float] = {}
-    passed, details = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
     assert passed is False
     assert scores["pass_rate"] == 0.5
     assert scores["tests_passed"] == 1.0
@@ -255,7 +261,7 @@ async def test_test_suite_json_reward_pass(executor, tmp_path):
         result_file=".wb_bench/reward.json",
     )
     scores: dict[str, float] = {}
-    passed, details = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
     assert passed is True
     assert scores["pass_rate"] == 1.0
 
@@ -285,9 +291,103 @@ async def test_test_suite_command_failure_without_result_file(executor, tmp_path
     assert "failed" in details
 
 
+@pytest.mark.asyncio
+async def test_test_suite_exit_code_success(executor):
+    """A suite command that succeeds without a result file passes via exit code."""
+    assertion = SandboxAssertion(
+        type="test_suite",
+        target="echo suite ok",
+    )
+    scores: dict[str, float] = {}
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
+    assert passed is True
+    assert scores["pass_rate"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_test_suite_json_reward_partial_fail(executor, tmp_path):
+    """A scorer writing reward < 1.0 fails but keeps the numeric pass_rate."""
+    tests_dir = tmp_path / ".wb_bench" / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "scoring.py").write_text(
+        "import json\njson.dump({'reward': 0.5}, open('.wb_bench/reward.json', 'w'))\n"
+    )
+    (tests_dir / "test.sh").write_text("#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n")
+
+    assertion = SandboxAssertion(
+        type="test_suite",
+        target="bash .wb_bench/tests/test.sh",
+        result_file=".wb_bench/reward.json",
+    )
+    scores: dict[str, float] = {}
+    passed, _ = await evaluate_sandbox_assertions([assertion], executor, scores_out=scores)
+    assert passed is False
+    assert scores["pass_rate"] == 0.5
+
+
+@pytest.mark.asyncio
+async def test_test_suite_json_reward_unreadable(executor):
+    """A reward file that never appears yields a clear failure."""
+    assertion = SandboxAssertion(
+        type="test_suite",
+        target="echo nothing",
+        result_file=".wb_bench/reward.json",
+    )
+    passed, details = await evaluate_sandbox_assertions([assertion], executor)
+    assert passed is False
+    assert "unreadable" in details
+
+
+@pytest.mark.asyncio
+async def test_test_suite_json_reward_no_field(executor, tmp_path):
+    """A reward file lacking a numeric reward field fails clearly."""
+    tests_dir = tmp_path / ".wb_bench" / "tests"
+    tests_dir.mkdir(parents=True)
+    (tests_dir / "scoring.py").write_text(
+        "import json\njson.dump({'message': 'ok'}, open('.wb_bench/reward.json', 'w'))\n"
+    )
+    (tests_dir / "test.sh").write_text("#!/usr/bin/env bash\npython3 .wb_bench/tests/scoring.py\n")
+
+    assertion = SandboxAssertion(
+        type="test_suite",
+        target="bash .wb_bench/tests/test.sh",
+        result_file=".wb_bench/reward.json",
+    )
+    passed, details = await evaluate_sandbox_assertions([assertion], executor)
+    assert passed is False
+    assert "no reward/pass_rate field" in details
+
+
+@pytest.mark.asyncio
+async def test_test_suite_junit_no_tests(executor, tmp_path):
+    """A JUnit report declaring no tests fails clearly."""
+    assertion = SandboxAssertion(
+            type="test_suite",
+            target="mkdir -p .wb_bench && echo '<testsuite tests=\"0\"/>' > .wb_bench/empty.xml",
+            result_file=".wb_bench/empty.xml",
+        )
+    passed, details = await evaluate_sandbox_assertions([assertion], executor)
+    assert passed is False
+    assert "declares no tests" in details
+
+
+def test_parse_reward_result_variants() -> None:
+    """parse_reward_result handles bare numbers, score keys, and rejections."""
+    from myrm_agent_harness.eval.suite_judge import parse_reward_result
+
+    assert parse_reward_result("0.8") == 0.8
+    assert parse_reward_result('{"score": 0.75}') == 0.75
+    assert parse_reward_result('{"reward_score": 1}') == 1.0
+    assert parse_reward_result('{"reward": true}') is None
+    assert parse_reward_result('{"reward": "high"}') is None
+    assert parse_reward_result("<xml>") is None
+    assert parse_reward_result("") is None
+
+
+
 def test_parse_junit_result_malformed() -> None:
     """Malformed or non-numeric JUnit attributes degrade to zero counts."""
-    from myrm_agent_harness.eval.assertions import parse_junit_result
+    from myrm_agent_harness.eval.suite_judge import parse_junit_result
 
     assert parse_junit_result("<not-xml") == (0, 0)
     assert parse_junit_result("<testsuite tests='abc' failures='x'/>") == (0, 0)
@@ -296,7 +396,7 @@ def test_parse_junit_result_malformed() -> None:
 
 def test_parse_junit_result_multi_suite() -> None:
     """Multiple testsuites under a testsuites root are aggregated."""
-    from myrm_agent_harness.eval.assertions import parse_junit_result
+    from myrm_agent_harness.eval.suite_judge import parse_junit_result
 
     xml = (
         "<testsuites>"
@@ -569,7 +669,7 @@ async def test_evaluate_semantic_assertions_real_llm():
         if os.environ.get("BASIC_BASE_URL"):
             os.environ["OPENAI_API_BASE"] = os.environ["BASIC_BASE_URL"]
 
-    os.environ["MYRM_EVAL_JUDGE_MODEL"] = "gpt-4o-mini"
+    os.environ.setdefault("MYRM_EVAL_JUDGE_MODEL", "gpt-4o-mini")
 
     assertions = [
         SemanticAssertion(type="llm_judge", expected="The response must politely decline the request.")
@@ -583,3 +683,255 @@ async def test_evaluate_semantic_assertions_real_llm():
     passed, details = await evaluate_semantic_assertions(assertions, actual_output_fail)
     assert passed is False
     assert "FAIL" in details
+
+
+class TestToolAssertionBranches:
+    """Edge branches of evaluate_tool_assertions."""
+
+    def test_tool_name_from_dict(self):
+        from myrm_agent_harness.eval.assertions import ToolAssertion, evaluate_tool_assertions
+
+        passed, details = evaluate_tool_assertions(
+            [{"name": "web_search", "args": {}}],
+            ToolAssertion(expected_tools=["web_search"]),
+        )
+        assert passed is True
+        assert "web_search" in details
+
+    def test_tool_name_from_object(self):
+        from myrm_agent_harness.eval.assertions import ToolAssertion, evaluate_tool_assertions
+
+        class FakeTool:
+            name = "code_exec"
+
+        passed, _ = evaluate_tool_assertions(
+            [FakeTool()],
+            ToolAssertion(expected_tools=["code_exec"]),
+        )
+        assert passed is True
+
+    def test_require_all_missing_tool(self):
+        from myrm_agent_harness.eval.assertions import ToolAssertion, evaluate_tool_assertions
+
+        passed, details = evaluate_tool_assertions(
+            ["web_search"],
+            ToolAssertion(expected_tools=["web_search", "code_exec"], require_all=True),
+        )
+        assert passed is False
+        assert "Missing tools" in details
+
+
+class TestSandboxAssertionBranches:
+    """Edge branches of evaluate_sandbox_assertions."""
+
+    @pytest.mark.asyncio
+    async def test_json_matches_missing_file(self, executor):
+        passed, details = await evaluate_sandbox_assertions(
+            [SandboxAssertion(type="json_matches", target="nope.json", expected="a=1")],
+            executor,
+        )
+        assert passed is False
+        assert "does not exist" in details
+
+    @pytest.mark.asyncio
+    async def test_unknown_assertion_type(self, executor):
+        passed, details = await evaluate_sandbox_assertions(
+            [SandboxAssertion(type="bogus_type", target="x")],
+            executor,
+        )
+        assert passed is False
+        assert "Unknown assertion type" in details
+
+
+class TestStateAssertionBranches:
+    """Edge branches of evaluate_state_assertions."""
+
+    def test_json_schema_output_not_json(self):
+        from myrm_agent_harness.eval.assertions import evaluate_state_assertions
+        from myrm_agent_harness.eval.protocols import StateAssertion
+
+        passed, details = evaluate_state_assertions(
+            [StateAssertion(type="json_schema", expected='{"required": ["name"]}')],
+            "not json at all",
+        )
+        assert passed is False
+        assert "json_schema requires valid JSON" in details
+
+    def test_json_schema_invalid_schema(self):
+        from myrm_agent_harness.eval.assertions import evaluate_state_assertions
+        from myrm_agent_harness.eval.protocols import StateAssertion
+
+        passed, details = evaluate_state_assertions(
+            [StateAssertion(type="json_schema", expected="not-a-json-schema")],
+            '{"name": "Alice"}',
+        )
+        assert passed is False
+        assert "invalid JSON schema definition" in details
+
+    def test_jaccard_similarity_below_threshold(self):
+        from myrm_agent_harness.eval.assertions import evaluate_state_assertions
+        from myrm_agent_harness.eval.protocols import StateAssertion
+
+        passed, details = evaluate_state_assertions(
+            [StateAssertion(type="jaccard_similarity", expected="completely unrelated topic words", threshold=0.9)],
+            "hello world",
+        )
+        assert passed is False
+        assert "below threshold" in details
+
+    def test_jaccard_similarity_pass(self):
+        from myrm_agent_harness.eval.assertions import evaluate_state_assertions
+        from myrm_agent_harness.eval.protocols import StateAssertion
+
+        passed, _ = evaluate_state_assertions(
+            [StateAssertion(type="jaccard_similarity", expected="hello world", threshold=0.5)],
+            "hello world again",
+        )
+        assert passed is True
+
+    def test_schema_must_be_object(self):
+        from myrm_agent_harness.eval.assertions import _validate_json_schema
+
+        assert _validate_json_schema({"a": 1}, "not-a-dict") == "Schema must be a JSON object"  # type: ignore[arg-type]
+        assert _validate_json_schema({"a": 1}, {"required": ["a"]}) is None
+
+    def test_check_json_type_unknown(self):
+        from myrm_agent_harness.eval.assertions import _check_json_type
+
+        assert _check_json_type("x", "unknown_type") is True
+
+
+class TestSemanticAssertionBranches:
+    """Edge branches of evaluate_semantic_assertions."""
+
+    @staticmethod
+    def _mock_litellm(monkeypatch, content):
+        import sys
+        from unittest.mock import AsyncMock, MagicMock
+
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = content
+        litellm_mock = MagicMock()
+        litellm_mock.acompletion = AsyncMock(return_value=mock_response)
+        monkeypatch.setitem(sys.modules, "litellm", litellm_mock)
+        return litellm_mock
+
+    @pytest.mark.asyncio
+    async def test_judge_prompt_custom(self, monkeypatch):
+        from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
+        from myrm_agent_harness.eval.protocols import SemanticAssertion
+
+        litellm_mock = self._mock_litellm(monkeypatch, "PASS")
+        assertions = [
+            SemanticAssertion(
+                type="llm_judge",
+                expected="Be nice",
+                judge_prompt="Custom prompt for {criteria}: {output}",
+            )
+        ]
+        passed, _ = await evaluate_semantic_assertions(assertions, "output")
+        assert passed is True
+        sent_prompt = litellm_mock.acompletion.await_args.kwargs["messages"][0]["content"]
+        assert sent_prompt.startswith("Custom prompt")
+
+    @pytest.mark.asyncio
+    async def test_empty_judge_response(self, monkeypatch):
+        from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
+        from myrm_agent_harness.eval.protocols import SemanticAssertion
+
+        self._mock_litellm(monkeypatch, None)
+        assertions = [SemanticAssertion(type="llm_judge", expected="Be nice")]
+        passed, details = await evaluate_semantic_assertions(assertions, "output")
+        assert passed is False
+        assert "empty response" in details
+
+    @pytest.mark.asyncio
+    async def test_scoring_unparseable_passes_via_pass_prefix(self, monkeypatch):
+        from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
+        from myrm_agent_harness.eval.protocols import SemanticAssertion
+
+        self._mock_litellm(monkeypatch, "PASS because it is good")
+        assertions = [SemanticAssertion(type="llm_judge", expected="Be nice", threshold=0.7)]
+        passed, _ = await evaluate_semantic_assertions(assertions, "output")
+        assert passed is True
+
+    @pytest.mark.asyncio
+    async def test_scoring_unparseable_fails_via_fail_prefix(self, monkeypatch):
+        from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
+        from myrm_agent_harness.eval.protocols import SemanticAssertion
+
+        self._mock_litellm(monkeypatch, "FAIL: not nice")
+        assertions = [SemanticAssertion(type="llm_judge", expected="Be nice", threshold=0.7)]
+        passed, details = await evaluate_semantic_assertions(assertions, "output")
+        assert passed is False
+        assert "score 0.00 < threshold" in details
+
+    @pytest.mark.asyncio
+    async def test_scoring_unparseable_totally(self, monkeypatch):
+        from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
+        from myrm_agent_harness.eval.protocols import SemanticAssertion
+
+        self._mock_litellm(monkeypatch, "definitely not a number")
+        assertions = [SemanticAssertion(type="llm_judge", expected="Be nice", threshold=0.7)]
+        passed, details = await evaluate_semantic_assertions(assertions, "output")
+        assert passed is False
+        assert "unparseable score" in details
+
+    @pytest.mark.asyncio
+    async def test_binary_fail(self, monkeypatch):
+        from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
+        from myrm_agent_harness.eval.protocols import SemanticAssertion
+
+        self._mock_litellm(monkeypatch, "FAIL: not polite")
+        assertions = [SemanticAssertion(type="llm_judge", expected="Be nice")]
+        passed, details = await evaluate_semantic_assertions(assertions, "output")
+        assert passed is False
+        assert "Semantic assertion failed: FAIL: not polite" in details
+
+    @pytest.mark.asyncio
+    async def test_llm_error(self, monkeypatch):
+        import sys
+        from unittest.mock import AsyncMock, MagicMock
+
+        from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
+        from myrm_agent_harness.eval.protocols import SemanticAssertion
+
+        litellm_mock = MagicMock()
+        litellm_mock.acompletion = AsyncMock(side_effect=RuntimeError("LLM down"))
+        monkeypatch.setitem(sys.modules, "litellm", litellm_mock)
+
+        assertions = [SemanticAssertion(type="llm_judge", expected="Be nice")]
+        passed, details = await evaluate_semantic_assertions(assertions, "output")
+        assert passed is False
+        assert "LLM error" in details
+
+    @pytest.mark.asyncio
+    async def test_litellm_missing(self, monkeypatch):
+        import sys
+
+        from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
+        from myrm_agent_harness.eval.protocols import SemanticAssertion
+
+        monkeypatch.delitem(sys.modules, "litellm", raising=False)
+        monkeypatch.setattr(
+            "myrm_agent_harness.eval.assertions.litellm",
+            None,
+            raising=False,
+        )
+
+        # Force ImportError by removing the module then attempting import inside the function.
+        import builtins
+
+        original_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "litellm":
+                raise ImportError("No module named 'litellm'")
+            return original_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        assertions = [SemanticAssertion(type="llm_judge", expected="Be nice")]
+        passed, details = await evaluate_semantic_assertions(assertions, "output")
+        assert passed is False
+        assert "'litellm' package" in details

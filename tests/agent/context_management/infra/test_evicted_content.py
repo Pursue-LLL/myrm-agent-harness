@@ -37,14 +37,49 @@ def test_build_evicted_basename_matches_api_pattern() -> None:
     assert EVICTED_BASENAME_PATTERN.match(name)
 
 
-def test_build_delivery_footer_includes_offset() -> None:
+def test_build_delivery_footer_includes_line_range() -> None:
     footer = build_delivery_footer(
         evicted_basename="web_fetch_abcd1234.md",
         head_text="line1\nline2\nline3",
         rel_path=".context/chat1/evicted/web_fetch_abcd1234.md",
     )
-    assert "offset=4" in footer
+    assert 'paths=[".context/chat1/evicted/web_fetch_abcd1234.md:4-"]' in footer
     assert "file_read_tool" in footer
+
+
+def test_build_delivery_footer_without_head_text_plain_read() -> None:
+    footer = build_delivery_footer(
+        evicted_basename="web_fetch_abcd1234.md",
+        rel_path=".context/chat1/evicted/web_fetch_abcd1234.md",
+    )
+    assert 'paths=[".context/chat1/evicted/web_fetch_abcd1234.md"]' in footer
+    assert "file_read_tool" in footer
+
+
+def test_build_delivery_footer_single_line_head_falls_back_to_plain_read() -> None:
+    """A single-line head has no meaningful line offset; use a plain read.
+
+    A ``:N-`` instruction on a one-line evicted file would point past the only
+    line and read nothing, so the footer must fall back to a full-file read.
+    """
+    footer = build_delivery_footer(
+        evicted_basename="output_abcd1234.txt",
+        head_text="single extremely long line without any newline",
+        rel_path=".context/chat1/evicted/output_abcd1234.txt",
+    )
+    assert 'paths=[".context/chat1/evicted/output_abcd1234.txt"]' in footer
+    assert ":2-" not in footer
+    assert "file_read_tool" in footer
+
+
+def test_build_delivery_footer_head_ending_with_newline_offsets_by_one() -> None:
+    """Head that ends with a newline covers newlines rows; next row is count+1."""
+    footer = build_delivery_footer(
+        evicted_basename="output_abcd1234.txt",
+        head_text="line1\nline2\n",
+        rel_path=".context/chat1/evicted/output_abcd1234.txt",
+    )
+    assert 'paths=[".context/chat1/evicted/output_abcd1234.txt:3-"]' in footer
 
 
 @pytest.mark.asyncio

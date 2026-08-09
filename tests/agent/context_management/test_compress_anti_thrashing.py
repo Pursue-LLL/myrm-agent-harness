@@ -780,3 +780,40 @@ class TestHotCacheBypassEdgeCases:
             metadata={"last_activity_time": time.time()},
         )
         assert not processor._should_bypass_for_hot_cache(context, 90000)
+
+
+class TestRealContextEstimation:
+    """Coverage of the real _estimate_context_tokens path (line 134)."""
+
+    def test_estimates_tokens_from_messages_and_metadata(self) -> None:
+        """Real estimator sums message tokens plus bound-tool overhead."""
+        processor = CompressProcessor(max_context_tokens=100000)
+        context = _build_context(
+            messages=[HumanMessage(content="hello world")],
+            metadata={"bound_tool_overhead_tokens": 500},
+        )
+        estimated = processor._estimate_context_tokens(context)
+        assert estimated >= 500
+
+    def test_estimator_uses_provider_prompt_tokens_as_floor(self) -> None:
+        """Provider-reported prompt_tokens floors the estimate when higher."""
+        processor = CompressProcessor(max_context_tokens=100000)
+        context = _build_context(
+            messages=[HumanMessage(content="hi")],
+            metadata={"last_provider_prompt_tokens": 50_000},
+        )
+        assert processor._estimate_context_tokens(context) == 50_000
+
+    @pytest.mark.asyncio
+    async def test_should_process_uses_real_estimator(self) -> None:
+        """should_process works end-to-end with the real token estimator."""
+        processor = CompressProcessor(max_context_tokens=100000)
+        context = _build_context(metadata={"bound_tool_overhead_tokens": 1000})
+
+        with patch(
+            "myrm_agent_harness.agent.context_management.pipeline.processors.compress_processor.calculate_context_budget",
+            return_value=_FakeBudget(dynamic_threshold=10),
+        ):
+            result = await processor.should_process(context)
+
+        assert result is True

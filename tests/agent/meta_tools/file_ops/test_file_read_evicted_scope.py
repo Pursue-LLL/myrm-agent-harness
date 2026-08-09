@@ -223,6 +223,39 @@ async def test_file_read_tool_evicted_policy_blocks_workspace_path() -> None:
 
 
 @pytest.mark.asyncio
+async def test_scope_allows_evicted_file_with_chat_prefix_chat_id(tmp_path) -> None:
+    """chat_<id> session keys are normalized to <id> on the read side too.
+
+    Persist side (evicted_content.py) strips the ``chat_`` prefix when saving
+    under .context/<id>/evicted/; the read scope must mirror that so reads
+    are not blocked by a prefix mismatch.
+    """
+    raw_chat_id = "e2ebashfg-prefix"
+    chat_id = f"chat_{raw_chat_id}"
+    workspace = tmp_path / "ws"
+    evicted_dir = workspace / ".context" / raw_chat_id / "evicted"
+    evicted_dir.mkdir(parents=True)
+    spill = evicted_dir / "web_fetch_ab12cd34.md"
+    spill.write_text("full page", encoding="utf-8")
+    rel = f".context/{raw_chat_id}/evicted/web_fetch_ab12cd34.md"
+
+    token_ws = workspace_root_var.set(str(workspace))
+    token_chat = chat_id_var.set(chat_id)
+    try:
+
+        class _Executor:
+            async def resolve_path(self, path: str) -> str:
+                return str(workspace / path)
+
+        await _assert_evicted_uploaded_read_scope(
+            [rel], chat_id=chat_id, executor=_Executor()
+        )
+    finally:
+        workspace_root_var.reset(token_ws)
+        chat_id_var.reset(token_chat)
+
+
+@pytest.mark.asyncio
 async def test_file_read_tool_evicted_policy_allows_spill_path(tmp_path) -> None:
     chat_id = "chat-tool-ok"
     workspace = tmp_path / "ws"

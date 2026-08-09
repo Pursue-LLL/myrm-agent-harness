@@ -217,3 +217,34 @@ def test_markdown_reporter_with_manifest(tmp_path: Path):
     assert "openai/gpt-4o-2024-08-06" in content
     assert "0.1.0rc2" in content
     assert "web_search, code_exec" in content
+
+
+def test_reporters_include_avg_pass_rate_tokens_cost(tmp_path: Path):
+    """avg_pass_rate + token/cost lines surface in both reporters."""
+    turn = EvalTurnResult(
+        case=EvalCase(message="suite case", expected_tools=["tool"]),
+        response=AgentResponse(
+            answer="ok",
+            tools_called=["tool"],
+            token_usage={"total_tokens": 1200, "prompt_tokens": 800},
+            cost=0.025,
+        ),
+        assertion_passed=False,
+        assertion_details="2/3 tests passed",
+        timings=EvalTimings(total_ms=100),
+        scores={"pass_rate": 0.6667, "tests_passed": 2.0, "tests_total": 3.0},
+    )
+    result = EvalResult(turn_results=[turn], total_ms=100)
+
+    jsonl_path = tmp_path / "avg.jsonl"
+    JsonlReporter(jsonl_path).report(result)
+    summary = json.loads(jsonl_path.read_text().splitlines()[0])
+    assert summary["avg_pass_rate"] == 0.6667
+    assert summary["avg_total_tokens"] == 1200
+
+    md_path = tmp_path / "avg.md"
+    MarkdownReporter(md_path).report(result)
+    md = md_path.read_text()
+    assert "- **Avg Test Pass Rate**: 66.7%" in md
+    assert "**Total Tokens**: 1,200 (avg 1,200/case)" in md
+    assert "**Total Cost**: $0.0250" in md

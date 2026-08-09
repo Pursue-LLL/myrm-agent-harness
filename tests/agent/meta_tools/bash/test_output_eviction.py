@@ -60,8 +60,8 @@ async def test_eviction_hint_references_file_read_tool(mock_executor):
     assert isinstance(result, EvictionResult)
     assert "file_read_tool" in result.text
     assert "cat " not in result.text
-    assert "offset=" in result.text
-    assert "limit=" in result.text
+    assert 'paths=["' in result.text
+    assert ".context/s/evicted/output.txt" in result.text
     assert result.evicted_ref == "output.txt"
 
 
@@ -93,7 +93,7 @@ async def test_eviction_fallback_hint_references_file_read_tool(mock_executor):
     assert isinstance(result, EvictionResult)
     assert "file_read_tool" in result.text
     assert "cat " not in result.text
-    assert "offset=" in result.text
+    assert 'paths=["' in result.text
     assert result.evicted_ref == "output.txt"
 
 
@@ -147,8 +147,8 @@ async def test_eviction_hint_includes_actual_file_path(mock_executor):
         ),
     ):
         result = await maybe_evict_large_output("x" * 50000, mock_executor)
-    assert 'path=".context/session123/evicted/output_abc.txt"' in result.text
-    assert "offset=" in result.text
+    assert 'paths=[".context/session123/evicted/output_abc.txt' in result.text
+    assert "file_read_tool" in result.text
     assert result.evicted_ref == "output_abc.txt"
 
 
@@ -158,6 +158,56 @@ async def test_eviction_skips_small_output():
     result = await maybe_evict_large_output("small output")
     assert isinstance(result, EvictionResult)
     assert result.text == "small output"
+    assert result.evicted_ref is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("_mock_detect_non_structural")
+async def test_eviction_triggers_on_char_threshold_when_token_below(mock_executor):
+    """Output over the char threshold must be evicted even when token count is low.
+
+    Regression guard: outputs in the 8k char ~ 20k token band were previously
+    hard-truncated by format_result without being persisted, making the middle
+    section unreachable. Char-level gate aligns eviction with the truncation
+    threshold so every hard-truncated output is first saved to disk.
+    """
+    from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+        EvictedPersistResult,
+    )
+
+    persist_result = EvictedPersistResult(
+        evicted_ref="output_band.txt",
+        rel_path=".context/s/evicted/output_band.txt",
+        stored_chars=8500,
+    )
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._output_eviction._save_to_file",
+            return_value=(".context/s/evicted/output_band.txt", persist_result),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.should_filter",
+            return_value=False,
+        ),
+    ):
+        result = await maybe_evict_large_output("x" * 8500, mock_executor)
+
+    assert isinstance(result, EvictionResult)
+    assert "file_read_tool" in result.text
+    assert result.evicted_ref == "output_band.txt"
+    assert 'paths=[".context/s/evicted/output_band.txt' in result.text
+
+
+@pytest.mark.asyncio
+async def test_eviction_skips_output_at_exact_char_threshold():
+    """Output at exactly BASH_OUTPUT_MAX_CHARS must pass through unchanged."""
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.bash._output_eviction.should_filter",
+        return_value=False,
+    ):
+        result = await maybe_evict_large_output("x" * 8000)
+    assert isinstance(result, EvictionResult)
+    assert result.text == "x" * 8000
     assert result.evicted_ref is None
 
 
@@ -204,6 +254,9 @@ async def test_eviction_structural_content_preview(mock_executor):
 
     assert "LARGE OUTPUT TRUNCATED" in result.text or "structure" in result.text.lower()
     assert result.evicted_ref == "output_ab12cd34.txt"
+    # Structural summary has no line mapping; footer must fall back to a plain
+    # read (no line-range offset) to avoid a misleading read instruction.
+    assert 'paths=[".context/s1/evicted/output_ab12cd34.txt"]' in result.text
 
 
 def test_get_session_id_returns_none_on_error():

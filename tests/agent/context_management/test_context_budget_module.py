@@ -164,6 +164,47 @@ class TestContextBudget:
         assert "Compress" in view
         assert "Summarize" in view
 
+    def test_summarize_usage_when_current_tokens_none(
+        self, config: ContextConfig
+    ) -> None:
+        """current_tokens=None short-circuits summarize_usage to 0.0."""
+        b = ContextBudget(
+            current_tokens=None,
+            compress_threshold=CT,
+            summarize_threshold=ST,
+            config=config,
+        )
+        assert b.summarize_usage == 0.0
+        assert b.remaining_ratio == 1.0
+
+    def test_dynamic_thresholds_when_no_tokens_measured(
+        self, config: ContextConfig
+    ) -> None:
+        """avg_tokens_per_turn=0 makes estimated_remaining_tokens<=0 -> urgency=2.0."""
+        b = ContextBudget(
+            current_tokens=0,
+            compress_threshold=CT,
+            summarize_threshold=ST,
+            config=config,
+        )
+        threshold, min_save = b.calculate_dynamic_thresholds(
+            turn_count=10, estimated_remaining_turns=10
+        )
+        # urgency=2.0 is not >2.0, so it falls into the >1.0 branch (0.80 factor).
+        assert threshold == int(CT * 0.80)
+        assert min_save == int(3000 * 0.80)
+
+    def test_dynamic_thresholds_medium_urgency(self, config: ContextConfig) -> None:
+        """urgency in (1.0, 2.0] applies the 0.80 factor."""
+        # current=30k -> avg=3k/turn; estimated=30k; remaining=90k-30k=60k
+        # urgency=60k/30k=2.0 -> strictly >1.0 branch (0.80 factor)
+        b = _budget(30_000, config)
+        threshold, min_save = b.calculate_dynamic_thresholds(
+            turn_count=10, estimated_remaining_turns=10
+        )
+        assert threshold == int(CT * 0.80)
+        assert min_save == int(3000 * 0.80)
+
 
 class TestCalculateContextBudget:
     def test_with_messages(self) -> None:

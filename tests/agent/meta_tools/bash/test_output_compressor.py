@@ -95,6 +95,42 @@ class TestCompressOutput:
         assert "PASSED" not in result
         assert len(result) < len(output)
 
+    def test_eviction_preview_passthrough_preserves_footer(self, compress):
+        """An eviction preview must never be re-compressed.
+
+        Regression guard: format_result runs compress_output after eviction. A
+        high-repetition preview (e.g. build/retry logs) would otherwise be
+        rewritten into a dedup summary by LogCompressor, dropping the
+        file_read_tool read-back footer and stranding the model.
+        """
+        from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+            build_delivery_footer,
+        )
+        from myrm_agent_harness.agent.meta_tools.bash._output_eviction import (
+            _create_smart_preview,
+        )
+
+        lines = [f"INFO request handled in 12.{i % 10}ms" for i in range(5000)]
+        stdout = "\n".join(lines)
+        preview = _create_smart_preview(stdout)
+        head_text = (
+            preview.split("\n\n[Truncated:")[0].partition("\n")[2].lstrip("\n")
+            if "[Truncated:" in preview
+            else None
+        )
+        footer = build_delivery_footer(
+            evicted_basename="output_abcd1234.txt",
+            head_text=head_text,
+            rel_path=".context/chat1/evicted/output_abcd1234.txt",
+        )
+        preview_with_footer = preview + footer
+
+        result = compress("python script.py", preview_with_footer)
+        assert result == preview_with_footer
+        assert "file_read_tool" in result
+        assert "Full content saved" in result
+        assert "Auto-deduplicated" not in result
+
 
 # ---------------------------------------------------------------------------
 # GitStatusCompressor tests

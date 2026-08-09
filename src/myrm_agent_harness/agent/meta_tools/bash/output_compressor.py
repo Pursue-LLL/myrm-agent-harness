@@ -5,7 +5,8 @@ while preserving all semantically meaningful information. Compresses both succes
 and failed command outputs; unrecognized commands pass through.
 
 [INPUT]
-- (none — self-contained module, no cross-module dependencies)
+- ._output_eviction::EVICTION_BANNER_PREFIX (POS: eviction preview banner，用于跳过对已 evict 预览的二次压缩)
+- ._compressors::各类语义压缩器 (POS: 命令感知压缩器注册表)
 
 [OUTPUT]
 - compress_output(): Entry function called by bash_code_execute_tool._format_result()
@@ -39,6 +40,7 @@ from ._compressors import (
     PackageInstallCompressor,
     TestCompressor,
 )
+from ._output_eviction import EVICTION_BANNER_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +244,13 @@ def compress_output(
         Compressed stdout or original stdout (never loses information).
     """
     if not _is_enabled() or not stdout or not command:
+        return stdout
+
+    if stdout.lstrip().startswith(EVICTION_BANNER_PREFIX):
+        # Output is already an eviction preview (banner + head + file_read_tool
+        # footer). It is a compact model-facing summary with a read-back
+        # instruction; re-compressing it would discard the footer and leave the
+        # model without a way to read the full output. Pass through untouched.
         return stdout
 
     is_failure = exit_code != "0"

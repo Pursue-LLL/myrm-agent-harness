@@ -301,7 +301,7 @@ include = [
   "*/myrm_agent_harness/observability/diagnostics/*",
   "*/myrm_agent_harness/runtime/*",
   "*/myrm_agent_harness/utils/*",
-  "*/myrm_agent_harness/eval/metrics.py",
+  "*/myrm_agent_harness/eval/*.py",
   "*/myrm_agent_harness/eval/memory_retrieval/*",
   "*/myrm_agent_harness/toolkits/memory/*",
   "*/myrm_agent_harness/toolkits/web_fetch/fetchers/*",

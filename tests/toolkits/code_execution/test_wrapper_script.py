@@ -7,6 +7,12 @@ NameError when LLMs generate JavaScript-style literals in Python code.
 
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
 from myrm_agent_harness.toolkits.code_execution.executors.common.wrapper_script import (
     generate_wrapper_script,
     parse_execution_output,
@@ -37,18 +43,18 @@ class TestJsLiteralCompatibility:
         script = generate_wrapper_script()
         mcp_injection_pos = script.find('for key in ["skills"')
         js_compat_pos = script.find('exec_globals["null"]')
-        assert mcp_injection_pos < js_compat_pos, (
-            "JS literal bindings must appear after MCP client injection"
-        )
+        assert (
+            mcp_injection_pos < js_compat_pos
+        ), "JS literal bindings must appear after MCP client injection"
 
     def test_bindings_before_stdout_redirect(self) -> None:
         """JS literal bindings should appear before stdout redirection."""
         script = generate_wrapper_script()
         js_compat_pos = script.find('exec_globals["null"]')
         stdout_pos = script.find("sys.stdout = captured_stdout")
-        assert js_compat_pos < stdout_pos, (
-            "JS literal bindings must appear before stdout redirection"
-        )
+        assert (
+            js_compat_pos < stdout_pos
+        ), "JS literal bindings must appear before stdout redirection"
 
 
 class TestMatplotlibFigureCapture:
@@ -57,9 +63,9 @@ class TestMatplotlibFigureCapture:
     def test_emit_iterates_all_open_figures(self) -> None:
         """H1: capture must iterate all open figures, not just the active one."""
         script = generate_wrapper_script()
-        assert "plt.get_fignums()" in script, (
-            "must iterate every open figure so multi-figure scripts do not lose plots"
-        )
+        assert (
+            "plt.get_fignums()" in script
+        ), "must iterate every open figure so multi-figure scripts do not lose plots"
 
     def test_emit_closes_each_figure(self) -> None:
         """Closing per figure makes 'open figures' the single source of truth."""
@@ -185,3 +191,65 @@ class TestGenerateWrapperScript:
         assert "RLIMIT_CPU" in script
         assert "RLIMIT_AS" in script
         compile(script, "<wrapper>", "exec")
+
+
+class TestAsyncExecutionModesEndToEnd:
+    """Generated wrapper must execute every documented async entry pattern.
+
+    Runs the real wrapper in a subprocess for all four execution modes. This is
+    the behavioural contract behind ``_tool_description.py`` §异步写法: if a
+    future change to the wrapper or the syntax pre-check breaks any documented
+    entry point, these tests fail before the LLM ever sees a drifted prompt.
+    """
+
+    @pytest.mark.parametrize(
+        ("name", "user_code", "marker"),
+        [
+            ("sync", "print('MARK_SYNC')", "MARK_SYNC"),
+            (
+                "asyncio_run",
+                "import asyncio\n"
+                "async def main():\n"
+                "    print('MARK_ASYNC_RUN')\n"
+                "asyncio.run(main())",
+                "MARK_ASYNC_RUN",
+            ),
+            (
+                "async_main_bare_call",
+                "async def main():\n    print('MARK_BARE_MAIN')\nmain()",
+                "MARK_BARE_MAIN",
+            ),
+            (
+                "top_level_await",
+                "import asyncio\n"
+                "async def f():\n"
+                "    return 'MARK_TOP_AWAIT'\n"
+                "print(await f())",
+                "MARK_TOP_AWAIT",
+            ),
+        ],
+    )
+    def test_mode_runs_in_subprocess(
+        self,
+        tmp_path: Path,
+        name: str,
+        user_code: str,
+        marker: str,
+    ) -> None:
+        code_file = tmp_path / f"{name}_user_code.py"
+        wrapper_file = tmp_path / f"{name}_wrapper.py"
+        code_file.write_text(user_code, encoding="utf-8")
+        wrapper_file.write_text(
+            generate_wrapper_script(str(code_file)),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [sys.executable, str(wrapper_file)],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr
+        assert '"success": true' in result.stdout
+        assert marker in result.stdout

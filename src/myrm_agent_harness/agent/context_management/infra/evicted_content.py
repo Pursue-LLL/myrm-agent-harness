@@ -129,18 +129,44 @@ def build_evicted_basename(source: str, *, ext: str = "txt") -> str:
 def build_delivery_footer(
     *,
     evicted_basename: str,
-    head_text: str,
+    head_text: str | None = None,
     rel_path: str | None = None,
-    read_limit: int = 200,
 ) -> str:
-    """Actionable footer telling the model how to read omitted content."""
-    middle_start_line = head_text.count("\n") + 2
+    """Actionable footer telling the model how to read omitted content.
+
+    Emits a valid ``file_read_tool(paths=[...])`` line-range instruction. When
+    ``start_line`` is unknown (e.g. structural summaries with no line mapping),
+    the footer falls back to a plain full-file read so the model is never
+    pointed at a misleading offset.
+    """
+    start_line = _footer_start_line(head_text)
     path_hint = rel_path if rel_path else f".context/.../evicted/{evicted_basename}"
+    if start_line is not None:
+        read_cmd = f'file_read_tool(paths=["{path_hint}:{start_line}-"])'
+    else:
+        read_cmd = f'file_read_tool(paths=["{path_hint}"])'
     return (
         f"\n\nFull content saved to sandbox storage: {path_hint}\n"
-        f'Use file_read_tool path="{path_hint}" offset={middle_start_line} limit={read_limit} '
-        f"to read omitted sections. GUI users can open View full output."
+        f"Use {read_cmd} to read omitted sections. GUI users can open View full output."
     )
+
+
+def _footer_start_line(head_text: str | None) -> int | None:
+    """Estimate the first omitted line (1-indexed) from the previewed head.
+
+    Returns ``None`` when the head cannot be mapped to source line numbers:
+    empty preview, structural summary without line correspondence, or a
+    single-line head (line-range reads are meaningless for one-line files —
+    a ``:N-`` instruction would point past the only line and read nothing).
+    """
+    if not head_text:
+        return None
+    newlines = head_text.count("\n")
+    if newlines == 0:
+        return None
+    if head_text.endswith("\n"):
+        return newlines + 1
+    return newlines + 2
 
 
 def normalize_delivery_chat_id(raw: str) -> str:

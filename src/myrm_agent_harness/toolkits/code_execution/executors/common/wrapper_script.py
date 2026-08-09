@@ -108,7 +108,7 @@ class BoundedStringIO(io.StringIO):
         if new_size > self.limit:
             allowed = self.limit - self.current_size
             super().write(s[:allowed])
-            super().write("\\n\\n[System Warning: Output truncated due to size limit of {{self.limit}} bytes]\\n\\n")
+            super().write("\\n\\n[System Warning: Output truncated due to size limit of {{limit}} bytes]\\n\\n".format(limit=self.limit))
             self.truncated = True
             self.current_size = self.limit
             return len(s)

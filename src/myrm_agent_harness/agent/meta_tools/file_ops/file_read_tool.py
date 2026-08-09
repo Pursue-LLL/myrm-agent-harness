@@ -8,6 +8,7 @@
 - file_read_handlers::build_multimodal_result, append_media_text_parts, process_text_paths (POS: file_read 执行处理器)
 - file_search.path_hint::suggest_similar_paths, format_path_not_found_hint (POS: 路径不存在时的相似路径提示)
 - file_search.skill_path_filter::get_disabled_skill_roots, is_under_disabled_skill_root (POS: disabled skill 路径拦截)
+- context_management.infra.evicted_content::normalize_delivery_chat_id (POS: UECD 会话 id 归一化，读写侧对称)
 - utils.vault_read::is_vault_uri, path_base, read_vault_paths_to_parts (POS: vault:// URI 读取)
 - utils.*_reader (POS: 多模态与文档读取)
 - utils.errors::ToolError (POS: 工具错误类型)
@@ -37,6 +38,9 @@ from pydantic import BaseModel, Field, field_validator
 
 from myrm_agent_harness.agent.context_management.context import (
     extract_context_from_runnable_config,
+)
+from myrm_agent_harness.agent.context_management.infra.evicted_content import (
+    normalize_delivery_chat_id,
 )
 from myrm_agent_harness.agent.meta_tools.file_search.path_hint import (
     format_path_not_found_hint,
@@ -100,7 +104,11 @@ async def _assert_evicted_uploaded_read_scope(
     executor: object | None,
 ) -> None:
     """Restrict reads to UECD spill files and chat uploads (Fast / search track)."""
-    session_chat_id = chat_id.strip() or chat_id_var.get().strip()
+    # Persist side normalizes chat_<id> session keys to <id> (evicted_content.py);
+    # mirror it here so saved paths match the read scope check.
+    session_chat_id = normalize_delivery_chat_id(
+        chat_id.strip() or chat_id_var.get().strip()
+    )
     if not session_chat_id:
         raise ToolError(
             message="file_read_tool blocked: missing chat_id for evicted-read scope",

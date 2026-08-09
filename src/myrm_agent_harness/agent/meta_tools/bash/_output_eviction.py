@@ -11,13 +11,17 @@
 - 两者独立，不冲突（eviction 后内容很小，FilterProcessor 自动跳过）
 
 [INPUT]
-- agent.context_management.strategies.filters.base::STRUCTURAL_CONTENT_TYPES, (POS: Provides FileOperationObserver.)
+- agent.context_management.infra.evicted_content::build_delivery_footer (POS: evicted 文件 footer 读取指令)
+- agent.context_management.strategies.filter::should_filter (POS: token 阈值判定)
+- agent.context_management.strategies.filters.base::STRUCTURAL_CONTENT_TYPES, FilterContext, detect_content_type (POS: 内容类型检测)
 - agent.context_management.strategies.filters.structural_filter::StructuralFilter (POS: JSON XML CSV)
+- agent.meta_tools.bash.bash_tool_formatting::BASH_OUTPUT_MAX_CHARS (POS: 字符阈值，与格式层硬截断对齐)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 
 [OUTPUT]
 - maybe_evict_large_output: Args:
 - EvictionResult: Structured result with preview text and optional evicted file reference.
+- EVICTION_BANNER_PREFIX (POS: eviction preview banner 前缀，供 output_compressor 跳过二次压缩)
 
 [POS]
 Provides maybe_evict_large_output and EvictionResult.
@@ -42,6 +46,9 @@ from myrm_agent_harness.agent.context_management.strategies.filters.base import 
 from myrm_agent_harness.agent.context_management.strategies.filters.structural_filter import (
     StructuralFilter,
 )
+from myrm_agent_harness.agent.meta_tools.bash.bash_tool_formatting import (
+    BASH_OUTPUT_MAX_CHARS,
+)
 from myrm_agent_harness.utils.text_utils import get_token_count, smart_truncate
 
 if TYPE_CHECKING:
@@ -54,6 +61,11 @@ logger = logging.getLogger(__name__)
 
 _PREVIEW_MAX_CHARS = 3000
 _structural_filter = StructuralFilter()
+
+# Banner prefix for every eviction preview. output_compressor uses the same
+# constant to detect eviction previews and skip re-compression, so the preview
+# and its file_read_tool read-back footer always survive the format pipeline.
+EVICTION_BANNER_PREFIX = "[LARGE OUTPUT TRUNCATED ("
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +90,10 @@ async def maybe_evict_large_output(
 ) -> EvictionResult:
     """大输出截断为智能预览，可选持久化到沙箱文件
 
+    触发条件（任一满足）：token 数超过 FILTER_TOKEN_THRESHOLD，或字符数超过
+    BASH_OUTPUT_MAX_CHARS。字符口径与 bash_tool_formatting 的硬截断阈值对齐，
+    保证所有会被格式层硬截断的输出都先落盘可读，避免中间数据不可达。
+
     Args:
         stdout: 清理后的标准输出
         executor: 沙箱执行器（提供时将大输出保存到文件）
@@ -85,7 +101,7 @@ async def maybe_evict_large_output(
     Returns:
         EvictionResult with preview text and optional evicted file reference.
     """
-    if not should_filter(stdout):
+    if not should_filter(stdout) and len(stdout) <= BASH_OUTPUT_MAX_CHARS:
         return EvictionResult(text=stdout)
 
     file_path: str | None = None
@@ -108,18 +124,17 @@ async def maybe_evict_large_output(
                 f"{result.summary}\n\n"
                 f"{result.structure_overview}\n"
             )
+            # Structural summary has no line mapping to the source; do not
+            # derive a read offset so the footer falls back to a plain read.
+            footer_head: str | None = None
         else:
             preview = _create_smart_preview(stdout)
+            footer_head = _footer_head_part(preview)
 
         if file_path:
-            head_part = (
-                preview.split("\n\n[Truncated:")[0]
-                if "[Truncated:" in preview
-                else preview
-            )
             preview += build_delivery_footer(
                 evicted_basename=os.path.basename(file_path),
-                head_text=head_part,
+                head_text=footer_head,
                 rel_path=file_path,
             )
 
@@ -143,14 +158,9 @@ async def maybe_evict_large_output(
         logger.warning(" [Eviction] Failed: %s, falling back to smart_truncate", e)
         fallback = _create_smart_preview(stdout)
         if file_path:
-            head_part = (
-                fallback.split("\n\n[Truncated:")[0]
-                if "[Truncated:" in fallback
-                else fallback
-            )
             fallback += build_delivery_footer(
                 evicted_basename=os.path.basename(file_path),
-                head_text=head_part,
+                head_text=_footer_head_part(fallback),
                 rel_path=file_path,
             )
         evicted_ref = os.path.basename(file_path) if file_path else None
@@ -199,6 +209,22 @@ def _create_smart_preview(content: str) -> str:
 
     truncated = smart_truncate(content, _PREVIEW_MAX_CHARS)
     return f"[LARGE OUTPUT TRUNCATED ({total_lines} lines, ~{estimated_tokens} tokens)]\n\n{truncated}"
+
+
+def _footer_head_part(preview: str) -> str | None:
+    """Extract the previewed source head from a smart-truncate preview.
+
+    Returns ``None`` when the preview has no truncation marker (nothing was
+    omitted), so ``build_delivery_footer`` falls back to a plain read.
+    The preview banner line (e.g. ``[LARGE OUTPUT TRUNCATED (N lines...)]``)
+    is a formatting artifact, not source content, so it is stripped to keep
+    footer line numbers aligned with the evicted file.
+    """
+    if "[Truncated:" not in preview:
+        return None
+    head_text = preview.split("\n\n[Truncated:")[0]
+    _, _, head = head_text.partition("\n")
+    return head.lstrip("\n")
 
 
 def _get_session_id() -> str | None:

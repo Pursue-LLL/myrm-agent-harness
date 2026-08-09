@@ -6,6 +6,7 @@
 - utils.context_format::wrap_with_tool_output_tag (POS: Tool output tag wrapping)
 
 [OUTPUT]
+- BASH_OUTPUT_MAX_CHARS (POS: 单一事实源的截断字符阈值，供 _output_eviction 复用)
 - truncate_bash_output, format_result
 
 [POS]
@@ -18,8 +19,13 @@ from collections.abc import Mapping
 
 from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import interpret_exit_code
 
+# Single source of truth for the bash output hard truncation limit.
+# _output_eviction uses the same threshold as its character-level eviction gate
+# so every output that would be hard-truncated here is first persisted on disk.
+BASH_OUTPUT_MAX_CHARS = 8000
 
-def truncate_bash_output(output: str, max_chars: int = 8000) -> tuple[str, bool, dict[str, object]]:
+
+def truncate_bash_output(output: str, max_chars: int = BASH_OUTPUT_MAX_CHARS) -> tuple[str, bool, dict[str, object]]:
     """Smart middle-truncation for bash output to preserve errors at the end."""
     if len(output) <= max_chars:
         return output, False, {}

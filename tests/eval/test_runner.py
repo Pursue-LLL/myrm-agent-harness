@@ -722,3 +722,63 @@ class TestEdgeCases:
 
         assert result.total_cases == 0
         assert call_count == 0
+
+
+@pytest.mark.asyncio
+async def test_run_abort_before_start() -> None:
+    """Aborting before run() starts yields zero cases (semaphore-inner guard)."""
+    executor = MockExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+    runner = EvalRunner(executor)
+    runner.abort()
+    result = await runner.run(
+        [
+            EvalCase(message="a", expected_tools=["t"]),
+            EvalCase(message="b", expected_tools=["t"]),
+        ]
+    )
+    assert result.total_cases == 0
+
+
+@pytest.mark.asyncio
+async def test_sandbox_and_state_assertions_execute(tmp_path, monkeypatch) -> None:
+    """Sandbox + state assertions run inside the runner and feed scores."""
+    from myrm_agent_harness.eval.protocols import SandboxAssertion, StateAssertion
+    from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
+    from myrm_agent_harness.toolkits.code_execution.executors.local import LocalExecutor
+
+    def _fake(**_kwargs):
+        from myrm_agent_harness.toolkits.code_execution.sandbox.providers.null import NullProvider
+        from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import SandboxStatus
+
+        return (NullProvider(), SandboxStatus(enabled=False, provider_name="null", reason="test"))
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.sandbox.detect_sandbox_provider", _fake
+    )
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.sandbox.detector.detect_sandbox_provider", _fake
+    )
+
+    target = tmp_path / "hello.txt"
+    target.write_text("hello world")
+    sandbox = LocalExecutor(ExecutionConfig())
+    sandbox.bind_workspace(str(tmp_path))
+
+    class SandboxCapableExecutor(MockExecutor):
+        def get_sandbox_executor(self, *, session_id: str | None = None) -> LocalExecutor:
+            return sandbox
+
+    runner = EvalRunner(
+        SandboxCapableExecutor(default_response=AgentResponse(answer="ok", tools_called=["t"]))
+    )
+    result = await runner.run(
+        [
+            EvalCase(
+                message="test",
+                expected_tools=["t"],
+                sandbox_assertions=[SandboxAssertion(type="file_exists", target=str(target))],
+                state_assertions=[StateAssertion(type="contains", expected="ok")],
+            )
+        ]
+    )
+    assert result.pass_count == 1

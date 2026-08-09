@@ -151,13 +151,7 @@ class ContextBudget:
 
         基于 summarize_threshold（实际上限）计算。
         """
-        try:
-            usage = self.summarize_usage
-            if usage is None:
-                return 1.0  # 如果无法计算使用率，假设有 100% 剩余
-            return max(0.0, 1.0 - usage)
-        except Exception:
-            return 1.0  # 发生异常时返回默认值
+        return max(0.0, 1.0 - self.summarize_usage)
 
     def get_dynamic_compress_min_save(self) -> int:
         """根据剩余空间动态计算 compress_min_save
