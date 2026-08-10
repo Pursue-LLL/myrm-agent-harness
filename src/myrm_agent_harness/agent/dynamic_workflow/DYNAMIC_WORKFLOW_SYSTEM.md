@@ -75,6 +75,8 @@ Summarization LLM → 用户可读 Markdown
 |------|--------|------|----------------|
 | `SpawnSubagentTool` | `myrm_tools.spawn_subagent()` | PTC 脚本内阻塞 spawn；可选 `verification_mode=adversarial` → `run_with_verification` | 下游同 `_spawn_child()` / verify 路径；≠ LLM `delegate_task_tool` |
 | `NotifyProgressTool` | `myrm_tools.notify()` | PTC 脚本阶段进度 → SSE `workflow_stage` | 零 Turn1 bind |
+| `LlmQueryTool` | `myrm_tools.llm_query()` | 单发轻量 LLM 直调（无子 agent / 无工具）；默认 light tier 模型 | 复用 `resolve_llm` 4 级链路；`record_token_usage` 记账 |
+| `LlmQueryBatchedTool` | `myrm_tools.llm_query_batched()` | 并发批量 LLM 直调（保序、单条失败隔离、硬上限 200） | 复用 `LlmQueryTool._query_one`；同记账链路 |
 
 登记：`scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES`。完整分类见 [TOOL_MANAGEMENT_SYSTEM.md](../tool_management/TOOL_MANAGEMENT_SYSTEM.md) §内部分类。
 

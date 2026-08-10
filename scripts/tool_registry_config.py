@@ -23,6 +23,8 @@ PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset(
     {
         "spawn_subagent",
         "notify",
+        "llm_query",
+        "llm_query_batched",
     }
 )
 

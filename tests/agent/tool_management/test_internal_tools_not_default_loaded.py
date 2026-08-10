@@ -23,7 +23,9 @@ SCHEMA_ONLY_CONTROL_PLANE_TOOL_NAMES: frozenset[str] = frozenset(
     name for name in ORCHESTRATION_SIGNAL_NAMES if name != "submit_verdict"
 )
 
-PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset({"spawn_subagent", "notify"})
+PTC_RUNTIME_TOOL_NAMES: frozenset[str] = frozenset(
+    {"spawn_subagent", "notify", "llm_query", "llm_query_batched"}
+)
 
 
 @pytest.mark.asyncio

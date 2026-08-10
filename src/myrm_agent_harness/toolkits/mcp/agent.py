@@ -437,8 +437,7 @@ class MCPAgent:
                         _emit_auth_expired_for_tool(srv_label, str(exc))
                         return (
                             f"MCP server '{srv_label}' requires re-authorization. "
-                            f"Please go to Settings → MCP → {srv_label} → Authorize to refresh your credentials, "
-                            f"then ask me to retry."
+                            f"Ask the user to re-authorize the connection, then ask me to retry."
                         )
                     raise
 

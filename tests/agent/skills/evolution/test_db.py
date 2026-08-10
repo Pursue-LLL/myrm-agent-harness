@@ -1,3 +1,4 @@
+import copy
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -282,7 +283,6 @@ async def test_save_skills_batch(temp_db_path, skill_record):
     # Create multiple records
     records = []
     for i in range(5):
-        import copy
         r = copy.deepcopy(skill_record)
         r.skill_id = f"batch_skill_{i}"
         r.name = f"Batch Skill {i}"
@@ -296,6 +296,22 @@ async def test_save_skills_batch(temp_db_path, skill_record):
         assert s is not None
         assert s.name == f"Batch Skill {i}"
 
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_save_skills_batch_rejects_oversized_content(
+    temp_db_path, skill_record
+):
+    store = SkillStore(db_path=temp_db_path)
+    oversized = copy.deepcopy(skill_record)
+    oversized.skill_id = "oversized_skill"
+    oversized.content = "x" * (SkillStore.MAX_SKILL_CONTENT_CHARS + 1)
+
+    with pytest.raises(ValueError, match="too large"):
+        await store.save_skills_batch([oversized])
+
+    assert store.get_skill("oversized_skill") is None
     store.close()
 
 

@@ -8,7 +8,7 @@ Mirrors `src/myrm_agent_harness/toolkits/<name>/` — one subdirectory per shipp
 
 1. **Name parity**: `tests/toolkits/<name>/` must have a matching `src/myrm_agent_harness/toolkits/<name>/` package.
 2. **No empty shells**: every subdirectory must contain at least one `test_*.py` (or be deleted). Empty dirs with only `__pycache__` are forbidden.
-3. **Root-level tests**: shared toolkit tests may live as `tests/toolkits/test_*.py` beside subdirs (e.g. `test_mcp_timeout.py`).
+3. **Root-level tests**: only genuinely cross-toolkit shared tests may live as `tests/toolkits/test_*.py` beside subdirs. Single-domain tests must live in their toolkit's subdirectory (e.g. MCP tests go under `mcp/`).
 
 ## Submodule index
 

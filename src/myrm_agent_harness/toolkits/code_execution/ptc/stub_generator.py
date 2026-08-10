@@ -113,8 +113,46 @@ def _rpc_call(tool_name: str, args: dict) -> str:
 '''
 
 
-def _extract_params(tool: BaseTool) -> list[tuple[str, str, bool]]:
-    """Extract (param_name, description, required) from a tool's schema."""
+_TYPE_HINTS: dict[str, str] = {
+    "array": "list",
+    "object": "dict",
+    "integer": "int",
+    "number": "float",
+    "boolean": "bool",
+}
+# 结构化（array/object）参数需要 json 序列化兼容；数值/布尔参数按 is-not-None 传参。
+_STRUCTURED_PARAM_TYPES: frozenset[str] = frozenset({"array", "object"})
+_SCALAR_NON_STRING_TYPES: frozenset[str] = frozenset({"integer", "number", "boolean"})
+
+
+def _extract_json_type(prop: object) -> str:
+    """Best-effort extraction of the JSON-schema type of a property.
+
+    Handles both bare ``{"type": "integer"}`` and ``{"anyOf": [{"type": "integer"}, ...]}``
+    (the shape pydantic emits for optional fields). Falls back to "string".
+    """
+    if not isinstance(prop, dict):
+        return "string"
+    bare = prop.get("type")
+    if isinstance(bare, str):
+        return bare
+    any_of = prop.get("anyOf")
+    if isinstance(any_of, list):
+        for variant in any_of:
+            if isinstance(variant, dict) and variant.get("type") != "null":
+                candidate = variant.get("type")
+                if isinstance(candidate, str):
+                    return candidate
+    return "string"
+
+
+def _extract_params(tool: BaseTool) -> list[tuple[str, str, bool, str]]:
+    """Extract (param_name, description, required, json_type) from a tool's schema.
+
+    ``json_type`` is the JSON-schema type ("string" / "array" / "object" / ...);
+    array/object params are JSON-serialized before RPC so the generated script can
+    pass them as native Python lists/dicts.
+    """
     schema = getattr(tool, "args_schema", None)
     if schema is None:
         return []
@@ -126,12 +164,13 @@ def _extract_params(tool: BaseTool) -> list[tuple[str, str, bool]]:
 
     properties = json_schema.get("properties", {})
     required_set = set(json_schema.get("required", []))
-    params: list[tuple[str, str, bool]] = []
+    params: list[tuple[str, str, bool, str]] = []
 
     for name, prop in properties.items():
-        desc = prop.get("description", "")
+        desc = prop.get("description", "") if isinstance(prop, dict) else ""
         is_required = name in required_set
-        params.append((name, desc, is_required))
+        json_type = _extract_json_type(prop)
+        params.append((name, desc, is_required, json_type))
 
     return params
 
@@ -143,11 +182,18 @@ def _generate_function(tool: BaseTool) -> str:
     sig_parts: list[str] = []
     doc_params: list[str] = []
 
-    for name, desc, required in params:
-        if required:
-            sig_parts.insert(0, f"{name}: str")
+    for name, desc, required, json_type in params:
+        if json_type in _TYPE_HINTS:
+            hint = _TYPE_HINTS[json_type]
+            if required:
+                sig_parts.insert(0, f"{name}: {hint}")
+            else:
+                sig_parts.append(f"{name}: {hint} = None")
         else:
-            sig_parts.append(f"{name}: str = ''")
+            if required:
+                sig_parts.insert(0, f"{name}: str")
+            else:
+                sig_parts.append(f"{name}: str = ''")
         doc_params.append(f"        {name}: {desc}")
 
     signature = ", ".join(sig_parts) if sig_parts else ""
@@ -156,11 +202,26 @@ def _generate_function(tool: BaseTool) -> str:
     tool_desc = (tool.description or "").strip().split("\n")[0][:120]
 
     args_build = "    args = {}\n"
-    for name, _, required in params:
-        if required:
-            args_build += f"    args['{name}'] = {name}\n"
+    for name, _, required, json_type in params:
+        if json_type in _STRUCTURED_PARAM_TYPES:
+            args_build += (
+                f"    if isinstance({name}, str):\n"
+                f"        {name} = json.loads({name})\n"
+            )
+            if required:
+                args_build += f"    args['{name}'] = {name}\n"
+            else:
+                args_build += f"    if {name} is not None:\n        args['{name}'] = {name}\n"
+        elif json_type in _SCALAR_NON_STRING_TYPES:
+            if required:
+                args_build += f"    args['{name}'] = {name}\n"
+            else:
+                args_build += f"    if {name} is not None:\n        args['{name}'] = {name}\n"
         else:
-            args_build += f"    if {name}:\n        args['{name}'] = {name}\n"
+            if required:
+                args_build += f"    args['{name}'] = {name}\n"
+            else:
+                args_build += f"    if {name}:\n        args['{name}'] = {name}\n"
 
     func = f'''
 def {tool.name}({signature}) -> str:

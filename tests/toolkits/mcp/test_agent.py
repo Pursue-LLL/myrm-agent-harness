@@ -1379,3 +1379,75 @@ class TestEmitMcpAppEvent:
         event = mock_sink.emit.call_args[0][0]
         assert event["mcp_app"]["server_name"] == ""
 
+
+# ---------------------------------------------------------------------------
+# _wrap_tools_with_timeout: MCP transport 401 -> re-authorization message.
+# ---------------------------------------------------------------------------
+
+
+class TestWrapToolsAuthError:
+    """The 401 path surfaces a re-authorization message instead of a raise."""
+
+    @pytest.mark.asyncio
+    async def test_http_401_returns_reauthorization_message(self) -> None:
+        import httpx2
+
+        request = MagicMock()
+        response = MagicMock()
+        response.status_code = 401
+        err = httpx2.HTTPStatusError(
+            "401 Unauthorized", request=request, response=response
+        )
+
+        tool = _make_tool(
+            name="mcp__auth_server__read",
+            coroutine=AsyncMock(side_effect=err),
+        )
+        with patch(
+            "myrm_agent_harness.toolkits.mcp.agent._emit_auth_expired_for_tool"
+        ) as mock_emit:
+            MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+            result = await tool.ainvoke({"a": "1"})
+
+        assert "auth_server" in result
+        assert "requires re-authorization" in result
+        mock_emit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_non_401_status_error_still_raises(self) -> None:
+        import httpx2
+
+        request = MagicMock()
+        response = MagicMock()
+        response.status_code = 500
+        err = httpx2.HTTPStatusError(
+            "500 Internal Server Error", request=request, response=response
+        )
+
+        tool = _make_tool(name="mcp__srv__boom", coroutine=AsyncMock(side_effect=err))
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        with pytest.raises(httpx2.HTTPStatusError):
+            await tool.ainvoke({"a": "1"})
+
+    @pytest.mark.asyncio
+    async def test_unauth_tool_name_yields_full_name_fallback(self) -> None:
+        import httpx2
+
+        request = MagicMock()
+        response = MagicMock()
+        response.status_code = 401
+        err = httpx2.HTTPStatusError(
+            "401 Unauthorized", request=request, response=response
+        )
+
+        tool = _make_tool(name="plain_tool", coroutine=AsyncMock(side_effect=err))
+        with patch(
+            "myrm_agent_harness.toolkits.mcp.agent._emit_auth_expired_for_tool"
+        ) as mock_emit:
+            MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+            result = await tool.ainvoke({"a": "1"})
+
+        # No mcp__server__tool prefix -> falls back to the raw tool name.
+        assert "plain_tool" in result
+        assert "requires re-authorization" in result
+

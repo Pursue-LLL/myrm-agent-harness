@@ -32,6 +32,10 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
+from myrm_agent_harness.agent.dynamic_workflow.llm_query_tool import (
+    LlmQueryBatchedTool,
+    LlmQueryTool,
+)
 from myrm_agent_harness.agent.dynamic_workflow.notify_stream import (
     drain_notify_queue_nowait,
     iter_notify_events_while_task_runs,
@@ -39,6 +43,7 @@ from myrm_agent_harness.agent.dynamic_workflow.notify_stream import (
 from myrm_agent_harness.agent.dynamic_workflow.preflight import (
     WorkflowApprovalGate,
     WorkflowPlanReview,
+    count_llm_query_calls,
     count_spawn_calls,
     estimate_workflow_cost,
     format_plan_preview,
@@ -72,7 +77,7 @@ You are a Dynamic Workflow Orchestrator. Your task is to solve the user's comple
 request by writing a Python script that orchestrates multiple sub-agents.
 
 You have access to a special Python module called `myrm_tools`.
-It contains two functions:
+It contains four functions:
 
 1. `myrm_tools.spawn_subagent(task_id: str, agent_type: str, task_description: str, readonly: bool = False, verification_mode: str = "none", verifier_agent_type: str | None = None, max_verification_rounds: int = 2) -> dict`
    Spawns a sub-agent that has access to tools (web search, file operations, code execution, etc.).
@@ -82,6 +87,20 @@ It contains two functions:
 2. `myrm_tools.notify(message: str, progress: int = -1, step_index: int = 0, total_steps: int = 0, category: str = '', level: str = 'info') -> dict`
    Reports workflow stage progress to the user interface in real-time.
    Call at the start of each major phase so the user can track progress.
+
+3. `myrm_tools.llm_query(prompt: str, system: str = None, model: str = None, max_tokens: int = None, temperature: float = None) -> dict`
+   Calls the LLM directly with a single prompt — NO sub-agent, NO tools. Cheap and fast.
+   Returns dict with keys: success, result (the model's text answer), error, model.
+   Use for focused sub-tasks: extraction, classification, summarization, or answering a \
+   question over a chunk of text already in memory.
+
+4. `myrm_tools.llm_query_batched(prompts: list[str], system: str = None, model: str = None, max_tokens: int = None, temperature: float = None, max_concurrent: int = 5) -> dict`
+   Calls the LLM with many prompts in parallel. Returns dict with keys: success, results \
+   (list of per-prompt dicts, preserving input order), failed (count), model.
+   Use when you have MANY independent prompts. Each prompt should be self-contained and \
+   close to full capacity (a chunk of many items, a whole document) — do NOT split work \
+   into tiny single-item prompts. Batch in groups of at most ~100 prompts; do not spawn \
+   hundreds of small calls.
 
 IMPORTANT RULES:
 1. Use `concurrent.futures.ThreadPoolExecutor` with max_workers <= 5 for parallelism.
@@ -102,6 +121,10 @@ verification_mode="adversarial" so outputs include adversarial verification evid
 8. Call `myrm_tools.notify()` at the start of each major workflow phase. Example: \
 `myrm_tools.notify("Phase 1: Collecting data", step_index=1, total_steps=3, category="data")`. \
 This keeps the user informed of progress. Do NOT call it for every sub-agent — only for phase transitions.
+9. Prefer `llm_query_batched` over a loop of `llm_query` for many independent prompts. \
+Do NOT use llm_query/llm_query_batched when the task needs tools, file access, or \
+multi-step reasoning — spawn a sub-agent instead. If a single llm_query fails, handle \
+the error in Python and continue; never let one failure abort the workflow.
 
 PATTERN SELECTION — choose the right orchestration shape:
 - BARRIER (fan-out → wait-all → next): Use when all results are needed before proceeding. \
@@ -155,6 +178,27 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
 myrm_tools.notify("Generating summary", step_index=2, total_steps=2, category="summary")
 
 print(json.dumps(results, indent=2, ensure_ascii=False))
+```
+
+Example — Batched LLM extraction:
+```python
+import myrm_tools
+import json
+
+chunks = [doc[i:i+8000] for i in range(0, len(doc), 8000)]
+
+myrm_tools.notify("Extracting facts", step_index=1, total_steps=1, category="extraction")
+
+answers = myrm_tools.llm_query_batched(
+    prompts=[
+        f"Extract all key facts and figures from this document chunk, as JSON:\n{chunk}"
+        for chunk in chunks
+    ],
+    system="You extract structured facts from documents. Output only JSON.",
+)
+
+successful = [r["result"] for r in answers["results"] if r.get("success")]
+print(json.dumps(successful, indent=2, ensure_ascii=False))
 ```
 
 Example — Pipeline Pattern (sequential dependency):
@@ -326,6 +370,14 @@ async def run_dynamic_workflow_stream(
         event_queue=notify_queue,
         message_id=message_id,
     )
+    llm_query_tool = LlmQueryTool(
+        parent_agent=parent_agent,
+        cancel_token=cancel_token,
+    )
+    llm_query_batched_tool = LlmQueryBatchedTool(
+        parent_agent=parent_agent,
+        cancel_token=cancel_token,
+    )
 
     yield {
         "type": "status",
@@ -430,8 +482,14 @@ async def run_dynamic_workflow_stream(
     assert script_code is not None
 
     spawn_count = count_spawn_calls(script_code)
+    llm_query_calls = count_llm_query_calls(script_code)
+    llm_query_call_count = llm_query_calls[0] + llm_query_calls[1]
     estimated_cost_usd, remaining_budget_usd, cost_status = await estimate_workflow_cost(
-        parent_agent, catalog, spawn_count, query
+        parent_agent,
+        catalog,
+        spawn_count,
+        query,
+        llm_query_calls=llm_query_calls,
     )
     plan_review = WorkflowPlanReview(
         script_code=script_code,
@@ -439,6 +497,7 @@ async def run_dynamic_workflow_stream(
         estimated_cost_usd=estimated_cost_usd,
         remaining_budget_usd=remaining_budget_usd,
         cost_status=cost_status,
+        llm_query_call_count=llm_query_call_count,
     )
 
     skip_plan_confirm = (
@@ -555,7 +614,7 @@ async def run_dynamic_workflow_stream(
             inject_ptc_for_python_execution(
                 context=context,
                 executor=executor,
-                ptc_tools=[spawn_tool, notify_tool],
+                ptc_tools=[spawn_tool, notify_tool, llm_query_tool, llm_query_batched_tool],
                 override_allowed=frozenset({"spawn_subagent", "notify"}),
             )
         )
