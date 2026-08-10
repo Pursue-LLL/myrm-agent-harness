@@ -128,6 +128,44 @@ async def test_get_skill_lineage(temp_db_path, skill_record):
     store.close()
 
 @pytest.mark.asyncio
+async def test_get_skill_lineage_terminates_on_self_reference(temp_db_path, skill_record):
+    # In-place DERIVED upgrades (plugin import / batch replace) record the record's
+    # own skill_id as parent_id; the walker must not loop forever.
+    store = SkillStore(db_path=temp_db_path)
+    skill_record.lineage.parent_id = skill_record.skill_id
+    await store.save_skill(skill_record)
+
+    lineage = store.get_skill_lineage("test_skill_1")
+    assert [s.skill_id for s in lineage] == ["test_skill_1"]
+    store.close()
+
+@pytest.mark.asyncio
+async def test_get_skill_lineage_terminates_on_cycle(temp_db_path, skill_record):
+    # A -> B -> A parent chain must terminate with both records visited once.
+    store = SkillStore(db_path=temp_db_path)
+    skill_a = copy.deepcopy(skill_record)
+    skill_a.skill_id = "skill_a"
+    skill_a.lineage = SkillLineage(
+        evolution_type=EvolutionType.DERIVED,
+        version=1,
+        parent_id="skill_b",
+        change_summary="a",
+    )
+    skill_b = copy.deepcopy(skill_record)
+    skill_b.skill_id = "skill_b"
+    skill_b.lineage = SkillLineage(
+        evolution_type=EvolutionType.DERIVED,
+        version=1,
+        parent_id="skill_a",
+        change_summary="b",
+    )
+    await store.save_skills_batch([skill_a, skill_b])
+
+    lineage = store.get_skill_lineage("skill_a")
+    assert sorted(s.skill_id for s in lineage) == ["skill_a", "skill_b"]
+    store.close()
+
+@pytest.mark.asyncio
 async def test_search_skills_sync(temp_db_path, skill_record):
     store = SkillStore(db_path=temp_db_path)
     await store.save_skill(skill_record)

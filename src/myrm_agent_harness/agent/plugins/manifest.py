@@ -6,6 +6,16 @@ self-report-and-ignore semantics:
   - non-object ``extensions``        → report + ignore (non-fatal)
   - any other schema violation       → fatal (reject the plugin)
   - ``$schema`` version negotiation  → unrecognized version is fatal
+
+[INPUT]
+-- .models::AgentPluginManifestMeta (POS: shared parser output dataclasses)
+
+[OUTPUT]
+-- decode_manifest_json / parse_manifest: validate plugin.json under the closed
+   schema with $schema version negotiation.
+
+[POS]
+Closed-schema plugin.json manifest validator for the framework parser.
 """
 
 from __future__ import annotations

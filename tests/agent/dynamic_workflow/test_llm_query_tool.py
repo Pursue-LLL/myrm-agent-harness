@@ -17,6 +17,9 @@ from myrm_agent_harness.agent.dynamic_workflow.preflight import (
     estimate_workflow_cost,
     format_plan_preview,
 )
+from myrm_agent_harness.agent.dynamic_workflow.tools import (
+    DEFAULT_MAX_CONCURRENT_SPAWNS,
+)
 from myrm_agent_harness.toolkits.code_execution.ptc.stub_generator import (
     generate_stubs,
 )
@@ -83,6 +86,18 @@ class TestStubGeneratorArrayParams:
         assert "temperature: float = None" in source
         assert "max_tokens is not None" in source
 
+    def test_multiple_required_params_preserve_schema_order(self) -> None:
+        """Multiple required params must not be reversed in the generated signature."""
+
+        @lc_tool
+        def mock_two(a: str, b: str) -> str:
+            """Two required string params."""
+            return a + b
+
+        source = generate_stubs([mock_two])
+        assert "def mock_two(a: str, b: str)" in source
+        assert "def mock_two(b: str, a: str)" not in source
+
 
 # ---------------------------------------------------------------------------
 # preflight: llm_query call counting + cost estimation
@@ -110,10 +125,29 @@ class TestPreflightLlmQueryCounting:
         review.estimated_cost_usd = 0.01
         review.remaining_budget_usd = 5.0
         review.cost_status = "estimated"
-        review.llm_query_call_count = 2
+        review.llm_query_single_calls = 1
+        review.llm_query_batched_calls = 2
         review.script_code = "print(1)"
         preview = format_plan_preview(review)
-        assert "2 LLM sub-call site(s)" in preview
+        assert "1 direct AI call(s)" in preview
+        assert "2 parallel batch(es) of AI calls" in preview
+        assert "Estimate is approximate" in preview
+        assert f"with up to {DEFAULT_MAX_CONCURRENT_SPAWNS} at a time" in preview
+
+    def test_format_plan_preview_omits_llm_query_line_when_no_calls(self) -> None:
+        review = MagicMock()
+        review.spawn_count = 1
+        review.estimated_cost_usd = None
+        review.remaining_budget_usd = None
+        review.cost_status = "no_spawns"
+        review.llm_query_single_calls = 0
+        review.llm_query_batched_calls = 0
+        review.script_code = "print(1)"
+        preview = format_plan_preview(review)
+        assert "direct AI call(s)" not in preview
+        assert "parallel batch(es)" not in preview
+        assert "Estimate is approximate" not in preview
+        assert "Cost estimate unavailable" in preview
 
 
 @patch(
@@ -240,6 +274,49 @@ class TestLlmQueryTool:
         assert kwargs["max_tokens"] == 512
         assert kwargs["temperature"] == 0.2
 
+    @pytest.mark.asyncio
+    async def test_budget_exhausted_blocks_call(self) -> None:
+        tool = _make_tool()
+        checker = MagicMock()
+        checker.get_remaining_budget.return_value = 0.0
+        tool.parent_agent.token_tracker = MagicMock()
+        tool.parent_agent.token_tracker.budget_checker = checker
+        result = await tool._arun(prompt="q")
+        assert result["success"] is False
+        assert "budget" in result["error"].lower()
+        tool.parent_agent.llm.ainvoke.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_budget_not_exhausted_allows_call(self) -> None:
+        tool = _make_tool()
+        checker = MagicMock()
+        checker.get_remaining_budget.return_value = 5.0
+        tool.parent_agent.token_tracker = MagicMock()
+        tool.parent_agent.token_tracker.budget_checker = checker
+        tool.parent_agent.llm.ainvoke.return_value = _FakeResponse(
+            "ok", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+        )
+        result = await tool._arun(prompt="q")
+        assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_unparsable_usage_metadata_does_not_break_call(self) -> None:
+        tool = _make_tool()
+        tool.parent_agent.llm.ainvoke.return_value = _FakeResponse(
+            "ok", {"input_tokens": "nan", "output_tokens": "x", "total_tokens": "y"}
+        )
+        result = await tool._arun(prompt="q")
+        assert result["success"] is True
+        assert result["result"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_none_content_returns_empty_string(self) -> None:
+        tool = _make_tool()
+        tool.parent_agent.llm.ainvoke.return_value = MagicMock(content=None)
+        result = await tool._arun(prompt="q")
+        assert result["success"] is True
+        assert result["result"] == ""
+
 
 # ---------------------------------------------------------------------------
 # LlmQueryBatchedTool
@@ -251,8 +328,12 @@ class TestLlmQueryBatchedTool:
     async def test_batched_preserves_order(self) -> None:
         tool = _make_tool(use_batched=True)
         tool.parent_agent.llm.ainvoke.side_effect = [
-            _FakeResponse("first", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
-            _FakeResponse("second", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
+            _FakeResponse(
+                "first", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+            ),
+            _FakeResponse(
+                "second", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+            ),
         ]
         result = await tool._arun(prompts=["a", "b"])
         assert result["success"] is True
@@ -263,9 +344,13 @@ class TestLlmQueryBatchedTool:
     async def test_batched_isolates_per_prompt_failure(self) -> None:
         tool = _make_tool(use_batched=True)
         tool.parent_agent.llm.ainvoke.side_effect = [
-            _FakeResponse("ok", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
+            _FakeResponse(
+                "ok", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+            ),
             RuntimeError("boom"),
-            _FakeResponse("ok2", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}),
+            _FakeResponse(
+                "ok2", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+            ),
         ]
         result = await tool._arun(prompts=["a", "b", "c"])
         assert result["success"] is True
@@ -295,6 +380,57 @@ class TestLlmQueryBatchedTool:
         result = await tool._arun(prompts=["a", "b", "c"], max_concurrent=2)
         assert result["failed"] == 0
         assert len(result["results"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_batched_resolves_llm_once(self) -> None:
+        """A batch must resolve the shared LLM once, not once per prompt."""
+        tool = _make_tool(use_batched=True)
+        tool.parent_agent.llm.ainvoke.side_effect = [
+            _FakeResponse(
+                "a", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+            ),
+            _FakeResponse(
+                "b", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+            ),
+            _FakeResponse(
+                "c", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+            ),
+        ]
+        with patch(
+            "myrm_agent_harness.agent.dynamic_workflow.llm_query_tool.LlmQueryTool._resolve_llm",
+            autospec=True,
+        ) as mock_resolve:
+            mock_resolve.return_value = tool.parent_agent.llm
+            result = await tool._arun(prompts=["a", "b", "c"])
+        assert mock_resolve.call_count == 1
+        assert result["failed"] == 0
+
+    @pytest.mark.asyncio
+    async def test_batched_budget_exhausted_blocks_batch(self) -> None:
+        tool = _make_tool(use_batched=True)
+        checker = MagicMock()
+        checker.get_remaining_budget.return_value = 0.0
+        tool.parent_agent.token_tracker = MagicMock()
+        tool.parent_agent.token_tracker.budget_checker = checker
+        result = await tool._arun(prompts=["a", "b"])
+        assert result["success"] is False
+        assert "budget" in result["error"].lower()
+        tool.parent_agent.llm.ainvoke.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_batched_unparsable_usage_metadata_keeps_other_results(self) -> None:
+        tool = _make_tool(use_batched=True)
+        good = _FakeResponse(
+            "ok", {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}
+        )
+        bad = _FakeResponse(
+            "bad", {"input_tokens": "nan", "output_tokens": "x", "total_tokens": "y"}
+        )
+        tool.parent_agent.llm.ainvoke.side_effect = [good, bad]
+        result = await tool._arun(prompts=["a", "b"])
+        assert result["success"] is True
+        assert result["failed"] == 0
+        assert [r["result"] for r in result["results"]] == ["ok", "bad"]
 
 
 # ---------------------------------------------------------------------------
@@ -340,9 +476,7 @@ async def test_ptc_batched_stub_passes_list_to_tool() -> None:
     )
     context = ExecutionContext(code=script, timeout=30)
     executor = InProcessExecutor()
-    result = await inject_ptc_for_python_execution(
-        context, executor, [tool]
-    )
+    result = await inject_ptc_for_python_execution(context, executor, [tool])
     assert result.success, result.stderr
     assert '"success": true' in (result.stdout or "")
     assert "reply:q1" in (result.stdout or "")

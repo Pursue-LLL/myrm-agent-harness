@@ -79,7 +79,7 @@ Server `_tool_layer_bootstrap.py` 将 server vendor 工具注册为 EXTERNAL 层
 |----------|------|------|
 | **Orchestration Signal** | 专用 orchestrator 会话中的 JSON schema；Python 截获 tool_call | `agent/orchestration/signals/` |
 | **Runtime Hook** | 中间件注入的 RUNTIME_ONLY 伪 tool_call | `agent/orchestration/hooks.py` |
-| **DW PTC Runtime Tool** | DW PTC 沙箱内 `myrm_tools.spawn_subagent` / `myrm_tools.notify`；零 Turn1 bind | `agent/dynamic_workflow/tools.py` · `scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES` |
+| **DW PTC Runtime Tool** | DW PTC 沙箱内 `myrm_tools.spawn_subagent` / `myrm_tools.notify` / `myrm_tools.llm_query` / `myrm_tools.llm_query_batched`；零 Turn1 bind | `agent/dynamic_workflow/tools.py` · `agent/dynamic_workflow/llm_query_tool.py` · `scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES` |
 | **非 LLM 实现** | 引擎、Skill 文档、REST 等普通代码 | `toolkits/`、`app/services/` 等 |
 
 **只有 LLM 工具（Action Tool）使用 CORE / COMMON / EXTENDED / EXTERNAL 四层。**
@@ -91,7 +91,7 @@ PTC `spawn_subagent` 与 LLM `delegate_task_tool` 共用 `_spawn_child()` 下游
 <!-- TOOL_CATALOG_BEGIN -->
 ### LLM Tool Catalog (auto-generated)
 
-Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration signals, runtime hooks, and PTC runtime tools (`spawn_subagent`, `notify`) are documented in §内部分类 above.
+Only **LLM tools** (`_TOOL_LAYERS` + ToolRegistry) appear here. Orchestration signals, runtime hooks, and PTC runtime tools (`spawn_subagent`, `notify`, `llm_query`, `llm_query_batched`) are documented in §内部分类 above.
 
 | Tool | Layer | Role | Product ID | Load condition |
 |------|-------|------|------------|----------------|

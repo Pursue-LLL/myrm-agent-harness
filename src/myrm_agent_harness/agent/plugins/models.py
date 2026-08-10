@@ -3,6 +3,16 @@
 These dataclasses are the [OUTPUT] of the Agent Plugins parser. The business
 layer consumes them to install skills into the SkillStore and persist MCP
 servers into the global ``mcpServers`` config. The parser itself never persists.
+
+[INPUT]
+-- (none)
+
+[OUTPUT]
+-- PluginSkill / PluginMcpServer / PluginDiagnostic / PluginParseResult /
+   PluginDiagnosticLevel: parser output contract consumed by the business layer.
+
+[POS]
+Shared parser output dataclasses for Agent Plugins 1.0.0 (client-agnostic).
 """
 
 from __future__ import annotations

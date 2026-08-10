@@ -42,7 +42,8 @@ def _make_tool(
     tool = StructuredTool(
         name=name,
         description=description,
-        args_schema=schema or {"type": "object", "properties": {"a": {"type": "string"}}},
+        args_schema=schema
+        or {"type": "object", "properties": {"a": {"type": "string"}}},
         coroutine=coroutine or AsyncMock(return_value="ok"),
     )
     if metadata:
@@ -50,8 +51,11 @@ def _make_tool(
     return tool
 
 
-def _patch_enumerate(agent: MCPAgent, tools_by_server: dict[str, list[StructuredTool] | Exception]):
+def _patch_enumerate(
+    agent: MCPAgent, tools_by_server: dict[str, list[StructuredTool] | Exception]
+):
     """Patch _enumerate_server_tools to return pre-built tools by server name."""
+
     async def _fake_enumerate(server_config):
         name = server_config.name
         result = tools_by_server.get(name)
@@ -238,7 +242,10 @@ async def test_get_tools_single_server_error():
     config = DummyConfig()
     config.name = "fail_server"
 
-    with _patch_enumerate(agent, {"fail_server": []}), pytest.raises(RuntimeError, match="Failed to get tools from fail_server"):
+    with (
+        _patch_enumerate(agent, {"fail_server": []}),
+        pytest.raises(RuntimeError, match="Failed to get tools from fail_server"),
+    ):
         await agent.get_tools([config])
 
 
@@ -253,8 +260,16 @@ async def test_get_tools_parallel_multi_server():
     cfg2 = DummyConfig()
     cfg2.name = "server2"
 
-    big_tool = _make_tool(name="tool_multi", description="A" * 3000, schema={"type": "object"})
-    with _patch_enumerate(agent, {"server1": [big_tool], "server2": [_make_tool(name="tool_multi", description="A" * 3000)]}):
+    big_tool = _make_tool(
+        name="tool_multi", description="A" * 3000, schema={"type": "object"}
+    )
+    with _patch_enumerate(
+        agent,
+        {
+            "server1": [big_tool],
+            "server2": [_make_tool(name="tool_multi", description="A" * 3000)],
+        },
+    ):
         tools = await agent.get_tools([cfg1, cfg2])
 
     assert len(tools) == 2
@@ -275,7 +290,10 @@ async def test_get_tools_parallel_task_exception():
     async def _explode(_cfg):
         raise RuntimeError("boom")
 
-    with patch.object(agent, "_enumerate_server_tools", side_effect=_explode), pytest.raises(RuntimeError, match="boom"):
+    with (
+        patch.object(agent, "_enumerate_server_tools", side_effect=_explode),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
         await agent.get_tools([cfg1, cfg2])
 
 
@@ -290,7 +308,10 @@ async def test_get_tools_parallel_server_error():
     cfg_err = DummyConfig()
     cfg_err.name = "err_server"
 
-    with _patch_enumerate(agent, {"ok_server": [_make_tool()], "err_server": []}), pytest.raises(RuntimeError, match="Failed to get tools"):
+    with (
+        _patch_enumerate(agent, {"ok_server": [_make_tool()], "err_server": []}),
+        pytest.raises(RuntimeError, match="Failed to get tools"),
+    ):
         await agent.get_tools([cfg_ok, cfg_err])
 
 
@@ -306,7 +327,10 @@ async def test_tool_server_mapping():
         tools = await agent.get_tools([config])
 
     assert agent.get_tool_server_name(tools[0]) == "test_server"
-    assert agent.get_server_name_by_tool_name("mcp__test_server__test_tool") == "test_server"
+    assert (
+        agent.get_server_name_by_tool_name("mcp__test_server__test_tool")
+        == "test_server"
+    )
     assert agent.get_server_name_by_tool_name("nonexistent") == "unknown_server"
 
 
@@ -701,7 +725,9 @@ def test_register_tool_annotations():
         }
     )
 
-    with patch("myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata") as mock_reg:
+    with patch(
+        "myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata"
+    ) as mock_reg:
         agent._register_tool_annotations([tool], "my-server")
 
     mock_reg.assert_called_once()
@@ -726,7 +752,9 @@ def test_register_tool_annotations_host_serial_forces_non_concurrent():
         }
     )
 
-    with patch("myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata") as mock_reg:
+    with patch(
+        "myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata"
+    ) as mock_reg:
         agent._register_tool_annotations([tool], "my-server", host_serial=True)
 
     safety = mock_reg.call_args[0][2]
@@ -741,7 +769,9 @@ def test_register_tool_annotations_name_normalization():
     agent = MCPAgent()
     tool = _make_tool(metadata={})
 
-    with patch("myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata") as mock_reg:
+    with patch(
+        "myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata"
+    ) as mock_reg:
         agent._register_tool_annotations([tool], "mcp_already_skill")
 
     assert mock_reg.call_args[0][0] == "mcp_already_skill"
@@ -751,7 +781,9 @@ def test_register_tool_annotations_plain_name():
     agent = MCPAgent()
     tool = _make_tool(metadata={})
 
-    with patch("myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata") as mock_reg:
+    with patch(
+        "myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata"
+    ) as mock_reg:
         agent._register_tool_annotations([tool], "github")
 
     assert mock_reg.call_args[0][0] == "mcp_github_skill"
@@ -839,7 +871,10 @@ async def test_get_tools_parallel_gather_exception_object():
             return ("s1", [_make_tool()], None)
         raise RuntimeError("gather_boom")
 
-    with patch.object(agent, "_enumerate_server_tools", side_effect=_explode_on_second), pytest.raises(RuntimeError, match="gather_boom"):
+    with (
+        patch.object(agent, "_enumerate_server_tools", side_effect=_explode_on_second),
+        pytest.raises(RuntimeError, match="gather_boom"),
+    ):
         await agent.get_tools([cfg1, cfg2])
 
 
@@ -858,17 +893,29 @@ class TestApplyToolFilter:
         assert len(result) == 2
 
     def test_include_filters(self) -> None:
-        tools = [_make_tool(name="read"), _make_tool(name="write"), _make_tool(name="delete")]
+        tools = [
+            _make_tool(name="read"),
+            _make_tool(name="write"),
+            _make_tool(name="delete"),
+        ]
         result = MCPAgent._apply_tool_filter(tools, "srv", ["read", "write"], None)
         assert [t.name for t in result] == ["read", "write"]
 
     def test_exclude_filters(self) -> None:
-        tools = [_make_tool(name="read"), _make_tool(name="write"), _make_tool(name="delete")]
+        tools = [
+            _make_tool(name="read"),
+            _make_tool(name="write"),
+            _make_tool(name="delete"),
+        ]
         result = MCPAgent._apply_tool_filter(tools, "srv", None, ["delete"])
         assert [t.name for t in result] == ["read", "write"]
 
     def test_include_takes_precedence(self) -> None:
-        tools = [_make_tool(name="read"), _make_tool(name="write"), _make_tool(name="delete")]
+        tools = [
+            _make_tool(name="read"),
+            _make_tool(name="write"),
+            _make_tool(name="delete"),
+        ]
         result = MCPAgent._apply_tool_filter(tools, "srv", ["read"], ["write"])
         assert [t.name for t in result] == ["read"]
 
@@ -892,7 +939,15 @@ async def test_get_tools_applies_tool_filter():
     config = DummyConfig()
     config.tool_include = ["wanted_tool"]
 
-    with _patch_enumerate(agent, {"test_server": [_make_tool(name="wanted_tool"), _make_tool(name="unwanted_tool")]}):
+    with _patch_enumerate(
+        agent,
+        {
+            "test_server": [
+                _make_tool(name="wanted_tool"),
+                _make_tool(name="unwanted_tool"),
+            ]
+        },
+    ):
         tools = await agent.get_tools([config])
 
     assert len(tools) == 1
@@ -925,15 +980,26 @@ class TestPrefixToolNames:
     def test_process_session_tools_applies_prefix(self) -> None:
         tools = [_make_tool(name="read"), _make_tool(name="write")]
         result = MCPAgent.process_session_tools(
-            tools, "my_server", None, None, 10.0,
+            tools,
+            "my_server",
+            None,
+            None,
+            10.0,
         )
-        assert [t.name for t in result] == ["mcp__my_server__read", "mcp__my_server__write"]
+        assert [t.name for t in result] == [
+            "mcp__my_server__read",
+            "mcp__my_server__write",
+        ]
 
     def test_filter_uses_original_names(self) -> None:
         """tool_include uses original names (before prefixing)."""
         tools = [_make_tool(name="read"), _make_tool(name="write")]
         result = MCPAgent.process_session_tools(
-            tools, "srv", ["read"], None, 10.0,
+            tools,
+            "srv",
+            ["read"],
+            None,
+            10.0,
         )
         assert len(result) == 1
         assert result[0].name == "mcp__srv__read"
@@ -942,7 +1008,11 @@ class TestPrefixToolNames:
         """An MCP tool named 'file_read_tool' gets prefixed, no collision."""
         tools = [_make_tool(name="file_read_tool")]
         result = MCPAgent.process_session_tools(
-            tools, "remote", None, None, 10.0,
+            tools,
+            "remote",
+            None,
+            None,
+            10.0,
         )
         assert result[0].name == "mcp__remote__file_read_tool"
 
@@ -1076,7 +1146,11 @@ class TestCoerceContentBlock:
         assert MCPAgent._coerce_content_block(block) is block
 
     def test_image_with_url_passthrough(self) -> None:
-        block = {"type": "image", "url": "https://example.com/img.png", "mime_type": "image/png"}
+        block = {
+            "type": "image",
+            "url": "https://example.com/img.png",
+            "mime_type": "image/png",
+        }
         assert MCPAgent._coerce_content_block(block) is block
 
     def test_malformed_image_degraded(self) -> None:
@@ -1086,7 +1160,11 @@ class TestCoerceContentBlock:
         assert "image" in str(result["text"])
 
     def test_file_block_degraded_with_url(self) -> None:
-        block = {"type": "file", "url": "https://notion.so/page/xxx", "mime_type": "application/pdf"}
+        block = {
+            "type": "file",
+            "url": "https://notion.so/page/xxx",
+            "mime_type": "application/pdf",
+        }
         result = MCPAgent._coerce_content_block(block)
         assert result["type"] == "text"
         assert "https://notion.so/page/xxx" in str(result["text"])
@@ -1132,7 +1210,11 @@ class TestNormalizeMcpResultCoercion:
         """file blocks (from ResourceLink) must be degraded — prevents Anthropic 400."""
         blocks = [
             {"type": "text", "text": "Sprint Board"},
-            {"type": "file", "url": "https://notion.so/page/xxx", "mime_type": "application/pdf"},
+            {
+                "type": "file",
+                "url": "https://notion.so/page/xxx",
+                "mime_type": "application/pdf",
+            },
         ]
         result = MCPAgent._normalize_mcp_result((blocks, None))
         assert isinstance(result, str)
@@ -1143,7 +1225,11 @@ class TestNormalizeMcpResultCoercion:
         """When both file and image are present, image passes through, file degrades."""
         blocks = [
             {"type": "image", "base64": "abc", "mime_type": "image/png"},
-            {"type": "file", "url": "https://example.com/doc.pdf", "mime_type": "application/pdf"},
+            {
+                "type": "file",
+                "url": "https://example.com/doc.pdf",
+                "mime_type": "application/pdf",
+            },
         ]
         result = MCPAgent._normalize_mcp_result((blocks, None))
         assert isinstance(result, list)
@@ -1186,6 +1272,7 @@ class TestTimeoutWrapperFaultTolerance:
     @pytest.mark.asyncio
     async def test_not_implemented_error_caught(self) -> None:
         """AudioContent raising NotImplementedError must not crash the timeout wrapper."""
+
         async def raise_not_impl(*_a, **_kw):
             raise NotImplementedError("AudioContent not supported")
 
@@ -1201,6 +1288,7 @@ class TestTimeoutWrapperFaultTolerance:
     @pytest.mark.asyncio
     async def test_value_error_caught(self) -> None:
         """Unknown MCP content type raises ValueError — must not crash."""
+
         async def raise_value_err(*_a, **_kw):
             raise ValueError("Unknown MCP content type: FutureContent")
 
@@ -1215,6 +1303,7 @@ class TestTimeoutWrapperFaultTolerance:
     @pytest.mark.asyncio
     async def test_type_error_caught(self) -> None:
         """Type mismatch in adapter layer — must not crash."""
+
         async def raise_type_err(*_a, **_kw):
             raise TypeError("expected str, got NoneType")
 
@@ -1229,6 +1318,7 @@ class TestTimeoutWrapperFaultTolerance:
     @pytest.mark.asyncio
     async def test_other_exceptions_still_propagate(self) -> None:
         """Exceptions not in the catch list must still propagate."""
+
         async def raise_runtime(*_a, **_kw):
             raise RuntimeError("unexpected crash")
 
@@ -1268,13 +1358,22 @@ class TestExtractMcpAppMetadata:
         assert MCPAgent._extract_mcp_app_metadata({"_meta": {"version": 1}}) is None
 
     def test_ui_without_resource_uri(self) -> None:
-        assert MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"height": 300}}}) is None
+        assert (
+            MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"height": 300}}})
+            is None
+        )
 
     def test_empty_resource_uri(self) -> None:
-        assert MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": ""}}}) is None
+        assert (
+            MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": ""}}})
+            is None
+        )
 
     def test_non_string_resource_uri(self) -> None:
-        assert MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": 123}}}) is None
+        assert (
+            MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": 123}}})
+            is None
+        )
 
     def test_non_dict_meta(self) -> None:
         assert MCPAgent._extract_mcp_app_metadata({"_meta": "not a dict"}) is None
@@ -1450,4 +1549,3 @@ class TestWrapToolsAuthError:
         # No mcp__server__tool prefix -> falls back to the raw tool name.
         assert "plain_tool" in result
         assert "requires re-authorization" in result
-

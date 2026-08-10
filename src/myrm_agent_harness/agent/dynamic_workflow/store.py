@@ -20,6 +20,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
+from typing import cast
 
 from myrm_agent_harness.agent.dynamic_workflow.spawn_cache import (
     SpawnCacheParams,
@@ -79,7 +80,8 @@ class WorkflowEventStore:
                 """
             )
             columns = {
-                row[1] for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()
+                row[1]
+                for row in conn.execute("PRAGMA table_info(subagent_events)").fetchall()
             }
             if "spawn_params_json" not in columns:
                 conn.execute(
@@ -107,7 +109,12 @@ class WorkflowEventStore:
             if not row:
                 return None
 
-            result_json, spawn_params_json, stored_agent_type, stored_task_description = row
+            (
+                result_json,
+                spawn_params_json,
+                stored_agent_type,
+                stored_task_description,
+            ) = row
             if not self._params_match(
                 expected=expected,
                 spawn_params_json=str(spawn_params_json or ""),
@@ -115,7 +122,7 @@ class WorkflowEventStore:
                 _stored_task_description=str(stored_task_description),
             ):
                 return None
-            return json.loads(result_json)
+            return cast("dict[str, object] | None", json.loads(result_json))
 
     def update_stored_result(
         self,

@@ -6,6 +6,20 @@ Orchestrates secure extraction and discovery with per-component failure isolatio
   - A bad skill is skipped; other skills and components still load.
   - A top-level ``mcp.json`` failure disables MCP; an invalid server variant is
     skipped; neither ever affects skills.
+
+[INPUT]
+-- .manifest::parse_manifest (POS: closed-schema plugin.json manifest validation)
+-- .mcp_config::parse_mcp_servers (POS: per-server mcp.json variant parsing)
+-- .models::PluginParseResult (POS: shared parser output dataclasses)
+-- backends.skills.scanning.zip_extract::safe_extract_zip (POS: secure archive extraction)
+
+[OUTPUT]
+-- AgentPluginParser.parse_zip: bytes → PluginParseResult with per-component
+   failure isolation; never persists.
+
+[POS]
+Framework-level, client-agnostic Agent Plugins 1.0.0 package parser (parse-only,
+persistence owned by the business layer).
 """
 
 from __future__ import annotations

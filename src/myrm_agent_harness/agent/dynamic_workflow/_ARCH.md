@@ -30,7 +30,7 @@ LLM generates Python Script (ORCHESTRATOR_PROMPT)
   - Structured JSON output
        ↓
 Trust layer (preflight + HITL)
-  - Static count of `myrm_tools.spawn_subagent(` → `_estimate_batch_cost`
+  - Static count of `myrm_tools.spawn_subagent(` / `myrm_tools.llm_query(` / `llm_query_batched(` → cost estimate
   - SSE `phase=plan_confirm` + PhaseWaiter (`plan:{message_id}`)
   - User confirm/skip via `/agents/plan-confirm-response`
   - `WorkflowRunGuard`: max 50 spawns, concurrency semaphore 5
@@ -59,7 +59,7 @@ SSE events (message / message_end / status)
 
 | File | Role | Description |
 |------|------|-------------|
-| `preflight.py` | Trust | Static spawn counting, batch cost estimate, plan preview formatting, approval gate protocol. |
+| `preflight.py` | Trust | Static spawn + llm_query counting, batch cost estimate, plan preview formatting, approval gate protocol. |
 | `__init__.py` | Engine | Core entry point (`run_dynamic_workflow_stream`). Script generation, preflight, optional `approval_gate`, PTC execution, summarization. |
 | `store.py` | Persistence | `WorkflowEventStore` — fingerprinted sub-agent cache + orchestration script persistence. |
 | `template_store.py` | Template library | `WorkflowTemplateStore` — user-named orchestration scripts for pinned reruns (`workflow_templates` table). |
@@ -67,6 +67,7 @@ SSE events (message / message_end / status)
 | `paths.py` | Template library | `resolve_workflow_events_db_path` — SQLite path SSOT under `{harness_root}/.myrm/workflow_events.db`. |
 | `spawn_cache.py` | Cache SSOT | `SpawnCacheParams` fingerprint for durable replay. |
 | `tools.py` | PTC Tools | `SpawnSubagentTool` (WorkflowRunGuard, cache fingerprint, ISOLATED_COPY + merge) / `NotifyProgressTool` |
+| `llm_query_tool.py` | PTC Tools | `LlmQueryTool` / `LlmQueryBatchedTool` — 轻量 LLM 直调原语（无子 agent）；批量保序、异常隔离、记账、共享预算熔断，且整批共享一次模型解析 |
 | `notify_stream.py` | Streaming | `iter_notify_events_while_task_runs` concurrently drains the notify queue while PTC execution runs; honors `cancel_token` cancellation. |
 | `_ARCH.md` | Doc | This architecture document. |
 

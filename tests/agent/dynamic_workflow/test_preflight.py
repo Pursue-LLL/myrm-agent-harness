@@ -16,6 +16,9 @@ from myrm_agent_harness.agent.dynamic_workflow.preflight import (
     resume_action,
     strip_script_markdown,
 )
+from myrm_agent_harness.agent.dynamic_workflow.tools import (
+    DEFAULT_MAX_CONCURRENT_SPAWNS,
+)
 
 
 def test_count_spawn_calls_static():
@@ -27,7 +30,7 @@ myrm_tools.spawn_subagent(task_id="b", agent_type="generalPurpose", task_descrip
     assert count_spawn_calls(script) == 2
 
 
-def test_format_plan_preview_includes_literal_and_hard_cap():
+def test_format_plan_preview_product_copy():
     review = WorkflowPlanReview(
         script_code="print('x')",
         spawn_count=3,
@@ -36,9 +39,10 @@ def test_format_plan_preview_includes_literal_and_hard_cap():
         cost_status="configured_max_cost",
     )
     preview = format_plan_preview(review)
-    assert "3 literal spawn" in preview
-    assert "Runtime hard cap: 50 spawns" in preview
-    assert "max 5 concurrent" in preview
+    assert "3 sub-agent task(s)" in preview
+    assert f"with up to {DEFAULT_MAX_CONCURRENT_SPAWNS} at a time" in preview
+    assert "Estimated cost: $1.50" in preview
+    assert "(remaining budget: $10.00)" in preview
 
 
 def test_strip_script_markdown():
@@ -75,11 +79,15 @@ async def test_estimate_workflow_cost_with_catalog():
         max_cost_usd=1.0,
     )
 
-    cost, _remaining, status = await estimate_workflow_cost(parent, catalog, 2, "audit apis")
+    cost, _remaining, status = await estimate_workflow_cost(
+        parent, catalog, 2, "audit apis"
+    )
     assert cost == 2.0
     assert status == "configured_max_cost"
 
-    none_cost, _, no_spawn_status = await estimate_workflow_cost(parent, catalog, 0, "q")
+    none_cost, _, no_spawn_status = await estimate_workflow_cost(
+        parent, catalog, 0, "q"
+    )
     assert none_cost is None
     assert no_spawn_status == "no_spawns"
 

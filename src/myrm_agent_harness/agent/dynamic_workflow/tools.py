@@ -30,7 +30,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import replace
 from enum import StrEnum
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field
@@ -51,6 +51,11 @@ from myrm_agent_harness.agent.sub_agents.spawn_prep import (
     sanitize_spawn_result_for_store,
 )
 
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.base_agent import BaseAgent
+    from myrm_agent_harness.agent.sub_agents.types import SubagentCatalog
+    from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_SPAWN_PER_WORKFLOW = 50
@@ -65,7 +70,13 @@ class DwVerificationMode(StrEnum):
 class WorkflowRunGuard:
     """Hard cap on total spawns, concurrent in-flight sub-agents, and merge result collection."""
 
-    __slots__ = ("_max_concurrent", "_max_spawns", "_merge_results", "_semaphore", "_spawn_count")
+    __slots__ = (
+        "_max_concurrent",
+        "_max_spawns",
+        "_merge_results",
+        "_semaphore",
+        "_spawn_count",
+    )
 
     def __init__(
         self,
@@ -111,7 +122,9 @@ class WorkflowRunGuard:
         self._merge_results.append(result)
 
 
-def _normalize_spawn_result(result: object, *, task_id: str, agent_type: str) -> dict[str, object]:
+def _normalize_spawn_result(
+    result: object, *, task_id: str, agent_type: str
+) -> dict[str, object]:
     if isinstance(result, dict):
         return result
 
@@ -122,7 +135,11 @@ def _normalize_spawn_result(result: object, *, task_id: str, agent_type: str) ->
         "agent_type": getattr(result, "agent_type", agent_type),
         "result": getattr(result, "result", None),
         "error": getattr(result, "error", None),
-        "status": status_val.value if hasattr(status_val, "value") else str(status_val or "unknown"),
+        "status": (
+            status_val.value
+            if status_val is not None and hasattr(status_val, "value")
+            else str(status_val or "unknown")
+        ),
     }
 
 
@@ -132,7 +149,9 @@ class SpawnSubagentInput(BaseModel):
         default="generalPurpose",
         description="Type of agent to spawn (e.g., 'generalPurpose', 'shell').",
     )
-    task_description: str = Field(..., description="The prompt/task for the sub-agent to execute.")
+    task_description: str = Field(
+        ..., description="The prompt/task for the sub-agent to execute."
+    )
     readonly: bool = Field(
         default=False,
         description="If true, sub-agent cannot write files or run bash commands. Use for analysis-only tasks.",
@@ -159,7 +178,9 @@ class SpawnSubagentTool(BaseTool):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str = "spawn_subagent"
-    description: str = "Spawn a sub-agent to execute a task. This tool blocks until the sub-agent completes."
+    description: str = (
+        "Spawn a sub-agent to execute a task. This tool blocks until the sub-agent completes."
+    )
     args_schema: type[BaseModel] = SpawnSubagentInput
 
     parent_agent: object
@@ -211,7 +232,7 @@ class SpawnSubagentTool(BaseTool):
         verifier_agent_type: str | None = None,
         max_verification_rounds: int = 2,
     ) -> object:
-        if self.cancel_token and self.cancel_token.is_cancelled:
+        if self.cancel_token and getattr(self.cancel_token, "is_cancelled", False):
             return {
                 "success": False,
                 "task_id": task_id,
@@ -243,8 +264,12 @@ class SpawnSubagentTool(BaseTool):
                 )
                 cached = None
             if cached:
-                logger.info("DW cache hit: workflow=%s task=%s", self.workflow_id, task_id)
-                await self._emit_spawn_stage(f"Using cached result for sub-agent `{task_id}`.")
+                logger.info(
+                    "DW cache hit: workflow=%s task=%s", self.workflow_id, task_id
+                )
+                await self._emit_spawn_stage(
+                    f"Using cached result for sub-agent `{task_id}`."
+                )
                 if (
                     self.run_guard is not None
                     and cached.get("workspace_merge_status") != "merged"
@@ -268,11 +293,14 @@ class SpawnSubagentTool(BaseTool):
                 "error": guard_error,
             }
 
-        from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, WorkspacePolicy
+        from myrm_agent_harness.agent.sub_agents.types import (
+            SubagentConfig,
+            WorkspacePolicy,
+        )
 
         config = None
         if self.catalog:
-            config = await self.catalog.resolve(agent_type)
+            config = await cast("SubagentCatalog", self.catalog).resolve(agent_type)
         if not config:
             parent_resolver = getattr(self.parent_agent, "model_resolver", None)
             config = SubagentConfig(
@@ -299,7 +327,7 @@ class SpawnSubagentTool(BaseTool):
         config = workspace_prep.config
         child_context = workspace_prep.child_context
 
-        use_adversarial = verification_mode == DwVerificationMode.ADVERSARIAL
+        use_adversarial = verification_mode == DwVerificationMode.ADVERSARIAL.value
         stage_label = (
             f"Spawning sub-agent `{task_id}` ({agent_type}) with adversarial verification..."
             if use_adversarial
@@ -309,7 +337,9 @@ class SpawnSubagentTool(BaseTool):
 
         try:
             try:
-                with memory_isolation_scope(parent_agent=self.parent_agent, config=config):
+                with memory_isolation_scope(
+                    parent_agent=self.parent_agent, config=config
+                ):
                     if use_adversarial:
                         if not hasattr(self.parent_agent, "_subagent_manager"):
                             logger.warning(
@@ -320,24 +350,35 @@ class SpawnSubagentTool(BaseTool):
                                 f"Sub-agent `{task_id}`: adversarial verify unavailable, using direct spawn.",
                                 level="warn",
                             )
-                            result = await self.parent_agent._spawn_child(
+                            result = await cast(
+                                "BaseAgent", self.parent_agent
+                            )._spawn_child(
                                 task_id=task_id,
                                 agent_type=agent_type,
                                 task_description=task_description,
                                 config=config,
                                 context=child_context,
-                                tool_registry_getter=self.tool_registry_getter,
+                                tool_registry_getter=cast(
+                                    "Callable[[], list[BaseTool]]",
+                                    self.tool_registry_getter,
+                                ),
                                 wait=True,
-                                cancel_token=self.cancel_token,
+                                cancel_token=cast(
+                                    "CancellationToken | None", self.cancel_token
+                                ),
                             )
                         else:
                             manager = self.parent_agent._subagent_manager
-                            from myrm_agent_harness.agent.sub_agents.orchestrator import run_with_verification
+                            from myrm_agent_harness.agent.sub_agents.orchestrator import (
+                                run_with_verification,
+                            )
 
                             v_type = verifier_agent_type or agent_type
                             verifier_config = config
                             if self.catalog:
-                                resolved_verifier = await self.catalog.resolve(v_type)
+                                resolved_verifier = await cast(
+                                    "SubagentCatalog", self.catalog
+                                ).resolve(v_type)
                                 if resolved_verifier is not None:
                                     verifier_config = resolved_verifier
                             verifier_config = replace(
@@ -353,20 +394,32 @@ class SpawnSubagentTool(BaseTool):
                                 verifier_type=v_type,
                                 verifier_config=verifier_config,
                                 context=child_context,
-                                tool_registry_getter=self.tool_registry_getter,
+                                tool_registry_getter=cast(
+                                    "Callable[[], list[BaseTool]]",
+                                    self.tool_registry_getter,
+                                ),
                                 max_rounds=max_verification_rounds,
-                                cancel_token=self.cancel_token,
+                                cancel_token=cast(
+                                    "CancellationToken | None", self.cancel_token
+                                ),
                             )
                     else:
-                        result = await self.parent_agent._spawn_child(
+                        result = await cast(
+                            "BaseAgent", self.parent_agent
+                        )._spawn_child(
                             task_id=task_id,
                             agent_type=agent_type,
                             task_description=task_description,
                             config=config,
                             context=child_context,
-                            tool_registry_getter=self.tool_registry_getter,
+                            tool_registry_getter=cast(
+                                "Callable[[], list[BaseTool]]",
+                                self.tool_registry_getter,
+                            ),
                             wait=True,
-                            cancel_token=self.cancel_token,
+                            cancel_token=cast(
+                                "CancellationToken | None", self.cancel_token
+                            ),
                         )
             except Exception as e:
                 logger.error("DW spawn failed: task=%s error=%s", task_id, e)
@@ -385,7 +438,9 @@ class SpawnSubagentTool(BaseTool):
             if self.run_guard is not None:
                 self.run_guard.release_spawn_slot(readonly=readonly)
 
-        final_result = _normalize_spawn_result(result, task_id=task_id, agent_type=agent_type)
+        final_result = _normalize_spawn_result(
+            result, task_id=task_id, agent_type=agent_type
+        )
 
         if self.run_guard is not None:
             self.run_guard.record_merge_candidate(final_result)

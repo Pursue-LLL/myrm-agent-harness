@@ -24,7 +24,7 @@ run_dynamic_workflow_stream (__init__.py)
        ↓
 LLM → Python 编排脚本 (ORCHESTRATOR_PROMPT + SubagentCatalog hint)   ← skipped when pinned
        ↓
-preflight.py — 静态 spawn 计数 + `_estimate_batch_cost` + HITL plan_confirm (trust_latch may skip)
+preflight.py — 静态 spawn + llm_query 计数 + 费用预估 + HITL plan_confirm (trust_latch may skip)
        ↓
 orchestration_scripts persist (per-run + save-from-run source)
        ↓
@@ -50,7 +50,7 @@ Summarization LLM → 用户可读 Markdown
 | 文件 | 职责 |
 |------|------|
 | `__init__.py` | `run_dynamic_workflow_stream` 入口；脚本生成；approval_gate 注入；PTC 执行；汇总 |
-| `preflight.py` | 静态 spawn 分析；费用预估；`WorkflowPlanReview` / `WorkflowApprovalGate` |
+| `preflight.py` | 静态 spawn + llm_query 分析；费用预估；`WorkflowPlanReview` / `WorkflowApprovalGate` |
 | `notify_stream.py` | PTC 执行期间并发 drain notify queue |
 | `store.py` | SQLite Event Sourcing；`SpawnCacheParams` 指纹 cache + orchestration script 持久化 |
 | `template_store.py` | 用户命名模板库 `workflow_templates`；save-from-run；pinned rerun 加载 |
@@ -75,8 +75,8 @@ Summarization LLM → 用户可读 Markdown
 |------|--------|------|----------------|
 | `SpawnSubagentTool` | `myrm_tools.spawn_subagent()` | PTC 脚本内阻塞 spawn；可选 `verification_mode=adversarial` → `run_with_verification` | 下游同 `_spawn_child()` / verify 路径；≠ LLM `delegate_task_tool` |
 | `NotifyProgressTool` | `myrm_tools.notify()` | PTC 脚本阶段进度 → SSE `workflow_stage` | 零 Turn1 bind |
-| `LlmQueryTool` | `myrm_tools.llm_query()` | 单发轻量 LLM 直调（无子 agent / 无工具）；默认 light tier 模型 | 复用 `resolve_llm` 4 级链路；`record_token_usage` 记账 |
-| `LlmQueryBatchedTool` | `myrm_tools.llm_query_batched()` | 并发批量 LLM 直调（保序、单条失败隔离、硬上限 200） | 复用 `LlmQueryTool._query_one`；同记账链路 |
+| `LlmQueryTool` | `myrm_tools.llm_query()` | 单发轻量 LLM 直调（无子 agent / 无工具）；默认 light tier 模型；共享 delegate 预算熔断 | 复用 `resolve_llm` 4 级链路；`record_token_usage` 记账 |
+| `LlmQueryBatchedTool` | `myrm_tools.llm_query_batched()` | 并发批量 LLM 直调（保序、单条失败隔离、硬上限 200、整批共享一次模型解析、预算熔断） | 复用 `LlmQueryTool._query_one`；同记账链路 |
 
 登记：`scripts/tool_registry_config.py` `PTC_RUNTIME_TOOL_NAMES`。完整分类见 [TOOL_MANAGEMENT_SYSTEM.md](../tool_management/TOOL_MANAGEMENT_SYSTEM.md) §内部分类。
 
@@ -89,7 +89,7 @@ Summarization LLM → 用户可读 Markdown
 3. **Readonly 模式**：`disallowed_tools` + `WorkspacePolicy.READ_ONLY_SANDBOX`
 4. **Named Template Library (vMIN)**：用户将成功的 DW 编排脚本保存为命名模板；后续 run 通过 `workflow_template_id` 跳过 orchestrator LLM，仅替换 `{placeholder}` 参数（`validate_template_args` 硬拒绝缺失/非法值；Settings 库页条件表单 + summary `placeholders[]`）。`trust_latch` + 全 readonly spawn（`script_all_spawns_readonly` AST 校验 keyword）+ 低成本时可跳过 plan_confirm。Server 暴露 `/workflow-templates` CRUD + `from-run` + `validation.py`（bind + Cron 执行时 trust/args/readonly 复检）；Cron API 的 `workflow_template_display_name` 与 execution gate 同规则 enrich。WebUI Save CTA + Settings → Workflow Templates（只读 script 预览）；Cron job 绑 trusted readonly 模板（create + 详情 Editor PATCH + 列表 invalid amber Badge + 详情解绑）。
 5. **汇总层**：原始 stdout 经 SUMMARIZATION_PROMPT 转为 Markdown + 置信度前缀
-6. **Trust 层**：spawn ≥ 1 时 SSE `plan_confirm`（literal spawn 数 + 运行时 hard cap 文案）+ PhaseWaiter；RunGuard 硬上限 50 spawn / 5 并发
+6. **Trust 层**：spawn ≥ 1 时 SSE `plan_confirm`（子任务数 + 并发上限 + 成本估算的产品化文案）+ PhaseWaiter；RunGuard 硬上限 50 spawn / 5 并发
 7. **Workspace 安全**：DW 非 readonly spawn 使用 `ISOLATED_COPY`；defer 时 child workspace 保留至 `batch_merge`；merge 后 sanitize 存 SQLite（`workspace_merge_status=merged`）；merge 经 `build_merge_snapshot_context` 登记 SnapshotStore（Revert 可用）并在摘要 append `_workspace_diff`；merge 失败时 SSE `workflow_execution: warning`、`WORKSPACE_MERGE_FAILED` 与 `completion_status: warning`，前端 `WorkspaceMergeWarning` 展示逐条错误
 8. **Spawn prep SSOT**：`agent/sub_agents/spawn_prep.py` 与 delegate 共用
 9. **Durable replay**：`SpawnCacheParams` 指纹命中复用 spawn 结果；`workspace_merge_status=merged` 跳过 re-spawn/re-merge；`pending` 行视为 incomplete 强制 re-spawn

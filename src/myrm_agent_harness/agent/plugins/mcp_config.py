@@ -8,6 +8,16 @@ mismatch with ``plugin.json`` fails; it never invalidates the plugin's skills.
 The parser emits normalized ``PluginMcpServer`` records (see models.py). Values
 are structured for the business layer to persist into the global ``mcpServers``
 config with ``enabled: false`` (the default in ``mcp_migration_item_to_config_dict``).
+
+[INPUT]
+-- .models::PluginMcpServer (POS: shared parser output dataclasses)
+
+[OUTPUT]
+-- decode_mcp_json / parse_mcp_servers / validate_mcp_top_level: per-server
+   variant validation → normalized PluginMcpServer records.
+
+[POS]
+Per-server mcp.json variant parser for the framework-level plugin parser.
 """
 
 from __future__ import annotations

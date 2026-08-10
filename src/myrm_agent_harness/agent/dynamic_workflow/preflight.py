@@ -4,6 +4,7 @@
 - agent.base_agent::BaseAgent (POS: Parent agent with budget checker)
 - agent.sub_agents.types::SubagentCatalog (POS: Subagent type resolution)
 - agent.meta_tools.spawn_subagent._delegate_budget::_estimate_batch_cost (POS: Batch cost estimation)
+- agent.dynamic_workflow.tools::DEFAULT_MAX_CONCURRENT_SPAWNS (POS: Per-workflow concurrency cap)
 
 [OUTPUT]
 - WorkflowPlanReview: Preflight summary DTO for HITL card
@@ -24,6 +25,10 @@ import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from myrm_agent_harness.agent.dynamic_workflow.tools import (
+    DEFAULT_MAX_CONCURRENT_SPAWNS,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
@@ -51,7 +56,10 @@ class WorkflowPlanReview:
     estimated_cost_usd: float | None
     remaining_budget_usd: float | None
     cost_status: str
-    llm_query_call_count: int = 0
+    # Call-site counts for llm_query (direct) and llm_query_batched (parallel batch).
+    # A batched call is a single call site that fans out to many LLM sub-calls at runtime.
+    llm_query_single_calls: int = 0
+    llm_query_batched_calls: int = 0
 
 
 WorkflowApprovalGate = Callable[[WorkflowPlanReview], Awaitable[bool]]
@@ -84,22 +92,38 @@ def strip_script_markdown(script_code: str) -> str:
 
 
 def format_plan_preview(review: WorkflowPlanReview) -> str:
-    cost_line = "Cost estimate unavailable"
+    lines: list[str] = []
+
+    if review.spawn_count > 0:
+        lines.append(
+            f"This workflow will run {review.spawn_count} sub-agent task(s), "
+            f"with up to {DEFAULT_MAX_CONCURRENT_SPAWNS} at a time."
+        )
+
+    if review.llm_query_single_calls or review.llm_query_batched_calls:
+        labels: list[str] = []
+        if review.llm_query_single_calls > 0:
+            labels.append(f"{review.llm_query_single_calls} direct AI call(s)")
+        if review.llm_query_batched_calls > 0:
+            labels.append(
+                f"{review.llm_query_batched_calls} parallel batch(es) of AI calls"
+            )
+        lead = "It also includes " if review.spawn_count > 0 else "It includes "
+        lines.append(lead + ", ".join(labels) + " for quick analysis.")
+
     if review.estimated_cost_usd is not None:
         cost_line = f"Estimated cost: ${review.estimated_cost_usd:.2f}"
         if review.remaining_budget_usd is not None:
             cost_line += f" (remaining budget: ${review.remaining_budget_usd:.2f})"
+        cost_line += (
+            ". Estimate is approximate; actual cost depends on runtime calls "
+            "and token counts."
+        )
+    else:
+        cost_line = "Cost estimate unavailable."
+    lines.append(cost_line)
 
-    llm_line = ""
-    if review.llm_query_call_count > 0:
-        llm_line = f"Detected {review.llm_query_call_count} LLM sub-call site(s) (llm_query / llm_query_batched).\n"
-
-    header = (
-        f"Detected {review.spawn_count} literal spawn call(s) in the orchestration script.\n"
-        f"Runtime hard cap: 50 spawns, max 5 concurrent.\n"
-        f"{llm_line}{cost_line} (status: {review.cost_status})\n\n"
-        "--- Orchestration script preview ---\n"
-    )
+    header = "\n".join(lines) + "\n\n--- Workflow plan preview ---\n"
     preview = review.script_code
     if len(preview) > 12_000:
         preview = preview[:12_000] + "\n... [truncated]"
@@ -173,7 +197,10 @@ async def estimate_workflow_cost(
         )
 
         objective = query[:500] if query else "Dynamic Workflow sub-agent task"
-        tasks = [TaskRequest(agent_type="generalPurpose", objective=objective) for _ in range(spawn_count)]
+        tasks = [
+            TaskRequest(agent_type="generalPurpose", objective=objective)
+            for _ in range(spawn_count)
+        ]
         try:
             estimate = await _estimate_batch_cost(
                 parent_agent=parent_agent,
@@ -196,7 +223,11 @@ async def estimate_workflow_cost(
     )
 
     if llm_query_cost is None and spawn_cost is None:
-        return None, remaining_budget_usd, spawn_status if spawn_status != "no_spawns" else "unavailable"
+        return (
+            None,
+            remaining_budget_usd,
+            spawn_status if spawn_status != "no_spawns" else "unavailable",
+        )
 
     total = (spawn_cost or 0.0) + (llm_query_cost or 0.0)
     status = llm_query_status if spawn_cost is None else spawn_status

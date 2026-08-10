@@ -145,14 +145,18 @@ class SkillStoreQueries:
             skill_id: Skill identifier
 
         Returns:
-            List of SkillRecords from root to current (oldest to newest)
+            List of SkillRecords from root to current (oldest to newest).
+            Malformed parent chains (self-reference or cycles) are terminated
+            defensively instead of looping forever.
         """
         self._ensure_open()
         lineage = []
         current_id = skill_id
+        seen: set[str] = set()
 
         with self._reader() as conn:
-            while current_id:
+            while current_id and current_id not in seen:
+                seen.add(current_id)
                 row = conn.execute("SELECT * FROM skills WHERE skill_id = ?", (current_id,)).fetchone()
                 if not row:
                     break

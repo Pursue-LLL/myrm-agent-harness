@@ -19,7 +19,7 @@ PTC（程序化工具调用）
 │     触发：普通聊天（用户无感）
 │
 └── DW PTC — 单会话大任务，脚本并行 spawn 子 agent
-      路径：Dynamic Workflow → inject_ptc → ptc/ Workflow RPC（spawn_subagent + notify）
+      路径：Dynamic Workflow → inject_ptc → ptc/ Workflow RPC（spawn_subagent + notify + llm_query）
       触发：用户开「工作流」模式
 ```
 

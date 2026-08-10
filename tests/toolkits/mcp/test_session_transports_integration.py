@@ -105,7 +105,7 @@ async def _start_http_server() -> tuple[object, str]:
 
 @pytest.mark.asyncio
 async def test_streamable_http_real_server_full_lifecycle(
-    _reset_manager: object
+    _reset_manager: object,
 ) -> None:
     """A real streamable-http server served end-to-end through the pool.
 
@@ -124,7 +124,9 @@ async def test_streamable_http_real_server_full_lifecycle(
         manager = await MCPConnectionManager.get_instance()
         try:
             conn = await manager.get_connection([cfg])
-            assert "echo:hello" in str(await conn.call("httpprobe", "echo", {"text": "hello"}))
+            assert "echo:hello" in str(
+                await conn.call("httpprobe", "echo", {"text": "hello"})
+            )
             assert "5" in str(await conn.call("httpprobe", "add", {"a": 2, "b": 3}))
         finally:
             await manager.stop()
@@ -133,7 +135,9 @@ async def test_streamable_http_real_server_full_lifecycle(
 
 
 @pytest.mark.asyncio
-async def test_stdio_real_server_full_lifecycle(tmp_path, _reset_manager: object) -> None:
+async def test_stdio_real_server_full_lifecycle(
+    tmp_path, _reset_manager: object
+) -> None:
     """A real stdio server served through the pool (full lifecycle).
 
     Extends the existing session-reuse proof with list_tools + call_tool
@@ -160,7 +164,9 @@ async def test_stdio_real_server_full_lifecycle(tmp_path, _reset_manager: object
 
 
 @pytest.mark.asyncio
-async def test_http_client_closed_when_target_build_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_http_client_closed_when_target_build_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A failed transport-target build must not leak ``_http_client``.
 
     ``_build_client_target`` allocates the ``httpx2.AsyncClient`` *before* it
@@ -199,13 +205,17 @@ async def test_http_client_closed_when_target_build_fails(monkeypatch: pytest.Mo
         )
         with suppress(Exception):
             await actor.start()
-        assert actor._http_client is None, "transport HTTP client leaked after failed target build"
+        assert (
+            actor._http_client is None
+        ), "transport HTTP client leaked after failed target build"
     finally:
         monkeypatch.setattr(MCPSessionActor, "_build_client_target", real_build)
 
 
 @pytest.mark.asyncio
-async def test_http_client_closed_when_reconnect_target_build_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_http_client_closed_when_reconnect_target_build_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Reconnect-path regression: a target build failing mid-reconnect must not leak.
 
     This exercises the loop-top and terminal cleanups that are the *only*
@@ -268,9 +278,9 @@ async def test_http_client_closed_when_reconnect_target_build_fails(monkeypatch:
             # The assertion must run *before* close(): close() itself releases
             # the transport client, which would mask a leak on the reconnect
             # exit path this test targets.
-            assert actor._http_client is None, (
-                "transport HTTP client leaked after reconnect target build failure"
-            )
+            assert (
+                actor._http_client is None
+            ), "transport HTTP client leaked after reconnect target build failure"
         finally:
             await actor.close()
     finally:

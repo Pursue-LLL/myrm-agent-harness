@@ -27,7 +27,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
                              │
 ┌────────────────────────────▼────────────────────────────────┐
 │ L3 Tool & Orchestration Surface                              │
-│  meta_tools · skills · sub_agents · parallel · goals         │
+│  meta_tools · skills · sub_agents · parallel · goals · plugins │
 │  dynamic_workflow · deep_research · tool_management          │
 │  coordination · workspace_coordination · background_worker     │
 └─────────────────────────────────────────────────────────────┘
@@ -37,7 +37,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 |-------|------------|------|
 | **Runtime Core** | `base_agent`, `skill_agent`, `_factory`, `_internals`, `streaming`, `types` | Agent 执行循环、流式事件、装配 |
 | **Pipeline** | `middlewares`, `hooks`, `context_management`, `security`, `file_snapshot`, `artifacts` | 安全/上下文/快照/工件 |
-| **Tool Surface** | `meta_tools`, `skills`, `sub_agents`, `parallel`, `goals`, `tool_management`, `orchestration` | Action Tools + 控制面信号 |
+| **Tool Surface** | `meta_tools`, `skills`, `sub_agents`, `parallel`, `goals`, `plugins`, `tool_management`, `orchestration` | Action Tools + 解析器 + 控制面信号 |
 
 **Extension point**: `extensions/` (Harness `AgentExtension` Protocol) · `acp/` (standalone ACP entry)
 
@@ -99,6 +99,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `meta_tools/` | Agent-bound LangChain meta-tools (incl. `progress/todo_write`) | [META_TOOLS_SYSTEM.md](meta_tools/META_TOOLS_SYSTEM.md) |
 | `middlewares/` | Framework middleware stack | [MIDDLEWARE_SYSTEM.md](middlewares/MIDDLEWARE_SYSTEM.md) |
 | `parallel/` | Shared subagent spawn path (batch/swarm semaphore) | [parallel/_ARCH.md](parallel/_ARCH.md) |
+| `plugins/` | Agent Plugins 1.0.0 package parser (client-agnostic) | [plugins/_ARCH.md](plugins/_ARCH.md) |
 | `security/` | Agent security engine (HITL, rate limiter, transcript classifier) | [security/SECURITY_SYSTEM.md](security/SECURITY_SYSTEM.md) |
 | `skills/` | Skill system (discovery, evolution, optimization, sync) | [skills/SKILL_SYSTEM.md](skills/SKILL_SYSTEM.md) |
 | `streaming/` | BaseAgent event pipeline + [broadcast/](streaming/broadcast/_ARCH.md) tool SSE | [STREAMING_SYSTEM.md](streaming/STREAMING_SYSTEM.md) |

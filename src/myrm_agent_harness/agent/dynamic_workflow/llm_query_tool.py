@@ -26,7 +26,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
@@ -40,10 +40,25 @@ from myrm_agent_harness.utils.token_economics.tracker import (
     record_token_usage,
 )
 
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.base_agent import BaseAgent
+
 logger = logging.getLogger(__name__)
 
 _MAX_BATCH_QUERIES = 200
 _MAX_BATCH_CONCURRENCY = 10
+
+
+class _ChatLlm(Protocol):
+    """Minimal async LLM interface consumed by llm_query tools."""
+
+    async def ainvoke(self, messages: object, **kwargs: object) -> Any: ...
+
+
+class _BudgetChecker(Protocol):
+    """Minimal budget-checker surface consumed by llm_query tools."""
+
+    def get_remaining_budget(self) -> float | None: ...
 
 
 class LlmQueryInput(BaseModel):
@@ -65,7 +80,7 @@ class LlmQueryInput(BaseModel):
         default=None,
         ge=1,
         le=8192,
-        description="Optional cap on output tokens. Defaults to 2048.",
+        description="Optional cap on output tokens. Defaults to the model's default.",
     )
     temperature: float | None = Field(
         default=None,
@@ -117,7 +132,9 @@ def _extract_model_name(llm: object) -> str | None:
     return None
 
 
-def _build_messages(prompt: str, system: str | None) -> list[HumanMessage | SystemMessage]:
+def _build_messages(
+    prompt: str, system: str | None
+) -> list[HumanMessage | SystemMessage]:
     messages: list[HumanMessage | SystemMessage] = []
     if system:
         messages.append(SystemMessage(content=system))
@@ -168,7 +185,7 @@ class LlmQueryTool(BaseTool):
             temperature=temperature,
         )
 
-    async def _resolve_llm(self, model: str | None) -> object:
+    async def _resolve_llm(self, model: str | None) -> _ChatLlm:
         """Resolve an LLM via the shared 4-level chain, defaulting to the light tier."""
         from myrm_agent_harness.agent.sub_agents.builder import resolve_llm
         from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
@@ -180,11 +197,33 @@ class LlmQueryTool(BaseTool):
             model=model or "",
             model_resolver=resolver,
         )
-        return await resolve_llm(
-            config=config,
-            parent_agent=self.parent_agent,
-            complexity_tier="simple",
+        parent = cast("BaseAgent", self.parent_agent)
+        return cast(
+            _ChatLlm,
+            await resolve_llm(
+                config=config,
+                parent_agent=parent,
+                complexity_tier="simple",
+            ),
         )
+
+    def _check_budget(self) -> str | None:
+        """Return an error message when the remaining budget is exhausted.
+
+        Mirrors the delegate path's budget checker lookup so llm_query is
+        subject to the same daily/session cost guards as spawned sub-agents.
+        """
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _get_budget_checker,
+        )
+
+        checker = _get_budget_checker(cast("BaseAgent", self.parent_agent))
+        if checker is None:
+            return None
+        remaining = cast(_BudgetChecker, checker).get_remaining_budget()
+        if isinstance(remaining, int | float) and remaining <= 0:
+            return "Budget exhausted (remaining: $0.00). Refusing further LLM calls."
+        return None
 
     async def _query_one(
         self,
@@ -194,12 +233,22 @@ class LlmQueryTool(BaseTool):
         model: str | None,
         max_tokens: int | None,
         temperature: float | None,
+        llm: _ChatLlm | None = None,
+        model_name: str | None = None,
     ) -> dict[str, object]:
-        if self.cancel_token is not None and getattr(self.cancel_token, "is_cancelled", False):
+        if self.cancel_token is not None and getattr(
+            self.cancel_token, "is_cancelled", False
+        ):
             return {"success": False, "error": "Workflow cancelled by user."}
 
-        llm = await self._resolve_llm(model)
-        model_name = _extract_model_name(llm)
+        budget_error = self._check_budget()
+        if budget_error is not None:
+            return {"success": False, "error": budget_error}
+
+        if llm is None:
+            llm = await self._resolve_llm(model)
+        if model_name is None:
+            model_name = _extract_model_name(llm)
         messages = _build_messages(prompt, system)
 
         invoke_kwargs: dict[str, Any] = {}
@@ -210,14 +259,17 @@ class LlmQueryTool(BaseTool):
 
         started = time.perf_counter()
         try:
-            response = await llm.ainvoke(messages, **invoke_kwargs)  # type: ignore[arg-type]
+            response = await llm.ainvoke(messages, **invoke_kwargs)
         except Exception as exc:
             record_token_error(f"llm_query failed: {type(exc).__name__}: {exc}")
             logger.warning("llm_query call failed: %s", exc)
             return {"success": False, "error": f"{type(exc).__name__}: {exc}"}
 
         duration_ms = (time.perf_counter() - started) * 1000
-        content = str(response.content) if response.content is not None else ""
+        try:
+            content = str(response.content) if response.content is not None else ""
+        except Exception:
+            content = ""
         self._record_usage(response, model_name=model_name, duration_ms=duration_ms)
         return {"success": True, "result": content, "model": model_name or ""}
 
@@ -233,9 +285,13 @@ class LlmQueryTool(BaseTool):
         if not usage_metadata or not isinstance(usage_metadata, dict):
             return
 
-        prompt_tokens = int(usage_metadata.get("input_tokens") or 0)
-        completion_tokens = int(usage_metadata.get("output_tokens") or 0)
-        total_tokens = int(usage_metadata.get("total_tokens") or 0)
+        try:
+            prompt_tokens = int(usage_metadata.get("input_tokens") or 0)
+            completion_tokens = int(usage_metadata.get("output_tokens") or 0)
+            total_tokens = int(usage_metadata.get("total_tokens") or 0)
+        except (TypeError, ValueError):
+            logger.debug("llm_query unparsable usage_metadata: %s", usage_metadata)
+            return
         if total_tokens <= 0:
             total_tokens = prompt_tokens + completion_tokens
         if total_tokens <= 0:
@@ -279,7 +335,7 @@ class LlmQueryBatchedTool(LlmQueryTool):
     )
     args_schema: type[BaseModel] = LlmQueryBatchedInput
 
-    def _run(
+    def _run(  # type: ignore[override]
         self,
         prompts: list[str],
         system: str | None = None,
@@ -290,7 +346,7 @@ class LlmQueryBatchedTool(LlmQueryTool):
     ) -> object:
         raise NotImplementedError("LlmQueryBatchedTool only supports async execution.")
 
-    async def _arun(
+    async def _arun(  # type: ignore[override]
         self,
         prompts: list[str],
         system: str | None = None,
@@ -308,6 +364,15 @@ class LlmQueryBatchedTool(LlmQueryTool):
                 "Batch in smaller groups.",
             }
 
+        budget_error = self._check_budget()
+        if budget_error is not None:
+            return {"success": False, "error": budget_error}
+
+        # Resolve the shared LLM once; every sub-call reuses the same instance,
+        # avoiding N model-resolution round-trips for an N-prompt batch.
+        llm = await self._resolve_llm(model)
+        model_name = _extract_model_name(llm)
+
         semaphore = asyncio.Semaphore(max_concurrent)
         started = time.perf_counter()
 
@@ -319,21 +384,13 @@ class LlmQueryBatchedTool(LlmQueryTool):
                     model=model,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    llm=llm,
+                    model_name=model_name,
                 )
 
         results = await asyncio.gather(*(_run_one(p) for p in prompts))
         duration_ms = (time.perf_counter() - started) * 1000
         failed = sum(1 for r in results if not r.get("success"))
-
-        model_name: str | None = None
-        for r in results:
-            candidate = r.get("model")
-            if isinstance(candidate, str) and candidate:
-                model_name = candidate
-                break
-        if model_name is None:
-            llm = await self._resolve_llm(model)
-            model_name = _extract_model_name(llm)
 
         return {
             "success": True,

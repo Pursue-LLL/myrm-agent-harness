@@ -156,7 +156,9 @@ def test_update_auth_headers_merges_with_existing() -> None:
 @pytest.mark.asyncio
 async def test_refresh_auth_headers_uses_provider() -> None:
     provider = MagicMock()
-    provider.get_auth_headers = AsyncMock(return_value={"Authorization": "Bearer fresh"})
+    provider.get_auth_headers = AsyncMock(
+        return_value={"Authorization": "Bearer fresh"}
+    )
     conn = {
         "transport": "streamable_http",
         "url": "http://x/mcp",

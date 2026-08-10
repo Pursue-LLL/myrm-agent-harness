@@ -179,22 +179,24 @@ def _generate_function(tool: BaseTool) -> str:
     """Generate a single tool function stub."""
     params = _extract_params(tool)
 
-    sig_parts: list[str] = []
     doc_params: list[str] = []
+
+    required_parts: list[str] = []
+    optional_parts: list[str] = []
 
     for name, desc, required, json_type in params:
         if json_type in _TYPE_HINTS:
             hint = _TYPE_HINTS[json_type]
-            if required:
-                sig_parts.insert(0, f"{name}: {hint}")
-            else:
-                sig_parts.append(f"{name}: {hint} = None")
+            part = f"{name}: {hint}" if required else f"{name}: {hint} = None"
         else:
-            if required:
-                sig_parts.insert(0, f"{name}: str")
-            else:
-                sig_parts.append(f"{name}: str = ''")
+            part = f"{name}: str" if required else f"{name}: str = ''"
+        if required:
+            required_parts.append(part)
+        else:
+            optional_parts.append(part)
         doc_params.append(f"        {name}: {desc}")
+
+    sig_parts = required_parts + optional_parts
 
     signature = ", ".join(sig_parts) if sig_parts else ""
     docstring_params = "\n".join(doc_params)
@@ -211,12 +213,16 @@ def _generate_function(tool: BaseTool) -> str:
             if required:
                 args_build += f"    args['{name}'] = {name}\n"
             else:
-                args_build += f"    if {name} is not None:\n        args['{name}'] = {name}\n"
+                args_build += (
+                    f"    if {name} is not None:\n        args['{name}'] = {name}\n"
+                )
         elif json_type in _SCALAR_NON_STRING_TYPES:
             if required:
                 args_build += f"    args['{name}'] = {name}\n"
             else:
-                args_build += f"    if {name} is not None:\n        args['{name}'] = {name}\n"
+                args_build += (
+                    f"    if {name} is not None:\n        args['{name}'] = {name}\n"
+                )
         else:
             if required:
                 args_build += f"    args['{name}'] = {name}\n"
@@ -251,7 +257,9 @@ def generate_stubs(
 
     if use_tcp_fallback:
         preamble_lines = _PREAMBLE.split("\n")
-        module_doc_end = next(i for i, line in enumerate(preamble_lines) if line.startswith("import json"))
+        module_doc_end = next(
+            i for i, line in enumerate(preamble_lines) if line.startswith("import json")
+        )
         parts.append("\n".join(preamble_lines[:module_doc_end]))
         parts.append(
             "import json\n"
