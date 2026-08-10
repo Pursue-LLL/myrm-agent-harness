@@ -17,6 +17,7 @@ the inner ``finally``.
 
 from __future__ import annotations
 
+import asyncio
 import socket
 import sys
 from contextlib import suppress
@@ -58,7 +59,7 @@ def _reset_manager() -> object:
     MCPConnectionManager._instance = None
 
 
-async def _start_http_server(probe_server_src: str, tmp_path: object):
+async def _start_http_server() -> tuple[object, str]:
     """Boot a real streamable-http MCP server on a pre-bound loopback port.
 
     Returns an awaitable teardown plus the reachable URL. The socket is bound
@@ -73,6 +74,10 @@ async def _start_http_server(probe_server_src: str, tmp_path: object):
     def echo(text: str) -> str:
         return f"echo:{text}"
 
+    @server.tool()
+    def add(a: int, b: int) -> int:
+        return a + b
+
     app = server.streamable_http_app()
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -82,11 +87,11 @@ async def _start_http_server(probe_server_src: str, tmp_path: object):
 
     config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
     runner = uvicorn.Server(config)
-    serve_task = __import__("asyncio").create_task(runner.serve(sockets=[sock]))
+    serve_task = asyncio.create_task(runner.serve(sockets=[sock]))
     for _ in range(200):
         if runner.started:
             break
-        await __import__("asyncio").sleep(0.05)
+        await asyncio.sleep(0.05)
     assert runner.started, "streamable-http server failed to start"
 
     async def teardown() -> None:
@@ -106,7 +111,7 @@ async def test_streamable_http_real_server_full_lifecycle(
     Covers initialize -> list_tools -> call_tool over an actual HTTP wire
     transport (previously only config-layer assertions existed for HTTP).
     """
-    teardown, url = await _start_http_server(_PROBE_SERVER_SRC, tmp_path)
+    teardown, url = await _start_http_server()
     try:
         cfg = MCPConfig(
             name="httpprobe",
@@ -179,7 +184,7 @@ async def test_http_client_closed_when_construction_fails() -> None:
 @pytest.mark.asyncio
 async def test_http_client_closed_after_clean_shutdown(tmp_path, _reset_manager: object) -> None:
     """A served streamable-http session releases its ``httpx2.AsyncClient`` on close."""
-    teardown, url = await _start_http_server(_PROBE_SERVER_SRC, tmp_path)
+    teardown, url = await _start_http_server()
     try:
         actor = MCPSessionActor(
             "httpprobe",
