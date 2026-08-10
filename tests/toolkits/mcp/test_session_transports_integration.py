@@ -205,6 +205,80 @@ async def test_http_client_closed_when_target_build_fails(monkeypatch: pytest.Mo
 
 
 @pytest.mark.asyncio
+async def test_http_client_closed_when_reconnect_target_build_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reconnect-path regression: a target build failing mid-reconnect must not leak.
+
+    This exercises the loop-top and terminal cleanups that are the *only*
+    guard when the failure happens after ``start()`` already returned (the
+    ``close()`` fallback in ``start()`` is not in play anymore). Sequence:
+    a real HTTP session is established; the server drops so the keepalive probe
+    fails and the owner enters reconnect; from then on ``_build_client_target``
+    allocates the ``httpx2.AsyncClient`` and raises. Without the loop-top /
+    terminal cleanups the last allocated client survives ``_run`` termination.
+    """
+    import httpx2
+
+    real_build = MCPSessionActor._build_client_target
+    real_backoff = MCPSessionActor._reconnect_backoff
+    state = {"fail": False}
+
+    def flaky_build(self, conn: dict[str, object]) -> object:
+        if state["fail"]:
+            headers: dict[str, str] = dict(conn.get("headers") or {})  # type: ignore[arg-type]
+            self._http_client = httpx2.AsyncClient(
+                headers=headers,
+                timeout=httpx2.Timeout(30.0, read=300.0),
+                follow_redirects=True,
+            )
+            raise RuntimeError("forced reconnect target build failure")
+        return real_build(self, conn)
+
+    # Fast reconnect cycle so the test finishes in seconds instead of the
+    # production backoff cap (8s per attempt).
+    monkeypatch.setattr(
+        MCPSessionActor, "_reconnect_backoff", staticmethod(lambda attempt: 1.0)
+    )
+    monkeypatch.setattr(MCPSessionActor, "_build_client_target", flaky_build)
+
+    teardown, url = await _start_http_server()
+    try:
+        actor = MCPSessionActor(
+            "reconnect-leak",
+            {
+                "transport": "streamable_http",
+                "url": url,
+                "headers": {"Authorization": "Bearer token"},
+            },
+            connect_timeout=5.0,
+            keepalive_interval=1.0,
+        )
+        await actor.start()
+        try:
+            # Kill the server so the next keepalive probe fails -> reconnect.
+            await teardown()
+            # Wait one keepalive window for the owner to notice and enter the
+            # reconnect loop while target builds still succeed (connect fails
+            # against the dead server, no httpx2 client is allocated).
+            await asyncio.sleep(1.5)
+            state["fail"] = True
+            # Remaining reconnect attempts now allocate the httpx2 client and
+            # raise before the serve block; the loop-top / terminal cleanups
+            # must release every allocated client when the budget is exhausted.
+            await asyncio.wait_for(actor._task, timeout=30.0)
+            # The assertion must run *before* close(): close() itself releases
+            # the transport client, which would mask a leak on the reconnect
+            # exit path this test targets.
+            assert actor._http_client is None, (
+                "transport HTTP client leaked after reconnect target build failure"
+            )
+        finally:
+            await actor.close()
+    finally:
+        monkeypatch.setattr(MCPSessionActor, "_build_client_target", real_build)
+        monkeypatch.setattr(MCPSessionActor, "_reconnect_backoff", real_backoff)
+
+
+@pytest.mark.asyncio
 async def test_http_client_closed_after_clean_shutdown() -> None:
     """A served streamable-http session releases its ``httpx2.AsyncClient`` on close."""
     teardown, url = await _start_http_server()
