@@ -653,7 +653,7 @@ async def test_execute_import_mode_keeps_detected_skill() -> None:
     bash_exec.set_skill_env_map({"demo_skill": {"SK": "1"}})
     workspace = MagicMock()
 
-    mock_ensure_skills = AsyncMock(return_value=["/ws/skills/demo_skill"])
+    mock_ensure_skills = AsyncMock(return_value=["/ws/.claude/skills/demo_skill"])
     with (
         patch.object(
             bash_exec._workspace_manager,
@@ -674,7 +674,7 @@ async def test_execute_import_mode_keeps_detected_skill() -> None:
         ),
         patch(
             "myrm_agent_harness.toolkits.code_execution.utils.WorkspacePathResolver.to_container_paths",
-            return_value=["/workspace/skills/demo_skill"],
+            return_value=["/workspace/.claude/skills/demo_skill"],
         ),
         patch(
             "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",

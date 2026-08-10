@@ -12,19 +12,18 @@ import zipfile
 
 import pytest
 
-from myrm_agent_harness.agent.plugins.mcp_config import (
-    McpConfigError,
-    decode_mcp_json,
-    has_placeholders,
-    parse_mcp_servers,
-    validate_mcp_top_level,
-)
 from myrm_agent_harness.agent.plugins.manifest import (
     ManifestNoSchemaError,
     ManifestParseError,
     ManifestSchemaValidationFailure,
     decode_manifest_json,
     parse_manifest,
+)
+from myrm_agent_harness.agent.plugins.mcp_config import (
+    McpConfigError,
+    has_placeholders,
+    parse_mcp_servers,
+    validate_mcp_top_level,
 )
 from myrm_agent_harness.agent.plugins.models import PluginDiagnosticLevel
 from myrm_agent_harness.agent.plugins.parser import AgentPluginParser
@@ -475,6 +474,23 @@ class TestAgentPluginParser:
         assert by_name["valid"].metadata == {"name": "valid"}
         assert by_name["broken"].metadata == {}
         assert by_name["broken"].content.startswith("---")
+
+    def test_empty_description_frontmatter_normalized_to_empty_string(self) -> None:
+        # ``description:`` with no value must parse as "" instead of the string
+        # "None", so previews and persisted SkillRecords never show a literal
+        # "None" description.
+        zip_bytes = build_plugin_zip(
+            {
+                "plugin.json": default_plugin_json(),
+                "skills/terse/SKILL.md": "---\nname: terse\ndescription:\n---\nTerse.",
+                "skills/empty/SKILL.md": "---\nname: empty\ndescription: ~\n---\nEmpty.",
+            }
+        )
+        result = AgentPluginParser().parse_zip(zip_bytes)
+        by_name = {s.name: s for s in result.skills}
+        assert by_name["terse"].description == ""
+        assert by_name["empty"].description == ""
+        assert by_name["terse"].metadata["description"] is None
 
     def test_missing_plugin_json_fatal(self) -> None:
         zip_bytes = build_plugin_zip({"skills/a/SKILL.md": "---\n---\nA."})

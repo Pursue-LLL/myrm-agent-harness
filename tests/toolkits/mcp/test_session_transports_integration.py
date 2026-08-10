@@ -9,10 +9,11 @@ wire transports:
 - stdio: a real ``MCPServer`` subprocess, the same path the existing
   session-reuse tests cover, here extended with the full actor lifecycle.
 
-They also lock in the ``_http_client`` lifecycle fix: a headered
+They also lock in the ``_http_client`` lifecycle guarantee: a headered
 streamable-http transport must close its ``httpx2.AsyncClient`` on *every*
-exit path, including a ``Client()`` construction failure that never reaches
-the inner ``finally``.
+exit path — including the path where building the transport target raises
+after the HTTP client was already allocated (so it never reaches the inner
+``finally`` of the serve block).
 """
 
 from __future__ import annotations
@@ -104,12 +105,12 @@ async def _start_http_server() -> tuple[object, str]:
 
 @pytest.mark.asyncio
 async def test_streamable_http_real_server_full_lifecycle(
-    tmp_path, _reset_manager: object
+    _reset_manager: object
 ) -> None:
     """A real streamable-http server served end-to-end through the pool.
 
     Covers initialize -> list_tools -> call_tool over an actual HTTP wire
-    transport (previously only config-layer assertions existed for HTTP).
+    transport.
     """
     teardown, url = await _start_http_server()
     try:
@@ -159,30 +160,51 @@ async def test_stdio_real_server_full_lifecycle(tmp_path, _reset_manager: object
 
 
 @pytest.mark.asyncio
-async def test_http_client_closed_when_construction_fails() -> None:
-    """Regression: a ``Client()`` construction failure must not leak ``_http_client``.
+async def test_http_client_closed_when_target_build_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: a transport-target build failure must not leak ``_http_client``.
 
-    ``_build_client_target`` allocates the ``httpx2.AsyncClient`` before the
-    ``Client`` wrapper is constructed; if the latter raises (invalid target),
-    the old code skipped the inner ``finally`` and leaked the transport client.
-    This test asserts the actor's ``_http_client`` is released on that path.
+    ``_build_client_target`` allocates the ``httpx2.AsyncClient`` *before* it
+    builds the SDK transport target. If building that target raises (e.g. an
+    SDK validation error after the client was allocated), the inner ``finally``
+    of the serve block never runs — only the loop-top and terminal-path
+    cleanups release the transport client. We force that by allocating the
+    client and then making the SDK import + target construction raise.
     """
-    actor = MCPSessionActor(
-        "bad-http",
-        {
-            "transport": "streamable_http",
-            "url": "http://127.0.0.1:1/mcp",  # unreachable: connection fails
-            "headers": {"Authorization": "Bearer token"},
-        },
-        connect_timeout=2.0,
-    )
-    with suppress(Exception):
-        await actor.start()
-    assert actor._http_client is None, "transport HTTP client leaked after failed start"
+    import httpx2
+
+    real_build = MCPSessionActor._build_client_target
+
+    def exploding_build(self, conn: dict[str, object]) -> object:
+        headers: dict[str, str] = dict(conn.get("headers") or {})  # type: ignore[arg-type]
+        # Same allocation as the production path: the client is created first...
+        self._http_client = httpx2.AsyncClient(
+            headers=headers,
+            timeout=httpx2.Timeout(30.0, read=300.0),
+            follow_redirects=True,
+        )
+        # ...then target construction fails before the serve block is entered.
+        raise RuntimeError("forced transport target construction failure")
+
+    monkeypatch.setattr(MCPSessionActor, "_build_client_target", exploding_build)
+    try:
+        actor = MCPSessionActor(
+            "bad-http",
+            {
+                "transport": "streamable_http",
+                "url": "http://127.0.0.1:1/mcp",
+                "headers": {"Authorization": "Bearer token"},
+            },
+            connect_timeout=2.0,
+        )
+        with suppress(Exception):
+            await actor.start()
+        assert actor._http_client is None, "transport HTTP client leaked after failed target build"
+    finally:
+        monkeypatch.setattr(MCPSessionActor, "_build_client_target", real_build)
 
 
 @pytest.mark.asyncio
-async def test_http_client_closed_after_clean_shutdown(tmp_path, _reset_manager: object) -> None:
+async def test_http_client_closed_after_clean_shutdown() -> None:
     """A served streamable-http session releases its ``httpx2.AsyncClient`` on close."""
     teardown, url = await _start_http_server()
     try:

@@ -16,7 +16,7 @@ from typing import Any
 
 from myrm_agent_harness.backends.skills.scanning.zip_extract import safe_extract_zip
 
-from . import mcp_config, manifest
+from . import manifest, mcp_config
 from .manifest import decode_manifest_json, parse_manifest
 from .mcp_config import decode_mcp_json, parse_mcp_servers
 from .models import PluginDiagnosticLevel, PluginParseResult, PluginSkill
@@ -201,7 +201,8 @@ def _parse_skill_frontmatter(text: str) -> tuple[dict[str, Any], str, str]:
         frontmatter = yaml.safe_load(match.group(1))
         if isinstance(frontmatter, dict):
             metadata = frontmatter
-            description = str(frontmatter.get("description", ""))
+            raw_description = frontmatter.get("description")
+            description = raw_description if isinstance(raw_description, str) else ""
     except Exception as exc:  # frontmatter parse failure -> treat as pure content
         logger.warning("Failed to parse skill frontmatter: %s", exc)
         return {}, "", text.strip()
