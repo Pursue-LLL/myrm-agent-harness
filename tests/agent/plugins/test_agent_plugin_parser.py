@@ -602,3 +602,13 @@ class TestAgentPluginParser:
         zip_bytes = build_plugin_zip(big)
         with pytest.raises(ArchiveSecurityError):
             AgentPluginParser().parse_zip(zip_bytes)
+
+    def test_non_zip_bytes_raises_bad_zip_file(self) -> None:
+        """Garbage bytes surface as ``zipfile.BadZipFile`` (not swallowed).
+
+        The framework lets the library exception propagate; the business layer
+        wraps it into a user-facing 400. This test pins that contract so a future
+        change cannot silently swallow corrupt uploads.
+        """
+        with pytest.raises(zipfile.BadZipFile):
+            AgentPluginParser().parse_zip(b"\x00\x01not a real zip")

@@ -6,7 +6,9 @@ import json
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch import weixin_extractor as weixin_extractor_module
+from myrm_agent_harness.toolkits.web_fetch import (
+    weixin_extractor as weixin_extractor_module,
+)
 from myrm_agent_harness.toolkits.web_fetch.weixin_extractor import (
     extract_weixin_article,
     get_weixin_request_headers,
@@ -92,10 +94,15 @@ def test_has_weixin_js_content() -> None:
     assert not has_weixin_js_content("<div id='other'>")
 
 
-def test_parse_weixin_article_html_extracts_title_author_publish_time_images_and_body() -> None:
+def test_parse_weixin_article_html_extracts_title_author_publish_time_images_and_body() -> (
+    None
+):
     doc = parse_weixin_article_html(_SAMPLE_HTML, url=_ARTICLE_URL)
     assert doc is not None
-    assert doc.metadata["title"] == "从 ReAct Agent 到 Harness Agent：构建可自举的 AI Agent"
+    assert (
+        doc.metadata["title"]
+        == "从 ReAct Agent 到 Harness Agent：构建可自举的 AI Agent"
+    )
     assert doc.metadata["author"] == "AI开发者日记"
     assert doc.metadata["publish_time"] == "2026-03-01"
     assert doc.metadata["source_type"] == "weixin_article"
@@ -121,7 +128,12 @@ def test_parse_weixin_article_html_reads_publish_time_from_script() -> None:
 
 
 def test_parse_weixin_article_html_rejects_verification_page() -> None:
-    assert parse_weixin_article_html(_BLOCKED_HTML, url="https://mp.weixin.qq.com/s/blocked") is None
+    assert (
+        parse_weixin_article_html(
+            _BLOCKED_HTML, url="https://mp.weixin.qq.com/s/blocked"
+        )
+        is None
+    )
 
 
 def test_parse_weixin_article_html_rejects_missing_js_content() -> None:
@@ -136,7 +148,9 @@ def test_parse_weixin_article_html_rejects_short_body() -> None:
 
 def test_parse_weixin_article_html_truncates_overlong_body() -> None:
     long_paragraph = "长" * 25_000
-    html = f'<html><body><div id="js_content"><p>{long_paragraph}</p></div></body></html>'
+    html = (
+        f'<html><body><div id="js_content"><p>{long_paragraph}</p></div></body></html>'
+    )
     doc = parse_weixin_article_html(html, url=_ARTICLE_URL)
     assert doc is not None
     assert "body truncated" in doc.page_content
@@ -164,7 +178,9 @@ async def test_extract_weixin_article_returns_none_for_non_weixin_url() -> None:
 
 
 @pytest.mark.asyncio
-async def test_extract_weixin_article_fetches_and_parses(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_extract_weixin_article_fetches_and_parses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         weixin_extractor_module,
         "_fetch_html",
@@ -228,4 +244,3 @@ def test_build_opener_blocks_redirects() -> None:
     req = urllib.request.Request(_ARTICLE_URL)  # noqa: S310
     with pytest.raises(urllib.error.HTTPError):
         handler.redirect_request(req, None, 302, "Found", {}, "https://evil.example/")
-
