@@ -71,7 +71,7 @@ class AgentPluginParser:
         except manifest.ManifestSchemaError as exc:
             result.add_diagnostic("plugin", "unsupported_schema", str(exc))
             return result
-        except manifest.ManifestSchemaValidationFailure as exc:
+        except manifest.ManifestSchemaValidationError as exc:
             result.add_diagnostic("plugin", exc.code, str(exc))
             return result
         except manifest.ManifestParseError as exc:

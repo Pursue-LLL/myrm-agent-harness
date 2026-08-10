@@ -73,7 +73,7 @@ class ManifestParseError(ValueError):
     """
 
 
-class ManifestSchemaValidationFailure(ValueError):
+class ManifestSchemaValidationError(ValueError):
     """Fatal field-type/constraint violation other than unknown-field handling.
 
     Carries the offending component code for UI diagnostics.
@@ -98,7 +98,7 @@ def parse_manifest(
 
     Raises:
         ManifestSchemaError: unrecognized/missing ``$schema``.
-        ManifestSchemaValidationFailure: any fatal field violation.
+        ManifestSchemaValidationError: any fatal field violation.
         ManifestParseError: payload is not a JSON object.
     """
     if raw is None:
@@ -113,18 +113,18 @@ def parse_manifest(
     # Required fields (§5.3).
     name = raw.get("name")
     if not isinstance(name, str) or not name.strip():
-        raise ManifestSchemaValidationFailure(
+        raise ManifestSchemaValidationError(
             "plugin.json is missing required field 'name'"
         )
     if not _NAME_RE.match(name):
-        raise ManifestSchemaValidationFailure(
+        raise ManifestSchemaValidationError(
             f"plugin.json 'name' violates Agent Plugins naming constraints: {name!r}",
             code="manifest_invalid_name",
         )
 
     # Report-and-ignore unknown top-level fields (§5.2).
     reported: list[dict[str, str]] = []
-    for field_name in raw.keys():
+    for field_name in raw:
         if field_name not in _ALLOWED_FIELDS:
             reported.append(
                 {
@@ -145,7 +145,7 @@ def parse_manifest(
     elif isinstance(extensions, dict):
         for ns, value in extensions.items():
             if not isinstance(value, dict):
-                raise ManifestSchemaValidationFailure(
+                raise ManifestSchemaValidationError(
                     f"extensions namespace '{ns}' must be an object",
                     code="manifest_invalid_extension",
                 )
@@ -167,7 +167,7 @@ def parse_manifest(
     ):
         keywords = tuple(keywords_raw)
     else:
-        raise ManifestSchemaValidationFailure(
+        raise ManifestSchemaValidationError(
             "plugin.json 'keywords' must be an array of strings"
         )
 
@@ -190,7 +190,7 @@ def _optional_str(raw: dict[str, Any], key: str) -> str | None:
         return None
     if isinstance(value, str):
         return value
-    raise ManifestSchemaValidationFailure(f"plugin.json '{key}' must be a string")
+    raise ManifestSchemaValidationError(f"plugin.json '{key}' must be a string")
 
 
 def _validate_author(value: object) -> dict[str, str] | None:
@@ -199,12 +199,12 @@ def _validate_author(value: object) -> dict[str, str] | None:
     if not isinstance(value, dict) or not all(
         isinstance(k, str) and isinstance(v, str) for k, v in value.items()
     ):
-        raise ManifestSchemaValidationFailure(
+        raise ManifestSchemaValidationError(
             "plugin.json 'author' must be an object of strings"
         )
     unknown = set(value.keys()) - {"name", "email", "url"}
     if unknown:
-        raise ManifestSchemaValidationFailure(
+        raise ManifestSchemaValidationError(
             f"plugin.json 'author' contains disallowed fields: {sorted(unknown)}",
             code="manifest_invalid_author",
         )

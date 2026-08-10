@@ -161,14 +161,15 @@ async def test_stdio_real_server_full_lifecycle(tmp_path, _reset_manager: object
 
 @pytest.mark.asyncio
 async def test_http_client_closed_when_target_build_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Regression: a transport-target build failure must not leak ``_http_client``.
+    """A failed transport-target build must not leak ``_http_client``.
 
     ``_build_client_target`` allocates the ``httpx2.AsyncClient`` *before* it
     builds the SDK transport target. If building that target raises (e.g. an
-    SDK validation error after the client was allocated), the inner ``finally``
-    of the serve block never runs — only the loop-top and terminal-path
-    cleanups release the transport client. We force that by allocating the
-    client and then making the SDK import + target construction raise.
+    SDK validation error after the client was allocated), the serve block's
+    inner ``finally`` never runs; every exit path from the owner task must
+    still release the transport client. We force the failure by allocating the
+    client exactly like the production path and then raising before the target
+    is returned.
     """
     import httpx2
 

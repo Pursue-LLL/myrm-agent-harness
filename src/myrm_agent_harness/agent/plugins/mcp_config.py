@@ -153,19 +153,21 @@ def _parse_stdio(name: str, entry: dict[str, Any]) -> PluginMcpServer | None:
             return None  # reserved env names are prohibited (§9.1)
 
     cwd = entry.get("cwd")
-    if cwd is not None:
-        if (
+    if (
+        cwd is not None
+        and (
             not isinstance(cwd, str)
             or not _CWD_FORM_RE.match(cwd)
             or _contains_escape(cwd)
-        ):
-            return None
+        )
+    ):
+        return None
 
     unknown = set(entry.keys()) - {"type", "command", "args", "env", "cwd"}
     if unknown:
         return None  # unknown field makes the variant invalid (§7.2.1)
 
-    env_key_names = [str(k) for k in env.keys()] if isinstance(env, dict) else []
+    env_key_names = [str(k) for k in env] if isinstance(env, dict) else []
     raw_env = {str(k): str(v) for k, v in env.items()} if isinstance(env, dict) else {}
 
     return PluginMcpServer(
@@ -256,10 +258,7 @@ def _is_valid_remote_url(url: str) -> bool:
         return False
     if parts.fragment or parts.username or parts.password:
         return False
-    if not _is_loopback_host(parts.hostname or ""):
-        if parts.scheme != "https":
-            return False
-    return True
+    return _is_loopback_host(parts.hostname or "") or parts.scheme == "https"
 
 
 def _is_loopback_host(hostname: str) -> bool:

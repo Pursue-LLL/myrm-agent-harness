@@ -15,7 +15,7 @@ import pytest
 from myrm_agent_harness.agent.plugins.manifest import (
     ManifestNoSchemaError,
     ManifestParseError,
-    ManifestSchemaValidationFailure,
+    ManifestSchemaValidationError,
     decode_manifest_json,
     parse_manifest,
 )
@@ -112,7 +112,7 @@ class TestManifest:
                 }
             )
         )
-        with pytest.raises(ManifestSchemaValidationFailure):
+        with pytest.raises(ManifestSchemaValidationError):
             parse_manifest(raw)
 
     def test_missing_schema_is_fatal(self) -> None:
@@ -122,19 +122,19 @@ class TestManifest:
 
     def test_invalid_name_rejected(self) -> None:
         raw = json.loads(json.dumps({"$schema": PLUGIN_SCHEMA, "name": "Bad_Name!"}))
-        with pytest.raises(ManifestSchemaValidationFailure):
+        with pytest.raises(ManifestSchemaValidationError):
             parse_manifest(raw)
 
     def test_missing_name_rejected(self) -> None:
         raw = json.loads(json.dumps({"$schema": PLUGIN_SCHEMA}))
-        with pytest.raises(ManifestSchemaValidationFailure):
+        with pytest.raises(ManifestSchemaValidationError):
             parse_manifest(raw)
 
     def test_keywords_must_be_string_list(self) -> None:
         raw = json.loads(
             json.dumps({"$schema": PLUGIN_SCHEMA, "name": "ok", "keywords": [1, 2]})
         )
-        with pytest.raises(ManifestSchemaValidationFailure):
+        with pytest.raises(ManifestSchemaValidationError):
             parse_manifest(raw)
 
     def test_decode_manifest_json_rejects_non_object(self) -> None:
