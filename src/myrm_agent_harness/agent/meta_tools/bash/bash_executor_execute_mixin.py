@@ -108,12 +108,14 @@ class BashExecutorExecuteMixin:
                         workspace, used_skill_paths
                     )
                 )
-                logger.warning(f" Copying detected skill only: {detected_skill_name}")
+                logger.info(f" Copying detected skill only: {detected_skill_name}")
 
         if workspace_skill_paths:
-            prepared_code, detected_skill_name = self._rewrite_skill_paths(
-                prepared_code, workspace_skill_paths
+            prepared_code, rewritten_skill = self._rewrite_skill_paths(
+                prepared_code
             )
+            if rewritten_skill:
+                detected_skill_name = rewritten_skill
 
         skill_names: list[str] = [detected_skill_name] if detected_skill_name else []
 

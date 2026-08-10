@@ -45,6 +45,8 @@ _TIER1_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"Sucuri\s+WebSite\s+Firewall", re.I), "Sucuri firewall block"),
     (re.compile(r"KPSDK\.scriptStart\s*=\s*KPSDK\.now\(\)", re.I), "Kasada challenge"),
     (re.compile(r"blocked\s+by\s+network\s+security", re.I), "Network security block"),
+    (re.compile(r"环境异常", re.I), "WeChat verification block"),
+    (re.compile(r"完成验证后即可继续访问", re.I), "WeChat verification block"),
 ]
 
 # ---------------------------------------------------------------------------

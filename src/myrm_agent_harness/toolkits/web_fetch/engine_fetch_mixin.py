@@ -108,6 +108,16 @@ class FetchEngineFetchMixin:
             doc = await route_binary_content(fetch_result.raw_body, fetch_result.headers, url)
             return doc, False, latency_ms, cpu_percent, memory_mb, fetch_result
 
+        from .weixin_extractor import has_weixin_js_content, is_weixin_article_url, parse_weixin_article_html
+
+        if is_weixin_article_url(url):
+            weixin_doc = parse_weixin_article_html(fetch_result.html, url=url)
+            if weixin_doc is not None:
+                return weixin_doc, False, latency_ms, cpu_percent, memory_mb, fetch_result
+            if not has_weixin_js_content(fetch_result.html):
+                logger.warning("Weixin URL missing js_content, skipping generic HTML extraction: %s", url)
+                return None, True, latency_ms, cpu_percent, memory_mb, fetch_result
+
         blocked, reason = detect_antibot(fetch_result.status_code, fetch_result.html)
         if blocked:
             logger.warning(f"Anti-bot detected ({reason}): {url}")

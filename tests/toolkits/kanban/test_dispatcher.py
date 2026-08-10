@@ -177,6 +177,35 @@ class TestDispatchExecution:
         assert "task_started" in event_types
         assert "task_completed" in event_types
 
+    @pytest.mark.asyncio
+    async def test_dispatch_respects_max_concurrent_slots(self) -> None:
+        """Ready tasks beyond max_concurrent_tasks stay READY (queued), not claimed.
+
+        Regression for concurrency-limiting: the dispatch loop must claim at most
+        `available_slots` READY tasks at once; the remainder stay queued until a
+        running slot frees up.
+        """
+        store = InMemoryKanbanStore()
+        board = _make_board(max_concurrent=2)
+        await store.save_board(board)
+        for tid in ("t1", "t2", "t3"):
+            await store.save_task(_make_task(task_id=tid, status=TaskStatus.READY))
+
+        runner = _FakeRunner(succeed=True, delay=0.5)
+        d = KanbanDispatcher(store, runner, board)
+        await d.start()
+        # t1/t2 are claimed and stay RUNNING (runner sleeps); t3 must stay READY.
+        await asyncio.sleep(0.3)
+        snapshot = [await store.get_task(tid) for tid in ("t1", "t2", "t3")]
+        await d.stop()
+
+        statuses = [t.status for t in snapshot if t is not None]
+        assert statuses.count(TaskStatus.RUNNING) == 2
+        assert statuses.count(TaskStatus.READY) == 1
+        assert sorted(t.task_id for t in snapshot if t and t.status == TaskStatus.READY) == [
+            "t3"
+        ]
+
 
 # ---------------------------------------------------------------------------
 # Status-drift guard (TODO-56)

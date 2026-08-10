@@ -255,6 +255,7 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
         task.completed_at = datetime.now(UTC)
         task.consecutive_failures = 0
         task.block_cycle_count = 0
+        task.error = ""
         task.progress_note = None
         await self._store.save_task(task)
         await self._store.append_event(
@@ -277,9 +278,10 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
     ) -> KanbanTask | None:
         """Reject an IN_REVIEW task: send it back to READY for rework.
 
-        The rejection reason is persisted on the event trail and echoed into
-        the worker context (via prior-attempt error) so a re-run adapts.
-        Atomic compare-and-swap on IN_REVIEW keeps double-submits idempotent.
+        The rejection reason is persisted on the event trail and surfaced in
+        the worker context under `## Review history` (via context_builder) so a
+        re-run adapts. Atomic compare-and-swap on IN_REVIEW keeps double-submits
+        idempotent.
         """
         task = await self._store.transition_task_status(
             task_id,
@@ -504,6 +506,7 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
             task.result = result
             task.consecutive_failures = 0
             task.block_cycle_count = 0
+            task.error = ""
             task.progress_note = None
             task.metadata = clear_completion_intent(dict(task.metadata))
             await self._store.save_task(task)
@@ -527,6 +530,7 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
         task.completed_at = datetime.now(UTC)
         task.consecutive_failures = 0
         task.block_cycle_count = 0
+        task.error = ""
         task.progress_note = None
         task.metadata = clear_completion_intent(dict(task.metadata))
         await self._store.save_task(task)

@@ -13,7 +13,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage
 
-from myrm_agent_harness.agent.streaming.stream_executor import StreamContext, StreamExecutor
+from myrm_agent_harness.agent.streaming.stream_executor import (
+    StreamContext,
+    StreamExecutor,
+)
 from myrm_agent_harness.agent.streaming.types import AgentEventType, AgentStreamEvent
 from myrm_agent_harness.agent.types import AgentRunStatistics
 
@@ -49,7 +52,10 @@ def ctx():
 
 def _make_executor(ctx: StreamContext) -> StreamExecutor:
     executor = StreamExecutor(
-        ctx=ctx, fallback_llm=None, safety_fallback_llm=None, rebuild_agent_fn=MagicMock()
+        ctx=ctx,
+        fallback_llm=None,
+        safety_fallback_llm=None,
+        rebuild_agent_fn=MagicMock(),
     )
     executor._compactor = FakeCompactor()
     return executor
@@ -95,6 +101,37 @@ async def test_dispatch_custom_tool_stdout(ctx):
 
 
 @pytest.mark.asyncio
+async def test_dispatch_custom_tool_evicted_ref_keeps_stream(ctx):
+    """Custom event with name='tool_evicted_ref' dispatches TOOL_EVICTED_REF
+    and must preserve the payload's stream field (stderr eviction path)."""
+    executor = _make_executor(ctx)
+    payload = {
+        "evicted_ref": "stderr_trace.txt",
+        "stream": "stderr",
+        "stored_chars": 30000,
+        "total_lines": 600,
+    }
+    data = {"name": "tool_evicted_ref", "data": payload}
+    chunk = ("custom", data)
+
+    await executor._dispatch_chunk(chunk, ctx, [])
+
+    events = [
+        event
+        for event in executor._compactor.events
+        if isinstance(event, AgentStreamEvent)
+        and event.type == AgentEventType.TOOL_EVICTED_REF
+    ]
+    assert len(events) == 1
+    forwarded = events[0].data
+    assert isinstance(forwarded, dict)
+    assert forwarded.get("evicted_ref") == "stderr_trace.txt"
+    assert forwarded.get("stream") == "stderr"
+    assert forwarded.get("stored_chars") == 30000
+    assert forwarded.get("total_lines") == 600
+
+
+@pytest.mark.asyncio
 async def test_dispatch_custom_tasks_steps(ctx):
     """Custom event with name='tasks_steps' dispatches TASKS_STEPS."""
     executor = _make_executor(ctx)
@@ -104,7 +141,10 @@ async def test_dispatch_custom_tasks_steps(ctx):
     await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    assert any(isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TASKS_STEPS for e in events)
+    assert any(
+        isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TASKS_STEPS
+        for e in events
+    )
 
 
 @pytest.mark.asyncio
@@ -117,7 +157,10 @@ async def test_dispatch_custom_agent_status(ctx):
     await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    assert any(isinstance(e, AgentStreamEvent) and e.type == AgentEventType.STATUS for e in events)
+    assert any(
+        isinstance(e, AgentStreamEvent) and e.type == AgentEventType.STATUS
+        for e in events
+    )
 
 
 @pytest.mark.asyncio
@@ -147,7 +190,8 @@ async def test_dispatch_custom_ui_update(ctx):
     ui_events = [
         event
         for event in events
-        if isinstance(event, AgentStreamEvent) and event.type == AgentEventType.UI_UPDATE
+        if isinstance(event, AgentStreamEvent)
+        and event.type == AgentEventType.UI_UPDATE
     ]
     assert len(ui_events) == 1
     assert ui_events[0].messageId == "disp_test"
@@ -167,7 +211,9 @@ async def test_dispatch_custom_capability_gap(ctx):
 
     events = executor._compactor.events
     gap_events = [
-        e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.CAPABILITY_GAP
+        e
+        for e in events
+        if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.CAPABILITY_GAP
     ]
     assert len(gap_events) == 1
     assert gap_events[0].data == payload
@@ -185,7 +231,9 @@ async def test_dispatch_custom_skill_gap(ctx):
 
     events = executor._compactor.events
     gap_events = [
-        e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.SKILL_GAP
+        e
+        for e in events
+        if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.SKILL_GAP
     ]
     assert len(gap_events) == 1
     assert gap_events[0].data == payload
@@ -247,7 +295,11 @@ async def test_emit_event_with_event_logger(ctx):
     ctx.event_logger = mock_logger
 
     executor = _make_executor(ctx)
-    event = {"type": AgentEventType.STATUS.value, "step_key": "test_step", "messageId": "disp_test"}
+    event = {
+        "type": AgentEventType.STATUS.value,
+        "step_key": "test_step",
+        "messageId": "disp_test",
+    }
 
     await executor._emit_event(event, ctx)
 
@@ -263,7 +315,12 @@ async def test_dispatch_updates_interrupt_tool_approval(ctx):
 
     interrupt_obj = MagicMock()
     interrupt_obj.value = {
-        "actionRequests": [{"action": "bash_code_execute_tool", "args": {"command": "curl example.com"}}],
+        "actionRequests": [
+            {
+                "action": "bash_code_execute_tool",
+                "args": {"command": "curl example.com"},
+            }
+        ],
         "reviewConfigs": [{"type": "shell_exec"}],
         "extensions": {"approval": {"requestId": "req-1"}},
     }
@@ -274,7 +331,9 @@ async def test_dispatch_updates_interrupt_tool_approval(ctx):
 
     events = executor._compactor.events
     assert any(
-        isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TOOL_APPROVAL_REQUEST for e in events
+        isinstance(e, AgentStreamEvent)
+        and e.type == AgentEventType.TOOL_APPROVAL_REQUEST
+        for e in events
     )
 
 
@@ -291,7 +350,10 @@ async def test_dispatch_updates_interrupt(ctx):
     await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    assert any(isinstance(e, AgentStreamEvent) and e.type == AgentEventType.APPROVAL_REQUIRED for e in events)
+    assert any(
+        isinstance(e, AgentStreamEvent) and e.type == AgentEventType.APPROVAL_REQUIRED
+        for e in events
+    )
 
 
 @pytest.mark.asyncio
@@ -320,8 +382,10 @@ async def test_dispatch_updates_interrupt_clarification(ctx):
 
     events = executor._compactor.events
     clarify_events = [
-        e for e in events
-        if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.CLARIFICATION_REQUIRED
+        e
+        for e in events
+        if isinstance(e, AgentStreamEvent)
+        and e.type == AgentEventType.CLARIFICATION_REQUIRED
     ]
     assert len(clarify_events) == 1
     event_data = clarify_events[0].to_dict().get("data", {})
@@ -403,7 +467,14 @@ async def test_dispatch_messages_token_events(ctx):
         patch(
             "myrm_agent_harness.agent.streaming.stream_dispatcher.process_messages_chunk",
             return_value=[
-                ({"type": AgentEventType.MESSAGE.value, "data": "hi", "messageId": "disp_test"}, False)
+                (
+                    {
+                        "type": AgentEventType.MESSAGE.value,
+                        "data": "hi",
+                        "messageId": "disp_test",
+                    },
+                    False,
+                )
             ],
         ),
         patch(
@@ -422,5 +493,9 @@ async def test_dispatch_messages_token_events(ctx):
         await executor._dispatch_chunk(chunk, ctx, [])
 
     events = executor._compactor.events
-    token_usage_events = [e for e in events if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TOKEN_USAGE]
+    token_usage_events = [
+        e
+        for e in events
+        if isinstance(e, AgentStreamEvent) and e.type == AgentEventType.TOKEN_USAGE
+    ]
     assert len(token_usage_events) >= 1

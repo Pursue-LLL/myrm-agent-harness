@@ -40,14 +40,20 @@ from langchain.tools import tool
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from myrm_agent_harness.agent.context_management.context import extract_context_from_runnable_config
-from myrm_agent_harness.agent.meta_tools.skills.manage.lock_manager import SkillLockManager
+from myrm_agent_harness.agent.context_management.context import (
+    extract_context_from_runnable_config,
+)
+from myrm_agent_harness.agent.meta_tools.skills.manage.lock_manager import (
+    SkillLockManager,
+)
 
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
     from myrm_agent_harness.backends.skills.protocols import SkillBackend
-    from myrm_agent_harness.backends.skills.scanning_write_backend import ScanningSkillWriteBackend
+    from myrm_agent_harness.backends.skills.scanning_write_backend import (
+        ScanningSkillWriteBackend,
+    )
     from myrm_agent_harness.backends.skills.similarity import SkillSimilarityChecker
 
 logger = logging.getLogger(__name__)
@@ -108,22 +114,33 @@ def create_skill_manage_tool(
     """
 
     class SkillManageInput(BaseModel):
-        action: Literal["save", "patch", "delete", "write_file", "remove_file", "lock", "unlock"] = Field(
-            description="Action to perform."
+        action: Literal[
+            "save", "patch", "delete", "write_file", "remove_file", "lock", "unlock"
+        ] = Field(description="Action to perform.")
+        name: str = Field(
+            description="Skill name (letters, numbers, underscores, hyphens; max 64 chars)."
         )
-        name: str = Field(description="Skill name (letters, numbers, underscores, hyphens; max 64 chars).")
         content: str = Field(
-            default="", description="For save: SKILL.md with frontmatter. For write_file: file content."
+            default="",
+            description="For save: SKILL.md with frontmatter. For write_file: file content.",
         )
-        description: str = Field(default="", description="Brief skill description (save only).")
-        old_content: str = Field(default="", description="For patch: exact content fragment to replace.")
-        new_content: str = Field(default="", description="For patch: replacement fragment.")
+        description: str = Field(
+            default="", description="Brief skill description (save only)."
+        )
+        old_content: str = Field(
+            default="", description="For patch: exact content fragment to replace."
+        )
+        new_content: str = Field(
+            default="", description="For patch: replacement fragment."
+        )
         file_path: str = Field(
             default="",
             description="For write_file/remove_file: path under scripts/, references/, templates/, or assets/.",
         )
 
-    @tool("skill_manage_tool", description=TOOL_DESCRIPTION, args_schema=SkillManageInput)
+    @tool(
+        "skill_manage_tool", description=TOOL_DESCRIPTION, args_schema=SkillManageInput
+    )
     async def skill_manage_func(
         action: str,
         name: str,
@@ -145,15 +162,33 @@ def create_skill_manage_tool(
         lock = SkillLockManager.get_lock(name, user_id)
         async with lock:
             if action == "save":
-                return await _handle_save(write_backend, name, content, description, user_id, similarity_checker)
+                return await _handle_save(
+                    write_backend,
+                    name,
+                    content,
+                    description,
+                    user_id,
+                    similarity_checker,
+                )
             elif action == "patch":
-                return await _handle_patch(write_backend, skill_backend, name, old_content, new_content, user_id)
+                return await _handle_patch(
+                    write_backend,
+                    skill_backend,
+                    name,
+                    old_content,
+                    new_content,
+                    user_id,
+                )
             elif action == "delete":
                 return await _handle_delete(write_backend, name, user_id)
             elif action == "write_file":
-                return await _handle_write_file(write_backend, name, file_path, content, user_id)
+                return await _handle_write_file(
+                    write_backend, name, file_path, content, user_id
+                )
             elif action == "remove_file":
-                return await _handle_remove_file(write_backend, name, file_path, user_id)
+                return await _handle_remove_file(
+                    write_backend, name, file_path, user_id
+                )
             elif action in ("lock", "unlock"):
                 return await _handle_evolution_lock(name, locked=(action == "lock"))
             else:
@@ -186,7 +221,9 @@ async def _handle_save(
     if frontmatter_error:
         return frontmatter_error
 
-    result = await write_backend.save_skill(name=name, content=content, user_id=user_id, description=description)
+    result = await write_backend.save_skill(
+        name=name, content=content, user_id=user_id, description=description
+    )
 
     if result.success:
         action_word = "updated" if result.was_updated else "created"
@@ -197,7 +234,9 @@ async def _handle_save(
             f"The skill will be available in the user's next conversation."
         )
         if not result.was_updated:
-            similarity_warning = await _check_similarity(similarity_checker, name, description)
+            similarity_warning = await _check_similarity(
+                similarity_checker, name, description
+            )
             if similarity_warning:
                 msg += f"\n\n--- Similarity Warning ---\n{similarity_warning}"
         if result.scan_report and "finding(s)" in result.scan_report:
@@ -219,9 +258,13 @@ async def _check_similarity(
         similar = await checker.find_similar(name, description, top_k=3, threshold=0.6)
         if not similar:
             return ""
-        lines = ["Similar skill(s) already exist. Consider using 'patch' to update instead of creating a duplicate:"]
+        lines = [
+            "Similar skill(s) already exist. Consider using 'patch' to update instead of creating a duplicate:"
+        ]
         for s in similar:
-            lines.append(f"  - '{s.name}' ({s.similarity_score:.0%} similar): {s.description}")
+            lines.append(
+                f"  - '{s.name}' ({s.similarity_score:.0%} similar): {s.description}"
+            )
         return "\n".join(lines)
     except Exception as e:
         logger.warning("Similarity check failed (non-blocking): %s", e)
@@ -251,7 +294,7 @@ async def _handle_patch(
         return f"Error: Skill '{name}' not found. Use 'save' action to create it first."
     except Exception as e:
         logger.error("Failed to read skill '%s': %s", name, e)
-        return f"Error: Failed to read skill '{name}'"
+        return f"Error: Failed to read skill '{name}': {e}"
 
     patched = _apply_patch(current_content, old_content, new_content)
     if patched is None:
@@ -272,7 +315,9 @@ async def _handle_patch(
     return f"Error: {result.error}"
 
 
-async def _handle_delete(write_backend: ScanningSkillWriteBackend, name: str, user_id: str) -> str:
+async def _handle_delete(
+    write_backend: ScanningSkillWriteBackend, name: str, user_id: str
+) -> str:
     """Handle the 'delete' action: remove a skill."""
     result = await write_backend.delete_skill(name=name, user_id=user_id)
 
@@ -283,7 +328,11 @@ async def _handle_delete(write_backend: ScanningSkillWriteBackend, name: str, us
 
 
 async def _handle_write_file(
-    write_backend: ScanningSkillWriteBackend, name: str, file_path: str, content: str, user_id: str
+    write_backend: ScanningSkillWriteBackend,
+    name: str,
+    file_path: str,
+    content: str,
+    user_id: str,
 ) -> str:
     """Handle the 'write_file' action: add/overwrite a supporting file."""
     if not file_path or not file_path.strip():
@@ -307,7 +356,9 @@ async def _handle_write_file(
     return f"Error: {result.error}"
 
 
-async def _handle_remove_file(write_backend: ScanningSkillWriteBackend, name: str, file_path: str, user_id: str) -> str:
+async def _handle_remove_file(
+    write_backend: ScanningSkillWriteBackend, name: str, file_path: str, user_id: str
+) -> str:
     """Handle the 'remove_file' action: delete a supporting file."""
     if not file_path or not file_path.strip():
         return (
@@ -315,7 +366,9 @@ async def _handle_remove_file(write_backend: ScanningSkillWriteBackend, name: st
             "Example: 'scripts/analyze.py' or 'references/api_docs.md'."
         )
 
-    result = await write_backend.delete_resource(skill_name=name, resource_path=file_path, user_id=user_id)
+    result = await write_backend.delete_resource(
+        skill_name=name, resource_path=file_path, user_id=user_id
+    )
 
     if result.success:
         return f"File '{file_path}' removed from skill '{name}' successfully."
@@ -331,7 +384,9 @@ async def _handle_evolution_lock(name: str, *, locked: bool) -> str:
     user-edited content.
     """
     try:
-        from myrm_agent_harness.agent.skills.evolution.infra.integration import get_global_evolution_integration
+        from myrm_agent_harness.agent.skills.evolution.infra.integration import (
+            get_global_evolution_integration,
+        )
 
         evolution = get_global_evolution_integration()
         if not evolution or not evolution.store:
@@ -349,9 +404,11 @@ async def _handle_evolution_lock(name: str, *, locked: bool) -> str:
             f"{'Auto-evolution is now disabled for this skill.' if locked else 'Auto-evolution is now re-enabled.'}"
         )
     except Exception as e:
-        logger.error("Failed to %s skill '%s': %s", "lock" if locked else "unlock", name, e)
+        logger.error(
+            "Failed to %s skill '%s': %s", "lock" if locked else "unlock", name, e
+        )
         action_word = "lock" if locked else "unlock"
-        return f"Error: Failed to {action_word} skill '{name}'"
+        return f"Error: Failed to {action_word} skill '{name}': {e}"
 
 
 # ---------------------------------------------------------------------------
@@ -394,9 +451,7 @@ def _validate_frontmatter(content: str) -> str | None:
 
     end_idx = stripped.find("---", 3)
     if end_idx == -1:
-        return (
-            "Error: YAML frontmatter is not closed (missing closing ---).\nFix: Add '---' after the frontmatter fields."
-        )
+        return "Error: YAML frontmatter is not closed (missing closing ---).\nFix: Add '---' after the frontmatter fields."
 
     frontmatter_block = stripped[3:end_idx].strip()
     if not frontmatter_block:

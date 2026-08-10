@@ -117,6 +117,41 @@ def create_remote_store(
     return QdrantVectorStore(client=client, config=config, is_async=True)
 
 
+async def evict_embedded_store(path: str) -> None:
+    """Close and evict an embedded Qdrant store from the singleton cache.
+
+    Embedded stores are cached per path for process lifetime; callers that
+    provision a throwaway volume (e.g. isolated evaluation runs) must evict it
+    when done so the underlying QdrantClient and its file handles are released.
+    """
+    cache_key = "memory_fallback" if path == ":memory:" else str(Path(path).resolve())
+    async with _embedded_lock:
+        store = _embedded_clients.pop(cache_key, None)
+    if store is None:
+        return
+    try:
+        await store.hard_close()
+    except Exception as exc:
+        logger.warning("Failed to close evicted embedded Qdrant client: %s", exc)
+
+
+async def clear_embedded_stores() -> None:
+    """Close and evict every embedded Qdrant store from the singleton cache.
+
+    Used at process shutdown / full test teardown so no QdrantClient survives
+    beyond the owning MemoryManager.
+    """
+    async with _embedded_lock:
+        stores = list(_embedded_clients.values())
+        _embedded_clients.clear()
+    results = await asyncio.gather(
+        *(store.hard_close() for store in stores), return_exceptions=True
+    )
+    for result in results:
+        if isinstance(result, Exception):
+            logger.warning("Failed to close embedded Qdrant client on shutdown: %s", result)
+
+
 async def create_vector_store(config: VectorStoreConfig) -> QdrantVectorStore | None:
     """Create Qdrant store from configuration.
 

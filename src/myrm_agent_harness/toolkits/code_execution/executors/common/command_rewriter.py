@@ -62,25 +62,37 @@ class CommandRewriter:
 
         Handled patterns: ``cd /workspace``, ``/workspace/file.txt``, etc.
 
-        Args:
-            command: Original command.
-            workspace_path: Actual working directory path.
-
-        Returns:
-            Rewritten command.
+        The resolved workspace path itself is protected before rewriting, so a
+        command that already contains the real workspace (e.g. eval graders
+        addressing ``{workspace}`` where the cache layout ends in ``/workspace``)
+        is never re-expanded into a duplicated path.
         """
         if not workspace_path:
             return command
 
         workspace_str = str(workspace_path)
 
+        placeholders: list[str] = []
+
+        def _protect(match: re.Match[str]) -> str:
+            token = f"\x00wbws{len(placeholders)}\x00"
+            placeholders.append(match.group(0))
+            return token
+
+        protected = re.sub(re.escape(workspace_str), _protect, command)
+
         new_command = re.sub(
             r"/workspace(?=/|$|\s|;|&|\|)",
             workspace_str.replace("\\", "\\\\"),
-            command,
+            protected,
         )
 
+        for index, real in enumerate(placeholders):
+            new_command = new_command.replace(f"\x00wbws{index}\x00", real)
+
         if new_command != command:
-            logger.warning(f" [CommandRewriter] Rewrote /workspace paths: {new_command[:100]}...")
+            logger.warning(
+                f" [CommandRewriter] Rewrote /workspace paths: {new_command[:100]}..."
+            )
 
         return new_command

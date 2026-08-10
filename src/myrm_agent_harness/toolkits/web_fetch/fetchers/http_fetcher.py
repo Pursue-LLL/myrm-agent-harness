@@ -82,13 +82,16 @@ class HttpFetcher:
         allowed_hosts = parse_allowed_internal_hosts()
 
         headers: dict[str, str] = {}
+        domain = self._extract_domain(url)
+        from ..weixin_extractor import get_weixin_request_headers
+
+        headers.update(get_weixin_request_headers(domain))
         if etag:
             headers["If-None-Match"] = etag
         if last_modified:
             headers["If-Modified-Since"] = last_modified
 
         cookie_jar = await self._load_cookie_jar(url)
-        domain = self._extract_domain(url)
         site_store = get_global_site_experience_store()
         prefer_http3 = site_store.get_prefer_http3(domain)
         can_use_http3 = await self._can_use_http3_lane()

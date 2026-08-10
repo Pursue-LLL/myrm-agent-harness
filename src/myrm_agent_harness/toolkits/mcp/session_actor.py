@@ -420,6 +420,14 @@ class MCPSessionActor:
         state the owner serves calls on the warm session; a transport break
         drops into a bounded, backed-off reconnect that rebuilds the session in
         place — the proxy tools handed to the agent keep working across the gap.
+
+        Resource safety: a ``httpx2.AsyncClient`` created for a headered
+        HTTP/SSE transport is owned by ``self._http_client`` and must be closed
+        on *every* exit path — including ``Client()`` construction failure and
+        ``async with client`` ``__aenter__`` failure, neither of which reach the
+        inner ``finally``. Cleanup points: loop-top (reconnect retries),
+        before ``_fail_to_start`` / ``_give_up_reconnecting`` returns (terminal
+        failures), the inner ``finally`` (served sessions), and ``close()``.
         """
         from mcp.client import Client
         from mcp.types import Implementation
@@ -435,6 +443,10 @@ class MCPSessionActor:
         last_error = "not started"
 
         while not self._closed:
+            # Close any transport-level HTTP client left over from a failed
+            # previous iteration (e.g. Client() construction or __aenter__
+            # raised before the inner finally was reached).
+            await self._close_http_client()
             if reconnect_failures > 0:
                 await self._refresh_auth_headers(conn)
             outcome: _ServeOutcome | None = None
@@ -471,6 +483,7 @@ class MCPSessionActor:
                 if not self._ready.is_set():
                     start_attempts += 1
                     if start_attempts >= _SESSION_START_MAX_ATTEMPTS:
+                        await self._close_http_client()
                         self._fail_to_start(last_error)
                         return
                     logger.warning(
@@ -484,6 +497,7 @@ class MCPSessionActor:
                     continue
                 reconnect_failures += 1
                 if reconnect_failures > _RECONNECT_MAX_ATTEMPTS:
+                    await self._close_http_client()
                     self._give_up_reconnecting(last_error)
                     return
                 logger.warning(

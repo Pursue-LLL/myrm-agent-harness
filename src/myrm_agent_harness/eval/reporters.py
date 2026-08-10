@@ -53,7 +53,11 @@ class JsonlReporter:
                         "message": turn.case.message,
                         "expected_tools": turn.case.expected_tools,
                         "state_assertions": [
-                            {"type": a.type, "expected": a.expected, "threshold": a.threshold}
+                            {
+                                "type": a.type,
+                                "expected": a.expected,
+                                "threshold": a.threshold,
+                            }
                             for a in getattr(turn.case, "state_assertions", [])
                         ],
                         "sandbox_assertions": [
@@ -63,6 +67,7 @@ class JsonlReporter:
                                 "expected": a.expected,
                                 "result_file": a.result_file,
                                 "timeout": a.timeout,
+                                "readonly_paths": list(a.readonly_paths),
                             }
                             for a in getattr(turn.case, "sandbox_assertions", [])
                         ],
@@ -87,8 +92,12 @@ class JsonlReporter:
                 "pass_rate": result.pass_rate,
                 "all_passed": result.all_passed,
                 "total_ms": result.total_ms,
-                "avg_time_secs": round(total_time_secs / case_count, 3) if case_count else 0.0,
-                "avg_total_tokens": round(total_tokens_sum / case_count) if case_count else 0,
+                "avg_time_secs": (
+                    round(total_time_secs / case_count, 3) if case_count else 0.0
+                ),
+                "avg_total_tokens": (
+                    round(total_tokens_sum / case_count) if case_count else 0
+                ),
             }
             if result.avg_pass_rate is not None:
                 summary["avg_pass_rate"] = result.avg_pass_rate
@@ -130,25 +139,29 @@ class MarkdownReporter:
 
         if total_tokens > 0:
             avg_tokens = total_tokens // result.total_cases if result.total_cases else 0
-            lines.append(f"- **Total Tokens**: {total_tokens:,} (avg {avg_tokens:,}/case)")
+            lines.append(
+                f"- **Total Tokens**: {total_tokens:,} (avg {avg_tokens:,}/case)"
+            )
         if total_cost > 0:
             lines.append(f"- **Total Cost**: ${total_cost:.4f}")
 
         if result.manifest is not None:
             m = result.manifest
-            lines.extend([
-                "",
-                "## Environment",
-                "",
-                f"- **Model**: `{m.model_provider}/{m.model_id}`",
-                f"- **Thinking Effort**: `{m.thinking_effort}`",
-                f"- **Harness Version**: `{m.harness_version}`",
-                f"- **Tools**: `{', '.join(m.tool_policy)}`",
-                f"- **Dataset**: `{m.task_set_id}` (hash: `{m.task_set_hash[:12]}...`)",
-                f"- **Prompt Fingerprint**: `{m.prompt_fingerprint[:16]}...`",
-                f"- **Budget**: `{m.budget_max_tokens}` tokens / `{m.timeout_seconds}`s timeout",
-                f"- **Created**: `{m.created_at}`",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "## Environment",
+                    "",
+                    f"- **Model**: `{m.model_provider}/{m.model_id}`",
+                    f"- **Thinking Effort**: `{m.thinking_effort}`",
+                    f"- **Harness Version**: `{m.harness_version}`",
+                    f"- **Tools**: `{', '.join(m.tool_policy)}`",
+                    f"- **Dataset**: `{m.task_set_id}` (hash: `{m.task_set_hash[:12]}...`)",
+                    f"- **Prompt Fingerprint**: `{m.prompt_fingerprint[:16]}...`",
+                    f"- **Budget**: `{m.budget_max_tokens}` tokens / `{m.timeout_seconds}`s timeout",
+                    f"- **Created**: `{m.created_at}`",
+                ]
+            )
 
         lines.extend(
             [
@@ -159,7 +172,11 @@ class MarkdownReporter:
         )
 
         for i, turn in enumerate(result.turn_results, 1):
-            status = " PASS" if turn.assertion_passed else (" FAIL" if turn.assertion_passed is False else " SKIP")
+            status = (
+                " PASS"
+                if turn.assertion_passed
+                else (" FAIL" if turn.assertion_passed is False else " SKIP")
+            )
             if turn.error:
                 status = " ERROR"
 
@@ -177,7 +194,9 @@ class MarkdownReporter:
             )
 
             if turn.scores:
-                score_desc = ", ".join(f"{k}: {v:g}" for k, v in sorted(turn.scores.items()))
+                score_desc = ", ".join(
+                    f"{k}: {v:g}" for k, v in sorted(turn.scores.items())
+                )
                 lines.extend(
                     [
                         f"- **Scores**: `{score_desc}`",

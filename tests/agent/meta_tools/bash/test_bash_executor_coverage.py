@@ -351,10 +351,7 @@ async def test_execute_failure_small_stdout_visible_in_message() -> None:
         success=False,
         result=1,
         stdout="processed row 149\n",
-        stderr=(
-            "Traceback (most recent call last):\n"
-            "ValueError: bad row 150"
-        ),
+        stderr=("Traceback (most recent call last):\n" "ValueError: bad row 150"),
         error="ValueError: bad row 150",
         error_category="EXEC",
     )
@@ -522,9 +519,7 @@ def test_rewrite_skill_paths_and_container_paths() -> None:
         paths = bash_exec._convert_to_container_paths(["/tmp/ws/skills/a"], workspace)
     assert paths
 
-    code, skill = bash_exec._rewrite_skill_paths(
-        "import skills.demo", ["/tmp/ws/skills/demo"]
-    )
+    code, skill = bash_exec._rewrite_skill_paths("import skills.demo")
     assert isinstance(code, str)
     assert skill is None or isinstance(skill, str)
 
@@ -573,6 +568,81 @@ async def test_execute_strips_markdown_fence_and_clears_invalidated_cache() -> N
 
 @pytest.mark.asyncio
 async def test_execute_with_skill_paths_stages_detected_skill() -> None:
+    """Path-mode skill calls are staged and the rewritten skill name is used.
+
+    A ``.claude/skills/`` command makes ``rewrite_skill_paths`` return the
+    detected skill name, which overrides the import-mode detection with the
+    same value. Env / work_dir must be injected from the rewritten name.
+    """
+    executor = _mock_code_executor()
+    skill_result = ExecutionResult(
+        success=True, result=0, stdout="ok", stderr="", container_id="c1"
+    )
+    executor.execute_bash.return_value = skill_result
+    executor.execute.return_value = skill_result
+    bash_exec = BashExecutor(executor, enable_skill_execution=False)
+    bash_exec.set_skill_env_map({"demo_skill": {"SK": "1"}})
+    workspace = MagicMock()
+
+    mock_ensure_skills = AsyncMock(return_value=["/ws/.claude/skills/demo_skill"])
+    with (
+        patch.object(
+            bash_exec._workspace_manager,
+            "get_or_create",
+            AsyncMock(return_value=(workspace, None)),
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "get_workspace_path", return_value="/ws"
+        ),
+        patch.object(
+            bash_exec._workspace_manager, "update_workspace_timestamp", AsyncMock()
+        ),
+        patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
+        patch.object(
+            bash_exec._skill_manager,
+            "ensure_skills_in_workspace",
+            mock_ensure_skills,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin.rewrite_skill_paths",
+            return_value=("python3 scripts/run.py", "demo_skill"),
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.code_execution.utils.WorkspacePathResolver.to_container_paths",
+            return_value=["/workspace/.claude/skills/demo_skill"],
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            AsyncMock(return_value=MagicMock(text="ok", evicted_ref=None)),
+        ),
+        patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
+    ):
+        result = await bash_exec.execute(
+            "python3 .claude/skills/demo_skill/scripts/run.py",
+            session_id="sess-1",
+            skill_paths=["/host/skills/demo_skill"],
+        )
+
+    assert result["stdout"] == "ok"
+    mock_ensure_skills.assert_awaited_once()
+    executor.execute_bash.assert_awaited_once()
+
+    context = executor.execute_bash.call_args.args[0]
+    assert context.active_skills == ["demo_skill"]
+    assert context.work_dir == "/workspace/.claude/skills/demo_skill"
+    assert context.env["SK"] == "1"
+
+
+@pytest.mark.asyncio
+async def test_execute_import_mode_keeps_detected_skill() -> None:
+    """Import-mode skill calls must not lose the detected skill name.
+
+    `rewrite_skill_paths` only detects ``.claude/skills/`` paths and returns
+    ``(code, None)`` for plain ``from skills.x import`` commands. The rewrite
+    result must therefore only override the detected skill name when a skill
+    is actually rewritten; otherwise the env / work_dir injection below would
+    silently disappear.
+    """
     executor = _mock_code_executor()
     skill_result = ExecutionResult(
         success=True, result=0, stdout="ok", stderr="", container_id="c1"
@@ -603,10 +673,6 @@ async def test_execute_with_skill_paths_stages_detected_skill() -> None:
             mock_ensure_skills,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin.rewrite_skill_paths",
-            return_value=("import skills.demo_skill", "demo_skill"),
-        ),
-        patch(
             "myrm_agent_harness.toolkits.code_execution.utils.WorkspacePathResolver.to_container_paths",
             return_value=["/workspace/skills/demo_skill"],
         ),
@@ -616,15 +682,16 @@ async def test_execute_with_skill_paths_stages_detected_skill() -> None:
         ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
     ):
-        result = await bash_exec.execute(
+        await bash_exec.execute(
             "from skills.demo_skill import run",
             session_id="sess-1",
             skill_paths=["/host/skills/demo_skill"],
         )
 
-    assert result["stdout"] == "ok"
-    mock_ensure_skills.assert_awaited_once()
-    executor.execute.assert_awaited_once()
+    context = executor.execute.call_args.args[0]
+    assert context.active_skills == ["demo_skill"]
+    assert context.work_dir == "/workspace/.claude/skills/demo_skill"
+    assert context.env["SK"] == "1"
 
 
 @pytest.mark.asyncio
@@ -890,7 +957,7 @@ def test_rewrite_skill_paths_returns_detected_skill() -> None:
         "myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin.rewrite_skill_paths",
         return_value=("rewritten", "demo"),
     ):
-        code, skill = bash_exec._rewrite_skill_paths("orig", ["/ws/skills/demo"])
+        code, skill = bash_exec._rewrite_skill_paths("orig")
     assert code == "rewritten"
     assert skill == "demo"
 

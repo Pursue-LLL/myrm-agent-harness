@@ -18,7 +18,9 @@ import sys
 from pathlib import Path
 
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
-from myrm_agent_harness.toolkits.code_execution.executors.common.subprocess_guard import guarded_communicate
+from myrm_agent_harness.toolkits.code_execution.executors.common.subprocess_guard import (
+    guarded_communicate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,20 @@ class VenvManager:
             return Path(self.config.local.shared_venv_path)
         return DEFAULT_SHARED_VENV_PATH
 
+    def command_whitelist_paths(
+        self, extra_readonly_paths: tuple[str, ...]
+    ) -> list[Path] | None:
+        """Merge venv whitelist with per-command read-only grading mounts.
+
+        ``extra_readonly_paths`` lets post-episode graders (e.g. eval ``test_suite``)
+        reach grading assets mounted outside the agent workspace. Agent-runtime bash
+        passes an empty tuple, so those assets stay blocked.
+        """
+        venv_path = self.get_venv_path()
+        paths = [venv_path] if venv_path.exists() else []
+        paths.extend(Path(p) for p in extra_readonly_paths)
+        return paths or None
+
     async def get_python_executable(self) -> str:
         """Return the Python executable path, creating the venv if needed."""
         if self._python_executable and self._venv_initialized:
@@ -76,7 +92,9 @@ class VenvManager:
         if not self.config.local.auto_create_venv:
             self._python_executable = sys.executable
             self._venv_initialized = True
-            logger.warning(" [VenvManager] Using system Python (no shared venv configured)")
+            logger.warning(
+                " [VenvManager] Using system Python (no shared venv configured)"
+            )
             return self._python_executable
 
         return await self._create_venv(venv_path)
@@ -140,7 +158,9 @@ class VenvManager:
             Rewritten command string.
         """
         stripped = command.strip()
-        if not (stripped.startswith("pip install") or stripped.startswith("pip3 install")):
+        if not (
+            stripped.startswith("pip install") or stripped.startswith("pip3 install")
+        ):
             return command
 
         await self.get_python_executable()

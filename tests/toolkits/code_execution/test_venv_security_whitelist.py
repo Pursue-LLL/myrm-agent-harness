@@ -1,7 +1,7 @@
 """Tests for venv path security whitelist in LocalExecutor.
 
 Covers:
-1. _get_venv_additional_paths — returns venv path when exists, None otherwise
+1. VenvManager.command_whitelist_paths — merges venv path with read-only grading mounts
 2. validate_command + venv whitelist — venv paths allowed, non-whitelist blocked
 3. Security non-degradation — forbidden paths remain blocked even with whitelist
 """
@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
-from myrm_agent_harness.toolkits.code_execution.executors.local.executor import (
-    LocalExecutor,
+from myrm_agent_harness.toolkits.code_execution.executors.common.venv_manager import (
+    VenvManager,
 )
 from myrm_agent_harness.toolkits.code_execution.security.validator import (
     _get_allowed_paths,
@@ -41,43 +41,57 @@ def tmp_venv(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def executor_with_venv(tmp_venv: Path, tmp_workspace: Path) -> LocalExecutor:
+def venv_manager_with_venv(tmp_venv: Path) -> VenvManager:
     config = ExecutionConfig(local={"shared_venv_path": str(tmp_venv)})
-    executor = LocalExecutor(config, workspace_path=str(tmp_workspace))
-    return executor
+    return VenvManager(config)
 
 
 @pytest.fixture
-def executor_without_venv(tmp_path: Path, tmp_workspace: Path) -> LocalExecutor:
+def venv_manager_without_venv(tmp_path: Path) -> VenvManager:
     nonexistent = tmp_path / "no_such_venv"
     config = ExecutionConfig(local={"shared_venv_path": str(nonexistent)})
-    executor = LocalExecutor(config, workspace_path=str(tmp_workspace))
-    return executor
+    return VenvManager(config)
 
 
-class TestGetVenvAdditionalPaths:
-    """Unit tests for LocalExecutor._get_venv_additional_paths."""
+class TestCommandWhitelistPaths:
+    """Unit tests for VenvManager.command_whitelist_paths."""
 
     def test_returns_venv_path_when_exists(
-        self, executor_with_venv: LocalExecutor, tmp_venv: Path
+        self, venv_manager_with_venv: VenvManager, tmp_venv: Path
     ) -> None:
-        result = executor_with_venv._get_venv_additional_paths()
+        result = venv_manager_with_venv.command_whitelist_paths(())
         assert result is not None
         assert len(result) == 1
         assert result[0] == tmp_venv
 
     def test_returns_none_when_venv_missing(
-        self, executor_without_venv: LocalExecutor
+        self, venv_manager_without_venv: VenvManager
     ) -> None:
-        result = executor_without_venv._get_venv_additional_paths()
+        result = venv_manager_without_venv.command_whitelist_paths(())
         assert result is None
 
     def test_return_type_matches_additional_paths_signature(
-        self, executor_with_venv: LocalExecutor
+        self, venv_manager_with_venv: VenvManager
     ) -> None:
-        result = executor_with_venv._get_venv_additional_paths()
+        result = venv_manager_with_venv.command_whitelist_paths(())
         assert isinstance(result, list)
         assert all(isinstance(p, Path) for p in result)
+
+    def test_merges_readonly_grader_paths(
+        self, venv_manager_with_venv: VenvManager, tmp_venv: Path
+    ) -> None:
+        grader = tmp_venv.parent / "grader"
+        result = venv_manager_with_venv.command_whitelist_paths((str(grader),))
+        assert result is not None
+        assert grader in result
+        assert len(result) == 2
+
+    def test_readonly_paths_without_venv(
+        self, venv_manager_without_venv: VenvManager
+    ) -> None:
+        grader = Path("/data/grader")
+        result = venv_manager_without_venv.command_whitelist_paths((str(grader),))
+        assert result == [grader]
 
 
 class TestValidateCommandWithVenvWhitelist:

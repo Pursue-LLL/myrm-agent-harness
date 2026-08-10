@@ -122,7 +122,8 @@ Protocol-first architecture with strict framework-business separation.
       max 200, with `truncated` metadata), kanban_unblock (returns ``dependencies_met``;
       ``waiting_on_dependencies`` when parents remain open), kanban_cancel_task (archives
       READY/BACKLOG/BLOCKED/FAILED tasks; for RUNNING tasks also cancels the worker
-      execution via dispatcher), kanban_retry_task (resets a FAILED task to READY with
+      execution via dispatcher; IN_REVIEW tasks are rejected — the approval gate only
+      resolves via approve/reject), kanban_retry_task (resets a FAILED task to READY with
       cleared failure counters; optionally updates description for better worker guidance).
     Board/task field edits and delete use server REST/GUI only — not LLM tools.
 
@@ -255,7 +256,13 @@ Protocol-first architecture with strict framework-business separation.
     use the store's atomic `transition_task_status` CAS (`expected_status` guard), so
     concurrent approve/reject calls resolve exactly once and loser calls observe the
     post-transition state without emitting duplicate events. Rejected reasons surface in
-    the worker context under `## Review history` (via `context_builder`).
+    the worker context under `## Review history` (via `context_builder`). `task.error` is
+    cleared on any verified success path (IN_REVIEW or COMPLETED) to match the `reclaim`
+    semantics — a task that is successfully re-submitted never carries a stale rejection
+    reason. The flag is mutable while the task is active (server-side `update_task` guards
+    the edit: TRIAGE/BACKLOG/READY/RUNNING/BLOCKED may toggle it, while IN_REVIEW and
+    terminal states reject the change) — the harness never mutates `require_approval`
+    post-creation, so the guard lives in the business layer only.
 
 ## Domain Model
 

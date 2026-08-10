@@ -71,6 +71,7 @@ from .fetchers.stealth_fetcher import StealthFetcher
 from .http3_probe import get_http3_retry_metrics
 from .pipeline import ContentPipeline
 from .router.adaptive_router import AdaptiveRouter, RouterStats
+from .weixin_extractor import extract_weixin_article, is_weixin_article_url
 from .youtube_extractor import extract_youtube_transcript, is_youtube_url
 
 if TYPE_CHECKING:
@@ -279,6 +280,29 @@ class FetchEngine(
                             max_chars=max_chars,
                             allow_escalation=allow_escalation,
                         )
+            elif is_weixin_article_url(url):
+                async with asyncio.timeout(self._crawl_timeout):
+                    doc = await extract_weixin_article(
+                        url,
+                        proxy_pool=self._http_fetcher._proxy_pool,
+                    )
+                if doc is not None:
+                    fetch_result = None
+                    logger.info("Weixin article fast-path succeeded: %s", url)
+                else:
+                    logger.info("Weixin article fast-path missed, degrading to browser: %s", url)
+                    async with asyncio.timeout(self._crawl_timeout):
+                        doc, fetch_result = await self._crawl_with_degradation(
+                            url,
+                            etag=etag,
+                            last_modified=last_modified,
+                            max_chars=max_chars,
+                            allow_escalation=allow_escalation,
+                        )
+                    if doc is not None:
+                        logger.info("Weixin article browser degradation succeeded: %s", url)
+                    else:
+                        logger.warning("Weixin article fetch failed after degradation: %s", url)
             else:
                 async with asyncio.timeout(self._crawl_timeout):
                     doc, fetch_result = await self._crawl_with_degradation(

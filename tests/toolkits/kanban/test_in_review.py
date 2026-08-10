@@ -94,6 +94,7 @@ class TestApprovalGate:
         assert updated is not None
         assert updated.status == TaskStatus.IN_REVIEW
         assert updated.result == "work done"
+        assert updated.error == ""
 
         kinds = {e.kind for e in await store.list_events("t1")}
         assert TaskEventKind.REVIEW_REQUESTED in kinds
@@ -119,6 +120,26 @@ class TestApprovalGate:
         assert updated.status == TaskStatus.COMPLETED
 
     @pytest.mark.asyncio
+    async def test_success_clears_stale_error(self) -> None:
+        """A verified success clears any prior error on the task."""
+        store = InMemoryKanbanStore()
+        board = _make_board()
+        await store.save_board(board)
+        task = _make_task(require_approval=False)
+        task.error = "stale failure from previous attempt"
+        await store.save_task(task)
+
+        d = KanbanDispatcher(store, _FakeRunner(), board, verifier=_PassVerifier())
+        await d.start()
+        await asyncio.sleep(0.4)
+        await d.stop()
+
+        updated = await store.get_task("t1")
+        assert updated is not None
+        assert updated.status == TaskStatus.COMPLETED
+        assert updated.error == ""
+
+    @pytest.mark.asyncio
     async def test_approve_promotes_to_completed_and_releases_dependents(self) -> None:
         """approve_task() completes the task and promotes child tasks."""
         store = InMemoryKanbanStore()
@@ -126,6 +147,7 @@ class TestApprovalGate:
         await store.save_board(board)
         parent = _make_task(task_id="parent", status=TaskStatus.IN_REVIEW, require_approval=True)
         parent.result = "built & tested"
+        parent.error = "stale rejection reason"
         await store.save_task(parent)
         child = _make_task(task_id="child", status=TaskStatus.BACKLOG)
         await store.save_task(child)
@@ -137,6 +159,7 @@ class TestApprovalGate:
         assert approved is not None
         assert approved.status == TaskStatus.COMPLETED
         assert approved.completed_at is not None
+        assert approved.error == ""
 
         updated_child = await store.get_task("child")
         assert updated_child is not None
@@ -223,6 +246,7 @@ class TestApprovalGate:
         again = await store.get_task("t1")
         assert again is not None
         assert again.status == TaskStatus.IN_REVIEW
+        assert again.error == ""
         assert len(await store.list_runs("t1")) >= 2
 
     @pytest.mark.asyncio

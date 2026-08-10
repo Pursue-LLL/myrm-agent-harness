@@ -17,7 +17,10 @@ from dataclasses import dataclass, field
 
 from myrm_agent_harness.backends.skills.types_contract import SkillContract
 from myrm_agent_harness.backends.skills.types_enums import SkillPermission, SkillTrust
-from myrm_agent_harness.backends.skills.types_requires import MCPSkillData, SkillRequires
+from myrm_agent_harness.backends.skills.types_requires import (
+    MCPSkillData,
+    SkillRequires,
+)
 from myrm_agent_harness.backends.skills.types_security import SecurityScanSummary
 from myrm_agent_harness.backends.skills.types_usage import SkillUsageStats
 from myrm_agent_harness.core.hooks.types import HookDefinition, HookEvent

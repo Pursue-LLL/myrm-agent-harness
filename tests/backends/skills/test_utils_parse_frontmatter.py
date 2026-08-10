@@ -1,8 +1,13 @@
-"""Tests for parse_skill_frontmatter."""
+"""Tests for parse_skill_frontmatter and primary_env propagation."""
 
 import pytest
 
-from myrm_agent_harness.backends.skills._utils import SkillMetadataError, parse_skill_frontmatter
+from myrm_agent_harness.backends.skills._runtime import build_skill_metadata
+from myrm_agent_harness.backends.skills._utils import (
+    SkillMetadataError,
+    parse_skill_frontmatter,
+)
+from myrm_agent_harness.backends.skills.types import SkillTrust
 
 
 def test_parse_skill_frontmatter_full():
@@ -92,7 +97,10 @@ You are a QA engineer."""
     assert fm.name == "self-qa"
     assert "Automated QA testing" in fm.description
     assert fm.category == "development"
-    assert fm.allowed_tools == "browser_navigate browser_inspect browser_snapshot browser_interact browser_extract browser_manage"
+    assert (
+        fm.allowed_tools
+        == "browser_navigate browser_inspect browser_snapshot browser_interact browser_extract browser_manage"
+    )
 
 
 def test_parse_skill_frontmatter_missing_required():
@@ -100,5 +108,69 @@ def test_parse_skill_frontmatter_missing_required():
 name: Missing description
 ---
 pass"""
-    with pytest.raises(SkillMetadataError, match="Required field 'description' missing"):
+    with pytest.raises(
+        SkillMetadataError, match="Required field 'description' missing"
+    ):
         parse_skill_frontmatter(content, "test_3")
+
+
+# ── primary_env field parsing ────────────────────────────────────────────
+
+
+def test_parse_skill_frontmatter_primary_env_camel_case():
+    content = "---\ndescription: test\nprimaryEnv: BRAVE_API_KEY\n---\n# Skill\n"
+    fm = parse_skill_frontmatter(content, "test")
+    assert fm.primary_env == "BRAVE_API_KEY"
+
+
+def test_parse_skill_frontmatter_primary_env_snake_case():
+    content = "---\ndescription: test\nprimary_env: OPENAI_API_KEY\n---\n# Skill\n"
+    fm = parse_skill_frontmatter(content, "test")
+    assert fm.primary_env == "OPENAI_API_KEY"
+
+
+def test_parse_skill_frontmatter_primary_env_defaults_none():
+    content = "---\ndescription: test\n---\n# Skill\n"
+    fm = parse_skill_frontmatter(content, "test")
+    assert fm.primary_env is None
+
+
+def test_parse_skill_frontmatter_primary_env_empty_string_treated_as_none():
+    content = '---\ndescription: test\nprimaryEnv: ""\n---\n# Skill\n'
+    fm = parse_skill_frontmatter(content, "test")
+    assert fm.primary_env is None
+
+
+def test_parse_skill_frontmatter_primary_env_whitespace_treated_as_none():
+    content = "---\ndescription: test\nprimaryEnv: '   '\n---\n# Skill\n"
+    fm = parse_skill_frontmatter(content, "test")
+    assert fm.primary_env is None
+
+
+# ── build_skill_metadata() primary_env propagation ───────────────────────
+
+
+def test_build_skill_metadata_primary_env_propagated():
+    content = "---\ndescription: test\nprimaryEnv: SOME_KEY\n---\n# Skill\n"
+    fm = parse_skill_frontmatter(content, "my-skill")
+    meta = build_skill_metadata(
+        skill_name="my-skill",
+        frontmatter=fm,
+        storage_path="/tmp/skills/my-skill",
+        content=content,
+        trust=SkillTrust.INSTALLED,
+    )
+    assert meta.primary_env == "SOME_KEY"
+
+
+def test_build_skill_metadata_primary_env_none():
+    content = "---\ndescription: test\n---\n# Skill\n"
+    fm = parse_skill_frontmatter(content, "my-skill")
+    meta = build_skill_metadata(
+        skill_name="my-skill",
+        frontmatter=fm,
+        storage_path="/tmp/skills/my-skill",
+        content=content,
+        trust=SkillTrust.INSTALLED,
+    )
+    assert meta.primary_env is None

@@ -175,7 +175,9 @@ def _parse_frontmatter_yaml(content: str, skill_dir_name: str) -> dict[str, obje
         raise SkillMetadataError(f"Invalid YAML syntax in frontmatter: {e}") from e
 
     if not isinstance(parsed, dict):
-        raise SkillMetadataError(f"Frontmatter must be a YAML object, got: {type(parsed).__name__}")
+        raise SkillMetadataError(
+            f"Frontmatter must be a YAML object, got: {type(parsed).__name__}"
+        )
 
     return parsed
 
@@ -224,7 +226,9 @@ _KNOWN_FRONTMATTER_FIELDS = frozenset(
 )
 
 
-def _validate_and_extract_description(parsed: dict[str, object], skill_dir_name: str) -> str:
+def _validate_and_extract_description(
+    parsed: dict[str, object], skill_dir_name: str
+) -> str:
     """Validate and extract description field per agentskills.io spec.
 
     Truncates to 1024 characters if exceeded. Strips XML angle brackets
@@ -257,7 +261,9 @@ def _validate_and_extract_description(parsed: dict[str, object], skill_dir_name:
         description = description[:_MAX_DESCRIPTION_LENGTH]
 
     if "<" in description or ">" in description:
-        logger.warning(f"Skill '{skill_dir_name}' description contains angle brackets, stripping for safety")
+        logger.warning(
+            f"Skill '{skill_dir_name}' description contains angle brackets, stripping for safety"
+        )
         description = description.replace("<", "").replace(">", "")
 
     return description
@@ -267,7 +273,9 @@ def _warn_unknown_fields(parsed: dict[str, object], skill_dir_name: str) -> None
     """Log warnings for unrecognized frontmatter fields."""
     unknown = set(parsed.keys()) - _KNOWN_FRONTMATTER_FIELDS
     if unknown:
-        logger.warning(f"Skill '{skill_dir_name}' has unknown frontmatter fields: {', '.join(sorted(unknown))}")
+        logger.warning(
+            f"Skill '{skill_dir_name}' has unknown frontmatter fields: {', '.join(sorted(unknown))}"
+        )
 
 
 def _parse_requires(parsed: dict[str, object]) -> SkillRequires | None:
@@ -298,19 +306,29 @@ def _extract_str_list(value: object) -> list[str]:
     if value is None:
         return []
     if isinstance(value, list):
-        return [str(item).strip() for item in value if item is not None and str(item).strip()]
+        return [
+            str(item).strip()
+            for item in value
+            if item is not None and str(item).strip()
+        ]
     if isinstance(value, str):
         return [value.strip()] if value.strip() else []
     return []
 
 
-def _require_contract_mapping(raw_contract: object, skill_dir_name: str) -> dict[str, object]:
+def _require_contract_mapping(
+    raw_contract: object, skill_dir_name: str
+) -> dict[str, object]:
     if not isinstance(raw_contract, dict):
-        raise SkillMetadataError(f"Skill '{skill_dir_name}' contract must be a YAML mapping with structured fields")
+        raise SkillMetadataError(
+            f"Skill '{skill_dir_name}' contract must be a YAML mapping with structured fields"
+        )
     return raw_contract
 
 
-def _parse_contract_steps(raw_contract: dict[str, object], skill_dir_name: str) -> tuple[str, ...]:
+def _parse_contract_steps(
+    raw_contract: dict[str, object], skill_dir_name: str
+) -> tuple[str, ...]:
     return tuple(_extract_str_list(raw_contract.get("steps")))
 
 
@@ -318,16 +336,22 @@ def _parse_contract_dependencies(raw_contract: dict[str, object]) -> tuple[str, 
     return tuple(_extract_str_list(raw_contract.get("dependencies")))
 
 
-def _parse_contract_success_criteria(raw_contract: dict[str, object], skill_dir_name: str) -> str:
+def _parse_contract_success_criteria(
+    raw_contract: dict[str, object], skill_dir_name: str
+) -> str:
     raw_value = raw_contract.get("success_criteria")
     if raw_value is None:
         return ""
     if not isinstance(raw_value, str):
-        raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.success_criteria must be a string")
+        raise SkillMetadataError(
+            f"Skill '{skill_dir_name}' contract.success_criteria must be a string"
+        )
     return raw_value.strip()
 
 
-def _parse_contract_duration(raw_contract: dict[str, object], skill_dir_name: str) -> float | None:
+def _parse_contract_duration(
+    raw_contract: dict[str, object], skill_dir_name: str
+) -> float | None:
     import math
 
     raw_value = raw_contract.get("estimated_duration_seconds")
@@ -340,9 +364,13 @@ def _parse_contract_duration(raw_contract: dict[str, object], skill_dir_name: st
             f"Skill '{skill_dir_name}' contract.estimated_duration_seconds must be numeric"
         ) from exc
     if math.isnan(duration) or math.isinf(duration):
-        raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.estimated_duration_seconds must be finite")
+        raise SkillMetadataError(
+            f"Skill '{skill_dir_name}' contract.estimated_duration_seconds must be finite"
+        )
     if duration < 0:
-        raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.estimated_duration_seconds cannot be negative")
+        raise SkillMetadataError(
+            f"Skill '{skill_dir_name}' contract.estimated_duration_seconds cannot be negative"
+        )
     return duration
 
 
@@ -354,12 +382,16 @@ def _parse_contract_judgments(
     if raw_items is None:
         return ()
     if not isinstance(raw_items, list):
-        raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.key_judgments must be a list")
+        raise SkillMetadataError(
+            f"Skill '{skill_dir_name}' contract.key_judgments must be a list"
+        )
 
     judgments: list[SkillContractJudgment] = []
     for index, item in enumerate(raw_items, start=1):
         if not isinstance(item, dict):
-            raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.key_judgments[{index}] must be a mapping")
+            raise SkillMetadataError(
+                f"Skill '{skill_dir_name}' contract.key_judgments[{index}] must be a mapping"
+            )
         judgment_id = str(item.get("judgment_id", "")).strip()
         description = str(item.get("description", "")).strip()
         condition = str(item.get("condition", "")).strip()
@@ -392,12 +424,16 @@ def _parse_contract_traps(
     if raw_items is None:
         return ()
     if not isinstance(raw_items, list):
-        raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.potential_traps must be a list")
+        raise SkillMetadataError(
+            f"Skill '{skill_dir_name}' contract.potential_traps must be a list"
+        )
 
     traps: list[SkillContractTrap] = []
     for index, item in enumerate(raw_items, start=1):
         if not isinstance(item, dict):
-            raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.potential_traps[{index}] must be a mapping")
+            raise SkillMetadataError(
+                f"Skill '{skill_dir_name}' contract.potential_traps[{index}] must be a mapping"
+            )
         description = str(item.get("description", "")).strip()
         mitigation = str(item.get("mitigation", "")).strip()
         if not description or not mitigation:
@@ -407,7 +443,9 @@ def _parse_contract_traps(
         severity_raw = item.get("severity")
         severity = str(severity_raw).strip() if severity_raw is not None else "medium"
         trigger_raw = item.get("trigger_condition")
-        trigger_condition = str(trigger_raw).strip() if trigger_raw is not None else None
+        trigger_condition = (
+            str(trigger_raw).strip() if trigger_raw is not None else None
+        )
         traps.append(
             SkillContractTrap(
                 description=description,
@@ -427,12 +465,16 @@ def _parse_contract_verifications(
     if raw_items is None:
         return ()
     if not isinstance(raw_items, list):
-        raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.verification_steps must be a list")
+        raise SkillMetadataError(
+            f"Skill '{skill_dir_name}' contract.verification_steps must be a list"
+        )
 
     verifications: list[SkillContractVerification] = []
     for index, item in enumerate(raw_items, start=1):
         if not isinstance(item, dict):
-            raise SkillMetadataError(f"Skill '{skill_dir_name}' contract.verification_steps[{index}] must be a mapping")
+            raise SkillMetadataError(
+                f"Skill '{skill_dir_name}' contract.verification_steps[{index}] must be a mapping"
+            )
         step_id = str(item.get("step_id", "")).strip()
         description = str(item.get("description", "")).strip()
         validation_method = str(item.get("validation_method", "")).strip()
@@ -441,7 +483,11 @@ def _parse_contract_verifications(
                 f"Skill '{skill_dir_name}' contract.verification_steps[{index}] has missing required fields"
             )
         expected_output_raw = item.get("expected_output")
-        expected_output = str(expected_output_raw).strip() if expected_output_raw is not None else None
+        expected_output = (
+            str(expected_output_raw).strip()
+            if expected_output_raw is not None
+            else None
+        )
         verifications.append(
             SkillContractVerification(
                 step_id=step_id,
@@ -454,7 +500,9 @@ def _parse_contract_verifications(
     return tuple(verifications)
 
 
-def _parse_skill_contract(parsed: dict[str, object], skill_dir_name: str) -> SkillContract | None:
+def _parse_skill_contract(
+    parsed: dict[str, object], skill_dir_name: str
+) -> SkillContract | None:
     raw_contract = parsed.get("contract")
     if raw_contract is None:
         return None
@@ -466,7 +514,9 @@ def _parse_skill_contract(parsed: dict[str, object], skill_dir_name: str) -> Ski
         potential_traps=_parse_contract_traps(contract_map, skill_dir_name),
         verification_steps=_parse_contract_verifications(contract_map, skill_dir_name),
         dependencies=_parse_contract_dependencies(contract_map),
-        estimated_duration_seconds=_parse_contract_duration(contract_map, skill_dir_name),
+        estimated_duration_seconds=_parse_contract_duration(
+            contract_map, skill_dir_name
+        ),
         success_criteria=_parse_contract_success_criteria(contract_map, skill_dir_name),
     )
 
@@ -505,10 +555,15 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
     if "name" in parsed:
         raw_name = str(parsed["name"]).strip()
         if len(raw_name) > _MAX_NAME_LENGTH:
-            logger.warning(f"Skill '{skill_dir_name}' name exceeds {_MAX_NAME_LENGTH} chars, ignoring")
+            logger.warning(
+                f"Skill '{skill_dir_name}' name exceeds {_MAX_NAME_LENGTH} chars, ignoring"
+            )
         else:
             name = raw_name
-            if not re.match(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", raw_name) or "--" in raw_name:
+            if (
+                not re.match(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$", raw_name)
+                or "--" in raw_name
+            ):
                 logger.warning(
                     f"Skill '{skill_dir_name}' name '{raw_name}' does not follow "
                     f"agentskills.io naming convention (lowercase + hyphens only)"
@@ -561,13 +616,18 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
     requires = _parse_requires(parsed)
 
     # Tool-based conditional activation (SKILL.md frontmatter)
-    requires_tools = _extract_str_list(parsed.get("requires-tools") or parsed.get("requires_tools"))
-    fallback_for_tools = _extract_str_list(parsed.get("fallback-for-tools") or parsed.get("fallback_for_tools"))
+    requires_tools = _extract_str_list(
+        parsed.get("requires-tools") or parsed.get("requires_tools")
+    )
+    fallback_for_tools = _extract_str_list(
+        parsed.get("fallback-for-tools") or parsed.get("fallback_for_tools")
+    )
     requires_tool_groups = _extract_str_list(
         parsed.get("requires-tool-groups") or parsed.get("requires_tool_groups"),
     )
     fallback_for_tool_groups = _extract_str_list(
-        parsed.get("fallback-for-tool-groups") or parsed.get("fallback_for_tool_groups"),
+        parsed.get("fallback-for-tool-groups")
+        or parsed.get("fallback_for_tool_groups"),
     )
 
     # always: optional, always-inject flag
@@ -616,9 +676,13 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
 
     # required-credential-files: optional, list of credential file paths
     required_credential_files: list[str] = []
-    raw_cred_files = parsed.get("required-credential-files") or parsed.get("required_credential_files")
+    raw_cred_files = parsed.get("required-credential-files") or parsed.get(
+        "required_credential_files"
+    )
     if raw_cred_files and isinstance(raw_cred_files, list):
-        required_credential_files = [str(f).strip() for f in raw_cred_files if str(f).strip()]
+        required_credential_files = [
+            str(f).strip() for f in raw_cred_files if str(f).strip()
+        ]
 
     # evolution-locked: optional (default False)
     evolution_locked = False
@@ -688,7 +752,9 @@ def update_frontmatter_evolution_lock(skill_path: str | Path, locked: bool) -> N
     # Match the frontmatter block safely.
     match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
     if not match:
-        logger.warning(f"Failed to find valid YAML frontmatter in {path} to update evolution_locked.")
+        logger.warning(
+            f"Failed to find valid YAML frontmatter in {path} to update evolution_locked."
+        )
         return
 
     frontmatter = match.group(1)
@@ -698,7 +764,10 @@ def update_frontmatter_evolution_lock(skill_path: str | Path, locked: bool) -> N
     if re.search(pattern, frontmatter, re.IGNORECASE | re.MULTILINE):
         # Replace the existing value
         new_frontmatter = re.sub(
-            pattern, f"\\g<1>{str(locked).lower()}", frontmatter, flags=re.IGNORECASE | re.MULTILINE
+            pattern,
+            f"\\g<1>{str(locked).lower()}",
+            frontmatter,
+            flags=re.IGNORECASE | re.MULTILINE,
         )
     else:
         # Append to the end of frontmatter

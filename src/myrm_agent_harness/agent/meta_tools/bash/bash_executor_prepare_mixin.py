@@ -3,6 +3,7 @@
 [INPUT]
 - toolkits.code_execution.code_detector::code_detector, CodeType (POS: Code type detector)
 - agent.skills.mcp.executor::skill_executor (POS: Skill MCP execution bridge)
+- agent.skills.runtime.command_paths::rewrite_skill_paths, detect_skill_script_command (POS: Skill command path utilities)
 - .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 - .bash_executor_constants::MCP_MIN_TIMEOUT (POS: MCP timeout floor)
 
@@ -26,7 +27,10 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
 from myrm_agent_harness.agent.meta_tools.bash.bash_executor_constants import (
     MCP_MIN_TIMEOUT,
 )
-from myrm_agent_harness.agent.skills.runtime.env import rewrite_skill_paths
+from myrm_agent_harness.agent.skills.runtime.command_paths import (
+    detect_skill_script_command,
+    rewrite_skill_paths,
+)
 from myrm_agent_harness.toolkits.code_execution.code_detector import (
     CodeType,
     code_detector,
@@ -194,10 +198,6 @@ class BashExecutorPrepareMixin:
 
     def _detect_skill_from_code(self, code: str) -> str | None:
         """Detect skill name from Python import patterns or .claude/skills paths."""
-        from myrm_agent_harness.agent.skills.runtime.env import (
-            detect_skill_script_command,
-        )
-
         detected, skill_name = detect_skill_script_command(code)
         if detected and skill_name:
             return skill_name
@@ -212,19 +212,9 @@ class BashExecutorPrepareMixin:
 
         return None
 
-    def _rewrite_skill_paths(
-        self, code: str, workspace_skill_paths: list[str]
-    ) -> tuple[str, str | None]:
+    def _rewrite_skill_paths(self, code: str) -> tuple[str, str | None]:
         """Rewrite skill absolute paths to relative paths in code."""
-        rewritten_code, detected_skill = rewrite_skill_paths(
-            code, active_skill_names=None
-        )
-
-        if detected_skill:
-            logger.info(f" Path rewrite: .claude/skills/{detected_skill}/ -> relative")
-            return rewritten_code, detected_skill
-
-        return code, None
+        return rewrite_skill_paths(code)
 
     def _convert_to_container_paths(
         self, workspace_skill_paths: list[str], workspace: Workspace

@@ -95,6 +95,7 @@ def create_web_fetch_tool(
     tool_description = f"""web_fetch_tool extracts detailed content from specific webpage URLs.
 {sections}
 For read-only content retrieval (articles, docs, blog posts), always prefer this tool over browser_navigate — it's faster, cheaper, and handles JS rendering internally.
+WeChat Official Account article links (mp.weixin.qq.com/s/...) are supported via fetch_full_content; use the real article URL the user provided.
 For JS-heavy or interactive pages (clicking, filling forms, scrolling), use browser tools. For many pages, call web_fetch with multiple URLs.
 """.strip()
 

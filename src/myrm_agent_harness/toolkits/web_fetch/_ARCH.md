@@ -9,7 +9,7 @@ Layered single-page web fetch engine with L1 HTTP / L2 Browser / L3 Stealth fall
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Entry point. Re-exports FetchEngine, result types, and global instance. | ✅ |
-| engine.py | Core | FetchEngine — tiered fetcher pool entry (mixins: cache / fetch / escalation) | ✅ |
+| engine.py | Core | FetchEngine — tiered fetcher pool entry (mixins: cache / fetch / escalation); WeChat URLs log fast-path vs browser degradation outcomes | ✅ |
 | engine_types.py | Core | CachedDocument, AccessStats, BackgroundTask, result aliases | ✅ |
 | engine_cache_mixin.py | Core | Cache, coalescing, SWR background revalidation mixin | ✅ |
 | engine_fetch_mixin.py | Core | L1/L2/L3 fetch, degradation, router feedback mixin | ✅ |
@@ -26,6 +26,7 @@ Layered single-page web fetch engine with L1 HTTP / L2 Browser / L3 Stealth fall
 | binary_router.py | Util | Binary content type routing. | ✅ |
 | youtube_extractor.py | Util | YouTube transcript fast-path via `[web]` optional `youtube-transcript-api` + oEmbed metadata (title/author); HTML fallback when missing. | ✅ |
 | bilibili_extractor.py | Util | Bilibili subtitle fast-path via public API + SessionVault cookie for AI subtitles; Browser fallback when unavailable. | ✅ |
+| weixin_extractor.py | Util | WeChat Official Account article fast-path via MicroMessenger UA + `#js_content` extraction (host `/s` URLs, data-src images, publish_time metadata); Browser fallback when blocked. | ✅ |
 | http3_probe.py | Util | HTTP/3 protocol probe. | ✅ |
 
 | Submodule | Description |

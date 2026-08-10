@@ -6,7 +6,7 @@
 - skill_catalog_delivery: strip/reinject catalog on first HumanMessage
 - attenuator: 信任衰减器
 - loader: SKILL.md 文档加载器
-- env: 技能执行环境准备
+- command_paths: 技能命令路径重写与技能脚本检测
 """
 
 from .attenuator import AttenuationResult, attenuate_tools
@@ -17,11 +17,8 @@ from .catalog_display import (
     CatalogDisplayResolution,
     resolve_catalog_display_skills,
 )
-from .env import (
+from .command_paths import (
     detect_skill_script_command,
-    extract_skill_name,
-    prepare_skill_env,
-    resolve_skill_env,
     rewrite_skill_paths,
 )
 from .loader import SkillMdLoader, skill_md_loader
@@ -44,11 +41,8 @@ __all__ = [
     "build_bound_skills_block",
     "detect_skill_script_command",
     "ensure_skill_catalog_in_messages",
-    "extract_skill_name",
     "get_metadata_summary",
-    "prepare_skill_env",
     "resolve_catalog_display_skills",
-    "resolve_skill_env",
     "rewrite_skill_paths",
     "skill_md_loader",
     "skill_registry",

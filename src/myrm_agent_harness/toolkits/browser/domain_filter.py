@@ -316,6 +316,25 @@ _RESOURCE_TYPE_MAP: dict[str, str] = {
 }
 
 
+async def _continue_route_safely(route: Route) -> None:
+    """Continue route; ignore duplicate handling when page+context handlers overlap."""
+    try:
+        await route.continue_()
+    except Exception as exc:
+        if "Route is already handled" in str(exc):
+            return
+        raise
+
+
+async def _abort_route_safely(route: Route, *, error_code: str = "blockedbyclient") -> None:
+    try:
+        await route.abort(error_code)
+    except Exception as exc:
+        if "Route is already handled" in str(exc):
+            return
+        raise
+
+
 def _is_ad_domain(hostname: str, blocklist: frozenset[str]) -> bool:
     """Check if hostname matches any blocked ad domain via suffix walking.
 
@@ -355,32 +374,32 @@ async def _install_http_filter(
 
         if not url.startswith(("http://", "https://")):
             if resource_type == "document":
-                await route.abort("blockedbyclient")
+                await _abort_route_safely(route)
             else:
-                await route.continue_()
+                await _continue_route_safely(route)
             return
 
         hostname = urlparse(url).hostname or ""
 
         if ad_blocklist and _is_ad_domain(hostname, ad_blocklist):
-            await route.abort("blockedbyclient")
+            await _abort_route_safely(route)
             return
 
         if domain_blocklist and not domain_blocklist.is_empty and domain_blocklist.is_allowed(hostname):
-            await route.abort("blockedbyclient")
+            await _abort_route_safely(route)
             return
 
         if not allowlist.is_empty and not allowlist.is_allowed(hostname):
-            await route.abort("blockedbyclient")
+            await _abort_route_safely(route)
             return
 
         if resource_block:
             attr_name = _RESOURCE_TYPE_MAP.get(resource_type)
             if attr_name and getattr(resource_block, attr_name):
-                await route.abort("blockedbyclient")
+                await _abort_route_safely(route)
                 return
 
-        await route.continue_()
+        await _continue_route_safely(route)
 
     await context.route("**/*", _handler)
 

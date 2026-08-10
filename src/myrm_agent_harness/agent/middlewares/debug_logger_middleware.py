@@ -69,8 +69,10 @@ class DebugLoggerMiddleware(AgentMiddleware):  # type: ignore[type-arg]
             # Special handling for tool responses
             elif msg_type == "ToolMessage":
                 tool_name = getattr(msg, "name", "unknown")
-                # Don't truncate error messages for debugging
-                is_error = content.startswith("") if content else False
+                # Don't truncate error messages for debugging. ToolMessage content
+                # may be a list (structured/multi-part results), which has no
+                # startswith — only string content is checked.
+                is_error = isinstance(content, str) and bool(content)
                 formatted = content if is_error else _format_content(content)
                 log_lines.append(f" [{idx}] {msg_type}({tool_name}): {formatted}")
             else:

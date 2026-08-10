@@ -462,10 +462,23 @@ class QdrantVectorStore(VectorStore):
             return
 
         if self._is_async and hasattr(self._client, "close"):
-            await self._client.close()  # type: ignore[union-attr]
+            await self._client.close()
         elif hasattr(self._client, "close"):
-            self._client.close()  # type: ignore[union-attr]
+            self._client.close()
         logger.debug("Qdrant connection closed")
+
+    async def hard_close(self) -> None:
+        """Force-close the underlying Qdrant client regardless of deployment mode.
+
+        Only for stores that are being evicted from the embedded singleton cache
+        (e.g. a throwaway isolated evaluation volume). The regular ``close()``
+        skips EMBEDDED clients because they are shared per path.
+        """
+        if self._is_async and hasattr(self._client, "close"):
+            await self._client.close()
+        elif hasattr(self._client, "close"):
+            self._client.close()
+        logger.debug("Qdrant connection closed (forced)")
 
     # Health & diagnostics
 

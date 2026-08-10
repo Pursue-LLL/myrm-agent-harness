@@ -367,7 +367,7 @@ def build_orchestrator_tools(
 
         Cancels READY, BACKLOG, BLOCKED, or FAILED tasks immediately.
         For RUNNING tasks, also stops the worker execution.
-        Cannot cancel COMPLETED or already ARCHIVED tasks.
+        Cannot cancel COMPLETED, ARCHIVED, or tasks awaiting human review.
 
         Args:
             task_id: ID of the task to cancel (required).
@@ -380,7 +380,11 @@ def build_orchestrator_tools(
         if task is None:
             return json.dumps({"error": f"Task {task_id} not found"})
 
-        if task.status in (TaskStatus.COMPLETED, TaskStatus.ARCHIVED):
+        if task.status in (
+            TaskStatus.COMPLETED,
+            TaskStatus.ARCHIVED,
+            TaskStatus.IN_REVIEW,
+        ):
             return json.dumps(
                 {"error": f"Cannot cancel task in {task.status.value} state"}
             )

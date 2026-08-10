@@ -10,15 +10,19 @@ Example::
 """
 
 from myrm_agent_harness.toolkits.vector.qdrant.factory import (
+    clear_embedded_stores,
     create_embedded_store,
     create_remote_store,
     create_vector_store,
+    evict_embedded_store,
 )
 from myrm_agent_harness.toolkits.vector.qdrant.store import QdrantVectorStore
 
 __all__ = [
     "QdrantVectorStore",
+    "clear_embedded_stores",
     "create_embedded_store",
     "create_remote_store",
     "create_vector_store",
+    "evict_embedded_store",
 ]

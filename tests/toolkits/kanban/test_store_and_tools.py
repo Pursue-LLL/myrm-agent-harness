@@ -1938,6 +1938,21 @@ class TestKanbanCancelTask:
         assert "archived" in result["error"]
 
     @pytest.mark.asyncio
+    async def test_cancel_in_review_task_rejected(self) -> None:
+        """IN_REVIEW tasks must be resolved via approve/reject, not cancelled."""
+        store = InMemoryKanbanStore()
+        await _make_board(store)
+        await _make_task(store, "t1", status=TaskStatus.IN_REVIEW)
+        tools = create_kanban_tools(store, mode="orchestrator", default_board_id="b1")
+        cancel = self._get_tool(tools, "kanban_cancel_task")
+        result = json.loads(await cancel.ainvoke({"task_id": "t1"}))
+        assert "error" in result
+        assert "in_review" in result["error"]
+        task = await store.get_task("t1")
+        assert task is not None
+        assert task.status == TaskStatus.IN_REVIEW
+
+    @pytest.mark.asyncio
     async def test_cancel_nonexistent_task(self) -> None:
         store = InMemoryKanbanStore()
         await _make_board(store)

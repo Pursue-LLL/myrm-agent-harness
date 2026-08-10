@@ -368,7 +368,9 @@ class TestResponseParsing:
         memories = _parse_response(raw)
         valid = [m for m in memories if m.content in {"A", "B", "C", "D"}]
         assert len(valid) == 4
-        assert all(m.expected_valid_days is None or m.expected_valid_days == 30 for m in valid)
+        assert all(
+            m.expected_valid_days is None or m.expected_valid_days == 30 for m in valid
+        )
         d_memory = next(m for m in memories if m.content == "D")
         assert d_memory.expected_valid_days == 30
 
@@ -1735,10 +1737,20 @@ class TestSessionDateInjection:
 
         import re
 
-        match = re.search(r"Session date: \d{4}-\d{2}-\d{2} \((\w+)\)", captured_prompt[0])
+        match = re.search(
+            r"Session date: \d{4}-\d{2}-\d{2} \((\w+)\)", captured_prompt[0]
+        )
         assert match
         weekday = match.group(1)
-        valid_weekdays = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+        valid_weekdays = {
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        }
         assert weekday in valid_weekdays, f"Expected English weekday, got: {weekday}"
 
     @pytest.mark.asyncio
@@ -1936,7 +1948,9 @@ class TestExtractMemoriesFromConversationRegex:
 
         result = await extract_memories_from_conversation(messages, mock_llm)
 
-        procedural = [m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL]
+        procedural = [
+            m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL
+        ]
         assert len(procedural) >= 1
         edict = procedural[0]
         assert edict.tool_rule_priority == "critical"
@@ -1959,7 +1973,9 @@ class TestExtractMemoriesFromConversationRegex:
 
         result = await extract_memories_from_conversation(messages, mock_llm)
 
-        procedural = [m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL]
+        procedural = [
+            m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL
+        ]
         assert len(procedural) >= 1
         assert procedural[0].tool_name == "bash_code_execute_tool"
 
@@ -1978,7 +1994,9 @@ class TestExtractMemoriesFromConversationRegex:
         ]
 
         result = await extract_memories_from_conversation(messages, mock_llm)
-        procedural = [m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL]
+        procedural = [
+            m for m in result.memories if m.memory_type == MemoryType.PROCEDURAL
+        ]
         assert len(procedural) == 0
 
     @pytest.mark.asyncio
