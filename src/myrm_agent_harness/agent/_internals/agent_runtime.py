@@ -381,7 +381,7 @@ async def run_agent_loop(
             get_process_managed_approval_policy,
         )
 
-        llm_model = agent_state.llm.model_name or getattr(
+        llm_model = getattr(agent_state.llm, "model_name", None) or getattr(
             agent_state.llm, "model", None
         )
         _, primary_model_slug = parse_litellm_model(llm_model or "")

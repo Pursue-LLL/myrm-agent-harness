@@ -13,8 +13,6 @@
 - adapters.safety_termination_detector (POS: Safety termination detector for truncated tool call suppression)
 - toolkits.llms.ephemeral_output_tokens (POS: ephemeral max-output-tokens ContextVar for truncation recovery)
 - core.context_vars::prompt_routing_key_var (POS: Session-scoped routing key for OpenAI prompt cache affinity)
-- utils.cost_engine::compute_cost_by_tokens (POS: token-count-based cost calculation for streaming mode)
-- utils.token_tracker (POS: Token tracking API — record_token_usage, append_to_ledger, record_finish_reason)
 
 [OUTPUT]
 - ChatLiteLLM: LangChain-compatible LiteLLM chat model aggregate root (config, bind_tools, structured_output)
@@ -26,7 +24,8 @@
 LangChain LiteLLM adapter. Provides a LangChain-compatible LiteLLM interface for unified multi-model
 invocation. Supports sync/async calls, streaming responses (with TTFT and duration latency tracking),
 tool calling, structured output, and model native search (web_search_options).
-In streaming mode: manually records token usage + cost calculation + audit log appending + TTFT/duration stats.
+Records token usage + cost calculation + audit log appending for every call (streaming and non-streaming),
+with TTFT/duration stats collected on the streaming path.
 **Empty response retry**: covers Sync/Async/Stream, configurable retry count (1-10) and delay (0.1-10.0s);
 Stream only supports fully empty stream retry (mid-stream interruptions cannot be retried).
 **Metrics observability**: instance-level EmptyRetryMetrics tracks retry count, success rate, total delay;

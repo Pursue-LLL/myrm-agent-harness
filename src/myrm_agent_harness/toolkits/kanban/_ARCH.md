@@ -183,7 +183,8 @@ Protocol-first architecture with strict framework-business separation.
     function that generates concise operational instructions for kanban worker agents.
     Injected by the server's agent factory into the system prompt when `kanban_tool_mode="worker"`.
     Covers: mandatory complete/block termination, heartbeat cadence (dynamically parameterized
-    based on `zombie_timeout_seconds`), retry diagnosis awareness, and completion metadata.
+    based on `zombie_timeout_seconds`), retry diagnosis awareness, completion metadata,
+    cross-task comments, and file attachment guidance for produced deliverables.
     Prevents tasks from getting stuck due to agents not knowing the lifecycle protocol.
 
 20. **Task-level workspace / worktree isolation**: Each `KanbanTask` carries optional
@@ -193,7 +194,9 @@ Protocol-first architecture with strict framework-business separation.
     runner calls `_create_worktree()` which executes `git worktree add` to create an
     isolated checkout under `<workspace>/.worktrees/<task_id>-<branch>`. The resolved
     workspace is passed to `GeneralAgentParams.declared_allowed_roots`, binding the
-    agent's file operations to the worktree. On task archive, `cleanup_worktree()`
+    agent's file operations to the worktree. A `BRANCH_SWITCHED` event is emitted
+    only when the worktree is newly created (not on repeat resolutions, so frequent
+    resolutions such as per-attach calls stay event-silent). On task archive, `cleanup_worktree()`
     runs `git worktree remove` to reclaim disk. This enables conflict-free parallel
     coding by multiple agents on the same repository.
 
@@ -263,6 +266,16 @@ Protocol-first architecture with strict framework-business separation.
     the edit: TRIAGE/BACKLOG/READY/RUNNING/BLOCKED may toggle it, while IN_REVIEW and
     terminal states reject the change) — the harness never mutates `require_approval`
     post-creation, so the guard lives in the business layer only.
+
+26. **Runtime board hot-swap (refresh_board)**: `KanbanDispatcher.refresh_board(board)`
+    replaces the dispatcher's board reference in place (rejects mismatched board_id).
+    The dispatch loop, zombie loop, and per-task heartbeat loop all re-read
+    `self._board.settings` on every cycle, so edits to `max_concurrent_tasks`,
+    `zombie_timeout_seconds`, and `heartbeat_interval_seconds` take effect on the next
+    wake cycle while already-executing tasks keep running untouched — no dispatcher
+    restart required. The server's `update_board` calls this whenever board settings
+    change, so the live scheduler and the persisted config never diverge (the GUI's
+    concurrency badge reflects what the dispatcher actually enforces).
 
 ## Domain Model
 

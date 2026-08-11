@@ -253,6 +253,45 @@ class TestRefreshBoard:
         with pytest.raises(ValueError, match="board id mismatch"):
             d.refresh_board(other)
 
+    @pytest.mark.asyncio
+    async def test_refresh_board_updates_zombie_timeout_live(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Zombie loop re-reads board settings every cycle, so a hot-swapped
+        ``zombie_timeout_seconds`` reaches ``list_zombie_tasks`` without a restart."""
+        store = InMemoryKanbanStore()
+        board = _make_board(zombie_timeout=3)
+        await store.save_board(board)
+
+        seen_timeouts: list[int] = []
+
+        async def _fake_list_zombie(board_id: str, timeout: int) -> list[KanbanTask]:
+            seen_timeouts.append(timeout)
+            return []
+
+        monkeypatch.setattr(store, "list_zombie_tasks", _fake_list_zombie)
+
+        real_sleep = asyncio.sleep
+
+        async def _fast_sleep(_seconds: float) -> None:
+            # Collapse the loop's 30s+ zombie check interval so the next cycle
+            # runs immediately while still yielding control to the event loop.
+            await real_sleep(0.01)
+
+        monkeypatch.setattr(asyncio, "sleep", _fast_sleep)
+
+        d = KanbanDispatcher(store, _FakeRunner(), board)
+        await d.start()
+        await real_sleep(0.05)
+        d.refresh_board(_make_board(zombie_timeout=6))
+        await real_sleep(0.05)
+        await d.stop()
+
+        assert seen_timeouts, "zombie loop never probed zombie tasks"
+        assert seen_timeouts[0] == 3
+        assert 6 in seen_timeouts
+        assert seen_timeouts.index(6) > seen_timeouts.index(3)
+
 
 # ---------------------------------------------------------------------------
 # Status-drift guard (TODO-56)

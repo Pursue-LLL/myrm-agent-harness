@@ -192,7 +192,10 @@ class StreamAggregator:
 
     def aggregate_tool_calls_from_dict(self, chunk_dict: dict[str, Any]) -> None:
         """Extract and aggregate tool call chunks from a chunk dict."""
-        raw_tool_calls = chunk_dict.get("choices", [{}])[0].get("delta", {}).get("tool_calls")
+        choices = chunk_dict.get("choices") or []
+        if not choices:
+            return
+        raw_tool_calls = choices[0].get("delta", {}).get("tool_calls")
         for tc_chunk in build_tool_call_chunks(raw_tool_calls, self.tool_call_id_map):
             aggregate_tool_call_chunk(tc_chunk, self.tool_calls)
 

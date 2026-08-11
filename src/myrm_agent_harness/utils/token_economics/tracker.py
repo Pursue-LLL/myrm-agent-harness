@@ -23,7 +23,7 @@
 - record_token_error(): 记录 LLM 调用失败
 - record_finish_reason(): 记录 LLM 调用的 finish_reason
 - get_pending_token_events(): 获取待发送的 token 事件（实时推送）
-- append_to_ledger(): 追加使用记录到审计日志（供流式回调和适配器调用）
+- append_to_ledger(): 追加使用记录到审计日志（供适配器统一调用）
 
 [POS]
 LLM call metadata tracker. ContextVar-based request-level tracking supporting both streaming and non-streaming modes.
@@ -34,8 +34,7 @@ import logging
 from collections.abc import Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, cast
 
 from myrm_agent_harness.utils.coercion import parse_int
 
@@ -170,7 +169,9 @@ class TokenUsage:
             return parse_int(direct, 0, min_val=0)
         prompt_details = usage.get("prompt_tokens_details", {})
         if isinstance(prompt_details, dict):
-            return parse_int(prompt_details.get("cache_creation_input_tokens"), 0, min_val=0)
+            return parse_int(
+                prompt_details.get("cache_creation_input_tokens"), 0, min_val=0
+            )
         return 0
 
     def _extract_reasoning(self, usage: Mapping[str, object]) -> int:
@@ -197,14 +198,18 @@ class TokenUsage:
         """Serialize to dict for SSE/DB/frontend."""
         return {f: getattr(self, f) for f in _TOKEN_USAGE_FIELDS}
 
-    def get_cache_effectiveness(self, cache_read_ratio: float = 0.1) -> dict[str, float]:
+    def get_cache_effectiveness(
+        self, cache_read_ratio: float = 0.1
+    ) -> dict[str, float]:
         """Compute session-level cache effectiveness.
 
         Args:
             cache_read_ratio: Cache-read cost as fraction of base input cost.
                 Anthropic: 0.1 (90% off), OpenAI: 0.5 (50% off)
         """
-        return compute_prompt_cache_stats(self.prompt_tokens, self.cached_tokens, cache_read_ratio=cache_read_ratio)
+        return compute_prompt_cache_stats(
+            self.prompt_tokens, self.cached_tokens, cache_read_ratio=cache_read_ratio
+        )
 
 
 @dataclass(frozen=True)
@@ -281,15 +286,21 @@ class TokenTracker:
             if model_name not in self.model_usage:
                 self.model_usage[model_name] = TokenUsage()
             self.model_usage[model_name].add(usage)
-            self.model_cost[model_name] = self.model_cost.get(model_name, 0.0) + cost_usd
-            self.model_savings[model_name] = self.model_savings.get(model_name, 0.0) + cache_savings_usd
+            self.model_cost[model_name] = (
+                self.model_cost.get(model_name, 0.0) + cost_usd
+            )
+            self.model_savings[model_name] = (
+                self.model_savings.get(model_name, 0.0) + cache_savings_usd
+            )
 
         if self.tool_stack:
             active_tool = self.tool_stack[-1]
             if active_tool not in self.tool_usage:
                 self.tool_usage[active_tool] = TokenUsage()
             self.tool_usage[active_tool].add(usage)
-            self.tool_cost[active_tool] = self.tool_cost.get(active_tool, 0.0) + cost_usd
+            self.tool_cost[active_tool] = (
+                self.tool_cost.get(active_tool, 0.0) + cost_usd
+            )
 
         if duration_ms is not None:
             _trim_list(self.call_durations_ms)
@@ -301,7 +312,9 @@ class TokenTracker:
 
         self.total_cost_usd += cost_usd
         self.total_cache_savings_usd += cache_savings_usd
-        if cost_status == "actual" or (self.cost_status == "unknown" and cost_status != "unknown"):
+        if cost_status == "actual" or (
+            self.cost_status == "unknown" and cost_status != "unknown"
+        ):
             self.cost_status = cost_status
 
         if self.budget_checker is not None and cost_usd > 0:
@@ -341,7 +354,11 @@ class TokenTracker:
         sorted_ttft = sorted(self.call_ttft_ms) if self.call_ttft_ms else []
 
         total_duration_s = sum(self.call_durations_ms) / 1000.0
-        avg_tps = self.usage.completion_tokens / total_duration_s if total_duration_s > 0 else 0.0
+        avg_tps = (
+            self.usage.completion_tokens / total_duration_s
+            if total_duration_s > 0
+            else 0.0
+        )
 
         return LatencyStats(
             call_count=len(sorted_durations),
@@ -372,8 +389,12 @@ class TokenTracker:
             target = self.model_usage[model]
             for f in _TOKEN_USAGE_FIELDS:
                 setattr(target, f, getattr(target, f) + getattr(model_usage, f))
-            self.model_cost[model] = self.model_cost.get(model, 0.0) + other.model_cost.get(model, 0.0)
-            self.model_savings[model] = self.model_savings.get(model, 0.0) + other.model_savings.get(model, 0.0)
+            self.model_cost[model] = self.model_cost.get(
+                model, 0.0
+            ) + other.model_cost.get(model, 0.0)
+            self.model_savings[model] = self.model_savings.get(
+                model, 0.0
+            ) + other.model_savings.get(model, 0.0)
 
         for tool, tool_usage in other.tool_usage.items():
             if tool not in self.tool_usage:
@@ -381,14 +402,18 @@ class TokenTracker:
             target = self.tool_usage[tool]
             for f in _TOKEN_USAGE_FIELDS:
                 setattr(target, f, getattr(target, f) + getattr(tool_usage, f))
-            self.tool_cost[tool] = self.tool_cost.get(tool, 0.0) + other.tool_cost.get(tool, 0.0)
+            self.tool_cost[tool] = self.tool_cost.get(tool, 0.0) + other.tool_cost.get(
+                tool, 0.0
+            )
 
         self.call_durations_ms.extend(other.call_durations_ms)
         self.call_ttft_ms.extend(other.call_ttft_ms)
         self.call_count += other.call_count
         self.total_cost_usd += other.total_cost_usd
         self.total_cache_savings_usd += other.total_cache_savings_usd
-        if other.cost_status == "actual" or (self.cost_status == "unknown" and other.cost_status != "unknown"):
+        if other.cost_status == "actual" or (
+            self.cost_status == "unknown" and other.cost_status != "unknown"
+        ):
             self.cost_status = other.cost_status
         self.error_count += other.error_count
 
@@ -429,7 +454,10 @@ class TokenTracker:
             }
         if self.tool_usage:
             result["tool_breakdown"] = {
-                tool: {**usage.to_dict(), "cost_usd": round(self.tool_cost.get(tool, 0.0), 6)}
+                tool: {
+                    **usage.to_dict(),
+                    "cost_usd": round(self.tool_cost.get(tool, 0.0), 6),
+                }
                 for tool, usage in self.tool_usage.items()
             }
         return result
@@ -439,11 +467,23 @@ class TokenTracker:
 # ContextVar-based request-scoped API
 # ---------------------------------------------------------------------------
 
-_current_tracker: ContextVar[TokenTracker | None] = ContextVar("token_tracker", default=None)
-_current_ledger: ContextVar["_UsageLedgerType | None"] = ContextVar("usage_ledger", default=None)
 
-# Avoid circular import; resolved lazily
-_UsageLedgerType = object
+class _UsageLedgerType(Protocol):
+    """Minimal UsageLedger surface consumed by the tracker.
+
+    Declared as a protocol (not a direct import) to avoid a circular import
+    between tracker and usage_ledger while keeping append() type-checked.
+    """
+
+    def append(self, record: object) -> None: ...
+
+
+_current_tracker: ContextVar[TokenTracker | None] = ContextVar(
+    "token_tracker", default=None
+)
+_current_ledger: ContextVar[_UsageLedgerType | None] = ContextVar(
+    "usage_ledger", default=None
+)
 
 
 def init_token_tracker(
@@ -460,7 +500,7 @@ def set_usage_ledger(ledger: object) -> None:
 
     Called by business layer (e.g. base_agent) when session_dir is known.
     """
-    _current_ledger.set(ledger)
+    _current_ledger.set(cast(_UsageLedgerType, ledger))
 
 
 def get_usage_ledger() -> object | None:
@@ -542,13 +582,6 @@ def get_pending_token_events() -> list[dict[str, object]]:
     return []
 
 
-# ============================================================================
-# LiteLLM 回调集成（lazy import）
-# ============================================================================
-
-_TOKEN_TRACKING_CALLBACK_CLASS: type[object] | None = None
-
-
 def append_to_ledger(
     usage: Mapping[str, object],
     model_name: str | None,
@@ -587,133 +620,6 @@ def append_to_ledger(
             finish_reason=finish_reason,
             call_index=call_index,
         )
-        ledger.append(record)  # type: ignore[union-attr]
+        ledger.append(record)
     except Exception:
         logger.debug("Failed to append usage record to ledger", exc_info=True)
-
-
-def _compute_duration_ms(start_time: object, end_time: object) -> float | None:
-    """Compute duration in ms from datetime objects."""
-    if isinstance(start_time, datetime) and isinstance(end_time, datetime):
-        return (end_time - start_time).total_seconds() * 1000.0
-    return None
-
-
-def _get_token_tracking_callback_class() -> type[object]:
-    """Create the LiteLLM callback class only when it is actually needed."""
-    global _TOKEN_TRACKING_CALLBACK_CLASS
-    if _TOKEN_TRACKING_CALLBACK_CLASS is not None:
-        return _TOKEN_TRACKING_CALLBACK_CLASS
-
-    import litellm
-
-    class TokenTrackingCallback(litellm.integrations.custom_logger.CustomLogger):
-        """LiteLLM callback that records token usage, cost, latency, and errors."""
-
-        def _is_streaming_call(self, kwargs: dict[str, object]) -> bool:
-            return kwargs.get("stream", False) is True
-
-        def _extract_usage(self, response_obj: object) -> dict[str, object]:
-            if hasattr(response_obj, "usage") and response_obj.usage:
-                usage_obj = response_obj.usage
-                if hasattr(usage_obj, "model_dump"):
-                    return usage_obj.model_dump()
-                if isinstance(usage_obj, dict):
-                    return usage_obj
-                return {
-                    "prompt_tokens": getattr(usage_obj, "prompt_tokens", 0),
-                    "completion_tokens": getattr(usage_obj, "completion_tokens", 0),
-                    "total_tokens": getattr(usage_obj, "total_tokens", 0),
-                }
-            return {}
-
-        def log_success_event(
-            self,
-            kwargs: dict[str, object],
-            response_obj: object,
-            start_time: object,
-            end_time: object,
-        ) -> None:
-            if self._is_streaming_call(kwargs):
-                return
-
-            usage = self._extract_usage(response_obj)
-            if not usage:
-                return
-
-            model_name = str(kwargs.get("model", "")) or None
-            duration_ms = _compute_duration_ms(start_time, end_time)
-
-            from .cache_savings import calculate_cache_savings_usd
-            from .cost_engine import compute_cost
-
-            cost_result = compute_cost(response_obj, model_name)
-            cache_savings_usd = calculate_cache_savings_usd(usage, model_name)
-
-            finish_reason = ""
-            choices = getattr(response_obj, "choices", None)
-            if choices and len(choices) > 0:
-                finish_reason = getattr(choices[0], "finish_reason", "") or ""
-
-            record_token_usage(
-                usage,
-                model_name=model_name,
-                duration_ms=duration_ms,
-                cost_usd=cost_result.usd,
-                cost_status=cost_result.status,
-                cache_savings_usd=cache_savings_usd,
-            )
-
-            append_to_ledger(
-                usage, model_name, duration_ms, cost_result.usd, cache_savings_usd,
-                finish_reason=finish_reason,
-            )
-
-        async def async_log_success_event(
-            self,
-            kwargs: dict[str, object],
-            response_obj: object,
-            start_time: object,
-            end_time: object,
-        ) -> None:
-            self.log_success_event(kwargs, response_obj, start_time, end_time)
-
-        def log_failure_event(
-            self,
-            kwargs: dict[str, object],
-            response_obj: object,
-            start_time: object,
-            end_time: object,
-        ) -> None:
-            exception = kwargs.get("exception")
-            error_msg = str(exception) if exception else "Unknown LLM error"
-            record_token_error(error_msg)
-
-        async def async_log_failure_event(
-            self,
-            kwargs: dict[str, object],
-            response_obj: object,
-            start_time: object,
-            end_time: object,
-        ) -> None:
-            self.log_failure_event(kwargs, response_obj, start_time, end_time)
-
-    _TOKEN_TRACKING_CALLBACK_CLASS = TokenTrackingCallback
-    return TokenTrackingCallback
-
-
-def setup_token_tracking_callback() -> None:
-    """Set up the LiteLLM callback for token tracking."""
-    import litellm
-
-    callback = _get_token_tracking_callback_class()()
-    if callback not in litellm.callbacks:
-        litellm.callbacks.append(callback)
-
-
-def __getattr__(name: str) -> object:
-    if name == "TokenTrackingCallback":
-        value = _get_token_tracking_callback_class()
-        globals()[name] = value
-        return value
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

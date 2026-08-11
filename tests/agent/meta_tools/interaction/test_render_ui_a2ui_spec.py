@@ -18,12 +18,14 @@ from myrm_agent_harness.agent.artifacts.ui_registry import (
 from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
     A2UI_REFERENCE_FILENAME,
     allowed_component_type_names,
+    format_action_reference_error,
     format_adjacency_error,
     format_validation_error,
     get_bundled_reference_content,
     normalize_component_dicts,
     parse_reference_allowed_types,
     seed_reference_to_workspace,
+    validate_action_references,
     validate_ui_adjacency,
 )
 from myrm_agent_harness.agent.meta_tools.interaction.render_ui_tool import render_ui, render_ui_tool
@@ -97,6 +99,97 @@ class TestA2uiSpec:
             ["dup"],
         )
         assert "duplicate component id: dup" in errors
+
+    def test_validate_action_references_detects_unknown_action(self) -> None:
+        errors = validate_action_references(
+            [{"id": "btn", "type": "button", "events": {"onClick": "ghost"}}],
+            [{"id": "submit", "type": "submit", "label": "Go"}],
+        )
+        assert len(errors) == 1
+        assert "references unknown action id: ghost" in errors[0]
+
+    def test_validate_action_references_detects_empty_action_id(self) -> None:
+        errors = validate_action_references(
+            [{"id": "btn", "type": "button", "events": {"onClick": ""}}],
+            [{"id": "submit", "type": "submit", "label": "Go"}],
+        )
+        assert len(errors) == 1
+        assert "empty action id" in errors[0]
+
+    def test_validate_action_references_detects_missing_actions_list(self) -> None:
+        errors = validate_action_references(
+            [{"id": "btn", "type": "button", "events": {"onClick": "go"}}],
+            None,
+        )
+        assert len(errors) == 1
+        assert "unknown action id: go" in errors[0]
+
+    def test_validate_action_references_passes_valid_bindings(self) -> None:
+        errors = validate_action_references(
+            [
+                {"id": "btn", "type": "button", "events": {"onClick": "go"}},
+                {"id": "note", "type": "text", "props": {"text": "x"}},
+            ],
+            [{"id": "go", "type": "submit", "label": "Go"}],
+        )
+        assert errors == ()
+
+    def test_validate_action_references_mixed_valid_and_invalid(self) -> None:
+        errors = validate_action_references(
+            [
+                {"id": "ok", "type": "button", "events": {"onClick": "go"}},
+                {"id": "bad", "type": "button", "events": {"onClick": "ghost"}},
+                {"id": "plain", "type": "text", "props": {"text": "x"}},
+            ],
+            [{"id": "go", "type": "submit", "label": "Go"}],
+        )
+        assert len(errors) == 1
+        assert "bad" in errors[0]
+        assert "ghost" in errors[0]
+
+    def test_validate_action_references_skips_non_dict_events(self) -> None:
+        errors = validate_action_references(
+            [{"id": "x", "type": "text", "events": None}],
+            [{"id": "go", "type": "submit", "label": "Go"}],
+        )
+        assert errors == ()
+
+    def test_validate_action_references_exact_match_no_whitespace_normalization(self) -> None:
+        """Whitespace is not normalized: the client resolves action ids exactly."""
+        errors = validate_action_references(
+            [{"id": "btn", "type": "button", "events": {"onClick": "go"}}],
+            [{"id": "go ", "type": "submit", "label": "Go"}],
+        )
+        assert len(errors) == 1
+        assert "go" in errors[0]
+
+    def test_validate_action_references_detects_duplicate_action_id(self) -> None:
+        errors = validate_action_references(
+            [{"id": "btn", "type": "button", "events": {"onClick": "confirm"}}],
+            [
+                {"id": "confirm", "type": "submit", "label": "确认"},
+                {"id": "confirm", "type": "cancel", "label": "取消"},
+            ],
+        )
+        assert "duplicate action id: confirm" in errors
+
+    def test_validate_action_references_unique_ids_pass(self) -> None:
+        errors = validate_action_references(
+            [
+                {"id": "ok", "type": "button", "events": {"onClick": "submit"}},
+                {"id": "cancel", "type": "button", "events": {"onClick": "cancel"}},
+            ],
+            [
+                {"id": "submit", "type": "submit", "label": "确认"},
+                {"id": "cancel", "type": "cancel", "label": "取消"},
+            ],
+        )
+        assert errors == ()
+
+    def test_format_action_reference_error(self) -> None:
+        msg = format_action_reference_error(["component btn: event 'onClick' references unknown action id: ghost"])
+        assert "invalid action reference(s)" in msg
+        assert "ghost" in msg
 
     def test_seed_returns_none_for_non_directory(self, tmp_path: Path) -> None:
         file_path = tmp_path / "not_a_dir"
@@ -205,6 +298,79 @@ class TestRenderUiSuccessAndEdges:
             registry = get_ui_registry()
             assert registry is not None
             assert not registry.has_pending_events()
+
+    def test_render_ui_fail_closed_on_dangling_action_reference(self) -> None:
+        with ArtifactContextManager():
+            result = render_ui(
+                title="Dangling",
+                components=[{"id": "btn", "type": "button", "props": {"label": "Go"}, "events": {"onClick": "ghost"}}],
+                root_ids=["btn"],
+                actions=[{"id": "real", "type": "submit", "label": "Real"}],
+            )
+            assert result.startswith("Failed to render UI")
+            assert "invalid action reference(s)" in result
+            assert "ghost" in result
+            registry = get_ui_registry()
+            assert registry is not None
+            assert not registry.has_pending_events()
+
+    def test_render_ui_passes_when_events_resolve(self) -> None:
+        with ArtifactContextManager():
+            result = render_ui(
+                title="Resolved",
+                components=[{"id": "btn", "type": "button", "props": {"label": "Go"}, "events": {"onClick": "go"}}],
+                root_ids=["btn"],
+                actions=[{"id": "go", "type": "submit", "label": "Go"}],
+            )
+            assert "Resolved" in result
+            registry = get_ui_registry()
+            assert registry is not None
+            assert registry.has_pending_events()
+
+    def test_render_ui_fail_closed_when_actions_missing_but_events_referenced(self) -> None:
+        with ArtifactContextManager():
+            result = render_ui(
+                title="No actions",
+                components=[{"id": "btn", "type": "button", "props": {"label": "Go"}, "events": {"onClick": "go"}}],
+                root_ids=["btn"],
+            )
+            assert result.startswith("Failed to render UI")
+            assert "invalid action reference(s)" in result
+            registry = get_ui_registry()
+            assert registry is not None
+            assert not registry.has_pending_events()
+
+    def test_render_ui_fail_closed_on_duplicate_action_id(self) -> None:
+        with ArtifactContextManager():
+            result = render_ui(
+                title="Duplicate action",
+                components=[
+                    {"id": "btn", "type": "button", "props": {"label": "Go"}, "events": {"onClick": "confirm"}}
+                ],
+                root_ids=["btn"],
+                actions=[
+                    {"id": "confirm", "type": "submit", "label": "确认"},
+                    {"id": "confirm", "type": "cancel", "label": "取消"},
+                ],
+            )
+            assert result.startswith("Failed to render UI")
+            assert "duplicate action id: confirm" in result
+            registry = get_ui_registry()
+            assert registry is not None
+            assert not registry.has_pending_events()
+
+    def test_render_ui_success_returns_surface_id(self) -> None:
+        with ArtifactContextManager():
+            result = render_ui(
+                title="Surface",
+                components=[{"id": "t", "type": "text", "props": {"text": "x"}}],
+                root_ids=["t"],
+            )
+            registry = get_ui_registry()
+            assert registry is not None
+            events = registry.pop_pending_events()
+            assert len(events) == 1
+            assert f"surface_id={events[0].surface_id}" in result
 
     def test_render_outside_artifact_context_returns_error(self) -> None:
         from myrm_agent_harness.agent.artifacts.ui_registry import pop_run_message_id

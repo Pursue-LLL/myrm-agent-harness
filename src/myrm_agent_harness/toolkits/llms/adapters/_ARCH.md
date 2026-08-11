@@ -11,8 +11,8 @@ LLM adapter layer: LangChain-compatible LiteLLM interface, provider-specific mes
 | chat_model.py | Core | LangChain LiteLLM adapter aggregate root: config, bind_tools, structured_output, prompt_cache routing | ✅ |
 | chat_model_exceptions.py | Core | Shared adapter exceptions and OpenAI param whitelist constants | ✅ |
 | chat_model_message_mixin.py | Core | Message normalization, developer-role promotion, reasoning_content stamp, ChatResult assembly | ✅ |
-| chat_model_sync_mixin.py | Core | Synchronous generation and streaming with empty-response retry | ✅ |
-| chat_model_async_mixin.py | Core | Asynchronous generation and streaming with concurrency gate and stream stall detection | ✅ |
+| chat_model_sync_mixin.py | Core | Synchronous generation and streaming with empty-response retry; unified token-usage recording for streaming + non-streaming calls | ✅ |
+| chat_model_async_mixin.py | Core | Asynchronous generation and streaming with concurrency gate and stream stall detection; unified token-usage recording | ✅ |
 | model_capability.py | Core | Model capability detection for reasoning_content echo-back requirements (MiMo, DeepSeek, Kimi/Moonshot) | ✅ |
 | concurrency.py | Core | Concurrency gate — per-model and global asyncio semaphores | ✅ |
 | converters.py | Core | Bidirectional message format conversion (LangChain ↔ LiteLLM) with explicit message-name preservation; `convert_dict_to_message` preserves `reasoning_content` into `additional_kwargs` (non-streaming parity with stream path) | ✅ |

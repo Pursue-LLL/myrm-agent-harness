@@ -257,6 +257,7 @@ class TestIsContextOverflowNegative:
         (ErrorKind.RATE_LIMIT, True),
         (ErrorKind.BILLING, True),
         (ErrorKind.TIMEOUT, True),
+        (ErrorKind.MODEL_NOT_FOUND, True),
         (ErrorKind.AUTH, False),
         (ErrorKind.UNKNOWN, False),
     ],

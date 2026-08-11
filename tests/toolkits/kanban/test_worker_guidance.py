@@ -12,6 +12,8 @@ class TestWorkerLifecycleGuidance:
         assert "kanban_complete" in result
         assert "kanban_block" in result
         assert "kanban_heartbeat" in result
+        assert "kanban_comment" in result
+        assert "kanban_attach" in result
         assert "Prior attempts" in result
         assert "runtime limit" not in result
 

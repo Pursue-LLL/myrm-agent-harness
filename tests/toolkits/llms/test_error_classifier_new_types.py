@@ -187,6 +187,13 @@ class TestProviderPolicyBlocked:
         exc = _FakeError("model not found", status_code=404)
         assert classify_failover_reason(exc) == FailoverReason.MODEL_NOT_FOUND
 
+    def test_model_not_found_is_failoverable(self) -> None:
+        assert FailoverReason.MODEL_NOT_FOUND.is_failoverable
+
+    def test_openrouter_tool_use_not_supported_classifies_as_model_not_found(self) -> None:
+        exc = _FakeError("no endpoints found that support tool use", status_code=404)
+        assert classify_failover_reason(exc) == FailoverReason.MODEL_NOT_FOUND
+
 
 # ============================================================================
 # Regression: existing patterns still work

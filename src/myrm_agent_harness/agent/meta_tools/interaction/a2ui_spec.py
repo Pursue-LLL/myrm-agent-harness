@@ -9,6 +9,7 @@
 - get_bundled_reference_content / seed_reference_to_workspace: packaged spec + workspace copy
 - format_validation_error: fail-closed ToolMessage for invalid component types
 - validate_ui_adjacency / format_adjacency_error: fail-closed graph checks (root_ids, children, ids)
+- validate_action_references / format_action_reference_error: fail-closed event→action reference checks
 
 [POS]
 A2UI spec SSOT helpers. Keeps enum, bundled markdown, and slim tool docstrings aligned.
@@ -162,6 +163,61 @@ def format_adjacency_error(errors: tuple[str, ...] | list[str]) -> str:
     return (
         f"Failed to render UI: invalid UI graph: {detail}. "
         f"Use adjacency list with matching id, root_ids, and children references."
+    )
+
+
+def validate_action_references(
+    components: list[dict[str, object]],
+    actions: list[dict[str, object]] | None,
+) -> tuple[str, ...]:
+    """Return event→action reference errors; empty tuple means every binding resolves.
+
+    Each component `events` value must reference an action id declared in `actions`.
+    Action ids must be unique — a duplicate would let the client-side `actionMap`
+    overwrite one action with another, silently changing which action a click triggers.
+    Fail-closed: a dangling reference would render a button that silently does nothing
+    on click while the Agent believes the UI is correct.
+    Action ids are matched exactly (no whitespace normalization) to mirror the client-side
+    `actionMap.get(actionId)` lookup, so a passing check guarantees the click resolves.
+    """
+    action_ids: set[str] = set()
+    errors: list[str] = []
+    for action in (actions or []):
+        if not isinstance(action, dict):
+            continue
+        action_id = str(action.get("id", ""))
+        if action_id in action_ids:
+            errors.append(f"duplicate action id: {action_id}")
+        action_ids.add(action_id)
+
+    for comp in components:
+        if not isinstance(comp, dict):
+            continue
+        component_id = str(comp.get("id", "")).strip()
+        events = comp.get("events")
+        if not isinstance(events, dict):
+            continue
+        for event_name, raw_action_id in events.items():
+            action_id = str(raw_action_id) if raw_action_id is not None else ""
+            if not action_id:
+                errors.append(f"component {component_id}: event {event_name!r} has an empty action id")
+            elif action_id not in action_ids:
+                errors.append(
+                    f"component {component_id}: event {event_name!r} references unknown action id: {action_id}"
+                )
+    return tuple(errors)
+
+
+def format_action_reference_error(errors: tuple[str, ...] | list[str]) -> str:
+    """Build fail-closed ToolMessage when event→action references are invalid."""
+    if not errors:
+        return ""
+    detail = "; ".join(errors[:8])
+    if len(errors) > 8:
+        detail += f"; … and {len(errors) - 8} more"
+    return (
+        f"Failed to render UI: invalid action reference(s): {detail}. "
+        f"Every component event must reference an action id declared in the actions list."
     )
 
 

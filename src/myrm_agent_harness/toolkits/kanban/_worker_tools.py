@@ -282,7 +282,8 @@ def build_worker_tools(
 
         Args:
             source: ``path`` for a workspace file, ``url`` for a remote HTTPS resource.
-            value: File path or URL (required).
+            value: File path (relative to your working directory, or a /workspace/...
+                path) or HTTPS URL (required).
             task_id: Defaults to your assigned task.
         """
         if not value or not value.strip():

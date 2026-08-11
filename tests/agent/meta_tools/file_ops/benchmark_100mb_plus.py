@@ -3,7 +3,7 @@
 运行方式：
     cd myrm-agent-harness
     source .venv/bin/activate
-    python tests/agent/tools/benchmark_100mb_plus.py
+    python tests/agent/meta_tools/file_ops/benchmark_100mb_plus.py
 """
 
 from __future__ import annotations

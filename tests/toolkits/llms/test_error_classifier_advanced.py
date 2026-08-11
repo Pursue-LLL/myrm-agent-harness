@@ -61,8 +61,19 @@ def test_classify_safety_block():
 
 def test_classify_model_not_found():
     exc = Exception("Model does not exist")
-    assert classify_error(exc) == ErrorKind.MODEL_NOT_FOUND
+    kind = classify_error(exc)
+    assert kind == ErrorKind.MODEL_NOT_FOUND
+    assert kind.is_failoverable is True
     assert classify_failover_reason(exc) == FailoverReason.MODEL_NOT_FOUND
+
+
+def test_classify_openrouter_tool_use_not_supported():
+    exc = Exception("no endpoints found that support tool use")
+    kind = classify_error(exc)
+    assert kind == ErrorKind.MODEL_NOT_FOUND
+    assert kind.is_failoverable is True
+    assert classify_failover_reason(exc) == FailoverReason.MODEL_NOT_FOUND
+    assert FailoverReason.MODEL_NOT_FOUND.is_failoverable is True
 
 
 def test_disambiguate_usage_limit():

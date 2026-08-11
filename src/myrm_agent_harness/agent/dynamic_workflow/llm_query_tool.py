@@ -5,8 +5,7 @@
 - agent.sub_agents.builder::resolve_llm (POS: 4-level model resolution chain)
 - agent.sub_agents.types::SubagentConfig (POS: Model routing carrier)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — str / block list / think 剥离 / reasoning 回退)
-- utils.token_economics.tracker::record_token_usage, record_token_error (POS: Token/cost bookkeeping)
-- utils.token_economics.cost_engine::compute_cost_by_tokens (POS: Token-count cost estimation)
+- utils.token_economics.tracker::record_token_error (POS: Token/cost bookkeeping on failure)
 - utils.runtime.cancellation::CancellationToken
 
 [OUTPUT]
@@ -19,7 +18,8 @@
 Bridges the PTC Python script to direct LLM calls without spawning a sub-agent.
 Suitable for cheap, focused sub-tasks (extraction, classification, summarization,
 fact-checking a chunk of text) where a full sub-agent loop would be wasteful.
-Every call is recorded via the shared token tracker and honors cancellation.
+Token usage is accounted at the adapter layer (ChatLiteLLM non-streaming recording),
+so no manual bookkeeping is needed here; the tool honors cancellation and budget guards.
 """
 
 from __future__ import annotations
@@ -34,13 +34,7 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field
 
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
-from myrm_agent_harness.utils.token_economics.cost_engine import (
-    compute_cost_by_tokens,
-)
-from myrm_agent_harness.utils.token_economics.tracker import (
-    record_token_error,
-    record_token_usage,
-)
+from myrm_agent_harness.utils.token_economics.tracker import record_token_error
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
@@ -259,7 +253,6 @@ class LlmQueryTool(BaseTool):
         if temperature is not None:
             invoke_kwargs["temperature"] = temperature
 
-        started = time.perf_counter()
         try:
             response = await llm.ainvoke(messages, **invoke_kwargs)
         except Exception as exc:
@@ -267,53 +260,8 @@ class LlmQueryTool(BaseTool):
             logger.warning("llm_query call failed: %s", exc)
             return {"success": False, "error": f"{type(exc).__name__}: {exc}"}
 
-        duration_ms = (time.perf_counter() - started) * 1000
         content = extract_answer_text(response)
-        self._record_usage(response, model_name=model_name, duration_ms=duration_ms)
         return {"success": True, "result": content, "model": model_name or ""}
-
-    def _record_usage(
-        self,
-        response: object,
-        *,
-        model_name: str | None,
-        duration_ms: float,
-    ) -> None:
-        """Extract token usage from the response and record it to the shared tracker."""
-        usage_metadata = getattr(response, "usage_metadata", None)
-        if not usage_metadata or not isinstance(usage_metadata, dict):
-            return
-
-        try:
-            prompt_tokens = int(usage_metadata.get("input_tokens") or 0)
-            completion_tokens = int(usage_metadata.get("output_tokens") or 0)
-            total_tokens = int(usage_metadata.get("total_tokens") or 0)
-        except (TypeError, ValueError):
-            logger.debug("llm_query unparsable usage_metadata: %s", usage_metadata)
-            return
-        if total_tokens <= 0:
-            total_tokens = prompt_tokens + completion_tokens
-        if total_tokens <= 0:
-            return
-
-        usage: dict[str, object] = {
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": total_tokens,
-        }
-        cost = compute_cost_by_tokens(
-            model=model_name,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-        )
-        record_token_usage(
-            usage,
-            model_name=model_name,
-            duration_ms=duration_ms,
-            cost_usd=float(cost.usd),
-            cost_status=cost.status.value if hasattr(cost, "status") else "estimated",
-            cache_savings_usd=0.0,
-        )
 
 
 class LlmQueryBatchedTool(LlmQueryTool):

@@ -3,7 +3,7 @@
 [INPUT]
 - langchain_core.tools::tool
 - myrm_agent_harness.agent.artifacts::UIArtifact, get_ui_registry
-- myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec::format_validation_error, parse_reference_allowed_types (POS: A2UI spec SSOT helpers)
+- myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec::A2UI_REFERENCE_REL_PATH, format_action_reference_error, format_adjacency_error, format_allowed_types_line, format_validation_error, normalize_component_dicts, validate_action_references, validate_ui_adjacency (POS: A2UI spec SSOT helpers)
 
 [OUTPUT]
 - render_ui_tool: LangChain tool that creates a UIArtifact from declarative JSON.
@@ -27,10 +27,12 @@ from myrm_agent_harness.agent.artifacts.ui_artifact import (
 )
 from myrm_agent_harness.agent.meta_tools.interaction.a2ui_spec import (
     A2UI_REFERENCE_REL_PATH,
+    format_action_reference_error,
     format_adjacency_error,
     format_allowed_types_line,
     format_validation_error,
     normalize_component_dicts,
+    validate_action_references,
     validate_ui_adjacency,
 )
 
@@ -64,6 +66,7 @@ Allowed component types: {_ALLOWED_TYPES_LINE}
 
 JSON adjacency list: components[{{id,type,props,children,bindings,events}}], root_ids, optional data/actions.
 Minimal example (text + text_field + button) needs no extra spec.
+Event values (e.g. {{"onClick": "id"}}) must reference an action id declared in actions.
 
 CRITICAL: Before table/chart/tabs or 3+ component UIs, file_read_tool `{A2UI_REFERENCE_REL_PATH}` for full props.
 
@@ -163,6 +166,10 @@ def render_ui(
                 )
             )
 
+        action_ref_errors = validate_action_references(components, actions)
+        if action_ref_errors:
+            return format_action_reference_error(action_ref_errors)
+
         ui_artifact = UIArtifact(
             title=title,
             components=parsed_components,
@@ -184,7 +191,10 @@ def render_ui(
         )
         _dispatch_ui_update_event(ui_artifact)
 
-        return f"已向用户展示交互式界面：「{title}」。用户可以在界面上进行操作，操作结果将自动反馈给我。"
+        return (
+            f"已向用户展示交互式界面：「{title}」（surface_id={ui_artifact.surface_id}）。"
+            "用户可以在界面上进行操作，操作结果将自动反馈给我。"
+        )
 
     except Exception as e:
         error_msg = f"Failed to render UI: {type(e).__name__}: {e!s}"

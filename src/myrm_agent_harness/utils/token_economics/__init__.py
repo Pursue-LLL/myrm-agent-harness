@@ -23,7 +23,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "get_pending_token_events": (".tracker", "get_pending_token_events"),
     "append_to_ledger": (".tracker", "append_to_ledger"),
     "set_usage_ledger": (".tracker", "set_usage_ledger"),
-    "setup_token_tracking_callback": (".tracker", "setup_token_tracking_callback"),
     # cost_engine.py
     "CostStatus": (".cost_engine", "CostStatus"),
     "CostResult": (".cost_engine", "CostResult"),
@@ -31,7 +30,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "compute_cost_by_tokens": (".cost_engine", "compute_cost_by_tokens"),
     # cache_economics.py
     "compute_prompt_cache_stats": (".cache_economics", "compute_prompt_cache_stats"),
-    "coerce_usage_non_negative_int": (".cache_economics", "coerce_usage_non_negative_int"),
+    "coerce_usage_non_negative_int": (
+        ".cache_economics",
+        "coerce_usage_non_negative_int",
+    ),
     # usage_ledger.py
     "UsageRecord": (".usage_ledger", "UsageRecord"),
     "UsageLedger": (".usage_ledger", "UsageLedger"),
@@ -43,7 +45,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "BudgetDimension": (".multidim_budget", "BudgetDimension"),
     "MultidimensionalBudgetGuard": (".multidim_budget", "MultidimensionalBudgetGuard"),
     # budget_boundary_middleware.py
-    "BudgetBoundaryMiddleware": (".budget_boundary_middleware", "BudgetBoundaryMiddleware"),
+    "BudgetBoundaryMiddleware": (
+        ".budget_boundary_middleware",
+        "BudgetBoundaryMiddleware",
+    ),
 }
 
 __all__ = list(_EXPORTS.keys())
@@ -62,4 +67,6 @@ def __getattr__(name: str) -> object:
 
 
 def __dir__() -> list[str]:
-    return sorted(set(__all__ + [name for name in globals() if not name.startswith("_")]))
+    return sorted(
+        set(__all__ + [name for name in globals() if not name.startswith("_")])
+    )

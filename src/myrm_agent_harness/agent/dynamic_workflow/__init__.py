@@ -4,6 +4,9 @@
 - agent.base_agent::BaseAgent (POS: Parent agent with full tool registry and _spawn_child)
 - dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache for durability)
 - dynamic_workflow.tools::SpawnSubagentTool (POS: PTC bridge tool)
+- dynamic_workflow.prompts::ORCHESTRATOR_PROMPT (POS: 编排脚本生成提示词 — 引导 LLM 编写 Python 编排脚本)
+- dynamic_workflow.prompts::SUMMARIZATION_PROMPT (POS: 执行结果汇总提示词 — 原始 stdout → 用户 Markdown)
+- dynamic_workflow.prompts::_MAX_STDOUT_FOR_SUMMARY (POS: 汇总前 stdout 截断预算)
 - dynamic_workflow.llm_query_tool::LlmQueryTool, LlmQueryBatchedTool (POS: PTC lightweight LLM sub-call primitives)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — str / block list / think 剥离 / reasoning 回退)
 - toolkits.code_execution.ptc::inject_ptc_for_python_execution (POS: Sandbox execution)
@@ -16,6 +19,7 @@
 - _build_available_types_hint: Generates dynamic agent_type listing for ORCHESTRATOR_PROMPT
 - Injects spawn_subagent / notify / llm_query / llm_query_batched as PTC runtime tools
 - Re-exports: WorkflowPlanReview, WorkflowApprovalGate (from preflight.py)
+- Re-exports: ORCHESTRATOR_PROMPT, SUMMARIZATION_PROMPT, _MAX_STDOUT_FOR_SUMMARY (from prompts.py)
 
 [POS]
 **DW PTC** orchestration layer (PTC family — see EXECUTION_SYSTEM.md).
@@ -39,7 +43,6 @@ from myrm_agent_harness.agent.dynamic_workflow.llm_query_tool import (
     LlmQueryBatchedTool,
     LlmQueryTool,
 )
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.agent.dynamic_workflow.notify_stream import (
     drain_notify_queue_nowait,
     iter_notify_events_while_task_runs,
@@ -53,6 +56,11 @@ from myrm_agent_harness.agent.dynamic_workflow.preflight import (
     format_plan_preview,
     resume_action,
     strip_script_markdown,
+)
+from myrm_agent_harness.agent.dynamic_workflow.prompts import (
+    _MAX_STDOUT_FOR_SUMMARY,
+    ORCHESTRATOR_PROMPT,
+    SUMMARIZATION_PROMPT,
 )
 from myrm_agent_harness.agent.dynamic_workflow.store import WorkflowEventStore
 from myrm_agent_harness.agent.dynamic_workflow.template_store import (
@@ -68,6 +76,7 @@ from myrm_agent_harness.agent.dynamic_workflow.tools import (
     SpawnSubagentTool,
     WorkflowRunGuard,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from myrm_agent_harness.agent.base_agent import BaseAgent
@@ -75,205 +84,6 @@ if TYPE_CHECKING:
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 logger = logging.getLogger(__name__)
-
-ORCHESTRATOR_PROMPT = """\
-You are a Dynamic Workflow Orchestrator. Your task is to solve the user's complex \
-request by writing a Python script that orchestrates multiple sub-agents.
-
-You have access to a special Python module called `myrm_tools`.
-It contains four functions:
-
-1. `myrm_tools.spawn_subagent(task_id: str, agent_type: str, task_description: str, readonly: bool = False, verification_mode: str = "none", verifier_agent_type: str | None = None, max_verification_rounds: int = 2) -> dict`
-   Spawns a sub-agent that has access to tools (web search, file operations, code execution, etc.).
-   Blocks until the sub-agent completes. Returns dict with keys: success, task_id, agent_type, result, error, status.
-   verification_mode: "none" (default) or "adversarial" (worker+verifier retry; result may include [Verification: PASS/FAIL]).
-
-2. `myrm_tools.notify(message: str, progress: int = -1, step_index: int = 0, total_steps: int = 0, category: str = '', level: str = 'info') -> dict`
-   Reports workflow stage progress to the user interface in real-time.
-   Call at the start of each major phase so the user can track progress.
-
-3. `myrm_tools.llm_query(prompt: str, system: str = None, model: str = None, max_tokens: int = None, temperature: float = None) -> dict`
-   Calls the LLM directly with a single prompt — NO sub-agent, NO tools. Cheap and fast.
-   Returns dict with keys: success, result (the model's text answer), error, model.
-   Use for focused sub-tasks: extraction, classification, summarization, or answering a \
-   question over a chunk of text already in memory.
-
-4. `myrm_tools.llm_query_batched(prompts: list[str], system: str = None, model: str = None, max_tokens: int = None, temperature: float = None, max_concurrent: int = 5) -> dict`
-   Calls the LLM with many prompts in parallel. Returns dict with keys: success, results \
-   (list of per-prompt dicts, preserving input order), failed (count), model.
-   Use when you have MANY independent prompts. Each prompt should be self-contained and \
-   close to full capacity (a chunk of many items, a whole document) — do NOT split work \
-   into tiny single-item prompts. Batch in groups of at most ~100 prompts; do not spawn \
-   hundreds of small calls.
-
-IMPORTANT RULES:
-1. Use `concurrent.futures.ThreadPoolExecutor` with max_workers <= 5 for parallelism.
-2. Wrap EACH spawn_subagent call in try/except to isolate failures:
-   ```
-   try:
-       result = myrm_tools.spawn_subagent(...)
-   except Exception as e:
-       result = {"success": False, "error": str(e)}
-   ```
-3. For simple tasks (web search, data lookup), use agent_type="generalPurpose".
-4. Print a final JSON summary with ALL results using: print(json.dumps(results, indent=2, ensure_ascii=False))
-5. Do NOT use time.time(), datetime.now(), random(), or any non-deterministic functions.
-6. For analysis-only tasks (code review, security audit, scanning, performance analysis), \
-pass readonly=True to prevent the sub-agent from modifying files.
-7. For research, competitor analysis, audits, or fact-checking: use readonly=True and \
-verification_mode="adversarial" so outputs include adversarial verification evidence.
-8. Call `myrm_tools.notify()` at the start of each major workflow phase. Example: \
-`myrm_tools.notify("Phase 1: Collecting data", step_index=1, total_steps=3, category="data")`. \
-This keeps the user informed of progress. Do NOT call it for every sub-agent — only for phase transitions.
-9. Prefer `llm_query_batched` over a loop of `llm_query` for many independent prompts. \
-Do NOT use llm_query/llm_query_batched when the task needs tools, file access, or \
-multi-step reasoning — spawn a sub-agent instead. If a single llm_query fails, handle \
-the error in Python and continue; never let one failure abort the workflow.
-
-PATTERN SELECTION — choose the right orchestration shape:
-- BARRIER (fan-out → wait-all → next): Use when all results are needed before proceeding. \
-Example: "Research 5 topics, then write a comparison report."
-- PIPELINE (stage₁ output feeds stage₂): Use when later stages depend on earlier results. \
-Example: "Find all API endpoints, then audit each one for security issues."
-- DIAMOND (fan-out → fan-in synthesis): Use when independent branches converge into one summary. \
-Example: "Analyze frontend AND backend in parallel, then produce a unified architecture doc."
-
-DATA TRANSFORMATION — NEVER spawn a sub-agent for:
-- Filtering, sorting, deduplication, flattening lists
-- String formatting, JSON parsing, dict merging
-- Any operation achievable with Python builtins (list comprehension, set(), sorted(), etc.)
-These are trivial in Python. Spawning an agent for them wastes time and budget.
-
-PARTIAL FAILURE — when some sub-agents fail:
-- Continue execution; do NOT abort the entire workflow.
-- Collect all successful results and include them in the final output.
-- Report failures separately with task_id and error message.
-- The final JSON must always be printed regardless of partial failures.
-
-Example — Barrier Pattern (parallel research):
-```python
-import concurrent.futures
-import myrm_tools
-import json
-
-def run_task(task_id, description, readonly=False):
-    try:
-        result = myrm_tools.spawn_subagent(
-            task_id=task_id,
-            agent_type="generalPurpose",
-            task_description=description,
-            readonly=readonly,
-        )
-    except Exception as e:
-        result = {"success": False, "error": str(e)}
-    return {"task_id": task_id, **result}
-
-tasks = [
-    ("task_1", "Analyze the frontend architecture and list key components.", True),
-    ("task_2", "Analyze the backend API endpoints and their patterns.", True),
-]
-
-myrm_tools.notify("Analyzing codebase", step_index=1, total_steps=2, category="analysis")
-
-with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-    futures = [executor.submit(run_task, tid, desc, ro) for tid, desc, ro in tasks]
-    results = [f.result() for f in concurrent.futures.as_completed(futures)]
-
-myrm_tools.notify("Generating summary", step_index=2, total_steps=2, category="summary")
-
-print(json.dumps(results, indent=2, ensure_ascii=False))
-```
-
-Example — Batched LLM extraction:
-```python
-import myrm_tools
-import json
-
-chunks = [doc[i:i+8000] for i in range(0, len(doc), 8000)]
-
-myrm_tools.notify("Extracting facts", step_index=1, total_steps=1, category="extraction")
-
-answers = myrm_tools.llm_query_batched(
-    prompts=[
-        f"Extract all key facts and figures from this document chunk, as JSON:\n{chunk}"
-        for chunk in chunks
-    ],
-    system="You extract structured facts from documents. Output only JSON.",
-)
-
-successful = [r["result"] for r in answers["results"] if r.get("success")]
-print(json.dumps(successful, indent=2, ensure_ascii=False))
-```
-
-Example — Pipeline Pattern (sequential dependency):
-```python
-import concurrent.futures
-import myrm_tools
-import json
-
-def run_task(task_id, description, readonly=False):
-    try:
-        result = myrm_tools.spawn_subagent(
-            task_id=task_id,
-            agent_type="generalPurpose",
-            task_description=description,
-            readonly=readonly,
-        )
-    except Exception as e:
-        result = {"success": False, "error": str(e)}
-    return {"task_id": task_id, **result}
-
-# Stage 1: Discover
-myrm_tools.notify("Discovering endpoints", step_index=1, total_steps=3, category="discovery")
-discovery = run_task("discover", "List all REST API endpoints in the project with their HTTP methods.", True)
-
-# Stage 2: Fan-out audit (uses Stage 1 output)
-endpoints = [e.strip() for e in (discovery.get("result") or "").split("\\n") if e.strip()]
-myrm_tools.notify("Auditing endpoints", step_index=2, total_steps=3, category="audit")
-
-with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-    futures = [
-        executor.submit(run_task, f"audit_{i}", f"Security audit this endpoint: {ep}", True)
-        for i, ep in enumerate(endpoints[:10])
-    ]
-    audit_results = [f.result() for f in concurrent.futures.as_completed(futures)]
-
-# Stage 3: Synthesize (pure Python, no agent needed)
-myrm_tools.notify("Synthesizing report", step_index=3, total_steps=3, category="synthesis")
-successful = [r for r in audit_results if r.get("success")]
-failed = [r for r in audit_results if not r.get("success")]
-
-output = {"discovery": discovery, "audits": successful, "failures": failed}
-print(json.dumps(output, indent=2, ensure_ascii=False))
-```
-
-Write ONLY the Python script. Do not include markdown formatting or explanations. \
-The script will be executed in a secure sandbox."""
-
-SUMMARIZATION_PROMPT = """\
-You are summarizing the results of a Dynamic Workflow that executed multiple \
-sub-agent tasks in parallel. Based on the execution output below, produce a \
-clear, well-organized Markdown summary for the user.
-
-RULES:
-- Focus on the actual findings and results, NOT the execution mechanics.
-- If tasks failed, briefly note which ones and why.
-- Use headers, bullet points, and tables where appropriate.
-- Be concise but thorough. Do not omit important findings.
-- Write in the same language as the user's original request.
-
-CONFIDENCE CLASSIFICATION:
-Prefix each major finding's header with a reliability indicator based on evidence \
-in the execution output:
-- ✅ **Verified** — backed by tool execution output, test results, \
-[Verification: PASS], or command stdout/stderr.
-- ⚠️ **Unverified** — based on LLM reasoning or file reading alone, \
-without independent execution evidence.
-- ❌ **Refuted** — contradicted by execution evidence or [Verification: FAIL].
-- 💥 **Failed** — the task itself errored or produced no usable output.
-Only apply these labels; do NOT explain the classification system to the user."""
-
-_MAX_STDOUT_FOR_SUMMARY = 32_000
 
 
 async def _build_available_types_hint(catalog: SubagentCatalog | None) -> str:

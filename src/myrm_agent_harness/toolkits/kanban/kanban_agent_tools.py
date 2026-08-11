@@ -116,6 +116,9 @@ def get_worker_lifecycle_guidance(
         "etc.) — it will be automatically injected into downstream workers' context.\n"
         "5. Use kanban_comment(task_id, body) to share findings, flag issues, or coordinate "
         "with sibling tasks. Comments are visible to other workers via their context.\n"
+        "6. If you produced files (code, documents, images, etc.), attach them with "
+        "kanban_attach(source='path', value=<relative path or /workspace/... path>) "
+        "before completing, so downstream workers and the user can access the deliverables.\n"
         f"{runtime_note}"
     )
 

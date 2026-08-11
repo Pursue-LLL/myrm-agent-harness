@@ -2,23 +2,19 @@
 
 from __future__ import annotations
 
-import sys
-import types
-from types import SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
 
 import myrm_agent_harness.utils.token_economics.tracker as tt
-from myrm_agent_harness.utils.token_economics.cache_economics import compute_prompt_cache_stats
+from myrm_agent_harness.utils.token_economics.cache_economics import (
+    compute_prompt_cache_stats,
+)
 
 
 def _cleanup_module_state() -> None:
     tt.reset_token_tracker()
-    tt._TOKEN_TRACKING_CALLBACK_CLASS = None
-    if "TokenTrackingCallback" in tt.__dict__:
-        del tt.__dict__["TokenTrackingCallback"]
 
 
 @pytest.fixture(autouse=True)
@@ -26,45 +22,6 @@ def _reset_token_tracker_autouse() -> None:
     _cleanup_module_state()
     yield
     _cleanup_module_state()
-
-
-@pytest.fixture
-def litellm_stub() -> types.ModuleType:
-    saved: dict[str, types.ModuleType] = {}
-    keys = (
-        "litellm",
-        "litellm.integrations",
-        "litellm.integrations.custom_logger",
-    )
-    for k in keys:
-        if k in sys.modules:
-            saved[k] = sys.modules.pop(k)
-
-    class CustomLogger:
-        pass
-
-    litellm_mod = types.ModuleType("litellm")
-    litellm_mod.callbacks = []
-    litellm_mod.completion_cost = lambda **kwargs: 0.001
-    integ = types.ModuleType("litellm.integrations")
-    cl = types.ModuleType("litellm.integrations.custom_logger")
-    cl.CustomLogger = CustomLogger
-    integ.custom_logger = cl
-    litellm_mod.integrations = integ
-
-    for k, mod in (
-        ("litellm", litellm_mod),
-        ("litellm.integrations", integ),
-        ("litellm.integrations.custom_logger", cl),
-    ):
-        sys.modules[k] = mod
-
-    yield litellm_mod
-
-    for k in keys:
-        sys.modules.pop(k, None)
-    for k, v in saved.items():
-        sys.modules[k] = v
 
 
 class TestTokenUsageAdd:
@@ -176,7 +133,9 @@ class TestTokenTracker:
     def test_model_usage_breakdown(self) -> None:
         tr = tt.TokenTracker()
         tr.record({"prompt_tokens": 10, "completion_tokens": 5}, model_name="gpt-4o")
-        tr.record({"prompt_tokens": 20, "completion_tokens": 10}, model_name="claude-3.5")
+        tr.record(
+            {"prompt_tokens": 20, "completion_tokens": 10}, model_name="claude-3.5"
+        )
         tr.record({"prompt_tokens": 5, "completion_tokens": 3}, model_name="gpt-4o")
         assert "gpt-4o" in tr.model_usage
         assert "claude-3.5" in tr.model_usage
@@ -308,7 +267,9 @@ class TestModuleLevelApi:
 
     def test_record_token_usage_and_pending(self) -> None:
         tt.init_token_tracker()
-        tt.record_token_usage({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
+        tt.record_token_usage(
+            {"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3}
+        )
         events = tt.get_pending_token_events()
         assert len(events) == 1
         assert events[0]["call_index"] == 1
@@ -320,136 +281,16 @@ class TestModuleLevelApi:
     def test_record_finish_reason(self) -> None:
         tt.init_token_tracker()
         tt.record_finish_reason("stop")
-        assert cast(tt.TokenTracker, tt.get_token_tracker()).last_finish_reason == "stop"
+        assert (
+            cast(tt.TokenTracker, tt.get_token_tracker()).last_finish_reason == "stop"
+        )
         tt.record_finish_reason("length")
-        assert cast(tt.TokenTracker, tt.get_token_tracker()).last_finish_reason == "length"
+        assert (
+            cast(tt.TokenTracker, tt.get_token_tracker()).last_finish_reason == "length"
+        )
 
     def test_get_pending_token_events_no_tracker(self) -> None:
         assert tt.get_pending_token_events() == []
-
-
-class TestLiteLLMCallback:
-    def test_get_token_tracking_callback_class_lazy_and_cached(self, litellm_stub: types.ModuleType) -> None:
-        c1 = tt._get_token_tracking_callback_class()
-        c2 = tt._get_token_tracking_callback_class()
-        assert c1 is c2
-
-    def test_setup_token_tracking_callback_registers(self, litellm_stub: types.ModuleType) -> None:
-        cls = tt._get_token_tracking_callback_class()
-        tt.setup_token_tracking_callback()
-        assert len(litellm_stub.callbacks) == 1
-        assert isinstance(litellm_stub.callbacks[0], cls)
-
-    def test_getattr_token_tracking_callback_deferred_export(self, litellm_stub: types.ModuleType) -> None:
-        cls = tt.TokenTrackingCallback
-        assert cls is tt._get_token_tracking_callback_class()
-        assert tt.TokenTrackingCallback is cls
-
-    def test_getattr_unknown_raises(self) -> None:
-        with pytest.raises(AttributeError, match=r"has no attribute 'MissingAttr'"):
-            _ = tt.MissingAttr
-
-    def test_log_success_event_non_streaming_dict_usage(self, litellm_stub: types.ModuleType) -> None:
-        tt.init_token_tracker()
-        cb = tt._get_token_tracking_callback_class()()
-        resp = SimpleNamespace(usage={"prompt_tokens": 3, "completion_tokens": 4, "total_tokens": 7})
-        cb.log_success_event({"stream": False}, resp, None, None)
-        assert cast(tt.TokenTracker, tt.get_token_tracker()).usage.prompt_tokens == 3
-
-    def test_log_success_event_skips_streaming(self, litellm_stub: types.ModuleType) -> None:
-        tt.init_token_tracker()
-        cb = tt._get_token_tracking_callback_class()()
-        resp = SimpleNamespace(usage={"prompt_tokens": 9})
-        cb.log_success_event({"stream": True}, resp, None, None)
-        assert cast(tt.TokenTracker, tt.get_token_tracker()).usage.prompt_tokens == 0
-
-    def test_log_success_event_model_dump_path(self, litellm_stub: types.ModuleType) -> None:
-        tt.init_token_tracker()
-        cb = tt._get_token_tracking_callback_class()()
-
-        class UsageModel:
-            def model_dump(self) -> dict[str, int]:
-                return {"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3}
-
-        resp = SimpleNamespace(usage=UsageModel())
-        cb.log_success_event({}, resp, None, None)
-        assert cast(tt.TokenTracker, tt.get_token_tracker()).usage.total_tokens == 3
-
-    def test_log_success_event_attr_fallback(self, litellm_stub: types.ModuleType) -> None:
-        tt.init_token_tracker()
-        cb = tt._get_token_tracking_callback_class()()
-        usage_obj = SimpleNamespace(prompt_tokens=10, completion_tokens=20, total_tokens=30)
-        resp = SimpleNamespace(usage=usage_obj)
-        cb.log_success_event({}, resp, None, None)
-        u = cast(tt.TokenTracker, tt.get_token_tracker()).usage
-        assert u.prompt_tokens == 10 and u.total_tokens == 30
-
-    def test_log_success_event_empty_usage_no_record(self, litellm_stub: types.ModuleType) -> None:
-        tt.init_token_tracker()
-        cb = tt._get_token_tracking_callback_class()()
-        resp = SimpleNamespace()
-        cb.log_success_event({}, resp, None, None)
-        assert cast(tt.TokenTracker, tt.get_token_tracker()).call_count == 0
-
-    def test_log_success_event_usage_attr_none(self, litellm_stub: types.ModuleType) -> None:
-        tt.init_token_tracker()
-        cb = tt._get_token_tracking_callback_class()()
-        resp = SimpleNamespace(usage=None)
-        cb.log_success_event({}, resp, None, None)
-        assert cast(tt.TokenTracker, tt.get_token_tracker()).call_count == 0
-
-    def test_setup_token_tracking_callback_skips_if_callback_already_in_list(
-        self, monkeypatch: pytest.MonkeyPatch, litellm_stub: types.ModuleType
-    ) -> None:
-        cls = tt._get_token_tracking_callback_class()
-        shared = cls()
-
-        def _new(_cls: type[object]) -> object:
-            return shared
-
-        monkeypatch.setattr(cls, "__new__", _new)
-        litellm_stub.callbacks.append(shared)
-        tt.setup_token_tracking_callback()
-        assert len(litellm_stub.callbacks) == 1
-
-    def test_is_streaming_call(self, litellm_stub: types.ModuleType) -> None:
-        cb = tt._get_token_tracking_callback_class()()
-        assert cb._is_streaming_call({"stream": True}) is True
-        assert cb._is_streaming_call({"stream": False}) is False
-
-    @pytest.mark.asyncio
-    async def test_async_log_success_event_delegates(self, litellm_stub: types.ModuleType) -> None:
-        tt.init_token_tracker()
-        cb = tt._get_token_tracking_callback_class()()
-        resp = SimpleNamespace(usage={"prompt_tokens": 1})
-        mock = MagicMock(wraps=cb.log_success_event)
-        cb.log_success_event = mock
-        await cb.async_log_success_event({"stream": False}, resp, 1.0, 2.0)
-        mock.assert_called_once_with({"stream": False}, resp, 1.0, 2.0)
-
-    @pytest.mark.asyncio
-    async def test_async_log_success_event_records(self, litellm_stub: types.ModuleType) -> None:
-        tt.init_token_tracker()
-        cb = tt._get_token_tracking_callback_class()()
-        resp = SimpleNamespace(usage={"prompt_tokens": 5})
-        await cb.async_log_success_event({}, resp, None, None)
-        assert cast(tt.TokenTracker, tt.get_token_tracker()).usage.prompt_tokens == 5
-
-    def test_log_failure_event(self, litellm_stub: types.ModuleType) -> None:
-        tt.init_token_tracker()
-        cb = tt._get_token_tracking_callback_class()()
-        cb.log_failure_event({"exception": ValueError("rate limit")}, None, None, None)
-        tracker = cast(tt.TokenTracker, tt.get_token_tracker())
-        assert tracker.error_count == 1
-        assert "rate limit" in (tracker.last_error or "")
-
-    @pytest.mark.asyncio
-    async def test_async_log_failure_event(self, litellm_stub: types.ModuleType) -> None:
-        tt.init_token_tracker()
-        cb = tt._get_token_tracking_callback_class()()
-        await cb.async_log_failure_event({"exception": RuntimeError("timeout")}, None, None, None)
-        tracker = cast(tt.TokenTracker, tt.get_token_tracker())
-        assert tracker.error_count == 1
 
 
 class TestCoerceEdgeCases:
@@ -565,5 +406,3 @@ class TestAppendToLedger:
         tt.append_to_ledger({"prompt_tokens": 10}, "gpt-4o", 100.0, 0.001)
         mock_ledger.append.assert_called_once()
         assert tt.get_usage_ledger() is mock_ledger
-
-

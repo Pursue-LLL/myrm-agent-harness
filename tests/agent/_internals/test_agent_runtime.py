@@ -788,6 +788,8 @@ class TestRunAgentLoopModelSlugSource:
 
     AgentRuntimeConfig has no ``llm`` field; reading ``agent_state.config.llm.model``
     raised AttributeError on every agent run before this regression test was added.
+    The access is via ``getattr`` so custom LLM objects that omit ``model_name``
+    (e.g. test fakes) degrade gracefully instead of raising.
     """
 
     def test_model_slug_reads_from_agent_llm_not_config(self) -> None:
@@ -798,5 +800,5 @@ class TestRunAgentLoopModelSlugSource:
             / "src/myrm_agent_harness/agent/_internals/agent_runtime.py"
         ).read_text(encoding="utf-8")
         assert "parse_litellm_model(llm_model or \"\")" in source
-        assert "agent_state.llm.model_name" in source
+        assert 'getattr(agent_state.llm, "model_name", None)' in source
         assert "agent_state.config.llm" not in source

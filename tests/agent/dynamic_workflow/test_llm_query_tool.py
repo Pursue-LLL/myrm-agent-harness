@@ -220,7 +220,7 @@ async def test_estimate_workflow_cost_llm_query_unavailable_falls_back_to_spawn(
 
 class TestLlmQueryTool:
     @pytest.mark.asyncio
-    async def test_single_query_success_records_usage(self) -> None:
+    async def test_single_query_success_without_manual_usage_recording(self) -> None:
         tool = _make_tool()
         response = _FakeResponse(
             "answer",
@@ -228,17 +228,13 @@ class TestLlmQueryTool:
         )
         tool.parent_agent.llm.ainvoke.return_value = response
 
-        with patch(
-            "myrm_agent_harness.agent.dynamic_workflow.llm_query_tool.record_token_usage"
-        ) as mock_record:
-            result = await tool._arun(prompt="q")
+        result = await tool._arun(prompt="q")
+
         assert result["success"] is True
         assert result["result"] == "answer"
-        mock_record.assert_called_once()
-        usage = mock_record.call_args[0][0]
-        assert usage["prompt_tokens"] == 10
-        assert usage["completion_tokens"] == 5
-        assert usage["total_tokens"] == 15
+        # Token accounting moved to the ChatLiteLLM adapter (non-streaming path);
+        # the tool must not double-record via its own usage extraction.
+        assert not hasattr(tool, "_record_usage")
 
     @pytest.mark.asyncio
     async def test_single_query_failure_is_isolated(self) -> None:

@@ -72,6 +72,7 @@ _FAILOVERABLE_KINDS = frozenset(
         ErrorKind.TIMEOUT,
         ErrorKind.SAFETY_BLOCK,
         ErrorKind.RESPONSE_FORMAT_ERROR,
+        ErrorKind.MODEL_NOT_FOUND,
     }
 )
 
@@ -221,7 +222,8 @@ _PROVIDER_FORMAT_400_RE = re.compile(
 
 _MODEL_NOT_FOUND_RE = re.compile(
     r"is not a valid model|invalid model|model not found|model_not_found"
-    r"|does not exist|no such model|unknown model|unsupported model",
+    r"|does not exist|no such model|unknown model|unsupported model"
+    r"|no endpoints found that support tool use",
     re.IGNORECASE,
 )
 
