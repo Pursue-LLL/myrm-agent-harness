@@ -101,7 +101,6 @@ myrm_agent_harness/core/hooks/__init__.py
 myrm_agent_harness/core/hooks/types.py
 myrm_agent_harness/core/security/detection/harmful_state_detector.py
 myrm_agent_harness/eval/__init__.py
-myrm_agent_harness/eval/memory_retrieval/__init__.py
 myrm_agent_harness/infra/incremental/__init__.py
 myrm_agent_harness/infra/security/__init__.py
 myrm_agent_harness/observability/tracing/context.py
