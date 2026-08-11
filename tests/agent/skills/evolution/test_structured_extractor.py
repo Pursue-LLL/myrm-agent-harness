@@ -70,6 +70,9 @@ class TestConfidenceParsing:
             (0.9, 0.9),
             (1.0, 1.0),
             (0.0, 0.0),
+            (True, 1.0),
+            (False, 0.0),
+            (None, 0.8),  # non-numeric fallback
             ("high", 1.0),
             ("very high", 1.0),
             ("certain", 1.0),
@@ -82,10 +85,10 @@ class TestConfidenceParsing:
             ("garbage", 0.8),  # fallback
         ],
     )
-    def test_confidence_parsing(self, input_val: float | str, expected: float) -> None:
+    def test_confidence_parsing(self, input_val: object, expected: float) -> None:
         result = SkillCaptureResult(
             is_general=True,
-            confidence=input_val,
+            confidence=input_val,  # type: ignore[arg-type]  # 故意传任意输入以验证 validator 兼容性
             safety_analysis="safe",
             name="test",
             content="test",
