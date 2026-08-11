@@ -116,24 +116,31 @@ def extract_answer_text(response: object) -> str:
     不会泄漏 repr（此时回退到 reasoning_content）。
     """
     raw_content = getattr(response, "content", None)
-    if raw_content is None or (isinstance(raw_content, list) and not raw_content):
-        content = ""
+    kwargs = getattr(response, "additional_kwargs", None)
+    reasoning = kwargs.get("reasoning_content") if isinstance(kwargs, dict) else None
+    return _extract_answer_core(raw_content, reasoning)
+
+
+def _extract_answer_core(content: object, reasoning: object) -> str:
+    """共享的答案提取核心：空回退 + think 剥离 + reasoning 回退。
+
+    ``extract_answer_text`` 与 ``extract_litellm_answer_text`` 的字段路径不同，
+    但提取语义一致：content 为空/纯 think 时回退 reasoning；文本块列表不
+    泄漏 repr；返回前统一 strip。
+    """
+    if content is None or (isinstance(content, list) and not content):
+        text = ""
     else:
-        content = extract_text_content(cast("ContentItem", raw_content))
-        if isinstance(raw_content, list) and content == str(raw_content):
+        text = extract_text_content(cast("ContentItem", content))
+        if isinstance(content, list) and text == str(content):
             # extract_text_content 在无文本块时回退到列表 repr，
             # 这里清空以触发 reasoning_content 回退。
-            content = ""
-    if content:
-        clean_content, _ = extract_and_strip_think_blocks(content)
-        if clean_content:
-            return clean_content
-    kwargs = getattr(response, "additional_kwargs", None)
-    if isinstance(kwargs, dict):
-        reasoning = kwargs.get("reasoning_content")
-        if isinstance(reasoning, str) and reasoning:
-            return reasoning
-    return ""
+            text = ""
+    if text:
+        clean_text, _ = extract_and_strip_think_blocks(text)
+        if clean_text:
+            return clean_text
+    return reasoning.strip() if isinstance(reasoning, str) and reasoning else ""
 
 
 def extract_litellm_answer_text(response: object) -> str:
@@ -155,18 +162,7 @@ def extract_litellm_answer_text(response: object) -> str:
     message = getattr(choices[0], "message", None)
     if message is None:
         return ""
-    content = getattr(message, "content", None)
-    if content is None or (isinstance(content, list) and not content):
-        text = ""
-    else:
-        text = extract_text_content(cast("ContentItem", content))
-        if isinstance(content, list) and text == str(content):
-            # extract_text_content 在无文本块时回退到列表 repr，
-            # 这里清空以触发 reasoning_content 回退。
-            text = ""
-    if text:
-        clean_text, _ = extract_and_strip_think_blocks(text)
-        if clean_text:
-            return clean_text
-    reasoning = getattr(message, "reasoning_content", None)
-    return reasoning.strip() if isinstance(reasoning, str) and reasoning else ""
+    return _extract_answer_core(
+        getattr(message, "content", None),
+        getattr(message, "reasoning_content", None),
+    )
