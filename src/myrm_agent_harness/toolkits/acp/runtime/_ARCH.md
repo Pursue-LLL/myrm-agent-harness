@@ -12,7 +12,7 @@ ACP Runtime backends — unified interface for ACP, SDK, and CLI agents.
 | _parser.py | Internal | Shared NDJSON event parsers for CLI and SDK runtimes. | ✅ |
 | _spawn_hints.py | Internal | Bare CLI spawn failure hints for CliRuntime error messages. | ✅ |
 | acp_callback.py | Core | ACP callback handler for the AcpRuntime backend. | ✅ |
-| acp_runtime.py | Core | ACP protocol runtime backend. | ✅ |
+| acp_runtime.py | Core | ACP protocol runtime backend — session reuse, cancel, resume; prompt failures re-raise to surface as ERROR (matching CLI/SDK). | ✅ |
 | cli_runtime.py | Core | CLI runtime backend — spawns a CLI agent process and parses NDJSON output. | ✅ |
 | pool.py | Core | Runtime pool: multi-backend management, concurrency control (global semaphore + per-backend serialization), config MCP passthrough to backends. | ✅ |
 | sdk_runtime.py | Core | SDK runtime backend — direct integration with Claude Agent SDK. | ✅ |

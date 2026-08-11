@@ -116,6 +116,10 @@ class AcpRuntime(BaseRuntime):
                 pass
             except Exception:
                 logger.error("acp_prompt_task_failed name=%s", self._name, exc_info=True)
+                # Re-raise so the failure surfaces as an ERROR event and the
+                # BaseRuntime cleans up the process, matching CliRuntime and
+                # SdkRuntime behavior instead of degrading to a silent DONE.
+                raise
 
     async def _run_prompt(self, prompt: str, handler: AcpCallbackHandler) -> None:
         """Run the ACP prompt and signal completion via the handler's queue."""

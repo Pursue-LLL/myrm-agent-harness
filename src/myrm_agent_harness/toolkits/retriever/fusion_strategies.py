@@ -16,18 +16,15 @@ ranking using rank-based (not score-based) fusion.
 
 import logging
 from collections import defaultdict
-from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
-_T = TypeVar("_T")
 
-
-def rrf_fusion(
-    query_results: list[list[tuple[_T, float]]],
+def rrf_fusion[T](
+    query_results: list[list[tuple[T, float]]],
     k: int = 60,
     top_k: int | None = None,
-) -> list[tuple[_T, float]]:
+) -> list[tuple[T, float]]:
     """Reciprocal Rank Fusion — merges multiple query results into a single ranking.
 
     A concise and efficient multi-query fusion strategy based on rank positions
@@ -71,7 +68,7 @@ def rrf_fusion(
         ... ]
         >>> fused = rrf_fusion(filtered_results, k=60)
     """
-    rrf_scores: defaultdict[_T, float] = defaultdict(float)
+    rrf_scores: defaultdict[T, float] = defaultdict(float)
 
     for results in query_results:
         for rank, (doc_idx, _) in enumerate(results):

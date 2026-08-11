@@ -844,6 +844,59 @@ class TestCliRuntimeSessionResume:
 
         assert rt._cli_session_ids.get("s1") == "cli-sess-abc"
 
+    @pytest.mark.asyncio
+    async def test_crash_without_resume_keeps_cached_session_id(self) -> None:
+        """A crash on a fresh spawn (no --resume) must not clear the cached id.
+
+        Only a stale --resume crash signals an invalid cache entry; a first-time
+        spawn failure (e.g. auth error) must not discard a valid session id.
+        """
+        rt = CliRuntime("test", _make_config(command="codex"))
+        rt._cli_session_ids["s1"] = "cli-sess-abc"
+
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.stdout.__aiter__ = lambda self: aiter([])
+        mock_proc.stderr = AsyncMock()
+        mock_proc.stderr.read = AsyncMock(return_value=b"error")
+        mock_proc.stdin = None
+
+        async def fake_wait() -> int:
+            mock_proc.returncode = 1
+            return 1
+
+        mock_proc.wait = fake_wait
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as exec_mock:
+            _ = [e async for e in rt._do_run_turn("hello", "s1")]
+
+        assert "--resume" not in exec_mock.call_args[0], "codex must not get --resume injected"
+        assert rt._cli_session_ids.get("s1") == "cli-sess-abc"
+
+    @pytest.mark.asyncio
+    async def test_do_cancel_falls_back_to_sigkill_when_sigterm_ignored(self) -> None:
+        """A process that ignores SIGTERM must be SIGKILLed after the grace window."""
+        import signal
+
+        from myrm_agent_harness.utils import os_compat
+
+        rt = CliRuntime("test", _make_config())
+        proc = MagicMock()
+        proc.pid = 4242
+        proc.returncode = None
+        proc.wait = AsyncMock(side_effect=TimeoutError)
+        rt._process = proc
+
+        killed: list[tuple[int, int]] = []
+
+        def fake_kill_process_group(pid: int, sig: int) -> None:
+            killed.append((pid, sig))
+
+        with patch.object(os_compat, "kill_process_group", side_effect=fake_kill_process_group):
+            await rt._do_cancel("s1")
+
+        assert killed == [(4242, signal.SIGTERM), (4242, signal.SIGKILL)]
+
 
 class TestCliRuntimeVerboseAndPrompt:
     """Tests for --verbose injection and stdin vs positional prompt."""

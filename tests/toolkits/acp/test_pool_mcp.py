@@ -113,3 +113,49 @@ async def test_run_turn_serializes_same_backend_concurrent_turns() -> None:
 
     await asyncio.gather(consume("s1"), consume("s2"))
     assert peak_active == 1, "same-backend turns must run strictly sequentially"
+
+
+@pytest.mark.asyncio
+async def test_run_turn_allows_parallel_different_backends() -> None:
+    """Concurrent turns on different backends must run in parallel.
+
+    The per-backend lock must serialize turns only within one backend instance;
+    unrelated backends share the global semaphore but never block each other.
+    """
+    pool = RuntimePool(max_concurrent=2)
+    pool.register("claude", RuntimeConfig(backend_type="cli", command="claude"))
+    pool.register("codex", RuntimeConfig(backend_type="cli", command="codex"))
+
+    backend_a = MagicMock()
+    backend_b = MagicMock()
+    active = 0
+    peak_active = 0
+
+    def _make_fake_run_turn() -> object:
+        async def fake_run_turn(
+            prompt: str,
+            session_id: str,
+            *,
+            mcp_servers: list[McpServerConfig] | None = None,
+        ):
+            nonlocal active, peak_active
+            active += 1
+            peak_active = max(peak_active, active)
+            await asyncio.sleep(0.02)
+            yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
+            active -= 1
+
+        return fake_run_turn
+
+    backend_a.run_turn = _make_fake_run_turn()  # type: ignore[method-assign]
+    backend_b.run_turn = _make_fake_run_turn()  # type: ignore[method-assign]
+    pool.get = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda name: {"claude": backend_a, "codex": backend_b}[name]
+    )
+
+    async def consume(name: str) -> None:
+        async for _ in pool.run_turn(name, "hello", session_id=f"s-{name}"):
+            pass
+
+    await asyncio.gather(consume("claude"), consume("codex"))
+    assert peak_active == 2, "different-backend turns must run in parallel"

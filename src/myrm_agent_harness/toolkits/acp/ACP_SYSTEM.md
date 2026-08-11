@@ -426,6 +426,7 @@ acp/
 - **CLI Session 复用**：`CliRuntime` 捕获 CLI 返回的 session_id，后续调用自动注入 `--resume` 参数，实现多轮对话上下文保持（支持 claude CLI）；**resume 失效自愈**——注入 `--resume` 后进程无输出崩溃（PROCESS_CRASHED）时自动丢弃失效 session_id，重试降级开新会话，避免拿着过期 id 二次失败
 - **Per-backend 并发串行化**：`RuntimePool.run_turn` 在全局 Semaphore 之外对同一 backend 增 per-backend `asyncio.Lock`，保证单后端实例（如 CliRuntime 的可变进程句柄）同时只跑一个 turn；`cancel()` 不取该锁（调用方在 turn 循环内取消，无死锁），不同 backend 仍可并行
 - **超时/异常进程清理**：`BaseRuntime.run_turn` 在超时或意外异常分支先 `cancel()` 再产出 ERROR 事件，终止可能仍存活的外部 CLI 进程，杜绝超时后孤儿进程在后台继续消耗资源
+- **失败路径统一 ERROR**：`AcpRuntime._do_run_turn` 的 prompt 失败会 re-raise（不被 finally 吞掉），与 CliRuntime/SdkRuntime 一致地由 `run_turn` 转为 ERROR 事件并清理进程——避免失败被静默降级为 DONE 事件导致 delegate 误判成功
 - **NDJSON 解析器模块化**：`_parser.py` 提取 CLI/SDK 共享的解析逻辑，消除代码重复
 - **Delegate 元数据 TypedDict**：`DelegateUsage` / `DelegateMeta` 提供精确的类型提示
 - **直连模式 Session 隔离**：基于 `chat_id` 生成独立 `session_id`，不同对话的外部 Agent 上下文互不干扰
