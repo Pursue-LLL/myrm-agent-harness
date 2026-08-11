@@ -6,6 +6,7 @@
 - base::BaseFilter, FilterContext, FilterResult (POS: 过滤器基类和数据结构)
 - prompts::CONTENT_DESCRIPTION_PROMPT 等 (POS: LLM 提示词模板)
 - langchain_core.language_models::BaseChatModel (POS: LangChain LLM 基类)
+- utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
 - utils.text_utils::get_token_count (POS: Token 计数工具)
 
 [OUTPUT]
@@ -23,6 +24,7 @@ import re
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
 
@@ -136,8 +138,8 @@ class SemanticFilter(BaseFilter):
                 response = await asyncio.wait_for(
                     self.llm.ainvoke([HumanMessage(content=formatted_prompt)]), timeout=LLM_TIMEOUT_SECONDS
                 )
-                # response.content 可能是 str 或 list，统一转为 str
-                response_text = response.content if isinstance(response.content, str) else str(response.content)
+                # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
+                response_text = extract_answer_text(response)
                 return self._parse_llm_response(response_text)
 
             except TimeoutError:
