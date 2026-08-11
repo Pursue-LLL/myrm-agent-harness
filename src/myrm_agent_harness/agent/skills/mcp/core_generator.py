@@ -75,7 +75,7 @@ Import: `from skills.{{skill_name}} import {{func_name}}` (`skills.*` = MCP; `to
 8. **stdout is your answer** — `[RESULT]` for final data; do NOT `[OBSERVATION]` successful intermediate MCP returns
 
 Returns are **parsed Python objects** — do NOT `json.loads()`; only access fields explicitly documented.
-Always set `timeout=120`; Python: `None`/`True`/`False` (not null/true/false).
+If a tool doc declares a `timeout` parameter, set `timeout=120`; Python: `None`/`True`/`False` (not null/true/false).
 
 """
 

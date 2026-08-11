@@ -68,9 +68,7 @@ def _is_inventory_file_cell(first: str) -> bool:
     if "," in first:
         return False
     stem = first[: -len(".py")]
-    if not stem.isidentifier():
-        return False
-    return True
+    return stem.isidentifier()
 
 
 def _listed_py_in_arch(arch_path: Path) -> set[str]:

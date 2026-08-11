@@ -82,9 +82,7 @@ def _missing_arch_dirs(package_root: Path) -> list[Path]:
 
 
 def _should_skip_header_scan(rel: Path, content_len: int) -> bool:
-    if rel.name in _HEADER_SKIP_NAMES and content_len <= 512:
-        return True
-    return False
+    return rel.name in _HEADER_SKIP_NAMES and content_len <= 512
 
 
 def _load_header_baseline(path: Path) -> frozenset[str]:

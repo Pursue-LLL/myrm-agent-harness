@@ -219,7 +219,7 @@ from skills.{skill_name} import function_name # skill_name replace with the actu
 
 async def main():
     result = await function_name(param1="value1", param2=123)
-    print(f"[OBSERVATION] {variable}")  # Intermediate observation
+    print(f"[OBSERVATION] {result}")  # Intermediate observation
     print(f"[RESULT] {result}")  # Final result
 
 asyncio.run(main())

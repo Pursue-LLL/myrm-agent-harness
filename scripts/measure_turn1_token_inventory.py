@@ -13,7 +13,6 @@ Usage:
 """
 
 from __future__ import annotations
-from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
 
 import argparse
 import asyncio
@@ -24,11 +23,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
+
 _repo_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_repo_root))
 
-from myrm_agent_harness.utils.text_utils import PLANNING_ENCODING, get_token_count
-from myrm_agent_harness.utils.token_estimation import (
+from myrm_agent_harness.utils.text_utils import PLANNING_ENCODING, get_token_count  # noqa: E402
+from myrm_agent_harness.utils.token_estimation import (  # noqa: E402
     SCHEMA_WRAPPER_TOKENS_PER_TOOL,
     estimate_bound_tools_tokens,
 )

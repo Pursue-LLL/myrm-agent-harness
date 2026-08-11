@@ -31,8 +31,8 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
-from harness_packaging.manifest import load_core_manifest  # noqa: E402
 from harness_packaging.integrity import DistributionWheelRole, verify_distribution_wheel_artifact  # noqa: E402
+from harness_packaging.manifest import load_core_manifest  # noqa: E402
 from harness_packaging.nuitka_compile import nuitka_artifact_stem, nuitka_compile_input  # noqa: E402
 from harness_packaging.platforms import (  # noqa: E402
     PlatformSpec,

@@ -95,14 +95,16 @@ class TestParseDetectionResponse:
         assert all(r == [] for r in result)
 
     def test_multiple_arrays_takes_last(self) -> None:
-        resp = 'Some candidates: [["example@test.com"]]\nReal: [["wang@corp.com"]]'
+        example = '{"original_text": "example@test.com", "privacy_type": "Email", "privacy_level": "PL3"}'
+        real = '{"original_text": "wang@corp.com", "privacy_type": "Email", "privacy_level": "PL3"}'
+        resp = f'Some candidates: [[{example}]]\nReal: [[{real}]]'
         result = _parse_detection_response(resp, 1)
         assert len(result) == 1
         assert len(result[0]) == 1
         assert result[0][0].original_text == "wang@corp.com"
 
     def test_unescaped_newline_in_text(self) -> None:
-        resp = '[["phone: 138\n00000000"]]'
+        resp = '[{"original_text": "phone: 138\n00000000", "privacy_type": "Phone Number", "privacy_level": "PL3"}]'
         result = _parse_detection_response(resp, 1)
         assert len(result) == 1
         assert len(result[0]) == 1

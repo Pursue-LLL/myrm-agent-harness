@@ -31,11 +31,11 @@ _repo_root = Path(__file__).resolve().parent.parent.parent
 _harness_root = _repo_root / "myrm-agent-harness"
 sys.path.insert(0, str(_harness_root))
 
-from scripts.tool_registry_config import (
+from scripts.tool_registry_config import (  # noqa: E402
     HARNESS_SRC,
     SCAN_ROOTS,
     SERVER_ROOT,
-)  # noqa: E402
+)
 from scripts.tool_registry_engine import (  # noqa: E402
     ScanReport,
     get_changed_python_files,
@@ -144,6 +144,7 @@ def _check_default_enabled_product_parity() -> list[str]:
         sys.path.insert(0, server_path)
     try:
         from app.services.agent.builtin_tool_ids import DEFAULT_ENABLED_BUILTIN_TOOLS
+
         from myrm_agent_harness.agent.tool_management.tool_catalog import (
             DEFAULT_ENABLED_PRODUCT_IDS,
         )
