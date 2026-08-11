@@ -6,6 +6,7 @@ ensuring the fix works and preventing skill bloat.
 
 [INPUT]
 - agent.skills.evolution.core.types::SkillRecord (POS: Data types for skill evolution system.)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 - BatchEvaluator: Evaluates multiple skill variants and picks the highest s...
@@ -21,6 +22,7 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.skills.evolution.core.types import SkillRecord
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +192,8 @@ class BatchEvaluator:
                 import json
                 import re
 
-                text = resp.content.strip()
+                # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+                text = extract_answer_text(resp).strip()
                 match = re.search(r"\{.*\}", text, re.DOTALL)
                 if match:
                     data = json.loads(match.group())

@@ -13,7 +13,7 @@ vs OpenSpace (lime):
 -  90% cost reduction (10 skills → 1 LLM call)
 
 [INPUT]
-- (none)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 - ConfirmationResult: Result of LLM confirmation for a single candidate.
@@ -30,6 +30,8 @@ import logging
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -97,7 +99,8 @@ class BatchEvolutionConfirmer:
             from langchain_core.messages import HumanMessage
 
             response = await self._llm.ainvoke([HumanMessage(content=prompt)])
-            response_text = response.content
+            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            response_text = extract_answer_text(response)
 
             # Parse JSON array
             data = self._extract_json(response_text)

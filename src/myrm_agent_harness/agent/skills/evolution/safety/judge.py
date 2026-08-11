@@ -1,8 +1,13 @@
 """Evolution judge - LLM-as-Judge confidence scoring.
 
-[INPUT] Evolved skill content
-[OUTPUT] JudgeResult
-[POS] myrm_agent_harness/agent/skills/evolution/judge.py
+[INPUT]
+- Evolved skill content
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+
+[OUTPUT]
+- JudgeResult
+[POS]
+- myrm_agent_harness/agent/skills/evolution/judge.py
 
 ## Architecture
 
@@ -19,6 +24,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from langchain_core.messages import HumanMessage
+
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -66,7 +73,8 @@ class EvolutionJudge:
 
         try:
             response = await self._judge_llm.ainvoke([HumanMessage(content=prompt)])
-            content = response.content.strip()
+            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            content = extract_answer_text(response).strip()
 
             confidence, reason = self._parse_llm_response(content)
 

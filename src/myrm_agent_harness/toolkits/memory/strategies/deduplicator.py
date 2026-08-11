@@ -4,6 +4,7 @@
 [INPUT]
 - memory.protocols.vector::VectorStoreProtocol (POS: vector store protocol)
 - memory.types::{AnyMemory, MemoryType} (POS: memory data models)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 - Deduplicator: Three-layer dedup engine (Hash→Vector→LLM), returns DUPLICATE/UPDATE_REPLACE/UPDATE_MERGE/NEW
@@ -58,6 +59,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from myrm_agent_harness.toolkits.memory._internal.hash_utils import compute_normalized_hash
 from myrm_agent_harness.toolkits.memory.strategies.llm_prompt import DEDUPLICATION_SYSTEM_PROMPT
 from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, MemoryType, SemanticMemory
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
@@ -458,7 +460,8 @@ class SmartDeduplicator:
             response = await self._llm.ainvoke(
                 [SystemMessage(content=DEDUPLICATION_SYSTEM_PROMPT.strip()), HumanMessage(content=user_prompt)]
             )
-            result_text = response.content.strip() if hasattr(response, "content") else str(response)
+            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            result_text = extract_answer_text(response).strip()
 
             if "UPDATE_REPLACE" in result_text:
                 merged = self._extract_merged_content(result_text)

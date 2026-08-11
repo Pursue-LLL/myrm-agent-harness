@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Literal
 from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.agent.context_management.tracking.task_metrics import get_task_metrics
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.token_estimation import (
     estimate_content_tokens,
 )
@@ -165,8 +166,8 @@ class ArchiveSummaryService:
             f"{clipped}"
         )
         response = await summarizer_llm.ainvoke([HumanMessage(content=prompt)])
-        raw = response.content
-        summary = raw if isinstance(raw, str) else str(raw)
+        # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+        summary = extract_answer_text(response).strip()
         if not summary.strip():
             raise RuntimeError("Archive summary returned empty content.")
         return await self._store.store_checkpoint(

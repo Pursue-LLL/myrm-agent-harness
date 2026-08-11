@@ -516,7 +516,8 @@ class WikiLinter:
                 )
 
                 response = await self._llm.ainvoke([system_msg, human_msg])
-                response_text = response.content.strip()
+                # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+                response_text = extract_answer_text(response).strip()
 
                 if "NO_DRIFT" not in response_text:
                     issues.append(

@@ -2,6 +2,7 @@
 
 [INPUT]
 - agent.skills.evolution.core.types::EvolutionRequest (POS: Data types for skill evolution system.)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 - EvolutionScreener: Two-phase evolution screener.
@@ -54,6 +55,7 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionRequest,
     EvolutionType,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -346,7 +348,8 @@ class EvolutionScreener:
 
             try:
                 response = await self._cheap_llm.ainvoke([HumanMessage(content=prompt)])
-                content = response.content.strip()
+                # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+                content = extract_answer_text(response).strip()
 
                 # Parse LLM response (supports multiple formats)
                 decision, reason, confidence = self._parse_llm_response(content)
