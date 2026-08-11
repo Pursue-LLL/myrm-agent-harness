@@ -24,6 +24,7 @@ import contextlib
 import dataclasses
 import logging
 import os
+import secrets
 import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
@@ -81,7 +82,14 @@ class SessionConfig:
 
 
 def _generate_marker(prefix: str) -> str:
-    return f"__MYRM_{prefix}__"
+    """Return a unique per-command output boundary marker.
+
+    Randomised so user command output can never collide with the marker text.
+    A fixed literal (``__MYRM_END__`` etc.) would be matched inside user
+    output, silently truncating the captured stdout and misreporting the exit
+    code.
+    """
+    return f"__MYRM_{prefix}_{secrets.token_hex(8)}__"
 
 
 async def _kill_process_tree(
@@ -283,7 +291,43 @@ class PersistentSession(ABC):
             await self._transit_state(SessionState.TERMINATED)
             return SessionExecutionResult(False, "", "", 1, error="Recovery failed")
 
+    async def _precheck_bash_syntax(self, command: str) -> str | None:
+        """Return a bash syntax error message when *command* is malformed.
+
+        Spawns ``bash -n`` before the command reaches the persistent shell so
+        a broken multi-line block (unbalanced braces, unterminated ``if`` /
+        heredoc) is rejected upfront instead of killing the long-lived shell
+        process. Best-effort: returns ``None`` on platform mismatch, spawn
+        failure or timeout so execution still proceeds and surfaces real errors.
+        """
+        if self._platform.is_windows:
+            return None
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "bash",
+                "-n",
+                "-c",
+                command,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            return None
+        except OSError:
+            return None
+        if proc.returncode == 0:
+            return None
+        detail = stderr.decode("utf-8", errors="replace").strip()
+        return detail or f"bash syntax error (exit {proc.returncode})"
+
     async def _execute_core(self, command: str, timeout: int) -> SessionExecutionResult:
+        syntax_error = await self._precheck_bash_syntax(command)
+        if syntax_error:
+            return SessionExecutionResult(False, "", syntax_error, 2, error=syntax_error)
+
         if not self.process or not self.process.stdin or not self.process.stdout:
             return SessionExecutionResult(False, "", "", 1, error="Process unavailable")
 
@@ -380,6 +424,11 @@ class PersistentSession(ABC):
         """Yield performance-optimized output stream."""
         timeout = timeout or self.config.timeout
         await self._ensure_active()
+
+        syntax_error = await self._precheck_bash_syntax(command)
+        if syntax_error:
+            yield f"\n[ERROR] {syntax_error}\n"
+            return
 
         async with self._lock:
             end_marker = _generate_marker("END")

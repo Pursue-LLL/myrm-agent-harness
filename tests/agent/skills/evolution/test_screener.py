@@ -116,6 +116,24 @@ async def test_screener_llm_confirmation_json(mock_store, mock_llm):
     assert result.confidence == 0.9
 
 @pytest.mark.asyncio
+async def test_screener_llm_confirmation_json_malformed(mock_store, mock_llm):
+    # LLM returns JSON with trailing comma
+    response = MagicMock()
+    response.content = '{"approved": true, "reason": "logic error", "confidence": 0.9,}'
+    mock_llm.ainvoke.return_value = response
+
+    screener = EvolutionScreener(store=mock_store, cheap_llm=mock_llm)
+    request = EvolutionRequest(
+        evolution_type=EvolutionType.FIX,
+        skill_id="test_skill",
+        reason="Exception: division by zero"
+    )
+
+    result = await screener.screen_request(request)
+    assert result.allowed is True
+    assert result.confidence == 0.9
+
+@pytest.mark.asyncio
 async def test_screener_intent_override(mock_store):
     # Even if recently evolved, force_retry should bypass cooldown
     screener = EvolutionScreener(store=mock_store, cooldown_seconds=3600)

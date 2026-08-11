@@ -5,6 +5,7 @@
 - .builder::truncate_result (POS: Subagent construction helpers — tool filtering via DelegationCapabilityManifest, model resolution, token merge.)
 - agent.artifacts.vault::ArtifactVault (POS: Shared Artifact Vault, vault:// pointer protocol)
 - agent.artifacts::infer_artifact_type_from_extension, push_inline_artifact (POS: Inline artifact SSE queue for frontend delivery)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - _filter_fork_messages, _estimate_msg_tokens: fork context filtering
@@ -18,7 +19,6 @@ Pure helper functions for SubagentExecutor mixins and external callers.
 
 from __future__ import annotations
 
-import json
 import re
 from typing import TYPE_CHECKING
 
@@ -26,6 +26,7 @@ from myrm_agent_harness.agent.artifacts import (
     infer_artifact_type_from_extension,
     push_inline_artifact,
 )
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .builder import truncate_result
@@ -249,16 +250,10 @@ def _parse_handover_state(raw_result: str, task_id: str) -> AgentHandoverState |
         return None
 
     try:
-        json_str = match.group(1).strip()
-        if json_str.startswith("```json"):
-            json_str = json_str[7:]
-        elif json_str.startswith("```"):
-            json_str = json_str[3:]
-        if json_str.endswith("```"):
-            json_str = json_str[:-3]
-        json_str = json_str.strip()
-
-        data = json.loads(json_str)
+        data = parse_llm_json_object(match.group(1))
+        if data is None:
+            logger.warning("[subagent:%s] Failed to parse handover state", task_id)
+            return None
         return AgentHandoverState.from_dict(data)
     except Exception as e:
         logger.warning("[subagent:%s] Failed to parse handover state: %s", task_id, e)

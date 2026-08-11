@@ -124,3 +124,14 @@ class TestParseHandoverStateFences:
         raw = '<handover>```\n{"status": "ok"}\n```</handover>'
         state = _parse_handover_state(raw, "t1")
         assert state is not None
+
+    def test_handover_with_trailing_comma(self) -> None:
+        raw = '<handover>{"status": "ok", "summary": "done",}</handover>'
+        state = _parse_handover_state(raw, "t2")
+        assert state is not None
+
+    def test_handover_with_bare_newline(self) -> None:
+        raw = '<handover>{"task_completed": ["line1\nline2"]}</handover>'
+        state = _parse_handover_state(raw, "t3")
+        assert state is not None
+        assert state.task_completed == ["line1\nline2"]

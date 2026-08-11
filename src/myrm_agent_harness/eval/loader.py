@@ -140,6 +140,8 @@ def _parse_case(item: dict[str, object]) -> EvalCase:
                 threshold=a.get("threshold", 1.0),
                 judge_prompt=a.get("judge_prompt"),
                 judge_model=a.get("judge_model"),
+                judge_api_key=a.get("judge_api_key"),
+                judge_api_base=a.get("judge_api_base"),
             )
         )
 

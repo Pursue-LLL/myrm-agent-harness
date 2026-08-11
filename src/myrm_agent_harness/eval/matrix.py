@@ -24,7 +24,7 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from .protocols import EvalCase, EvalResult, EvalTurnResult
+from .protocols import EvalCase, EvalResult, EvalTurnResult, JudgeConfig
 from .runner import EvalRunner
 
 if TYPE_CHECKING:
@@ -171,12 +171,14 @@ class MatrixRunner:
         on_profile_start: OnProfileStart | None = None,
         on_case_complete: OnMatrixCaseComplete | None = None,
         yielding_strategy: AbstractAsyncContextManager[None] | None = None,
+        judge_config: JudgeConfig | None = None,
     ) -> None:
         self._executors = executors
         self._max_concurrency = max_concurrency_per_profile
         self._on_profile_start = on_profile_start
         self._on_case_complete = on_case_complete
         self._yielding_strategy = yielding_strategy
+        self._judge_config = judge_config
         self._abort_requested = False
         self._active_runner: EvalRunner | None = None
 
@@ -216,6 +218,7 @@ class MatrixRunner:
                 max_concurrency=self._max_concurrency,
                 on_case_complete=_make_callback(profile_id),
                 yielding_strategy=self._yielding_strategy,
+                judge_config=self._judge_config,
             )
             self._active_runner = runner
 
@@ -269,6 +272,7 @@ class MatrixRunner:
                 max_concurrency=self._max_concurrency,
                 on_case_complete=_make_callback(profile_id),
                 yielding_strategy=self._yielding_strategy,
+                judge_config=self._judge_config,
             )
             self._active_runner = runner
 

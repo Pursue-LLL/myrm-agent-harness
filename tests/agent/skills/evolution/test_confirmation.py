@@ -116,3 +116,66 @@ async def test_batch_confirm_exception(mock_llm, candidates):
     assert len(res) == 2
     assert all(c.confirmed is False for c in res)
     assert all("Batch confirmation failed" in c.reason for c in res)
+
+@pytest.mark.asyncio
+async def test_batch_confirm_trailing_comma(mock_llm, candidates):
+    mock_llm.ainvoke.return_value = MagicMock(content='''
+    {
+        "confirmations": [
+            {
+                "skill_id": "skill1",
+                "confirmed": true,
+                "reason": "Good idea",
+                "confidence": 0.9,
+            },
+            {
+                "skill_id": "skill2",
+                "confirmed": false,
+                "reason": "Bad idea",
+                "confidence": 0.8,
+            },
+        ],
+    }
+    ''')
+
+    confirmer = BatchEvolutionConfirmer(mock_llm)
+    res = await confirmer.batch_confirm_evolution(candidates, "test context")
+
+    assert len(res) == 2
+    c1 = next(c for c in res if c.skill_id == "skill1")
+    assert c1.confirmed is True
+    c2 = next(c for c in res if c.skill_id == "skill2")
+    assert c2.confirmed is False
+
+@pytest.mark.asyncio
+async def test_batch_confirm_bare_newline(mock_llm, candidates):
+    mock_llm.ainvoke.return_value = MagicMock(content='''
+    ```json
+    {
+        "confirmations": [
+            {
+                "skill_id": "skill1",
+                "confirmed": true,
+                "reason": "Reason with
+bare newline",
+                "confidence": 0.9
+            },
+            {
+                "skill_id": "skill2",
+                "confirmed": false,
+                "reason": "Bad idea",
+                "confidence": 0.8
+            }
+        ]
+    }
+    ```
+    ''')
+
+    confirmer = BatchEvolutionConfirmer(mock_llm)
+    res = await confirmer.batch_confirm_evolution(candidates, "test context")
+
+    assert len(res) == 2
+    c1 = next(c for c in res if c.skill_id == "skill1")
+    assert c1.confirmed is True
+    c2 = next(c for c in res if c.skill_id == "skill2")
+    assert c2.confirmed is False

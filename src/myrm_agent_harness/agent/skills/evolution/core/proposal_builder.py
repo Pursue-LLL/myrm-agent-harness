@@ -4,7 +4,7 @@ Generates the standardized EvolutionProposal data structure, decoupling the
 framework from direct file-system modifications.
 
 [INPUT]
-- (none)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - ProposalBuilder: Builds an EvolutionProposal for review by Server/Frontend.
@@ -14,7 +14,6 @@ Proposal Builder for Skill Evolution.
 """
 
 import difflib
-import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -24,6 +23,7 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionType,
     SkillRecord,
 )
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -105,12 +105,9 @@ class ProposalBuilder:
         skill_content = parts[0].rstrip()
         summary_raw = parts[1].strip()
 
-        try:
-            summary = json.loads(summary_raw)
-            if isinstance(summary, dict):
-                return skill_content, summary
-        except (json.JSONDecodeError, ValueError):
-            pass
+        summary = parse_llm_json_object(summary_raw)
+        if summary is not None:
+            return skill_content, summary
 
         return skill_content, None
 

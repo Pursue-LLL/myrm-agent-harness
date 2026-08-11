@@ -53,6 +53,10 @@ class BashFlavor(ShellFlavor):
         return [
             "set +o history 2>/dev/null || true",
             "export PS1='' PS2='' NO_COLOR=1 FORCE_COLOR=0 TERM=dumb",
+            # Contain `exit` inside the command block so a trailing `exit N`
+            # from an LLM-generated command returns from the block instead of
+            # killing the persistent shell (which would silently lose cwd/env).
+            "exit() { builtin return $(( ${1:-0} )); }",
             f"cd '{work_dir}' || cd /tmp",
             ulimit_cmd,
         ]

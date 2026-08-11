@@ -408,3 +408,193 @@ class TestCreateSkillMetadata:
         )
         assert meta.always is True
         assert meta.is_mcp_skill is True
+
+
+class TestGenerateSkillContentEdgeCases:
+    """generate_skill_content edge paths: non-MCP skill + cached content."""
+
+    def test_non_mcp_skill_returns_local_notice(
+        self, generator: MCPSkillGenerator
+    ) -> None:
+        meta = SkillMetadata(name="local_skill", description="Local skill")
+        content = generator.generate_skill_content(meta)
+        assert "local skill" in content
+        assert "not an MCP skill" in content
+
+    def test_cached_skill_content_returned(
+        self, generator: MCPSkillGenerator, many_tools_skill_meta: SkillMetadata
+    ) -> None:
+        assert many_tools_skill_meta.mcp is not None
+        many_tools_skill_meta.mcp.skill_content = "cached-skill-content"
+        assert (
+            generator.generate_skill_content(many_tools_skill_meta)
+            == "cached-skill-content"
+        )
+
+
+class TestGenerateToolDocEdgeCases:
+    """generate_tool_doc edge paths: non-MCP + cached doc + many-tool truncation."""
+
+    def test_non_mcp_skill_returns_error(
+        self, generator: MCPSkillGenerator
+    ) -> None:
+        meta = SkillMetadata(name="local_skill", description="Local")
+        result = generator.generate_tool_doc(meta, "some-tool")
+        assert "not an MCP skill" in result
+
+    def test_cached_tool_doc_returned(
+        self, generator: MCPSkillGenerator, sample_skill_meta: SkillMetadata
+    ) -> None:
+        assert sample_skill_meta.mcp is not None
+        sample_skill_meta.mcp.tool_docs["get-tickets"] = "cached-tool-doc"
+        assert (
+            generator.generate_tool_doc(sample_skill_meta, "get-tickets")
+            == "cached-tool-doc"
+        )
+
+    def test_unknown_tool_many_tools_truncates_available(
+        self, generator: MCPSkillGenerator
+    ) -> None:
+        names = [f"tool-{i}" for i in range(6)]
+        schemas = {
+            name: {"description": f"Desc {i}", "inputSchema": {}}
+            for i, name in enumerate(names)
+        }
+        mcp = MCPSkillData(
+            server="srv", tools=names, config=[], tool_schemas=schemas
+        )
+        meta = SkillMetadata(name="mcp_srv_skill", description="Srv", mcp=mcp)
+        with pytest.raises(FileNotFoundError, match="not found"):
+            generator.generate_tool_doc(meta, "missing-tool")
+
+
+class TestResolveDescriptionPriority:
+    """_resolve_description priority: user > instructions > auto-generated."""
+
+    def test_user_description_wins(self, generator: MCPSkillGenerator) -> None:
+        assert (
+            generator._resolve_description("user desc", "instr", [], "srv")
+            == "user desc"
+        )
+
+    def test_instructions_fallback_cleans_markdown(
+        self, generator: MCPSkillGenerator
+    ) -> None:
+        desc = generator._resolve_description("", "**Hello** world.\n\nExtra", [], "srv")
+        assert "Hello world" in desc
+
+    def test_auto_generated_from_tool_descriptions(
+        self, generator: MCPSkillGenerator
+    ) -> None:
+        from types import SimpleNamespace
+
+        tools = [SimpleNamespace(description="Query tickets quickly.")]
+        desc = generator._resolve_description("", None, tools, "srv")
+        assert "Query tickets quickly" in desc
+        assert "srv" in desc
+
+    def test_auto_generated_no_descriptions(
+        self, generator: MCPSkillGenerator
+    ) -> None:
+        from types import SimpleNamespace
+
+        tools = [SimpleNamespace(description=""), SimpleNamespace(description="")]
+        desc = generator._resolve_description("", None, tools, "my-server")
+        assert desc == "My Server (2 tools available)"
+
+    def test_auto_generated_more_than_three(
+        self, generator: MCPSkillGenerator
+    ) -> None:
+        from types import SimpleNamespace
+
+        tools = [SimpleNamespace(description=f"Desc {i} tool.") for i in range(5)]
+        desc = generator._resolve_description("", None, tools, "srv")
+        assert "and 2 more" in desc
+
+
+class TestFormatParamsInlineEdge:
+    """_format_params_inline edge paths."""
+
+    def test_empty_schema(self, generator: MCPSkillGenerator) -> None:
+        assert generator._format_params_inline({}) == ""
+
+    def test_non_dict_param_info_skipped(
+        self, generator: MCPSkillGenerator
+    ) -> None:
+        schema = {"type": "object", "properties": {"weird": "not-a-dict"}}
+        assert generator._format_params_inline(schema) == ""
+
+
+class TestTextProcessing:
+    """_truncate_to_sentence and _clean_markdown."""
+
+    def test_truncate_at_sentence_boundary(self) -> None:
+        assert (
+            MCPSkillGenerator._truncate_to_sentence("Hello world. Next", max_len=20)
+            == "Hello world."
+        )
+
+    def test_truncate_long_text(self) -> None:
+        result = MCPSkillGenerator._truncate_to_sentence("x" * 100, max_len=50)
+        assert result == "x" * 50 + "..."
+        assert len(result) == 53
+
+    def test_truncate_short_text(self) -> None:
+        assert MCPSkillGenerator._truncate_to_sentence("short", max_len=50) == "short"
+
+    def test_clean_markdown(self) -> None:
+        assert (
+            MCPSkillGenerator._clean_markdown(
+                "**bold** and *italic* and # heading"
+            )
+            == "bold and italic and heading"
+        )
+
+
+class TestGenerateMetadataOnly:
+    """generate_metadata_only with mocked connection manager."""
+
+    async def test_empty_configs_returns_empty(
+        self, generator: MCPSkillGenerator
+    ) -> None:
+        assert await generator.generate_metadata_only([]) == []
+
+    async def test_generates_skills_from_configs(
+        self, generator: MCPSkillGenerator, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+
+        from myrm_agent_harness.toolkits.mcp import connection_manager as cm
+        from myrm_agent_harness.toolkits.mcp.config import MCPConfig
+
+        fake_manager = MagicMock()
+        fake_conn = MagicMock()
+        fake_conn.tools_by_server = {
+            "srv": [
+                SimpleNamespace(
+                    name="mcp__srv__tool-a",
+                    description="Tool A",
+                    args_schema=None,
+                ),
+                SimpleNamespace(
+                    name="mcp__srv__tool-b",
+                    description="Tool B",
+                    args_schema=None,
+                ),
+            ]
+        }
+        fake_conn.instructions_by_server = {"srv": "Use carefully"}
+        fake_manager.get_connection = AsyncMock(return_value=fake_conn)
+        monkeypatch.setattr(
+            cm, "get_mcp_connection_manager", AsyncMock(return_value=fake_manager)
+        )
+
+        cfg = MCPConfig(
+            name="srv", type="stdio", command="echo", description="srv desc"
+        )
+        skills = await generator.generate_metadata_only([cfg])
+        assert len(skills) == 1
+        assert skills[0].is_mcp_skill is True
+        assert skills[0].name == "mcp_srv_skill"
+

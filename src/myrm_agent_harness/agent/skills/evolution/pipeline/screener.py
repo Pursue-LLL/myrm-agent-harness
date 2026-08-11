@@ -3,6 +3,7 @@
 [INPUT]
 - agent.skills.evolution.core.types::EvolutionRequest (POS: Data types for skill evolution system.)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - EvolutionScreener: Two-phase evolution screener.
@@ -55,7 +56,10 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionRequest,
     EvolutionType,
 )
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import (
+    extract_answer_text,
+    parse_llm_json_object,
+)
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -615,16 +619,15 @@ class EvolutionScreener:
 
         # Format 0: Structured JSON
         if stripped.startswith("{"):
-            try:
-                import json
-
-                data = json.loads(stripped)
-                approved = bool(data.get("approved", data.get("decision", False)))
-                reason = str(data.get("reason", stripped))
-                confidence = float(data.get("confidence", 0.8))
-                return approved, reason, confidence
-            except (json.JSONDecodeError, ValueError, TypeError):
-                pass
+            data = parse_llm_json_object(stripped)
+            if data is not None:
+                try:
+                    approved = bool(data.get("approved", data.get("decision", False)))
+                    reason = str(data.get("reason", stripped))
+                    confidence = float(data.get("confidence", 0.8))
+                    return approved, reason, confidence
+                except (ValueError, TypeError):
+                    pass
 
         # Format 1: Simple YES/NO
         if content_upper.startswith("YES"):

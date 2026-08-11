@@ -58,6 +58,20 @@ class StateAssertion:
 
 
 @dataclass(frozen=True, slots=True)
+class JudgeConfig:
+    """Caller-level judge LLM credentials resolved by the eval runner.
+
+    Injected into semantic assertions so the LLM judge reuses the caller's
+    model configuration (provider API key/base URL) instead of requiring
+    ambient provider environment variables.
+    """
+
+    model: str
+    api_key: str | None = None
+    api_base: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class SemanticAssertion:
     """LLM-as-a-Judge semantic assertion definition."""
 
@@ -66,6 +80,8 @@ class SemanticAssertion:
     threshold: float = 1.0  # Optional threshold for soft scoring (e.g. 0-1)
     judge_prompt: str | None = None  # Custom system prompt for the judge LLM
     judge_model: str | None = None  # Override judge model (e.g., "gpt-3.5-turbo")
+    judge_api_key: str | None = None  # Override judge API key (litellm-compatible)
+    judge_api_base: str | None = None  # Override judge base URL (litellm-compatible)
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +166,7 @@ class EvalManifest:
     thinking_effort: str = "default"
     profile_id: str = "default"
     benchmark_mode: bool = False
+    judge_model: str = "none"  # LLM judge model used for semantic assertions
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -166,6 +183,7 @@ class EvalManifest:
             "created_at": self.created_at,
             "profile_id": self.profile_id,
             "benchmark_mode": self.benchmark_mode,
+            "judge_model": self.judge_model,
         }
 
 
@@ -284,6 +302,8 @@ class EvalResult:
                         "threshold": a.threshold,
                         **({"judge_prompt": a.judge_prompt} if a.judge_prompt else {}),
                         **({"judge_model": a.judge_model} if a.judge_model else {}),
+                        **({"judge_api_key": a.judge_api_key} if a.judge_api_key else {}),
+                        **({"judge_api_base": a.judge_api_base} if a.judge_api_base else {}),
                     }
                     for a in r.case.semantic_assertions
                 ],

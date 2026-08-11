@@ -32,3 +32,13 @@ class TestBashFlavorNoColor:
 
         export_lines = [c for c in cmds if c.startswith("export")]
         assert len(export_lines) == 1
+
+    def test_exit_interceptor_injected(self) -> None:
+        """Init commands contain the exit() interceptor so the persistent shell
+        survives trailing ``exit`` in LLM-generated commands."""
+        flavor = BashFlavor()
+        cmds = flavor.build_init_commands("/workspace", timeout=60, max_memory_mb=2048)
+
+        exit_lines = [c for c in cmds if c.startswith("exit()")]
+        assert len(exit_lines) == 1
+        assert "builtin return" in exit_lines[0]

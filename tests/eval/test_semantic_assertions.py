@@ -288,3 +288,49 @@ class TestSemanticAssertionBranches:
         passed, details = await evaluate_semantic_assertions(assertions, "output")
         assert passed is False
         assert "'litellm' package" in details
+
+    async def test_judge_override_wins_over_assertion_fields(self, monkeypatch):
+        """Caller-resolved JudgeConfig (server side) overrides per-assertion
+        credentials, mirroring the model_cfg injection done by the server."""
+        from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
+        from myrm_agent_harness.eval.protocols import JudgeConfig, SemanticAssertion
+
+        litellm_mock = self._mock_litellm(monkeypatch, "PASS")
+        judge_override = JudgeConfig(
+            model="deepseek/deepseek-chat",
+            api_key="sk-caller",
+            api_base="https://judge.example.com",
+        )
+        assertions = [
+            SemanticAssertion(
+                type="llm_judge",
+                expected="Be nice",
+                judge_api_key="sk-assertion",
+            )
+        ]
+        await evaluate_semantic_assertions(
+            assertions, "output", judge_override=judge_override
+        )
+        call_kwargs = litellm_mock.acompletion.await_args.kwargs
+        assert call_kwargs["model"] == "deepseek/deepseek-chat"
+        assert call_kwargs["api_key"] == "sk-caller"
+        assert call_kwargs["base_url"] == "https://judge.example.com"
+
+    async def test_assertion_fields_used_without_override(self, monkeypatch):
+        """Without a caller override the per-assertion credentials apply."""
+        from myrm_agent_harness.eval.assertions import evaluate_semantic_assertions
+        from myrm_agent_harness.eval.protocols import SemanticAssertion
+
+        litellm_mock = self._mock_litellm(monkeypatch, "PASS")
+        assertions = [
+            SemanticAssertion(
+                type="llm_judge",
+                expected="Be nice",
+                judge_api_key="sk-assertion",
+                judge_api_base="https://assertion.example.com",
+            )
+        ]
+        await evaluate_semantic_assertions(assertions, "output")
+        call_kwargs = litellm_mock.acompletion.await_args.kwargs
+        assert call_kwargs["api_key"] == "sk-assertion"
+        assert call_kwargs["base_url"] == "https://assertion.example.com"

@@ -4,6 +4,7 @@
 [INPUT]
 - memory.types::{ProfileEntry, SemanticMemory, EpisodicMemory, ProceduralMemory, MemoryType, MemoryLifecycle, PreferenceType} (POS: memory data models)
 - memory.tool_capture::{extract_tool_edicts, associate_tool} (POS: tool-scoped memory capture via regex edicts + failure counting)
+- utils.chat_utils::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - MemoryExtractor: LLM-powered memory extractor (profile, semantic, episodic, procedural, task digest)
@@ -28,6 +29,8 @@ from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_list
 
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,
@@ -674,24 +677,14 @@ class MemoryExtractor:
 
 
 def _parse_response(raw: str) -> list[ExtractedMemory]:
-    raw = raw.strip()
-
-    # Try to find a JSON array or object
-    import re
-
-    match = re.search(r"(\[.*\]|\{.*\})", raw, re.DOTALL)
-    if match:
-        raw = match.group(1)
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as e:
-        logger.warning("Failed to parse extraction response: %s", e)
-        return []
-    if not isinstance(data, list):
+    data = parse_llm_json_list(raw)
+    if data is None:
+        logger.warning("Failed to parse extraction response as JSON array")
         return []
     result: list[ExtractedMemory] = []
     for item in data:
+        if not isinstance(item, dict):
+            continue
         try:
             raw_pref_type = item.get("preference_type")
             pref_type = (

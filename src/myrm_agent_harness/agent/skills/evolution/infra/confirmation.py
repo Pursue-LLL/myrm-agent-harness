@@ -14,6 +14,7 @@ vs OpenSpace (lime):
 
 [INPUT]
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - ConfirmationResult: Result of LLM confirmation for a single candidate.
@@ -25,13 +26,14 @@ Batch LLM confirmation for evolution candidates.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import (
+    extract_answer_text,
+    parse_llm_json_object,
+)
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -230,36 +232,20 @@ Guidelines:
     def _extract_json(text: str) -> dict | None:
         """Extract JSON object from LLM response.
 
-        Handles markdown code fences and bare JSON.
-
-        Args:
-            text: LLM response text
-
-        Returns:
-            Parsed JSON dict, or None if parsing failed
+        Handles markdown code fences, prose framing, and malformed
+        (bare control characters, trailing commas) LLM output.
         """
-        # Try code block first
-        code_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
-        if code_match:
-            text = code_match.group(1).strip()
-        else:
-            # Try bare JSON object
-            json_match = re.search(r"\{.*\}", text, re.DOTALL)
-            if json_match:
-                text = json_match.group()
-
-        try:
-            data = json.loads(text)
-            if isinstance(data, dict):
-                return data
+        data = parse_llm_json_object(text)
+        if isinstance(data, dict):
+            return data
+        if data is not None:
             logger.warning(
                 f"Batch confirmation: LLM returned non-dict JSON: {type(data)}"
             )
-            return None
-        except json.JSONDecodeError as e:
-            logger.warning(f"Batch confirmation: Failed to parse JSON: {e}")
+        else:
+            logger.warning("Batch confirmation: Failed to parse JSON")
             logger.debug(f"Raw LLM output (first 500 chars): {text[:500]}")
-            return None
+        return None
 
     @staticmethod
     def _default_rejections(candidates: list[dict]) -> list[ConfirmationResult]:

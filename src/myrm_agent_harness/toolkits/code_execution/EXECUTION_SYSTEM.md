@@ -138,7 +138,9 @@ Python wrapper 在用户代码运行前注入一个 import 钩子，惰性拦截
 
 长驻 Shell 进程管理，支持 macOS/Linux（bash）和 Windows（cmd.exe）：
 
-- 通过 stdin 发送命令，stdout 使用唯一标记分隔输出
+- 通过 stdin 发送命令，stdout 使用**每次命令随机生成**的唯一标记分隔输出（`secrets.token_hex`），杜绝用户输出与固定标记文本碰撞导致的截断/误判退出码
+- 命令发送前对 bash 命令做 `bash -n` **语法预检**，畸形多行命令（裸 `}`、未闭合的 `if`/heredoc）被前置拒绝，避免语法错误杀死长驻 Shell
+- 注入 `exit()` 拦截函数（`builtin return`），LLM 生成的尾部 `exit N` 从命令块返回而非终止长驻 Shell，cwd/env 状态不丢失；嵌套 `bash -c "exit N"` 不受影响
 - 进程意外退出时自动重启并重试
 - POSIX 进程组隔离 / Windows 进程树终止
 - `asyncio.shield()` 保护子进程清理，防止异步取消导致僵尸进程

@@ -272,13 +272,12 @@ class TestPseudonymizeDeepPII:
 class TestParseEdgeCases:
     """Edge cases for response parsing."""
 
-    def test_trailing_comma_unsupported_returns_empty(self) -> None:
-        # Trailing commas are outside the robust parser's supported
-        # artifacts; a non-recoverable reply falls back to empty results
-        # (fail-open), leaving regex PII classification as the fallback.
+    def test_trailing_comma_parsed(self) -> None:
         resp = '[{"original_text": "diabetes", "privacy_type": "Medical Health", "privacy_level": "PL3",}]'
         result = _parse_detection_response(resp, 1)
-        assert result == [[]]
+        assert len(result) == 1
+        assert len(result[0]) == 1
+        assert result[0][0].original_text == "diabetes"
 
     def test_non_list_top_level_returns_empty(self) -> None:
         resp = '{"original_text": "test", "privacy_type": "T", "privacy_level": "PL2"}'

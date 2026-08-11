@@ -576,6 +576,38 @@ async def test_proposal_builder_split_edit_summary():
 
 
 @pytest.mark.asyncio
+async def test_proposal_builder_split_edit_summary_malformed():
+    """ProposalBuilder tolerates malformed edit_summary JSON (trailing comma / bare newline)."""
+    from myrm_agent_harness.agent.skills.evolution.core.proposal_builder import (
+        ProposalBuilder,
+    )
+
+    builder = ProposalBuilder()
+    skill = SkillRecord(
+        skill_id="s2",
+        name="test-skill-2",
+        description="desc",
+        content="original content",
+        path="/fake",
+        lineage=None,
+    )
+    variant_with_summary = (
+        'Updated skill content here\n---EDIT_SUMMARY---\n'
+        '{"preserved_sections": ["setup"], "changed_sections": ["validation"], "notes": "fixed",}'
+    )
+    proposal = builder.build_proposal(
+        skill=skill,
+        evolution_type=EvolutionType.FIX,
+        best_variant=variant_with_summary,
+        score=0.9,
+        reasoning="Good fix",
+    )
+    assert proposal.proposed_content == "Updated skill content here"
+    assert proposal.edit_summary is not None
+    assert proposal.edit_summary["changed_sections"] == ["validation"]
+
+
+@pytest.mark.asyncio
 async def test_evaluator_strip_edit_summary():
     """BatchEvaluator._strip_edit_summary removes the metadata block."""
     evaluator = BatchEvaluator(llm=None)

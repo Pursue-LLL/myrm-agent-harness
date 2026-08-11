@@ -31,7 +31,12 @@ from myrm_agent_harness.utils.chat_utils import extract_litellm_answer_text
 from .suite_judge import evaluate_test_suite_assertion
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.eval.protocols import SandboxAssertion, SemanticAssertion, StateAssertion
+    from myrm_agent_harness.eval.protocols import (
+        JudgeConfig,
+        SandboxAssertion,
+        SemanticAssertion,
+        StateAssertion,
+    )
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
 
 
@@ -333,12 +338,17 @@ def _check_json_type(value: object, expected_type: str) -> bool:
 async def evaluate_semantic_assertions(
     assertions: list[SemanticAssertion],
     actual_output: str,
+    *,
+    judge_override: "JudgeConfig | None" = None,
 ) -> tuple[bool | None, str | None]:
     """Evaluate semantic assertions using an LLM as a judge.
 
     Args:
         assertions: List of SemanticAssertion objects.
         actual_output: The final answer or text output from the agent.
+        judge_override: Optional judge credentials resolved by the caller
+            (model/api_key/api_base). Takes precedence over the per-assertion
+            ``judge_*`` fields and the ambient ``MYRM_EVAL_JUDGE_MODEL`` env.
 
     Returns:
         (passed, details) where passed is None if no assertions provided.
@@ -368,7 +378,11 @@ async def evaluate_semantic_assertions(
 
     for assertion in assertions:
         if assertion.type == "llm_judge":
-            model = assertion.judge_model or default_judge_model
+            model = (
+                judge_override.model
+                if judge_override
+                else assertion.judge_model or default_judge_model
+            )
             use_scoring = assertion.threshold < 1.0
 
             if assertion.judge_prompt:
@@ -379,13 +393,32 @@ async def evaluate_semantic_assertions(
                 template = default_binary_prompt
 
             prompt = template.format(criteria=assertion.expected, output=actual_output)
+            call_kwargs: dict[str, object] = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.0,
+                "num_retries": 2,
+            }
+            # Prefer explicit per-assertion credentials, then the caller-level
+            # override, then ambient environment variables. This keeps
+            # non-OpenAI setups (DeepSeek/Qwen/self-hosted) able to run
+            # LLM-judge assertions without exporting provider keys.
+            judge_api_key = (
+                judge_override.api_key
+                if judge_override and judge_override.api_key
+                else assertion.judge_api_key
+            )
+            judge_api_base = (
+                judge_override.api_base
+                if judge_override and judge_override.api_base
+                else assertion.judge_api_base
+            )
+            if judge_api_key:
+                call_kwargs["api_key"] = judge_api_key
+            if judge_api_base:
+                call_kwargs["base_url"] = judge_api_base
             try:
-                response = await acompletion(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.0,
-                    num_retries=2,
-                )
+                response = await acompletion(**call_kwargs)
                 # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
                 result_text = extract_litellm_answer_text(response).strip()
                 if not result_text:

@@ -287,6 +287,18 @@ class TestParseLlmJsonObject:
         raw = '{"done": false} {"a": 1}'
         assert parse_llm_json_object(raw, require_key=None) == {"a": 1}
 
+    def test_trailing_comma_in_object(self) -> None:
+        raw = '{"done": true, "reason": "ok",}'
+        assert parse_llm_json_object(raw) == {"done": True, "reason": "ok"}
+
+    def test_trailing_comma_in_nested_values(self) -> None:
+        raw = '{"a": [1, 2,], "b": "x",}'
+        assert parse_llm_json_object(raw) == {"a": [1, 2], "b": "x"}
+
+    def test_trailing_comma_strings_unaffected(self) -> None:
+        raw = '{"s": "literal ,} stays", "t": "a,]",}'
+        assert parse_llm_json_object(raw) == {"s": "literal ,} stays", "t": "a,]"}
+
 
 class TestParseLlmJsonList:
     def test_plain_array(self) -> None:
@@ -314,3 +326,11 @@ class TestParseLlmJsonList:
 
     def test_no_array_returns_none(self) -> None:
         assert parse_llm_json_list("no array here") is None
+
+    def test_trailing_comma_in_array(self) -> None:
+        raw = '["a", "b",]'
+        assert parse_llm_json_list(raw) == ["a", "b"]
+
+    def test_trailing_comma_nested_and_double(self) -> None:
+        raw = '[[1, 2,], [3,,],]'
+        assert parse_llm_json_list(raw) == [[1, 2], [3]]

@@ -1006,6 +1006,197 @@ class TestEnsureActiveEdge:
             await session.close()
 
 
+class TestLifecycleSafety:
+    """Regression guards for the persistent-session lifecycle bug class:
+    marker collision, ``exit`` killing the shell, and syntax errors killing
+    the shell. All bugs were reproduced against the pre-fix implementation and
+    must stay fixed (random markers + ``exit`` interceptor + ``bash -n`` gate).
+    """
+
+    @pytest.mark.asyncio
+    async def test_marker_text_in_output_does_not_collide(self) -> None:
+        """User output containing the legacy marker literals is not truncated."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute(
+                'echo "hello __MYRM_EXIT__ world"; echo after'
+            )
+            assert result.success
+            assert result.exit_code == 0
+            assert "hello __MYRM_EXIT__ world" in result.stdout
+            assert "after" in result.stdout
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_marker_sequence_in_output_not_truncated(self) -> None:
+        """A multi-line payload containing both marker literals passes through."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute(
+                "printf 'a\\n__MYRM_EXIT__\\nb\\n__MYRM_END__\\nc\\n'"
+            )
+            assert result.success
+            assert result.exit_code == 0
+            assert "a" in result.stdout and "b" in result.stdout and "c" in result.stdout
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_markers_are_random_per_command(self) -> None:
+        """Each execution gets unique boundary markers."""
+        from myrm_agent_harness.toolkits.code_execution.session.persistent_session import (
+            _generate_marker,
+        )
+
+        a_end, b_end = _generate_marker("END"), _generate_marker("END")
+        a_exit, b_exit = _generate_marker("EXIT"), _generate_marker("EXIT")
+        assert a_end != b_end
+        assert a_exit != b_exit
+        assert a_end.startswith("__MYRM_END_")
+        assert a_exit.startswith("__MYRM_EXIT_")
+
+    @pytest.mark.asyncio
+    async def test_exit_keeps_session_alive_and_cwd(self) -> None:
+        """Trailing ``exit 0`` must not kill the persistent shell nor reset cwd."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute("cd /tmp; pwd; exit 0")
+            assert result.success
+            assert session.is_alive
+            cwd = await session.execute("pwd")
+            assert "/tmp" in cwd.stdout
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_exit_nonzero_propagates(self) -> None:
+        """``exit 5`` surfaces rc=5 while the session survives."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute("exit 5")
+            assert not result.success
+            assert result.exit_code == 5
+            assert session.is_alive
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_exit_keeps_env(self) -> None:
+        """Exported variables survive a command that ends with ``exit``."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            await session.execute("export MYRM_LC=42; exit 0")
+            result = await session.execute('echo "v=$MYRM_LC"')
+            assert "v=42" in result.stdout
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_nested_bash_exit_unaffected(self) -> None:
+        """A nested ``bash -c`` process still honors real ``exit`` semantics."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute('bash -c "exit 3"; echo rc=$?')
+            assert result.success
+            assert "rc=3" in result.stdout
+            assert session.is_alive
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_bare_brace_rejected_without_killing_session(self) -> None:
+        """A bare ``}`` line is a syntax error caught by the pre-check gate."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute("echo hi\n}\necho bye")
+            assert not result.success
+            assert "syntax error" in (result.error or "")
+            assert session.is_alive
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_unclosed_if_rejected_without_killing_session(self) -> None:
+        """An unterminated ``if`` block is caught before reaching the shell."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute("if true; then\n echo x")
+            assert not result.success
+            assert "unexpected end of file" in (result.error or "")
+            assert session.is_alive
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_multiline_for_loop_fidelity(self) -> None:
+        """Multi-line compound commands still execute faithfully."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute("for i in 1 2; do\n  echo \"x$i\"\ndone")
+            assert result.success
+            assert "x1" in result.stdout and "x2" in result.stdout
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_heredoc_fidelity(self) -> None:
+        """Heredoc bodies pass the pre-check and run correctly."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute(
+                "cat <<'EOF' > /tmp/myrm_lc_heredoc.txt\nhello\n}\nEOF\ncat /tmp/myrm_lc_heredoc.txt"
+            )
+            assert result.success
+            assert "hello" in result.stdout and "}" in result.stdout
+        finally:
+            await session.execute("rm -f /tmp/myrm_lc_heredoc.txt")
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_background_child_does_not_delay_main(self) -> None:
+        """A background child holding the stdout pipe must not block execution."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await asyncio.wait_for(
+                session.execute("sleep 5 & echo done", timeout=5), timeout=6
+            )
+            assert result.success
+            assert "done" in result.stdout
+            assert session.is_alive
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_nohup_background_returns_immediately(self) -> None:
+        """Detached background processes do not delay the current command."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await asyncio.wait_for(
+                session.execute(
+                    "nohup sleep 3 >/dev/null 2>&1 & echo started", timeout=5
+                ),
+                timeout=6,
+            )
+            assert result.success
+            assert "started" in result.stdout
+            assert session.is_alive
+        finally:
+            await session.close()
+
+
 class TestAutoTeeAndDiskQuota:
     @pytest.mark.asyncio
     async def test_auto_tee_generation_and_lru(self) -> None:

@@ -426,6 +426,52 @@ class TestResponseParsing:
         assert len(memories) == 1
         assert memories[0].source_error is None
 
+    def test_parse_multiple_arrays_takes_last(self):
+        """Test multiple arrays (example + real result) parse the last one."""
+        raw = """```json
+[{"memory_type": "semantic", "content": "Example output", "confidence": 0.9, "importance": 0.7}]
+```
+Here is the real extraction:
+[{"memory_type": "profile", "content": "User name is Alice", "confidence": 0.95, "importance": 0.8, "profile_key": "name", "profile_value": "Alice"}]"""
+        memories = _parse_response(raw)
+        assert len(memories) == 1
+        assert memories[0].memory_type == MemoryType.PROFILE
+        assert memories[0].content == "User name is Alice"
+
+    def test_parse_unescaped_newline_in_content(self):
+        """Test content string containing a bare newline (reasoning model artifact)."""
+        raw = """[{
+            "memory_type": "semantic",
+            "content": "User prefers tabs
+because spaces break alignment",
+            "confidence": 0.9,
+            "importance": 0.8
+        }]"""
+        memories = _parse_response(raw)
+        assert len(memories) == 1
+        assert "because spaces break alignment" in memories[0].content
+
+    def test_parse_trailing_comma(self):
+        """Test trailing comma inside object (common LLM artifact)."""
+        raw = """[{
+            "memory_type": "semantic",
+            "content": "Prefers Python",
+            "confidence": 0.9,
+            "importance": 0.8,
+        }]"""
+        memories = _parse_response(raw)
+        assert len(memories) == 1
+        assert memories[0].content == "Prefers Python"
+
+    def test_parse_prose_framing_around_array(self):
+        """Test prose text before and after the JSON array."""
+        raw = """Here are the extracted memories:
+[{"memory_type": "semantic", "content": "Likes Go", "confidence": 0.85, "importance": 0.7}]
+That's all."""
+        memories = _parse_response(raw)
+        assert len(memories) == 1
+        assert memories[0].content == "Likes Go"
+
 
 # ============================================================================
 # MemoryExtractor Tests

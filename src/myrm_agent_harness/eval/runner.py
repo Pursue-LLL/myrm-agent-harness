@@ -37,6 +37,7 @@ from .protocols import (
     EvalResult,
     EvalTimings,
     EvalTurnResult,
+    JudgeConfig,
     MultiTurnEvalCase,
 )
 
@@ -63,11 +64,13 @@ class EvalRunner:
         max_concurrency: int = 1,
         on_case_complete: Callable[[EvalTurnResult], None] | None = None,
         yielding_strategy: AbstractAsyncContextManager[None] | None = None,
+        judge_config: JudgeConfig | None = None,
     ) -> None:
         self._executor = executor
         self._max_concurrency = max(1, max_concurrency)
         self._on_case_complete = on_case_complete
         self._yielding_strategy = yielding_strategy
+        self._judge_config = judge_config
         self._abort_requested = False
 
     def abort(self) -> None:
@@ -194,7 +197,9 @@ class EvalRunner:
                     details = f"{details} | {state_details}" if details else state_details
 
         if passed is not False and getattr(case, "semantic_assertions", None):
-            sem_passed, sem_details = await evaluate_semantic_assertions(case.semantic_assertions, response.answer)
+            sem_passed, sem_details = await evaluate_semantic_assertions(
+                case.semantic_assertions, response.answer, judge_override=self._judge_config
+            )
             if sem_passed is not None:
                 passed = sem_passed if passed is None else (passed and sem_passed)
                 if sem_details:

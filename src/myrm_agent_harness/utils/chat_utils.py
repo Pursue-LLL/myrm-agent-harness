@@ -12,7 +12,7 @@
 - extract_text_content(): 从字符串 / 多媒体列表 / JSON 中提取纯文本
 - extract_answer_text(): 从 LLM 响应提取用户可见答案文本（str / block list / think 剥离 / reasoning 模型回退）
 - extract_litellm_answer_text(): 从 litellm 原生响应提取用户可见答案文本（choices[0].message / reasoning_content / block list）
-- parse_llm_json_object() / parse_llm_json_list(): 从 LLM 回复中容错提取 JSON 对象 / 数组（fence / 裸控制字符 / 多候选取末）；parse_llm_json_object 支持 require_key 过滤（仅取含指定键的对象）
+- parse_llm_json_object() / parse_llm_json_list(): 从 LLM 回复中容错提取 JSON 对象 / 数组（fence / prose / 裸控制字符 / 尾逗号 / 多候选取末）；parse_llm_json_object 支持 require_key 过滤（仅取含指定键的对象）
 
 [POS]
 Chat utility functions. Provides business-config-independent chat history conversion (generic part).
@@ -225,6 +225,48 @@ def _escape_control_chars_in_strings(text: str) -> str:
     return "".join(out)
 
 
+def _strip_trailing_commas(text: str) -> str:
+    """Remove trailing commas inside JSON containers.
+
+    LLMs occasionally serialize nested structures with trailing commas,
+    e.g. ``[1, 2,]`` or ``{"a": 1,}``. A comma directly before ``}`` or
+    ``]`` outside a string literal is never valid JSON, so dropping it is
+    always safe. Repeated passes handle runs like ``{"a": 1,,}``.
+    """
+    previous: str | None = None
+    while text != previous:
+        previous = text
+        out: list[str] = []
+        in_string = False
+        escape_next = False
+        for ch in text:
+            if in_string:
+                out.append(ch)
+                if escape_next:
+                    escape_next = False
+                elif ch == "\\":
+                    escape_next = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+                out.append(ch)
+                continue
+            if ch in " \t\r\n":
+                out.append(ch)
+                continue
+            if ch in "}]":
+                i = len(out) - 1
+                while i >= 0 and out[i] in " \t\r\n":
+                    i -= 1
+                if i >= 0 and out[i] == ",":
+                    del out[i:]
+            out.append(ch)
+        text = "".join(out)
+    return text
+
+
 def _iter_json_blocks(text: str, open_ch: str, close_ch: str) -> Iterable[str]:
     """Yield every balanced ``{open_ch}...{close_ch}`` block in ``text``.
 
@@ -288,25 +330,32 @@ def _iter_json_candidates(content: str) -> Iterable[str]:
     yield stripped
 
 
+def _try_load(text: str) -> object | None:
+    """Return ``json.loads(text)`` or ``None`` when the text is malformed."""
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
 def _iter_parsed_containers(
     content: str,
 ) -> Iterable[dict[str, object] | list[object]]:
     """Yield every dict or list recoverable from ``content``.
 
     Each candidate (fence body, balanced object/array, stripped raw text)
-    is tried raw first and, only on failure, with unescaped control
-    characters inside string literals escaped — matching the artifacts
-    reasoning providers emit.
+    is tried raw first and then, only on failure, with two structural
+    repairs: unescaped control characters inside string literals escaped
+    (bare newlines/tabs) and trailing commas removed — matching the
+    artifacts reasoning providers emit.
     """
     for candidate in _iter_json_candidates(content):
-        try:
-            parsed = json.loads(candidate)
-        except json.JSONDecodeError:
-            candidate = _escape_control_chars_in_strings(candidate)
-            try:
-                parsed = json.loads(candidate)
-            except json.JSONDecodeError:
-                continue
+        parsed = _try_load(candidate)
+        if parsed is None:
+            escaped = _escape_control_chars_in_strings(candidate)
+            parsed = _try_load(escaped)
+            if parsed is None:
+                parsed = _try_load(_strip_trailing_commas(escaped))
         if isinstance(parsed, (dict, list)):
             yield parsed
 

@@ -6,6 +6,7 @@
 - .types::SufficiencyVerdict, SufficiencyConfig (POS: result and config types)
 - .prompts::SUFFICIENCY_EVAL_SYSTEM, SUFFICIENCY_EVAL_USER_TEMPLATE, SUFFICIENCY_JSON_SCHEMA (POS: prompt templates)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - evaluate_sufficiency(): async function that evaluates whether retrieved snippets
@@ -21,13 +22,12 @@ queries with negative constraints).
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import TYPE_CHECKING
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import extract_answer_text, parse_llm_json_object
 
 from .prompts import SUFFICIENCY_EVAL_SYSTEM, SUFFICIENCY_EVAL_USER_TEMPLATE, SUFFICIENCY_JSON_SCHEMA
 from .types import SufficiencyConfig, SufficiencyVerdict
@@ -68,17 +68,8 @@ def _parse_verdict(raw_text: str, config: SufficiencyConfig) -> SufficiencyVerdi
 
     Falls back to 'sufficient' on parse failure (fail-open to avoid blocking the agent).
     """
-    text = raw_text.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        lines = lines[1:]  # skip ```json
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines)
-
-    try:
-        data = json.loads(text)
-    except (json.JSONDecodeError, ValueError):
+    data = parse_llm_json_object(raw_text)
+    if data is None:
         logger.warning("RSG: Failed to parse evaluator response as JSON, defaulting to sufficient")
         return _FALLBACK_SUFFICIENT
 

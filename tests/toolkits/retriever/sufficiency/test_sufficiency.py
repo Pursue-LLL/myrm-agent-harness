@@ -353,7 +353,11 @@ class TestEvaluateSufficiency:
 
     @pytest.mark.asyncio
     async def test_response_without_content_attr(self, mock_llm_config):
-        """Edge case: LLM response object has no .content attribute — falls back to str()."""
+        """Edge case: LLM response object has no .content attribute — fail-open.
+
+        `extract_answer_text` cannot extract text from such a response, so the
+        evaluator returns the documented fail-open verdict (confidence=0.0).
+        """
         config = SufficiencyConfig(enabled=True)
 
         class NoContentResponse:
@@ -376,7 +380,7 @@ class TestEvaluateSufficiency:
             result = await evaluate_sufficiency("test", "content", mock_llm_config, config)
 
         assert result.is_sufficient is True
-        assert result.confidence == 0.7
+        assert result.confidence == 0.0
 
     @pytest.mark.asyncio
     async def test_ainvoke_timeout_returns_failopen(self, mock_llm_config):
@@ -470,3 +474,28 @@ class TestParseVerdictEdgeCases:
         })
         v = _parse_verdict(raw, self.config)
         assert v is _FALLBACK_SUFFICIENT
+
+    def test_bare_newline_in_field(self):
+        """Tolerate unescaped newline inside a string field (reasoning model artifact)."""
+        raw = '{"is_sufficient": false, "confidence": 0.8, "missing_aspects": ["pricing\ndata"], "suggested_queries": [], "negative_constraint_violations": []}'
+        v = _parse_verdict(raw, self.config)
+        assert v.is_sufficient is False
+        assert v.missing_aspects == ("pricing\ndata",)
+
+    def test_trailing_comma(self):
+        """Tolerate trailing comma inside object."""
+        raw = '{"is_sufficient": true, "confidence": 0.9, "missing_aspects": [], "suggested_queries": [], "negative_constraint_violations": [],}'
+        v = _parse_verdict(raw, self.config)
+        assert v.is_sufficient is True
+        assert v.confidence == 0.9
+
+    def test_prose_framing_with_fence(self):
+        """Parse JSON object wrapped in prose + code fence."""
+        raw = """Analysis complete.
+```json
+{"is_sufficient": true, "confidence": 0.85, "missing_aspects": [], "suggested_queries": [], "negative_constraint_violations": []}
+```
+Done."""
+        v = _parse_verdict(raw, self.config)
+        assert v.is_sufficient is True
+        assert v.confidence == 0.85
