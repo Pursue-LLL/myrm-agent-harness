@@ -4,6 +4,7 @@
 myrm_agent_harness.core.config.llm::LLMConfig (POS: 框架层大模型配置定义)
 myrm_agent_harness.toolkits.llms.core.llm::create_litellm_model (POS: 框架层大模型创建器)
 myrm_agent_harness.toolkits.llms.vision.fallback_engine::VisionFallbackEngine (POS: 图像降级引擎，帧分析复用)
+myrm_agent_harness.utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 
 [OUTPUT]
 VideoAnalysisEngine: 视频分析引擎，支持直传和帧提取降级两种策略。
@@ -32,6 +33,7 @@ from myrm_agent_harness.toolkits.llms.vision.fallback_engine import (
     VisionProviderCapacityError,
     should_vision_capacity_failover,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +209,8 @@ class VideoAnalysisEngine:
             model = self._get_model(index)
             try:
                 response = await model.ainvoke([msg])
-                return str(response.content)
+                # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+                return extract_answer_text(response)
             except Exception as exc:
                 reason = classify_failover_reason(exc)
                 if (

@@ -4,6 +4,7 @@
 - langchain_core.language_models::BaseChatModel (POS: Vision LLM instance)
 - patchright.async_api::Page (POS: Browser page)
 - diff.fast_comparator::FastComparator (POS: dHash comparator)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 
 [OUTPUT]
 - VisionVerifier: Component that executes the 3-layer verification funnel.
@@ -23,6 +24,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from langchain_core.messages import HumanMessage
+
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 from ..diff.fast_comparator import FastComparator
 
@@ -113,7 +116,8 @@ class VisionVerifier:
             )
 
             response = await self._llm.ainvoke([message])
-            content = str(response.content)
+            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            content = extract_answer_text(response)
 
             # Parse SCORE and REASON
             score = 1  # Default to 1 (fail) if format is invalid

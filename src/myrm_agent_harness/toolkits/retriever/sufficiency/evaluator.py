@@ -5,6 +5,7 @@
 - toolkits.llms.core.llm::create_litellm_model (POS: LiteLLM model factory)
 - .types::SufficiencyVerdict, SufficiencyConfig (POS: result and config types)
 - .prompts::SUFFICIENCY_EVAL_SYSTEM, SUFFICIENCY_EVAL_USER_TEMPLATE, SUFFICIENCY_JSON_SCHEMA (POS: prompt templates)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 
 [OUTPUT]
 - evaluate_sufficiency(): async function that evaluates whether retrieved snippets
@@ -25,6 +26,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from langchain_core.messages import HumanMessage, SystemMessage
+
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 from .prompts import SUFFICIENCY_EVAL_SYSTEM, SUFFICIENCY_EVAL_USER_TEMPLATE, SUFFICIENCY_JSON_SCHEMA
 from .types import SufficiencyConfig, SufficiencyVerdict
@@ -157,7 +160,8 @@ async def evaluate_sufficiency(
         }
 
         response = await model.ainvoke(messages, **invoke_kwargs)
-        raw_text = response.content if hasattr(response, "content") else str(response)
+        # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+        raw_text = extract_answer_text(response)
 
         return _parse_verdict(raw_text, config)
 

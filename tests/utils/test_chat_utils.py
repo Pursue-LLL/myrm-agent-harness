@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from myrm_agent_harness.utils.chat_utils import (
     convert_chat_history_simple,
     extract_answer_text,
+    extract_litellm_answer_text,
     extract_text_content,
 )
 
@@ -160,3 +161,49 @@ class TestExtractAnswerText:
             [{"type": "text", "text": "<think>plan</think>block answer"}]
         )
         assert extract_answer_text(response) == "block answer"
+
+
+class _FakeLitellmMessage:
+    def __init__(self, content: object, reasoning_content: str | None = None) -> None:
+        self.content = content
+        self.reasoning_content = reasoning_content
+
+
+class _FakeLitellmResponse:
+    def __init__(self, message: object) -> None:
+        self.choices = [type("Choice", (), {"message": message})()]
+
+
+class TestExtractLitellmAnswerText:
+    def test_none_response_returns_empty(self) -> None:
+        assert extract_litellm_answer_text(None) == ""
+
+    def test_missing_choices_returns_empty(self) -> None:
+        response = type("Resp", (), {"choices": []})()
+        assert extract_litellm_answer_text(response) == ""
+
+    def test_plain_string_content(self) -> None:
+        msg = _FakeLitellmMessage("answer")
+        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "answer"
+
+    def test_reasoning_model_falls_back_to_reasoning_content(self) -> None:
+        msg = _FakeLitellmMessage(None, "reasoned answer")
+        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+
+    def test_empty_string_content_falls_back_to_reasoning(self) -> None:
+        msg = _FakeLitellmMessage("", "reasoned answer")
+        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+
+    def test_anthropic_block_list_extracts_text(self) -> None:
+        msg = _FakeLitellmMessage(
+            [{"type": "text", "text": "hello"}, {"type": "text", "text": "world"}]
+        )
+        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "hello world"
+
+    def test_none_text_block_does_not_leak_none(self) -> None:
+        msg = _FakeLitellmMessage([{"type": "text", "text": None}], "reasoned answer")
+        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+
+    def test_reasoning_content_non_string_ignored(self) -> None:
+        msg = _FakeLitellmMessage(None, "  ")
+        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == ""

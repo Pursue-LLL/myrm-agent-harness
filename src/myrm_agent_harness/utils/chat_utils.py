@@ -11,6 +11,7 @@
 - convert_chat_history_simple(): 将聊天历史转换为 LangChain 消息格式（仅文本）
 - extract_text_content(): 从字符串 / 多媒体列表 / JSON 中提取纯文本
 - extract_answer_text(): 从 LLM 响应提取用户可见答案文本（str / block list / think 剥离 / reasoning 模型回退）
+- extract_litellm_answer_text(): 从 litellm 原生响应提取用户可见答案文本（choices[0].message / reasoning_content / block list）
 
 [POS]
 Chat utility functions. Provides business-config-independent chat history conversion (generic part).
@@ -133,3 +134,38 @@ def extract_answer_text(response: object) -> str:
         if isinstance(reasoning, str) and reasoning:
             return reasoning
     return ""
+
+
+def extract_litellm_answer_text(response: object) -> str:
+    """从 litellm.acompletion 原生响应提取用户可见文本。
+
+    处理形态：
+    - ``response.choices[0].message.content`` 为 str
+    - Anthropic 风格块列表（``[{"type": "text", "text": "..."}]``）
+    - reasoning 模型（DeepSeek-R1/Qwen3 等）content 为空、
+      答案存于 ``message.reasoning_content``
+    """
+    if response is None:
+        return ""
+    choices = getattr(response, "choices", None)
+    if not isinstance(choices, list) or not choices:
+        return ""
+    message = getattr(choices[0], "message", None)
+    if message is None:
+        return ""
+    content = getattr(message, "content", None)
+    if isinstance(content, list):
+        text_parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                raw_text = item.get("text", "")
+                text_parts.append(str(raw_text) if raw_text is not None else "")
+            elif not isinstance(item, dict):
+                text_parts.append(str(item))
+        text = " ".join(text_parts).strip()
+    else:
+        text = str(content).strip() if content is not None else ""
+    if text:
+        return text
+    reasoning = getattr(message, "reasoning_content", None)
+    return reasoning.strip() if isinstance(reasoning, str) and reasoning else ""

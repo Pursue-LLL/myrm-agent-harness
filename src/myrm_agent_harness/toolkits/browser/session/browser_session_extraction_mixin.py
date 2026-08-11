@@ -3,6 +3,7 @@
 [INPUT]
 - session.extractor::Extractor (POS: content extraction manager)
 - session.structured_extractor::StructuredExtractor (POS: LLM-based structured data extraction)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 
 [OUTPUT]
 - BrowserSessionExtractionMixin: extract_text, extract_structured, extract_media, screenshot compare/export helpers
@@ -17,6 +18,7 @@ import logging
 from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 
 from myrm_agent_harness.toolkits.browser.diff import ComparisonResult
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from .extractor import Extractor
@@ -148,7 +150,8 @@ class BrowserSessionExtractionMixin:
                 ]
             )
             response = await self._vision_llm.ainvoke([message])  # type: ignore[union-attr]
-            content = str(response.content).strip()
+            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            content = extract_answer_text(response).strip()
             if content:
                 logger.info("BrowserSession: Vision fallback extracted %d chars", len(content))
                 return f"[Vision Extracted]\n{content}"
@@ -188,7 +191,8 @@ class BrowserSessionExtractionMixin:
                 ]
             )
             response = await self._vision_llm.ainvoke([message])  # type: ignore[union-attr]
-            content = str(response.content).strip()
+            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            content = extract_answer_text(response).strip()
 
             if content.startswith("```"):
                 lines = content.split("\n")

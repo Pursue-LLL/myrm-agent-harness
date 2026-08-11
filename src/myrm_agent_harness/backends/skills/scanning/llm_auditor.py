@@ -3,6 +3,7 @@
 [INPUT]
 - scanning.scanner::ScanResult, (POS: Skill content security scanner. Part of the framework's defense-in-depth. Trust attenuation is the hard limit (restricts tools), scanner is the soft detection layer (warns users and recommends trust levels). Detects 26 threat categories (108 patterns): prompt injection, command injection, credential exposure, data exfiltration, file system access, process operations, network access, screen/input capture, memory/config snooping, code injection, privilege escalation, environment manipulation, reflection/metaprogramming, deserialization attacks, log/audit tampering, scheduled task injection, container escape, memory manipulation, DNS tunneling, supply chain attacks, obfuscation, destructive operations, persistence mechanisms, path traversal, crypto mining, reverse shell, invisible unicode. Scan results influence SkillTrust level via SkillTrustRecommendation: Critical findings → REJECT High findings → UNTRUSTED Medium/Low findings → INSTALLED (normal install with attenuation) No findings → TRUSTED)
 - langchain_core.language_models::BaseChatModel (LLM interface)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 
 [OUTPUT]
 - SkillLLMAuditor: LLM auditor that enhances static scan results
@@ -31,6 +32,7 @@ from myrm_agent_harness.backends.skills.scanning.scanner import (
     ScanSeverity,
     SkillTrustRecommendation,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -121,7 +123,8 @@ class SkillLLMAuditor:
         prompt = _AUDIT_PROMPT.format(content=content)
         response = await self._llm.ainvoke([HumanMessage(content=prompt)])
 
-        text = response.content if isinstance(response.content, str) else str(response.content)
+        # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+        text = extract_answer_text(response)
         return _parse_llm_response(text)
 
 

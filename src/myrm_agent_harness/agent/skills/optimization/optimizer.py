@@ -7,6 +7,7 @@
 - .config::OptimizationConfig (POS: 优化配置)
 - .security::SkillSecurityValidator (POS: 安全验证器)
 - backends.skills.types::SkillMetadata (POS: Skill元数据)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 
 [OUTPUT]
 - SkillOptimizer: Skill优化器（5维评估 + 类型检测 + 分布式锁）
@@ -30,6 +31,8 @@ if TYPE_CHECKING:
     from .config import OptimizationConfig
     from .security import SkillSecurityValidator
     from .types import LockProvider, OptimizationResult, SkillQualityScore, SkillType
+
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 from .observability import Timer, get_metrics_collector, structured_log
 from .types import LockAcquisitionError, OptimizationError, OptimizationStatus, SecurityError
@@ -258,8 +261,8 @@ class SkillOptimizer:
                 async with Timer("llm_calls_duration_seconds", labels={"operation": "skill_optimization"}):
                     response = await asyncio.wait_for(self.llm.ainvoke([HumanMessage(content=prompt)]), timeout=timeout)
 
-                # 提取内容
-                optimized_content = response.content if hasattr(response, "content") else str(response)
+                # 提取内容（兼容 reasoning 模型 content 空回退）
+                optimized_content = extract_answer_text(response)
 
                 # 验证Markdown格式
                 if not optimized_content.startswith("---") or optimized_content.count("---") < 2:

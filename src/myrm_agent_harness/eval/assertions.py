@@ -2,6 +2,7 @@
 
 [INPUT]
 - protocol::EvalCase (POS: eval case with expected tools and assertions)
+- myrm_agent_harness.utils.chat_utils::extract_litellm_answer_text (POS: litellm 响应文本提取)
 
 [OUTPUT]
 - ToolAssertion: assertion specification
@@ -24,6 +25,8 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+
+from myrm_agent_harness.utils.chat_utils import extract_litellm_answer_text
 
 from .suite_judge import evaluate_test_suite_assertion
 
@@ -53,9 +56,9 @@ def evaluate_tool_assertions(
 
     def get_name(t: str | dict[str, Any] | Any) -> str:
         if isinstance(t, dict):
-            return t.get("name", str(t))
+            return str(t.get("name", str(t)))
         if hasattr(t, "name"):
-            return t.name
+            return str(t.name)
         return str(t)
 
     expected = set(get_name(t) for t in assertion.expected_tools)
@@ -383,10 +386,10 @@ async def evaluate_semantic_assertions(
                     temperature=0.0,
                     num_retries=2,
                 )
-                raw_content = response.choices[0].message.content
-                if not raw_content:
+                # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+                result_text = extract_litellm_answer_text(response).strip()
+                if not result_text:
                     return False, "Semantic assertion: judge returned empty response"
-                result_text = raw_content.strip()
 
                 if use_scoring:
                     try:

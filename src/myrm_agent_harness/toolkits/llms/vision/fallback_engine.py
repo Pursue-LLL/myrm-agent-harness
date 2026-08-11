@@ -3,6 +3,7 @@
 [INPUT]
 myrm_agent_harness.core.config.llm::LLMConfig (POS: 框架层大模型配置定义)
 myrm_agent_harness.toolkits.llms.core.llm::create_litellm_model (POS: 框架层大模型创建器)
+myrm_agent_harness.utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 myrm_agent_harness.utils.media.image_compressor::image_compressor (POS: 图像压缩工具)
 
 [OUTPUT]
@@ -29,6 +30,7 @@ from langchain_core.messages import HumanMessage
 from myrm_agent_harness.core.config.llm import LLMConfig
 from myrm_agent_harness.toolkits.llms.core.llm import create_litellm_model
 from myrm_agent_harness.toolkits.llms.errors import FailoverReason, classify_failover_reason
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.media.image_compressor import image_compressor
 
 logger = logging.getLogger(__name__)
@@ -301,7 +303,8 @@ class VisionFallbackEngine:
 
         try:
             response = await model.ainvoke([msg])
-            return str(response.content)
+            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            return extract_answer_text(response)
         except Exception as exc:
             if retry_count > 0 and _is_payload_size_error(exc):
                 logger.warning(
@@ -367,7 +370,8 @@ class VisionFallbackEngine:
             try:
                 response = await model.ainvoke([msg])
                 self._last_success_provider_index = index
-                return str(response.content)
+                # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+                return extract_answer_text(response)
             except Exception as exc:
                 reason = classify_failover_reason(exc)
                 if (

@@ -19,6 +19,7 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     logger,
     run_forgetting,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -161,7 +162,8 @@ class MemoryManagerGovernanceSessionMixin:
 
             messages = [SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)]
             response = await self._consolidation_llm.ainvoke(messages)  # type: ignore[union-attr]
-            return str(response.content)
+            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            return extract_answer_text(response)
 
         return _call
 

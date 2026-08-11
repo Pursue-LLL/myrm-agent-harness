@@ -38,6 +38,7 @@ from myrm_agent_harness.agent.hooks.types import (
     HttpHookDefinition,
     LLMHookDefinition,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
@@ -309,9 +310,8 @@ class HookExecutor:
 
             llm = get_default_llm(model_name=hook.model)
             response = await asyncio.wait_for(llm.ainvoke(f"{prefix}\n\n{prompt}"), timeout=hook.timeout_seconds)
-            text = response.content if hasattr(response, "content") else str(response)
-            if not isinstance(text, str):
-                text = str(text)
+            # 兼容 reasoning 模型 content 空回退（DeepSeek-R1/Qwen3 等）
+            text = extract_answer_text(response)
         except (ImportError, TypeError):
             return HookResult(
                 hook_type="llm",

@@ -8,6 +8,7 @@ Penalty: user-flagged misroutes penalize categories, improving accuracy over tim
 
 [INPUT]
 - agent.config.llm::LLMConfig (POS: LLM core. LiteLLM wrapper providing a unified multi-model invocation interface.)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 
 [OUTPUT]
 - route_task(): returns RoutingResult with selected tier and LLM config
@@ -32,6 +33,7 @@ from hashlib import sha256
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.core.config.llm import LLMConfig
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -651,7 +653,7 @@ async def _llm_judge_classify(
                 HumanMessage(content=text[:500]),
             ]
         )
-        content = str(response.content).strip()
+        content = extract_answer_text(response).strip()
 
         match = _TIER_PARSE_RE.search(content)
         if match:

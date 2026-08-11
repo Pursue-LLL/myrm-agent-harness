@@ -5,6 +5,7 @@
 [INPUT]
 - .config::PerformanceConfig (POS: 性能配置)
 - .types::OptimizationError (POS: 优化错误类型)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
 
 [OUTPUT]
 - LLMClient: LLM调用客户端（带重试和超时）
@@ -24,6 +25,8 @@ if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
     from .config import PerformanceConfig
+
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 from .types import OptimizationError
 
@@ -81,8 +84,8 @@ class LLMClient:
                 # 调用LLM（带超时）
                 response = await asyncio.wait_for(self.llm.ainvoke([HumanMessage(content=prompt)]), timeout=timeout)
 
-                # 提取内容
-                content = response.content if hasattr(response, "content") else str(response)
+                # 提取内容（兼容 reasoning 模型 content 空回退）
+                content = extract_answer_text(response)
 
                 logger.info(f"LLM call succeeded (attempt {attempt + 1}/{max_retries})")
                 return content
