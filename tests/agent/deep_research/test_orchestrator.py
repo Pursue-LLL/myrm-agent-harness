@@ -1570,3 +1570,115 @@ class TestPromptComparativeGuidance:
         formatted = FINAL_REPORT_PROMPT.format(current_datetime="2026-07-10")
         assert "2026-07-10" in formatted
         assert "Comparative Query Guidelines" in formatted
+
+
+# =========================================================================
+# Reasoning-model content extraction tests
+# =========================================================================
+
+
+class TestReasoningModelContentExtraction:
+    """Reasoning models return content='' with answer in reasoning_content."""
+
+    @pytest.mark.asyncio
+    async def test_phase_plan_reasoning_model_content_empty(self) -> None:
+        """research_plan must fall back to reasoning_content when content is empty."""
+        plan_response = AIMessage(
+            content="",
+            additional_kwargs={"reasoning_content": "1. Research topic A\n2. Compare sources"},
+        )
+        plan_response.usage_metadata = {"input_tokens": 50, "output_tokens": 20}
+
+        llm = MagicMock()
+        llm.model_name = "deepseek-reasoner"
+        llm.model = "deepseek-reasoner"
+        llm.n_ctx = None
+        llm.model_max_context_length = None
+        llm.max_input_tokens = None
+
+        bound = MagicMock()
+
+        async def mock_bound_ainvoke(messages: list[BaseMessage]) -> AIMessage:
+            return plan_response
+
+        bound.ainvoke = mock_bound_ainvoke
+        llm.bind_tools = MagicMock(return_value=bound)
+        llm.ainvoke = AsyncMock(return_value=plan_response)
+
+        async def mock_astream(messages: list[BaseMessage]):
+            chunk = MagicMock()
+            chunk.content = "Report"
+            chunk.usage_metadata = None
+            yield chunk
+
+        llm.astream = mock_astream
+
+        orch = DeepResearchOrchestrator(
+            llm=llm,
+            config=DeepResearchConfig(enable_clarification=False, max_cycles=1),
+            parent_tools=[],
+        )
+
+        events = [e async for e in orch.run("query", message_id="msg-reasoning")]
+        assert orch._result.research_plan
+        assert "Research topic A" in orch._result.research_plan
+
+    @pytest.mark.asyncio
+    async def test_clarify_reasoning_model_content_empty(self) -> None:
+        """Clarify fallback must use reasoning_content when content is empty."""
+        clarify_response = AIMessage(
+            content="",
+            additional_kwargs={"reasoning_content": "Which aspect should I focus on?"},
+        )
+        clarify_response.usage_metadata = {"input_tokens": 30, "output_tokens": 10}
+
+        finalize_in_research = AIMessage(
+            content="",
+            tool_calls=[{"id": "tc_fin", "name": "finalize_report", "args": {}}],
+        )
+
+        plan_response = AIMessage(content="1. Do research")
+        plan_response.usage_metadata = {"input_tokens": 50, "output_tokens": 20}
+
+        callback_called = False
+
+        async def on_clarify(form: AskQuestionInput) -> str | None:
+            nonlocal callback_called
+            callback_called = True
+            assert form.questions[0].prompt
+            assert "aspect" in form.questions[0].prompt
+            return {"q1": "Performance"}
+
+        llm = MagicMock()
+        llm.model_name = "deepseek-reasoner"
+        llm.model = "deepseek-reasoner"
+        llm.n_ctx = None
+        llm.model_max_context_length = None
+        llm.max_input_tokens = None
+
+        bound = MagicMock()
+
+        async def mock_bound_ainvoke(messages: list[BaseMessage]) -> AIMessage:
+            return clarify_response
+
+        bound.ainvoke = mock_bound_ainvoke
+        llm.bind_tools = MagicMock(return_value=bound)
+        llm.ainvoke = AsyncMock(return_value=plan_response)
+
+        async def mock_astream(messages: list[BaseMessage]):
+            chunk = MagicMock()
+            chunk.content = "Report"
+            chunk.usage_metadata = None
+            yield chunk
+
+        llm.astream = mock_astream
+
+        orch = DeepResearchOrchestrator(
+            llm=llm,
+            config=DeepResearchConfig(enable_clarification=True, max_cycles=1),
+            parent_tools=[],
+            on_clarify=on_clarify,
+        )
+
+        events = [e async for e in orch.run("vague query", message_id="msg-clarify-reasoning")]
+        assert callback_called is True

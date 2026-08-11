@@ -267,6 +267,42 @@ class TestSessionNotesManager:
         assert manager.notes.get_section("session_title").content == "Test Session"
 
     @pytest.mark.asyncio()
+    async def test_maybe_trigger_update_reasoning_model_content_empty(
+        self, small_config: SessionNotesConfig
+    ) -> None:
+        """Reasoning model with empty content must fall back to reasoning_content."""
+        from langchain_core.messages import AIMessage
+
+        from myrm_agent_harness.agent.context_management.strategies.session_notes.updater import (
+            SessionNotesManager,
+        )
+
+        llm = MagicMock()
+        llm.ainvoke = AsyncMock(
+            return_value=AIMessage(
+                content="",
+                additional_kwargs={
+                    "reasoning_content": json.dumps(
+                        {
+                            "session_title": "Reasoning Session",
+                            "current_state": "Using reasoning",
+                            "task_spec": "Test reasoning fallback",
+                        }
+                    )
+                },
+            )
+        )
+        manager = SessionNotesManager(llm=llm, config=small_config)
+        msgs: list[BaseMessage] = [HumanMessage(content="hello world " * 100)]
+
+        await manager.maybe_trigger_update(msgs, total_tokens=200, total_tool_calls=0)
+        await asyncio.sleep(0.1)
+
+        assert llm.ainvoke.called
+        assert manager.notes.get_section("session_title").content == "Reasoning Session"
+        assert manager.notes.get_section("task_spec").content == "Test reasoning fallback"
+
+    @pytest.mark.asyncio()
     async def test_circuit_breaker(self, small_config: SessionNotesConfig) -> None:
         from myrm_agent_harness.agent.context_management.strategies.session_notes.updater import SessionNotesManager
 

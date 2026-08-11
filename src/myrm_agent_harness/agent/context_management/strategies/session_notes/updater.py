@@ -6,6 +6,7 @@
 - trigger::SessionNotesTrigger (POS: 触发策略)
 - langchain_core.language_models::BaseChatModel (POS: LLM 基类)
 - langchain_core.messages::BaseMessage, HumanMessage (POS: 消息类型)
+- utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
 
 [OUTPUT]
 - SessionNotesManager: 后台异步更新管理器
@@ -29,6 +30,7 @@ from myrm_agent_harness.observability.metrics.circuit_breaker_metrics import (
     circuit_breaker_failures_total,
     circuit_breaker_state,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .prompts import build_full_refresh_prompt, build_incremental_prompt
@@ -265,7 +267,8 @@ class SessionNotesManager:
         # Without this, asyncio.create_task inherits the parent's contextvars and
         # the LLM response leaks into the streaming output queue.
         response = await self._llm.ainvoke([HumanMessage(content=prompt)], config={"callbacks": []})
-        content = response.content if isinstance(response.content, str) else str(response.content)
+        # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
+        content = extract_answer_text(response)
 
         updated_sections = _parse_notes_response(content)
         if not updated_sections:

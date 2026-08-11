@@ -8,6 +8,7 @@ Contains the clarification phase and research agent dispatch logic.
 - prompts (POS: prompt templates)
 - tools (POS: tool schemas)
 - meta_tools.clarification (POS: structured clarification)
+- utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
 
 [OUTPUT]
 - DeepResearchPhasesMixin: Mixin providing _phase_clarify and _dispatch_research_agents.
@@ -31,6 +32,7 @@ from myrm_agent_harness.agent.orchestration.signals.deep_research import (
     build_signal_schema,
 )
 from myrm_agent_harness.agent.streaming.types import AgentEventType
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .helpers import (
@@ -167,7 +169,8 @@ class DeepResearchPhasesMixin:
                     logger.error("[deep-research] Failed to parse ask_question args: %s", exc)
 
         if clarify_form is None:
-            raw_prompt = str(response.content).strip() if response.content else ""
+            # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
+            raw_prompt = extract_answer_text(response).strip()
             if not raw_prompt:
                 return
             clarify_form = AskQuestionInput(

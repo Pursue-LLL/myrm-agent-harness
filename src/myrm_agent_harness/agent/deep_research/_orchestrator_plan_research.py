@@ -17,6 +17,7 @@ from myrm_agent_harness.agent.orchestration.signals.deep_research import (
     build_orchestrator_tools,
 )
 from myrm_agent_harness.agent.streaming.types import AgentEventType
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .helpers import accumulate_usage, extract_tool_calls
@@ -49,7 +50,8 @@ class DeepResearchPlanResearchMixin:
             timeout=self._config.llm_call_timeout_seconds,  # type: ignore[attr-defined]
         )
         accumulate_usage(self._result, response)  # type: ignore[attr-defined]
-        plan = str(response.content) if response.content else ""
+        # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
+        plan = extract_answer_text(response).strip()
         self._result.research_plan = plan  # type: ignore[attr-defined]
 
         if plan:

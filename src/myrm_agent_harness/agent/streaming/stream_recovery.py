@@ -10,6 +10,7 @@
 - agent.streaming.stream_recovery_continuation (POS: steering, subagent, and goal continuation recovery)
 - agent.streaming.stream_recovery_truncation (POS: length truncation recovery)
 - agent.streaming.escalation_scrubber::EscalationScrubber (POS: 流式层升级标记检测)
+- utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
 
 [OUTPUT]
 - StreamRecoveryMixin: used by StreamExecutor via multiple inheritance
@@ -52,6 +53,7 @@ from myrm_agent_harness.toolkits.llms.errors.classifier import (
     classify_error,
     is_context_overflow,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -572,11 +574,8 @@ class StreamRecoveryMixin(
 
         try:
             response: AIMessage = await llm.ainvoke(summary_messages)
-            summary_text = (
-                response.content
-                if isinstance(response.content, str)
-                else str(response.content)
-            )
+            # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
+            summary_text = extract_answer_text(response).strip()
         except Exception:
             logger.warning("Grace call LLM invocation failed; using fallback message")
             summary_text = ""

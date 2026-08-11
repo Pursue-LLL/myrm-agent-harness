@@ -112,6 +112,28 @@ class TestVariantGeneratorWithMockLLM:
         results = await gen.generate_variants(mock_skill, "error", "trace", num_variants=2)
         assert results == [mock_skill.content]
 
+    @pytest.mark.asyncio
+    async def test_reasoning_model_content_empty_falls_back(
+        self, mock_skill: SkillRecord
+    ) -> None:
+        """Reasoning model with empty content must still produce a variant."""
+        from langchain_core.messages import AIMessage
+
+        llm = MagicMock()
+        llm.ainvoke = AsyncMock(
+            return_value=AIMessage(
+                content="",
+                additional_kwargs={
+                    "reasoning_content": "---\nname: test-skill\n---\n# Improved\n## Instructions\n1. Do X"
+                },
+            )
+        )
+        gen = VariantGenerator(llm=llm)
+        results = await gen.generate_variants(mock_skill, "error occurred", "trace data", num_variants=2)
+        assert len(results) == 2
+        assert all(r.strip() for r in results)
+        assert "Improved" in results[0]
+
 
 class TestPromptAssembly:
     """Verify prompt structure contains required components."""

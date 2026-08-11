@@ -11,6 +11,7 @@ are assembled per EvolutionType for precision and maintainability.
 [INPUT]
 - agent.skills.evolution.core.types::SkillRecord (POS: Data types for skill evolution system.)
 - agent.skills.evolution.core.types::SkillEvidenceGroup (POS: Data types for skill evolution system.)
+- utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
 
 [OUTPUT]
 - VariantGenerator: Generates multiple candidate patches for a skill based on error trace or aggregated evidence.
@@ -30,6 +31,7 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     SkillEvidenceGroup,
     SkillRecord,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +225,8 @@ class VariantGenerator:
                     HumanMessage(content=f"{prompt}\n\nProduce variant #{index} with a distinct approach if possible.")
                 ]
                 resp = await self._llm.ainvoke(msg)  # type: ignore[union-attr]
-                return self._extract_content(resp.content)
+                # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
+                return self._extract_content(extract_answer_text(resp))
             except Exception as e:
                 logger.error("Failed to generate %s %d: %s", label, index, e)
                 return ""
