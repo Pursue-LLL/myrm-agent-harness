@@ -67,7 +67,9 @@ class TestDomainMetrics:
         metrics.failure_timestamps[FetcherType.HTTP].append(now - 23 * 3600)
         metrics.failure_timestamps[FetcherType.HTTP].append(now - 1 * 3600)
 
-        recent_count = metrics.get_recent_failures_count(FetcherType.HTTP, window_hours=24)
+        recent_count = metrics.get_recent_failures_count(
+            FetcherType.HTTP, window_hours=24
+        )
         assert recent_count == 2
 
     def test_smart_fast_timeout_calculation(self):
@@ -111,7 +113,9 @@ class TestDomainMetricsManager:
                 )
 
                 metrics = manager.get_or_create("example.com")
-                metrics.record_fetcher_result(FetcherType.HTTP, success=True, latency_ms=100.0)
+                metrics.record_fetcher_result(
+                    FetcherType.HTTP, success=True, latency_ms=100.0
+                )
 
                 manager._save_metrics()
 
@@ -132,7 +136,9 @@ class TestDomainMetricsManager:
         with tempfile.TemporaryDirectory() as tmpdir:
             storage_path = Path(tmpdir) / "test_metrics.json"
 
-            manager = DomainMetricsManager(storage_path=storage_path, use_file_lock=True)
+            manager = DomainMetricsManager(
+                storage_path=storage_path, use_file_lock=True
+            )
             assert manager._use_file_lock is True
 
     def test_explicit_path_override(self):
@@ -157,17 +163,24 @@ class TestAdaptiveRouterIntegration:
                 domain_metrics_manager=DomainMetricsManager(storage_path=metrics_path),
             )
 
-            router.report_result("https://fast.com/test", FetcherType.HTTP, success=True, latency_ms=50.0)
-            router.report_result("https://slow.com/test", FetcherType.HTTP, success=True, latency_ms=500.0)
+            router.report_result(
+                "https://fast.com/test", FetcherType.HTTP, success=True, latency_ms=50.0
+            )
+            router.report_result(
+                "https://slow.com/test",
+                FetcherType.HTTP,
+                success=True,
+                latency_ms=500.0,
+            )
 
             metrics_fast = router._domain_metrics_manager.get("fast.com")
             metrics_slow = router._domain_metrics_manager.get("slow.com")
 
             assert metrics_fast is not None
             assert metrics_slow is not None
-            assert metrics_fast.get_average_latency(FetcherType.HTTP) < metrics_slow.get_average_latency(
+            assert metrics_fast.get_average_latency(
                 FetcherType.HTTP
-            )
+            ) < metrics_slow.get_average_latency(FetcherType.HTTP)
 
     def test_adaptive_exploration_rate(self):
         """测试自适应探索率"""
@@ -185,7 +198,9 @@ class TestAdaptiveRouterIntegration:
             high_freq_domain = "popular.com"
 
             for _ in range(150):
-                router.report_result(f"https://{high_freq_domain}/", FetcherType.HTTP, success=True)
+                router.report_result(
+                    f"https://{high_freq_domain}/", FetcherType.HTTP, success=True
+                )
 
             rate_low = router._get_adaptive_exploration_rate(low_freq_domain)
             rate_high = router._get_adaptive_exploration_rate(high_freq_domain)
@@ -211,7 +226,9 @@ class TestAdaptiveRouterIntegration:
             metrics = router._domain_metrics_manager.get(domain)
             assert metrics is not None
 
-            recent_failures = metrics.get_recent_failures_count(FetcherType.HTTP, window_hours=24)
+            recent_failures = metrics.get_recent_failures_count(
+                FetcherType.HTTP, window_hours=24
+            )
             assert recent_failures == 2
 
 
@@ -353,7 +370,9 @@ class TestLatencySeparation:
 
         metrics.record_fetcher_result(FetcherType.HTTP, success=True, latency_ms=100.0)
         metrics.record_fetcher_result(FetcherType.HTTP, success=True, latency_ms=120.0)
-        metrics.record_fetcher_result(FetcherType.HTTP, success=False, latency_ms=5000.0)
+        metrics.record_fetcher_result(
+            FetcherType.HTTP, success=False, latency_ms=5000.0
+        )
 
         avg_all = metrics.get_average_latency(FetcherType.HTTP)
         avg_success = metrics.get_average_success_latency(FetcherType.HTTP)
@@ -373,8 +392,12 @@ class TestLatencySeparation:
 
             metrics = manager.get_or_create("test.com")
             for _ in range(20):
-                metrics.record_fetcher_result(FetcherType.HTTP, success=True, latency_ms=100.0)
-            metrics.record_fetcher_result(FetcherType.HTTP, success=False, latency_ms=5000.0)
+                metrics.record_fetcher_result(
+                    FetcherType.HTTP, success=True, latency_ms=100.0
+                )
+            metrics.record_fetcher_result(
+                FetcherType.HTTP, success=False, latency_ms=5000.0
+            )
 
             cost = learner.estimate_cost(FetcherType.HTTP, domain="test.com")
 
@@ -412,13 +435,19 @@ class TestPerFetcherStats:
 
             metrics1 = manager.get_or_create("site1.com")
             for _ in range(10):
-                metrics1.record_fetcher_result(FetcherType.HTTP, success=True, latency_ms=100.0)
+                metrics1.record_fetcher_result(
+                    FetcherType.HTTP, success=True, latency_ms=100.0
+                )
             for _ in range(5):
-                metrics1.record_fetcher_result(FetcherType.HTTP, success=False, latency_ms=200.0)
+                metrics1.record_fetcher_result(
+                    FetcherType.HTTP, success=False, latency_ms=200.0
+                )
 
             metrics2 = manager.get_or_create("site2.com")
             for _ in range(8):
-                metrics2.record_fetcher_result(FetcherType.HTTP, success=True, latency_ms=150.0)
+                metrics2.record_fetcher_result(
+                    FetcherType.HTTP, success=True, latency_ms=150.0
+                )
 
             stats = manager.get_stats()
 
@@ -454,7 +483,9 @@ class TestLRUEviction:
     def test_lru_eviction_when_max_domains_exceeded(self):
         """测试超过 max_domains 时 LRU 驱逐最久未访问的域名"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            manager = DomainMetricsManager(storage_path=f"{tmpdir}/metrics.pkl", max_domains=10)
+            manager = DomainMetricsManager(
+                storage_path=f"{tmpdir}/metrics.pkl", max_domains=10
+            )
 
             for i in range(10):
                 metrics = manager.get_or_create(f"domain{i}.com")
@@ -505,7 +536,9 @@ class TestFileLock:
         """测试文件锁启用时正常工作"""
         with tempfile.TemporaryDirectory() as tmpdir:
             storage_path = f"{tmpdir}/metrics.pkl"
-            manager = DomainMetricsManager(storage_path=storage_path, use_file_lock=True)
+            manager = DomainMetricsManager(
+                storage_path=storage_path, use_file_lock=True
+            )
 
             assert manager._use_file_lock is True
 
@@ -518,7 +551,9 @@ class TestFileLock:
         """测试文件锁禁用时正常工作"""
         with tempfile.TemporaryDirectory() as tmpdir:
             storage_path = f"{tmpdir}/metrics.pkl"
-            manager = DomainMetricsManager(storage_path=storage_path, use_file_lock=False)
+            manager = DomainMetricsManager(
+                storage_path=storage_path, use_file_lock=False
+            )
 
             assert manager._use_file_lock is False
 

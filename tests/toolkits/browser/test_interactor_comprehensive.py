@@ -80,7 +80,10 @@ async def test_interact_click(interactor: Interactor) -> None:
     """Test click action."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("click", "e0")
 
         assert result == "Clicked e0"
@@ -100,7 +103,10 @@ async def test_interact_dblclick(interactor: Interactor) -> None:
     """Test double-click action."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("dblclick", "e0")
 
         assert result == "Double-clicked e0"
@@ -121,7 +127,10 @@ async def test_interact_type(interactor: Interactor) -> None:
     mock_locator = AsyncMock()
     mock_locator.get_attribute.return_value = "text"
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("type", "e0", "Hello World")
 
         assert result == "Typed 'Hello World' into e0"
@@ -143,7 +152,10 @@ async def test_interact_fill(interactor: Interactor) -> None:
     mock_locator = AsyncMock()
     mock_locator.get_attribute.return_value = "text"
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("fill", "e0", "test@example.com")
 
         assert result == "Filled e0 with 'test@example.com'"
@@ -160,7 +172,10 @@ async def test_interact_press(interactor: Interactor) -> None:
     """Test press action."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("press", "e0", "Enter")
 
         assert result == "Pressed 'Enter' on e0"
@@ -177,7 +192,10 @@ async def test_interact_hover(interactor: Interactor) -> None:
     """Test hover action."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("hover", "e0")
 
         assert result == "Hovered over e0"
@@ -185,21 +203,31 @@ async def test_interact_hover(interactor: Interactor) -> None:
 
 
 @pytest.mark.asyncio
-async def test_interact_hover_bezier_success(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
+async def test_interact_hover_bezier_success(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
     """Test hover in CAREFUL mode uses Bézier trajectory when bounding_box succeeds."""
-    from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig, HumanizeMode
+    from myrm_agent_harness.toolkits.browser.pool.config import (
+        HumanizeConfig,
+        HumanizeMode,
+    )
 
     cfg = HumanizeConfig.from_mode(HumanizeMode.CAREFUL)
     interactor = Interactor(mock_page, refs_map, humanize=cfg)
 
     mock_locator = AsyncMock()
-    mock_locator.bounding_box = AsyncMock(return_value={"x": 100, "y": 50, "width": 80, "height": 30})
+    mock_locator.bounding_box = AsyncMock(
+        return_value={"x": 100, "y": 50, "width": 80, "height": 30}
+    )
     mock_page.mouse = MagicMock()
     mock_page.mouse.move = AsyncMock()
     mock_page.wait_for_timeout = AsyncMock()
     mock_page.viewport_size = {"width": 800, "height": 600}
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("hover", "e0")
 
     assert result == "Hovered over e0"
@@ -208,9 +236,14 @@ async def test_interact_hover_bezier_success(mock_page: Any, refs_map: dict[str,
 
 
 @pytest.mark.asyncio
-async def test_interact_hover_bezier_fallback(mock_page: Any, refs_map: dict[str, RefInfo]) -> None:
+async def test_interact_hover_bezier_fallback(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
     """Test hover in CAREFUL mode falls back to locator.hover() when bounding_box returns None."""
-    from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig, HumanizeMode
+    from myrm_agent_harness.toolkits.browser.pool.config import (
+        HumanizeConfig,
+        HumanizeMode,
+    )
 
     cfg = HumanizeConfig.from_mode(HumanizeMode.CAREFUL)
     interactor = Interactor(mock_page, refs_map, humanize=cfg)
@@ -218,7 +251,10 @@ async def test_interact_hover_bezier_fallback(mock_page: Any, refs_map: dict[str
     mock_locator = AsyncMock()
     mock_locator.bounding_box = AsyncMock(return_value=None)
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("hover", "e0")
 
     assert result == "Hovered over e0"
@@ -235,7 +271,10 @@ async def test_interact_focus(interactor: Interactor) -> None:
     """Test focus action."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("focus", "e0")
 
         assert result == "Focused e0"
@@ -252,7 +291,10 @@ async def test_interact_select(interactor: Interactor) -> None:
     """Test select action."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("select", "e0", "option1")
 
         assert result == "Selected 'option1' in e0"
@@ -264,13 +306,14 @@ async def test_interact_select_multi_value(interactor: Interactor) -> None:
     """Multi-select recordings join values with ';' — each option is selected."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("select", "e0", "en; zh")
 
         assert result == "Selected 'en; zh' in e0"
-        mock_locator.select_option.assert_called_once_with(
-            ["en", "zh"], timeout=10_000
-        )
+        mock_locator.select_option.assert_called_once_with(["en", "zh"], timeout=10_000)
 
 
 # =============================================================================
@@ -283,7 +326,10 @@ async def test_interact_scroll_positive(interactor: Interactor, mock_page: Any) 
     """Test scroll action with positive delta."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("scroll", "e0", "100")
 
         assert result == "Scrolled 100px"
@@ -296,7 +342,10 @@ async def test_interact_scroll_negative(interactor: Interactor, mock_page: Any) 
     """Test scroll action with negative delta."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("scroll", "e0", "-50")
 
         assert result == "Scrolled -50px"
@@ -309,8 +358,12 @@ async def test_interact_scroll_invalid_text(interactor: Interactor) -> None:
     """Test scroll with invalid text raises ValueError."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator), pytest.raises(
-        ValueError, match="Scroll requires numeric text"
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+            return_value=mock_locator,
+        ),
+        pytest.raises(ValueError, match="Scroll requires numeric text"),
     ):
         await interactor.interact("scroll", "e0", "not_a_number")
 
@@ -398,7 +451,9 @@ def test_parse_scroll_params_zero_max_steps() -> None:
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_reaches_bottom(interactor: Interactor, mock_page: Any) -> None:
+async def test_scroll_to_bottom_reaches_bottom(
+    interactor: Interactor, mock_page: Any
+) -> None:
     """scroll_to_bottom stops when scrollHeight stabilizes."""
     mock_locator = AsyncMock()
     mock_page.wait_for_timeout = AsyncMock()
@@ -417,7 +472,10 @@ async def test_scroll_to_bottom_reaches_bottom(interactor: Interactor, mock_page
 
     mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("scroll_to_bottom", "e0", "")
 
     assert "completed" in result
@@ -425,7 +483,9 @@ async def test_scroll_to_bottom_reaches_bottom(interactor: Interactor, mock_page
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_max_steps_reached(interactor: Interactor, mock_page: Any) -> None:
+async def test_scroll_to_bottom_max_steps_reached(
+    interactor: Interactor, mock_page: Any
+) -> None:
     """scroll_to_bottom respects max_steps when page keeps growing."""
     mock_locator = AsyncMock()
     mock_page.wait_for_timeout = AsyncMock()
@@ -442,7 +502,10 @@ async def test_scroll_to_bottom_max_steps_reached(interactor: Interactor, mock_p
 
     mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("scroll_to_bottom", "e0", "max_steps=3")
 
     assert "max_reached" in result
@@ -450,7 +513,9 @@ async def test_scroll_to_bottom_max_steps_reached(interactor: Interactor, mock_p
 
 
 @pytest.mark.asyncio
-async def test_scroll_to_bottom_with_custom_params(interactor: Interactor, mock_page: Any) -> None:
+async def test_scroll_to_bottom_with_custom_params(
+    interactor: Interactor, mock_page: Any
+) -> None:
     """scroll_to_bottom accepts custom delay_ms and stable_count."""
     mock_locator = AsyncMock()
     mock_page.wait_for_timeout = AsyncMock()
@@ -469,7 +534,10 @@ async def test_scroll_to_bottom_with_custom_params(interactor: Interactor, mock_
 
     mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact(
             "scroll_to_bottom", "e0", "delay_ms=200,stable_count=2"
         )
@@ -495,7 +563,10 @@ async def test_scroll_to_bottom_single_step_already_at_bottom(
 
     mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("scroll_to_bottom", "e0", "")
 
     assert "completed" in result
@@ -525,7 +596,10 @@ async def test_scroll_to_bottom_viewport_zero_fallback(
 
     mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("scroll_to_bottom", "e0", "stable_count=2")
 
     assert "completed" in result
@@ -553,7 +627,10 @@ async def test_scroll_to_bottom_height_output_format(
 
     mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("scroll_to_bottom", "e0", "")
 
     assert "Scrolled" in result
@@ -573,11 +650,16 @@ async def test_interact_upload_file(interactor: Interactor) -> None:
     """Test upload_file action."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("upload_file", "e0", "/tmp/file.txt")
 
         assert result == "Uploaded file to e0: /tmp/file.txt"
-        mock_locator.set_input_files.assert_called_once_with("/tmp/file.txt", timeout=10_000)
+        mock_locator.set_input_files.assert_called_once_with(
+            "/tmp/file.txt", timeout=10_000
+        )
 
 
 # =============================================================================
@@ -592,11 +674,16 @@ async def test_interact_drag_success(interactor: Interactor, mock_page: Any) -> 
     body_locator = MagicMock()
     mock_page.locator.return_value = body_locator
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("drag", "e0", "200,150")
 
         assert result == "Dragged e0 to (200, 150)"
-        mock_locator.drag_to.assert_called_once_with(body_locator, target_position={"x": 200, "y": 150})
+        mock_locator.drag_to.assert_called_once_with(
+            body_locator, target_position={"x": 200, "y": 150}
+        )
 
 
 @pytest.mark.asyncio
@@ -604,8 +691,12 @@ async def test_interact_drag_invalid_format(interactor: Interactor) -> None:
     """Test drag with invalid text format."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator), pytest.raises(
-        ValueError, match="Drag requires 'x,y' text"
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+            return_value=mock_locator,
+        ),
+        pytest.raises(ValueError, match="Drag requires 'x,y' text"),
     ):
         await interactor.interact("drag", "e0", "invalid")
 
@@ -615,8 +706,12 @@ async def test_interact_drag_non_numeric(interactor: Interactor) -> None:
     """Test drag with non-numeric coordinates."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator), pytest.raises(
-        ValueError, match="Drag requires numeric 'x,y'"
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+            return_value=mock_locator,
+        ),
+        pytest.raises(ValueError, match="Drag requires numeric 'x,y'"),
     ):
         await interactor.interact("drag", "e0", "abc,def")
 
@@ -631,7 +726,10 @@ async def test_interact_check(interactor: Interactor) -> None:
     """Test check action."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("check", "e0")
 
         assert result == "Checked e0"
@@ -648,7 +746,10 @@ async def test_interact_uncheck(interactor: Interactor) -> None:
     """Test uncheck action."""
     mock_locator = AsyncMock()
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("uncheck", "e0")
 
         assert result == "Unchecked e0"
@@ -666,8 +767,12 @@ async def test_interact_invalid_action(interactor: Interactor) -> None:
     with pytest.raises(ValueError, match="Invalid action"):
         await interactor.interact("invalid_action", "e0")
 
+
 def test_metrics_empty():
-    from myrm_agent_harness.toolkits.browser.session.interactor import RefNotFoundMetrics
+    from myrm_agent_harness.toolkits.browser.session.interactor import (
+        RefNotFoundMetrics,
+    )
+
     metrics = RefNotFoundMetrics()
     assert metrics.failure_rate == 0.0
     assert metrics.recent_failure_rate == 0.0
@@ -676,8 +781,12 @@ def test_metrics_empty():
     d = metrics.to_dict()
     assert d["total_failures"] == 0
 
+
 def test_metrics_caching():
-    from myrm_agent_harness.toolkits.browser.session.interactor import RefNotFoundMetrics
+    from myrm_agent_harness.toolkits.browser.session.interactor import (
+        RefNotFoundMetrics,
+    )
+
     metrics = RefNotFoundMetrics()
     metrics.record_interaction(failed=True, ref="e1", action="click")
     assert metrics.top_failed_refs == [("e1", 1)]
@@ -686,15 +795,19 @@ def test_metrics_caching():
     assert metrics.top_failed_refs == [("e1", 1)]
     assert metrics.top_failed_actions == [("click", 1)]
 
+
 from patchright.async_api import Page
 
 
 def test_update_refs():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {})
-    interactor.update_refs({"e1": RefInfo(role="link", name="L", nth=0)}, last_snapshot_url="http://new")
+    interactor.update_refs(
+        {"e1": RefInfo(role="link", name="L", nth=0)}, last_snapshot_url="http://new"
+    )
     assert "e1" in interactor._refs
     assert interactor._last_snapshot_url == "http://new"
+
 
 def test_get_context_refs_limit():
     page = AsyncMock(spec=Page)
@@ -703,20 +816,28 @@ def test_get_context_refs_limit():
     res = interactor._get_context_refs(max_total=5)
     assert len(res) == 5
 
+
 def test_metrics_property():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {})
-    from myrm_agent_harness.toolkits.browser.session.interactor import RefNotFoundMetrics
+    from myrm_agent_harness.toolkits.browser.session.interactor import (
+        RefNotFoundMetrics,
+    )
+
     assert isinstance(interactor.metrics, RefNotFoundMetrics)
+
 
 def test_log_metrics_if_needed():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {})
     interactor._metrics.total_interactions = 100
     interactor._metrics.total_failures = 1
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.logger.info") as mock_info:
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.logger.info"
+    ) as mock_info:
         interactor._log_metrics_if_needed()
         mock_info.assert_called_once()
+
 
 def test_resolve_frame():
     page = AsyncMock(spec=Page)
@@ -727,17 +848,22 @@ def test_resolve_frame():
     assert interactor._resolve_frame("f99_e0") == page
     assert interactor._resolve_frame("fX_e0") == page
 
+
 @pytest.mark.asyncio
 async def test_interact_exception_with_dialog():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
+    ) as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.click.side_effect = Exception("TargetClosedError")
         mock_resolve.return_value = mock_loc
 
-        with patch("myrm_agent_harness.toolkits.computer_use.session.create_computer_session") as mock_create:
+        with patch(
+            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session"
+        ) as mock_create:
             mock_cu = AsyncMock()
             mock_cu.backend.has_blocking_dialog.return_value = True
             mock_create.return_value = mock_cu
@@ -745,17 +871,22 @@ async def test_interact_exception_with_dialog():
             res = await interactor.interact("click", "e0")
             assert "CRITICAL WARNING" in res
 
+
 @pytest.mark.asyncio
 async def test_interact_exception_no_dialog():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
+    ) as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.click.side_effect = Exception("TargetClosedError")
         mock_resolve.return_value = mock_loc
 
-        with patch("myrm_agent_harness.toolkits.computer_use.session.create_computer_session") as mock_create:
+        with patch(
+            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session"
+        ) as mock_create:
             mock_cu = AsyncMock()
             mock_cu.backend.has_blocking_dialog.return_value = False
             mock_create.return_value = mock_cu
@@ -769,7 +900,9 @@ async def test_interact_type_exception():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
+    ) as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.get_attribute.side_effect = Exception("error")
         mock_resolve.return_value = mock_loc
@@ -783,7 +916,9 @@ async def test_interact_fill_exception():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
+    ) as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.get_attribute.side_effect = Exception("error")
         mock_resolve.return_value = mock_loc
@@ -795,30 +930,47 @@ async def test_interact_fill_exception():
 @pytest.mark.asyncio
 async def test_interact_password_blocked():
     page = AsyncMock(spec=Page)
-    interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Password", nth=0)})
+    interactor = Interactor(
+        page, {"e0": RefInfo(role="textbox", name="Password", nth=0)}
+    )
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
+    ) as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.get_attribute.return_value = "password"
         mock_resolve.return_value = mock_loc
 
-        with pytest.raises(ValueError, match="SecurityError: Plain text typing into a password field is strictly forbidden"):
+        with pytest.raises(
+            ValueError,
+            match="SecurityError: Plain text typing into a password field is strictly forbidden",
+        ):
             await interactor.interact("type", "e0", "mysecret")
 
-        with pytest.raises(ValueError, match="SecurityError: Plain text filling into a password field is strictly forbidden"):
+        with pytest.raises(
+            ValueError,
+            match="SecurityError: Plain text filling into a password field is strictly forbidden",
+        ):
             await interactor.interact("fill", "e0", "mysecret")
 
 
 @pytest.mark.asyncio
 async def test_interact_fill_credential():
     page = AsyncMock(spec=Page)
-    interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Password", nth=0)})
+    interactor = Interactor(
+        page, {"e0": RefInfo(role="textbox", name="Password", nth=0)}
+    )
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
+    ) as mock_resolve:
         mock_loc = AsyncMock()
         mock_resolve.return_value = mock_loc
 
-        with patch("myrm_agent_harness.core.security.credential_vault.CredentialVault.get_password", return_value="secret123"):
+        with patch(
+            "myrm_agent_harness.core.security.credential_vault.CredentialVault.get_password",
+            return_value="secret123",
+        ):
             res = await interactor.interact("fill_credential", "e0", "github-personal")
             assert "Filled credential 'github-personal'" in res
             mock_loc.fill.assert_called_once_with("secret123", timeout=10000)
@@ -829,12 +981,19 @@ async def test_interact_fill_credential_totp():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="textbox", name="Code", nth=0)})
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
+    ) as mock_resolve:
         mock_loc = AsyncMock()
         mock_resolve.return_value = mock_loc
 
-        with patch("myrm_agent_harness.core.security.credential_vault.CredentialVault.get_totp_token", return_value="123456"):
-            res = await interactor.interact("fill_credential", "e0", "github-personal-totp")
+        with patch(
+            "myrm_agent_harness.core.security.credential_vault.CredentialVault.get_totp_token",
+            return_value="123456",
+        ):
+            res = await interactor.interact(
+                "fill_credential", "e0", "github-personal-totp"
+            )
             assert "Filled credential 'github-personal-totp'" in res
             mock_loc.fill.assert_called_once_with("123456", timeout=10000)
 
@@ -844,16 +1003,23 @@ async def test_interact_self_healing():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
+    ) as mock_resolve:
         mock_loc = AsyncMock()
         mock_loc.wait_for.side_effect = Exception("timeout")
         mock_resolve.return_value = mock_loc
 
-        with patch("myrm_agent_harness.toolkits.browser.snapshot.self_healer.SelfHealer.heal", new_callable=AsyncMock) as mock_heal:
+        with patch(
+            "myrm_agent_harness.toolkits.browser.snapshot.self_healer.SelfHealer.heal",
+            new_callable=AsyncMock,
+        ) as mock_heal:
             healed_loc = AsyncMock()
             mock_heal.return_value = (healed_loc, "NewName", 0.5)
 
-            with patch("myrm_agent_harness.runtime.events.bus.get_event_bus") as mock_bus:
+            with patch(
+                "myrm_agent_harness.runtime.events.bus.get_event_bus"
+            ) as mock_bus:
                 mock_bus.return_value.publish = MagicMock()
                 res = await interactor.interact("click", "e0")
                 assert "Auto-Healed" in res
@@ -862,11 +1028,16 @@ async def test_interact_self_healing():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {"e0": RefInfo(role="button", name="B", nth=0)})
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator") as mock_resolve:
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
+    ) as mock_resolve:
         mock_loc = AsyncMock()
         mock_resolve.return_value = mock_loc
 
-        with patch("myrm_agent_harness.toolkits.browser.wait.wait_for_page_ready", side_effect=Exception("error")):
+        with patch(
+            "myrm_agent_harness.toolkits.browser.wait.wait_for_page_ready",
+            side_effect=Exception("error"),
+        ):
             res = await interactor.interact("click", "e0")
             assert "Clicked" in res
 
@@ -897,7 +1068,10 @@ async def test_interactor_multiple_refs(mock_page: Any) -> None:
     mock_locator = AsyncMock()
     mock_locator.get_attribute.return_value = "text"
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         await interactor.interact("click", "e0")
         await interactor.interact("fill", "e1", "test@example.com")
         await interactor.interact("check", "e2")
@@ -908,7 +1082,9 @@ async def test_interactor_multiple_refs(mock_page: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_interactor_update_refs_and_use(mock_page: Any, ref_info: RefInfo) -> None:
+async def test_interactor_update_refs_and_use(
+    mock_page: Any, ref_info: RefInfo
+) -> None:
     """Test updating refs and using new refs."""
     interactor = Interactor(mock_page, {})
 
@@ -918,15 +1094,22 @@ async def test_interactor_update_refs_and_use(mock_page: Any, ref_info: RefInfo)
     interactor.update_refs({"e0": ref_info})
 
     mock_locator = AsyncMock()
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         result = await interactor.interact("click", "e0")
         assert "Clicked e0" in result
 
 
 @pytest.mark.asyncio
-async def test_interactor_unknown_action_coverage(mock_page: Any, ref_info: RefInfo) -> None:
+async def test_interactor_unknown_action_coverage(
+    mock_page: Any, ref_info: RefInfo
+) -> None:
     """测试未知action的返回（覆盖line 178，理论死代码）"""
-    from myrm_agent_harness.toolkits.browser.session import interactor as interactor_module
+    from myrm_agent_harness.toolkits.browser.session import (
+        interactor as interactor_module,
+    )
 
     # 临时添加一个不在elif链中的action来触发line 178
     original_actions = interactor_module._VALID_ACTIONS
@@ -937,7 +1120,8 @@ async def test_interactor_unknown_action_coverage(mock_page: Any, ref_info: RefI
 
         mock_locator = AsyncMock()
         with patch(
-            "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator
+            "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+            return_value=mock_locator,
         ):
             result = await test_interactor.interact("unknown_action", "e0", "")
             assert result == "Unknown action: unknown_action"

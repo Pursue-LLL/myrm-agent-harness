@@ -39,7 +39,11 @@ from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.browser.exceptions import RefNotFoundError
 from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig
-from myrm_agent_harness.toolkits.browser.session.humanize import bezier_move, click_delay, type_delay
+from myrm_agent_harness.toolkits.browser.session.humanize import (
+    bezier_move,
+    click_delay,
+    type_delay,
+)
 from myrm_agent_harness.toolkits.browser.snapshot import resolve_locator
 
 if TYPE_CHECKING:
@@ -69,11 +73,19 @@ class RefNotFoundMetrics:
     failure_refs: dict[str, int] = field(default_factory=dict)
     failure_by_action: dict[str, int] = field(default_factory=dict)
 
-    _recent_failures: deque[bool] = field(default_factory=lambda: deque(maxlen=100), init=False, repr=False)
-    _cached_top_refs: list[tuple[str, int]] | None = field(default=None, init=False, repr=False)
-    _cached_top_actions: list[tuple[str, int]] | None = field(default=None, init=False, repr=False)
+    _recent_failures: deque[bool] = field(
+        default_factory=lambda: deque(maxlen=100), init=False, repr=False
+    )
+    _cached_top_refs: list[tuple[str, int]] | None = field(
+        default=None, init=False, repr=False
+    )
+    _cached_top_actions: list[tuple[str, int]] | None = field(
+        default=None, init=False, repr=False
+    )
 
-    def record_interaction(self, failed: bool, ref: str | None = None, action: str | None = None) -> None:
+    def record_interaction(
+        self, failed: bool, ref: str | None = None, action: str | None = None
+    ) -> None:
         """Record a single interaction result.
 
         Args:
@@ -89,7 +101,9 @@ class RefNotFoundMetrics:
             if ref:
                 self.failure_refs[ref] = self.failure_refs.get(ref, 0) + 1
             if action:
-                self.failure_by_action[action] = self.failure_by_action.get(action, 0) + 1
+                self.failure_by_action[action] = (
+                    self.failure_by_action.get(action, 0) + 1
+                )
             self._invalidate_cache()
 
     def _invalidate_cache(self) -> None:
@@ -115,14 +129,18 @@ class RefNotFoundMetrics:
     def top_failed_refs(self) -> list[tuple[str, int]]:
         """Top failed refs sorted by count descending (max 10, cached)."""
         if self._cached_top_refs is None:
-            self._cached_top_refs = sorted(self.failure_refs.items(), key=lambda x: x[1], reverse=True)[:10]
+            self._cached_top_refs = sorted(
+                self.failure_refs.items(), key=lambda x: x[1], reverse=True
+            )[:10]
         return self._cached_top_refs
 
     @property
     def top_failed_actions(self) -> list[tuple[str, int]]:
         """Top failed actions sorted by count descending (cached)."""
         if self._cached_top_actions is None:
-            self._cached_top_actions = sorted(self.failure_by_action.items(), key=lambda x: x[1], reverse=True)
+            self._cached_top_actions = sorted(
+                self.failure_by_action.items(), key=lambda x: x[1], reverse=True
+            )
         return self._cached_top_actions
 
     def to_dict(self) -> dict[str, object]:
@@ -194,7 +212,9 @@ def _parse_scroll_params(text: str) -> dict[str, int]:
             with contextlib.suppress(ValueError):
                 params[key] = int(val)
 
-    params["max_steps"] = max(1, min(params["max_steps"], _SCROLL_TO_BOTTOM_MAX_STEPS_CAP))
+    params["max_steps"] = max(
+        1, min(params["max_steps"], _SCROLL_TO_BOTTOM_MAX_STEPS_CAP)
+    )
     params["delay_ms"] = max(100, params["delay_ms"])
     params["stable_count"] = max(2, params["stable_count"])
     return params
@@ -289,7 +309,10 @@ class Interactor:
 
     def _log_metrics_if_needed(self) -> None:
         """Periodically log failure-rate statistics (every 100 interactions)."""
-        if self._metrics.total_interactions % 100 == 0 and self._metrics.total_failures > 0:
+        if (
+            self._metrics.total_interactions % 100 == 0
+            and self._metrics.total_failures > 0
+        ):
             logger.info(
                 "Ref failure metrics: "
                 f"global_rate={self._metrics.failure_rate:.1%}, "
@@ -333,7 +356,9 @@ class Interactor:
             RefNotFoundError: If the ref does not exist (includes structured diagnosis).
         """
         if action not in _VALID_ACTIONS:
-            raise ValueError(f"Invalid action: {action}, must be one of {_VALID_ACTIONS}")
+            raise ValueError(
+                f"Invalid action: {action}, must be one of {_VALID_ACTIONS}"
+            )
 
         if ref not in self._refs:
             total_refs = len(self._refs)
@@ -378,7 +403,9 @@ class Interactor:
             await locator.wait_for(state="attached", timeout=1500)
         except Exception:
             # Attempt spatial-fingerprint self-healing
-            from myrm_agent_harness.toolkits.browser.snapshot.self_healer import SelfHealer
+            from myrm_agent_harness.toolkits.browser.snapshot.self_healer import (
+                SelfHealer,
+            )
 
             healed_loc, new_name, _distance = await SelfHealer.heal(frame, ref_info)
             if healed_loc:
@@ -394,7 +421,9 @@ class Interactor:
         async def _wait_after_action():
             try:
                 # Wait for SPA stability after action (timeout=3000ms, quiet=500ms)
-                await wait_for_page_ready(self._page, strategy=WaitStrategy.SPA_STABLE, max_ms=3000)
+                await wait_for_page_ready(
+                    self._page, strategy=WaitStrategy.SPA_STABLE, max_ms=3000
+                )
             except Exception as e:
                 logger.debug(f"Interactor: post-action SPA wait failed/timed out: {e}")
 
@@ -434,7 +463,9 @@ class Interactor:
                 display_text = text
 
                 delay_per_char = type_delay(self._humanize)
-                typing_timeout = max(_INTERACTION_TIMEOUT_MS, len(text) * delay_per_char + 5000)
+                typing_timeout = max(
+                    _INTERACTION_TIMEOUT_MS, len(text) * delay_per_char + 5000
+                )
                 await locator.type(text, delay=delay_per_char, timeout=typing_timeout)
                 await _wait_after_action()
                 return f"Typed '{display_text}' into {ref}{healed_msg}"
@@ -462,7 +493,9 @@ class Interactor:
                 return f"Filled {ref} with '{display_text}'{healed_msg}"
 
             elif action == "fill_credential":
-                from myrm_agent_harness.core.security.credential_vault import get_global_credential_vault
+                from myrm_agent_harness.core.security.credential_vault import (
+                    get_global_credential_vault,
+                )
 
                 vault = get_global_credential_vault()
 
@@ -475,7 +508,9 @@ class Interactor:
                     else:
                         secret_text = vault.get_password(text)
                 except Exception as e:
-                    raise ValueError(f"Failed to retrieve credential for label '{text}': {e}") from e
+                    raise ValueError(
+                        f"Failed to retrieve credential for label '{text}': {e}"
+                    ) from e
 
                 await locator.fill(secret_text, timeout=_INTERACTION_TIMEOUT_MS)
                 await _wait_after_action()
@@ -512,9 +547,13 @@ class Interactor:
                 try:
                     delta = int(text)
                 except ValueError as exc:
-                    raise ValueError(f"Scroll requires numeric text (pixel delta), got: {text}") from exc
+                    raise ValueError(
+                        f"Scroll requires numeric text (pixel delta), got: {text}"
+                    ) from exc
 
-                await locator.scroll_into_view_if_needed(timeout=_INTERACTION_TIMEOUT_MS)
+                await locator.scroll_into_view_if_needed(
+                    timeout=_INTERACTION_TIMEOUT_MS
+                )
                 await self._page.evaluate(f"window.scrollBy(0, {delta})")
                 return f"Scrolled {delta}px{healed_msg}"
 
@@ -573,9 +612,13 @@ class Interactor:
                 try:
                     x, y = int(parts[0]), int(parts[1])
                 except ValueError as exc:
-                    raise ValueError(f"Drag requires numeric 'x,y', got: {text}") from exc
+                    raise ValueError(
+                        f"Drag requires numeric 'x,y', got: {text}"
+                    ) from exc
 
-                await locator.drag_to(self._page.locator("body"), target_position={"x": x, "y": y})
+                await locator.drag_to(
+                    self._page.locator("body"), target_position={"x": x, "y": y}
+                )
                 return f"Dragged {ref} to ({x}, {y}){healed_msg}"
 
             elif action == "check":
@@ -590,23 +633,36 @@ class Interactor:
 
         except Exception as e:
             error_msg = str(e)
-            if "TargetClosedError" in error_msg or "Target closed" in error_msg or "Timeout" in error_msg:
+            if (
+                "TargetClosedError" in error_msg
+                or "Target closed" in error_msg
+                or "Timeout" in error_msg
+            ):
                 # This often happens when a native OS dialog (like a file picker or permission prompt)
                 # blocks the browser process, causing Playwright to timeout or lose the target.
 
                 # Check if there is ACTUALLY a dialog before injecting the hint to avoid hallucination
                 has_dialog = False
                 try:
-                    from myrm_agent_harness.toolkits.computer_use.session import create_computer_session
-                    from myrm_agent_harness.toolkits.computer_use.types import KNOWN_BROWSER_NAMES, ComputerUseConfig
+                    from myrm_agent_harness.toolkits.computer_use.session import (
+                        create_computer_session,
+                    )
+                    from myrm_agent_harness.toolkits.computer_use.types import (
+                        KNOWN_BROWSER_NAMES,
+                        ComputerUseConfig,
+                    )
 
                     cu_session = create_computer_session(ComputerUseConfig())
-                    has_dialog = await cu_session.backend.has_blocking_dialog(list(KNOWN_BROWSER_NAMES))
+                    has_dialog = await cu_session.backend.has_blocking_dialog(
+                        list(KNOWN_BROWSER_NAMES)
+                    )
                 except Exception:
                     pass
 
                 if has_dialog:
-                    logger.warning(f"Browser interaction failed and OS dialog detected: {e}")
+                    logger.warning(
+                        f"Browser interaction failed and OS dialog detected: {e}"
+                    )
                     return (
                         f"Interaction failed: {error_msg}\n\n"
                         "[CRITICAL WARNING: A native OS dialog (e.g., File Upload, Permission Request) "
@@ -616,7 +672,9 @@ class Interactor:
                 else:
                     # If no dialog is detected, it's just a regular timeout/error.
                     # Don't inject the hint to avoid confusing the agent.
-                    logger.warning(f"Browser interaction failed (no OS dialog detected): {e}")
+                    logger.warning(
+                        f"Browser interaction failed (no OS dialog detected): {e}"
+                    )
             raise
 
     async def _bezier_move_to(self, locator: Locator) -> bool:
@@ -634,7 +692,9 @@ class Interactor:
             self._mouse_x = float((viewport or {}).get("width", 800)) / 2
             self._mouse_y = float((viewport or {}).get("height", 600)) / 2
 
-        await bezier_move(self._page, self._mouse_x, self._mouse_y, target_x, target_y, self._humanize)
+        await bezier_move(
+            self._page, self._mouse_x, self._mouse_y, target_x, target_y, self._humanize
+        )
         self._mouse_x, self._mouse_y = target_x, target_y
         return True
 
@@ -660,7 +720,9 @@ class Interactor:
     # Coordinate-based interaction (Visual Mode)
     # ------------------------------------------------------------------
 
-    _COORD_ACTIONS = frozenset({"click", "dblclick", "type", "press", "hover", "scroll", "drag"})
+    _COORD_ACTIONS = frozenset(
+        {"click", "dblclick", "type", "press", "hover", "scroll", "drag"}
+    )
 
     async def interact_at(
         self,
@@ -711,13 +773,17 @@ class Interactor:
 
         async def _wait_after() -> None:
             try:
-                await wait_for_page_ready(self._page, strategy=WaitStrategy.SPA_STABLE, max_ms=3000)
+                await wait_for_page_ready(
+                    self._page, strategy=WaitStrategy.SPA_STABLE, max_ms=3000
+                )
             except Exception as exc:
                 logger.debug("Interactor: post-coord-action SPA wait failed: %s", exc)
 
         if action == "click":
             if self._humanize.enable_bezier_mouse:
-                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
+                await bezier_move(
+                    self._page, self._mouse_x, self._mouse_y, x, y, self._humanize
+                )
             else:
                 await self._page.mouse.move(x, y)
             delay_ms = click_delay(self._humanize)
@@ -738,7 +804,9 @@ class Interactor:
             if not text:
                 raise ValueError("'text' is required for type action")
             if self._humanize.enable_bezier_mouse:
-                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
+                await bezier_move(
+                    self._page, self._mouse_x, self._mouse_y, x, y, self._humanize
+                )
             else:
                 await self._page.mouse.move(x, y)
             await self._page.mouse.click(x, y)
@@ -759,7 +827,9 @@ class Interactor:
 
         if action == "hover":
             if self._humanize.enable_bezier_mouse:
-                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
+                await bezier_move(
+                    self._page, self._mouse_x, self._mouse_y, x, y, self._humanize
+                )
             else:
                 await self._page.mouse.move(x, y)
             self._mouse_x, self._mouse_y = x, y
@@ -767,11 +837,15 @@ class Interactor:
 
         if action == "scroll":
             if not text:
-                raise ValueError("'text' (signed pixel delta) is required for scroll action")
+                raise ValueError(
+                    "'text' (signed pixel delta) is required for scroll action"
+                )
             try:
                 delta = int(text)
             except ValueError as exc:
-                raise ValueError(f"Scroll requires numeric text (pixel delta), got: {text}") from exc
+                raise ValueError(
+                    f"Scroll requires numeric text (pixel delta), got: {text}"
+                ) from exc
             await self._page.mouse.move(x, y)
             self._mouse_x, self._mouse_y = x, y
             await self._page.mouse.wheel(0, delta)
@@ -779,13 +853,17 @@ class Interactor:
 
         if action == "drag":
             if target_x is None or target_y is None:
-                raise ValueError("'target_x' and 'target_y' are required for drag action")
+                raise ValueError(
+                    "'target_x' and 'target_y' are required for drag action"
+                )
             if not (0 <= target_x <= vw and 0 <= target_y <= vh):
                 raise ValueError(
                     f"Drag target ({target_x}, {target_y}) out of viewport bounds ({vw}×{vh})."
                 )
             if self._humanize.enable_bezier_mouse:
-                await bezier_move(self._page, self._mouse_x, self._mouse_y, x, y, self._humanize)
+                await bezier_move(
+                    self._page, self._mouse_x, self._mouse_y, x, y, self._humanize
+                )
             else:
                 await self._page.mouse.move(x, y)
             await self._page.mouse.down()

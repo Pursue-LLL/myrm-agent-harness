@@ -17,10 +17,13 @@ from myrm_agent_harness.toolkits.browser.navigation.ssrf_guard import (
 
 @pytest.mark.asyncio
 async def test_assert_browser_navigation_allowed_blocks_private() -> None:
-    with patch(
-        "myrm_agent_harness.core.security.guards.ssrf.async_pin_url",
-        side_effect=SSRFSecurityError("blocked"),
-    ), pytest.raises(BrowserNavigationBlockedError, match="SSRF blocked"):
+    with (
+        patch(
+            "myrm_agent_harness.core.security.guards.ssrf.async_pin_url",
+            side_effect=SSRFSecurityError("blocked"),
+        ),
+        pytest.raises(BrowserNavigationBlockedError, match="SSRF blocked"),
+    ):
         await assert_browser_navigation_allowed("http://169.254.169.254/")
 
 

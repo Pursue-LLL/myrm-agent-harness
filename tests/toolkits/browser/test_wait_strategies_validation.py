@@ -144,11 +144,15 @@ async def test_extreme_timeout_values():
     mock_page.wait_for_load_state = AsyncMock()
 
     # 极小值（接近0但合法）
-    metrics = await wait_for_page_ready(mock_page, strategy=WaitStrategy.NETWORKIDLE, max_ms=1)
+    metrics = await wait_for_page_ready(
+        mock_page, strategy=WaitStrategy.NETWORKIDLE, max_ms=1
+    )
     assert metrics.elapsed_ms >= 0
 
     # 极大值（确保不会溢出）
-    metrics = await wait_for_page_ready(mock_page, strategy=WaitStrategy.NETWORKIDLE, max_ms=999999)
+    metrics = await wait_for_page_ready(
+        mock_page, strategy=WaitStrategy.NETWORKIDLE, max_ms=999999
+    )
     assert metrics.elapsed_ms >= 0
 
 
@@ -161,7 +165,9 @@ async def test_page_closed_scenario():
     mock_page.wait_for_load_state = AsyncMock(side_effect=RuntimeError("Page closed"))
 
     # 应该捕获异常并返回capped metrics
-    metrics = await wait_for_page_ready(mock_page, strategy=WaitStrategy.NETWORKIDLE, max_ms=5000)
+    metrics = await wait_for_page_ready(
+        mock_page, strategy=WaitStrategy.NETWORKIDLE, max_ms=5000
+    )
 
     assert metrics.strategy == WaitStrategy.NETWORKIDLE
     assert metrics.reason == "capped"

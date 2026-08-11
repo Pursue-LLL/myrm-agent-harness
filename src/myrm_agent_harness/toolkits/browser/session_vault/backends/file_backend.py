@@ -75,7 +75,11 @@ def load_or_create_key(key_path: Path) -> bytes:
         key = key_path.read_bytes()
         if len(key) == 32:
             return key
-        logger.warning("Invalid key length in %s (%d bytes, expected 32), regenerating", key_path, len(key))
+        logger.warning(
+            "Invalid key length in %s (%d bytes, expected 32), regenerating",
+            key_path,
+            len(key),
+        )
 
     key = os.urandom(32)
     key_path.parent.mkdir(parents=True, exist_ok=True)

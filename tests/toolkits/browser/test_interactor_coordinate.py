@@ -75,8 +75,7 @@ async def test_interact_at_dblclick(interactor: Interactor, mock_page: Any) -> N
 @pytest.mark.asyncio
 async def test_interact_at_type(interactor: Interactor, mock_page: Any) -> None:
     """Type text at viewport coordinates."""
-    with patch(
-_WAIT_PATCH, new_callable=AsyncMock):
+    with patch(_WAIT_PATCH, new_callable=AsyncMock):
         result = await interactor.interact_at("type", 400, 300, text="Hello World")
 
     assert "Typed 'Hello World' at (400, 300)" in result
@@ -101,8 +100,7 @@ async def test_interact_at_type_no_text_raises(interactor: Interactor) -> None:
 @pytest.mark.asyncio
 async def test_interact_at_press(interactor: Interactor, mock_page: Any) -> None:
     """Press key combo at coordinates."""
-    with patch(
-_WAIT_PATCH, new_callable=AsyncMock):
+    with patch(_WAIT_PATCH, new_callable=AsyncMock):
         result = await interactor.interact_at("press", 400, 300, text="Enter")
 
     assert "Pressed 'Enter' at (400, 300)" in result
@@ -147,7 +145,9 @@ async def test_interact_at_scroll(interactor: Interactor, mock_page: Any) -> Non
 
 
 @pytest.mark.asyncio
-async def test_interact_at_scroll_negative(interactor: Interactor, mock_page: Any) -> None:
+async def test_interact_at_scroll_negative(
+    interactor: Interactor, mock_page: Any
+) -> None:
     """Scroll up (negative delta) at coordinates."""
     result = await interactor.interact_at("scroll", 640, 360, text="-200")
 
@@ -177,10 +177,13 @@ async def test_interact_at_scroll_no_text_raises(interactor: Interactor) -> None
 @pytest.mark.asyncio
 async def test_interact_at_drag(interactor: Interactor, mock_page: Any) -> None:
     """Drag from one position to another."""
-    with patch(
-_WAIT_PATCH, new_callable=AsyncMock):
+    with patch(_WAIT_PATCH, new_callable=AsyncMock):
         result = await interactor.interact_at(
-            "drag", 100, 200, target_x=500, target_y=400,
+            "drag",
+            100,
+            200,
+            target_x=500,
+            target_y=400,
         )
 
     assert "Dragged from (100, 200) to (500, 400)" in result
@@ -250,7 +253,10 @@ async def test_interact_at_upload_not_supported(interactor: Interactor) -> None:
 @pytest.mark.asyncio
 async def test_interact_at_click_with_bezier(mock_page: Any) -> None:
     """Click with Bézier mouse enabled should call bezier_move."""
-    from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig, HumanizeMode
+    from myrm_agent_harness.toolkits.browser.pool.config import (
+        HumanizeConfig,
+        HumanizeMode,
+    )
 
     cfg = HumanizeConfig(mode=HumanizeMode.CAREFUL, enable_bezier_mouse=True)
     interactor = Interactor(mock_page, {}, humanize=cfg)
@@ -271,7 +277,10 @@ async def test_interact_at_click_with_bezier(mock_page: Any) -> None:
 @pytest.mark.asyncio
 async def test_interact_at_drag_with_bezier(mock_page: Any) -> None:
     """Drag with Bézier mouse should call bezier_move twice (start + end)."""
-    from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig, HumanizeMode
+    from myrm_agent_harness.toolkits.browser.pool.config import (
+        HumanizeConfig,
+        HumanizeMode,
+    )
 
     cfg = HumanizeConfig(mode=HumanizeMode.CAREFUL, enable_bezier_mouse=True)
     interactor = Interactor(mock_page, {}, humanize=cfg)
@@ -283,7 +292,9 @@ async def test_interact_at_drag_with_bezier(mock_page: Any) -> None:
         ) as mock_bezier,
         patch(_WAIT_PATCH, new_callable=AsyncMock),
     ):
-        result = await interactor.interact_at("drag", 100, 200, target_x=500, target_y=400)
+        result = await interactor.interact_at(
+            "drag", 100, 200, target_x=500, target_y=400
+        )
 
     assert "Dragged from" in result
     assert mock_bezier.await_count == 2
@@ -295,24 +306,25 @@ async def test_interact_at_drag_with_bezier(mock_page: Any) -> None:
 
 
 @pytest.mark.asyncio
-async def test_interact_at_boundary_coords(interactor: Interactor, mock_page: Any) -> None:
+async def test_interact_at_boundary_coords(
+    interactor: Interactor, mock_page: Any
+) -> None:
     """Coordinates at exact viewport boundary should succeed."""
-    with patch(
-_WAIT_PATCH, new_callable=AsyncMock):
+    with patch(_WAIT_PATCH, new_callable=AsyncMock):
         result = await interactor.interact_at("click", 0, 0)
     assert "Clicked at (0, 0)" in result
 
-    with patch(
-_WAIT_PATCH, new_callable=AsyncMock):
+    with patch(_WAIT_PATCH, new_callable=AsyncMock):
         result = await interactor.interact_at("click", 1280, 720)
     assert "Clicked at (1280, 720)" in result
 
 
 @pytest.mark.asyncio
-async def test_interact_at_updates_mouse_position(interactor: Interactor, mock_page: Any) -> None:
+async def test_interact_at_updates_mouse_position(
+    interactor: Interactor, mock_page: Any
+) -> None:
     """Mouse position should update after each coordinate interaction."""
-    with patch(
-_WAIT_PATCH, new_callable=AsyncMock):
+    with patch(_WAIT_PATCH, new_callable=AsyncMock):
         await interactor.interact_at("click", 100, 200)
     assert interactor._mouse_x == 100
     assert interactor._mouse_y == 200

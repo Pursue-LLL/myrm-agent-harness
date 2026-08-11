@@ -114,7 +114,9 @@ async def test_capture_snapshot_skips_nested_inspector_publish() -> None:
             meta = SnapshotMeta(ref_count=0, estimated_tokens=0)
             from types import MappingProxyType
 
-            from myrm_agent_harness.toolkits.browser.session.snapshot_result import SnapshotResult
+            from myrm_agent_harness.toolkits.browser.session.snapshot_result import (
+                SnapshotResult,
+            )
 
             return SnapshotResult(
                 aria_tree="tree",

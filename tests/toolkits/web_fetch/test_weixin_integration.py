@@ -48,7 +48,9 @@ async def test_non_weixin_url_skips_extractor() -> None:
                 "myrm_agent_harness.toolkits.web_fetch.engine.extract_weixin_article",
                 new_callable=AsyncMock,
             ) as mock_extract,
-            patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl,
+            patch.object(
+                engine, "_crawl_with_degradation", new_callable=AsyncMock
+            ) as mock_crawl,
         ):
             mock_crawl.return_value = (
                 MagicMock(page_content="Article content", metadata={}),
@@ -81,7 +83,9 @@ async def test_weixin_invalid_article_returns_none_live() -> None:
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_weixin_blocked_html_parse_returns_none() -> None:
-    from myrm_agent_harness.toolkits.web_fetch.weixin_extractor import parse_weixin_article_html
+    from myrm_agent_harness.toolkits.web_fetch.weixin_extractor import (
+        parse_weixin_article_html,
+    )
 
     blocked_html = """
     <html><body><h2>环境异常</h2><p>完成验证后即可继续访问。</p></body></html>

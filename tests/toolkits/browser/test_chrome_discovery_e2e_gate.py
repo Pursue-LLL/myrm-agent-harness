@@ -27,7 +27,9 @@ def test_e2e_port_used_when_env_enabled(monkeypatch: pytest.MonkeyPatch) -> None
     monkeypatch.setenv("MYRM_CHROME_E2E", "1")
     with (
         patch.object(chrome_discovery, "_myrm_e2e_port", return_value=9333),
-        patch.object(chrome_discovery, "_probe_http_version", return_value=True) as probe,
+        patch.object(
+            chrome_discovery, "_probe_http_version", return_value=True
+        ) as probe,
     ):
         endpoint = chrome_discovery.discover_chrome_cdp_endpoint()
     assert endpoint == "http://127.0.0.1:9333"

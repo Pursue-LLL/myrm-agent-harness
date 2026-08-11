@@ -27,7 +27,9 @@ def vault_key() -> bytes:
 
 
 @pytest.mark.asyncio
-async def test_aesgcm_caching_verification(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_aesgcm_caching_verification(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify AESGCM instance caching works correctly.
 
     Evidence: Same cipher instance is reused across multiple operations.
@@ -46,7 +48,9 @@ async def test_aesgcm_caching_verification(backend: FileVaultBackend, vault_key:
 
 
 @pytest.mark.asyncio
-async def test_memory_cache_performance(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_memory_cache_performance(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Benchmark: Memory cache dramatically reduces load latency.
 
     Evidence: With cache enabled, repeated loads are ~100x faster (no I/O/decryption).
@@ -81,12 +85,16 @@ async def test_memory_cache_performance(backend: FileVaultBackend, vault_key: by
 
     speedup = nocache_time / cached_time
     min_speedup = 2 if os.environ.get("COV_CORE_SOURCE") else 7
-    assert speedup > min_speedup, f"Cache speedup {speedup:.1f}x should be >{min_speedup}x"
+    assert (
+        speedup > min_speedup
+    ), f"Cache speedup {speedup:.1f}x should be >{min_speedup}x"
 
 
 @pytest.mark.benchmark
 @pytest.mark.asyncio
-async def test_cleanup_concurrent_performance(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_cleanup_concurrent_performance(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Benchmark: Concurrent cleanup is faster than sequential for many sessions.
 
     Evidence: With 100 sessions, concurrent cleanup is ~5-10x faster.

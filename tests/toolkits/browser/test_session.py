@@ -10,7 +10,9 @@ from myrm_agent_harness.toolkits.browser import BrowserSession
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
 from myrm_agent_harness.toolkits.browser.session_vault.backends import FileVaultBackend
-from myrm_agent_harness.toolkits.browser.session_vault.backends.file_backend import load_or_create_key
+from myrm_agent_harness.toolkits.browser.session_vault.backends.file_backend import (
+    load_or_create_key,
+)
 
 
 @pytest.fixture
@@ -34,9 +36,13 @@ def session_vault(tmp_path: Path) -> SessionVault:
 
 
 @pytest.fixture
-async def session(browser_pool: GlobalBrowserPool, session_vault: SessionVault) -> BrowserSession:
+async def session(
+    browser_pool: GlobalBrowserPool, session_vault: SessionVault
+) -> BrowserSession:
     """创建测试用的 BrowserSession with SessionVault"""
-    session = BrowserSession(browser_pool, ContextType.AGENT, session_vault=session_vault)
+    session = BrowserSession(
+        browser_pool, ContextType.AGENT, session_vault=session_vault
+    )
     await session.new_tab()
     yield session
     await session.close()

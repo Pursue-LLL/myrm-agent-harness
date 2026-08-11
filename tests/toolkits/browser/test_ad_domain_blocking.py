@@ -86,24 +86,32 @@ class TestAdDomainsModule:
     """Test the ad_domains data module."""
 
     def test_import_and_type(self) -> None:
-        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import AD_DOMAINS
+        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import (
+            AD_DOMAINS,
+        )
 
         assert isinstance(AD_DOMAINS, frozenset)
 
     def test_minimum_domain_count(self) -> None:
-        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import AD_DOMAINS
+        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import (
+            AD_DOMAINS,
+        )
 
         assert len(AD_DOMAINS) >= 3000
 
     def test_known_ad_domains_present(self) -> None:
-        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import AD_DOMAINS
+        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import (
+            AD_DOMAINS,
+        )
 
         assert "doubleclick.net" in AD_DOMAINS
         assert "googlesyndication.com" in AD_DOMAINS
         assert "adnxs.com" in AD_DOMAINS
 
     def test_no_legitimate_domains(self) -> None:
-        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import AD_DOMAINS
+        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import (
+            AD_DOMAINS,
+        )
 
         assert "google.com" not in AD_DOMAINS
         assert "github.com" not in AD_DOMAINS
@@ -111,7 +119,9 @@ class TestAdDomainsModule:
         assert "cdn.jsdelivr.net" not in AD_DOMAINS
 
     def test_all_entries_are_strings(self) -> None:
-        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import AD_DOMAINS
+        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import (
+            AD_DOMAINS,
+        )
 
         for domain in list(AD_DOMAINS)[:100]:
             assert isinstance(domain, str)
@@ -169,12 +179,16 @@ class TestInstallDomainFilterAdBlocking:
         return ctx
 
     @pytest.mark.asyncio()
-    async def test_ad_blocklist_loaded_when_enabled(self, mock_context: AsyncMock) -> None:
+    async def test_ad_blocklist_loaded_when_enabled(
+        self, mock_context: AsyncMock
+    ) -> None:
         """When block_ad_domains=True, AD_DOMAINS should be loaded and route installed."""
         resource_block = ResourceBlockConfig(block_ad_domains=True)
         allowlist = DomainAllowlist(patterns=())
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         mock_context.route.assert_called_once()
 
@@ -184,7 +198,9 @@ class TestInstallDomainFilterAdBlocking:
         resource_block = ResourceBlockConfig()
         allowlist = DomainAllowlist(patterns=())
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         mock_context.route.assert_not_called()
 
@@ -194,7 +210,9 @@ class TestInstallDomainFilterAdBlocking:
         resource_block = ResourceBlockConfig(block_ad_domains=True)
         allowlist = DomainAllowlist(patterns=())
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         handler = mock_context.route.call_args[0][1]
 
@@ -208,12 +226,16 @@ class TestInstallDomainFilterAdBlocking:
         route.abort.assert_called_once_with("blockedbyclient")
 
     @pytest.mark.asyncio()
-    async def test_ad_blocking_allows_legitimate_domain(self, mock_context: AsyncMock) -> None:
+    async def test_ad_blocking_allows_legitimate_domain(
+        self, mock_context: AsyncMock
+    ) -> None:
         """Verify the route handler allows a legitimate domain."""
         resource_block = ResourceBlockConfig(block_ad_domains=True)
         allowlist = DomainAllowlist(patterns=())
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         handler = mock_context.route.call_args[0][1]
 
@@ -227,12 +249,16 @@ class TestInstallDomainFilterAdBlocking:
         route.continue_.assert_called_once()
 
     @pytest.mark.asyncio()
-    async def test_ad_blocking_with_resource_type_blocking(self, mock_context: AsyncMock) -> None:
+    async def test_ad_blocking_with_resource_type_blocking(
+        self, mock_context: AsyncMock
+    ) -> None:
         """Both ad blocking and resource type blocking active simultaneously."""
         resource_block = ResourceBlockConfig(block_images=True, block_ad_domains=True)
         allowlist = DomainAllowlist(patterns=())
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         handler = mock_context.route.call_args[0][1]
 
@@ -251,12 +277,16 @@ class TestInstallDomainFilterAdBlocking:
         route_ad.abort.assert_called_once_with("blockedbyclient")
 
     @pytest.mark.asyncio()
-    async def test_ad_blocking_priority_over_allowlist_empty(self, mock_context: AsyncMock) -> None:
+    async def test_ad_blocking_priority_over_allowlist_empty(
+        self, mock_context: AsyncMock
+    ) -> None:
         """Ad blocklist checked before allowlist when allowlist is empty (no restriction)."""
         resource_block = ResourceBlockConfig(block_ad_domains=True)
         allowlist = DomainAllowlist(patterns=())
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         handler = mock_context.route.call_args[0][1]
 
@@ -279,7 +309,9 @@ class TestContextFactoryResourceBlockDecoupling:
     @pytest.mark.asyncio()
     async def test_resource_block_without_allowlist(self) -> None:
         """resource_block should be installed even when domain_allowlist is absent."""
-        from myrm_agent_harness.toolkits.browser.pool.context_factory import ContextFactory
+        from myrm_agent_harness.toolkits.browser.pool.context_factory import (
+            ContextFactory,
+        )
 
         factory = ContextFactory()
 
@@ -305,7 +337,9 @@ class TestContextFactoryResourceBlockDecoupling:
     @pytest.mark.asyncio()
     async def test_no_install_without_resource_block(self) -> None:
         """No route should be installed when resource_block is not provided."""
-        from myrm_agent_harness.toolkits.browser.pool.context_factory import ContextFactory
+        from myrm_agent_harness.toolkits.browser.pool.context_factory import (
+            ContextFactory,
+        )
 
         factory = ContextFactory()
 
@@ -361,7 +395,9 @@ class TestAdBlockingEdgeCases:
         resource_block = ResourceBlockConfig(block_ad_domains=True)
         allowlist = DomainAllowlist(patterns=())
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         handler = mock_context.route.call_args[0][1]
 
@@ -385,7 +421,9 @@ class TestAdBlockingEdgeCases:
         resource_block = ResourceBlockConfig(block_ad_domains=True)
         allowlist = DomainAllowlist(patterns=())
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         handler = mock_context.route.call_args[0][1]
 
@@ -407,7 +445,9 @@ class TestAdBlockingEdgeCases:
         resource_block = ResourceBlockConfig(block_ad_domains=True)
         allowlist = DomainAllowlist(patterns=())
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         # Route should be installed (ad_blocklist triggers it)
         mock_context.route.assert_called_once()
@@ -433,7 +473,9 @@ class TestAdBlockingEdgeCases:
         resource_block = ResourceBlockConfig(block_ad_domains=True)
         allowlist = DomainAllowlist(patterns=("*.example.com",))
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         handler = mock_context.route.call_args[0][1]
 
@@ -472,7 +514,9 @@ class TestAdBlockingEdgeCases:
         resource_block = ResourceBlockConfig(block_ad_domains=True)
         allowlist = DomainAllowlist(patterns=())
 
-        await install_domain_filter(mock_context, allowlist, resource_block=resource_block)
+        await install_domain_filter(
+            mock_context, allowlist, resource_block=resource_block
+        )
 
         handler = mock_context.route.call_args[0][1]
 

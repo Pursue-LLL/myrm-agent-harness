@@ -11,7 +11,9 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
 from myrm_agent_harness.toolkits.browser.session_vault.backends import FileVaultBackend
-from myrm_agent_harness.toolkits.browser.session_vault.backends.file_backend import load_or_create_key
+from myrm_agent_harness.toolkits.browser.session_vault.backends.file_backend import (
+    load_or_create_key,
+)
 from myrm_agent_harness.toolkits.browser.session_vault.exceptions import (
     CorruptedSessionError,
     DecryptionError,
@@ -121,8 +123,9 @@ class TestFileVaultBackend:
         """Test write cleans up temp file on failure."""
         backend = FileVaultBackend(tmp_path)
 
-        with patch.object(Path, "replace", side_effect=OSError("Write failed")), pytest.raises(
-            OSError, match="Failed to write session"
+        with (
+            patch.object(Path, "replace", side_effect=OSError("Write failed")),
+            pytest.raises(OSError, match="Failed to write session"),
         ):
             await backend.write("example.com", b"data")
 
@@ -359,7 +362,9 @@ async def test_session_vault_corrupted_data(tmp_path: Path) -> None:
     key = os.urandom(32)
     vault = SessionVault(backend, key)
 
-    await backend.write("corrupted.com", b"invalid_encrypted_data_at_least_29_bytes_long_xxx")
+    await backend.write(
+        "corrupted.com", b"invalid_encrypted_data_at_least_29_bytes_long_xxx"
+    )
 
     entry = await vault.load("corrupted.com")
 
@@ -512,7 +517,9 @@ def test_load_or_create_key_invalid_length_regenerates(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_cleanup_expired_skips_none_data(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_cleanup_expired_skips_none_data(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Test cleanup_expired skips entries with None data."""
     from unittest.mock import AsyncMock, patch
 
@@ -527,7 +534,9 @@ async def test_cleanup_expired_skips_none_data(backend: FileVaultBackend, vault_
 
 
 @pytest.mark.asyncio
-async def test_cleanup_expired_removes_corrupted_data(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_cleanup_expired_removes_corrupted_data(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Test cleanup_expired removes corrupted session data."""
     vault = SessionVault(backend, vault_key)
 
@@ -547,7 +556,9 @@ async def test_cleanup_expired_removes_corrupted_data(backend: FileVaultBackend,
 
 
 @pytest.mark.asyncio
-async def test_filename_collision_prevention(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_filename_collision_prevention(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify domains with special chars don't collide in filesystem.
 
     URL encoding ensures bijection: 'localhost:8080' → 'localhost%3A8080.enc'
@@ -584,7 +595,9 @@ async def test_filename_collision_prevention(backend: FileVaultBackend, vault_ke
 
 
 @pytest.mark.asyncio
-async def test_aesgcm_instance_caching(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_aesgcm_instance_caching(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify AESGCM instance is cached and reused."""
     vault = SessionVault(backend, vault_key)
 
@@ -624,7 +637,9 @@ async def test_memory_cache_hit(backend: FileVaultBackend, vault_key: bytes) -> 
 
 
 @pytest.mark.asyncio
-async def test_memory_cache_disabled(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_memory_cache_disabled(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify cache can be disabled."""
     vault = SessionVault(backend, vault_key, cache_max_size=0)
 
@@ -640,20 +655,26 @@ async def test_memory_cache_disabled(backend: FileVaultBackend, vault_key: bytes
 
 
 @pytest.mark.asyncio
-async def test_memory_cache_lru_eviction(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_memory_cache_lru_eviction(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify LRU eviction when cache is full."""
     vault = SessionVault(backend, vault_key, cache_max_size=3)
 
     # Save 4 sessions (cache size = 3)
     for i in range(4):
-        await vault.save(f"domain{i}.com", {"cookies": [{"name": f"s{i}", "value": "v"}]})
+        await vault.save(
+            f"domain{i}.com", {"cookies": [{"name": f"s{i}", "value": "v"}]}
+        )
 
     # Cache should only have 3 entries (oldest evicted)
     assert len(vault._cache) == 3
 
 
 @pytest.mark.asyncio
-async def test_memory_cache_ttl_expiration(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_memory_cache_ttl_expiration(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify cache entries expire after TTL."""
     vault = SessionVault(backend, vault_key, cache_ttl=1, cache_max_size=10)
 
@@ -678,7 +699,9 @@ async def test_memory_cache_ttl_expiration(backend: FileVaultBackend, vault_key:
 
 
 @pytest.mark.asyncio
-async def test_cache_invalidation_on_delete(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_cache_invalidation_on_delete(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify cache is invalidated on delete."""
     vault = SessionVault(backend, vault_key, cache_max_size=10)
 
@@ -694,7 +717,9 @@ async def test_cache_invalidation_on_delete(backend: FileVaultBackend, vault_key
 
 
 @pytest.mark.asyncio
-async def test_cleanup_expired_concurrent(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_cleanup_expired_concurrent(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify cleanup_expired processes sessions concurrently."""
     vault = SessionVault(backend, vault_key)
 
@@ -723,7 +748,9 @@ async def test_cleanup_expired_concurrent(backend: FileVaultBackend, vault_key: 
 @pytest.mark.asyncio
 async def test_metrics_tracking(backend: FileVaultBackend, vault_key: bytes) -> None:
     """Verify metrics are tracked correctly."""
-    vault = SessionVault(backend, vault_key, cache_max_size=0)  # Disable cache for this test
+    vault = SessionVault(
+        backend, vault_key, cache_max_size=0
+    )  # Disable cache for this test
 
     session = {"cookies": [{"name": "test", "value": "data"}]}
 
@@ -745,13 +772,19 @@ async def test_metrics_tracking(backend: FileVaultBackend, vault_key: bytes) -> 
 
 
 @pytest.mark.asyncio
-async def test_memory_limit_enforcement(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_memory_limit_enforcement(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify memory limit triggers eviction."""
     # Set low memory limit (4KB) and use medium-sized sessions (~600 bytes each)
-    vault = SessionVault(backend, vault_key, cache_max_size=100, cache_max_memory_mb=0.004)
+    vault = SessionVault(
+        backend, vault_key, cache_max_size=100, cache_max_memory_mb=0.004
+    )
 
     # Create medium-sized session (~600 bytes)
-    medium_session = {"cookies": [{"name": f"cookie{i}", "value": "x" * 50} for i in range(10)]}
+    medium_session = {
+        "cookies": [{"name": f"cookie{i}", "value": "x" * 50} for i in range(10)]
+    }
 
     # Save and load multiple sessions (should trigger memory-based eviction)
     for i in range(10):
@@ -760,9 +793,9 @@ async def test_memory_limit_enforcement(backend: FileVaultBackend, vault_key: by
 
     # Memory should be near limit (allow 2% tolerance for Python object overhead)
     max_limit = 4096
-    assert vault.metrics.cache_memory_bytes <= max_limit * 1.02, (
-        f"Memory {vault.metrics.cache_memory_bytes} exceeds limit {max_limit * 1.02:.0f}"
-    )
+    assert (
+        vault.metrics.cache_memory_bytes <= max_limit * 1.02
+    ), f"Memory {vault.metrics.cache_memory_bytes} exceeds limit {max_limit * 1.02:.0f}"
     # Should have evicted some entries
     assert vault.metrics.cache_evictions > 0
     # Not all 10 entries should fit
@@ -792,7 +825,9 @@ async def test_lru_eviction_is_o1(backend: FileVaultBackend, vault_key: bytes) -
 
 
 @pytest.mark.asyncio
-async def test_concurrent_cache_access(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_concurrent_cache_access(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify cache is thread-safe under concurrent access."""
     vault = SessionVault(backend, vault_key, cache_max_size=10)
 
@@ -820,7 +855,9 @@ async def test_concurrent_cache_access(backend: FileVaultBackend, vault_key: byt
 
 
 @pytest.mark.asyncio
-async def test_singleflight_prevents_stampede(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_singleflight_prevents_stampede(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify singleflight pattern prevents cache stampede.
 
     When multiple concurrent requests load the same non-cached domain,
@@ -851,11 +888,15 @@ async def test_singleflight_prevents_stampede(backend: FileVaultBackend, vault_k
     assert all(r is not None for r in results)
 
     # Only 1 backend read should occur (singleflight)
-    assert read_count == 1, f"Expected 1 backend read, got {read_count} (cache stampede!)"
+    assert (
+        read_count == 1
+    ), f"Expected 1 backend read, got {read_count} (cache stampede!)"
 
 
 @pytest.mark.asyncio
-async def test_memory_estimate_accuracy(backend: FileVaultBackend, vault_key: bytes) -> None:
+async def test_memory_estimate_accuracy(
+    backend: FileVaultBackend, vault_key: bytes
+) -> None:
     """Verify memory estimation includes Python object overhead.
 
     Memory estimate should be conservative (slightly overestimate) to prevent OOM.
@@ -865,7 +906,9 @@ async def test_memory_estimate_accuracy(backend: FileVaultBackend, vault_key: by
     vault = SessionVault(backend, vault_key, cache_max_size=100, cache_max_memory_mb=10)
 
     # Create session with known size
-    session = {"cookies": [{"name": f"cookie{i}", "value": "x" * 100} for i in range(10)]}
+    session = {
+        "cookies": [{"name": f"cookie{i}", "value": "x" * 100} for i in range(10)]
+    }
 
     # Measure actual memory usage
     tracemalloc.start()
@@ -881,11 +924,15 @@ async def test_memory_estimate_accuracy(backend: FileVaultBackend, vault_key: by
 
     # Estimate should be conservative (overestimate is safer than underestimate)
     ratio = estimated / current if current > 0 else 0
-    assert 0.8 <= ratio <= 6.0, f"Memory estimate ratio {ratio:.2f}x out of reasonable range"
+    assert (
+        0.8 <= ratio <= 6.0
+    ), f"Memory estimate ratio {ratio:.2f}x out of reasonable range"
 
     # Overestimate is acceptable (prevents OOM), underestimate is dangerous
     assert ratio >= 0.8, f"Memory underestimated by {1 / ratio:.2f}x - OOM risk!"
 
     # Should not exceed configured limit significantly
     max_allowed = 10 * 1024 * 1024
-    assert estimated <= max_allowed * 1.2, f"Estimated {estimated} exceeds limit {max_allowed}"
+    assert (
+        estimated <= max_allowed * 1.2
+    ), f"Estimated {estimated} exceeds limit {max_allowed}"

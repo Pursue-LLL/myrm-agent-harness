@@ -268,8 +268,11 @@ async def install_domain_filter(
 
         ad_blocklist = AD_DOMAINS
 
-    if allowlist.is_empty and not has_resource_block and not ad_blocklist and (
-        domain_blocklist is None or domain_blocklist.is_empty
+    if (
+        allowlist.is_empty
+        and not has_resource_block
+        and not ad_blocklist
+        and (domain_blocklist is None or domain_blocklist.is_empty)
     ):
         return
 
@@ -277,7 +280,9 @@ async def install_domain_filter(
         await _install_csp_policy(context, allowlist)
         await _install_main_thread_hardening(context)
 
-    await _install_http_filter(context, allowlist, resource_block, ad_blocklist, domain_blocklist)
+    await _install_http_filter(
+        context, allowlist, resource_block, ad_blocklist, domain_blocklist
+    )
 
     if enable_cdp_audit and not allowlist.is_empty:
         context.on("page", lambda page: _schedule_cdp_audit(page, allowlist))
@@ -297,7 +302,9 @@ async def install_domain_filter(
 # ---------------------------------------------------------------------------
 
 
-async def _install_csp_policy(context: BrowserContext, allowlist: DomainAllowlist) -> None:
+async def _install_csp_policy(
+    context: BrowserContext, allowlist: DomainAllowlist
+) -> None:
     """Inject CSP meta tag to restrict network access in main thread and Workers."""
     await context.add_init_script(build_csp_meta_script(allowlist))
 
@@ -326,7 +333,9 @@ async def _continue_route_safely(route: Route) -> None:
         raise
 
 
-async def _abort_route_safely(route: Route, *, error_code: str = "blockedbyclient") -> None:
+async def _abort_route_safely(
+    route: Route, *, error_code: str = "blockedbyclient"
+) -> None:
     try:
         await route.abort(error_code)
     except Exception as exc:
@@ -346,7 +355,7 @@ def _is_ad_domain(hostname: str, blocklist: frozenset[str]) -> bool:
         return True
     idx = hostname.find(".")
     while idx != -1:
-        suffix = hostname[idx + 1:]
+        suffix = hostname[idx + 1 :]
         if "." in suffix and suffix in blocklist:
             return True
         idx = hostname.find(".", idx + 1)
@@ -385,7 +394,11 @@ async def _install_http_filter(
             await _abort_route_safely(route)
             return
 
-        if domain_blocklist and not domain_blocklist.is_empty and domain_blocklist.is_allowed(hostname):
+        if (
+            domain_blocklist
+            and not domain_blocklist.is_empty
+            and domain_blocklist.is_allowed(hostname)
+        ):
             await _abort_route_safely(route)
             return
 

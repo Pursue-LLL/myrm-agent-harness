@@ -195,7 +195,11 @@ def _check_memory() -> DoctorCheckResult:
         name="memory",
         status=CheckStatus.OK,
         message=f"Memory: {available_gb:.1f} GB available ({used_percent:.0f}% used)",
-        details={"available_gb": round(available_gb, 2), "total_gb": round(total_gb, 2), "used_percent": used_percent},
+        details={
+            "available_gb": round(available_gb, 2),
+            "total_gb": round(total_gb, 2),
+            "used_percent": used_percent,
+        },
     )
 
 
@@ -222,7 +226,10 @@ def _check_disk() -> DoctorCheckResult:
                 status=CheckStatus.ERROR,
                 message=f"Low disk space: {available_gb:.1f} GB available ({used_percent:.0f}% used)",
                 fix="Clean up /tmp or increase disk space",
-                details={"available_gb": round(available_gb, 2), "used_percent": used_percent},
+                details={
+                    "available_gb": round(available_gb, 2),
+                    "used_percent": used_percent,
+                },
             )
 
         if available_gb < 1.0:
@@ -231,14 +238,20 @@ def _check_disk() -> DoctorCheckResult:
                 status=CheckStatus.WARNING,
                 message=f"Disk space tight: {available_gb:.1f} GB available ({used_percent:.0f}% used)",
                 fix="Consider cleaning up /tmp for better stability",
-                details={"available_gb": round(available_gb, 2), "used_percent": used_percent},
+                details={
+                    "available_gb": round(available_gb, 2),
+                    "used_percent": used_percent,
+                },
             )
 
         return DoctorCheckResult(
             name="disk",
             status=CheckStatus.OK,
             message=f"Disk space: {available_gb:.1f} GB available ({used_percent:.0f}% used)",
-            details={"available_gb": round(available_gb, 2), "used_percent": used_percent},
+            details={
+                "available_gb": round(available_gb, 2),
+                "used_percent": used_percent,
+            },
         )
     except Exception as exc:
         return DoctorCheckResult(
@@ -248,7 +261,9 @@ def _check_disk() -> DoctorCheckResult:
         )
 
 
-async def _check_browser_launch(launch_options: dict[str, object] | None = None) -> DoctorCheckResult:
+async def _check_browser_launch(
+    launch_options: dict[str, object] | None = None,
+) -> DoctorCheckResult:
     """Test browser launch and basic functionality."""
     try:
         from patchright.async_api import async_playwright
@@ -280,7 +295,10 @@ async def _check_browser_launch(launch_options: dict[str, object] | None = None)
                         name="browser_launch",
                         status=CheckStatus.OK,
                         message="Browser launch test successful",
-                        details={"headless": launch_opts.get("headless"), "title": title},
+                        details={
+                            "headless": launch_opts.get("headless"),
+                            "title": title,
+                        },
                     )
                 finally:
                     await context.close()
@@ -363,19 +381,25 @@ async def _try_auto_install_chromium() -> DoctorCheckResult | None:
     from .pool.browser_launcher import _get_install_env
 
     install_timeout = 600  # 10 minutes
-    logger.info("Doctor auto_fix: installing Chromium via 'patchright install chromium'...")
+    logger.info(
+        "Doctor auto_fix: installing Chromium via 'patchright install chromium'..."
+    )
     try:
         env = _get_install_env()
         proc = await asyncio.wait_for(
             asyncio.create_subprocess_exec(
-                "patchright", "install", "chromium",
+                "patchright",
+                "install",
+                "chromium",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=env,
             ),
             timeout=install_timeout,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=install_timeout)
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=install_timeout
+        )
 
         if proc.returncode == 0:
             return DoctorCheckResult(
@@ -417,7 +441,9 @@ def _check_extension_relay() -> DoctorCheckResult:
     base = os.environ.get("MYRM_SERVER_URL", "http://127.0.0.1:8080").rstrip("/")
     url = f"{base}/api/v1/extension/setup-hints"
     try:
-        with urllib.request.urlopen(url, timeout=2.0) as response:  # noqa: S310 — local diagnostics endpoint, scheme controlled by MYRM_SERVER_URL
+        with urllib.request.urlopen(
+            url, timeout=2.0
+        ) as response:  # noqa: S310 — local diagnostics endpoint, scheme controlled by MYRM_SERVER_URL
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.URLError:
         return DoctorCheckResult(
@@ -434,14 +460,19 @@ def _check_extension_relay() -> DoctorCheckResult:
             fix="Check server logs and extension connection settings",
         )
 
-    if payload.get("relay_cdp_ready") is True and payload.get("access_policy_valid") is True:
+    if (
+        payload.get("relay_cdp_ready") is True
+        and payload.get("access_policy_valid") is True
+    ):
         return DoctorCheckResult(
             name="extension_relay",
             status=CheckStatus.OK,
             message="Extension CDP relay is ready for login-state automation",
         )
 
-    if payload.get("relay_cdp_ready") is True and not payload.get("access_policy_valid"):
+    if payload.get("relay_cdp_ready") is True and not payload.get(
+        "access_policy_valid"
+    ):
         return DoctorCheckResult(
             name="extension_relay",
             status=CheckStatus.WARNING,
@@ -519,7 +550,9 @@ async def run_doctor(
             if install_result:
                 checks["auto_install"] = install_result
                 if install_result.status == CheckStatus.OK:
-                    checks["browser_launch"] = await _check_browser_launch(launch_options)
+                    checks["browser_launch"] = await _check_browser_launch(
+                        launch_options
+                    )
 
     ok_count = sum(1 for c in checks.values() if c.status == CheckStatus.OK)
     warning_count = sum(1 for c in checks.values() if c.status == CheckStatus.WARNING)
@@ -575,7 +608,14 @@ def format_report(report: DoctorReport) -> str:
     lines = [f"{bold} Browser Doctor{reset}", ""]
 
     lines.append(f"{bold}Environment{reset}")
-    for name in ["patchright", "camoufox", "browser_executable", "memory", "disk", "proxy"]:
+    for name in [
+        "patchright",
+        "camoufox",
+        "browser_executable",
+        "memory",
+        "disk",
+        "proxy",
+    ]:
         if name in report.checks:
             check = report.checks[name]
             icon = _status_icon(check.status, green, yellow, red)
@@ -793,7 +833,9 @@ def _has_python_ancestor(proc: object, current_pid: int) -> bool:
         import psutil
 
         current_proc = psutil.Process(current_pid)
-        current_tree_pids = {p.pid for p in [current_proc, *current_proc.children(recursive=True)]}
+        current_tree_pids = {
+            p.pid for p in [current_proc, *current_proc.children(recursive=True)]
+        }
 
         if not isinstance(proc, psutil.Process):
             return False
@@ -822,7 +864,9 @@ def _has_python_ancestor(proc: object, current_pid: int) -> bool:
         return True
 
 
-def cleanup_orphan_processes(orphan_pids: list[int] | None = None, *, force: bool = False) -> dict[str, object]:
+def cleanup_orphan_processes(
+    orphan_pids: list[int] | None = None, *, force: bool = False
+) -> dict[str, object]:
     """Clean up orphan chromium processes with safety checks.
 
     Args:
