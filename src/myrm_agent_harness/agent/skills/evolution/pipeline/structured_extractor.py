@@ -35,7 +35,7 @@ class SkillCaptureResult(BaseModel):
 
     @field_validator("confidence", mode="before")
     @classmethod
-    def parse_confidence(cls, v):
+    def parse_confidence(cls, v: object) -> float:
         if isinstance(v, str):
             v_lower = v.lower().strip()
             if v_lower in ("high", "very high", "certain"):
@@ -48,7 +48,9 @@ class SkillCaptureResult(BaseModel):
                 return float(v)
             except ValueError:
                 return 0.8  # fallback
-        return float(v)
+        if isinstance(v, (int, float)):
+            return float(v)
+        return 0.8  # 非数值输入的安全回退
 
     safety_analysis: str = Field(
         ...,

@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import TYPE_CHECKING, Any  # Any: required for JSON Schema (inherently dynamic dict values)
+from typing import TYPE_CHECKING, Any, cast  # Any: required for JSON Schema (inherently dynamic dict values)
 
 from pydantic import BaseModel, ValidationError, create_model
 from pydantic.fields import FieldInfo
@@ -227,7 +227,7 @@ def _build_model(name: str, schema: dict[str, Any]) -> type[BaseModel]:
         else:
             field_definitions[field_name] = (python_type | None, FieldInfo(default=None, description=description))
 
-    return create_model(name, **field_definitions)  # type: ignore[call-overload]
+    return create_model(name, **field_definitions)
 
 
 def _json_type_to_python(field_name: str, field_schema: dict[str, Any]) -> type:
@@ -262,7 +262,8 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | list[Any] | None:
     # Try direct parse (object or array)
     if text.startswith("{") or text.startswith("["):
         try:
-            return json.loads(text)
+            parsed = cast("dict[str, Any] | list[Any]", json.loads(text))
+            return parsed
         except json.JSONDecodeError:
             pass
 
@@ -270,7 +271,8 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | list[Any] | None:
     match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if match:
         try:
-            return json.loads(match.group(1))
+            parsed = cast("dict[str, Any] | list[Any]", json.loads(match.group(1)))
+            return parsed
         except json.JSONDecodeError:
             pass
 
@@ -279,7 +281,8 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | list[Any] | None:
         match = re.search(pattern, text, re.DOTALL)
         if match:
             try:
-                return json.loads(match.group(0))
+                parsed = cast("dict[str, Any] | list[Any]", json.loads(match.group(0)))
+                return parsed
             except json.JSONDecodeError:
                 pass
 

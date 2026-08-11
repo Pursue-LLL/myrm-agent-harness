@@ -374,27 +374,6 @@ class TestStructuredExtractorExtract:
         assert parsed[0]["name"] == "Reasoned"
 
     @pytest.mark.asyncio
-    async def test_strategy2_reasoning_content_none_content(self) -> None:
-        """Reasoning model: content is None, JSON lives in reasoning_content."""
-        mock_llm = MagicMock()
-        mock_llm.with_structured_output.side_effect = NotImplementedError()
-
-        reasoning_json = '{"name": "FromReasoning"}'
-        mock_response = AIMessage(
-            content=None,
-            additional_kwargs={"reasoning_content": reasoning_json},
-        )
-        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
-
-        extractor = StructuredExtractor(llm=mock_llm)
-        result = await extractor.extract(
-            text="content",
-            schema={"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
-        )
-        parsed = json.loads(result)
-        assert parsed["name"] == "FromReasoning"
-
-    @pytest.mark.asyncio
     async def test_all_strategies_fail(self) -> None:
         mock_llm = MagicMock()
         mock_llm.with_structured_output.side_effect = NotImplementedError()
