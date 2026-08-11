@@ -96,21 +96,27 @@ def _make_mock_parent(**overrides: object) -> MagicMock:
 
 class TestCache:
     def test_cache_key_deterministic(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _cache_key
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _cache_key,
+        )
 
         k1 = _cache_key("coder", "write tests", {"file": "a.py"}, session_id="s1")
         k2 = _cache_key("coder", "write tests", {"file": "a.py"}, session_id="s1")
         assert k1 == k2
 
     def test_cache_key_differs_on_task(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _cache_key
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _cache_key,
+        )
 
         k1 = _cache_key("coder", "task A", None, session_id="s1")
         k2 = _cache_key("coder", "task B", None, session_id="s1")
         assert k1 != k2
 
     def test_cache_key_differs_on_session(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _cache_key
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _cache_key,
+        )
 
         k1 = _cache_key("coder", "task A", None, session_id="s1")
         k2 = _cache_key("coder", "task A", None, session_id="s2")
@@ -163,7 +169,9 @@ class TestCache:
 class TestBuildDynamicDescription:
     @pytest.mark.asyncio
     async def test_display_name_in_description(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _build_dynamic_description
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _build_dynamic_description,
+        )
 
         catalog = AsyncMock()
         catalog.list_available = AsyncMock(return_value=["agent-abc"])
@@ -185,13 +193,18 @@ class TestBuildDynamicDescription:
 
     @pytest.mark.asyncio
     async def test_no_display_name_uses_id(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _build_dynamic_description
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _build_dynamic_description,
+        )
 
         catalog = AsyncMock()
         catalog.list_available = AsyncMock(return_value=["coder-001"])
         catalog.resolve = AsyncMock(
             return_value=SubagentConfig(
-                system_prompt="I write code", display_name="", description="Code writer", tools=()
+                system_prompt="I write code",
+                display_name="",
+                description="Code writer",
+                tools=(),
             )
         )
 
@@ -202,11 +215,15 @@ class TestBuildDynamicDescription:
 
     @pytest.mark.asyncio
     async def test_allowed_types_filter(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _build_dynamic_description
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _build_dynamic_description,
+        )
 
         catalog = AsyncMock()
         catalog.list_available = AsyncMock(return_value=["a", "b", "c"])
-        catalog.resolve = AsyncMock(return_value=SubagentConfig(system_prompt="test", description="desc"))
+        catalog.resolve = AsyncMock(
+            return_value=SubagentConfig(system_prompt="test", description="desc")
+        )
 
         desc = await _build_dynamic_description(catalog, allowed_types=["a", "c"])
 
@@ -216,12 +233,16 @@ class TestBuildDynamicDescription:
 
     @pytest.mark.asyncio
     async def test_max_50_display(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _build_dynamic_description
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _build_dynamic_description,
+        )
 
         ids = [f"agent-{i}" for i in range(55)]
         catalog = AsyncMock()
         catalog.list_available = AsyncMock(return_value=ids)
-        catalog.resolve = AsyncMock(return_value=SubagentConfig(system_prompt="test", description="desc"))
+        catalog.resolve = AsyncMock(
+            return_value=SubagentConfig(system_prompt="test", description="desc")
+        )
 
         desc = await _build_dynamic_description(catalog, allowed_types=None)
 
@@ -232,12 +253,16 @@ class TestBuildDynamicDescription:
     @pytest.mark.asyncio
     async def test_when_not_to_delegate_section(self):
         """Verify dynamic description includes delegation guidance from SSOT."""
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _build_dynamic_description
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _build_dynamic_description,
+        )
 
         catalog = AsyncMock()
         catalog.list_available = AsyncMock(return_value=["worker"])
         catalog.resolve = AsyncMock(
-            return_value=SubagentConfig(system_prompt="worker agent", description="General worker")
+            return_value=SubagentConfig(
+                system_prompt="worker agent", description="General worker"
+            )
         )
 
         desc = await _build_dynamic_description(catalog, allowed_types=None)
@@ -251,7 +276,9 @@ class TestBuildDynamicDescription:
 
     @pytest.mark.asyncio
     async def test_system_prompt_fallback_when_no_description(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import _build_dynamic_description
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
+            _build_dynamic_description,
+        )
 
         catalog = AsyncMock()
         catalog.list_available = AsyncMock(return_value=["my-agent"])
@@ -269,7 +296,9 @@ class TestBuildDynamicDescription:
 
 class TestCreateDelegateTaskTool:
     def test_tool_has_correct_name(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import create_delegate_task_tool
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            create_delegate_task_tool,
+        )
 
         parent = _make_mock_parent()
         catalog = AsyncMock()
@@ -278,19 +307,27 @@ class TestCreateDelegateTaskTool:
 
     @pytest.mark.asyncio
     async def test_l0_type_admission_blocks(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import create_delegate_task_tool
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            create_delegate_task_tool,
+        )
 
         parent = _make_mock_parent()
         catalog = AsyncMock()
-        tool_fn = create_delegate_task_tool(parent, lambda: [], catalog, allowed_types=["coder"])
+        tool_fn = create_delegate_task_tool(
+            parent, lambda: [], catalog, allowed_types=["coder"]
+        )
 
-        result = await tool_fn.coroutine(agent_type="forbidden-type", objective="hack the system")
+        result = await tool_fn.coroutine(
+            agent_type="forbidden-type", objective="hack the system"
+        )
         assert result["success"] is False
         assert "not allowed" in result["error"]
 
     @pytest.mark.asyncio
     async def test_unknown_agent_type_returns_error(self):
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import create_delegate_task_tool
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            create_delegate_task_tool,
+        )
 
         parent = _make_mock_parent()
         parent._last_context = {}
@@ -298,7 +335,9 @@ class TestCreateDelegateTaskTool:
         catalog.resolve = AsyncMock(return_value=None)
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
 
-        result = await tool_fn.coroutine(agent_type="nonexistent", objective="do something")
+        result = await tool_fn.coroutine(
+            agent_type="nonexistent", objective="do something"
+        )
         assert result["success"] is False
         assert "not found" in result["error"]
 
@@ -316,7 +355,9 @@ class TestCreateBatchDelegateTool:
         with patch(
             "myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool.create_delegate_task_tool"
         ) as mock_create:
-            batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+            batch = _create_batch_delegate_tasks_tool(
+                parent, lambda: [], catalog, delegate_tool=delegate
+            )
             mock_create.assert_not_called()
 
         assert batch.name == "batch_delegate_tasks_tool"
@@ -339,9 +380,15 @@ class TestCreateBatchDelegateTool:
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
         delegate.coroutine = AsyncMock(return_value={"success": True, "result": "ok"})
 
-        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
-        tasks = [TaskRequest(agent_type="coder", objective="task", complexity_tier="reasoning")]
+        tasks = [
+            TaskRequest(
+                agent_type="coder", objective="task", complexity_tier="reasoning"
+            )
+        ]
         result = await batch.coroutine(tasks=tasks, wait=True)
 
         assert result["success"] is True
@@ -377,13 +424,17 @@ class TestDelegateTaskExecution:
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=config)
 
-        mock_result = SubAgentResult(task_id="abc", success=True, result="done", agent_type="coder")
+        mock_result = SubAgentResult(
+            task_id="abc", success=True, result="done", agent_type="coder"
+        )
         parent = _make_mock_parent()
         parent._last_context = {"session_id": "s1"}
         parent._spawn_child = AsyncMock(return_value=mock_result)
 
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
-        result = await tool_fn.coroutine(agent_type="coder", objective="write code", wait=True)
+        result = await tool_fn.coroutine(
+            agent_type="coder", objective="write code", wait=True
+        )
 
         assert result["success"] is True
         assert result["result"] == "done"
@@ -410,14 +461,18 @@ class TestDelegateTaskExecution:
             success=True,
             result="done",
             agent_type="coder",
-            handover_state=AgentHandoverState(task_completed=["A"], pending_todos=["B"]),
+            handover_state=AgentHandoverState(
+                task_completed=["A"], pending_todos=["B"]
+            ),
         )
         parent = _make_mock_parent()
         parent._last_context = {"session_id": "s1"}
         parent._spawn_child = AsyncMock(return_value=mock_result)
 
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
-        result = await tool_fn.coroutine(agent_type="coder", objective="write code", wait=True)
+        result = await tool_fn.coroutine(
+            agent_type="coder", objective="write code", wait=True
+        )
 
         assert result["success"] is True
         # handover_state is now structured in result_dict via to_dict()
@@ -454,7 +509,9 @@ class TestDelegateTaskExecution:
         )
 
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
-        result = await tool_fn.coroutine(agent_type="worker", objective="do work", wait=True)
+        result = await tool_fn.coroutine(
+            agent_type="worker", objective="do work", wait=True
+        )
 
         assert result["success"] is True
         _result_cache.clear()
@@ -471,7 +528,8 @@ class TestDelegateTaskExecution:
         _result_cache.clear()
 
         config = SubagentConfig(
-            system_prompt="test", tools=("web_search", "write_file", "bash_run_command", "read_file")
+            system_prompt="test",
+            tools=("web_search", "write_file", "bash_run_command", "read_file"),
         )
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=config)
@@ -481,7 +539,9 @@ class TestDelegateTaskExecution:
         parent._spawn_child = AsyncMock(return_value={"success": True, "result": {}})
 
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
-        await tool_fn.coroutine(agent_type="worker", objective="read only", readonly=True)
+        await tool_fn.coroutine(
+            agent_type="worker", objective="read only", readonly=True
+        )
 
         call_kwargs = parent._spawn_child.call_args[1]
         spawned_config = call_kwargs["config"]
@@ -502,7 +562,9 @@ class TestDelegateTaskExecution:
 
         _result_cache.clear()
 
-        config = SubagentConfig(system_prompt="test", control_scope=ControlScope.LEAF, max_spawn_depth=5)
+        config = SubagentConfig(
+            system_prompt="test", control_scope=ControlScope.LEAF, max_spawn_depth=5
+        )
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=config)
 
@@ -529,7 +591,9 @@ class TestDelegateTaskExecution:
 
         _result_cache.clear()
 
-        config = SubagentConfig(system_prompt="test", control_scope=ControlScope.LEAF, max_spawn_depth=5)
+        config = SubagentConfig(
+            system_prompt="test", control_scope=ControlScope.LEAF, max_spawn_depth=5
+        )
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=config)
 
@@ -538,7 +602,9 @@ class TestDelegateTaskExecution:
         parent._spawn_child = AsyncMock(return_value={"success": True, "result": {}})
 
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
-        result = await tool_fn.coroutine(agent_type="leaf", objective="coordinate", role="orchestrator")
+        result = await tool_fn.coroutine(
+            agent_type="leaf", objective="coordinate", role="orchestrator"
+        )
 
         assert result["success"] is False
         assert result["status"] == "policy_denied"
@@ -557,7 +623,11 @@ class TestDelegateTaskExecution:
 
         _result_cache.clear()
 
-        config = SubagentConfig(system_prompt="test", control_scope=ControlScope.ORCHESTRATOR, max_spawn_depth=2)
+        config = SubagentConfig(
+            system_prompt="test",
+            control_scope=ControlScope.ORCHESTRATOR,
+            max_spawn_depth=2,
+        )
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=config)
 
@@ -568,15 +638,21 @@ class TestDelegateTaskExecution:
         parent._subagent_manager = parent_manager
         parent._spawn_child = AsyncMock(return_value={"success": True, "result": {}})
 
-        tool_fn = create_delegate_task_tool(parent, lambda: [], catalog, allowed_types=["worker", "reviewer"])
-        await tool_fn.coroutine(agent_type="worker", objective="coordinate", role="orchestrator")
+        tool_fn = create_delegate_task_tool(
+            parent, lambda: [], catalog, allowed_types=["worker", "reviewer"]
+        )
+        await tool_fn.coroutine(
+            agent_type="worker", objective="coordinate", role="orchestrator"
+        )
 
         call_kwargs = parent._spawn_child.call_args[1]
         spawned_config = call_kwargs["config"]
         assert spawned_config.control_scope == ControlScope.ORCHESTRATOR
         assert spawned_config.delegation_role == DelegateRole.ORCHESTRATOR
         assert spawned_config.delegation_catalog is catalog
-        assert spawned_config.delegation_allowed_types == frozenset({"worker", "reviewer"})
+        assert spawned_config.delegation_allowed_types == frozenset(
+            {"worker", "reviewer"}
+        )
         _result_cache.clear()
 
     @pytest.mark.asyncio
@@ -590,7 +666,11 @@ class TestDelegateTaskExecution:
 
         _result_cache.clear()
 
-        config = SubagentConfig(system_prompt="test", control_scope=ControlScope.ORCHESTRATOR, max_spawn_depth=1)
+        config = SubagentConfig(
+            system_prompt="test",
+            control_scope=ControlScope.ORCHESTRATOR,
+            max_spawn_depth=1,
+        )
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=config)
 
@@ -602,7 +682,9 @@ class TestDelegateTaskExecution:
         parent._spawn_child = AsyncMock(return_value={"success": True, "result": {}})
 
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
-        result = await tool_fn.coroutine(agent_type="coordinator", objective="coordinate", role="orchestrator")
+        result = await tool_fn.coroutine(
+            agent_type="coordinator", objective="coordinate", role="orchestrator"
+        )
 
         assert result["success"] is False
         assert result["status"] == "policy_denied"
@@ -621,7 +703,10 @@ class TestDelegateTaskExecution:
 
         _result_cache.clear()
 
-        config = SubagentConfig(system_prompt="test", memory_isolation=MemoryIsolationPolicy.READ_ONLY_GLOBAL)
+        config = SubagentConfig(
+            system_prompt="test",
+            memory_isolation=MemoryIsolationPolicy.READ_ONLY_GLOBAL,
+        )
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=config)
 
@@ -662,7 +747,9 @@ class TestDelegateTaskExecution:
         parent._spawn_child = AsyncMock(return_value={"success": True, "result": {}})
 
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
-        await tool_fn.coroutine(agent_type="worker", objective="work", context={"extra": "data"})
+        await tool_fn.coroutine(
+            agent_type="worker", objective="work", context={"extra": "data"}
+        )
 
         call_kwargs = parent._spawn_child.call_args[1]
         ctx = call_kwargs["context"]
@@ -750,7 +837,9 @@ class TestDelegateTaskExecution:
         _put_cache(key, {"cached_data": True})
 
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
-        result = await tool_fn.coroutine(agent_type="cached-agent", objective="cached task")
+        result = await tool_fn.coroutine(
+            agent_type="cached-agent", objective="cached task"
+        )
 
         assert result["cached"] is True
         assert result["success"] is True
@@ -782,7 +871,9 @@ class TestBatchDelegateExecution:
         parent._spawn_child = AsyncMock(return_value={"success": True, "result": "ok"})
 
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
-        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
         tasks = [
             TaskRequest(agent_type="coder", objective="task 1"),
@@ -824,7 +915,9 @@ class TestBatchDelegateExecution:
         parent._spawn_child = AsyncMock(side_effect=_spawn_side_effect)
 
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
-        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
         tasks = [
             TaskRequest(agent_type="worker", objective="fail task"),
@@ -867,7 +960,12 @@ class TestBatchDelegateExecution:
 
         async def fast_spawn(*args, **kwargs):
             await asyncio.sleep(0.1)
-            return {"success": True, "result": "fast", "task_id": "fast", "_workspace_sync_back": AsyncMock()}
+            return {
+                "success": True,
+                "result": "fast",
+                "task_id": "fast",
+                "_workspace_sync_back": AsyncMock(),
+            }
 
         # Mock delegate tool coroutine directly to simulate different speeds
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
@@ -880,7 +978,9 @@ class TestBatchDelegateExecution:
 
         delegate.coroutine = mock_delegate_coroutine
 
-        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
         tasks = [
             TaskRequest(agent_type="coder", objective="slow task"),
@@ -917,12 +1017,19 @@ class TestBatchDelegateExecution:
         mock_sync_back = AsyncMock()
 
         async def fast_spawn(*args, **kwargs):
-            return {"success": True, "result": "fast", "task_id": "fast", "_workspace_sync_back": mock_sync_back}
+            return {
+                "success": True,
+                "result": "fast",
+                "task_id": "fast",
+                "_workspace_sync_back": mock_sync_back,
+            }
 
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
         delegate.coroutine = fast_spawn
 
-        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
         tasks = [
             TaskRequest(agent_type="coder", objective="fast task"),
@@ -962,7 +1069,9 @@ class TestBatchDelegateExecution:
         parent._spawn_child = AsyncMock(side_effect=_spawn_side_effect)
 
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
-        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
         tasks = [
             TaskRequest(agent_type="worker", objective="fail task"),
@@ -1003,7 +1112,9 @@ class TestBatchDelegateExecution:
 
         delegate = create_delegate_task_tool(parent, lambda: [], catalog)
         delegate.coroutine = AsyncMock(return_value={"success": True, "result": "ok"})
-        batch = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        batch = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
         tasks = [
             TaskRequest(agent_type="coder", objective="task 1"),
@@ -1074,7 +1185,9 @@ class TestDelegateTaskNonDictResult:
         )
 
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
-        result = await tool_fn.coroutine(agent_type="worker", objective="no cache test", wait=False)
+        result = await tool_fn.coroutine(
+            agent_type="worker", objective="no cache test", wait=False
+        )
 
         assert result["success"] is True
         assert len(_result_cache) == 0
@@ -1105,7 +1218,9 @@ class TestPayloadDeadlock:
         import hashlib
         import json
 
-        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import create_delegate_task_tool
+        from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
+            create_delegate_task_tool,
+        )
 
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=SubagentConfig(system_prompt="test"))
@@ -1129,20 +1244,25 @@ class TestPayloadDeadlock:
 
         hashable_ctx = _get_hashable_value(context) if context else {}
         payload_str = json.dumps(
-            {"type": str(agent_type).strip(), "task": str(task).strip(), "role": "leaf", "ctx": hashable_ctx},
+            {
+                "type": str(agent_type).strip(),
+                "task": str(task).strip(),
+                "role": "leaf",
+                "ctx": hashable_ctx,
+            },
             sort_keys=True,
-            ensure_ascii=False
+            ensure_ascii=False,
         )
         payload_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
 
         parent = _make_mock_parent()
-        parent._last_context = {
-            "subagent_payload_hashes": [payload_hash]
-        }
+        parent._last_context = {"subagent_payload_hashes": [payload_hash]}
         parent._spawn_child = AsyncMock()
 
         tool_fn = create_delegate_task_tool(parent, lambda: [], catalog)
-        result = await tool_fn.coroutine(agent_type=agent_type, objective=objective, context=context)
+        result = await tool_fn.coroutine(
+            agent_type=agent_type, objective=objective, context=context
+        )
 
         assert result["success"] is False
         assert "Safety interception" in result["error"]
@@ -1182,9 +1302,7 @@ class TestInjectCapacitySignal:
         )
 
         agent = MagicMock()
-        agent._subagent_manager.get_capacity_snapshot.side_effect = RuntimeError(
-            "boom"
-        )
+        agent._subagent_manager.get_capacity_snapshot.side_effect = RuntimeError("boom")
 
         result = _inject_capacity_signal({"success": True}, agent)
         assert result == {"success": True}
@@ -1318,25 +1436,25 @@ class TestEstimatePromptTokens:
 
 
 # ---------------------------------------------------------------------------
-# _get_budget_checker
+# get_budget_checker
 # ---------------------------------------------------------------------------
 
 
 class TestGetBudgetChecker:
     def test_returns_token_tracker_budget_checker(self):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
-            _get_budget_checker,
+            get_budget_checker,
         )
 
         agent = MagicMock()
         checker = MagicMock()
         checker.check_budget = MagicMock()
         agent.token_tracker.budget_checker = checker
-        assert _get_budget_checker(agent) is checker
+        assert get_budget_checker(agent) is checker
 
     def test_falls_back_to_parent_budget_checker(self):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
-            _get_budget_checker,
+            get_budget_checker,
         )
 
         agent = MagicMock()
@@ -1344,17 +1462,17 @@ class TestGetBudgetChecker:
         checker = MagicMock()
         checker.check_budget = MagicMock()
         agent.budget_checker = checker
-        assert _get_budget_checker(agent) is checker
+        assert get_budget_checker(agent) is checker
 
     def test_returns_none_when_no_checker(self):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
-            _get_budget_checker,
+            get_budget_checker,
         )
 
         agent = MagicMock()
         agent.token_tracker = None
         agent.budget_checker = None
-        assert _get_budget_checker(agent) is None
+        assert get_budget_checker(agent) is None
 
 
 # ---------------------------------------------------------------------------
@@ -1422,9 +1540,7 @@ class TestHandoverStateFormatting:
         parent._spawn_child = AsyncMock(return_value=sub_result)
 
         catalog = AsyncMock()
-        catalog.resolve = AsyncMock(
-            return_value=SubagentConfig(system_prompt="test")
-        )
+        catalog.resolve = AsyncMock(return_value=SubagentConfig(system_prompt="test"))
 
         tool = create_delegate_task_tool(
             parent_agent=parent,
@@ -1475,9 +1591,7 @@ class TestHandoverStateFormatting:
         parent._spawn_child = AsyncMock(return_value=sub_result)
 
         catalog = AsyncMock()
-        catalog.resolve = AsyncMock(
-            return_value=SubagentConfig(system_prompt="test")
-        )
+        catalog.resolve = AsyncMock(return_value=SubagentConfig(system_prompt="test"))
 
         tool = create_delegate_task_tool(
             parent_agent=parent,
@@ -1524,9 +1638,7 @@ class TestContextSerialization:
         parent._spawn_child = AsyncMock(return_value=sub_result)
 
         catalog = AsyncMock()
-        catalog.resolve = AsyncMock(
-            return_value=SubagentConfig(system_prompt="test")
-        )
+        catalog.resolve = AsyncMock(return_value=SubagentConfig(system_prompt="test"))
 
         tool = create_delegate_task_tool(
             parent_agent=parent,
@@ -1580,9 +1692,7 @@ class TestFormatErrorHandling:
         parent._spawn_child = AsyncMock(side_effect=format_error)
 
         catalog = AsyncMock()
-        catalog.resolve = AsyncMock(
-            return_value=SubagentConfig(system_prompt="test")
-        )
+        catalog.resolve = AsyncMock(return_value=SubagentConfig(system_prompt="test"))
 
         tool = create_delegate_task_tool(
             parent_agent=parent,
@@ -1633,9 +1743,7 @@ class TestMemoryManagerResetFailure:
         parent._spawn_child = AsyncMock(return_value=sub_result)
 
         catalog = AsyncMock()
-        catalog.resolve = AsyncMock(
-            return_value=SubagentConfig(system_prompt="test")
-        )
+        catalog.resolve = AsyncMock(return_value=SubagentConfig(system_prompt="test"))
 
         tool = create_delegate_task_tool(
             parent_agent=parent,
@@ -1645,11 +1753,11 @@ class TestMemoryManagerResetFailure:
 
         with (
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.get_memory_manager",
+                "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
                 return_value=MagicMock(),
             ),
             patch(
-                "myrm_agent_harness.agent._skill_agent_context._memory_manager_var",
+                "myrm_agent_harness.agent.skill_agent.context._memory_manager_var",
             ) as mock_var,
         ):
             mock_var.set.return_value = "token"
@@ -1919,7 +2027,9 @@ class TestEstimateBatchCost:
 
         tasks = [MagicMock(agent_type="coder"), MagicMock(agent_type="coder")]
 
-        result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+        result = await _estimate_batch_cost(
+            parent_agent=parent, catalog=catalog, tasks=tasks
+        )
 
         assert result.status == "admitted"
         assert result.reason == "cost_estimated"
@@ -1941,7 +2051,9 @@ class TestEstimateBatchCost:
 
         tasks = [MagicMock(agent_type="nonexistent")]
 
-        result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+        result = await _estimate_batch_cost(
+            parent_agent=parent, catalog=catalog, tasks=tasks
+        )
 
         assert result.status == "unavailable"
         assert result.reason == "agent_config_unavailable"
@@ -1956,13 +2068,17 @@ class TestEstimateBatchCost:
         parent.token_tracker = None
         parent.budget_checker = None
 
-        config = SubagentConfig(system_prompt="test", budget_tokens=None, max_cost_usd=None)
+        config = SubagentConfig(
+            system_prompt="test", budget_tokens=None, max_cost_usd=None
+        )
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=config)
 
         tasks = [MagicMock(agent_type="worker")]
 
-        result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+        result = await _estimate_batch_cost(
+            parent_agent=parent, catalog=catalog, tasks=tasks
+        )
 
         assert result.status == "unavailable"
         assert result.reason == "task_budget_unconfigured"
@@ -1986,7 +2102,9 @@ class TestEstimateBatchCost:
 
         tasks = [MagicMock(agent_type="coder")]
 
-        result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+        result = await _estimate_batch_cost(
+            parent_agent=parent, catalog=catalog, tasks=tasks
+        )
 
         assert result.status == "admitted"
         assert result.remaining_budget_usd == 5.0
@@ -2013,7 +2131,9 @@ class TestEstimateBatchCost:
 
         tasks = [MagicMock(agent_type="expensive")]
 
-        result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+        result = await _estimate_batch_cost(
+            parent_agent=parent, catalog=catalog, tasks=tasks
+        )
 
         assert result.status == "admitted"
         assert result.estimated_cost_usd == 10.0
@@ -2029,7 +2149,9 @@ class TestBatchCostApproval:
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
     @patch("langgraph.types.interrupt")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
     async def test_triggers_interrupt_when_cost_exceeds_threshold(
         self, mock_estimate, mock_interrupt, mock_runner
     ):
@@ -2054,7 +2176,9 @@ class TestBatchCostApproval:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
         tasks = [
             TaskRequest(agent_type="coder", objective="task 1"),
@@ -2070,7 +2194,9 @@ class TestBatchCostApproval:
 
     @pytest.mark.asyncio
     @patch("langgraph.types.interrupt")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
     async def test_user_rejection_stops_execution(self, mock_estimate, mock_interrupt):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
@@ -2090,7 +2216,9 @@ class TestBatchCostApproval:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
         tasks = [
             TaskRequest(agent_type="coder", objective="expensive 1"),
@@ -2105,8 +2233,12 @@ class TestBatchCostApproval:
 
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
-    async def test_skips_approval_when_cost_below_threshold(self, mock_estimate, mock_runner):
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
+    async def test_skips_approval_when_cost_below_threshold(
+        self, mock_estimate, mock_runner
+    ):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
         )
@@ -2125,7 +2257,9 @@ class TestBatchCostApproval:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
         tasks = [
             TaskRequest(agent_type="coder", objective="cheap 1"),
@@ -2138,8 +2272,12 @@ class TestBatchCostApproval:
 
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
-    async def test_skips_approval_when_estimation_unavailable(self, mock_estimate, mock_runner):
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
+    async def test_skips_approval_when_estimation_unavailable(
+        self, mock_estimate, mock_runner
+    ):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
         )
@@ -2157,7 +2295,9 @@ class TestBatchCostApproval:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
 
         tasks = [
             TaskRequest(agent_type="coder", objective="task 1"),
@@ -2178,8 +2318,12 @@ class TestBatchCostApprovalEdgeCases:
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
     @patch("langgraph.types.interrupt")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
-    async def test_list_decision_approved(self, mock_estimate, mock_interrupt, mock_runner):
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
+    async def test_list_decision_approved(
+        self, mock_estimate, mock_interrupt, mock_runner
+    ):
         """Decision returned as list [{"approved": True}] should proceed."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
@@ -2189,8 +2333,10 @@ class TestBatchCostApprovalEdgeCases:
         )
 
         mock_estimate.return_value = _BatchBudgetAdmission(
-            status="admitted", reason="cost_estimated",
-            estimated_cost_usd=1.00, cost_status="configured_max_cost",
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=1.00,
+            cost_status="configured_max_cost",
         )
         mock_interrupt.return_value = [{"approved": True}]
         mock_runner.return_value = {"success": True, "results": []}
@@ -2199,7 +2345,9 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
         tasks = [
             TaskRequest(agent_type="coder", objective="a"),
             TaskRequest(agent_type="coder", objective="b"),
@@ -2211,7 +2359,9 @@ class TestBatchCostApprovalEdgeCases:
 
     @pytest.mark.asyncio
     @patch("langgraph.types.interrupt")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
     async def test_list_decision_rejected(self, mock_estimate, mock_interrupt):
         """Decision returned as list [{"approved": False}] should reject."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
@@ -2222,7 +2372,8 @@ class TestBatchCostApprovalEdgeCases:
         )
 
         mock_estimate.return_value = _BatchBudgetAdmission(
-            status="admitted", reason="cost_estimated",
+            status="admitted",
+            reason="cost_estimated",
             estimated_cost_usd=2.00,
         )
         mock_interrupt.return_value = [{"approved": False}]
@@ -2231,7 +2382,9 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
         tasks = [
             TaskRequest(agent_type="coder", objective="a"),
             TaskRequest(agent_type="coder", objective="b"),
@@ -2243,7 +2396,9 @@ class TestBatchCostApprovalEdgeCases:
 
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
     async def test_single_task_skips_cost_check(self, mock_estimate, mock_runner):
         """A single task should skip cost approval entirely."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
@@ -2256,7 +2411,9 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
         tasks = [TaskRequest(agent_type="coder", objective="solo")]
         result = await tool.coroutine(tasks=tasks, wait=True)
 
@@ -2265,7 +2422,9 @@ class TestBatchCostApprovalEdgeCases:
 
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
     async def test_cost_estimation_exception_proceeds(self, mock_estimate, mock_runner):
         """If _estimate_batch_cost throws, execution continues without approval."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent.delegate_task_tool import (
@@ -2279,7 +2438,9 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
         tasks = [
             TaskRequest(agent_type="coder", objective="a"),
             TaskRequest(agent_type="coder", objective="b"),
@@ -2292,8 +2453,12 @@ class TestBatchCostApprovalEdgeCases:
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
     @patch("langgraph.types.interrupt")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
-    async def test_remaining_budget_none_in_payload(self, mock_estimate, mock_interrupt, mock_runner):
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
+    async def test_remaining_budget_none_in_payload(
+        self, mock_estimate, mock_interrupt, mock_runner
+    ):
         """When remaining_budget_usd is None, payload should have null."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
@@ -2303,8 +2468,10 @@ class TestBatchCostApprovalEdgeCases:
         )
 
         mock_estimate.return_value = _BatchBudgetAdmission(
-            status="admitted", reason="cost_estimated",
-            estimated_cost_usd=0.80, remaining_budget_usd=None,
+            status="admitted",
+            reason="cost_estimated",
+            estimated_cost_usd=0.80,
+            remaining_budget_usd=None,
         )
         mock_interrupt.return_value = {"approved": True}
         mock_runner.return_value = {"success": True, "results": []}
@@ -2313,7 +2480,9 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
         tasks = [
             TaskRequest(agent_type="coder", objective="a"),
             TaskRequest(agent_type="coder", objective="b"),
@@ -2326,8 +2495,12 @@ class TestBatchCostApprovalEdgeCases:
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
     @patch("langgraph.types.interrupt")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
-    async def test_tournament_flag_in_interrupt_payload(self, mock_estimate, mock_interrupt, mock_runner):
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
+    async def test_tournament_flag_in_interrupt_payload(
+        self, mock_estimate, mock_interrupt, mock_runner
+    ):
         """Tournament mode should be reflected in interrupt payload."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
@@ -2337,7 +2510,8 @@ class TestBatchCostApprovalEdgeCases:
         )
 
         mock_estimate.return_value = _BatchBudgetAdmission(
-            status="admitted", reason="cost_estimated",
+            status="admitted",
+            reason="cost_estimated",
             estimated_cost_usd=1.00,
         )
         mock_interrupt.return_value = {"approved": True}
@@ -2347,7 +2521,9 @@ class TestBatchCostApprovalEdgeCases:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
         tasks = [
             TaskRequest(agent_type="coder", objective="t1"),
             TaskRequest(agent_type="coder", objective="t2"),
@@ -2366,7 +2542,9 @@ class TestBatchCostApprovalEdgeCases:
 
 class TestBatchSizeExceeded:
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
     async def test_exceeds_default_max_batch(self, mock_estimate):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _DEFAULT_MAX_BATCH_TASKS,
@@ -2379,7 +2557,9 @@ class TestBatchSizeExceeded:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
         tasks = [
             TaskRequest(agent_type="coder", objective=f"task {i}")
             for i in range(_DEFAULT_MAX_BATCH_TASKS + 1)
@@ -2393,8 +2573,12 @@ class TestBatchSizeExceeded:
 
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
-    async def test_custom_max_batch_from_parent_config(self, mock_estimate, mock_runner):
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
+    async def test_custom_max_batch_from_parent_config(
+        self, mock_estimate, mock_runner
+    ):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _BatchBudgetAdmission,
         )
@@ -2403,7 +2587,8 @@ class TestBatchSizeExceeded:
         )
 
         mock_estimate.return_value = _BatchBudgetAdmission(
-            status="unavailable", reason="skip",
+            status="unavailable",
+            reason="skip",
         )
         mock_runner.return_value = {"success": True, "results": []}
 
@@ -2414,7 +2599,11 @@ class TestBatchSizeExceeded:
         delegate = MagicMock()
 
         tool = _create_batch_delegate_tasks_tool(
-            parent, lambda: [], catalog, parent_type="orchestrator", delegate_tool=delegate,
+            parent,
+            lambda: [],
+            catalog,
+            parent_type="orchestrator",
+            delegate_tool=delegate,
         )
         tasks = [
             TaskRequest(agent_type="coder", objective=f"task {i}") for i in range(8)
@@ -2442,11 +2631,20 @@ class TestEstimateBatchCostBudgetTokensPath:
         parent.llm = MagicMock()
         parent.llm.model_name = "gpt-4"
 
-        config = SubagentConfig(system_prompt="test", budget_tokens=10000, max_cost_usd=None, model=None)
+        config = SubagentConfig(
+            system_prompt="test", budget_tokens=10000, max_cost_usd=None, model=None
+        )
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=config)
 
-        tasks = [MagicMock(agent_type="coder", objective="hello world", context_files=[], context=None)]
+        tasks = [
+            MagicMock(
+                agent_type="coder",
+                objective="hello world",
+                context_files=[],
+                context=None,
+            )
+        ]
 
         with patch(
             "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget.compute_cost_by_tokens"
@@ -2458,7 +2656,9 @@ class TestEstimateBatchCostBudgetTokensPath:
             mock_result.status.value = "estimated"
             mock_cost.return_value = mock_result
 
-            result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+            result = await _estimate_batch_cost(
+                parent_agent=parent, catalog=catalog, tasks=tasks
+            )
 
         assert result.status == "admitted"
         assert result.estimated_cost_usd == 0.05
@@ -2476,11 +2676,17 @@ class TestEstimateBatchCostBudgetTokensPath:
         parent.llm = MagicMock()
         parent.llm.model_name = "unknown-model-xyz"
 
-        config = SubagentConfig(system_prompt="test", budget_tokens=5000, max_cost_usd=None, model=None)
+        config = SubagentConfig(
+            system_prompt="test", budget_tokens=5000, max_cost_usd=None, model=None
+        )
         catalog = AsyncMock()
         catalog.resolve = AsyncMock(return_value=config)
 
-        tasks = [MagicMock(agent_type="worker", objective="x", context_files=[], context=None)]
+        tasks = [
+            MagicMock(
+                agent_type="worker", objective="x", context_files=[], context=None
+            )
+        ]
 
         with patch(
             "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget.compute_cost_by_tokens"
@@ -2489,7 +2695,9 @@ class TestEstimateBatchCostBudgetTokensPath:
             mock_result.is_known = False
             mock_cost.return_value = mock_result
 
-            result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+            result = await _estimate_batch_cost(
+                parent_agent=parent, catalog=catalog, tasks=tasks
+            )
 
         assert result.status == "unavailable"
         assert result.reason == "model_cost_unavailable"
@@ -2513,9 +2721,15 @@ class TestEstimateBatchCostBudgetTokensPath:
 
         catalog.resolve = AsyncMock(side_effect=resolve)
 
-        tasks = [MagicMock(agent_type="a"), MagicMock(agent_type="b"), MagicMock(agent_type="a")]
+        tasks = [
+            MagicMock(agent_type="a"),
+            MagicMock(agent_type="b"),
+            MagicMock(agent_type="a"),
+        ]
 
-        result = await _estimate_batch_cost(parent_agent=parent, catalog=catalog, tasks=tasks)
+        result = await _estimate_batch_cost(
+            parent_agent=parent, catalog=catalog, tasks=tasks
+        )
 
         assert result.status == "admitted"
         assert result.estimated_cost_usd == pytest.approx(0.50)
@@ -2528,7 +2742,9 @@ class TestEstimateBatchCostBudgetTokensPath:
 
 class TestTournamentBracketEdgeCases:
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch(
+        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs"
+    )
     async def test_no_successful_candidates(self, mock_merge):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _run_tournament_bracket,
@@ -2547,7 +2763,9 @@ class TestTournamentBracketEdgeCases:
         mock_merge.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch(
+        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs"
+    )
     async def test_single_successful_candidate_wins(self, mock_merge):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _run_tournament_bracket,
@@ -2568,7 +2786,9 @@ class TestTournamentBracketEdgeCases:
         parent.llm.ainvoke.assert_not_called()
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch(
+        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs"
+    )
     async def test_judge_picks_candidate_b(self, mock_merge):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _run_tournament_bracket,
@@ -2591,7 +2811,9 @@ class TestTournamentBracketEdgeCases:
         assert result["result"]["result"] == "Output B"
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch(
+        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs"
+    )
     async def test_judge_error_falls_back_to_candidate_a(self, mock_merge):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _run_tournament_bracket,
@@ -2612,7 +2834,9 @@ class TestTournamentBracketEdgeCases:
         assert result["result"]["result"] == "Output A"
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch(
+        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs"
+    )
     async def test_no_llm_on_parent_falls_back_to_first(self, mock_merge):
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
             _run_tournament_bracket,
@@ -2632,7 +2856,9 @@ class TestTournamentBracketEdgeCases:
         assert result["result"]["result"] == "Output A"
 
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+    @patch(
+        "myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs"
+    )
     async def test_three_candidates_bracket(self, mock_merge):
         """Odd number of candidates: one gets a bye to next round."""
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import (
@@ -2674,8 +2900,12 @@ class TestTournamentBracketEdgeCases:
 class TestRaceModeBudgetException:
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.parallel.runner.run_parallel_task_requests")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._admit_race_budget")
-    @patch("myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost")
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._admit_race_budget"
+    )
+    @patch(
+        "myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch._estimate_batch_cost"
+    )
     async def test_budget_exception_creates_unavailable_admission(
         self, mock_estimate, mock_admit, mock_runner
     ):
@@ -2688,7 +2918,8 @@ class TestRaceModeBudgetException:
 
         mock_admit.side_effect = RuntimeError("budget check crashed")
         mock_estimate.return_value = _BatchBudgetAdmission(
-            status="unavailable", reason="skip",
+            status="unavailable",
+            reason="skip",
         )
         mock_runner.return_value = {"success": True, "results": []}
 
@@ -2696,7 +2927,9 @@ class TestRaceModeBudgetException:
         catalog = AsyncMock()
         delegate = MagicMock()
 
-        tool = _create_batch_delegate_tasks_tool(parent, lambda: [], catalog, delegate_tool=delegate)
+        tool = _create_batch_delegate_tasks_tool(
+            parent, lambda: [], catalog, delegate_tool=delegate
+        )
         tasks = [
             TaskRequest(agent_type="coder", objective="a"),
             TaskRequest(agent_type="coder", objective="b"),

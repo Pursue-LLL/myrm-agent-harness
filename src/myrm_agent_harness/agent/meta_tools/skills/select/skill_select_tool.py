@@ -93,7 +93,7 @@ def create_select_skill_tool(
         skill_names: list[str], reason: str, file_path: str | None = None
     ) -> str:
         """Select skills and load their SOP documentation or specific auxiliary files."""
-        from myrm_agent_harness.agent._skill_agent_context import (
+        from myrm_agent_harness.agent.skill_agent.context import (
             add_loaded_skill,
             get_loaded_skills,
         )
@@ -131,9 +131,7 @@ def create_select_skill_tool(
                     await build_reload_summary_with_index(skill_meta, skill_backend)
                 )
             else:
-                instance = (
-                    skill_instances.get(skill_name) if skill_instances else None
-                )
+                instance = skill_instances.get(skill_name) if skill_instances else None
                 skill_doc = await get_skill_document(
                     skill_meta, skill_backend, skill_instance=instance
                 )

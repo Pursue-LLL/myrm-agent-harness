@@ -1,5 +1,14 @@
 """BaseAgent deep research and consensus entrypoints.
 
+[INPUT]
+- agent.streaming.message_builder::build_messages (POS: Chat history to LangChain message builder)
+- utils.chat_utils::ChatHistoryReq (POS: Chat history request type)
+- toolkits.llms.consensus (POS: Mixture-of-Agents consensus engine)
+
+[OUTPUT]
+- run_deep_research: Multi-phase orchestrated deep research entrypoint (async generator)
+- run_consensus: Mixture-of-Agents consensus inference entrypoint
+
 [POS]
 Mixin: run_deep_research and run_consensus on BaseAgent.
 """
@@ -12,9 +21,8 @@ from uuid import uuid4
 
 from langchain_core.language_models import BaseChatModel
 
+from myrm_agent_harness.agent.streaming.message_builder import build_messages
 from myrm_agent_harness.utils.chat_utils import ChatHistoryReq
-
-from .streaming.message_builder import build_messages
 
 if TYPE_CHECKING:
     from langchain_core.messages import BaseMessage
@@ -25,7 +33,10 @@ if TYPE_CHECKING:
         CycleCallback,
         PlanCallback,
     )
-    from myrm_agent_harness.toolkits.llms.consensus.types import ConsensusConfig, ConsensusResult
+    from myrm_agent_harness.toolkits.llms.consensus.types import (
+        ConsensusConfig,
+        ConsensusResult,
+    )
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
 
 
@@ -100,4 +111,6 @@ class BaseAgentModesMixin:
             aggregator_llm=agg,
             config=config or ConsensusConfig(),
         )
-        return await engine.run(query, system_prompt=self.system_prompt, cancel_token=cancel_token)
+        return await engine.run(
+            query, system_prompt=self.system_prompt, cancel_token=cancel_token
+        )

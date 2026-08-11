@@ -1,4 +1,17 @@
-"""CSV file parser."""
+"""CSV file parser.
+
+[INPUT]
+- file path: CSV 文件
+- myrm_agent_harness.toolkits.file_parsers.base::FileParser (POS: 解析器基类)
+
+[OUTPUT]
+- CsvParser.parse: CSV → Markdown 表格文本
+- CsvParser.supported_extensions: [".csv"]
+
+[POS]
+CSV parsing layer that converts tabular data into GFM markdown tables for
+consistent downstream ingestion.
+"""
 
 from __future__ import annotations
 
@@ -37,7 +50,9 @@ class CsvParser(FileParser):
         ]
         for row in body:
             padded = row + [""] * max(0, len(header) - len(row))
-            lines.append("| " + " | ".join(_cell(cell) for cell in padded[: len(header)]) + " |")
+            lines.append(
+                "| " + " | ".join(_cell(cell) for cell in padded[: len(header)]) + " |"
+            )
 
         logger.info("CSV parsed: %s, rows=%d", path.name, len(rows))
         return "\n".join(lines)

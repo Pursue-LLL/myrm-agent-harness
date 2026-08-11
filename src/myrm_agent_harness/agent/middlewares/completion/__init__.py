@@ -1,4 +1,17 @@
-"""Completion guard subsystem — finish gate, verification, and deliverable checks."""
+"""Completion guard subsystem — finish gate, verification, and deliverable checks.
+
+[INPUT]
+- 会话轨迹 / AgentRunStatistics（运行统计）
+
+[OUTPUT]
+- CompletionGuard: 完成判定守卫
+- build_checklist(): 交付清单构建
+- classify_verification(): 验证结果分类
+
+[POS]
+Finish-gate subsystem ensuring the agent only reports completion after
+verification and deliverable checks pass.
+"""
 
 from myrm_agent_harness.agent.middlewares.completion.completion_guard import (
     CompletionGuard,

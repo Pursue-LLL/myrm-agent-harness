@@ -8,7 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent._skill_agent_context import get_task_intent, set_task_intent
+from myrm_agent_harness.agent.skill_agent.context import (
+    get_task_intent,
+    set_task_intent,
+)
 from myrm_agent_harness.agent.skills.evolution.core.types import (
     EvolutionRequest,
     EvolutionType,

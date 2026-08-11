@@ -192,3 +192,23 @@ async def test_discover_connections_llm(mock_llm: MagicMock, temp_wiki: WikiStru
     assert connections >= 1
     # Verify wikilink was added to Alpha
     assert "[[Beta]]" in c1.read_text()
+
+
+@pytest.mark.asyncio
+async def test_discover_connections_reasoning_model_content_empty(mock_llm: MagicMock, temp_wiki: WikiStructure) -> None:
+    """Reasoning 模型 content 为空时回退到 additional_kwargs["reasoning_content"]。"""
+    config = WikiConfig(enable_auto_maintenance=False, enable_backlinks=True)
+    linter = WikiLinter(mock_llm, temp_wiki, config)
+
+    c1 = temp_wiki.get_concept_file_path("Alpha")
+    c1.write_text("---\ntype: concept\n---\n\n# Alpha\n\nAlpha is about ML.\n## Compiled Truth\nML content.")
+
+    c2 = temp_wiki.get_concept_file_path("Beta")
+    c2.write_text("---\ntype: concept\n---\n\n# Beta\n\nBeta is about ML.\n## Compiled Truth\nRelated content.")
+
+    mock_llm.ainvoke = AsyncMock(
+        return_value=AIMessage(content="", additional_kwargs={"reasoning_content": '["Beta"]'})
+    )
+    connections = await linter._discover_connections()
+    assert connections >= 1
+    assert "[[Beta]]" in c1.read_text()

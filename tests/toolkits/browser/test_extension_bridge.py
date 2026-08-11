@@ -204,3 +204,10 @@ class TestExtensionBridgeNotAvailableError:
     def test_custom_message(self) -> None:
         exc = ExtensionBridgeNotAvailableError("Custom error")
         assert str(exc) == "Custom error"
+
+    def test_backward_compatible_alias(self) -> None:
+        from myrm_agent_harness.toolkits.browser.pool.extension_bridge import (
+            ExtensionBridgeNotAvailable,
+        )
+
+        assert ExtensionBridgeNotAvailable is ExtensionBridgeNotAvailableError

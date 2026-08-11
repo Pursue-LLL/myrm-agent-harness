@@ -107,3 +107,36 @@ async def test_sidecar_builder_clears_sidecars_when_no_concepts(tmp_path):
     )
     assert result.removed_directories >= 1
     assert indexer.delete_all_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_sidecar_builder_reasoning_model_content_empty(tmp_path):
+    """Reasoning 模型 content 为空时回退到 additional_kwargs["reasoning_content"]。"""
+    structure = WikiStructure(tmp_path)
+    structure.ensure_structure()
+    concept_file = structure.get_concept_file_path("Ops/Runbook")
+    concept_file.write_text("## Compiled Truth\nRunbook steps and rollback plan.", encoding="utf-8")
+
+    llm = AsyncMock()
+    llm.ainvoke.return_value = AIMessage(
+        content="",
+        additional_kwargs={"reasoning_content": '{"abstract":"Ops summary","overview":"Ops detailed overview"}'},
+    )
+    indexer = _FakeIndexer()
+    concept = ConceptInfo(
+        name="Ops/Runbook",
+        definition="Runbook",
+        source_files=["ops.md"],
+        related_concepts=[],
+    )
+
+    result = await build_directory_sidecars(
+        llm,
+        structure,
+        WikiCompileConfig(),
+        touched_concepts=[concept],
+        indexer=indexer,
+    )
+    assert result.rebuilt_directories >= 1
+    abstract_path, overview_path = structure.get_directory_sidecar_paths("ops", create=False)
+    assert "summary" in abstract_path.read_text(encoding="utf-8").lower()

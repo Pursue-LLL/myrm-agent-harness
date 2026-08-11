@@ -2,7 +2,7 @@
 
 [INPUT]
 - skills.evolution.review (POS: Skill review evaluator, pruner, reviewer)
-- _skill_agent_context (POS: Background task tracking)
+- skill_agent.context (POS: Background task tracking)
 
 [OUTPUT]
 - SkillAgentReviewMixin: Mixin providing session-end review methods for SkillAgent
@@ -17,8 +17,9 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent._skill_agent_context import track_background_task
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
+from .context import track_background_task
 
 if TYPE_CHECKING:
     from collections.abc import Callable

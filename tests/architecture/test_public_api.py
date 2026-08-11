@@ -35,7 +35,10 @@ def test_public_api_factory_reexport() -> None:
 @pytest.mark.architecture
 def test_distribution_mode_defaults_to_source() -> None:
     """Editable dev installs should report source distribution."""
-    from myrm_agent_harness.distribution.probe import DistributionMode, get_distribution_mode
+    from myrm_agent_harness.distribution.probe import (
+        DistributionMode,
+        get_distribution_mode,
+    )
 
     assert get_distribution_mode() is DistributionMode.SOURCE
 
@@ -58,4 +61,4 @@ def test_api_package_has_no_heavy_side_effects_on_import() -> None:
     importlib.import_module("myrm_agent_harness.api.types")
     after = set(sys.modules)
     loaded = after - before
-    assert "myrm_agent_harness.agent.skill_agent_factory" not in loaded
+    assert "myrm_agent_harness.agent.skill_agent.factory" not in loaded

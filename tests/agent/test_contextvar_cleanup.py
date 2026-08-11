@@ -10,7 +10,7 @@ import pytest
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 
-from myrm_agent_harness.agent._skill_agent_context import (
+from myrm_agent_harness.agent.skill_agent.context import (
     get_memory_manager,
     get_storage_backend,
     set_memory_manager,
@@ -27,6 +27,8 @@ class FakeLLM:
         self.responses = responses or ["test response"]
         self.call_count = 0
         self.should_fail = should_fail
+        self.model_name = "fake-llm"
+        self.model = "fake-llm"
 
     def bind_tools(self, tools, **kwargs):
         return self
@@ -58,7 +60,9 @@ async def test_base_agent_cleans_executor_contextvar_on_success():
     }
 
     events = []
-    async for event in agent.run(query="test query", message_id="msg_contextvar_001", context=context):
+    async for event in agent.run(
+        query="test query", message_id="msg_contextvar_001", context=context
+    ):
         events.append(event)
         if len(events) >= 3:
             break
@@ -85,7 +89,9 @@ async def test_base_agent_cleans_executor_contextvar_on_failure():
 
     events = []
     try:
-        async for event in agent.run(query="test query", message_id="msg_contextvar_002", context=context):
+        async for event in agent.run(
+            query="test query", message_id="msg_contextvar_002", context=context
+        ):
             events.append(event)
     except Exception:
         pass
@@ -131,7 +137,9 @@ async def test_skill_agent_cleans_contextvars_on_success():
     llm = FakeLLM()
     checkpointer = MemorySaver()
 
-    agent = SkillAgent(llm=llm, skill_backend=mock_skill_backend, checkpointer=checkpointer)
+    agent = SkillAgent(
+        llm=llm, skill_backend=mock_skill_backend, checkpointer=checkpointer
+    )
 
     # 确保初始状态为 None
     assert get_storage_backend() is None
@@ -144,7 +152,9 @@ async def test_skill_agent_cleans_contextvars_on_success():
     }
 
     events = []
-    async for event in agent.run(query="test query", message_id="msg_contextvar_003", context=context):
+    async for event in agent.run(
+        query="test query", message_id="msg_contextvar_003", context=context
+    ):
         events.append(event)
         if len(events) >= 3:
             break
@@ -164,7 +174,9 @@ async def test_skill_agent_cleans_contextvars_on_failure():
     llm = FakeLLM(should_fail=True)
     checkpointer = MemorySaver()
 
-    agent = SkillAgent(llm=llm, skill_backend=mock_skill_backend, checkpointer=checkpointer)
+    agent = SkillAgent(
+        llm=llm, skill_backend=mock_skill_backend, checkpointer=checkpointer
+    )
 
     assert get_storage_backend() is None
     assert get_memory_manager() is None
@@ -177,7 +189,9 @@ async def test_skill_agent_cleans_contextvars_on_failure():
 
     events = []
     try:
-        async for event in agent.run(query="test query", message_id="msg_contextvar_004", context=context):
+        async for event in agent.run(
+            query="test query", message_id="msg_contextvar_004", context=context
+        ):
             events.append(event)
     except Exception:
         pass
@@ -196,19 +210,25 @@ async def test_skill_agent_cleans_contextvars_even_if_cleanup_session_fails():
     llm = FakeLLM()
     checkpointer = MemorySaver()
 
-    agent = SkillAgent(llm=llm, skill_backend=mock_skill_backend, checkpointer=checkpointer)
+    agent = SkillAgent(
+        llm=llm, skill_backend=mock_skill_backend, checkpointer=checkpointer
+    )
 
     # Mock _cleanup_session to fail
-    with patch.object(agent, "_cleanup_session", side_effect=RuntimeError("Cleanup failed")):
+    with patch.object(
+        agent, "_cleanup_session", side_effect=RuntimeError("Cleanup failed")
+    ):
         context = {
             "session_id": "test_contextvar_005",
             "workspace_path": "/tmp/test_workspace",
-        "workspaces_storage_root": "/tmp",
+            "workspaces_storage_root": "/tmp",
         }
 
         events = []
         try:
-            async for event in agent.run(query="test query", message_id="msg_contextvar_005", context=context):
+            async for event in agent.run(
+                query="test query", message_id="msg_contextvar_005", context=context
+            ):
                 events.append(event)
                 if len(events) >= 3:
                     break
@@ -230,7 +250,10 @@ async def test_skill_agent_prepare_context_sets_contextvars():
 
     llm = FakeLLM()
     agent = SkillAgent(
-        llm=llm, skill_backend=mock_skill_backend, storage_backend=mock_storage, memory_manager=mock_memory
+        llm=llm,
+        skill_backend=mock_skill_backend,
+        storage_backend=mock_storage,
+        memory_manager=mock_memory,
     )
 
     # 调用 _prepare_context

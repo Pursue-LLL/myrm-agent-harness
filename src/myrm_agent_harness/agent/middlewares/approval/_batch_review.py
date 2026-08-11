@@ -48,7 +48,9 @@ _runtime_allowed_domains: ContextVar[set[str]] = ContextVar("runtime_allowed_dom
 _security_reviewer: SecurityReviewerProtocol | None = None
 
 
-def _truncate_tool_args(tool_input: dict[str, object], max_chars: int = 1000) -> dict[str, object]:
+def _truncate_tool_args(
+    tool_input: dict[str, object], max_chars: int = 1000
+) -> dict[str, object]:
     """Truncate large string values in tool arguments to prevent prompt explosion."""
     result: dict[str, object] = {}
     for k, v in tool_input.items():
@@ -96,7 +98,9 @@ async def _run_llm_review(
             trusted_domains=trusted_domains,
         )
     except Exception:
-        logger.warning("Transcript classifier failed, falling back to HITL", exc_info=True)
+        logger.warning(
+            "Transcript classifier failed, falling back to HITL", exc_info=True
+        )
         return None
 
 
@@ -115,14 +119,16 @@ def reset_runtime_domains() -> None:
     _runtime_allowed_domains.set(set())
 
 
-def _evaluate_skill_hooks_for_tool(tool_name: str, tool_args: dict[str, object]) -> SkillHookVerdict | None:
+def _evaluate_skill_hooks_for_tool(
+    tool_name: str, tool_args: dict[str, object]
+) -> SkillHookVerdict | None:
     """Collect skill hooks from loaded skills and evaluate them.
 
     Returns None if no hooks are present (fast path), otherwise
     returns the merged SkillHookVerdict.
     """
     try:
-        from myrm_agent_harness.agent._skill_agent_context import get_loaded_skills
+        from myrm_agent_harness.agent.skill_agent.context import get_loaded_skills
     except (ImportError, TypeError):
         return None
 

@@ -11,6 +11,7 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message typ
 .cognitive_map::WikiCognitiveMapService (POS: OKF index/log/hot writers)
 .queue::WikiIngestionQueue (POS: persistent ingestion queue)
 .sidecar::build_directory_sidecars (POS: bottom-up directory sidecar builder)
+utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 WikiCompiler: LLM-Wiki compilation engine
@@ -40,6 +41,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -692,8 +694,9 @@ class WikiCompiler:
             response = await self._llm.ainvoke([system_msg, human_msg])
             raw_content = response.content
             if inspect.isawaitable(raw_content):
-                raw_content = await raw_content
-            response_text = str(raw_content)
+                response_text = str(await raw_content)
+            else:
+                response_text = extract_answer_text(response)
             logger.info(f"LLM extraction response for {doc_path}: {response_text}")
             concepts = parse_concepts_response(response_text, str(relative_path))
             return concepts
@@ -799,8 +802,9 @@ class WikiCompiler:
             response = await self._llm.ainvoke([system_msg, human_msg])
             raw_content = response.content
             if inspect.isawaitable(raw_content):
-                raw_content = await raw_content
-            article_content = str(raw_content)
+                article_content = str(await raw_content)
+            else:
+                article_content = extract_answer_text(response)
 
             if len(article_content) > self._compile_config.max_article_length:
                 article_content = (

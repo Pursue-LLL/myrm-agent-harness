@@ -1,4 +1,15 @@
-"""Shared GFM markdown normalization for multi-format parser output."""
+"""Shared GFM markdown normalization for multi-format parser output.
+
+[INPUT]
+- text: 原始解析文本（可能含 CRLF、多余空行、行尾空格）
+
+[OUTPUT]
+- normalize_to_gfm_markdown(): 归一化文本 → GFM 友好 Markdown
+
+[POS]
+Format-agnostic text normalization shared by all parsers, guaranteeing consistent
+GFM markdown output regardless of the source format.
+"""
 
 from __future__ import annotations
 

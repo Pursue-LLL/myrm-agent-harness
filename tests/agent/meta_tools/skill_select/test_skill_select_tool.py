@@ -119,7 +119,7 @@ class TestCreateSelectSkillToolDeduplication:
 
         with (
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
                 return_value=[],
             ),
             patch(
@@ -127,7 +127,7 @@ class TestCreateSelectSkillToolDeduplication:
                 return_value="# Full SOP document\nStep 1: Do this\nStep 2: Do that",
             ) as mock_get_doc,
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.add_loaded_skill",
+                "myrm_agent_harness.agent.skill_agent.context.add_loaded_skill",
             ) as mock_add,
         ):
             tool = create_select_skill_tool([skill], backend)
@@ -146,7 +146,7 @@ class TestCreateSelectSkillToolDeduplication:
 
         with (
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
                 return_value=[skill],
             ),
             patch(
@@ -168,7 +168,7 @@ class TestCreateSelectSkillToolDeduplication:
         backend = AsyncMock()
 
         with patch(
-            "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+            "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
             return_value=[],
         ):
             tool = create_select_skill_tool([skill], backend)
@@ -186,7 +186,7 @@ class TestCreateSelectSkillToolDeduplication:
 
         with (
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
                 return_value=[skill_a],
             ),
             patch(
@@ -194,7 +194,7 @@ class TestCreateSelectSkillToolDeduplication:
                 return_value="# skill_b Full SOP",
             ),
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.add_loaded_skill",
+                "myrm_agent_harness.agent.skill_agent.context.add_loaded_skill",
             ),
         ):
             tool = create_select_skill_tool([skill_a, skill_b], backend)
@@ -223,7 +223,9 @@ class TestSelectSkillRecordsUsage:
         )
         backend = AsyncMock()
 
-        from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+        from myrm_agent_harness.backends.skills.stats_collector import (
+            SkillStatsCollector,
+        )
         from myrm_agent_harness.backends.skills.usage_recorder import (
             flush_skill_usage_stats,
             reset_turn_usage_dedupe,
@@ -236,17 +238,19 @@ class TestSelectSkillRecordsUsage:
 
         with (
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
                 return_value=[],
             ),
             patch(
                 "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool.get_skill_document",
                 return_value="# demo_skill SOP\nStep 1",
             ),
-            patch("myrm_agent_harness.agent._skill_agent_context.add_loaded_skill"),
+            patch("myrm_agent_harness.agent.skill_agent.context.add_loaded_skill"),
         ):
             tool = create_select_skill_tool([skill], backend)
-            await tool.ainvoke({"skill_names": ["demo_skill"], "reason": "testing usage"})
+            await tool.ainvoke(
+                {"skill_names": ["demo_skill"], "reason": "testing usage"}
+            )
 
         flush_skill_usage_stats()
         stats_file = skill_dir / ".stats.json"
@@ -274,7 +278,9 @@ class TestSelectSkillReloadSkipsUsage:
         )
         backend = AsyncMock()
 
-        from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+        from myrm_agent_harness.backends.skills.stats_collector import (
+            SkillStatsCollector,
+        )
         from myrm_agent_harness.backends.skills.usage_recorder import (
             flush_skill_usage_stats,
             reset_turn_usage_dedupe,
@@ -287,24 +293,26 @@ class TestSelectSkillReloadSkipsUsage:
 
         with (
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
                 return_value=[],
             ),
             patch(
                 "myrm_agent_harness.agent.meta_tools.skills.select.skill_select_tool.get_skill_document",
                 return_value="# reload_skill SOP",
             ),
-            patch("myrm_agent_harness.agent._skill_agent_context.add_loaded_skill"),
+            patch("myrm_agent_harness.agent.skill_agent.context.add_loaded_skill"),
         ):
             tool = create_select_skill_tool([skill], backend)
-            await tool.ainvoke({"skill_names": ["reload_skill"], "reason": "first load"})
+            await tool.ainvoke(
+                {"skill_names": ["reload_skill"], "reason": "first load"}
+            )
             flush_skill_usage_stats()
 
         assert collector.get_stats(skill_dir).call_count == 1
 
         with (
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
                 return_value=[skill],
             ),
             patch(
@@ -312,7 +320,9 @@ class TestSelectSkillReloadSkipsUsage:
             ) as mock_doc,
         ):
             tool = create_select_skill_tool([skill], backend)
-            result = await tool.ainvoke({"skill_names": ["reload_skill"], "reason": "reload"})
+            result = await tool.ainvoke(
+                {"skill_names": ["reload_skill"], "reason": "reload"}
+            )
             flush_skill_usage_stats()
 
         mock_doc.assert_not_called()
@@ -330,7 +340,9 @@ class TestSelectSkillReloadSkipsUsage:
         )
         backend = AsyncMock()
 
-        from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+        from myrm_agent_harness.backends.skills.stats_collector import (
+            SkillStatsCollector,
+        )
         from myrm_agent_harness.backends.skills.usage_recorder import (
             flush_skill_usage_stats,
             reset_turn_usage_dedupe,
@@ -343,7 +355,7 @@ class TestSelectSkillReloadSkipsUsage:
 
         with (
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
                 return_value=[],
             ),
             patch(
@@ -353,7 +365,11 @@ class TestSelectSkillReloadSkipsUsage:
         ):
             tool = create_select_skill_tool([skill], backend)
             await tool.ainvoke(
-                {"skill_names": ["file_skill"], "reason": "missing file", "file_path": "scripts/missing.py"}
+                {
+                    "skill_names": ["file_skill"],
+                    "reason": "missing file",
+                    "file_path": "scripts/missing.py",
+                }
             )
             flush_skill_usage_stats()
 
@@ -373,7 +389,9 @@ class TestSelectSkillReloadSkipsUsage:
         )
         backend = AsyncMock()
 
-        from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+        from myrm_agent_harness.backends.skills.stats_collector import (
+            SkillStatsCollector,
+        )
         from myrm_agent_harness.backends.skills.usage_recorder import (
             flush_skill_usage_stats,
             reset_turn_usage_dedupe,
@@ -386,7 +404,7 @@ class TestSelectSkillReloadSkipsUsage:
 
         with (
             patch(
-                "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+                "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
                 return_value=[],
             ),
             patch(
@@ -434,7 +452,9 @@ class TestCleanupSessionContextFilesEdgeCases:
             "myrm_agent_harness.runtime.context.cleanup_ops.os.path.isdir",
             side_effect=selective_isdir,
         ):
-            await cleanup_session_context_files("test_chat_123", cast("CodeExecutor", executor))
+            await cleanup_session_context_files(
+                "test_chat_123", cast("CodeExecutor", executor)
+            )
 
         assert len(executor.executed) == 0
 

@@ -165,6 +165,22 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
         """Signal the dispatcher to check for new tasks immediately."""
         self._wake_event.set()
 
+    def refresh_board(self, board: KanbanBoard) -> None:
+        """Hot-swap the board so runtime settings changes take effect live.
+
+        The dispatch and zombie loops re-read ``self._board.settings`` on every
+        iteration, so a refreshed ``max_concurrent_tasks`` / ``zombie_timeout_seconds``
+        applies on the next wake cycle while tasks already executing keep running
+        untouched — no restart required.
+        """
+        if board.board_id != self._board.board_id:
+            raise ValueError(
+                "refresh_board board id mismatch: expected "
+                f"{self._board.board_id!r}, got {board.board_id!r}"
+            )
+        self._board = board
+        self.wake()
+
     async def cancel_execution(self, task_id: str) -> bool:
         """Cancel the asyncio.Task executing a kanban task without modifying task state.
 
@@ -314,9 +330,11 @@ class KanbanDispatcher(KanbanDispatcherFailureMixin, KanbanDispatcherZombieMixin
     # -- Dispatch loop --
 
     async def _dispatch_loop(self) -> None:
-        settings = self._board.settings
         while self._running:
             try:
+                # Re-read settings every iteration so refresh_board() runtime
+                # board-config updates apply on the next wake cycle.
+                settings = self._board.settings
                 # Clear before checking so wake() signals arriving during
                 # claim are not lost — the next wait() returns immediately.
                 self._wake_event.clear()

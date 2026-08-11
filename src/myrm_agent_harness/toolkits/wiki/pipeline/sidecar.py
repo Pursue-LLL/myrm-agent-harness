@@ -6,6 +6,7 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: prompt messages)
 ..core.structure::WikiStructure (POS: concept tree filesystem abstraction)
 ..core.config::WikiCompileConfig (POS: sidecar generation knobs)
 ..core.types::ConceptInfo (POS: touched concept hints from compiler)
+utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 SidecarBuildResult: sidecar build statistics
@@ -31,6 +32,7 @@ from typing import TYPE_CHECKING
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from ..core.config import WikiCompileConfig
@@ -272,7 +274,7 @@ class WikiDirectorySidecarBuilder:
         )
         try:
             response = await self._llm.ainvoke([system_msg, HumanMessage(content=prompt)])
-            parsed = self._parse_sidecar_payload(str(response.content))
+            parsed = self._parse_sidecar_payload(extract_answer_text(response))
             if parsed is not None:
                 abstract, overview = parsed
                 return (

@@ -1,4 +1,17 @@
-"""Compactor subpackage: priority-aware message compression."""
+"""Compactor subpackage: priority-aware message compression.
+
+[INPUT]
+- chat_history: 待压缩消息列表（含 tool 消息对）
+
+[OUTPUT]
+- compress_messages_async(): 消息压缩（工具消息对合并）
+- should_compress(): 是否触发压缩
+- deduplicate_tool_results(): 工具结果去重
+
+[POS]
+Priority-aware context compaction strategies. Groups tool messages, deduplicates
+results, and applies integrity-safe compression to fit the active context window.
+"""
 
 from .compact_rules import COMPACT_RULES
 from .compactor import (

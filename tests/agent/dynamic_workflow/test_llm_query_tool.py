@@ -317,6 +317,48 @@ class TestLlmQueryTool:
         assert result["success"] is True
         assert result["result"] == ""
 
+    @pytest.mark.asyncio
+    async def test_reasoning_model_falls_back_to_reasoning_content(self) -> None:
+        """DeepSeek-R1 / OpenAI o-series return content=None and put the
+        answer in additional_kwargs['reasoning_content']."""
+        tool = _make_tool()
+        response = _FakeResponse(
+            None, {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}
+        )
+        response.additional_kwargs = {"reasoning_content": "reasoned answer"}
+        tool.parent_agent.llm.ainvoke.return_value = response
+        result = await tool._arun(prompt="q")
+        assert result["success"] is True
+        assert result["result"] == "reasoned answer"
+
+    @pytest.mark.asyncio
+    async def test_anthropic_block_list_extracts_text(self) -> None:
+        """Anthropic returns content as [{'type': 'text', 'text': '...'}]."""
+        tool = _make_tool()
+        response = _FakeResponse(
+            [{"type": "text", "text": "hello"}, {"type": "text", "text": "world"}],
+            {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+        )
+        tool.parent_agent.llm.ainvoke.return_value = response
+        result = await tool._arun(prompt="q")
+        assert result["success"] is True
+        assert result["result"] == "hello world"
+
+    @pytest.mark.asyncio
+    async def test_anthropic_empty_text_blocks_fall_back_to_reasoning(self) -> None:
+        """Blocks with empty/missing text must not leak the list repr; the
+        answer falls back to reasoning_content when present."""
+        tool = _make_tool()
+        response = _FakeResponse(
+            [{"type": "text", "text": ""}],
+            {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
+        )
+        response.additional_kwargs = {"reasoning_content": "reasoned answer"}
+        tool.parent_agent.llm.ainvoke.return_value = response
+        result = await tool._arun(prompt="q")
+        assert result["success"] is True
+        assert result["result"] == "reasoned answer"
+
 
 # ---------------------------------------------------------------------------
 # LlmQueryBatchedTool

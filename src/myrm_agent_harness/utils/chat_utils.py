@@ -4,10 +4,13 @@
 
 [INPUT]
 - langchain_core.messages::BaseMessage, AIMessage, HumanMessage (POS: LangChain 消息类型)
+- utils.text_sanitizer::extract_and_strip_think_blocks (POS: 剥离内联 think/reasoning 标签块)
 
 [OUTPUT]
 - ChatHistory, ContentItem, ChatHistoryReq: 聊天历史相关类型定义
 - convert_chat_history_simple(): 将聊天历史转换为 LangChain 消息格式（仅文本）
+- extract_text_content(): 从字符串 / 多媒体列表 / JSON 中提取纯文本
+- extract_answer_text(): 从 LLM 响应提取用户可见答案文本（str / block list / think 剥离 / reasoning 模型回退）
 
 [POS]
 Chat utility functions. Provides business-config-independent chat history conversion (generic part).
@@ -16,9 +19,11 @@ Chat utility functions. Provides business-config-independent chat history conver
 
 import json
 import logging
-from typing import Literal
+from typing import Literal, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+
+from myrm_agent_harness.utils.text_sanitizer import extract_and_strip_think_blocks
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +48,15 @@ def convert_chat_history_simple(history: object) -> ChatHistory:
         return []
 
     if isinstance(history, list) and history and isinstance(history[0], BaseMessage):
-        return history  # type: ignore[return-value]
+        return history
 
+    entries = cast("list[ChatHistoryEntry]", history)
     messages: list[BaseMessage] = []
-    for item in history:  # type: ignore[union-attr]
+    for item in entries:
         role, content = item[0], item[1]
         meta = item[2] if len(item) > 2 and isinstance(item[2], dict) else {}
 
-        text_content = _extract_text_content(content)
+        text_content = extract_text_content(cast("ContentItem", content))
 
         if role == "human":
             messages.append(HumanMessage(content=text_content))
@@ -64,7 +70,7 @@ def convert_chat_history_simple(history: object) -> ChatHistory:
     return messages
 
 
-def _extract_text_content(content: ContentItem) -> str:
+def extract_text_content(content: ContentItem) -> str:
     """从内容中提取纯文本
 
     处理三种格式：
@@ -83,12 +89,47 @@ def _extract_text_content(content: ContentItem) -> str:
         return content
 
     if isinstance(content, list):
-        text_parts = []
+        text_parts: list[str] = []
         for item in content:
             if isinstance(item, dict) and item.get("type") == "text":
-                text_parts.append(item.get("text", ""))
+                raw_text = item.get("text", "")
+                text_parts.append(str(raw_text) if raw_text is not None else "")
             elif not isinstance(item, dict):
                 text_parts.append(str(item))
         return " ".join(text_parts).strip() or str(content)
 
     return str(content)
+
+
+def extract_answer_text(response: object) -> str:
+    """从 LLM 响应提取用户可见的答案文本。
+
+    兼容三种响应形态：
+    - 普通 ``str`` content
+    - Anthropic 风格块列表（``[{"type": "text", "text": "..."}]``）
+    - reasoning 模型（DeepSeek-R1、Qwen-QwQ、OpenAI o-series 等）返回
+      ``content=None``、答案存于 ``additional_kwargs["reasoning_content"]``
+
+    提取前剥离内联 think/reasoning 标签块（Qwen3 等本地模型会把思考
+    过程直接写在 content 里），避免思考文本污染脚本/结果。空文本块列表
+    不会泄漏 repr（此时回退到 reasoning_content）。
+    """
+    raw_content = getattr(response, "content", None)
+    if raw_content is None or (isinstance(raw_content, list) and not raw_content):
+        content = ""
+    else:
+        content = extract_text_content(cast("ContentItem", raw_content))
+        if isinstance(raw_content, list) and content == str(raw_content):
+            # extract_text_content 在无文本块时回退到列表 repr，
+            # 这里清空以触发 reasoning_content 回退。
+            content = ""
+    if content:
+        clean_content, _ = extract_and_strip_think_blocks(content)
+        if clean_content:
+            return clean_content
+    kwargs = getattr(response, "additional_kwargs", None)
+    if isinstance(kwargs, dict):
+        reasoning = kwargs.get("reasoning_content")
+        if isinstance(reasoning, str) and reasoning:
+            return reasoning
+    return ""

@@ -49,7 +49,13 @@ from .config import (
 )
 from .context_factory import ContextFactory
 from .emulation import EmulationConfig
-from .extension_bridge import ExtensionBridge, ExtensionBridgeNotAvailableError, ExtensionStatus, ExtensionTab
+from .extension_bridge import (
+    ExtensionBridge,
+    ExtensionBridgeNotAvailable,
+    ExtensionBridgeNotAvailableError,
+    ExtensionStatus,
+    ExtensionTab,
+)
 from .page_pool import PagePool
 from .proxy import ProxyConfig, ProxyPool, RoundRobinProxyPool
 from .singleton import get_global_browser_pool, reset_global_browser_pool_for_tests
@@ -72,6 +78,7 @@ __all__ = [
     "ContextType",
     "EmulationConfig",
     "ExtensionBridge",
+    "ExtensionBridgeNotAvailable",
     "ExtensionBridgeNotAvailableError",
     "ExtensionStatus",
     "ExtensionTab",

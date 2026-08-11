@@ -17,7 +17,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ SkillAgent / BaseAgent (_skill_agent_tools.py 装配)              │
+│ SkillAgent / BaseAgent (skill_agent/tools.py 装配)              │
 │  tool_management/registry.py — 去重、排序、生命周期                 │
 └────────────────────────────┬────────────────────────────────────┘
                              │ create_*_tools()
@@ -86,7 +86,7 @@
 
 ## 装配与加载
 
-1. **`_skill_agent_tools.py`** — SkillAgent mixin，按 profile/skill 条件组装 meta_tools + toolkits 工具
+1. **`skill_agent/tools.py`** — SkillAgent mixin，按 profile/skill 条件组装 meta_tools + toolkits 工具
 2. **`tool_management/tool_layers.py`** — CORE/COMMON/EXTENDED 分层 SSOT
 3. **`DEFAULT_AGENT_TOKEN_INVENTORY.md`** — tiktoken 计量参考
 

@@ -75,7 +75,7 @@ def test_api_types_submodule_exports_without_factory() -> None:
     types_mod = importlib.import_module("myrm_agent_harness.api.types")
     loaded = set(sys.modules) - before
 
-    assert "myrm_agent_harness.agent.skill_agent_factory" not in loaded
+    assert "myrm_agent_harness.agent.skill_agent.factory" not in loaded
     assert hasattr(types_mod, "AgentRuntimeConfig")
     assert hasattr(types_mod, "AgentStreamEvent")
     assert hasattr(types_mod, "CompletionStatus")
@@ -100,7 +100,9 @@ def test_api_protocols_are_extension_contracts() -> None:
     )
     for protocol_type in protocol_types:
         assert inspect.isclass(protocol_type)
-        assert issubclass(protocol_type, Protocol) or getattr(protocol_type, "_is_protocol", False)
+        assert issubclass(protocol_type, Protocol) or getattr(
+            protocol_type, "_is_protocol", False
+        )
 
 
 @pytest.mark.api

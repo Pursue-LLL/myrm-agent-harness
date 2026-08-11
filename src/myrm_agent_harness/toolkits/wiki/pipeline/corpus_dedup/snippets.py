@@ -1,4 +1,16 @@
-"""Capped body previews for duplicate group review."""
+"""Capped body previews for duplicate group review.
+
+[INPUT]
+- DuplicateGroup: 去重结果分组
+- extract_body_text(): 正文提取（fingerprint 模块）
+
+[OUTPUT]
+- 分组成员 body 摘要预览（截断到上限字符）
+
+[POS]
+Utility layer producing bounded text previews so duplicate-group review UI stays
+readable without loading full document bodies.
+"""
 
 from __future__ import annotations
 

@@ -10,6 +10,7 @@ Agent internal helpers — private implementation details for agent core files.
 | __init__.py | Package | Agent internal helpers — private implementation details for agent core files. | — |
 | agent_recovery.py | Core | Agent recovery strategies — context overflow, LLM failover, structured error context. | ✅ |
 | agent_runtime.py | Core | Agent runtime — core execution loop (`run_agent_loop`); `apply_bound_skill_catalog_for_stream` / `apply_bound_skill_catalog_for_resume` reinject `<bound_skills>` on SkillAgent streams and resume; both paths sync or remove `skill_search_tool` when bind catalog changes (including empty bind). | ✅ |
+| base_agent_modes_mixin.py | Core | Deep research + consensus entrypoints mixin for BaseAgent. | ✅ |
 | _agent_build.py | Internal | Middleware chain construction, tool registry creation, and tools snapshot emission. | ✅ |
 | _agent_helpers.py | Internal | Runtime helper functions — guard reset, query extraction, idle task scheduling, usage ledger init, checkpoint-incompatible merged_context stripping. | ✅ |
 | langgraph_guard.py | Core | LangGraph ToolNode monkey-patch for robust tool_call args handling. Uses concurrency-router stage planning to execute mixed batches as ordered parallel stages (instead of all-parallel/all-serial), while preserving mid-batch failure short-circuit semantics. | ✅ |

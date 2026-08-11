@@ -31,12 +31,15 @@ from myrm_agent_harness.agent.tool_management import ToolRegistry
 from myrm_agent_harness.utils.chat_utils import ChatHistoryReq
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
+from ._internals.base_agent_modes_mixin import BaseAgentModesMixin
 from ._internals.langgraph_guard import (
     apply_langgraph_tool_args_guard as _apply_langgraph_tool_args_guard,
 )
-from .base_agent_modes_mixin import BaseAgentModesMixin
 from .streaming.channel_output_hints import resolve_channel_output_hint
-from .streaming.model_discipline import resolve_escalation_contract, resolve_execution_discipline
+from .streaming.model_discipline import (
+    resolve_escalation_contract,
+    resolve_execution_discipline,
+)
 from .streaming.utils import DATETIME_SYSTEM_RULES
 from .sub_agents.manager import SubagentManager, SubagentTask
 from .sub_agents.types import SubagentConfig, SubAgentResult
@@ -65,7 +68,9 @@ class BaseAgent(BaseAgentModesMixin):
     ``_build_middlewares``, ``_build_tools``, ``_prepare_context``.
     """
 
-    ArtifactReadyHandler = Callable[[dict[str, object]], Awaitable[dict[str, object] | None]]
+    ArtifactReadyHandler = Callable[
+        [dict[str, object]], Awaitable[dict[str, object] | None]
+    ]
 
     def __init__(
         self,
@@ -117,7 +122,9 @@ class BaseAgent(BaseAgentModesMixin):
         self._tools_initialized = False
         self._tool_registry = self._create_registry()
 
-        from myrm_agent_harness.agent.context_management.preheat import CacheKeepAliveManager
+        from myrm_agent_harness.agent.context_management.preheat import (
+            CacheKeepAliveManager,
+        )
 
         self._cache_keepalive: CacheKeepAliveManager | None = None
 
@@ -134,7 +141,9 @@ class BaseAgent(BaseAgentModesMixin):
             )
         existing_names = {e.name for e in self._extensions}
         if ext.name in existing_names:
-            raise ValueError(f"Extension name conflict: '{ext.name}' is already registered.")
+            raise ValueError(
+                f"Extension name conflict: '{ext.name}' is already registered."
+            )
         self._extensions.append(ext)
 
     async def _ensure_initialized(self) -> None:
@@ -156,7 +165,9 @@ class BaseAgent(BaseAgentModesMixin):
 
             canary = generate_canary()
             set_canary_token(canary)
-            from myrm_agent_harness.toolkits.code_execution.platform import detect_platform
+            from myrm_agent_harness.toolkits.code_execution.platform import (
+                detect_platform,
+            )
 
             self._cached_system_prompt = (
                 (self.system_prompt or "")
@@ -188,7 +199,9 @@ class BaseAgent(BaseAgentModesMixin):
             except Exception:
                 logger.exception("Extension '%s' on_agent_init failed", ext.name)
 
-        from myrm_agent_harness.agent._internals._agent_build import _weave_dynamic_schemas
+        from myrm_agent_harness.agent._internals._agent_build import (
+            _weave_dynamic_schemas,
+        )
 
         self._cached_tools = _weave_dynamic_schemas(self._tool_registry.resolve())
 
@@ -218,7 +231,9 @@ class BaseAgent(BaseAgentModesMixin):
             model=llm,
             tools=self._cached_tools,
             system_prompt=self._cached_system_prompt,
-            middleware=cast(list["AgentMiddleware[Any, Any]"], self._cached_middlewares),
+            middleware=cast(
+                list["AgentMiddleware[Any, Any]"], self._cached_middlewares
+            ),
             context_schema=self.context_schema,
             checkpointer=self.checkpointer,
         )
@@ -235,7 +250,9 @@ class BaseAgent(BaseAgentModesMixin):
         schedule_init_preheat(llm, self._cached_system_prompt, model_name)
 
         if self._cached_system_prompt and needs_explicit_preheat(model_name):
-            self._cache_keepalive = CacheKeepAliveManager(llm, self._cached_system_prompt, model_name)
+            self._cache_keepalive = CacheKeepAliveManager(
+                llm, self._cached_system_prompt, model_name
+            )
             self._cache_keepalive.start()
 
     def _rebuild_agent_with_llm(self, new_llm: BaseChatModel) -> None:
@@ -292,7 +309,9 @@ class BaseAgent(BaseAgentModesMixin):
             model=llm,
             tools=self._cached_tools,
             system_prompt=self._cached_system_prompt,
-            middleware=cast(list["AgentMiddleware[Any, Any]"], self._cached_middlewares),
+            middleware=cast(
+                list["AgentMiddleware[Any, Any]"], self._cached_middlewares
+            ),
             context_schema=self.context_schema,
             checkpointer=self.checkpointer,
         )
@@ -305,7 +324,9 @@ class BaseAgent(BaseAgentModesMixin):
         original_bind_tools = llm.bind_tools
         parallel = self.config.parallel_tool_calls
 
-        def patched_bind_tools(tools: Sequence[dict[str, Any] | type | BaseTool | Any], **kwargs: Any) -> Any:
+        def patched_bind_tools(
+            tools: Sequence[dict[str, Any] | type | BaseTool | Any], **kwargs: Any
+        ) -> Any:
             kwargs.setdefault("parallel_tool_calls", parallel)
             return original_bind_tools(tools, **kwargs)
 
@@ -326,7 +347,9 @@ class BaseAgent(BaseAgentModesMixin):
         """Build the middleware chain. Override in subclasses for customization."""
         from ._internals.agent_runtime import build_middlewares
 
-        return build_middlewares(self._tool_registry, self.user_middlewares, self.config.engine_params)
+        return build_middlewares(
+            self._tool_registry, self.user_middlewares, self.config.engine_params
+        )
 
     def _create_registry(self) -> ToolRegistry:
         """Create a fresh ToolRegistry for this build cycle."""
@@ -372,7 +395,9 @@ class BaseAgent(BaseAgentModesMixin):
         from myrm_agent_harness.agent.errors.agent_errors import AgentBusyError
 
         if self._is_running:
-            raise AgentBusyError("Agent is already running a task. Please wait for it to complete.")
+            raise AgentBusyError(
+                "Agent is already running a task. Please wait for it to complete."
+            )
 
         self._is_running = True
 
@@ -438,7 +463,9 @@ class BaseAgent(BaseAgentModesMixin):
         ):
             yield event
 
-    async def _setup_workspace(self, context: dict[str, object] | None, message_id: str) -> dict[str, object]:
+    async def _setup_workspace(
+        self, context: dict[str, object] | None, message_id: str
+    ) -> dict[str, object]:
         """Create workspace, bind executor, and set context vars."""
         from ._internals.run_lifecycle import setup_workspace
 
@@ -503,7 +530,9 @@ class BaseAgent(BaseAgentModesMixin):
         min_success_rate: float = 0.5,
         timeout: float | None = None,
     ) -> dict[str, object]:
-        return await self._subagent_manager.wait_children(task_ids, min_success_rate=min_success_rate, timeout=timeout)
+        return await self._subagent_manager.wait_children(
+            task_ids, min_success_rate=min_success_rate, timeout=timeout
+        )
 
     async def trigger_async_wakeup(self, result: SubAgentResult) -> None:
         """Trigger an async wakeup event for the parent agent.
@@ -532,7 +561,9 @@ class BaseAgent(BaseAgentModesMixin):
         if handler:
             try:
                 await handler.on_async_wakeup(result, agent_id, session_id)
-                logger.info(f"Triggered global wakeup handler for subagent {result.task_id} (session_id={session_id})")
+                logger.info(
+                    f"Triggered global wakeup handler for subagent {result.task_id} (session_id={session_id})"
+                )
             except Exception as e:
                 logger.error(f"Global wakeup handler failed: {e}")
 
@@ -569,7 +600,9 @@ class BaseAgent(BaseAgentModesMixin):
             thread_id=thread_id,
         )
 
-    async def restore_checkpoint_state(self, checkpoint_data: dict[str, object]) -> None:
+    async def restore_checkpoint_state(
+        self, checkpoint_data: dict[str, object]
+    ) -> None:
         """Restore execution state from checkpoint data.
 
         Restores messages to the checkpointer and runtime context to the agent.

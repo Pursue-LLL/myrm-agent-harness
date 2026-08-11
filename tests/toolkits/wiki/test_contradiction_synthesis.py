@@ -103,6 +103,39 @@ async def test_run_contradiction_synthesis_pass_stages_pending(temp_wiki: WikiSt
     assert pending[0]["concept_name"].startswith("Comparisons/")
 
 
+@pytest.mark.asyncio
+async def test_run_contradiction_synthesis_reasoning_model_content_empty(temp_wiki: WikiStructure) -> None:
+    """Reasoning 模型 content 为空时回退到 additional_kwargs["reasoning_content"]。"""
+    batch = [
+        ConceptInfo(name="AI/Agent-A", definition="Agent is autonomous", related_concepts=["AI/Agent-B"]),
+        ConceptInfo(name="AI/Agent-B", definition="Agent is a tool", related_concepts=[]),
+    ]
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(
+        return_value=MagicMock(
+            content="",
+            additional_kwargs={
+                "reasoning_content": (
+                    '{"is_factual_conflict": true, "confidence": 0.91, "topic": "Agent", '
+                    '"side_a": "autonomous", "side_b": "tool", "resolution_hint": "Pick one."}'
+                )
+            },
+        )
+    )
+    from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig
+    from myrm_agent_harness.toolkits.wiki.pipeline.pending import WikiPendingEditsManager
+
+    result = await run_contradiction_synthesis_pass(
+        llm,
+        temp_wiki,
+        WikiCompileConfig(),
+        None,
+        batch,
+    )
+    assert result.pairs_considered == 1
+    assert result.synthesis_staged == 1
+
+
 def test_build_synthesis_page_uses_cjk_body_for_cjk_topic() -> None:
     verdict = ConflictVerdict(
         is_factual_conflict=True,

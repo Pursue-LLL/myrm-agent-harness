@@ -4,6 +4,7 @@
 - agent.base_agent::BaseAgent (POS: Parent agent providing llm / model_resolver)
 - agent.sub_agents.builder::resolve_llm (POS: 4-level model resolution chain)
 - agent.sub_agents.types::SubagentConfig (POS: Model routing carrier)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — str / block list / think 剥离 / reasoning 回退)
 - utils.token_economics.tracker::record_token_usage, record_token_error (POS: Token/cost bookkeeping)
 - utils.token_economics.cost_engine::compute_cost_by_tokens (POS: Token-count cost estimation)
 - utils.runtime.cancellation::CancellationToken
@@ -32,6 +33,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, ConfigDict, Field
 
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.token_economics.cost_engine import (
     compute_cost_by_tokens,
 )
@@ -214,11 +216,11 @@ class LlmQueryTool(BaseTool):
         subject to the same daily/session cost guards as spawned sub-agents.
         """
         from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_budget import (
-            _get_budget_checker,
+            get_budget_checker,
         )
 
-        checker = _get_budget_checker(cast("BaseAgent", self.parent_agent))
-        if checker is None:
+        checker = get_budget_checker(cast("BaseAgent", self.parent_agent))
+        if checker is None or not hasattr(checker, "get_remaining_budget"):
             return None
         remaining = cast(_BudgetChecker, checker).get_remaining_budget()
         if isinstance(remaining, int | float) and remaining <= 0:
@@ -266,10 +268,7 @@ class LlmQueryTool(BaseTool):
             return {"success": False, "error": f"{type(exc).__name__}: {exc}"}
 
         duration_ms = (time.perf_counter() - started) * 1000
-        try:
-            content = str(response.content) if response.content is not None else ""
-        except Exception:
-            content = ""
+        content = extract_answer_text(response)
         self._record_usage(response, model_name=model_name, duration_ms=duration_ms)
         return {"success": True, "result": content, "model": model_name or ""}
 

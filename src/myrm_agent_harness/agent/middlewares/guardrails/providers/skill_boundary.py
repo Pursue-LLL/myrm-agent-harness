@@ -24,7 +24,10 @@ class SkillBoundaryProvider(GuardrailProvider):
 
     name = "skill_boundary"
 
-    def __init__(self, permission_checker: Callable[[str, str, str], tuple[bool, str]] | None = None):
+    def __init__(
+        self,
+        permission_checker: Callable[[str, str, str], tuple[bool, str]] | None = None,
+    ):
         self._permission_checker = permission_checker
 
     def _infer_permission_type(self, tool_name: str) -> str | None:
@@ -46,13 +49,20 @@ class SkillBoundaryProvider(GuardrailProvider):
             return "env_var_access"
         return None
 
-    def _extract_critical_params(self, tool_name: str, tool_input: dict[str, object]) -> str:
+    def _extract_critical_params(
+        self, tool_name: str, tool_input: dict[str, object]
+    ) -> str:
         """Extract schema-aware boundary parameters."""
         perm_type = self._infer_permission_type(tool_name)
         if perm_type in ("file_read", "file_write", "file_delete"):
             return str(tool_input.get("path", tool_input.get("filename", tool_input)))
         if perm_type in ("shell_exec", "code_interpreter"):
-            return str(tool_input.get("command", tool_input.get("script", tool_input.get("code", tool_input))))
+            return str(
+                tool_input.get(
+                    "command",
+                    tool_input.get("script", tool_input.get("code", tool_input)),
+                )
+            )
         if perm_type == "network_access":
             return str(tool_input.get("url", tool_input.get("query", tool_input)))
         return str(tool_input)
@@ -62,7 +72,7 @@ class SkillBoundaryProvider(GuardrailProvider):
             return GuardrailDecision(allow=True)
 
         try:
-            from myrm_agent_harness.agent._skill_agent_context import get_loaded_skills
+            from myrm_agent_harness.agent.skill_agent.context import get_loaded_skills
 
             loaded_skills = get_loaded_skills()
         except Exception as e:
@@ -76,11 +86,15 @@ class SkillBoundaryProvider(GuardrailProvider):
         if not permission_type:
             return GuardrailDecision(allow=True)
 
-        critical_input = self._extract_critical_params(request.tool_name, request.tool_input)
+        critical_input = self._extract_critical_params(
+            request.tool_name, request.tool_input
+        )
 
         for skill in loaded_skills:
             skill_id = skill.storage_skill_id or skill.name
-            allowed, _reason = self._permission_checker(skill_id, permission_type, critical_input)
+            allowed, _reason = self._permission_checker(
+                skill_id, permission_type, critical_input
+            )
             if allowed:
                 return GuardrailDecision(allow=True)
 

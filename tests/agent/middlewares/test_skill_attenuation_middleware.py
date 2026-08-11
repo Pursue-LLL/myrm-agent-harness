@@ -41,7 +41,7 @@ async def test_skips_override_when_allowlist_becomes_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+        "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
         lambda: None,
     )
     monkeypatch.setattr(
@@ -74,7 +74,7 @@ async def test_skips_tool_choice_for_block_all_empty_frozenset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+        "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
         lambda: None,
     )
     monkeypatch.setattr(
@@ -104,7 +104,7 @@ async def test_applies_allowed_tools_when_restriction_is_non_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+        "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
         lambda: None,
     )
     monkeypatch.setattr(
@@ -144,7 +144,7 @@ async def test_skips_allowed_tools_for_openai_like_models(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+        "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
         lambda: None,
     )
     monkeypatch.setattr(
@@ -242,9 +242,7 @@ def test_wrap_tool_call_resolves_dynamic_tool_from_registry(
         state={},
         runtime=MagicMock(),
     )
-    expected = ToolMessage(
-        content="ok", name="web_search_tool", tool_call_id="call_2"
-    )
+    expected = ToolMessage(content="ok", name="web_search_tool", tool_call_id="call_2")
 
     def handler(req: ToolCallRequest) -> ToolMessage:
         assert req.tool is resolved_tool

@@ -1,6 +1,14 @@
 """Compatibility facade for ``toolkits.memory.memory_citations``.
 
-Implementation lives in ``agent_surface/memory_citations.py``. Keep this import path stable.
+[POS]
+Stable import-path shim. Re-exports the canonical implementation from
+``agent_surface/memory_citations.py`` so legacy callers keep working unchanged.
+
+[INPUT]
+- myrm_agent_harness.toolkits.memory.agent_surface.memory_citations (canonical implementation)
+
+[OUTPUT]
+- Module-level re-exports of every public name in the canonical module
 """
 
 from myrm_agent_harness.toolkits.memory.agent_surface import memory_citations as _impl

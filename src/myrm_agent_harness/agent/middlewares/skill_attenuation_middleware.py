@@ -70,11 +70,11 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
     def _apply_turn_tool_policy(
         self, request: ModelRequest[object]
     ) -> ModelRequest[object]:
-        from myrm_agent_harness.agent._skill_agent_context import get_loaded_skills
         from myrm_agent_harness.agent.middlewares._skill_tool_choice import (
             build_allowed_tools_tool_choice,
             extract_bound_tool_names,
         )
+        from myrm_agent_harness.agent.skill_agent.context import get_loaded_skills
         from myrm_agent_harness.toolkits.llms.allowed_tools_capability import (
             model_supports_allowed_tools_tool_choice,
         )

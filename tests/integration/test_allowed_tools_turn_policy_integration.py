@@ -87,7 +87,7 @@ async def test_unsupported_gateway_skips_allowed_tools_but_execution_blocks(
     assert model_supports_allowed_tools_tool_choice(model, api_base=base_url) is False
 
     monkeypatch.setattr(
-        "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+        "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
         lambda: None,
     )
     monkeypatch.setattr(

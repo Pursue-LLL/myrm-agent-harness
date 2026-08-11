@@ -453,6 +453,66 @@ async def test_non_string_llm_content(tmp_path, monkeypatch, mock_parent_agent):
 
 
 @pytest.mark.asyncio
+async def test_reasoning_model_content_none_recovers_script(
+    tmp_path, monkeypatch, mock_parent_agent
+):
+    """O: Reasoning models return empty content with the script in
+    additional_kwargs['reasoning_content']; the engine must recover the
+    orchestration script instead of executing an empty/"None" script."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    class ReasoningLLM:
+        async def ainvoke(self, messages, config=None):
+            return AIMessage(
+                content="",
+                additional_kwargs={"reasoning_content": "print('recovered')"},
+            )
+
+    mock_parent_agent.llm = ReasoningLLM()
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    captured_code: list[str] = []
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        captured_code.append(context.code)
+
+        class Result:
+            stdout = "ok"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="c1",
+            message_id="m1",
+        )
+    ]
+
+    assert captured_code
+    assert captured_code[0] == "print('recovered')"
+    assert any(c.get("type") == "message_end" for c in chunks)
+
+
+@pytest.mark.asyncio
 async def test_summarization_failure_fallback(tmp_path, monkeypatch, mock_parent_agent):
     """When summarization LLM fails, raw output is used as fallback."""
     db_path = tmp_path / "events.db"
@@ -504,6 +564,67 @@ async def test_summarization_failure_fallback(tmp_path, monkeypatch, mock_parent
     msg_chunks = [c for c in chunks if c.get("type") == "message"]
     assert msg_chunks
     assert "result_data_here" in msg_chunks[0]["data"]
+
+
+@pytest.mark.asyncio
+async def test_summarization_reasoning_model_recovers_text(
+    tmp_path, monkeypatch, mock_parent_agent
+):
+    """O: Summarization with a reasoning model (empty content, reasoning in
+    additional_kwargs) must produce the real summary, not a literal "None"."""
+    db_path = tmp_path / "events.db"
+    monkeypatch.chdir(tmp_path)
+
+    from myrm_agent_harness.agent.dynamic_workflow import store as store_mod
+
+    original_init = store_mod.WorkflowEventStore.__init__
+
+    def patched_init(self, path):
+        original_init(self, str(db_path))
+
+    monkeypatch.setattr(store_mod.WorkflowEventStore, "__init__", patched_init)
+
+    call_count = {"n": 0}
+
+    class ReasoningSummaryLLM:
+        async def ainvoke(self, messages, config=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return AIMessage(content="print('hello world')")
+            return AIMessage(
+                content="",
+                additional_kwargs={"reasoning_content": "## Summary\nWorkflow done"},
+            )
+
+    mock_parent_agent.llm = ReasoningSummaryLLM()
+
+    async def mock_ptc(context, executor, ptc_tools, override_allowed=frozenset()):
+        class Result:
+            stdout = "result_data_here"
+            stderr = ""
+
+        return Result()
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.code_execution.ptc.ptc_injection.inject_ptc_for_python_execution",
+        mock_ptc,
+    )
+
+    chunks = [
+        c
+        async for c in run_dynamic_workflow_stream(
+            parent_agent=mock_parent_agent,
+            query="test",
+            chat_history=[],
+            chat_id="c1",
+            message_id="m1",
+        )
+    ]
+
+    msg_chunks = [c for c in chunks if c.get("type") == "message"]
+    assert msg_chunks
+    assert "## Summary" in msg_chunks[0]["data"]
+    assert "None" not in msg_chunks[0]["data"]
 
 
 @pytest.mark.asyncio

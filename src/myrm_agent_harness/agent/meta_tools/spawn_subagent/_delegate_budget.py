@@ -11,7 +11,7 @@
 - _normalize_role: DelegateRole normalization
 - _BatchBudgetAdmission: Budget admission result
 - _emit_policy_denial_event, _policy_denied: Policy denial helpers
-- _resolve_model_name, _estimate_prompt_tokens, _get_budget_checker: Budget utilities
+- _resolve_model_name, _estimate_prompt_tokens, get_budget_checker: Budget utilities
 - _estimate_batch_cost: Generic batch cost estimation (shared by race + pre-flight)
 - _admit_race_budget: Batch budget admission (race-mode downgrade logic)
 - _build_dynamic_description: Dynamic tool description builder
@@ -75,7 +75,9 @@ def _cache_key(
     session_id: str = "",
     role: str = DelegateRole.LEAF.value,
 ) -> str:
-    raw = f"{session_id}::{agent_type}::{role}::{task}::{sorted((context or {}).items())}"
+    raw = (
+        f"{session_id}::{agent_type}::{role}::{task}::{sorted((context or {}).items())}"
+    )
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
@@ -90,7 +92,9 @@ def _get_cached(key: str) -> object | None:
 
 def _put_cache(key: str, data: object) -> None:
     now = time.time()
-    expired = [k for k, v in _result_cache.items() if (now - v.timestamp) > _CACHE_TTL_SECONDS]
+    expired = [
+        k for k, v in _result_cache.items() if (now - v.timestamp) > _CACHE_TTL_SECONDS
+    ]
     for k in expired:
         del _result_cache[k]
     if len(_result_cache) >= _CACHE_MAX_SIZE:
@@ -239,7 +243,9 @@ def _policy_denied(
 # ---------------------------------------------------------------------------
 
 
-def _resolve_model_name(parent_agent: BaseAgent, config_model: str | None) -> str | None:
+def _resolve_model_name(
+    parent_agent: BaseAgent, config_model: str | None
+) -> str | None:
     if config_model:
         return config_model
     llm = getattr(parent_agent, "llm", None)
@@ -259,11 +265,12 @@ def _estimate_prompt_tokens(task: TaskRequest) -> int:
     return max(1, (len(text) + 3) // 4)
 
 
-def _get_budget_checker(parent_agent: BaseAgent) -> object | None:
+def get_budget_checker(parent_agent: BaseAgent) -> object | None:
     tracker = getattr(parent_agent, "token_tracker", None)
     checker = getattr(tracker, "budget_checker", None)
     if checker is not None and (
-        callable(getattr(checker, "check_budget", None)) or callable(getattr(checker, "get_remaining_budget", None))
+        callable(getattr(checker, "check_budget", None))
+        or callable(getattr(checker, "get_remaining_budget", None))
     ):
         return checker
     parent_checker = getattr(parent_agent, "budget_checker", None)
@@ -287,7 +294,7 @@ async def _estimate_batch_cost(
     cost estimation succeeded (``admitted`` / ``unavailable``).  Callers layer
     their own policy on top (race-mode downgrade, pre-flight approval, etc.).
     """
-    checker = _get_budget_checker(parent_agent)
+    checker = get_budget_checker(parent_agent)
     remaining_budget_usd = None
     if checker is not None and hasattr(checker, "get_remaining_budget"):
         remaining = checker.get_remaining_budget()
@@ -356,8 +363,12 @@ async def _admit_race_budget(
     if estimate.status == "unavailable":
         return estimate
 
-    checker = _get_budget_checker(parent_agent)
-    if checker is not None and hasattr(checker, "check_budget") and estimate.estimated_cost_usd is not None:
+    checker = get_budget_checker(parent_agent)
+    if (
+        checker is not None
+        and hasattr(checker, "check_budget")
+        and estimate.estimated_cost_usd is not None
+    ):
         budget_status = checker.check_budget(estimate.estimated_cost_usd)
         if isinstance(budget_status, str):
             try:
@@ -392,12 +403,18 @@ async def _admit_race_budget(
 # ---------------------------------------------------------------------------
 
 
-async def _build_dynamic_description(catalog: SubagentCatalog, allowed_types: list[str] | None) -> str:
+async def _build_dynamic_description(
+    catalog: SubagentCatalog, allowed_types: list[str] | None
+) -> str:
     """Generate compact tool description with available subagent roster only."""
     from myrm_agent_harness.agent.sub_agents.prompts import DELEGATION_TOOL_GUIDANCE
 
     available_ids = await catalog.list_available()
-    visible_ids = [tid for tid in available_ids if tid in allowed_types] if allowed_types is not None else available_ids
+    visible_ids = (
+        [tid for tid in available_ids if tid in allowed_types]
+        if allowed_types is not None
+        else available_ids
+    )
 
     lines = [
         "Delegate tasks to specialized subagents. Use mode=single|batch|parallel|council|alternatives.",
@@ -410,7 +427,9 @@ async def _build_dynamic_description(catalog: SubagentCatalog, allowed_types: li
         cfg = await catalog.resolve(type_id)
         if cfg:
             label = f"{cfg.display_name} ({type_id})" if cfg.display_name else type_id
-            desc = cfg.description or (cfg.system_prompt[:80] if cfg.system_prompt else type_id)
+            desc = cfg.description or (
+                cfg.system_prompt[:80] if cfg.system_prompt else type_id
+            )
             lines.append(f"- '{type_id}': [{label}] {desc}")
 
     if len(visible_ids) > 50:

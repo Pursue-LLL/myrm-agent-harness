@@ -66,7 +66,7 @@ def _set_memory_injection_status(
     source: str | None = None,
     reason: str | None = None,
 ) -> None:
-    from myrm_agent_harness.agent._skill_agent_context import (
+    from myrm_agent_harness.agent.skill_agent.context import (
         set_memory_runtime_budget,
         set_memory_runtime_injection,
     )
@@ -95,7 +95,9 @@ class MemoryContextMiddleware(AgentMiddleware):
     name = "memory_context_middleware"
 
     async def awrap_model_call(
-        self, request: ModelRequest, handler: Callable[[ModelRequest], Awaitable[ModelResponse]]
+        self,
+        request: ModelRequest,
+        handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse:
         import copy
 
@@ -119,10 +121,15 @@ class MemoryContextMiddleware(AgentMiddleware):
                     continue
                 elif isinstance(msg.content, list) and len(msg.content) > 0:
                     first_block = msg.content[0]
-                    if not isinstance(first_block, dict) or first_block.get("type") != "text":
+                    if (
+                        not isinstance(first_block, dict)
+                        or first_block.get("type") != "text"
+                    ):
                         continue
                     first_text = first_block.get("text", "")
-                    if isinstance(first_text, str) and not first_text.startswith(prefix):
+                    if isinstance(first_text, str) and not first_text.startswith(
+                        prefix
+                    ):
                         new_content = copy.deepcopy(msg.content)
                         if not isinstance(new_content[0], dict):
                             continue
@@ -144,7 +151,7 @@ class MemoryContextMiddleware(AgentMiddleware):
         state = request.state
         state_extra = cast(dict[str, object], state)
         state_messages = state.get("messages", [])
-        from myrm_agent_harness.agent._skill_agent_context import (
+        from myrm_agent_harness.agent.skill_agent.context import (
             set_memory_runtime_budget,
             set_memory_runtime_injection,
         )
@@ -155,7 +162,7 @@ class MemoryContextMiddleware(AgentMiddleware):
         set_memory_runtime_injection(None)
 
         if _has_memory_context(state_messages) or _has_memory_context(request.messages):
-            from myrm_agent_harness.agent._skill_agent_context import get_memory_manager
+            from myrm_agent_harness.agent.skill_agent.context import get_memory_manager
 
             existing_manager: MemoryManager | None = get_memory_manager()
             if existing_manager:
@@ -167,7 +174,7 @@ class MemoryContextMiddleware(AgentMiddleware):
             return await handler(request)
 
         context = getattr(request.runtime, "context", None) if request.runtime else None
-        from myrm_agent_harness.agent._skill_agent_context import get_memory_manager
+        from myrm_agent_harness.agent.skill_agent.context import get_memory_manager
 
         manager: MemoryManager | None = get_memory_manager()
         if not manager:
@@ -189,8 +196,12 @@ class MemoryContextMiddleware(AgentMiddleware):
             )
             return await handler(request)
 
-        prefetched_snapshot = context.get("memory_brief_snapshot") if isinstance(context, dict) else None
-        injection_source = "snapshot" if isinstance(prefetched_snapshot, dict) else "fallback"
+        prefetched_snapshot = (
+            context.get("memory_brief_snapshot") if isinstance(context, dict) else None
+        )
+        injection_source = (
+            "snapshot" if isinstance(prefetched_snapshot, dict) else "fallback"
+        )
         static_result: object
         learned_result: object
         if isinstance(prefetched_snapshot, dict):
@@ -225,7 +236,10 @@ class MemoryContextMiddleware(AgentMiddleware):
             )
             return await handler(request)
         if not isinstance(static_result, dict):
-            logger.warning("Static memory context payload has unexpected type: %s", type(static_result).__name__)
+            logger.warning(
+                "Static memory context payload has unexpected type: %s",
+                type(static_result).__name__,
+            )
             _set_memory_injection_status(
                 manager,
                 state="not_applied",
@@ -235,8 +249,13 @@ class MemoryContextMiddleware(AgentMiddleware):
         memory_ctx: dict[str, object] = static_result
 
         if isinstance(learned_result, BaseException):
-            logger.warning("Learned memory context failed (non-fatal): %s", learned_result)
-            learned_ctx: dict[str, list[dict[str, str]]] = {"learned_rules": [], "learned_preferences": []}
+            logger.warning(
+                "Learned memory context failed (non-fatal): %s", learned_result
+            )
+            learned_ctx: dict[str, list[dict[str, str]]] = {
+                "learned_rules": [],
+                "learned_preferences": [],
+            }
         elif not isinstance(learned_result, dict):
             learned_ctx = {"learned_rules": [], "learned_preferences": []}
         else:
@@ -290,7 +309,9 @@ class MemoryContextMiddleware(AgentMiddleware):
         if hasattr(manager, "_config"):
             base_budget = manager._config.max_learned_context_chars
             if manager._config.model_context_tokens:
-                total_budget = max(base_budget, manager._config.model_context_tokens // 30)
+                total_budget = max(
+                    base_budget, manager._config.model_context_tokens // 30
+                )
             else:
                 total_budget = base_budget
             used_chars = len(stable_formatted or "") + len(untrusted_formatted or "")
@@ -298,7 +319,7 @@ class MemoryContextMiddleware(AgentMiddleware):
             state_extra["memory_budget_total"] = total_budget
 
             # Store normalized telemetry for server-side SSE/persistence hooks.
-            from myrm_agent_harness.agent._skill_agent_context import (
+            from myrm_agent_harness.agent.skill_agent.context import (
                 set_memory_runtime_budget,
             )
 

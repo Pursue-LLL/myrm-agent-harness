@@ -8,7 +8,7 @@ Utility library exports. Public interface for the utils module providing commonl
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Utility library exports. Public interface for the utils module providing commonly used helper functi | ✅ |
-| chat_utils.py | Core | Chat utility functions. Provides business-config-independent chat history conversion (generic part). | ✅ |
+| chat_utils.py | Core | Chat utility functions. Provides business-config-independent chat history conversion and content text extraction: `extract_text_content` (str / block-list / JSON) and `extract_answer_text` (LLM 响应答案提取，先剥离内联 think 标签块，再兼容 reasoning 模型 content 空时回退 `reasoning_content`). | ✅ |
 | coercion.py | Core | Defensive numeric coercion utilities. Provides parse_float, parse_int, parse_timeout handling inf/nan/negative/non-numeric inputs. | ✅ |
 | context_format.py | Core | Context formatting utilities. Unified management of document and context formatting logic with consi | ✅ |
 | device_fingerprint.py | Legacy | Pure utility for device identification. Retained for migration only; superseded by encryption_key.py | ✅ |

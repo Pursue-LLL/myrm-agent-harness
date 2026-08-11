@@ -1,4 +1,16 @@
-"""One-shot MCP workflow reminder appended after batch-read of function docs."""
+"""One-shot MCP workflow reminder appended after batch-read of function docs.
+
+[INPUT]
+- /mcp/*.md 函数文档批量读取结果
+
+[OUTPUT]
+- 追加到上下文的 MCP 下一步操作提示（限定工具选择与调用顺序）
+
+[POS]
+Progressive-disclosure aid: after the agent batch-reads MCP function docs, this
+reminder enforces a single constrained ``bash_code_execute_tool`` call that
+awaits every needed MCP function and emits exactly one ``[RESULT]``.
+"""
 
 from __future__ import annotations
 

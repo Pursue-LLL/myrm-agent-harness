@@ -6,6 +6,7 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message typ
 ..core.config::WikiConfig (POS: Wiki configuration center)
 ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 ..core.types::LintIssue, LintResult (POS: Wiki toolkit type definition center)
+utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 WikiLinter: Wiki health check and maintenance engine
@@ -52,6 +53,7 @@ from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
     publish_concept_article,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -392,8 +394,9 @@ class WikiLinter:
                 response = await self._llm.ainvoke([system_msg, human_msg])
                 raw_content = response.content
                 if inspect.isawaitable(raw_content):
-                    raw_content = await raw_content
-                response_text = str(raw_content).strip()
+                    response_text = str(await raw_content).strip()
+                else:
+                    response_text = extract_answer_text(response).strip()
 
                 try:
                     if response_text.startswith("```"):

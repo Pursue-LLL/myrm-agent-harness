@@ -1,7 +1,16 @@
 """Loop guard subsystem — unified inefficiency detection for Agent sessions.
 
-Re-exports the public API so callers can use
-``from ...guards.loop_guard import LoopGuard``.
+[POS]
+Detects looping/inefficient agent behaviors (repeated tool calls, no progress)
+and emits verdicts to interrupt or redirect the session.
+
+[INPUT]
+- AgentPhase / 工具调用序列与会话阶段
+
+[OUTPUT]
+- LoopGuard: 循环守卫
+- _stable_hash: 状态指纹哈希
+- VERDICT_ALLOW 等裁决常量
 """
 
 from .guard import LoopGuard, _stable_hash  # noqa: F401

@@ -10,6 +10,7 @@
 - lc_tool_call_to_openai_tool_call(): convert LangChain ToolCall to OpenAI format
 - convert_lc_messages_to_litellm(): convert LangChain messages to LiteLLM format while preserving explicit message names
 - convert_litellm_response_to_lc_message(): convert LiteLLM response to LangChain message
+- convert_dict_to_message(): convert DictFormat message to LangChain BaseMessage (preserves reasoning_content for reasoning models)
 - _extract_citations(): extract unified citation format from provider annotations
 
 [POS]
@@ -321,6 +322,12 @@ def convert_dict_to_message(
         content = _dict.get("content", "") or ""
         additional_kwargs: dict[str, Any] = {}
         tool_calls: list[ToolCall] = []
+
+        # The streaming path (_process_chunk) preserves reasoning_content into
+        # additional_kwargs; keep the non-streaming path in parity, otherwise
+        # reasoning-model answers (empty content) are lost during conversion.
+        if _dict.get("reasoning_content"):
+            additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
 
         if _dict.get("function_call"):
             additional_kwargs["function_call"] = dict(_dict["function_call"])

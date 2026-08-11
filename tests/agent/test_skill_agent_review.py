@@ -1,4 +1,4 @@
-"""Tests for SkillAgentReviewMixin (_skill_agent_review.py).
+"""Tests for SkillAgentReviewMixin (agent/skill_agent/review.py).
 
 Validates the session-end review orchestration layer:
 - _should_trigger_skill_review decision logic
@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from myrm_agent_harness.agent._skill_agent_review import SkillAgentReviewMixin
+from myrm_agent_harness.agent.skill_agent.review import SkillAgentReviewMixin
 from myrm_agent_harness.agent.types import AgentRunStatistics
 
 
@@ -224,14 +224,16 @@ class TestMaybeArchiveToWiki:
         agent._maybe_archive_to_wiki("query", ["short"])
 
     def test_skips_short_reply(self) -> None:
-        agent = FakeSkillAgent(
-            wiki_compiler=MagicMock(), wiki_structure=MagicMock()
-        )
+        agent = FakeSkillAgent(wiki_compiler=MagicMock(), wiki_structure=MagicMock())
         agent._maybe_archive_to_wiki("query", ["tiny"])
 
     @pytest.mark.asyncio
     async def test_schedules_archive_for_long_reply(self, tmp_path: Path) -> None:
-        from myrm_agent_harness.toolkits.wiki import WikiCompiler, WikiConfig, WikiStructure
+        from myrm_agent_harness.toolkits.wiki import (
+            WikiCompiler,
+            WikiConfig,
+            WikiStructure,
+        )
 
         wiki_dir = tmp_path / "wiki"
         structure = WikiStructure(wiki_dir)

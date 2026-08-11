@@ -97,7 +97,9 @@ class TestUseSkillPattern:
     """Tests for the regex that detects [use skill_name] prefix."""
 
     def test_basic_match(self) -> None:
-        m = SkillAgent._USE_SKILL_PATTERN.match("[use daily_report_skill] generate today's report")
+        m = SkillAgent._USE_SKILL_PATTERN.match(
+            "[use daily_report_skill] generate today's report"
+        )
         assert m is not None
         assert m.group(1) == "daily_report_skill"
         assert m.group(2) == "generate today's report"
@@ -172,8 +174,12 @@ class TestPreloadExplicitSkill:
     @pytest.mark.asyncio
     async def test_successful_preload(self) -> None:
         """Normal path: skill found, SOP loaded, query rewritten."""
-        skill = _make_skill(name="daily_report_skill", storage_skill_id="daily_report_skill")
-        backend = _StubSkillBackend(content_map={"daily_report_skill": "# Daily Report\n\nGenerate reports."})
+        skill = _make_skill(
+            name="daily_report_skill", storage_skill_id="daily_report_skill"
+        )
+        backend = _StubSkillBackend(
+            content_map={"daily_report_skill": "# Daily Report\n\nGenerate reports."}
+        )
         agent = _make_agent(skills=[skill], backend=backend)
 
         query, matched, _preloaded = await agent._preload_explicit_skill(
@@ -202,7 +208,9 @@ class TestPreloadExplicitSkill:
         )
         backend = _StubSkillBackend(content_map={"preload_skill": "# Preload\n\nSOP."})
 
-        from myrm_agent_harness.backends.skills.stats_collector import SkillStatsCollector
+        from myrm_agent_harness.backends.skills.stats_collector import (
+            SkillStatsCollector,
+        )
         from myrm_agent_harness.backends.skills.usage_recorder import (
             flush_skill_usage_stats,
             set_stats_collector,
@@ -224,10 +232,14 @@ class TestPreloadExplicitSkill:
     async def test_user_args_preserved(self) -> None:
         """User arguments after [use] must appear at the end of the injected query."""
         skill = _make_skill(name="test_skill")
-        backend = _StubSkillBackend(content_map={"test_skill": "# Test\n\nSOP content."})
+        backend = _StubSkillBackend(
+            content_map={"test_skill": "# Test\n\nSOP content."}
+        )
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, _, _preloaded = await agent._preload_explicit_skill("[use test_skill] my custom args here")
+        query, _, _preloaded = await agent._preload_explicit_skill(
+            "[use test_skill] my custom args here"
+        )
         assert query.endswith("my custom args here")
 
     @pytest.mark.asyncio
@@ -237,7 +249,9 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"test_skill": "# Test\n\nSOP."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use test_skill]")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use test_skill]"
+        )
         assert matched is not None
         assert "# Test" in query
         assert not query.rstrip().endswith("\n\n")
@@ -248,7 +262,9 @@ class TestPreloadExplicitSkill:
         agent = _make_agent(skills=None, backend=None)
         agent.skill_backend = None
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use test_skill] args")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use test_skill] args"
+        )
         assert matched is None
         assert query == "[use test_skill] args"
 
@@ -271,7 +287,9 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend()
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use broken_skill] args")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use broken_skill] args"
+        )
         assert matched is None
         assert query == "[use broken_skill] args"
 
@@ -282,7 +300,9 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"empty_skill": ""})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use empty_skill] args")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use empty_skill] args"
+        )
         assert matched is None
         assert query == "[use empty_skill] args"
 
@@ -292,7 +312,9 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend()
         agent = _make_agent(skills=[], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("Just a normal question")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "Just a normal question"
+        )
         assert matched is None
         assert query == "Just a normal question"
 
@@ -303,7 +325,9 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"test_skill": "# Test\n\nContent."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, _, _preloaded = await agent._preload_explicit_skill("[use test_skill] args")
+        query, _, _preloaded = await agent._preload_explicit_skill(
+            "[use test_skill] args"
+        )
         first_line = query.split("\n")[0]
         assert first_line.startswith("[IMPORTANT:")
         assert "test_skill" in first_line
@@ -315,10 +339,14 @@ class TestPreloadExplicitSkill:
         skill = _make_skill(name="ffmpeg_skill", storage_skill_id="ffmpeg_skill")
         skill.available = False
         skill.unavailable_reason = "ffmpeg not found on PATH"
-        backend = _StubSkillBackend(content_map={"ffmpeg_skill": "# FFmpeg\n\nConvert videos."})
+        backend = _StubSkillBackend(
+            content_map={"ffmpeg_skill": "# FFmpeg\n\nConvert videos."}
+        )
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use ffmpeg_skill] convert file.mp4")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use ffmpeg_skill] convert file.mp4"
+        )
         assert matched is not None
         assert "WARNING" in query
         assert "UNAVAILABLE" in query
@@ -332,7 +360,9 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"test_skill": "# Test\n\nContent."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, _, _preloaded = await agent._preload_explicit_skill("[use test_skill] args")
+        query, _, _preloaded = await agent._preload_explicit_skill(
+            "[use test_skill] args"
+        )
         assert "UNAVAILABLE" not in query
         assert "WARNING" not in query
 
@@ -345,7 +375,9 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"gpu_skill": "# GPU\n\nAccelerate."})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use gpu_skill] run")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use gpu_skill] run"
+        )
         assert matched is not None
         assert "dependency requirements not met" in query
 
@@ -362,7 +394,9 @@ class TestPreloadExplicitSkill:
             "myrm_agent_harness.agent.meta_tools.skills.select.get_skill_document",
             side_effect=RuntimeError("unexpected failure"),
         ):
-            query, matched, _preloaded = await agent._preload_explicit_skill("[use crash_skill] test")
+            query, matched, _preloaded = await agent._preload_explicit_skill(
+                "[use crash_skill] test"
+            )
 
         assert matched is None
         assert query == "[use crash_skill] test"
@@ -387,7 +421,9 @@ class TestPreloadExplicitSkill:
         )
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use deploy_skill] prod")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use deploy_skill] prod"
+        )
         assert matched is not None
         assert "[Linked files]" in query
         assert "scripts/deploy.sh" in query
@@ -398,11 +434,15 @@ class TestPreloadExplicitSkill:
         """SOP containing an error marker should trigger fallback."""
         skill = _make_skill(name="err_skill", storage_skill_id="err_skill")
         backend = _StubSkillBackend(
-            content_map={"err_skill": "# err_skill\n\nError: failed to load skill content"}
+            content_map={
+                "err_skill": "# err_skill\n\nError: failed to load skill content"
+            }
         )
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use err_skill] test")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use err_skill] test"
+        )
         assert matched is None
         assert query == "[use err_skill] test"
 
@@ -414,11 +454,16 @@ class TestPreloadExplicitSkill:
         s1 = _make_skill(name="skill_a", storage_skill_id="skill_a")
         s2 = _make_skill(name="skill_b", storage_skill_id="skill_b")
         backend = _StubSkillBackend(
-            content_map={"skill_a": "# Skill A\n\nDo A.", "skill_b": "# Skill B\n\nDo B."}
+            content_map={
+                "skill_a": "# Skill A\n\nDo A.",
+                "skill_b": "# Skill B\n\nDo B.",
+            }
         )
         agent = _make_agent(skills=[s1, s2], backend=backend)
 
-        query, matched, preloaded = await agent._preload_explicit_skill("[use skill_a,skill_b] run both")
+        query, matched, preloaded = await agent._preload_explicit_skill(
+            "[use skill_a,skill_b] run both"
+        )
         assert matched is not None
         assert matched.name == "skill_a"
         assert len(preloaded) == 2
@@ -452,7 +497,9 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend()
         agent = _make_agent(skills=[], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use x,y,z] args")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use x,y,z] args"
+        )
         assert matched is None
         assert query == "[use x,y,z] args"
 
@@ -466,7 +513,9 @@ class TestPreloadExplicitSkill:
         backend = _StubSkillBackend(content_map={"big": big_sop, "small": small_sop})
         agent = _make_agent(skills=[s1, s2], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use big,small] test")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use big,small] test"
+        )
         assert matched is not None
         assert "# Big Skill" in query
         assert "# Small Skill" not in query
@@ -519,7 +568,9 @@ class TestSkillDirTemplateVariable:
         backend = _StubSkillBackend(content_map={"script_skill": sop_with_template})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use script_skill] run it")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use script_skill] run it"
+        )
         assert matched is not None
         assert "${SKILL_DIR}" not in query
         assert "/home/user/.claude/skills/script_skill/scripts/main.py" in query
@@ -536,9 +587,12 @@ class TestSkillDirTemplateVariable:
         backend = _StubSkillBackend(content_map={"mcp_skill": sop})
         agent = _make_agent(skills=[skill], backend=backend)
 
-        query, matched, _preloaded = await agent._preload_explicit_skill("[use mcp_skill] test")
+        query, matched, _preloaded = await agent._preload_explicit_skill(
+            "[use mcp_skill] test"
+        )
         assert matched is not None
         assert "${SKILL_DIR}" in query
+
 
 # ---------------------------------------------------------------------------
 # Integration: run() method behavior
@@ -558,7 +612,9 @@ class TestRunPreloadIntegration:
         preload_called = False
         original_preload = agent._preload_explicit_skill
 
-        async def _tracking_preload(q: str) -> tuple[str, SkillMetadata | None, list[SkillMetadata]]:
+        async def _tracking_preload(
+            q: str,
+        ) -> tuple[str, SkillMetadata | None, list[SkillMetadata]]:
             nonlocal preload_called
             preload_called = True
             return await original_preload(q)
@@ -576,7 +632,9 @@ class TestRunPreloadIntegration:
 
         # The run() method guards with `isinstance(query, str)`
         # A list query would not match, so preload is never called
-        query_as_list: list[dict[str, object]] = [{"type": "text", "text": "[use test_skill]"}]
+        query_as_list: list[dict[str, object]] = [
+            {"type": "text", "text": "[use test_skill]"}
+        ]
 
         # We verify the pattern doesn't match non-string input
         assert not isinstance(query_as_list, str)
@@ -584,7 +642,7 @@ class TestRunPreloadIntegration:
     @pytest.mark.asyncio
     async def test_run_registers_all_bundle_preloaded_skills(self) -> None:
         """Bundle preload must register every loaded skill for attenuation union."""
-        from myrm_agent_harness.agent._skill_agent_context import (
+        from myrm_agent_harness.agent.skill_agent.context import (
             add_loaded_skill,
             get_loaded_skills,
             reset_loaded_skills,
@@ -593,11 +651,16 @@ class TestRunPreloadIntegration:
         s1 = _make_skill(name="skill_a", storage_skill_id="skill_a")
         s2 = _make_skill(name="skill_b", storage_skill_id="skill_b")
         backend = _StubSkillBackend(
-            content_map={"skill_a": "# Skill A\n\nDo A.", "skill_b": "# Skill B\n\nDo B."}
+            content_map={
+                "skill_a": "# Skill A\n\nDo A.",
+                "skill_b": "# Skill B\n\nDo B.",
+            }
         )
         agent = _make_agent(skills=[s1, s2], backend=backend)
 
-        _query, _active, preloaded_skills = await agent._preload_explicit_skill("[use skill_a,skill_b] run")
+        _query, _active, preloaded_skills = await agent._preload_explicit_skill(
+            "[use skill_a,skill_b] run"
+        )
 
         reset_loaded_skills()
         for skill_meta in preloaded_skills:

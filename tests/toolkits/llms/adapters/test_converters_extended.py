@@ -162,6 +162,30 @@ class TestConvertDictToMessage:
         assert isinstance(msg, AIMessage)
         assert msg.additional_kwargs.get("function_call") == {"name": "old", "arguments": "{}"}
 
+    def test_assistant_preserves_reasoning_content(self) -> None:
+        """Non-streaming path must keep reasoning_content like _process_chunk does,
+        otherwise reasoning-model answers are lost for content-less responses."""
+        msg = convert_dict_to_message(
+            {
+                "role": "assistant",
+                "content": "",
+                "reasoning_content": "reasoned output",
+            }
+        )
+        assert isinstance(msg, AIMessage)
+        assert msg.additional_kwargs.get("reasoning_content") == "reasoned output"
+
+    def test_assistant_skips_empty_reasoning_content(self) -> None:
+        msg = convert_dict_to_message(
+            {
+                "role": "assistant",
+                "content": "answer",
+                "reasoning_content": "",
+            }
+        )
+        assert isinstance(msg, AIMessage)
+        assert "reasoning_content" not in msg.additional_kwargs
+
 
 class TestParseToolCallArgsHooks:
     def test_parse_tool_call_args_logs_when_unsafe(self) -> None:

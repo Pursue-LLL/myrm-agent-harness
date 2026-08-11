@@ -381,7 +381,9 @@ async def run_agent_loop(
             get_process_managed_approval_policy,
         )
 
-        llm_model = agent_state.llm.model_name or getattr(agent_state.llm, "model", None)
+        llm_model = agent_state.llm.model_name or getattr(
+            agent_state.llm, "model", None
+        )
         _, primary_model_slug = parse_litellm_model(llm_model or "")
         set_agent_primary_model_slug(primary_model_slug)
         set_managed_approval_policy(get_process_managed_approval_policy())
@@ -497,7 +499,7 @@ async def run_agent_loop(
         query_text = extract_query_text(query)
 
         # Store current query as task intent for skill evolution context
-        from myrm_agent_harness.agent._skill_agent_context import set_task_intent
+        from myrm_agent_harness.agent.skill_agent.context import set_task_intent
 
         set_task_intent(str(query_text)[:500])
 

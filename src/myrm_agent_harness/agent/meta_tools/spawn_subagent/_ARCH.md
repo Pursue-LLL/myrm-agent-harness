@@ -24,3 +24,4 @@ Detailed design: [SUB_AGENT_SYSTEM.md](../../sub_agents/SUB_AGENT_SYSTEM.md) · 
 
 - `agent.sub_agents` (SubagentManager, catalog, manifest, orchestrator)
 - `agent.parallel.runner` (batch concurrent execution)
+- `utils.chat_utils` (extract_answer_text — tournament judge 响应提取)

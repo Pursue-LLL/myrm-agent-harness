@@ -53,16 +53,28 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ConfigIncompleteError": ("myrm_agent_harness.api.config", "ConfigIncompleteError"),
     "AgentProfileBackend": ("myrm_agent_harness.api.protocols", "AgentProfileBackend"),
     "HookEvent": ("myrm_agent_harness.api.protocols", "HookEvent"),
-    "HookRegistryProtocol": ("myrm_agent_harness.api.protocols", "HookRegistryProtocol"),
+    "HookRegistryProtocol": (
+        "myrm_agent_harness.api.protocols",
+        "HookRegistryProtocol",
+    ),
     "IntegrationProvider": ("myrm_agent_harness.api.protocols", "IntegrationProvider"),
     "KanbanStore": ("myrm_agent_harness.api.protocols", "KanbanStore"),
     "LLMConfig": ("myrm_agent_harness.api.config", "LLMConfig"),
     "SkillAgent": ("myrm_agent_harness.api.factory", "SkillAgent"),
     "SkillBackend": ("myrm_agent_harness.api.protocols", "SkillBackend"),
     "create_skill_agent": ("myrm_agent_harness.api.factory", "create_skill_agent"),
-    "get_distribution_mode": ("myrm_agent_harness.distribution.probe", "get_distribution_mode"),
-    "is_compiled_distribution": ("myrm_agent_harness.distribution.probe", "is_compiled_distribution"),
-    "track_background_task": ("myrm_agent_harness.agent._skill_agent_context", "track_background_task"),
+    "get_distribution_mode": (
+        "myrm_agent_harness.distribution.probe",
+        "get_distribution_mode",
+    ),
+    "is_compiled_distribution": (
+        "myrm_agent_harness.distribution.probe",
+        "is_compiled_distribution",
+    ),
+    "track_background_task": (
+        "myrm_agent_harness.agent.skill_agent.context",
+        "track_background_task",
+    ),
 }
 
 
@@ -72,7 +84,9 @@ if __debug__:
     _missing = _all_set - _lazy_set
     _extra = _lazy_set - _all_set
     if _missing or _extra:
-        raise RuntimeError(f"api: __all__ and _EXPORTS mismatch: missing={_missing}, extra={_extra}")
+        raise RuntimeError(
+            f"api: __all__ and _EXPORTS mismatch: missing={_missing}, extra={_extra}"
+        )
 
 
 def __getattr__(name: str) -> object:

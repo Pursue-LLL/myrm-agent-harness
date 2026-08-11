@@ -329,7 +329,7 @@ def test_record_skill_execution():
 
     with (
         patch(
-            "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills"
+            "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills"
         ) as mock_skills,
         patch(
             "myrm_agent_harness.agent.skills.evolution.infra.integration.get_global_evolution_integration"
@@ -486,14 +486,20 @@ def test_reset_loop_guard():
     )
 
     guard = get_loop_guard()
-    with patch.object(guard, "reset") as mock_reset, patch.object(guard, "_configure_budget"):
+    with (
+        patch.object(guard, "reset") as mock_reset,
+        patch.object(guard, "_configure_budget"),
+    ):
         reset_loop_guard()
         mock_reset.assert_called_once_with(
             preserve_error_signatures=False,
             preserve_call_window=False,
         )
 
-    with patch.object(guard, "reset") as mock_reset, patch.object(guard, "_configure_budget"):
+    with (
+        patch.object(guard, "reset") as mock_reset,
+        patch.object(guard, "_configure_budget"),
+    ):
         reset_loop_guard(is_resume=True)
         mock_reset.assert_called_once_with(
             preserve_error_signatures=True,
@@ -1157,8 +1163,9 @@ async def test_handle_execution_error_tool_stuck_fallthrough_if_interrupt_return
 
     e = ToolStuckException("TOOL_STUCK_EXCEPTION: stuck")
 
-    with patch("langgraph.types.interrupt", return_value=None), patch(
-        "myrm_agent_harness.agent.hooks.executor.fire_hook"
+    with (
+        patch("langgraph.types.interrupt", return_value=None),
+        patch("myrm_agent_harness.agent.hooks.executor.fire_hook"),
     ):
         result = await _handle_execution_error(
             e, "bash_code_execute_tool", "call_999", {}

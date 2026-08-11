@@ -7,6 +7,7 @@
 - toolkits.memory.chunking::chunk_conversation (POS: exchange-pair chunking strategy)
 - agent.security.detection.deep_pii_detector::pseudonymize_deep_pii (POS: LLM deep PII detection)
 - langchain_core::BaseChatModel (POS: LLM for extraction)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 - build_extraction_messages(): Construct messages for extraction
@@ -99,7 +100,7 @@ async def _notify_extraction_lifecycle(
 
 
 from myrm_agent_harness.toolkits.memory.types import AnyMemory, ConversationMemory  # noqa: E402
-from myrm_agent_harness.utils.chat_utils import ChatHistoryReq  # noqa: E402
+from myrm_agent_harness.utils.chat_utils import ChatHistoryReq, extract_answer_text  # noqa: E402
 
 logger = get_agent_logger(__name__)
 
@@ -146,7 +147,7 @@ def create_extraction_llm_func(
             else [HumanMessage(content=prompt)]
         )
         resp = await llm.ainvoke(msgs)
-        return str(resp.content)
+        return extract_answer_text(resp)
 
     return llm_func
 

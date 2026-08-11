@@ -13,10 +13,13 @@ browser_manage tool for session management. Includes domain skill execution (run
 from __future__ import annotations
 
 import json
+import logging
 from typing import TYPE_CHECKING
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from ..session import BrowserSession
@@ -353,8 +356,13 @@ def create_manage_tool(session: BrowserSession):
             return str(result)
         except TimeoutError:
             return f"Error: domain tool '{skill_id}:{tool_name}' timed out after 30s"
-        except Exception:
-            return f"Error executing domain tool '{skill_id}:{tool_name}'"
+        except Exception as exc:
+            logger.exception(
+                "Domain tool execution failed for %s:%s",
+                skill_id,
+                tool_name,
+            )
+            return f"Error executing domain tool '{skill_id}:{tool_name}': {exc}"
         finally:
             import os as _os
 

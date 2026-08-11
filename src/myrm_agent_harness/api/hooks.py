@@ -1,7 +1,7 @@
 """Stable integration hooks for product consumers (server, desktop).
 
 [INPUT]
-- myrm_agent_harness.agent._skill_agent_context (POS: per-agent runtime context registry)
+- myrm_agent_harness.agent.skill_agent.context (POS: per-agent runtime context registry)
 - myrm_agent_harness.agent._internals.memory_extraction (POS: session memory extraction helpers)
 - myrm_agent_harness.agent.middlewares._session_context (POS: middleware session ContextVar registry)
 - myrm_agent_harness.agent.meta_tools.bash._background.registry (POS: background bash job registry)
@@ -22,16 +22,6 @@ from myrm_agent_harness.agent._internals.memory_extraction import (
     auto_extract_memories,
     create_extraction_llm_func,
     persist_extracted_memories,
-)
-from myrm_agent_harness.agent._skill_agent_context import (
-    get_memory_manager,
-    get_memory_runtime_budget,
-    get_memory_runtime_injection,
-    get_memory_runtime_injection_contract,
-    get_task_intent,
-    invalidate_permissions,
-    set_permission_invalidation_callback,
-    set_task_intent,
 )
 from myrm_agent_harness.agent.context_management.infra.evicted_content import (
     EVICTED_BASENAME_PATTERN,
@@ -61,6 +51,16 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_terminal_errors,
     set_approval_user_id,
     set_security_config,
+)
+from myrm_agent_harness.agent.skill_agent.context import (
+    get_memory_manager,
+    get_memory_runtime_budget,
+    get_memory_runtime_injection,
+    get_memory_runtime_injection_contract,
+    get_task_intent,
+    invalidate_permissions,
+    set_permission_invalidation_callback,
+    set_task_intent,
 )
 from myrm_agent_harness.agent.streaming.step_builder import build_step_data
 from myrm_agent_harness.utils.runtime.background_job_finish_registry import (

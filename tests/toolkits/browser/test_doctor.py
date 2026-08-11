@@ -314,3 +314,65 @@ def test_format_report_with_warnings_and_errors() -> None:
     assert "" in output
     assert "recommendation" in output.lower()
     assert isinstance(output, str)
+
+
+def test_check_extension_relay_requires_access_policy() -> None:
+    """Relay ready without domains must not report OK."""
+    import json
+    from unittest.mock import patch
+
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        CheckStatus,
+        _check_extension_relay,
+    )
+
+    payload = json.dumps(
+        {
+            "relay_cdp_ready": True,
+            "access_policy_valid": False,
+            "auth_token_required": False,
+            "auth_token_configured": True,
+        }
+    ).encode("utf-8")
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = payload
+    mock_response.__enter__ = MagicMock(return_value=mock_response)
+    mock_response.__exit__ = MagicMock(return_value=False)
+
+    with patch("urllib.request.urlopen", return_value=mock_response):
+        result = _check_extension_relay()
+
+    assert result.status == CheckStatus.WARNING
+    assert "access policy" in result.message.lower()
+    assert result.fix is not None
+
+
+def test_check_extension_relay_ok_when_policy_valid() -> None:
+    """Relay and access policy both ready should report OK."""
+    import json
+    from unittest.mock import patch
+
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        CheckStatus,
+        _check_extension_relay,
+    )
+
+    payload = json.dumps(
+        {
+            "relay_cdp_ready": True,
+            "access_policy_valid": True,
+            "auth_token_required": False,
+            "auth_token_configured": True,
+        }
+    ).encode("utf-8")
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = payload
+    mock_response.__enter__ = MagicMock(return_value=mock_response)
+    mock_response.__exit__ = MagicMock(return_value=False)
+
+    with patch("urllib.request.urlopen", return_value=mock_response):
+        result = _check_extension_relay()
+
+    assert result.status == CheckStatus.OK

@@ -223,7 +223,7 @@ def check_trust_attenuation(tool_name: str) -> str | None:
             f"Available tools: {', '.join(sorted(allowed))}"
         )
 
-    from myrm_agent_harness.agent._skill_agent_context import get_loaded_skills
+    from myrm_agent_harness.agent.skill_agent.context import get_loaded_skills
     from myrm_agent_harness.agent.skills.runtime.attenuator import (
         READ_ONLY_TOOLS,
         attenuate_tools,

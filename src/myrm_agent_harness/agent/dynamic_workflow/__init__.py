@@ -5,6 +5,7 @@
 - dynamic_workflow.store::WorkflowEventStore (POS: L2 persistent cache for durability)
 - dynamic_workflow.tools::SpawnSubagentTool (POS: PTC bridge tool)
 - dynamic_workflow.llm_query_tool::LlmQueryTool, LlmQueryBatchedTool (POS: PTC lightweight LLM sub-call primitives)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — str / block list / think 剥离 / reasoning 回退)
 - toolkits.code_execution.ptc::inject_ptc_for_python_execution (POS: Sandbox execution)
 - utils.runtime.cancellation::CancellationToken
 - dynamic_workflow.preflight::WorkflowPlanReview, WorkflowApprovalGate (POS: Trust-layer preflight)
@@ -38,6 +39,7 @@ from myrm_agent_harness.agent.dynamic_workflow.llm_query_tool import (
     LlmQueryBatchedTool,
     LlmQueryTool,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.agent.dynamic_workflow.notify_stream import (
     drain_notify_queue_nowait,
     iter_notify_events_while_task_runs,
@@ -115,7 +117,7 @@ IMPORTANT RULES:
    ```
 3. For simple tasks (web search, data lookup), use agent_type="generalPurpose".
 4. Print a final JSON summary with ALL results using: print(json.dumps(results, indent=2, ensure_ascii=False))
-5. Do NOT use Date.now(), random(), or any non-deterministic functions.
+5. Do NOT use time.time(), datetime.now(), random(), or any non-deterministic functions.
 6. For analysis-only tasks (code review, security audit, scanning, performance analysis), \
 pass readonly=True to prevent the sub-agent from modifying files.
 7. For research, competitor analysis, audits, or fact-checking: use readonly=True and \
@@ -521,11 +523,7 @@ async def run_dynamic_workflow_stream(
             HumanMessage(content=query),
         ]
         response = await llm.ainvoke(messages)
-        raw_script = (
-            response.content
-            if isinstance(response.content, str)
-            else str(response.content)
-        )
+        raw_script = extract_answer_text(response)
         script_code = strip_script_markdown(raw_script)
 
         yield {
@@ -815,11 +813,7 @@ async def run_dynamic_workflow_stream(
 
         try:
             summary_response = await parent_agent.llm.ainvoke(summary_messages)
-            summary_text = (
-                summary_response.content
-                if isinstance(summary_response.content, str)
-                else str(summary_response.content)
-            )
+            summary_text = extract_answer_text(summary_response)
         except Exception as e:
             logger.warning(
                 "Summarization LLM call failed, falling back to raw output: %s", e

@@ -95,3 +95,48 @@ async def test_run_tournament_bracket(mock_merge):
     assert "tournament_winner" in final_result
     assert parent.llm.ainvoke.called
     assert mock_merge.called
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+async def test_run_tournament_bracket_judge_picks_b(mock_merge):
+    """Judge returning 'B' must select the second candidate, not default to the first."""
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import _run_tournament_bracket
+
+    parent = _make_mock_parent()
+    mock_response = MagicMock()
+    mock_response.content = "B"
+    parent.llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    results = [
+        {"task_id": "task-1", "result": "Output A", "status": "COMPLETED", "success": True},
+        {"task_id": "task-2", "result": "Output B", "status": "COMPLETED", "success": True},
+    ]
+    mock_merge.return_value = {"merged": True}
+
+    final_result = await _run_tournament_bracket(parent, results, "Best code")
+
+    assert final_result["result"]["task_id"] == "task-2"
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.workspace_coordination.batch_merge.merge_batch_workspace_sync_backs")
+async def test_run_tournament_bracket_reasoning_model_content_empty(mock_merge):
+    """A reasoning model (content empty, answer in reasoning_content) must still pick the winner."""
+    from myrm_agent_harness.agent.meta_tools.spawn_subagent._delegate_batch import _run_tournament_bracket
+
+    parent = _make_mock_parent()
+    mock_response = MagicMock()
+    mock_response.content = ""
+    mock_response.additional_kwargs = {"reasoning_content": "B is better"}
+    parent.llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    results = [
+        {"task_id": "task-1", "result": "Output A", "status": "COMPLETED", "success": True},
+        {"task_id": "task-2", "result": "Output B", "status": "COMPLETED", "success": True},
+    ]
+    mock_merge.return_value = {"merged": True}
+
+    final_result = await _run_tournament_bracket(parent, results, "Best code")
+
+    assert final_result["result"]["task_id"] == "task-2"

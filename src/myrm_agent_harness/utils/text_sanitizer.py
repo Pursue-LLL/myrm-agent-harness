@@ -2,11 +2,11 @@
 
 [INPUT]
 - re::re (POS: Python 正则表达式库)
-- agent.streaming.reasoning_scrubber::THINKING_TAG_NAMES (POS: canonical thinking tag name set)
+- core.events::THINKING_TAG_NAMES (POS: canonical thinking tag name set)
 
 [OUTPUT]
 - sanitize_llm_output(): 移除 LLM 推理标签、工具协议标签、控制 token 和无效 Unicode
-- extract_and_strip_think_blocks(): 静态提取 reasoning 内容并剥离原文本标签，用于历史记录提纯
+- extract_and_strip_think_blocks(): 静态提取 reasoning 内容并剥离原文本标签，用于历史记录提纯与 LLM 响应答案提取（chat_utils.extract_answer_text 复用）
 
 [POS]
 LLM streaming output sanitizer. Four-layer filtering ensures clean, garble-free text for user display.

@@ -1,4 +1,17 @@
-"""RTF file parser."""
+"""RTF file parser.
+
+[INPUT]
+- file path: RTF 文件
+- myrm_agent_harness.toolkits.file_parsers.base::FileParser (POS: 解析器基类)
+
+[OUTPUT]
+- RtfParser.parse: RTF → 纯文本（控制词剥离，best-effort）
+- RtfParser.supported_extensions: [".rtf"]
+
+[POS]
+RTF parsing layer that strips control words/groups to produce plain text for
+downstream ingestion.
+"""
 
 from __future__ import annotations
 

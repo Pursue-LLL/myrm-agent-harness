@@ -1,9 +1,19 @@
 """Compatibility facade for ``toolkits.memory.memory_search_policy``.
 
-Implementation lives in ``agent_surface/memory_search_policy.py``. Keep this import path stable.
+[POS]
+Stable import-path shim. Re-exports the canonical implementation from
+``agent_surface/memory_search_policy.py`` so legacy callers keep working unchanged.
+
+[INPUT]
+- myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy (canonical implementation)
+
+[OUTPUT]
+- Module-level re-exports of every public name in the canonical module
 """
 
-from myrm_agent_harness.toolkits.memory.agent_surface import memory_search_policy as _impl
+from myrm_agent_harness.toolkits.memory.agent_surface import (
+    memory_search_policy as _impl,
+)
 
 for _name, _value in vars(_impl).items():
     if _name.startswith("__"):

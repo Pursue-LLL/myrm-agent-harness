@@ -1,4 +1,16 @@
-"""Map wiki lint issue types to user-facing action kinds for health reports."""
+"""Map wiki lint issue types to user-facing action kinds for health reports.
+
+[INPUT]
+- issue_type: wiki lint 问题类型字符串
+
+[OUTPUT]
+- WikiIssueActionKind: Literal 类型（repair / recompile / navigate / info）
+- issue_action_kind(): issue_type → action kind 映射
+
+[POS]
+Translation layer between internal wiki lint diagnostics and the user-facing
+action vocabulary used in wiki health reports.
+"""
 
 from __future__ import annotations
 

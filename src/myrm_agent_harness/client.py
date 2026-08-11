@@ -2,7 +2,7 @@
 Myrm Agent Harness SDK Facade.
 
 [INPUT]
-- agent.skill_agent_factory::create_skill_agent (POS: Agent factory function)
+- agent.skill_agent.factory::create_skill_agent (POS: Agent factory function)
 - agent.skill_agent::SkillAgent (POS: Skill Agent implementation)
 - agent.types::AgentRuntimeSpec, EngineParams, WorkspaceBinding (POS: Agent core runtime type definitions)
 - agent.config::LLMConfig (POS: LLM configuration)
@@ -22,8 +22,12 @@ from langchain_core.language_models import BaseChatModel
 
 from myrm_agent_harness.agent.config import LLMConfig
 from myrm_agent_harness.agent.skill_agent import SkillAgent
-from myrm_agent_harness.agent.skill_agent_factory import create_skill_agent
-from myrm_agent_harness.agent.types import AgentRuntimeSpec, EngineParams, WorkspaceBinding
+from myrm_agent_harness.agent.skill_agent.factory import create_skill_agent
+from myrm_agent_harness.agent.types import (
+    AgentRuntimeSpec,
+    EngineParams,
+    WorkspaceBinding,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +83,9 @@ class AgentClient:
         self.allowed_tools.extend(tools)
         return self
 
-    def with_skills(self, skill_ids: list[str], configs: dict[str, dict] | None = None) -> AgentClient:
+    def with_skills(
+        self, skill_ids: list[str], configs: dict[str, dict] | None = None
+    ) -> AgentClient:
         """Enable custom skills."""
         self.skill_ids.extend(skill_ids)
         if configs:
@@ -139,7 +145,9 @@ class AgentClient:
                 if event_type == "reasoning" and on_thought:
                     on_thought(str(event.get("data", "")))
                 elif event_type == "tasks_steps" and on_tool_call:
-                    tool_name = str(event.get("tool_name", "") or event.get("step_key", ""))
+                    tool_name = str(
+                        event.get("tool_name", "") or event.get("step_key", "")
+                    )
                     on_tool_call(tool_name, str(event.get("data", "")))
                 elif event_type == "message":
                     chunk = str(event.get("data", ""))

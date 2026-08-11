@@ -145,6 +145,22 @@ async def test_extract_concepts_from_doc(wiki_structure: WikiStructure, mock_llm
 
 
 @pytest.mark.asyncio
+async def test_extract_concepts_reasoning_model_content_empty(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
+    """Reasoning 模型 content 为空时回退到 additional_kwargs["reasoning_content"]。"""
+    compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
+    raw = wiki_structure.raw_dir / "test.md"
+    raw.write_text("Machine learning is about data.")
+
+    mock_llm.ainvoke.return_value = AIMessage(
+        content="",
+        additional_kwargs={"reasoning_content": '[{"name": "ML", "definition": "Machine Learning"}]'},
+    )
+    concepts = await compiler._extract_concepts_from_doc(raw)
+    assert len(concepts) == 1
+    assert concepts[0].name == "ML"
+
+
+@pytest.mark.asyncio
 async def test_extract_concepts_from_doc_file_not_found(wiki_structure: WikiStructure, mock_llm: AsyncMock) -> None:
     compiler = WikiCompiler(mock_llm, wiki_structure, WikiConfig())
     concepts = await compiler._extract_concepts_from_doc(Path("/nonexistent.md"))

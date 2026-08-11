@@ -1,9 +1,19 @@
 """Compatibility facade for ``toolkits.memory.memory_search_execution``.
 
-Implementation lives in ``agent_surface/memory_search_execution.py``. Keep this import path stable.
+[POS]
+Stable import-path shim. Re-exports the canonical implementation from
+``agent_surface/memory_search_execution.py`` so legacy callers keep working unchanged.
+
+[INPUT]
+- myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution (canonical implementation)
+
+[OUTPUT]
+- Module-level re-exports of every public name in the canonical module
 """
 
-from myrm_agent_harness.toolkits.memory.agent_surface import memory_search_execution as _impl
+from myrm_agent_harness.toolkits.memory.agent_surface import (
+    memory_search_execution as _impl,
+)
 
 for _name, _value in vars(_impl).items():
     if _name.startswith("__"):

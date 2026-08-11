@@ -85,6 +85,18 @@ class TestCreateExtractionLlmFunc:
         call_args = mock_llm.ainvoke.call_args[0][0]
         assert len(call_args) == 1
 
+    @pytest.mark.asyncio
+    async def test_reasoning_model_content_empty_falls_back(self) -> None:
+        """Reasoning 模型 content 为空时回退到 additional_kwargs["reasoning_content"]。"""
+        mock_llm = AsyncMock()
+        mock_llm.ainvoke.return_value = MagicMock(
+            content="", additional_kwargs={"reasoning_content": "提取到的记忆"}
+        )
+
+        func = create_extraction_llm_func(mock_llm)
+        result = await func("system prompt", "user prompt")
+        assert result == "提取到的记忆"
+
 
 class TestAutoExtractMemories:
     @pytest.mark.asyncio
@@ -268,7 +280,9 @@ class TestPersistExtractedMemories:
         import tempfile
         from pathlib import Path
 
-        from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
+        from myrm_agent_harness.agent.security.detection.pseudonym_store import (
+            PseudonymStore,
+        )
 
         mock_memory = MagicMock()
         mock_memory.content = "User has penicillin allergy"
@@ -282,9 +296,17 @@ class TestPersistExtractedMemories:
         store = PseudonymStore(str(Path(tmp) / "test.db"))
 
         async def _mock_llm(_s: str, _u: str) -> str:
-            return json.dumps([[
-                {"original_text": "penicillin allergy", "privacy_type": "Medical Health", "privacy_level": "PL3"}
-            ]])
+            return json.dumps(
+                [
+                    [
+                        {
+                            "original_text": "penicillin allergy",
+                            "privacy_type": "Medical Health",
+                            "privacy_level": "PL3",
+                        }
+                    ]
+                ]
+            )
 
         with (
             patch(
@@ -300,7 +322,9 @@ class TestPersistExtractedMemories:
             mock_cls.return_value = mock_extractor
 
             count = await persist_extracted_memories(
-                [MagicMock()], mock_manager, "chat1",
+                [MagicMock()],
+                mock_manager,
+                "chat1",
                 deep_scan_llm_func=_mock_llm,
             )
             assert count >= 0
@@ -326,7 +350,9 @@ class TestPersistExtractedMemories:
             mock_cls.return_value = mock_extractor
 
             await persist_extracted_memories(
-                [MagicMock()], mock_manager, "chat1",
+                [MagicMock()],
+                mock_manager,
+                "chat1",
                 deep_scan_llm_func=None,
             )
             assert mock_memory.content == "User has diabetes"
@@ -360,7 +386,9 @@ class TestApplyDeepPIIScan:
         import tempfile
         from pathlib import Path
 
-        from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
+        from myrm_agent_harness.agent.security.detection.pseudonym_store import (
+            PseudonymStore,
+        )
 
         mock_memory = MagicMock()
         mock_memory.content = "User has diabetes and asthma"
@@ -390,7 +418,9 @@ class TestApplyDeepPIIScan:
         import tempfile
         from pathlib import Path
 
-        from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
+        from myrm_agent_harness.agent.security.detection.pseudonym_store import (
+            PseudonymStore,
+        )
 
         mock_memory = MagicMock()
         mock_memory.content = "The weather is nice today"
@@ -420,7 +450,9 @@ class TestApplyDeepPIIScan:
         import tempfile
         from pathlib import Path
 
-        from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
+        from myrm_agent_harness.agent.security.detection.pseudonym_store import (
+            PseudonymStore,
+        )
 
         mem1 = MagicMock()
         mem1.content = "User has asthma"
@@ -440,17 +472,33 @@ class TestApplyDeepPIIScan:
         async def _mock_llm(_s: str, _u: str) -> str:
             nonlocal call_count
             call_count += 1
-            return json.dumps([
-                [{"original_text": "asthma", "privacy_type": "Medical Health", "privacy_level": "PL3"}],
-                [],
-                [{"original_text": "Buddhist", "privacy_type": "Sensitive Identity", "privacy_level": "PL3"}],
-            ])
+            return json.dumps(
+                [
+                    [
+                        {
+                            "original_text": "asthma",
+                            "privacy_type": "Medical Health",
+                            "privacy_level": "PL3",
+                        }
+                    ],
+                    [],
+                    [
+                        {
+                            "original_text": "Buddhist",
+                            "privacy_type": "Sensitive Identity",
+                            "privacy_level": "PL3",
+                        }
+                    ],
+                ]
+            )
 
         with patch(
             "myrm_agent_harness.agent.middlewares._session_context.get_pseudonym_store",
             return_value=store,
         ):
-            result = await _apply_deep_pii_scan([mem1, mem2, mem3], _mock_llm, mock_manager)
+            result = await _apply_deep_pii_scan(
+                [mem1, mem2, mem3], _mock_llm, mock_manager
+            )
             assert call_count == 1
             assert "asthma" not in result[0].content
             assert result[1].content == "Clean text without PII"
@@ -465,14 +513,18 @@ class TestGetUserRealName:
     @pytest.mark.asyncio
     async def test_returns_name_from_profile(self) -> None:
         mock_manager = MagicMock()
-        mock_manager.get_profile_attribute = AsyncMock(side_effect=lambda k: "张三" if k == "name" else None)
+        mock_manager.get_profile_attribute = AsyncMock(
+            side_effect=lambda k: "张三" if k == "name" else None
+        )
         name = await _get_user_real_name(mock_manager)
         assert name == "张三"
 
     @pytest.mark.asyncio
     async def test_returns_real_name_fallback(self) -> None:
         mock_manager = MagicMock()
-        mock_manager.get_profile_attribute = AsyncMock(side_effect=lambda k: "John" if k == "real_name" else None)
+        mock_manager.get_profile_attribute = AsyncMock(
+            side_effect=lambda k: "John" if k == "real_name" else None
+        )
         name = await _get_user_real_name(mock_manager)
         assert name == "John"
 
@@ -486,7 +538,9 @@ class TestGetUserRealName:
     @pytest.mark.asyncio
     async def test_returns_empty_on_exception(self) -> None:
         mock_manager = MagicMock()
-        mock_manager.get_profile_attribute = AsyncMock(side_effect=RuntimeError("DB down"))
+        mock_manager.get_profile_attribute = AsyncMock(
+            side_effect=RuntimeError("DB down")
+        )
         name = await _get_user_real_name(mock_manager)
         assert name == ""
 
@@ -510,7 +564,7 @@ class TestDefaultEnabledBehavior:
         """Verify create_skill_agent has enable_memory_auto_extraction=True by default."""
         import inspect
 
-        from myrm_agent_harness.agent.skill_agent_factory import create_skill_agent
+        from myrm_agent_harness.agent.skill_agent.factory import create_skill_agent
 
         sig = inspect.signature(create_skill_agent)
         param = sig.parameters["enable_memory_auto_extraction"]
@@ -557,11 +611,19 @@ class TestSessionDateInExtractionPipeline:
             return "[]"
 
         messages = [
-            {"role": "user", "content": "I met with the team yesterday to discuss the Q3 roadmap"},
-            {"role": "assistant", "content": "That sounds productive! What were the key decisions?"},
+            {
+                "role": "user",
+                "content": "I met with the team yesterday to discuss the Q3 roadmap",
+            },
+            {
+                "role": "assistant",
+                "content": "That sounds productive! What were the key decisions?",
+            },
         ]
         config = ExtractionConfig()
-        await extract_memories_from_conversation(messages, llm_func=spy_llm, config=config)
+        await extract_memories_from_conversation(
+            messages, llm_func=spy_llm, config=config
+        )
 
         assert len(captured_prompts) == 1
         prompt = captured_prompts[0]

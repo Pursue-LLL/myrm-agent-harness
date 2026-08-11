@@ -2,9 +2,9 @@
 
 [INPUT]
 - base_agent::BaseAgent (POS: Lightweight Agent base class with streaming, token tracking, and artifacts.)
-- _skill_agent_context (POS: Module-level ContextVar management and background task utilities.)
-- _skill_agent_review::SkillAgentReviewMixin (POS: Session-end review mixin for SkillAgent.)
-- _skill_agent_tools::SkillAgentToolsMixin (POS: Tool building mixin for SkillAgent.)
+- skill_agent.context (POS: Module-level ContextVar management and background task utilities.)
+- skill_agent.review::SkillAgentReviewMixin (POS: Session-end review mixin for SkillAgent.)
+- skill_agent.tools::SkillAgentToolsMixin (POS: Tool building mixin for SkillAgent.)
 - skills::SkillMetadata (POS: Skill metadata type)
 - types::AgentRuntimeConfig (POS: Agent runtime config)
 - event_log.protocols::EventLogBackend (POS: Event log backend protocol)
@@ -27,7 +27,14 @@ from typing import TYPE_CHECKING, Any
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
-from myrm_agent_harness.agent._skill_agent_context import (
+from myrm_agent_harness.agent.base_agent import BaseAgent
+from myrm_agent_harness.agent.event_log.protocols import EventLogBackend
+from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
+from myrm_agent_harness.agent.skills import SkillMetadata
+from myrm_agent_harness.agent.types import AgentRuntimeConfig
+from myrm_agent_harness.utils.logger_utils import get_agent_logger
+
+from .context import (
     SkillAgentContextMixin,
     add_loaded_skill,
     get_loaded_skills,
@@ -38,15 +45,9 @@ from myrm_agent_harness.agent._skill_agent_context import (
     track_background_task,
     wait_all_background_tasks,
 )
-from myrm_agent_harness.agent._skill_agent_review import SkillAgentReviewMixin
-from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
-from myrm_agent_harness.agent.base_agent import BaseAgent
-from myrm_agent_harness.agent.event_log.protocols import EventLogBackend
-from myrm_agent_harness.agent.meta_tools.mount_policy import FileAccessMode
-from myrm_agent_harness.agent.skill_agent_preload_mixin import SkillAgentPreloadMixin
-from myrm_agent_harness.agent.skills import SkillMetadata
-from myrm_agent_harness.agent.types import AgentRuntimeConfig
-from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from .preload import SkillAgentPreloadMixin
+from .review import SkillAgentReviewMixin
+from .tools import SkillAgentToolsMixin
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -400,8 +401,10 @@ class SkillAgent(
         for skill_meta in preloaded_skills:
             if not any(s.name == skill_meta.name for s in get_loaded_skills()):
                 add_loaded_skill(skill_meta)
-        if active_skill and not preloaded_skills and not any(
-            s.name == active_skill.name for s in get_loaded_skills()
+        if (
+            active_skill
+            and not preloaded_skills
+            and not any(s.name == active_skill.name for s in get_loaded_skills())
         ):
             add_loaded_skill(active_skill)
         await self._init_hook_lifecycle(active_skill, message_id, query)

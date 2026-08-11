@@ -15,7 +15,7 @@ LLM adapter layer: LangChain-compatible LiteLLM interface, provider-specific mes
 | chat_model_async_mixin.py | Core | Asynchronous generation and streaming with concurrency gate and stream stall detection | ✅ |
 | model_capability.py | Core | Model capability detection for reasoning_content echo-back requirements (MiMo, DeepSeek, Kimi/Moonshot) | ✅ |
 | concurrency.py | Core | Concurrency gate — per-model and global asyncio semaphores | ✅ |
-| converters.py | Core | Bidirectional message format conversion (LangChain ↔ LiteLLM) with explicit message-name preservation | ✅ |
+| converters.py | Core | Bidirectional message format conversion (LangChain ↔ LiteLLM) with explicit message-name preservation; `convert_dict_to_message` preserves `reasoning_content` into `additional_kwargs` (non-streaming parity with stream path) | ✅ |
 | metrics.py | Core | Empty response retry metrics tracking | ✅ |
 | safety_termination_detector.py | Core | Detects provider safety terminations and suppresses truncated tool_calls to prevent corrupt dispatch | ✅ |
 | schema_normalizer.py | Core | Tool schema normalizer for OpenAI-compatible providers; orphan required pruning (Gemini/strict mode), Anthropic-specific unsupported keyword stripping with constraint-to-description folding | ✅ |

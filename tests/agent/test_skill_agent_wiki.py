@@ -24,9 +24,13 @@ def wiki_dir(tmp_path: Path) -> Path:
 
 
 def _make_agent(
-    mock_llm: AsyncMock, wiki_base_dir: Path | str | None = None, wiki_search_fn: Callable[..., object] | None = None
+    mock_llm: AsyncMock,
+    wiki_base_dir: Path | str | None = None,
+    wiki_search_fn: Callable[..., object] | None = None,
 ) -> SkillAgent:
-    return SkillAgent(llm=mock_llm, wiki_base_dir=wiki_base_dir, wiki_search_fn=wiki_search_fn)
+    return SkillAgent(
+        llm=mock_llm, wiki_base_dir=wiki_base_dir, wiki_search_fn=wiki_search_fn
+    )
 
 
 class TestCreateWikiTools:
@@ -37,7 +41,9 @@ class TestCreateWikiTools:
         tools = agent._create_wiki_tools()
         assert tools == []
 
-    def test_returns_three_tools_when_wiki_dir_set(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_returns_three_tools_when_wiki_dir_set(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
         tools = agent._create_wiki_tools()
 
@@ -45,14 +51,18 @@ class TestCreateWikiTools:
         names = {t.name for t in tools}
         assert names == {"wiki_ingest_tool", "wiki_query_tool", "wiki_apply_tool"}
 
-    def test_stores_compiler_and_structure(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_stores_compiler_and_structure(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
         agent._create_wiki_tools()
 
         assert agent._wiki_compiler is not None
         assert agent._wiki_structure is not None
 
-    def test_accepts_str_wiki_base_dir(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_accepts_str_wiki_base_dir(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         """wiki_base_dir can be a str, not just Path."""
         agent = _make_agent(mock_llm, wiki_base_dir=str(wiki_dir))
         tools = agent._create_wiki_tools()
@@ -60,16 +70,22 @@ class TestCreateWikiTools:
         assert len(tools) == 3
         assert agent._wiki_structure is not None
 
-    def test_passes_search_fn_to_query_engine(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_passes_search_fn_to_query_engine(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         """wiki_search_fn should be forwarded to WikiQueryEngine."""
         mock_search = AsyncMock(return_value=[])
-        agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir, wiki_search_fn=mock_search)
+        agent = _make_agent(
+            mock_llm, wiki_base_dir=wiki_dir, wiki_search_fn=mock_search
+        )
         tools = agent._create_wiki_tools()
 
         assert len(tools) == 3
         assert agent._wiki_search_fn is mock_search
 
-    def test_handles_import_error_gracefully(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_handles_import_error_gracefully(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
 
         with patch.dict("sys.modules", {"myrm_agent_harness.toolkits.wiki": None}):
@@ -85,13 +101,17 @@ class TestMaybeArchiveToWiki:
         agent = _make_agent(mock_llm)
         agent._maybe_archive_to_wiki("test query", ["short"])
 
-    def test_skips_when_content_too_short(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_skips_when_content_too_short(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
         agent._create_wiki_tools()
 
         agent._maybe_archive_to_wiki("test query", ["short reply"])
 
-    def test_schedules_archive_when_content_sufficient(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_schedules_archive_when_content_sufficient(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
         agent._create_wiki_tools()
 
@@ -107,7 +127,9 @@ class TestMaybeArchiveToWiki:
         agent._maybe_archive_to_wiki("What is Python?", [reply])
         await asyncio.sleep(0.1)
 
-    def test_archive_includes_query_and_reply(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_archive_includes_query_and_reply(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
         agent._create_wiki_tools()
 
@@ -153,11 +175,15 @@ class TestMaybeArchiveToWiki:
         finally:
             loop.close()
 
-    async def _run_list_query(self, agent: SkillAgent, query: list[dict[str, object]], reply: str) -> None:
+    async def _run_list_query(
+        self, agent: SkillAgent, query: list[dict[str, object]], reply: str
+    ) -> None:
         agent._maybe_archive_to_wiki(query, [reply])
         await asyncio.sleep(0.1)
 
-    def test_uses_unknown_when_chat_id_missing(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_uses_unknown_when_chat_id_missing(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         """When config has no chat_id, filename uses 'unknown'."""
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
         agent._create_wiki_tools()
@@ -185,7 +211,9 @@ class TestMaybeArchiveToWiki:
             content = turn_files[0].read_text(encoding="utf-8")
             assert "# Query" in content
 
-    def test_archive_failure_is_warning_not_error(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_archive_failure_is_warning_not_error(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         """_archive() exception should only produce a warning, not crash."""
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
         agent._create_wiki_tools()
@@ -206,7 +234,9 @@ class TestMaybeArchiveToWiki:
         agent._maybe_archive_to_wiki("test", [reply])
         await asyncio.sleep(0.2)
 
-    def test_exact_threshold_500_chars(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_exact_threshold_500_chars(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         """Content exactly 500 chars should be archived (>= boundary)."""
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
         agent._create_wiki_tools()
@@ -223,7 +253,9 @@ class TestMaybeArchiveToWiki:
         finally:
             loop.close()
 
-    def test_just_below_threshold_499_chars(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
+    def test_just_below_threshold_499_chars(
+        self, mock_llm: AsyncMock, wiki_dir: Path
+    ) -> None:
         """Content at 499 chars should NOT be archived."""
         agent = _make_agent(mock_llm, wiki_base_dir=wiki_dir)
         agent._create_wiki_tools()
@@ -238,6 +270,7 @@ class TestRegisterLargeDocIngest:
         from myrm_agent_harness.agent.meta_tools.file_ops.utils.pdf_reader import (
             unregister_large_doc_ingest_callback,
         )
+
         unregister_large_doc_ingest_callback()
 
     def test_registers_callback(self, mock_llm: AsyncMock, wiki_dir: Path) -> None:
@@ -252,7 +285,7 @@ class TestRegisterLargeDocIngest:
     @pytest.mark.asyncio
     async def test_atomic_file_creation_dedup(self, wiki_dir: Path) -> None:
         """_ingest_large_doc uses atomic O_CREAT|O_EXCL — duplicate is a no-op."""
-        from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
+        from myrm_agent_harness.agent.skill_agent.tools import SkillAgentToolsMixin
         from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
 
         mock_structure = MagicMock()
@@ -265,7 +298,10 @@ class TestRegisterLargeDocIngest:
         cb = pdf_reader._ingest_callback
         assert cb is not None
 
-        with patch("myrm_agent_harness.agent._skill_agent_tools.os.open", side_effect=FileExistsError):
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.tools.os.open",
+            side_effect=FileExistsError,
+        ):
             await cb("test.pdf", "full text", "hash123")
 
         mock_compiler.enqueue_file.assert_not_called()
@@ -273,7 +309,7 @@ class TestRegisterLargeDocIngest:
     @pytest.mark.asyncio
     async def test_successful_ingest_enqueues_file(self, wiki_dir: Path) -> None:
         """Successful ingest writes file and enqueues for compilation."""
-        from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
+        from myrm_agent_harness.agent.skill_agent.tools import SkillAgentToolsMixin
         from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
 
         mock_structure = MagicMock()
@@ -288,9 +324,14 @@ class TestRegisterLargeDocIngest:
         assert cb is not None
 
         fake_fd = 42
-        with patch("myrm_agent_harness.agent._skill_agent_tools.os.open", return_value=fake_fd) as mock_open, \
-             patch("myrm_agent_harness.agent._skill_agent_tools.os.write") as mock_write, \
-             patch("myrm_agent_harness.agent._skill_agent_tools.os.close") as mock_close:
+        with (
+            patch(
+                "myrm_agent_harness.agent.skill_agent.tools.os.open",
+                return_value=fake_fd,
+            ) as mock_open,
+            patch("myrm_agent_harness.agent.skill_agent.tools.os.write") as mock_write,
+            patch("myrm_agent_harness.agent.skill_agent.tools.os.close") as mock_close,
+        ):
             await cb("report.pdf", "full content", "abc123")
 
         mock_open.assert_called_once()
@@ -299,9 +340,11 @@ class TestRegisterLargeDocIngest:
         mock_compiler.enqueue_file.assert_called_once_with(mock_path)
 
     @pytest.mark.asyncio
-    async def test_ingest_does_not_publish_to_tool_broadcast_bus(self, wiki_dir: Path) -> None:
+    async def test_ingest_does_not_publish_to_tool_broadcast_bus(
+        self, wiki_dir: Path
+    ) -> None:
         """Large-doc ingest must not use ToolBroadcastBus (chat UI uses EventLogger path)."""
-        from myrm_agent_harness.agent._skill_agent_tools import SkillAgentToolsMixin
+        from myrm_agent_harness.agent.skill_agent.tools import SkillAgentToolsMixin
         from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
 
         mock_structure = MagicMock()
@@ -315,13 +358,17 @@ class TestRegisterLargeDocIngest:
         cb = pdf_reader._ingest_callback
         assert cb is not None
 
-        with patch("myrm_agent_harness.agent._skill_agent_tools.os.open", return_value=99), \
-             patch("myrm_agent_harness.agent._skill_agent_tools.os.write"), \
-             patch("myrm_agent_harness.agent._skill_agent_tools.os.close"), \
-             patch(
-                 "myrm_agent_harness.agent.streaming.broadcast.event_bus.ToolBroadcastBus.get_instance",
-                 new_callable=AsyncMock,
-             ) as mock_bus:
+        with (
+            patch(
+                "myrm_agent_harness.agent.skill_agent.tools.os.open", return_value=99
+            ),
+            patch("myrm_agent_harness.agent.skill_agent.tools.os.write"),
+            patch("myrm_agent_harness.agent.skill_agent.tools.os.close"),
+            patch(
+                "myrm_agent_harness.agent.streaming.broadcast.event_bus.ToolBroadcastBus.get_instance",
+                new_callable=AsyncMock,
+            ) as mock_bus,
+        ):
             await cb("report.pdf", "content", "hash789")
 
         mock_bus.assert_not_called()

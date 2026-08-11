@@ -6,7 +6,7 @@ It implements a robust **10-Dimensional Semantic Rubric** combined with **Object
 
 ## Pre-Screener (ExecutionMetrics)
 
-Before invoking the LLM, the `_skill_agent_review.py` interceptor checks `ExecutionMetrics`. If the trajectory yielded 0 successful tool executions (`total_success == 0`), the extraction is physically blocked. This prevents LLM hallucination where the LLM might incorrectly score a completely failed attempt as a success.
+Before invoking the LLM, the `skill_agent/review.py` interceptor checks `ExecutionMetrics`. If the trajectory yielded 0 successful tool executions (`total_success == 0`), the extraction is physically blocked. This prevents LLM hallucination where the LLM might incorrectly score a completely failed attempt as a success.
 
 ## Review Prompt Design
 

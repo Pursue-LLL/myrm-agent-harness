@@ -4,6 +4,7 @@
 - _delegate_budget::_BatchBudgetAdmission, _admit_race_budget, _estimate_batch_cost (POS: Budget admission and cost estimation)
 - sub_agents.types::SubagentCatalog, DelegateRole
 - parallel.runner::run_parallel_task_requests (POS: Parallel task execution engine)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — judge 兼容 think 剥离与 reasoning 模型回退)
 
 [OUTPUT]
 - TaskRequest: Pydantic model for a single delegation task
@@ -30,6 +31,7 @@ from myrm_agent_harness.agent.sub_agents.types import (
     DelegateRole,
     SubagentCatalog,
 )
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -354,7 +356,7 @@ async def _run_tournament_bracket(
                         response = await llm.ainvoke(
                             [SystemMessage(content=sys_prompt), HumanMessage(content=human_prompt)]
                         )
-                        content = str(response.content).strip().upper()
+                        content = extract_answer_text(response).strip().upper()
                         if content.startswith("A"):
                             next_round.append(cand_a)
                         elif content.startswith("B"):

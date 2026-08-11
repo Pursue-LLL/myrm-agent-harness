@@ -12,7 +12,7 @@
 Scans known Chromium-based browser user-data directories for DevToolsActivePort files,
 which Chrome writes when remote debugging is enabled (via chrome://inspect toggle or
 --remote-debugging-port flag). Provides 5-phase discovery:
-  0. Myrm E2E fixed port (MYRM_CHROME_E2E_PORT, default 9333) via HTTP /json/version
+  0. Myrm E2E Chrome fixed port (MYRM_CHROME_E2E=1 only) via HTTP
   1. DevToolsActivePort file scan (Myrm E2E + 5 browsers × 3 platforms)
   2. HTTP probe (/json/version) to validate port (full CDP API)
   3. TCP + DevToolsActivePort WebSocket path (chrome://inspect mode on Chrome M144+)
@@ -209,21 +209,27 @@ def _port_is_open(port: int) -> bool:
         s.close()
 
 
+def _myrm_e2e_enabled() -> bool:
+    raw = os.environ.get("MYRM_CHROME_E2E", "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
 def discover_chrome_cdp_endpoint() -> str | None:
     """Auto-discover a local Chromium-based browser's CDP endpoint.
 
     Strategy (ordered by reliability):
-      0. Myrm E2E Chrome fixed port (MYRM_CHROME_E2E_PORT, default 9333) via HTTP
+      0. Myrm E2E Chrome fixed port (MYRM_CHROME_E2E=1 only) via HTTP
       1. Scan DevToolsActivePort files from known browser data dirs
       2. For each found port: HTTP probe → WebSocket path + TCP (inspect-only mode)
       3. Fallback: probe well-known port 9222 via HTTP
 
     Returns a CDP endpoint URL (http:// or ws:// for connect_over_cdp) or None.
     """
-    myrm_port = _myrm_e2e_port()
-    if _probe_http_version(myrm_port):
-        logger.info("Chrome discovery: connected via Myrm E2E port %d", myrm_port)
-        return f"http://127.0.0.1:{myrm_port}"
+    if _myrm_e2e_enabled():
+        myrm_port = _myrm_e2e_port()
+        if _probe_http_version(myrm_port):
+            logger.info("Chrome discovery: connected via Myrm E2E port %d", myrm_port)
+            return f"http://127.0.0.1:{myrm_port}"
 
     for data_dir in get_chromium_data_dirs():
         result = _read_devtools_active_port(data_dir)

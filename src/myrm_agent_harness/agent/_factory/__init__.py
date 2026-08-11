@@ -7,7 +7,7 @@
 - create_skill_agent: internal package re-export
 
 [POS]
-Internal factory package entry. Public consumers use agent.skill_agent_factory or api/.
+Internal factory package entry. Public consumers use agent.skill_agent.factory or api/.
 """
 
 from myrm_agent_harness.agent._factory.builder import create_skill_agent

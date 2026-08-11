@@ -33,8 +33,8 @@ class KanbanDispatcherZombieMixin:
     """Mixin for zombie detection, heartbeat, scheduled wakeup, and startup rescue."""
 
     async def _heartbeat_loop(self, task_id: str) -> None:
-        interval = self._board.settings.heartbeat_interval_seconds  # type: ignore[attr-defined]
         while True:
+            interval = self._board.settings.heartbeat_interval_seconds  # type: ignore[attr-defined]
             await asyncio.sleep(interval)
             try:
                 await self._store.update_heartbeat(task_id)  # type: ignore[attr-defined]
@@ -76,10 +76,11 @@ class KanbanDispatcherZombieMixin:
             )
 
     async def _zombie_loop(self) -> None:
-        settings = self._board.settings  # type: ignore[attr-defined]
-        check_interval = max(settings.zombie_timeout_seconds // 2, 30)
         while self._running:  # type: ignore[attr-defined]
             try:
+                # Re-read settings every cycle so refresh_board() updates apply live.
+                settings = self._board.settings  # type: ignore[attr-defined]
+                check_interval = max(settings.zombie_timeout_seconds // 2, 30)
                 zombies = await self._store.list_zombie_tasks(self._board.board_id, settings.zombie_timeout_seconds)  # type: ignore[attr-defined]
                 for task in zombies:
                     logger.warning(

@@ -230,7 +230,7 @@ class TestExtractTextContent:
 
 class TestCheckTrustAttenuation:
     @patch(
-        "myrm_agent_harness.agent._skill_agent_context.get_loaded_skills",
+        "myrm_agent_harness.agent.skill_agent.context.get_loaded_skills",
         return_value=[],
     )
     def test_no_loaded_skills(self, mock_skills: MagicMock) -> None:
@@ -256,7 +256,9 @@ class TestCheckTrustAttenuation:
         "myrm_agent_harness.agent.middlewares._session_context.get_turn_allowed_tool_names",
         return_value=frozenset(),
     )
-    def test_turn_policy_block_all_when_allowlist_empty(self, _mock_allowed: MagicMock) -> None:
+    def test_turn_policy_block_all_when_allowlist_empty(
+        self, _mock_allowed: MagicMock
+    ) -> None:
         msg = check_trust_attenuation("bash_code_execute_tool")
         assert msg is not None
         assert "turn tool policy" in msg
@@ -264,7 +266,7 @@ class TestCheckTrustAttenuation:
         assert "file_read_tool" in msg
 
     @patch("myrm_agent_harness.agent.skills.runtime.attenuator.attenuate_tools")
-    @patch("myrm_agent_harness.agent._skill_agent_context.get_loaded_skills")
+    @patch("myrm_agent_harness.agent.skill_agent.context.get_loaded_skills")
     @patch(
         "myrm_agent_harness.agent.middlewares._session_context.get_turn_allowed_tool_names",
         return_value=None,
@@ -277,7 +279,7 @@ class TestCheckTrustAttenuation:
         assert check_trust_attenuation("my_tool") is None
 
     @patch("myrm_agent_harness.agent.skills.runtime.attenuator.attenuate_tools")
-    @patch("myrm_agent_harness.agent._skill_agent_context.get_loaded_skills")
+    @patch("myrm_agent_harness.agent.skill_agent.context.get_loaded_skills")
     @patch(
         "myrm_agent_harness.agent.middlewares._session_context.get_turn_allowed_tool_names",
         return_value=None,

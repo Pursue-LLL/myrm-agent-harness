@@ -88,7 +88,9 @@ def enforce_spawn_policy_on_config(config: SubagentConfig) -> SubagentConfig:
     if updated.control_scope == ControlScope.LEAF:
         updated = replace(updated, max_spawn_depth=0)
     if updated.memory_isolation == MemoryIsolationPolicy.READ_ONLY_GLOBAL:
-        updated = replace(updated, disallowed_tools=updated.disallowed_tools | _MEMORY_WRITE_TOOLS)
+        updated = replace(
+            updated, disallowed_tools=updated.disallowed_tools | _MEMORY_WRITE_TOOLS
+        )
     return updated
 
 
@@ -147,7 +149,7 @@ def memory_isolation_scope(
     """Set ephemeral/collaborative/read-only memory ContextVar for spawn lifetime."""
     reset_token: object | None = None
     try:
-        from myrm_agent_harness.agent._skill_agent_context import (
+        from myrm_agent_harness.agent.skill_agent.context import (
             _memory_manager_var,
             get_memory_manager,
         )
@@ -160,17 +162,25 @@ def memory_isolation_scope(
         if global_mem:
             if config.memory_isolation == MemoryIsolationPolicy.COLLABORATIVE_SESSION:
                 if not hasattr(parent_agent, "_collaborative_memory"):
-                    parent_agent._collaborative_memory = EphemeralMemoryManager(global_mem)
-                reset_token = _memory_manager_var.set(parent_agent._collaborative_memory)
+                    parent_agent._collaborative_memory = EphemeralMemoryManager(
+                        global_mem
+                    )
+                reset_token = _memory_manager_var.set(
+                    parent_agent._collaborative_memory
+                )
             elif config.memory_isolation == MemoryIsolationPolicy.READ_ONLY_GLOBAL:
                 reset_token = _memory_manager_var.set(ReadOnlyMemoryView(global_mem))
             else:
-                reset_token = _memory_manager_var.set(EphemeralMemoryManager(global_mem))
+                reset_token = _memory_manager_var.set(
+                    EphemeralMemoryManager(global_mem)
+                )
         yield
     finally:
         if reset_token is not None:
             try:
-                from myrm_agent_harness.agent._skill_agent_context import _memory_manager_var
+                from myrm_agent_harness.agent.skill_agent.context import (
+                    _memory_manager_var,
+                )
 
                 _memory_manager_var.reset(reset_token)
             except Exception as exc:

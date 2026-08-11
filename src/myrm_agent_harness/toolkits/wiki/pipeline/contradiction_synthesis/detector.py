@@ -3,6 +3,7 @@
 [INPUT]
 langchain_core.language_models::BaseChatModel (POS: compile LLM)
 ..core.structure::WikiStructure (POS: read concept summaries)
+utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 - detect_conflict: structured verdict for a concept pair
@@ -22,6 +23,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.wiki.core.section_contract import extract_compiled_truth_summary
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .types import ConceptPair, ConflictVerdict
@@ -84,8 +86,9 @@ async def detect_conflict(
         response = await llm.ainvoke([system_msg, human_msg])
         raw_content = response.content
         if inspect.isawaitable(raw_content):
-            raw_content = await raw_content
-        text = str(raw_content).strip()
+            text = str(await raw_content).strip()
+        else:
+            text = extract_answer_text(response).strip()
         match = _JSON_BLOCK_RE.search(text)
         if match is None:
             return None

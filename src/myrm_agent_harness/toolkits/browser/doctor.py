@@ -407,6 +407,67 @@ async def _try_auto_install_chromium() -> DoctorCheckResult | None:
         )
 
 
+def _check_extension_relay() -> DoctorCheckResult:
+    """Probe server extension setup hints for CDP relay readiness."""
+    import json
+    import os
+    import urllib.error
+    import urllib.request
+
+    base = os.environ.get("MYRM_SERVER_URL", "http://127.0.0.1:8080").rstrip("/")
+    url = f"{base}/api/v1/extension/setup-hints"
+    try:
+        with urllib.request.urlopen(url, timeout=2.0) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.URLError:
+        return DoctorCheckResult(
+            name="extension_relay",
+            status=CheckStatus.WARNING,
+            message="Server unreachable; cannot verify browser extension CDP relay",
+            fix="Start myrm-agent-server and connect the browser extension from WebUI",
+        )
+    except Exception as exc:
+        return DoctorCheckResult(
+            name="extension_relay",
+            status=CheckStatus.WARNING,
+            message=f"Extension relay probe failed: {exc}",
+            fix="Check server logs and extension connection settings",
+        )
+
+    if payload.get("relay_cdp_ready") is True and payload.get("access_policy_valid") is True:
+        return DoctorCheckResult(
+            name="extension_relay",
+            status=CheckStatus.OK,
+            message="Extension CDP relay is ready for login-state automation",
+        )
+
+    if payload.get("relay_cdp_ready") is True and not payload.get("access_policy_valid"):
+        return DoctorCheckResult(
+            name="extension_relay",
+            status=CheckStatus.WARNING,
+            message="Extension relay is up but access policy is not configured",
+            fix=(
+                "Add authorized domains or enable allow-all in "
+                "Settings → Browser Extension"
+            ),
+        )
+
+    if payload.get("auth_token_required") and not payload.get("auth_token_configured"):
+        return DoctorCheckResult(
+            name="extension_relay",
+            status=CheckStatus.WARNING,
+            message="Extension auth token missing on server",
+            fix="Set EXTENSION_AUTH_TOKEN on the server, then pair the extension from WebUI",
+        )
+
+    return DoctorCheckResult(
+        name="extension_relay",
+        status=CheckStatus.WARNING,
+        message="Browser extension is not connected or CDP relay is not ready",
+        fix="Install the MV3 extension, generate a pairing code in WebUI, and connect",
+    )
+
+
 async def run_doctor(
     *,
     include_launch_test: bool = True,
@@ -441,6 +502,8 @@ async def run_doctor(
 
     if include_orphan_check:
         checks["orphan_processes"] = _check_orphan_processes()
+
+    checks["extension_relay"] = _check_extension_relay()
 
     if include_launch_test:
         launch_result = await _check_browser_launch(launch_options)

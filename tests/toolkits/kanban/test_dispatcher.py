@@ -208,6 +208,53 @@ class TestDispatchExecution:
 
 
 # ---------------------------------------------------------------------------
+# Runtime board settings hot-swap (refresh_board)
+# ---------------------------------------------------------------------------
+
+
+class TestRefreshBoard:
+
+    @pytest.mark.asyncio
+    async def test_refresh_board_updates_max_concurrent_tasks_live(self) -> None:
+        """Hot-swapping board settings raises concurrency without a restart.
+
+        Regression for runtime config changes: ``max_concurrent_tasks`` edited
+        via GUI/API must take effect on the live dispatcher so queued tasks are
+        picked up on the next wake cycle.
+        """
+        store = InMemoryKanbanStore()
+        board = _make_board(max_concurrent=1)
+        await store.save_board(board)
+        for tid in ("t1", "t2"):
+            await store.save_task(_make_task(task_id=tid, status=TaskStatus.READY))
+
+        runner = _FakeRunner(succeed=True, delay=0.5)
+        d = KanbanDispatcher(store, runner, board)
+        await d.start()
+        # t1 claims the single slot; t2 stays queued while max_concurrent=1.
+        await asyncio.sleep(0.3)
+        t2_before = await store.get_task("t2")
+        assert t2_before is not None and t2_before.status == TaskStatus.READY
+
+        # Hot-swap to max_concurrent=2 — t2 must start without a restart.
+        d.refresh_board(_make_board(max_concurrent=2))
+        await asyncio.sleep(0.3)
+        t2_after = await store.get_task("t2")
+        assert t2_after is not None and t2_after.status == TaskStatus.RUNNING
+
+        await d.stop()
+        assert len(runner.calls) >= 2
+
+    @pytest.mark.asyncio
+    async def test_refresh_board_rejects_wrong_board_id(self) -> None:
+        store = InMemoryKanbanStore()
+        d = KanbanDispatcher(store, _FakeRunner(), _make_board())
+        other = KanbanBoard(board_id="b-other", name="Other")
+        with pytest.raises(ValueError, match="board id mismatch"):
+            d.refresh_board(other)
+
+
+# ---------------------------------------------------------------------------
 # Status-drift guard (TODO-56)
 # ---------------------------------------------------------------------------
 

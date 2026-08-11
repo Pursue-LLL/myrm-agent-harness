@@ -17,7 +17,7 @@
 
 | 场景 | 路径 | 层 |
 |------|------|-----|
-| 复用用户 Chrome 登录态（JIRA、内网等） | Agent 配置 `browser_source=extension` → Extension Bridge CDP 代理 | server `services/extension/` |
+| 复用用户 Chrome 登录态（JIRA、内网等） | Agent 配置 `browser_source=extension` → Extension Bridge **CDP relay**（loopback façade + MV3 debugger 隧道，无需 remote-debugging） | server `services/extension/cdp_relay/` |
 | 手动登录后跨会话保持 | `SessionVault` 加密保存 Cookies/Storage；`browser_manage` 保存/恢复 | harness `session/` + server `browser_vault` |
 | Agent 跨引擎共享登录态 | SessionVault 注入 FetchEngine / HttpFetcher | harness `navigation.py` |
 | 找回「跟 Agent 聊过的 URL」 | `memory_search_tool`（corpus=sessions opt-in） | harness memory + server adapter |

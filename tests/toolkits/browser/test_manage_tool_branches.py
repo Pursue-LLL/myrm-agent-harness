@@ -289,3 +289,25 @@ class TestUnknownAction:
     async def test_unknown_action(self, manage_tool) -> None:
         result = await manage_tool.ainvoke({"action": "nonexistent_action"})
         assert "Unknown action" in result
+
+
+class TestRunSiteTool:
+    @pytest.mark.asyncio
+    async def test_run_site_tool_surfaces_execution_error(self) -> None:
+        session = MagicMock()
+        session.get_all_refs.side_effect = RuntimeError("boom")
+        tool = create_manage_tool(session)
+        result = await tool.ainvoke(
+            {
+                "action": "run_site_tool",
+                "value": 'x-com:get_timeline_posts:{"max_posts": 1}',
+            }
+        )
+        assert "Error executing domain tool 'x-com:get_timeline_posts'" in result
+        assert "boom" in result
+
+    @pytest.mark.asyncio
+    async def test_list_site_tools_includes_x_com(self, manage_tool) -> None:
+        result = await manage_tool.ainvoke({"action": "list_site_tools"})
+        assert "x-com" in result
+        assert "get_timeline_posts" in result

@@ -18,7 +18,7 @@ Policies: `FAIL` (agent ingest), `SKIP` / `SUPERSEDE` (settings import), `PUT_IF
 
 `RawGateCaller`: `agent` | `settings` | `chat` | `extension` (browser clip ingress).
 
-Programmatic ingress (all via `publish_raw`): SessionNotes (`memory_to_wiki`), turn digest (`_skill_agent_review`), Deep Research (`stream_lane_factory`), consolidation digest (`consolidation_bridge`), agent `wiki_ingest`, Settings import, **browser extension clip** (`pipeline/ingress/publish_clip_ingress`).
+Programmatic ingress (all via `publish_raw`): SessionNotes (`memory_to_wiki`), turn digest (`skill_agent/review`), Deep Research (`stream_lane_factory`), consolidation digest (`consolidation_bridge`), agent `wiki_ingest`, Settings import, **browser extension clip** (`pipeline/ingress/publish_clip_ingress`).
 
 Supersede appends `RAW_SUPERSEDE` to `wiki/log.md` via cognitive map writer and records `raw_supersede` lineage in wiki metadata (`claims_contract.record_raw_supersede_entry`).
 

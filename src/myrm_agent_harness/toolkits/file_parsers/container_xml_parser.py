@@ -1,4 +1,18 @@
-"""EPUB and ODF container parsers (zip + XML text extraction)."""
+"""EPUB and ODF container parsers (zip + XML text extraction).
+
+[INPUT]
+- file path: EPUB/ODF 容器文件
+- myrm_agent_harness.toolkits.file_parsers.base::FileParser (POS: 解析器基类)
+
+[OUTPUT]
+- EpubParser: EPUB 纯文本提取
+- OdfParser: OpenDocument 文本提取
+- supported_extensions: 各解析器支持的扩展名列表
+
+[POS]
+Container format parsing layer for EPUB (XHTML items) and ODF (content.xml) documents.
+Consumes zip archives and produces normalized plain text for downstream ingestion.
+"""
 
 from __future__ import annotations
 
@@ -59,7 +73,9 @@ class OdfParser(FileParser):
                 return ""
             raw_xml = archive.read("content.xml")
 
-        root = ElementTree.fromstring(raw_xml)  # noqa: S314  # expat blocks external entities by default
+        root = ElementTree.fromstring(
+            raw_xml
+        )  # noqa: S314  # expat blocks external entities by default
         texts = [
             node.text.strip() for node in root.iter() if node.text and node.text.strip()
         ]

@@ -68,13 +68,6 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 |------|------|-------------|-------|
 | `__init__.py` | Package | Agent core module — public API. | — |
 | `base_agent.py` | Core | Base Agent — streaming, token tracking, artifacts. | ✅ |
-| `base_agent_modes_mixin.py` | Core | Deep research + consensus entrypoints mixin for BaseAgent | ✅ |
-| `skill_agent.py` | Core | SkillAgent — skills, hooks, session lifecycle. | ✅ |
-| `skill_agent_preload_mixin.py` | Core | `[use skill]` explicit SOP preload mixin for SkillAgent | ✅ |
-| `_skill_agent_context.py` | Internal | ContextVar, background tasks, SkillAgentContextMixin (_prepare_context). | ✅ |
-| `_skill_agent_review.py` | Internal | Session-end review mixin. | ✅ |
-| `_skill_agent_tools.py` | Internal | Meta-tools / todo_write / wiki assembly mixin. | ✅ |
-| `skill_agent_factory.py` | Core | Facade — re-exports `create_skill_agent()`. | ✅ |
 | `types.py` | Config | AgentRuntimeSpec, EngineParams, run statistics. | ✅ |
 
 | Submodule | Description | L2 Doc |
@@ -101,6 +94,7 @@ Agent core module — public API for BaseAgent / SkillAgent runtime.
 | `parallel/` | Shared subagent spawn path (batch/swarm semaphore) | [parallel/_ARCH.md](parallel/_ARCH.md) |
 | `plugins/` | Agent Plugins 1.0.0 package parser (client-agnostic) | [plugins/_ARCH.md](plugins/_ARCH.md) |
 | `security/` | Agent security engine (HITL, rate limiter, transcript classifier) | [security/SECURITY_SYSTEM.md](security/SECURITY_SYSTEM.md) |
+| `skill_agent/` | SkillAgent domain — class, mixins, ContextVar session state, factory facade | [skill_agent/_ARCH.md](skill_agent/_ARCH.md) |
 | `skills/` | Skill system (discovery, evolution, optimization, sync) | [skills/SKILL_SYSTEM.md](skills/SKILL_SYSTEM.md) |
 | `streaming/` | BaseAgent event pipeline + [broadcast/](streaming/broadcast/_ARCH.md) tool SSE | [STREAMING_SYSTEM.md](streaming/STREAMING_SYSTEM.md) |
 | `sub_agents/` | Sub-agent lifecycle | [SUB_AGENT_SYSTEM.md](sub_agents/SUB_AGENT_SYSTEM.md) |

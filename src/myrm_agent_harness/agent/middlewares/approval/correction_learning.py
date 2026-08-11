@@ -38,7 +38,9 @@ from myrm_agent_harness.toolkits.memory.types import (
 logger = logging.getLogger(__name__)
 
 # Path-related argument keys that indicate filesystem preference corrections
-_PATH_ARG_KEYS = frozenset({"path", "file_path", "directory", "working_directory", "cwd", "target"})
+_PATH_ARG_KEYS = frozenset(
+    {"path", "file_path", "directory", "working_directory", "cwd", "target"}
+)
 
 # Command-related argument keys that indicate behavioral rule corrections
 _COMMAND_ARG_KEYS = frozenset({"command", "cmd", "script", "code", "query"})
@@ -53,7 +55,9 @@ class CorrectionSignal:
     arg_key: str | None
     original_value: object
     corrected_value: object
-    signal_class: Literal["path_preference", "command_rule", "arg_preference", "tool_rejection"]
+    signal_class: Literal[
+        "path_preference", "command_rule", "arg_preference", "tool_rejection"
+    ]
     feedback: str
 
 
@@ -108,7 +112,9 @@ class CorrectionLearningHook:
         self._pending_rules = []
         return prefs, rules
 
-    async def on_approval_correction(self, event: str, payload: dict[str, object]) -> HookResult:
+    async def on_approval_correction(
+        self, event: str, payload: dict[str, object]
+    ) -> HookResult:
         """Handle APPROVAL_CORRECTION: extract, classify, and queue corrections."""
         corrections = payload.get("corrections")
         if not corrections or not isinstance(corrections, (list, tuple)):
@@ -160,7 +166,9 @@ class CorrectionLearningHook:
                 continue
 
             if decision_type == "reject":
-                feedback = str(correction.get("feedback", "User rejected this tool call"))
+                feedback = str(
+                    correction.get("feedback", "User rejected this tool call")
+                )
                 signals.append(
                     CorrectionSignal(
                         tool_name=tool_name,
@@ -201,7 +209,9 @@ class CorrectionLearningHook:
 
         return signals
 
-    def _classify_arg_change(self, arg_key: str) -> Literal["path_preference", "command_rule", "arg_preference"]:
+    def _classify_arg_change(
+        self, arg_key: str
+    ) -> Literal["path_preference", "command_rule", "arg_preference"]:
         """Classify an argument change by its key name."""
         if arg_key in _PATH_ARG_KEYS:
             return "path_preference"
@@ -219,7 +229,9 @@ class CorrectionLearningHook:
             return self._create_command_rule(signal, repetition_count)
         return self._create_preference(signal, repetition_count)
 
-    def _create_preference(self, signal: CorrectionSignal, repetition_count: int) -> SemanticMemory:
+    def _create_preference(
+        self, signal: CorrectionSignal, repetition_count: int
+    ) -> SemanticMemory:
         """Create a SemanticMemory preference from arg correction."""
         orig = _format_value(signal.original_value)
         corrected = _format_value(signal.corrected_value)
@@ -239,12 +251,16 @@ class CorrectionLearningHook:
             tags=["hitl_correction", f"tool:{signal.tool_name}"],
         )
 
-    def _create_command_rule(self, signal: CorrectionSignal, repetition_count: int) -> ProceduralMemory:
+    def _create_command_rule(
+        self, signal: CorrectionSignal, repetition_count: int
+    ) -> ProceduralMemory:
         """Create a ProceduralMemory rule from command correction."""
         orig = _format_value(signal.original_value)
         corrected = _format_value(signal.corrected_value)
 
-        priority = ToolRulePriority.HIGH if repetition_count >= 2 else ToolRulePriority.NORMAL
+        priority = (
+            ToolRulePriority.HIGH if repetition_count >= 2 else ToolRulePriority.NORMAL
+        )
         if repetition_count >= 3:
             priority = ToolRulePriority.CRITICAL
 
@@ -258,9 +274,13 @@ class CorrectionLearningHook:
             language="en",
         )
 
-    def _create_rejection_rule(self, signal: CorrectionSignal, repetition_count: int) -> ProceduralMemory:
+    def _create_rejection_rule(
+        self, signal: CorrectionSignal, repetition_count: int
+    ) -> ProceduralMemory:
         """Create a ProceduralMemory rule from tool rejection."""
-        priority = ToolRulePriority.HIGH if repetition_count >= 2 else ToolRulePriority.NORMAL
+        priority = (
+            ToolRulePriority.HIGH if repetition_count >= 2 else ToolRulePriority.NORMAL
+        )
         if repetition_count >= 3:
             priority = ToolRulePriority.CRITICAL
 
@@ -287,11 +307,13 @@ class CorrectionLearningHook:
 
     async def _persist_pending(self) -> None:
         """Persist pending memories via the current session's MemoryManager."""
-        from myrm_agent_harness.agent._skill_agent_context import get_memory_manager
+        from myrm_agent_harness.agent.skill_agent.context import get_memory_manager
 
         manager = get_memory_manager()
         if manager is None:
-            logger.debug("[CORRECTION_LEARNING] No memory manager available; memories queued only")
+            logger.debug(
+                "[CORRECTION_LEARNING] No memory manager available; memories queued only"
+            )
             return
 
         prefs, rules = self.drain_pending()
@@ -299,9 +321,13 @@ class CorrectionLearningHook:
         for pref in prefs:
             try:
                 await manager._store_semantic(pref)
-                logger.info("[CORRECTION_LEARNING] Stored preference: %s", pref.content[:80])
+                logger.info(
+                    "[CORRECTION_LEARNING] Stored preference: %s", pref.content[:80]
+                )
             except Exception as e:
-                logger.warning("[CORRECTION_LEARNING] Failed to store preference: %s", e)
+                logger.warning(
+                    "[CORRECTION_LEARNING] Failed to store preference: %s", e
+                )
                 self._pending_preferences.append(pref)
 
         for rule in rules:
