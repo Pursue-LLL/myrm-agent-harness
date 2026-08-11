@@ -26,6 +26,22 @@ logger = logging.getLogger(__name__)
 from myrm_agent_harness.toolkits.code_execution.interceptor import trigger_destructive_action_hook  # noqa: E402
 
 
+def _current_session_id() -> str | None:
+    """Resolve the chat id bound by the agent runtime, or None outside an agent turn.
+
+    File writes are allowed outside an explicit agent context (e.g. CLI utilities),
+    in which case no snapshot hook fires and behavior matches the previous flow.
+    """
+    try:
+        from myrm_agent_harness.agent.context_management.infra.session_lock import (
+            get_current_chat_id,
+        )
+
+        return get_current_chat_id()
+    except Exception:
+        return None
+
+
 @runtime_checkable
 class _ExecutorProtocol(Protocol):
     """Minimal interface required from the host executor."""
@@ -88,7 +104,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content)},
+            payload={"path": safe, "size": len(content), "session_id": _current_session_id()},
         )
 
         p = Path(safe)
@@ -102,7 +118,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content)},
+            payload={"path": safe, "size": len(content), "session_id": _current_session_id()},
         )
 
         p = Path(safe)
@@ -116,7 +132,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content)},
+            payload={"path": safe, "size": len(content), "session_id": _current_session_id()},
         )
 
         await async_atomic_write(safe, content)
@@ -128,7 +144,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content)},
+            payload={"path": safe, "size": len(content), "session_id": _current_session_id()},
         )
 
         await async_atomic_write(safe, content)
@@ -140,7 +156,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_append",
-            payload={"path": safe, "size": len(content)},
+            payload={"path": safe, "size": len(content), "session_id": _current_session_id()},
         )
 
         with open(safe, "a", encoding="utf-8") as f:
@@ -153,7 +169,7 @@ class LocalFileOpsMixin:
         await trigger_destructive_action_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_delete",
-            payload={"path": safe},
+            payload={"path": safe, "session_id": _current_session_id()},
         )
 
         Path(safe).unlink(missing_ok=True)
