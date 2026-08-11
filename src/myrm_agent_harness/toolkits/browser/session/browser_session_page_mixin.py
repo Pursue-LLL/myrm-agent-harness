@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.browser.session.extractor import (
     _PDF_FOOTER_TEMPLATE,
@@ -22,11 +23,22 @@ from myrm_agent_harness.toolkits.browser.session.extractor import (
     _PDF_MARGIN,
 )
 
+if TYPE_CHECKING:
+    from patchright.async_api import Page
+
 logger = logging.getLogger(__name__)
 
 
 class BrowserSessionPageMixin:
     """evaluate, navigation helpers, PDF to temp path, viewport, load state, dialogs."""
+
+    def get_active_page(self) -> Page:
+        """Return the active page.
+
+        Delegates to the tab controller so callers never reach into private
+        internals. Raises RuntimeError when no tab is active.
+        """
+        return self._tab_controller.get_active_page()
 
     async def evaluate(self, expression: str) -> str:
         """Execute JavaScript code"""

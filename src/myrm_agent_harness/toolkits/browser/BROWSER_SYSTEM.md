@@ -982,7 +982,25 @@ Manual refresh: GET /webui/browser/snapshot?chat_id=<active chat>
 - `capture_browser_view_update_data` 内部 snapshot 使用 `publish_inspector_view=False`，避免嵌套双 emit
 - 与 Desktop Inspector 对齐：desktop 工具不在 TOOL_END 重复 fetchSnapshot
 
-**实现位置**：`session/browser_session_view_mixin.py`、`session/view_update_payload.py`；server `app/services/agent/browser_snapshot.py`；frontend `fileDiffEvents.ts` / `useBrowserInspectorStore.ts`
+**Desktop Inspector 对称（WebUI SSE + 多 pane 隔离）**：
+
+```
+DesktopSession desktop tools
+  ↓ progress_sink.emit({ type: desktop_view_update, data: { screenshot_base64, refs, app_name, ... } })
+Frontend fileDiffEvents handler
+  ↓ useDesktopInspectorStore.updateViewData(sourceChatId) — no auto openPanel
+Frontend toolLifecycleEvents TOOL_END (desktop_* except desktop_snapshot_tool)
+  ↓ fetchSnapshot only when stream chatId === foreground chatId
+Frontend DESKTOP_CONTROL_APPROVAL_REQUEST
+  ↓ openPanel only when stream chatId === foreground chatId
+Frontend DesktopLiveView / Toggle + visual approval consumers
+  ↓ selectScopedDesktopViewData(viewData, active chatId)
+Manual refresh: GET /webui/desktop/snapshot (tags sourceChatId with foreground chat)
+```
+
+**实现位置**：
+- Browser：`session/browser_session_view_mixin.py`、`session/view_update_payload.py`；server `app/services/agent/browser_snapshot.py`；frontend `useBrowserInspectorStore.ts`
+- Desktop：frontend `fileDiffEvents.ts` / `useDesktopInspectorStore.ts` / `toolLifecycleEvents.ts`；harness desktop session DESKTOP_VIEW_UPDATE emit
 
 ---
 

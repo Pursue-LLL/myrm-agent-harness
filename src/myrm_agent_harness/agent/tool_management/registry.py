@@ -18,7 +18,7 @@ Orchestration signals (DR/Verifier) are **not** registered here — see ``agent/
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from myrm_agent_harness.agent.orchestration.hooks import is_runtime_hook
 from myrm_agent_harness.agent.tool_management.tool_catalog import get_tool_product_id
@@ -53,11 +53,18 @@ def _extract_summary(description: str, max_len: int = 120) -> str:
 
 
 def _safe_extract_schema(tool: BaseTool) -> dict[str, object] | None:
-    """Extract JSON Schema from a tool's args_schema, returning None on failure."""
+    """Extract JSON Schema from a tool's args_schema, returning None on failure.
+
+    MCP tools carry a native JSON Schema ``dict`` as ``args_schema`` (see
+    ``tool_converter``); it is returned verbatim. Built-in tools keep
+    Pydantic models and are serialized via ``model_json_schema``.
+    """
     schema = getattr(tool, "args_schema", None)
     if schema is None:
         return None
     try:
+        if isinstance(schema, dict):
+            return cast("dict[str, object]", schema)
         result: dict[str, object] = schema.model_json_schema()
         return result
     except Exception:
@@ -111,7 +118,12 @@ class ToolRegistry:
         """
         resolved_layer = layer if layer is not None else get_tool_layer(tool.name)
 
-        if tool.name not in _TOOL_LAYERS and layer is None and provider is None and not is_runtime_hook(tool.name):
+        if (
+            tool.name not in _TOOL_LAYERS
+            and layer is None
+            and provider is None
+            and not is_runtime_hook(tool.name)
+        ):
             logger.warning(
                 "Tool '%s' (source=%s) not in harness _TOOL_LAYERS registry, "
                 "defaulting to EXTERNAL. Register harness tools in tool_layers.py "
@@ -169,7 +181,9 @@ class ToolRegistry:
         for entry in self._entries:
             name = entry.tool.name
             existing = best.get(name)
-            if existing is None or source_priority(entry.source) < source_priority(existing.source):
+            if existing is None or source_priority(entry.source) < source_priority(
+                existing.source
+            ):
                 best[name] = entry
 
         return sorted(
@@ -213,11 +227,17 @@ class ToolRegistry:
         for tool in resolved_tools:
             modifier = getattr(tool, "dynamic_schema_modifier", None)
             # Check if callable and not a MagicMock (to prevent test breakage)
-            if modifier is not None and callable(modifier) and not type(modifier).__name__.endswith("Mock"):
+            if (
+                modifier is not None
+                and callable(modifier)
+                and not type(modifier).__name__.endswith("Mock")
+            ):
                 try:
                     tool = modifier(resolved_names)
                 except Exception as ex:
-                    logger.warning("Tool %s dynamic_schema_modifier failed: %s", tool.name, ex)
+                    logger.warning(
+                        "Tool %s dynamic_schema_modifier failed: %s", tool.name, ex
+                    )
             final_tools.append(tool)
 
         return final_tools

@@ -2,17 +2,17 @@
 
 [INPUT]
 - .exit_semantics::interpret_exit_code (POS: Exit-code semantic notes)
-- output_compressor::compress_output (POS: Command-aware semantic output compressor)
+- .._compression.output_compressor::compress_output (POS: Command-aware semantic output compressor)
+- .._compression.constants::BASH_OUTPUT_MAX_CHARS (POS: 压缩域字符截断阈值单一事实源)
 - utils.context_format::wrap_with_tool_output_tag (POS: Tool output tag wrapping)
 
 [OUTPUT]
-- BASH_OUTPUT_MAX_CHARS (POS: 单一事实源的截断字符阈值，供 _output_eviction 复用)
 - truncate_bash_output, format_result
 
 [POS]
 Formats BashExecutor results for LLM consumption with compression and redaction.
 Both stdout and stderr run through truncate_bash_output; large streams are
-already evicted upstream (see _output_eviction) and arrive as compact previews
+already evicted upstream (see _compression/output_eviction) and arrive as compact previews
 with a read-back footer, so the 8k hard-truncation only ever touches small streams.
 """
 
@@ -20,14 +20,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from myrm_agent_harness.agent.meta_tools.bash._compression.constants import (
+    BASH_OUTPUT_MAX_CHARS,
+)
 from myrm_agent_harness.agent.meta_tools.bash._tool.exit_semantics import (
     interpret_exit_code,
 )
-
-# Single source of truth for the bash output hard truncation limit.
-# _output_eviction uses the same threshold as its character-level eviction gate
-# so every output that would be hard-truncated here is first persisted on disk.
-BASH_OUTPUT_MAX_CHARS = 8000
 
 
 def truncate_bash_output(

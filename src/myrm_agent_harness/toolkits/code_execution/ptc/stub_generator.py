@@ -158,7 +158,7 @@ def _extract_params(tool: BaseTool) -> list[tuple[str, str, bool, str]]:
         return []
 
     try:
-        json_schema = schema.model_json_schema()
+        json_schema = schema if isinstance(schema, dict) else schema.model_json_schema()
     except Exception:
         return []
 

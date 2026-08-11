@@ -17,7 +17,6 @@ BashExecutor 聚合根与执行编排域：同步/后台执行、上下文构建
 | `workspace_manager.py` | Core | 工作区薄委托（懒加载绑定存储根）。 | ✅ |
 | `skill_workspace_manager.py` | Core | 技能文件 staging 路径解析。 | ✅ |
 | `mcp_citation_handler.py` | Core | MCP Metadata Extractor。 | ✅ |
-| `session_spawn_lifecycle.py` | Core | 会话 spawn 生命周期标记与自动清理。 | ✅ |
 | `event_logging.py` | Internal | 命令执行事件日志（脱敏+分类）。 | ✅ |
 | `error.py` | Core | 结构化 ``BashExecutionError``，携带 stdout/stderr eviction 引用。 | ✅ |
 | `auto_yield.py` | Core | 前台白名单命令超时自动后台化。 | ✅ |

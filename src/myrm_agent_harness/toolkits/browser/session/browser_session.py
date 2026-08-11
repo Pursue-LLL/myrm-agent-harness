@@ -38,6 +38,7 @@
   - extract_media(...) -> str: extract high-value media resource URLs (images/videos/audio)
   - get_ref_info(ref_id: str) -> RefInfo | None: get element reference info
   - get_all_refs() -> MappingProxyType[str, RefInfo]: get all element reference mappings (immutable view)
+  - get_active_page() -> Page: return the active page (public facade over the tab controller)
   - get_session_hash(domain: str) -> str | None: get cached session state hash (in-memory read)
   - stats: dict[str, object]: statistics info (includes ref_failures monitoring metrics)
   - notify_progress(message) -> None: push to observability hook and agent SSE via progress_sink

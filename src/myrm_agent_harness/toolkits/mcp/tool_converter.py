@@ -2,23 +2,33 @@
 
 Converts MCP ``Tool`` objects (from ``client.list_tools()``) into LangChain
 ``StructuredTool`` instances whose ``ainvoke`` calls the provided
-session/client's ``call_tool`` method. Before building Pydantic args models,
-the input schema is normalized: ``$ref``/``$defs`` are inlined and top-level
-composite keywords (``anyOf``/``oneOf``/``allOf``) are flattened so FastMCP
-nested/optional models and kimi-cu-style multi-branch tools never degrade to
-``str``/empty schemas.
+session/client's ``call_tool`` method. The input schema is normalized:
+``$ref``/``$defs`` are inlined and top-level composite keywords
+(``anyOf``/``oneOf``/``allOf``) are flattened so FastMCP nested/optional
+models and kimi-cu-style multi-branch tools never degrade to empty schemas.
+
+The normalized JSON Schema dict is passed through unchanged as the
+``StructuredTool`` ``args_schema`` — never rebuilt into a Pydantic model.
+This preserves every semantic detail (``description``, ``enum``,
+``minimum``/``maximum``, nested ``properties``) for the LLM: LangChain's
+``convert_to_openai_tool`` serializes a dict ``args_schema`` verbatim,
+matching how the official ``langchain-mcp-adapters`` and Hermes bridge MCP
+tools. Runtime type coercion/restructuring is owned by
+``tool_processing.sanitize_tools``' dict pipeline (``flatten_json_schema`` →
+``canonicalize_schema_for_cache`` → ``flatten_deep_schema`` → coerce → nest),
+which was already designed for dict schemas.
 
 The coroutine returns the raw ``mcp.types.CallToolResult`` from ``call_tool``
 unchanged — result normalization (is_error detection, content-block coercion,
 multimodal passthrough, structured_content merging, ext-apps metadata) is
-owned by ``MCPAgent._normalize_mcp_result`` / ``_emit_mcp_app_event`` in the
-single post-processing chain (``process_session_tools``), so rich output is
-never flattened here.
+owned by ``result_processing.normalize_mcp_result`` /
+``emit_mcp_app_event`` in the single post-processing chain
+(``MCPAgent.process_session_tools``), so rich output is never flattened here.
 
 [INPUT]
 - mcp.types::Tool (POS: MCP tool schema type)
 - mcp.client.client::Client (POS: MCP SDK 2.x high-level client)
-- schema_utils::flatten_json_schema, flatten_top_level_composite, prepare_mcp_call_arguments, primary_json_type (POS: MCP schema tolerance utilities)
+- schema_utils::flatten_json_schema, flatten_top_level_composite, prepare_mcp_call_arguments (POS: MCP schema tolerance utilities)
 
 [OUTPUT]
 - convert_mcp_tools: MCP Tool list → LangChain StructuredTool list
@@ -35,53 +45,15 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langchain_core.tools import StructuredTool
-from pydantic import BaseModel, create_model
 
 from myrm_agent_harness.toolkits.mcp.schema_utils import (
+    collapse_const_unions,
     flatten_json_schema,
     flatten_top_level_composite,
     prepare_mcp_call_arguments,
-    primary_json_type,
 )
 
 logger = logging.getLogger(__name__)
-
-_JSON_TYPE_MAP: dict[str, type] = {
-    "string": str,
-    "integer": int,
-    "number": float,
-    "boolean": bool,
-    "array": list,
-    "object": dict,
-}
-
-
-def _json_schema_to_pydantic_field(
-    schema: dict[str, Any],
-    required: bool,
-) -> tuple[type, Any]:
-    """Map a single JSON Schema property to a Pydantic (type, default) tuple."""
-    py_type: type = _JSON_TYPE_MAP.get(primary_json_type(schema), str)
-    if not required:
-        return (py_type | None, None)  # type: ignore[return-value]
-    return (py_type, ...)
-
-
-def _build_args_model(tool_name: str, input_schema: dict[str, Any]) -> type[BaseModel]:
-    """Dynamically create a Pydantic model from an MCP tool's inputSchema."""
-    properties: dict[str, Any] = input_schema.get("properties", {})
-    required_set: set[str] = set(input_schema.get("required", []))
-
-    if not properties:
-        return create_model(f"{tool_name}_Args")  # type: ignore[call-overload]
-
-    fields: dict[str, Any] = {}
-    for prop_name, prop_schema in properties.items():
-        fields[prop_name] = _json_schema_to_pydantic_field(
-            prop_schema,
-            prop_name in required_set,
-        )
-    return create_model(f"{tool_name}_Args", **fields)  # type: ignore[call-overload]
 
 
 def convert_mcp_tools(
@@ -112,35 +84,23 @@ def convert_mcp_tools(
         if not isinstance(input_schema, dict):
             input_schema = {"type": "object", "properties": {}}
 
-        # Resolve $ref/$defs inline before building the Pydantic args model:
-        # FastMCP emits nested/optional models as $defs + $ref (no `type`),
-        # which would otherwise degrade to `str` fields and reject valid
-        # dict arguments at validation time. Deterministic and idempotent —
-        # a schema without $ref passes through unchanged.
+        # Resolve $ref/$defs inline, collapse property-level const unions into
+        # enums, then flatten top-level composite branches: FastMCP emits
+        # nested/optional models as $defs + $ref (no `type`), Rust/TypeScript
+        # servers declare closed value sets as `anyOf` const unions, and
+        # kimi-cu-style tools declare alternatives via oneOf/anyOf — without
+        # normalization the LLM would see `$ref` placeholders, bare scalars,
+        # or an empty schema. Deterministic and idempotent — a plain schema
+        # passes through unchanged.
         ref_resolved = flatten_json_schema(input_schema)
-        composite_flattened = flatten_top_level_composite(ref_resolved)
+        const_collapsed = collapse_const_unions(ref_resolved)
+        composite_flattened = flatten_top_level_composite(const_collapsed)
 
         # Flattening may fold mutual-exclusivity hints into the schema-level
-        # description (e.g. oneOf alternatives).  Pydantic args models drop
-        # top-level schema descriptions, so surface the hint on the tool
-        # description that the LLM actually sees — only when composite
-        # flattening actually happened (returns the same object otherwise).
-        if composite_flattened is not ref_resolved:
-            schema_hint = composite_flattened.get("description")
-            if schema_hint and schema_hint not in description:
-                description = f"{description}\n{schema_hint}".strip()
+        # description (e.g. oneOf alternatives). The schema dict carries it
+        # through to the LLM untouched, so no separate description splice is
+        # needed — unlike a Pydantic args model, which would drop it.
         input_schema = composite_flattened
-
-        try:
-            args_model = _build_args_model(tool_name, input_schema)
-        except Exception:
-            logger.warning(
-                "MCP server '%s': failed to build args model for tool '%s', using empty schema",
-                server_name,
-                tool_name,
-                exc_info=True,
-            )
-            args_model = create_model(f"{tool_name}_Args")  # type: ignore[call-overload]
 
         captured_name = tool_name
         captured_schema = input_schema
@@ -164,7 +124,7 @@ def convert_mcp_tools(
         lc_tool = StructuredTool(
             name=tool_name,
             description=description,
-            args_schema=args_model,
+            args_schema=input_schema,
             coroutine=_make_invoker(),
             response_format="content",
         )

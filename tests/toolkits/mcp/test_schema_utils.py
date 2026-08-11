@@ -1143,3 +1143,182 @@ def test_flatten_top_level_composite_branch_without_type():
     result = flatten_top_level_composite(schema)
     assert set(result["properties"]) == {"index", "x"}
     assert "mutually exclusive" in result["description"]
+
+
+def test_flatten_top_level_composite_oneof_const_union_preserves_discriminator():
+    """Discriminator const values must union across oneOf branches (not overwrite)."""
+    schema = {
+        "type": "object",
+        "oneOf": [
+            {
+                "type": "object",
+                "properties": {
+                    "action": {"const": "click", "description": "动作类型"},
+                    "index": {"type": "integer"},
+                },
+                "required": ["action", "index"],
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "action": {"const": "type", "description": "动作类型"},
+                    "text": {"type": "string"},
+                },
+                "required": ["action", "text"],
+            },
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    action = result["properties"]["action"]
+    assert action["enum"] == ["click", "type"]
+    assert action["description"] == "动作类型"
+    # Required by every branch → promoted; the discriminator is not an option.
+    assert result["required"] == ["action"]
+    assert "action" not in result["description"]
+    assert "(index)" in result["description"]
+    assert "(text)" in result["description"]
+
+
+def test_flatten_top_level_composite_oneof_enum_union_across_branches():
+    """Same-name enum properties across anyOf branches union without losing values."""
+    schema = {
+        "anyOf": [
+            {"type": "object", "properties": {"sort": {"enum": ["asc", "desc"]}}},
+            {"type": "object", "properties": {"sort": {"enum": ["recent"]}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["properties"]["sort"]["enum"] == ["asc", "desc", "recent"]
+
+
+def test_flatten_top_level_composite_union_merges_different_descriptions():
+    """Different descriptions on the merged discriminator are both kept."""
+    schema = {
+        "anyOf": [
+            {
+                "type": "object",
+                "properties": {"m": {"const": "a", "description": "desc A"}},
+            },
+            {
+                "type": "object",
+                "properties": {"m": {"const": "b", "description": "desc B"}},
+            },
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    merged = result["properties"]["m"]
+    assert merged["enum"] == ["a", "b"]
+    assert merged["description"] == "desc A desc B"
+
+
+def test_flatten_top_level_composite_conflicting_types_keep_first_definition():
+    """Non-enumerable same-name properties keep the first branch's definition."""
+    schema = {
+        "anyOf": [
+            {
+                "type": "object",
+                "properties": {
+                    "opts": {"type": "array", "items": {"type": "string"}}
+                },
+            },
+            {"type": "object", "properties": {"opts": {"type": "string"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["properties"]["opts"] == {
+        "type": "array",
+        "items": {"type": "string"},
+    }
+
+
+def test_flatten_top_level_composite_common_required_promotion_is_all_branches():
+    """Only properties required by every branch are promoted to top-level required."""
+    schema = {
+        "oneOf": [
+            {
+                "type": "object",
+                "properties": {
+                    "a": {"type": "string"},
+                    "b": {"type": "string"},
+                },
+                "required": ["a", "b"],
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "a": {"type": "string"},
+                    "c": {"type": "string"},
+                },
+                "required": ["a"],
+            },
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["required"] == ["a"]
+
+
+def test_flatten_top_level_composite_single_branch_required_not_promoted():
+    """A lone alternative branch keeps its previous behavior (no promotion)."""
+    schema = {
+        "anyOf": [
+            {
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"],
+            },
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert "required" not in result
+
+
+def test_flatten_top_level_composite_const_union_deduplicates_shared_values():
+    """Duplicate values across branches collapse into a single enum entry."""
+    schema = {
+        "anyOf": [
+            {
+                "type": "object",
+                "properties": {"mode": {"enum": ["auto", "manual"]}},
+            },
+            {
+                "type": "object",
+                "properties": {"mode": {"const": "auto"}},
+            },
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["properties"]["mode"]["enum"] == ["auto", "manual"]
+
+
+def test_flatten_top_level_composite_malformed_non_dict_property_survives():
+    """A non-dict property value in one branch must not crash the merge."""
+    schema = {
+        "anyOf": [
+            {
+                "type": "object",
+                "properties": {"mode": {"const": "fast"}, "note": "legacy-string"},
+            },
+            {"type": "object", "properties": {"mode": {"const": "slow"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["properties"]["mode"]["enum"] == ["fast", "slow"]
+    assert result["properties"]["note"] == "legacy-string"
+
+
+def test_flatten_top_level_composite_union_keeps_title():
+    """A shared title on the merged discriminator property is preserved."""
+    schema = {
+        "anyOf": [
+            {
+                "type": "object",
+                "properties": {
+                    "action": {"const": "up", "title": "操作"},
+                },
+            },
+            {"type": "object", "properties": {"action": {"const": "down"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["properties"]["action"]["title"] == "操作"
+    assert result["properties"]["action"]["enum"] == ["up", "down"]

@@ -114,8 +114,17 @@ def compute_direct_threshold(
 
 
 def _input_schema(tool: BaseTool) -> dict[str, object]:
-    """Return a Pydantic v2 JSON schema, falling back for malformed tools."""
+    """Return the tool's JSON Schema, falling back for malformed tools.
+
+    MCP tools carry a native JSON Schema ``dict`` as ``args_schema`` (see
+    ``tool_converter``); for those the dict is returned verbatim so schema
+    token estimates reflect the exact schema the LLM receives. Built-in
+    tools keep Pydantic models and are serialized via ``model_json_schema``.
+    """
     try:
+        args_schema = getattr(tool, "args_schema", None)
+        if isinstance(args_schema, dict):
+            return cast("dict[str, object]", args_schema)
         schema_model = tool.get_input_schema()
         return cast("dict[str, object]", schema_model.model_json_schema())
     except Exception:

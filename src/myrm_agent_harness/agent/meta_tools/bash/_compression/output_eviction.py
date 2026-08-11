@@ -1,7 +1,7 @@
 """即时大输出 eviction 模块
 
 在 bash 工具返回时即时处理大输出：
-1. 将完整输出保存到 .context/{session_id}/evicted/ （统一清理体系）
+1. 将完整输出保存到 .context/{chat_id}/evicted/ （统一清理体系）
 2. 替换为智能预览 + 文件路径引用
 3. 返回结构化结果供 SSE 事件携带 evicted 文件引用
 
@@ -15,7 +15,7 @@
 - agent.context_management.strategies.filter::should_filter (POS: token 阈值判定)
 - agent.context_management.strategies.filters.base::STRUCTURAL_CONTENT_TYPES, FilterContext, detect_content_type (POS: 内容类型检测)
 - agent.context_management.strategies.filters.structural_filter::StructuralFilter (POS: JSON XML CSV)
-- agent.meta_tools.bash._tool.formatting::BASH_OUTPUT_MAX_CHARS (POS: 字符阈值，与格式层硬截断对齐)
+- .constants::BASH_OUTPUT_MAX_CHARS (POS: 字符阈值，与格式层硬截断对齐)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 
 [OUTPUT]
@@ -25,7 +25,7 @@
 
 [POS]
 Provides maybe_evict_large_output and EvictionResult. Used for both stdout and
-stderr streams (bash_executor_execute_mixin evicts them symmetrically); each
+stderr streams (execute_mixin evicts them symmetrically); each
 stream persists to its own evicted file and carries an independent GUI ref.
 """
 
@@ -48,7 +48,7 @@ from myrm_agent_harness.agent.context_management.strategies.filters.base import 
 from myrm_agent_harness.agent.context_management.strategies.filters.structural_filter import (
     StructuralFilter,
 )
-from myrm_agent_harness.agent.meta_tools.bash._tool.formatting import (
+from myrm_agent_harness.agent.meta_tools.bash._compression.constants import (
     BASH_OUTPUT_MAX_CHARS,
 )
 from myrm_agent_harness.utils.text_utils import get_token_count, smart_truncate
@@ -93,9 +93,9 @@ async def maybe_evict_large_output(
     """大输出截断为智能预览，可选持久化到沙箱文件
 
     触发条件（任一满足）：token 数超过 FILTER_TOKEN_THRESHOLD，或字符数超过
-    BASH_OUTPUT_MAX_CHARS。字符口径与 bash_tool_formatting 的硬截断阈值对齐，
+    BASH_OUTPUT_MAX_CHARS。字符口径与格式化层硬截断阈值对齐，
     保证所有会被格式层硬截断的输出都先落盘可读，避免中间数据不可达。
-    stdout 与 stderr 两条流共用本函数（bash_executor_execute_mixin 对称调用）。
+    stdout 与 stderr 两条流共用本函数（execute_mixin 对称调用）。
 
     Args:
         content: 清理后的流内容（stdout 或 stderr）
@@ -181,7 +181,7 @@ async def maybe_evict_large_output(
 async def _save_to_file(
     executor: CodeExecutor, content: str
 ) -> tuple[str | None, EvictedPersistResult | None]:
-    """Persist large bash output under `.context/{session_id}/evicted/`.
+    """Persist large bash output under `.context/{chat_id}/evicted/`.
 
     Uses the same workspace_root_var + chat_id_var path as web_fetch UECD spill
     (evicted_content.persist_evicted_content), not hardcoded /persistent paths.

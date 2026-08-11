@@ -740,7 +740,7 @@ def test_register_tool_annotations():
     )
 
     with patch(
-        "myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata"
+        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
     ) as mock_reg:
         agent._register_tool_annotations([tool], "my-server")
 
@@ -767,7 +767,7 @@ def test_register_tool_annotations_host_serial_forces_non_concurrent():
     )
 
     with patch(
-        "myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata"
+        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
     ) as mock_reg:
         agent._register_tool_annotations([tool], "my-server", host_serial=True)
 
@@ -784,7 +784,7 @@ def test_register_tool_annotations_name_normalization():
     tool = _make_tool(metadata={})
 
     with patch(
-        "myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata"
+        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
     ) as mock_reg:
         agent._register_tool_annotations([tool], "mcp_already_skill")
 
@@ -796,7 +796,7 @@ def test_register_tool_annotations_plain_name():
     tool = _make_tool(metadata={})
 
     with patch(
-        "myrm_agent_harness.toolkits.mcp.agent.register_ptc_safety_metadata"
+        "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
     ) as mock_reg:
         agent._register_tool_annotations([tool], "github")
 
@@ -1279,6 +1279,49 @@ class TestNormalizeMcpResultCoercion:
         assert "[MCP tool error]" in normalized
         assert "invalid args" in normalized
 
+    def test_is_error_with_structured_details(self) -> None:
+        """Error details in structured_content surface even when text is empty."""
+        result = CallToolResult(
+            content=[TextContent(type="text", text="")],
+            structured_content={
+                "error": "permission denied",
+                "code": 403,
+            },
+            is_error=True,
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert "permission denied" in normalized
+        assert "403" in normalized
+
+    def test_is_error_structured_appended_without_duplication(self) -> None:
+        """structured details append to a short text message, not duplicated."""
+        result = CallToolResult(
+            content=[TextContent(type="text", text="invalid args")],
+            structured_content={"details": "field qty must be > 0, got -5"},
+            is_error=True,
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert "invalid args" in normalized
+        assert "field qty must be > 0" in normalized
+
+    def test_is_error_structured_mirrored_in_text_not_duplicated(self) -> None:
+        """When text already mirrors the serialized JSON, no duplication occurs."""
+        result = CallToolResult(
+            content=[
+                TextContent(
+                    type="text",
+                    text='{"error": "oops"}',
+                )
+            ],
+            structured_content={"error": "oops"},
+            is_error=True,
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert normalized.count('"error"') == 1
+
     def test_plain_string_result(self) -> None:
         assert MCPAgent._normalize_mcp_result("just text") == "just text"
 
@@ -1547,7 +1590,7 @@ class TestWrapToolsAuthError:
             coroutine=AsyncMock(side_effect=err),
         )
         with patch(
-            "myrm_agent_harness.toolkits.mcp.agent._emit_auth_expired_for_tool"
+            "myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool"
         ) as mock_emit:
             MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
             result = await tool.ainvoke({"a": "1"})
@@ -1585,7 +1628,7 @@ class TestWrapToolsAuthError:
 
         tool = _make_tool(name="plain_tool", coroutine=AsyncMock(side_effect=err))
         with patch(
-            "myrm_agent_harness.toolkits.mcp.agent._emit_auth_expired_for_tool"
+            "myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool"
         ):
             MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
             result = await tool.ainvoke({"a": "1"})

@@ -73,10 +73,14 @@ class ActionSpaceProfiler:
         在无法实时获取外部 MCP 服务完整 Schema 的情况下，提供科学的保守估算值。
         因为外部服务往往包含多个具备极深嵌套对象的工具。
         """
-        return (mcp_count * cls.ESTIMATED_MCP_TOOL_COST) + (builtin_count * cls.ESTIMATED_BUILTIN_TOOL_COST)
+        return (mcp_count * cls.ESTIMATED_MCP_TOOL_COST) + (
+            builtin_count * cls.ESTIMATED_BUILTIN_TOOL_COST
+        )
 
     @classmethod
-    def _calculate_schema_complexity(cls, properties: dict[str, Any], depth: int = 1) -> int:
+    def _calculate_schema_complexity(
+        cls, properties: dict[str, Any], depth: int = 1
+    ) -> int:
         """递归计算 Schema 复杂度"""
         score = 0
         for prop_info in properties.values():
@@ -85,7 +89,9 @@ class ActionSpaceProfiler:
             # 如果是嵌套对象，增加嵌套惩罚
             if prop_info.get("type") == "object" and "properties" in prop_info:
                 score += cls.NESTING_COST * depth
-                score += cls._calculate_schema_complexity(prop_info["properties"], depth + 1)
+                score += cls._calculate_schema_complexity(
+                    prop_info["properties"], depth + 1
+                )
 
             # 枚举值也会增加选择负担
             if "enum" in prop_info:
@@ -98,6 +104,8 @@ class ActionSpaceProfiler:
         """获取工具的 JSON Schema"""
         # BaseTool 的 args_schema 或直接转 dict
         if hasattr(tool, "args_schema") and tool.args_schema:
+            if isinstance(tool.args_schema, dict):
+                return tool.args_schema
             if hasattr(tool.args_schema, "model_json_schema"):
                 return tool.args_schema.model_json_schema()
             return tool.args_schema.schema()  # type: ignore

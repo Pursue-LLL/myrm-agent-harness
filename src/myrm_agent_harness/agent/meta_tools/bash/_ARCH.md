@@ -35,8 +35,8 @@ bash/
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | 包门面：聚合导出 8 个公共符号（`BashExecutor`、两个 tool 工厂、分类器、脱敏器）。 | — |
-| `_tool_description.py` → `_tool/tool_description.py` | Internal | 静态缓存稳定 `TOOL_DESCRIPTION`。 | ✅ |
+| `__init__.py` | Package | 包门面：聚合导出 5 个公共符号（`BashExecutor`、两个 tool 工厂、工具名常量、`BashExecutionError`）。 | — |
+| `_tool/tool_description.py` | Internal | 静态缓存稳定 `TOOL_DESCRIPTION`。 | ✅ |
 | `bash_code_execute_tool.py` | Core | `create_bash_code_execute_tool` LangChain 工厂；静态 TOOL_DESCRIPTION + OS hint；preflight ``ToolError`` 保留 ``guardrail_blocked``；``BashExecutionError`` 包装保留 stderr evicted ref。 | ✅ |
 | `bash_process_tools.py` | Core | 统一 ``bash_process_tool``（actions list/output/kill/wait/write_stdin/submit_stdin/close_stdin）。 | ✅ |
 
@@ -54,7 +54,6 @@ bash/
 | `_executor/workspace_manager.py` | Core | 工作区薄委托（懒加载绑定存储根）。 |
 | `_executor/skill_workspace_manager.py` | Core | 技能文件 staging 路径解析。 |
 | `_executor/mcp_citation_handler.py` | Core | MCP Metadata Extractor。 |
-| `_executor/session_spawn_lifecycle.py` | Core | 会话 spawn 生命周期标记。 |
 | `_executor/event_logging.py` | Internal | 命令执行事件日志（脱敏+分类）。 |
 | `_executor/error.py` | Core | 结构化 BashExecutionError，携带 stdout/stderr eviction 引用。 |
 | `_executor/auto_yield.py` | Core | 前台白名单命令超时自动后台化。 |
@@ -67,7 +66,7 @@ bash/
 |------|------|-------------|
 | `_tool/_ARCH.md` | Doc | 工具能力域架构文档。 |
 | `_tool/tool_description.py` | Internal | 静态缓存稳定 `TOOL_DESCRIPTION`。 |
-| `_tool/formatting.py` | Core | 输出压缩/截断/脱敏/wrapping；`BASH_OUTPUT_MAX_CHARS` 单一事实源。 |
+| `_tool/formatting.py` | Core | 输出压缩编排/截断/脱敏/wrapping；消费压缩域 `BASH_OUTPUT_MAX_CHARS`。 |
 | `_tool/exit_semantics.py` | Core | Exit-code 语义解释。 |
 | `_tool/helpers.py` | Core | BashInput schema、OS hint、上下文恢复。 |
 | `_tool/multimodal.py` | Core | Vision ContentBlock 内联返回。 |
@@ -79,6 +78,7 @@ bash/
 | File | Role | Description |
 |------|------|-------------|
 | `_compression/_ARCH.md` | Doc | 输出压缩域架构文档。 |
+| `_compression/constants.py` | Internal | 压缩域常量：`BASH_OUTPUT_MAX_CHARS` 字符截断阈值单一事实源。 |
 | `_compression/output_compressor.py` | Internal | 命令感知语义压缩入口（双引擎：硬编码 + YAML 声明式）；eviction preview 幂等跳过。 |
 | `_compression/compressors.py` | Internal | 11 个具体命令压缩器（git/test/install/docker/build/compiler/log）。 |
 | `_compression/output_eviction.py` | Internal | 大输出即时落盘 + 智能预览 + footer。 |

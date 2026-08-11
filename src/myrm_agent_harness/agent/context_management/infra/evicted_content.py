@@ -1,6 +1,6 @@
 """Unified evicted content delivery — persist, cap, footer, and GUI ref contract.
 
-All large tool/web outputs that spill to disk use `.context/{session_id}/evicted/`
+All large tool/web outputs that spill to disk use `.context/{chat_id}/evicted/`
 with `{source}_{hex8}.{ext}` basenames so the product evicted-file API and drawer
 work consistently across bash, web_fetch, MCP, and FilterProcessor backup paths.
 

@@ -1,154 +1,20 @@
-"""Unit tests for tool_converter.py — MCP tool schema → LangChain BaseTool converter."""
+"""Unit tests for tool_converter.py — MCP tool schema → LangChain BaseTool converter.
+
+The converter passes the normalized JSON Schema dict through verbatim as
+``args_schema`` (no Pydantic model), so assertions inspect the dict schema
+directly and verify that LLM-facing semantics (description/enum/min-max/
+nested properties) survive end-to-end via ``convert_to_openai_tool``.
+"""
 
 from __future__ import annotations
 
-import asyncio
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
+from langchain_core.utils.function_calling import convert_to_openai_tool
 from pydantic import BaseModel
 
-from myrm_agent_harness.toolkits.mcp.tool_converter import (
-    _build_args_model,
-    _json_schema_to_pydantic_field,
-    convert_mcp_tools,
-)
-
-# ---------------------------------------------------------------------------
-# _json_schema_to_pydantic_field
-# ---------------------------------------------------------------------------
-
-
-def test_field_required_string():
-    py_type, default = _json_schema_to_pydantic_field({"type": "string"}, required=True)
-    assert py_type is str
-    assert default is ...
-
-
-def test_field_optional_integer():
-    _py_type, default = _json_schema_to_pydantic_field(
-        {"type": "integer"}, required=False
-    )
-    assert default is None
-
-
-def test_field_boolean_type():
-    py_type, _default = _json_schema_to_pydantic_field(
-        {"type": "boolean"}, required=True
-    )
-    assert py_type is bool
-
-
-def test_field_array_type():
-    py_type, _ = _json_schema_to_pydantic_field({"type": "array"}, required=True)
-    assert py_type is list
-
-
-def test_field_object_type():
-    py_type, _ = _json_schema_to_pydantic_field({"type": "object"}, required=True)
-    assert py_type is dict
-
-
-def test_field_unknown_type_defaults_to_str():
-    py_type, _ = _json_schema_to_pydantic_field({"type": "custom_thing"}, required=True)
-    assert py_type is str
-
-
-def test_field_missing_type_defaults_to_str():
-    py_type, _ = _json_schema_to_pydantic_field({}, required=True)
-    assert py_type is str
-
-
-def test_field_nullable_object_union_infers_dict():
-    """anyOf(object, null) — FastMCP optional nested field — must be dict, not str."""
-    py_type, default = _json_schema_to_pydantic_field(
-        {"anyOf": [{"type": "object"}, {"type": "null"}], "default": None},
-        required=False,
-    )
-    assert py_type == dict | None
-    assert default is None
-
-
-def test_field_nullable_object_union_required_infers_dict():
-    py_type, default = _json_schema_to_pydantic_field(
-        {"anyOf": [{"type": "object"}, {"type": "null"}]},
-        required=True,
-    )
-    assert py_type is dict
-    assert default is ...
-
-
-def test_field_type_array_object_null_infers_dict():
-    """type: [object, null] collapses to the first non-null variant."""
-    py_type, _ = _json_schema_to_pydantic_field(
-        {"type": ["object", "null"]},
-        required=True,
-    )
-    assert py_type is dict
-
-
-def test_field_union_prefers_first_non_null_variant():
-    py_type, _ = _json_schema_to_pydantic_field(
-        {"anyOf": [{"type": "array"}, {"type": "null"}]},
-        required=True,
-    )
-    assert py_type is list
-
-
-def test_field_all_null_union_falls_back_to_str():
-    py_type, _ = _json_schema_to_pydantic_field(
-        {"anyOf": [{"type": "null"}]},
-        required=True,
-    )
-    assert py_type is str
-
-
-def test_field_direct_null_type_falls_back_to_str():
-    """type: "null" (bare) must not crash and resolves to str."""
-    py_type, _ = _json_schema_to_pydantic_field(
-        {"type": "null"},
-        required=True,
-    )
-    assert py_type is str
-
-
-# ---------------------------------------------------------------------------
-# _build_args_model
-# ---------------------------------------------------------------------------
-
-
-def test_build_empty_schema():
-    model = _build_args_model("empty_tool", {"type": "object", "properties": {}})
-    assert issubclass(model, BaseModel)
-    assert model.__name__ == "empty_tool_Args"
-
-
-def test_build_no_properties_key():
-    model = _build_args_model("bare", {})
-    assert issubclass(model, BaseModel)
-
-
-def test_build_with_required_and_optional():
-    schema: dict[str, Any] = {
-        "type": "object",
-        "properties": {
-            "query": {"type": "string"},
-            "limit": {"type": "integer"},
-        },
-        "required": ["query"],
-    }
-    model = _build_args_model("search", schema)
-    fields = model.model_fields
-    assert "query" in fields
-    assert "limit" in fields
-    assert fields["query"].is_required()
-    assert not fields["limit"].is_required()
-
-
-# ---------------------------------------------------------------------------
-# convert_mcp_tools
-# ---------------------------------------------------------------------------
+from myrm_agent_harness.toolkits.mcp.tool_converter import convert_mcp_tools
 
 
 def _make_mcp_tool(
@@ -163,6 +29,15 @@ def _make_mcp_tool(
     )
 
 
+def _props(tool) -> dict[str, Any]:
+    return tool.args_schema.get("properties", {})
+
+
+# ---------------------------------------------------------------------------
+# convert_mcp_tools — schema passthrough (dict, no Pydantic model)
+# ---------------------------------------------------------------------------
+
+
 def test_convert_basic_tool():
     async def fake_call(name: str, args: dict[str, Any]) -> SimpleNamespace:
         return SimpleNamespace(content=[SimpleNamespace(text="ok")])
@@ -171,6 +46,7 @@ def test_convert_basic_tool():
     assert len(tools) == 1
     assert tools[0].name == "ping"
     assert tools[0].description == "test tool"
+    assert isinstance(tools[0].args_schema, dict)
 
 
 def test_convert_preserves_order():
@@ -192,7 +68,30 @@ def test_convert_tool_with_args_schema():
         "required": ["q"],
     }
     tools = convert_mcp_tools([_make_mcp_tool("search", input_schema=schema)], noop)
-    assert "q" in tools[0].args_schema.model_fields
+    assert "q" in _props(tools[0])
+
+
+def test_convert_tool_preserves_field_semantics():
+    """description/enum/min-max must survive verbatim in the LLM-facing schema."""
+
+    async def noop(name: str, args: dict[str, Any]) -> SimpleNamespace:
+        return SimpleNamespace(content=[])
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "date": {"type": "string", "description": "出发日期"},
+            "trainType": {"type": "string", "enum": ["G", "D", "K"]},
+            "tickets": {"type": "integer", "minimum": 1, "maximum": 5},
+        },
+        "required": ["date"],
+    }
+    tools = convert_mcp_tools([_make_mcp_tool("query", input_schema=schema)], noop)
+    props = _props(tools[0])
+    assert props["date"]["description"] == "出发日期"
+    assert props["trainType"]["enum"] == ["G", "D", "K"]
+    assert props["tickets"]["minimum"] == 1
+    assert props["tickets"]["maximum"] == 5
 
 
 def test_convert_tool_with_top_level_oneof_flattens_params():
@@ -212,12 +111,11 @@ def test_convert_tool_with_top_level_oneof_flattens_params():
         ],
     }
     tools = convert_mcp_tools([_make_mcp_tool("click", input_schema=schema)], noop)
-    fields = tools[0].args_schema.model_fields
-    assert set(fields) == {"index", "x", "y"}
-    assert not any(f.is_required() for f in fields.values())
+    assert set(_props(tools[0])) == {"index", "x", "y"}
+    assert "required" not in tools[0].args_schema
 
 
-def test_convert_tool_oneof_branch_invocation_dispatches():
+async def test_convert_tool_oneof_branch_invocation_dispatches():
     """An index-branch call must reach the MCP server with the value intact."""
     captured: list[tuple[str, dict[str, Any]]] = []
 
@@ -235,13 +133,15 @@ def test_convert_tool_oneof_branch_invocation_dispatches():
             },
         ],
     }
-    tools = convert_mcp_tools([_make_mcp_tool("click", input_schema=schema)], capture_call)
-    asyncio.get_event_loop().run_until_complete(tools[0].ainvoke({"index": 3}))
+    tools = convert_mcp_tools(
+        [_make_mcp_tool("click", input_schema=schema)], capture_call
+    )
+    await tools[0].ainvoke({"index": 3})
     assert captured[0] == ("click", {"index": 3})
 
 
-def test_convert_tool_surfaces_exclusivity_hint_on_description():
-    """oneOf flattening hints must be visible in the LLM-facing description."""
+def test_convert_tool_surfaces_exclusivity_hint_on_schema_description():
+    """oneOf flattening hints must be visible in the LLM-facing schema description."""
 
     async def noop(name: str, args: dict[str, Any]) -> SimpleNamespace:
         return SimpleNamespace(content=[])
@@ -257,11 +157,12 @@ def test_convert_tool_surfaces_exclusivity_hint_on_description():
         ],
     }
     tools = convert_mcp_tools([_make_mcp_tool("click", input_schema=schema)], noop)
-    assert "mutually exclusive" in tools[0].description
-    assert "(x, y)" in tools[0].description
+    hint = tools[0].args_schema.get("description", "")
+    assert "mutually exclusive" in hint
+    assert "(x, y)" in hint
 
 
-def test_convert_multi_tool_closure_captures_own_name_and_schema():
+async def test_convert_multi_tool_closure_captures_own_name_and_schema():
     """Each tool's coroutine must dispatch with its own name/schema.
 
     The coroutine captures per-tool name/schema at creation time; a shared
@@ -291,17 +192,15 @@ def test_convert_multi_tool_closure_captures_own_name_and_schema():
         ],
         capture_call,
     )
-    asyncio.get_event_loop().run_until_complete(tools[0].ainvoke({"text": "hi"}))
-    asyncio.get_event_loop().run_until_complete(
-        tools[1].ainvoke({"a": 1, "b": 2})
-    )
+    await tools[0].ainvoke({"text": "hi"})
+    await tools[1].ainvoke({"a": 1, "b": 2})
     assert captured == [
         ("echo", {"text": "hi"}),
         ("add", {"a": 1, "b": 2}),
     ]
 
 
-def test_convert_tool_invocation():
+async def test_convert_tool_invocation():
     captured: list[tuple[str, dict[str, Any]]] = []
 
     async def capture_call(name: str, args: dict[str, Any]) -> SimpleNamespace:
@@ -317,16 +216,14 @@ def test_convert_tool_invocation():
         [_make_mcp_tool("search", input_schema=schema)],
         capture_call,
     )
-    result = asyncio.get_event_loop().run_until_complete(
-        tools[0].ainvoke({"query": "test"})
-    )
+    result = await tools[0].ainvoke({"query": "test"})
     # _invoke passes the raw CallToolResult through unchanged; content
     # normalization happens later in MCPAgent._normalize_mcp_result.
     assert result.content[0].text == "result"
     assert captured[0] == ("search", {"query": "test"})
 
 
-def test_convert_strips_null_optional_fields_before_call_tool():
+async def test_convert_strips_null_optional_fields_before_call_tool():
     """12306-style strict schemas reject explicit null on optional typed fields."""
     captured: list[tuple[str, dict[str, Any]]] = []
 
@@ -350,14 +247,12 @@ def test_convert_strips_null_optional_fields_before_call_tool():
         [_make_mcp_tool("get-tickets", input_schema=schema)],
         capture_call,
     )
-    asyncio.get_event_loop().run_until_complete(
-        tools[0].ainvoke(
-            {
-                "date": "2026-08-06",
-                "fromStation": "BJP",
-                "toStation": "SHH",
-            }
-        )
+    await tools[0].ainvoke(
+        {
+            "date": "2026-08-06",
+            "fromStation": "BJP",
+            "toStation": "SHH",
+        }
     )
     assert captured[0][0] == "get-tickets"
     assert captured[0][1] == {
@@ -369,8 +264,8 @@ def test_convert_strips_null_optional_fields_before_call_tool():
     assert "earliestStartTime" not in captured[0][1]
 
 
-def test_convert_tool_with_nested_ref_flattens_params_and_dispatches():
-    """FastMCP nested-model tools ($defs/$ref) keep dict args and dispatch intact."""
+async def test_convert_tool_with_nested_ref_flattens_params_and_dispatches():
+    """FastMCP nested-model tools ($defs/$ref) keep nested dict args intact."""
 
     class Address(BaseModel):
         street: str
@@ -391,18 +286,16 @@ def test_convert_tool_with_nested_ref_flattens_params_and_dispatches():
         [_make_mcp_tool("create_user", input_schema=User.model_json_schema())],
         capture_call,
     )
-    fields = tools[0].args_schema.model_fields
-    assert "address" in fields
-    assert fields["address"].annotation is dict
+    address_prop = _props(tools[0])["address"]
+    assert address_prop["type"] == "object"
+    assert "street" in address_prop.get("properties", {})
 
-    asyncio.get_event_loop().run_until_complete(
-        tools[0].ainvoke(
-            {
-                "name": "Alice",
-                "age": 30,
-                "address": {"street": "1 Main St", "city": "NY"},
-            }
-        )
+    await tools[0].ainvoke(
+        {
+            "name": "Alice",
+            "age": 30,
+            "address": {"street": "1 Main St", "city": "NY"},
+        }
     )
     assert captured[0] == (
         "create_user",
@@ -414,8 +307,8 @@ def test_convert_tool_with_nested_ref_flattens_params_and_dispatches():
     )
 
 
-def test_convert_tool_with_optional_nested_ref_infers_optional_dict():
-    """FastMCP optional nested fields (anyOf[$ref, null]) infer dict | None."""
+def test_convert_tool_with_optional_nested_ref_preserves_object():
+    """FastMCP optional nested fields (anyOf[$ref, null]) stay object-typed."""
 
     class Address(BaseModel):
         street: str
@@ -431,12 +324,22 @@ def test_convert_tool_with_optional_nested_ref_infers_optional_dict():
         [_make_mcp_tool("create_user", input_schema=User.model_json_schema())],
         noop,
     )
-    field_ann = tools[0].args_schema.model_fields["address"].annotation
-    assert field_ann == dict | None
+    address_prop = _props(tools[0])["address"]
+    # $ref is inlined but the nullable union shape is preserved verbatim
+    # (the LLM-facing normalizer collapses single-non-null anyOf branches
+    # at bind time). The object branch must carry its nested properties.
+    non_null_branches = [
+        b
+        for b in address_prop.get("anyOf", [])
+        if isinstance(b, dict) and b.get("type") != "null"
+    ]
+    assert non_null_branches
+    assert non_null_branches[0]["type"] == "object"
+    assert "street" in non_null_branches[0].get("properties", {})
 
 
 def test_convert_tool_with_ref_branch_in_union_infers_type():
-    """$ref inside a union must resolve through flatten before type inference."""
+    """$ref inside a union must resolve through flatten before LLM exposure."""
 
     class Payload(BaseModel):
         kind: str
@@ -461,11 +364,19 @@ def test_convert_tool_with_ref_branch_in_union_infers_type():
         return SimpleNamespace(content=[])
 
     tools = convert_mcp_tools([_make_mcp_tool("emit", input_schema=schema)], noop)
-    assert tools[0].args_schema.model_fields["payload"].annotation is dict
+    payload_prop = _props(tools[0])["payload"]
+    # $ref resolved inline inside the union; the object branch must survive.
+    non_null_branches = [
+        b
+        for b in payload_prop.get("anyOf", [])
+        if isinstance(b, dict) and b.get("type") != "null"
+    ]
+    assert non_null_branches
+    assert non_null_branches[0]["type"] == "object"
 
 
 def test_convert_tool_with_type_array_property():
-    """type: [object, null] on a property must not degrade the field to str."""
+    """type: [object, null] on a property must stay object-typed."""
 
     async def noop(name: str, args: dict[str, Any]) -> SimpleNamespace:
         return SimpleNamespace(content=[])
@@ -478,7 +389,9 @@ def test_convert_tool_with_type_array_property():
         "required": ["config"],
     }
     tools = convert_mcp_tools([_make_mcp_tool("apply", input_schema=schema)], noop)
-    assert tools[0].args_schema.model_fields["config"].annotation is dict
+    config_prop = _props(tools[0])["config"]
+    # `type: [object, null]` survives verbatim; the object branch must be present.
+    assert "object" in config_prop["type"]
 
 
 def test_convert_string_input_schema():
@@ -493,7 +406,7 @@ def test_convert_string_input_schema():
         input_schema='{"type": "object", "properties": {"x": {"type": "integer"}}}',
     )
     lc_tools = convert_mcp_tools([tool], noop)
-    assert "x" in lc_tools[0].args_schema.model_fields
+    assert "x" in _props(lc_tools[0])
 
 
 def test_convert_non_dict_input_schema():
@@ -529,17 +442,47 @@ def test_convert_none_description():
     assert lc_tools[0].description == ""
 
 
-@pytest.mark.parametrize(
-    "json_type,expected_python_type",
-    [
-        ("string", str),
-        ("integer", int),
-        ("number", float),
-        ("boolean", bool),
-        ("array", list),
-        ("object", dict),
-    ],
-)
-def test_field_type_mapping_parametrized(json_type: str, expected_python_type: type):
-    py_type, _ = _json_schema_to_pydantic_field({"type": json_type}, required=True)
-    assert py_type is expected_python_type
+# ---------------------------------------------------------------------------
+# LLM-facing schema semantics (via convert_to_openai_tool)
+# ---------------------------------------------------------------------------
+
+
+def test_llm_visible_schema_preserves_full_semantics():
+    """The schema the LLM actually sees must keep description/enum/min-max/nesting."""
+
+    async def noop(name: str, args: dict[str, Any]) -> SimpleNamespace:
+        return SimpleNamespace(content=[])
+
+    schema: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "date": {"type": "string", "description": "出发日期，格式 YYYY-MM-DD"},
+            "trainType": {
+                "type": "string",
+                "enum": ["G", "D", "K"],
+                "description": "列车类型",
+            },
+            "tickets": {"type": "integer", "minimum": 1, "maximum": 5},
+            "address": {
+                "type": "object",
+                "properties": {
+                    "street": {"type": "string", "description": "街道"},
+                    "city": {"type": "string", "description": "城市"},
+                },
+                "required": ["street"],
+            },
+        },
+        "required": ["date", "trainType"],
+    }
+    tools = convert_mcp_tools([_make_mcp_tool("query", input_schema=schema)], noop)
+    openai_tool = convert_to_openai_tool(tools[0])
+    params = openai_tool["function"]["parameters"]
+    props = params["properties"]
+
+    assert props["date"]["description"] == "出发日期，格式 YYYY-MM-DD"
+    assert props["trainType"]["enum"] == ["G", "D", "K"]
+    assert props["tickets"]["minimum"] == 1
+    assert props["tickets"]["maximum"] == 5
+    assert "street" in props["address"]["properties"]
+    assert props["address"]["required"] == ["street"]
+    assert params["required"] == ["date", "trainType"]

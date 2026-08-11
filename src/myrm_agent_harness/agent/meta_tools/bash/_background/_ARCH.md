@@ -19,8 +19,8 @@ Background bash process registry and durable job ledger for ``bash_code_execute_
 | job_store_core.py | Core | Pure reconcile/status helpers for BSDL durable ledger. | ✅ |
 | job_store.py | Core | SQLite BackgroundJobStore on Volume (metadata, finish dedupe, orphan reconcile). | ✅ |
 | output_spill.py | Core | Incremental vault spill for long background stdout/stderr. | ✅ |
+| session_spawn_lifecycle.py | Core | Session spawn lifecycle markers (activate/clear, auto-clean when session has no running jobs). | ✅ |
 
 ## Key Dependencies
 
 - `toolkits.code_execution.executors`
-- `agent.meta_tools.bash._executor.session_spawn_lifecycle`

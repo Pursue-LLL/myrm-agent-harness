@@ -43,6 +43,7 @@ from myrm_agent_harness.agent.streaming.stream_recovery_continuation import (
 )
 from myrm_agent_harness.agent.streaming.stream_recovery_oneshot import (
     OneshotRecoveryMixin,
+    _resolve_model_name_from_ctx,
 )
 from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
     StreamTruncationRecoveryMixin,
@@ -188,7 +189,10 @@ class StreamRecoveryMixin(
             "ready" if target_fallback_llm and not self.failover_used else "none",
         )
 
-        if not error_kind.is_failoverable or self.failover_used:
+        can_failover = error_kind.is_failoverable or (
+            error_kind == ErrorKind.AUTH and target_fallback_llm is not None
+        )
+        if not can_failover or self.failover_used:
             return False
 
         if target_fallback_llm is None:
@@ -235,8 +239,44 @@ class StreamRecoveryMixin(
         await self._emit_recovery_event(
             step_key, error_kind=error_kind.value, fallback_model=fallback_model
         )
+        from_model = _resolve_model_name_from_ctx(self._ctx) or "primary"
+        await self._emit_failover_sse_notify(
+            error_kind=error_kind,
+            from_model=from_model,
+            to_model=str(fallback_model),
+            error_message=str(exc),
+        )
         self.streaming_final_answer = False
         return True
+
+    async def _emit_failover_sse_notify(
+        self,
+        *,
+        error_kind: ErrorKind,
+        from_model: str,
+        to_model: str,
+        error_message: str | None,
+    ) -> None:
+        """Mirror stream-recovery failover into MODEL_FAILOVER SSE for WebUI toasts."""
+        from myrm_agent_harness.toolkits.llms.fallback import FailoverEvent
+        from myrm_agent_harness.toolkits.llms.fallback.context import (
+            get_active_failover_emitter,
+        )
+
+        emitter = get_active_failover_emitter()
+        if emitter is None:
+            return
+        try:
+            await emitter.emit_failover(
+                FailoverEvent(
+                    from_model=from_model,
+                    to_model=to_model,
+                    reason=error_kind.to_failover_reason(),
+                    error_message=error_message,
+                )
+            )
+        except Exception as emit_exc:
+            logger.warning(" Failover SSE notify failed: %s", emit_exc)
 
     async def _emit_failover_unconfigured_hint(self, error_kind: ErrorKind) -> None:
         """Emit STATUS when failover is possible but no fallback LLM is configured."""

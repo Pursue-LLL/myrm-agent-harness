@@ -64,6 +64,34 @@ class TestSerializeStep:
         d = serialize_step(step)
         assert d["is_password"] is True
 
+    def test_sensitive_fill_value_is_masked(self) -> None:
+        step = _make_step(
+            action=ActionType.FILL,
+            value="plaintext-secret",
+            element_role="textbox",
+            is_password=True,
+        )
+        d = serialize_step(step)
+        assert d["value"] == "***"
+        assert "plaintext-secret" not in d.values()
+
+    def test_sensitive_type_value_is_masked(self) -> None:
+        step = _make_step(
+            action=ActionType.TYPE,
+            value="hunter2",
+            element_role="textbox",
+            is_password=True,
+        )
+        d = serialize_step(step)
+        assert d["value"] == "***"
+
+    def test_non_sensitive_value_unchanged(self) -> None:
+        step = _make_step(
+            action=ActionType.FILL, value="alice@example.com", element_role="textbox"
+        )
+        d = serialize_step(step)
+        assert d["value"] == "alice@example.com"
+
     def test_serialize_step_includes_label(self) -> None:
         step = ActionStep(
             seq=1,
@@ -180,6 +208,30 @@ class TestNaturalLanguage:
         nl = step_to_natural_language(step, credential_label="oops")
         assert "Fill credential" not in nl
         assert 'Fill "hello"' in nl
+
+    def test_password_fill_without_label_never_leaks_value(self) -> None:
+        step = _make_step(
+            action=ActionType.FILL,
+            value="super-secret",
+            element_text="Password",
+            element_role="textbox",
+            is_password=True,
+        )
+        nl = step_to_natural_language(step)
+        assert "super-secret" not in nl
+        assert 'Fill the password field into textbox "Password"' in nl
+
+    def test_password_type_without_label_never_leaks_value(self) -> None:
+        step = _make_step(
+            action=ActionType.TYPE,
+            value="hunter2",
+            element_text="Password",
+            element_role="textbox",
+            is_password=True,
+        )
+        nl = step_to_natural_language(step)
+        assert "hunter2" not in nl
+        assert "password field" in nl
 
     def test_navigate(self) -> None:
         step = _make_step(action=ActionType.NAVIGATE, value="https://example.com")

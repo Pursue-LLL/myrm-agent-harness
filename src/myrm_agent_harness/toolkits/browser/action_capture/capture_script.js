@@ -4,7 +4,7 @@
 (function() {
   if (window.__myrmActionCapture) return;
 
-  const SENSITIVE_TYPES = new Set(['password', 'credit-card-number', 'cc-csc']);
+  const SENSITIVE_TYPES = new Set(['password', 'current-password', 'new-password', 'credit-card-number', 'cc-csc']);
 
   // Resolve the innermost event target, piercing open shadow DOM boundaries so
   // selectors target the real element instead of the shadow host.
@@ -38,34 +38,60 @@
   function isSensitive(el) {
     const type = (el.getAttribute('type') || '').toLowerCase();
     const ac = (el.getAttribute('autocomplete') || '').toLowerCase();
-    return type === 'password' || SENSITIVE_TYPES.has(ac);
+    // autocomplete is a space-separated token list (e.g. "section-red current-password")
+    const tokens = ac.split(/\s+/).filter(Boolean);
+    return type === 'password' || tokens.some(t => SENSITIVE_TYPES.has(t));
   }
 
   function truncateText(text) {
-    const t = (text || '').trim();
+    // Collapse internal whitespace so multi-line labels become single-line
+    // (matches how screen readers expose field names) before truncation.
+    const t = (text || '').replace(/\s+/g, ' ').trim();
     return t.length > 80 ? t.slice(0, 80) + '...' : t;
   }
 
-  function selectLabelText(el) {
-    const label = el.closest('label');
-    if (!label) return '';
-    // A wrapped select contributes its option text to label.textContent — clone
-    // and strip the form controls so only the field's wording remains.
+  // Field-name text of a label with its form controls stripped, so wrapped
+  // selects never leak option texts into the label wording.
+  function labelFieldText(label) {
     const clone = label.cloneNode(true);
     clone.querySelectorAll('select, input, textarea, button').forEach(n => n.remove());
     return truncateText(clone.textContent);
   }
 
+  // Resolve the label associated via `label[for="el.id"]`, which works even
+  // when the label is not adjacent in the DOM (common in grid-based forms).
+  function associatedLabelText(el) {
+    const id = el.id || '';
+    if (!id) return '';
+    try {
+      const label = document.querySelector('label[for="' + CSS.escape(id) + '"]');
+      return label ? labelFieldText(label) : '';
+    } catch (_err) {
+      return '';
+    }
+  }
+
+  // Field-name text of the wrapping label for any form control. Unlike the
+  // label[for] lookup this also covers the classic inline form
+  // `<label>Username <input></label>`, where the label wraps the control.
+  function wrappingLabelText(el) {
+    const label = el.closest('label');
+    return label ? labelFieldText(label) : '';
+  }
+
   function getText(el) {
-    const label = el.getAttribute('aria-label') || el.getAttribute('placeholder') || '';
+    const label =
+      el.getAttribute('aria-label') ||
+      associatedLabelText(el) ||
+      wrappingLabelText(el) ||
+      el.getAttribute('placeholder') ||
+      '';
     if (label) return label;
     if (el.tagName === 'SELECT') {
       // A select's textContent concatenates every option label — useless as a
       // field description. Prefer the wrapping/adjacent label, then the label
       // of the currently selected option, so multi-dropdown forms stay
       // disambiguated in the generated skill.
-      const labelText = selectLabelText(el);
-      if (labelText) return labelText;
       const prev = el.previousElementSibling;
       if (prev && /^(LABEL|SPAN|DIV)$/i.test(prev.tagName)) {
         const t = truncateText(prev.textContent);
@@ -153,8 +179,7 @@
     fillSession = null;
     if (session.lastValue === session.baselineValue) return;  // no-op focus
     if (!session.lastValue) return;  // cleared to empty: drop (matches trace-reducer)
-    const isPwd = session.element instanceof HTMLInputElement &&
-      (session.element.type || '').toLowerCase() === 'password';
+    const isPwd = isSensitive(session.element);
     emit('fill', session.element, isPwd ? '***' : session.lastValue);
     committedValues.set(session.element, session.lastValue);
   }

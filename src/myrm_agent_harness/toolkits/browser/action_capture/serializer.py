@@ -6,7 +6,7 @@
 
 [OUTPUT]
 - serialize_session: Convert CaptureSession to JSON-serializable dict
-- serialize_step: Convert single ActionStep to dict (for SSE streaming)
+- serialize_step: Convert single ActionStep to dict (for SSE streaming); masks values of credential fill/type steps
 - step_to_natural_language: Convert one ActionStep to a natural-language sentence; emits `fill_credential` directives for credential-labeled steps
 - steps_to_natural_language: Convert a step sequence to numbered natural-language instructions, honoring per-step credential labels
 
@@ -18,6 +18,19 @@ Strips screenshot_b64 from full session exports to reduce payload size.
 from __future__ import annotations
 
 from .types import ActionStep, ActionType, CaptureSession
+
+
+def _mask_sensitive_value(step: ActionStep) -> str:
+    """Mask captured values of credential fill/type steps in serialized output.
+
+    The capture script already masks password values at the source, but
+    manual-mode steps and future script regressions could carry plaintext
+    values. Masking here keeps every serialization surface (SSE streaming, WS
+    forwarding, session export) free of secrets regardless of the upstream mask.
+    """
+    if step.is_password and step.action in (ActionType.FILL, ActionType.TYPE):
+        return "***"
+    return step.value
 
 
 def serialize_step(step: ActionStep, *, include_screenshot: bool = False) -> dict[str, object]:
@@ -34,7 +47,7 @@ def serialize_step(step: ActionStep, *, include_screenshot: bool = False) -> dic
         "seq": step.seq,
         "action": step.action.value,
         "selector": step.selector,
-        "value": step.value,
+        "value": _mask_sensitive_value(step),
         "url": step.url,
         "title": step.title,
         "timestamp": step.timestamp,
@@ -90,9 +103,10 @@ _CONTEXT_TEMPLATES = frozenset({"fill", "type"})
 def _element_context(step: ActionStep) -> str:
     """Build an element description that disambiguates fill/type/select targets.
 
-    Prefers the captured text (aria-label/placeholder or select label) and
-    falls back to the selector so the agent can tell fields apart on
-    multi-field forms.
+    Prefers the captured field label (resolved in capture_script.js via
+    aria-label, label[for], wrapping label, placeholder, adjacent sibling, or
+    selected option) and falls back to the selector so the agent can tell
+    fields apart on multi-field forms.
     """
     text = step.element_text or step.selector
     role = step.element_role or "element"
@@ -111,6 +125,11 @@ def step_to_natural_language(step: ActionStep, *, credential_label: str | None =
     """
     if credential_label and step.is_password:
         return f'Fill credential "{credential_label}" into {_element_context(step)}'
+    if step.is_password and step.action in (ActionType.FILL, ActionType.TYPE):
+        # Without a credential label there is no vault lookup, so the captured
+        # value (masked or not) must never reach the natural-language surface —
+        # e.g. LLM description generation that renders steps without labels.
+        return f'Fill the password field into {_element_context(step)}'
     if step.action == ActionType.SELECT:
         base = f'Select "{step.value}"'
         if step.label:

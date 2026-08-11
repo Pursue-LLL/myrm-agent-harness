@@ -10,8 +10,7 @@ with various LLMs.
 [OUTPUT]
 - canonicalize_schema_for_cache: Deterministic key ordering for prompt prefix cache stability.
 - flatten_json_schema: Resolves $ref pointers inline securely.
-- flatten_top_level_composite: Merges top-level anyOf/oneOf/allOf object branches into a flat properties set (with exclusivity hints).
-- primary_json_type: Returns the primary non-null JSON type token for a property (shared by Pydantic annotation inference).
+- flatten_top_level_composite: Merges top-level anyOf/oneOf/allOf object branches into a flat properties set (cross-branch const/enum union, common-required promotion, exclusivity hints).
 - analyze_schema_complexity: Measures leaf count and max depth.
 - flatten_deep_schema: Flattens deeply-nested schemas to dot-path notation.
 - nest_flat_arguments: Restores dot-path args to nested structure for dispatch.
@@ -32,7 +31,7 @@ import contextlib
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +165,7 @@ def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str
         flattened.pop("definitions", None)
         flattened.pop("$defs", None)
 
-    return flattened
+    return cast(dict[str, Any], flattened)
 
 
 def _strip_markdown_json(value: str) -> str:
@@ -282,18 +281,6 @@ def prepare_mcp_call_arguments(
         ):
             prepared[key] = None
     return prepared
-
-
-def primary_json_type(schema: dict[str, Any]) -> str:
-    """Return the primary JSON Schema type token for a property.
-
-    Collapses nullable unions (``anyOf``/``oneOf`` with a ``null`` branch) and
-    array ``type`` forms (``["object", "null"]``) to the first non-null
-    variant. Unknown or all-null schemas fall back to ``"string"`` (permissive,
-    never blocks a call). Shared by ``tool_converter`` for Pydantic annotation
-    inference; coercion keeps its own nullable-aware helpers.
-    """
-    return _primary_non_null_type(schema) or "string"
 
 
 def _primary_non_null_type(schema: dict[str, Any]) -> str | None:
@@ -636,6 +623,94 @@ def nest_flat_arguments(flat_args: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 _COMPOSITE_KEYS = ("anyOf", "oneOf", "allOf")
+
+_CONST_PRIMITIVE_TYPES: dict[type, str] = {
+    bool: "boolean",
+    int: "integer",
+    float: "number",
+    str: "string",
+}
+
+
+def collapse_const_unions(schema: dict[str, Any]) -> dict[str, Any]:
+    """Collapse ``anyOf``/``oneOf`` unions of same-typed consts to ``enum``.
+
+    Rust/TypeScript MCP servers declare closed value sets as const unions —
+    e.g. ``{"anyOf": [{"const": "red"}, {"const": "green"}]}``. Strict LLM
+    providers reject or strip such unions (``const`` becomes a bare scalar),
+    hiding every allowed value from the model; the equivalent ``enum`` form
+    is universally supported. Only unions where every non-null branch is a
+    pure ``const`` of the same primitive type are collapsed — mixed unions
+    and constrained branches pass through untouched, and a single ``null``
+    branch is dropped as ``nullable: true``. Outer-node metadata
+    (``title``/``description``/``default``) is carried onto the replacement.
+    Recursive, deterministic (branch order preserved), idempotent, and the
+    input schema is never mutated.
+    """
+
+    def _walk(node: object) -> object:
+        if isinstance(node, list):
+            return [_walk(item) for item in node]
+        if not isinstance(node, dict):
+            return node
+        out: dict[str, Any] = {key: _walk(value) for key, value in node.items()}
+        for key in ("anyOf", "oneOf"):
+            variants = out.get(key)
+            if not isinstance(variants, list) or not variants:
+                continue
+            null_branches = [
+                item
+                for item in variants
+                if isinstance(item, dict)
+                and item.get("type") == "null"
+                and "const" not in item
+            ]
+            const_branches = [item for item in variants if item not in null_branches]
+            if len(null_branches) > 1 or not const_branches:
+                continue
+            branch_types = {_const_branch_type(item) for item in const_branches}
+            if len(branch_types) != 1 or None in branch_types:
+                continue
+            replacement: dict[str, Any] = {
+                "type": branch_types.pop(),
+                "enum": [item["const"] for item in const_branches],
+            }
+            if null_branches:
+                replacement["nullable"] = True
+            for meta_key in ("title", "description", "default"):
+                if meta_key in out and meta_key not in replacement:
+                    replacement[meta_key] = out[meta_key]
+            return replacement
+        return out
+
+    result = _walk(schema)
+    if not isinstance(result, dict):
+        return schema
+    return result
+
+
+def _const_branch_type(branch: object) -> str | None:
+    """Return the JSON-Schema primitive type of a pure ``const`` branch.
+
+    A branch qualifies when it is a dict carrying ``const`` with a primitive
+    value and no constraining keyword other than ``type``/``title``/
+    ``description``; any declared ``type`` must match the value's type.
+    ``bool`` is checked before ``int`` (its subclass) so True/False never
+    classify as integers. Returns ``None`` otherwise.
+    """
+    if not isinstance(branch, dict) or "const" not in branch:
+        return None
+    extra = set(branch) - {"const", "type", "title", "description"}
+    if extra:
+        return None
+    value = branch["const"]
+    for py_type, json_type in _CONST_PRIMITIVE_TYPES.items():
+        if type(value) is py_type:
+            declared = branch.get("type")
+            if declared is not None and declared != json_type:
+                return None
+            return json_type
+    return None
 _MAX_COMPOSITE_FLATTEN_DEPTH = 5
 
 
@@ -645,15 +720,21 @@ def flatten_top_level_composite(schema: dict[str, Any]) -> dict[str, Any]:
     Third-party MCP servers sometimes declare a tool's parameters with a
     top-level composite keyword — e.g. kimi-cu ``click`` accepts ``index``
     *or* ``x``/``y``. Strict providers reject top-level combinators, and the
-    Pydantic args builder only reads ``properties``, so such tools silently
+    LLM-facing schema (the dict passed to ``StructuredTool.args_schema``)
+    only carries parameter meaning via ``properties``, so such tools silently
     lose every parameter. Merging each object branch's ``properties`` into a
     single flat set makes the tool usable; the original alternative constraint
     is folded into ``description`` so the LLM picks one valid combination.
 
     ``allOf`` branches are conjunctive — their ``required`` lists are merged.
-    ``anyOf``/``oneOf`` branches are alternative — ``required`` is dropped and
-    the alternatives are spelled out in ``description`` only when there are at
-    least two non-empty groups (a single branch needs no extra guidance).
+    ``anyOf``/``oneOf`` branches are alternative: a property redefined across
+    branches keeps the union of its ``const``/``enum`` values (so a
+    discriminator field like ``type`` exposes every operational mode instead
+    of silently keeping only the last branch's value), and a property that is
+    required by *every* branch is promoted to the top-level ``required``.
+    The remaining per-branch alternatives are spelled out in ``description``
+    as mutually exclusive groups — promoted common fields are excluded from
+    that hint because they are mandatory, not part of the choice.
 
     Top-level ``properties`` / ``required`` coexist conjunctively with the
     composite keyword and are always preserved.
@@ -663,7 +744,9 @@ def flatten_top_level_composite(schema: dict[str, Any]) -> dict[str, Any]:
     return _flatten_top_level_composite(schema, depth=0)
 
 
-def _flatten_top_level_composite(schema: dict[str, Any], *, depth: int) -> dict[str, Any]:
+def _flatten_top_level_composite(
+    schema: dict[str, Any], *, depth: int
+) -> dict[str, Any]:
     if not isinstance(schema, dict):
         return schema
 
@@ -679,7 +762,9 @@ def _flatten_top_level_composite(schema: dict[str, Any], *, depth: int) -> dict[
 
     merged_props: dict[str, Any] = {}
     merged_required: list[str] = []
-    alternatives: list[list[str]] = []
+    alternative_groups: list[list[str]] = []
+    alt_required_counts: dict[str, int] = {}
+    alt_branch_count = 0
 
     # Top-level properties/required apply conjunctively alongside the
     # composite keyword (JSON Schema semantics) — always keep them.
@@ -696,19 +781,34 @@ def _flatten_top_level_composite(schema: dict[str, Any], *, depth: int) -> dict[
             props = resolved.get("properties")
             if not isinstance(props, dict):
                 continue
-            for name in props:
-                if name in merged_props:
-                    logger.debug(
-                        "Top-level composite flatten: property '%s' redefined across branches",
-                        name,
-                    )
-            merged_props.update(props)
             if keyword == "allOf":
+                for name in props:
+                    _merge_branch_property(merged_props, name, props[name])
                 req = resolved.get("required")
                 if isinstance(req, list):
                     merged_required.extend(req)
             else:
-                alternatives.append(sorted(props))
+                alt_branch_count += 1
+                branch_required = resolved.get("required")
+                if isinstance(branch_required, list):
+                    for name in branch_required:
+                        if isinstance(name, str) and name in props:
+                            alt_required_counts[name] = (
+                                alt_required_counts.get(name, 0) + 1
+                            )
+                alternative_groups.append(sorted(props))
+                for name in props:
+                    _merge_branch_property(merged_props, name, props[name])
+
+    # A property required by every alternative branch (e.g. the ``type``
+    # discriminator of a oneOf union) is mandatory no matter which branch is
+    # chosen — promote it so the LLM sees it as required instead of optional.
+    common_required = {
+        name
+        for name, count in alt_required_counts.items()
+        if alt_branch_count > 1 and count == alt_branch_count
+    }
+    merged_required.extend(sorted(common_required))
 
     if not merged_props:
         return schema
@@ -720,10 +820,18 @@ def _flatten_top_level_composite(schema: dict[str, Any], *, depth: int) -> dict[
     if merged_required:
         result["required"] = list(dict.fromkeys(merged_required))
 
-    constraint = _build_alternative_constraint(alternatives)
+    # The exclusivity hint lists only the per-branch choices; common required
+    # fields are excluded since they are always present, not an alternative.
+    exclusive_groups = [
+        [name for name in group if name not in common_required]
+        for group in alternative_groups
+    ]
+    constraint = _build_alternative_constraint(exclusive_groups)
     if constraint:
         existing = result.get("description")
-        result["description"] = f"{existing} {constraint}".strip() if existing else constraint
+        result["description"] = (
+            f"{existing} {constraint}".strip() if existing else constraint
+        )
 
     logger.debug(
         "Flattened top-level composite (%s) into %d flat properties",
@@ -750,3 +858,93 @@ def _build_alternative_constraint(alternatives: list[list[str]]) -> str | None:
         return None
     groups = "; ".join(f"({', '.join(alt)})" for alt in non_empty)
     return f"Parameters are mutually exclusive alternatives — provide exactly one group: {groups}."
+
+
+def _collect_enum_values(prop_schema: dict[str, Any]) -> list[Any]:
+    """Return the enumerable values of a property schema (``const`` → singleton)."""
+    if "const" in prop_schema:
+        return [prop_schema["const"]]
+    enum_values = prop_schema.get("enum")
+    if isinstance(enum_values, list) and enum_values:
+        return enum_values
+    return []
+
+
+def _dedupe_preserving_order(values: list[Any]) -> list[Any]:
+    """Dedupe arbitrary JSON values while preserving first-seen order."""
+    seen: set[str] = set()
+    unique: list[Any] = []
+    for value in values:
+        try:
+            key = json.dumps(value, sort_keys=True)
+        except (TypeError, ValueError):
+            key = repr(value)
+        if key not in seen:
+            seen.add(key)
+            unique.append(value)
+    return unique
+
+
+def _union_enum_schema(
+    first: dict[str, Any],
+    second: dict[str, Any],
+    first_values: list[Any],
+    second_values: list[Any],
+) -> dict[str, Any]:
+    """Merge two enum-like property definitions into a single union schema.
+
+    Keeps a shared ``type`` (dropped when the branches disagree), unifies
+    equal descriptions and concatenates different ones, and emits the
+    deduplicated union of both value lists as ``enum``.
+    """
+    merged: dict[str, Any] = {}
+    first_title = first.get("title")
+    if first_title or second.get("title"):
+        merged["title"] = first_title or second.get("title")
+    first_description = first.get("description")
+    second_description = second.get("description")
+    if first_description and second_description:
+        merged["description"] = (
+            first_description
+            if first_description == second_description
+            else f"{first_description} {second_description}"
+        )
+    elif first_description or second_description:
+        merged["description"] = first_description or second_description
+    if "type" in first and first.get("type") == second.get("type"):
+        merged["type"] = first["type"]
+    merged["enum"] = _dedupe_preserving_order(first_values + second_values)
+    return merged
+
+
+def _merge_branch_property(
+    merged_props: dict[str, Any], name: str, prop_schema: object
+) -> None:
+    """Merge one branch property into the flat properties set.
+
+    A property redefined across ``anyOf``/``oneOf`` branches keeps the union
+    of its allowed ``const``/``enum`` values — otherwise a discriminator field
+    like ``type`` would silently retain only the last branch's value and hide
+    every other operational mode from the LLM. Non-enumerable redefinitions
+    keep the first occurrence for determinism.
+    """
+    existing = merged_props.get(name)
+    if not isinstance(prop_schema, dict):
+        # Malformed third-party schemas may carry a non-object property value;
+        # keep the first definition when one exists, else store it verbatim.
+        if existing is None:
+            merged_props[name] = prop_schema
+        return
+    if existing is None or not isinstance(existing, dict):
+        merged_props[name] = prop_schema
+        return
+    logger.debug(
+        "Top-level composite flatten: property '%s' redefined across branches",
+        name,
+    )
+    first_values = _collect_enum_values(existing)
+    second_values = _collect_enum_values(prop_schema)
+    if first_values and second_values:
+        merged_props[name] = _union_enum_schema(
+            existing, prop_schema, first_values, second_values
+        )
