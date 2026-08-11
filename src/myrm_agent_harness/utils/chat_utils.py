@@ -12,7 +12,7 @@
 - extract_text_content(): 从字符串 / 多媒体列表 / JSON 中提取纯文本
 - extract_answer_text(): 从 LLM 响应提取用户可见答案文本（str / block list / think 剥离 / reasoning 模型回退）
 - extract_litellm_answer_text(): 从 litellm 原生响应提取用户可见答案文本（choices[0].message / reasoning_content / block list）
-- parse_llm_json_object() / parse_llm_json_list(): 从 LLM 回复中容错提取 JSON 对象 / 数组（fence / 裸控制字符 / 多候选取末）
+- parse_llm_json_object() / parse_llm_json_list(): 从 LLM 回复中容错提取 JSON 对象 / 数组（fence / 裸控制字符 / 多候选取末）；parse_llm_json_object 支持 require_key 过滤（仅取含指定键的对象）
 
 [POS]
 Chat utility functions. Provides business-config-independent chat history conversion (generic part).
@@ -294,20 +294,28 @@ def _iter_parsed_containers(
     """Yield every dict or list recoverable from ``content``.
 
     Each candidate (fence body, balanced object/array, stripped raw text)
-    is tried raw first and then with unescaped control characters inside
-    string literals escaped, matching the artifacts reasoning providers emit.
+    is tried raw first and, only on failure, with unescaped control
+    characters inside string literals escaped — matching the artifacts
+    reasoning providers emit.
     """
     for candidate in _iter_json_candidates(content):
-        for candidate_text in (candidate, _escape_control_chars_in_strings(candidate)):
+        try:
+            parsed = json.loads(candidate)
+        except json.JSONDecodeError:
+            candidate = _escape_control_chars_in_strings(candidate)
             try:
-                parsed = json.loads(candidate_text)
+                parsed = json.loads(candidate)
             except json.JSONDecodeError:
                 continue
-            if isinstance(parsed, (dict, list)):
-                yield parsed
+        if isinstance(parsed, (dict, list)):
+            yield parsed
 
 
-def parse_llm_json_object(content: str) -> dict[str, object] | None:
+def parse_llm_json_object(
+    content: str,
+    *,
+    require_key: str | None = None,
+) -> dict[str, object] | None:
     """Parse a JSON object out of an LLM reply.
 
     Tolerates the artifacts reasoning providers actually emit: markdown
@@ -318,10 +326,15 @@ def parse_llm_json_object(content: str) -> dict[str, object] | None:
     the *last* parseable dict wins, matching how reasoning providers tend
     to end with the final verdict. Returns ``None`` when no object can be
     recovered.
+
+    When ``require_key`` is given, only objects carrying that key are
+    considered and the *last* such object wins — letting callers express
+    contracts like "a verdict that must contain ``done``" without
+    iterating candidates themselves.
     """
     parsed_last: dict[str, object] | None = None
     for parsed in _iter_parsed_containers(content):
-        if isinstance(parsed, dict):
+        if isinstance(parsed, dict) and (require_key is None or require_key in parsed):
             parsed_last = parsed
     return parsed_last
 

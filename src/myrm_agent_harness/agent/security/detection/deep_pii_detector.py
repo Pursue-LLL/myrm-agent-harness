@@ -30,14 +30,13 @@ Financial Records, Precise Locations, and 15+ other semantic PII types.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from myrm_agent_harness.agent.security.detection.deep_pii_prompt import build_deep_pii_prompt
 from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_list
 from myrm_agent_harness.utils.text_sanitizer import sanitize_text
 
 logger = logging.getLogger(__name__)
@@ -159,23 +158,9 @@ def _parse_detection_response(raw: str, expected_count: int) -> list[list[DeepPI
     """Parse LLM response into per-text PII item lists."""
     raw = sanitize_text(raw).strip()
 
-    match = re.search(r"\[.*\]", raw, re.DOTALL)
-    if not match:
+    data = parse_llm_json_list(raw)
+    if data is None:
         logger.warning("[DEEP_PII] No JSON array found in LLM response")
-        return [[] for _ in range(expected_count)]
-
-    try:
-        data = json.loads(match.group(0))
-    except json.JSONDecodeError:
-        try:
-            import json_repair  # type: ignore[import-untyped]
-
-            data = json_repair.loads(match.group(0))
-        except Exception:
-            logger.warning("[DEEP_PII] Failed to parse LLM response JSON")
-            return [[] for _ in range(expected_count)]
-
-    if not isinstance(data, list):
         return [[] for _ in range(expected_count)]
 
     # Handle flat list (single text) vs nested list (batch)

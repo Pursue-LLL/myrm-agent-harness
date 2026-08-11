@@ -272,6 +272,21 @@ class TestParseLlmJsonObject:
         raw = '[1, 2] then {"done": true}'
         assert parse_llm_json_object(raw) == {"done": True}
 
+    def test_require_key_filters_objects(self) -> None:
+        raw = '{"a": 1} {"done": false} {"done": true}'
+        assert parse_llm_json_object(raw, require_key="done") == {"done": True}
+
+    def test_require_key_last_matching_wins(self) -> None:
+        raw = '{"done": false} Example: {"done": true, "extra": 1}'
+        assert parse_llm_json_object(raw, require_key="done") == {"done": True, "extra": 1}
+
+    def test_require_key_no_match_returns_none(self) -> None:
+        assert parse_llm_json_object('{"a": 1}', require_key="done") is None
+
+    def test_require_key_none_matches_every_object(self) -> None:
+        raw = '{"done": false} {"a": 1}'
+        assert parse_llm_json_object(raw, require_key=None) == {"a": 1}
+
 
 class TestParseLlmJsonList:
     def test_plain_array(self) -> None:

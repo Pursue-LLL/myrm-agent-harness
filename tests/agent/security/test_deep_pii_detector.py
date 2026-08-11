@@ -94,6 +94,20 @@ class TestParseDetectionResponse:
         assert len(result) == 3
         assert all(r == [] for r in result)
 
+    def test_multiple_arrays_takes_last(self) -> None:
+        resp = 'Some candidates: [["example@test.com"]]\nReal: [["wang@corp.com"]]'
+        result = _parse_detection_response(resp, 1)
+        assert len(result) == 1
+        assert len(result[0]) == 1
+        assert result[0][0].original_text == "wang@corp.com"
+
+    def test_unescaped_newline_in_text(self) -> None:
+        resp = '[["phone: 138\n00000000"]]'
+        result = _parse_detection_response(resp, 1)
+        assert len(result) == 1
+        assert len(result[0]) == 1
+        assert result[0][0].original_text == "phone: 138\n00000000"
+
 
 class TestParseItems:
     def test_valid_items(self) -> None:
@@ -256,16 +270,13 @@ class TestPseudonymizeDeepPII:
 class TestParseEdgeCases:
     """Edge cases for response parsing."""
 
-    def test_malformed_json_fallback(self) -> None:
+    def test_trailing_comma_unsupported_returns_empty(self) -> None:
+        # Trailing commas are outside the robust parser's supported
+        # artifacts; a non-recoverable reply falls back to empty results
+        # (fail-open), leaving regex PII classification as the fallback.
         resp = '[{"original_text": "diabetes", "privacy_type": "Medical Health", "privacy_level": "PL3",}]'
         result = _parse_detection_response(resp, 1)
-        assert len(result) == 1
-        try:
-            import json_repair  # noqa: F401
-            assert len(result[0]) == 1
-            assert result[0][0].original_text == "diabetes"
-        except ImportError:
-            assert result[0] == []
+        assert result == [[]]
 
     def test_non_list_top_level_returns_empty(self) -> None:
         resp = '{"original_text": "test", "privacy_type": "T", "privacy_level": "PL2"}'
