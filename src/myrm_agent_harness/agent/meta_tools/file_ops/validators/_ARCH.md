@@ -29,5 +29,5 @@ Validators module.
 - `tests/agent/meta_tools/file_ops/validators/test_office_bash_audit.py`
 - `tests/agent/meta_tools/file_ops/validators/test_office_write_guard.py`
 - `tests/agent/meta_tools/file_ops/validators/test_office_golden_opc.py`
-- `tests/agent/meta_tools/file_ops/utils/test_markdown_frontmatter.py`
+- `tests/utils/test_markdown_frontmatter.py`
 - `tests/agent/meta_tools/file_ops/utils/test_vault_scope.py`

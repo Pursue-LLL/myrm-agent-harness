@@ -11,7 +11,7 @@ Real-time structured session notes. Asynchronously maintains notes during conver
 | prompts.py | Core | Session Notes LLM prompt templates. Supports incremental merge (new messages + current notes) and fu | ✅ |
 | schemas.py | Config | Session Notes type system foundation. Defines structured data models for notes, section templates, a | ✅ |
 | trigger.py | Core | Dual-threshold trigger strategy: token growth + tool call count. Suppresses updates during prolonged tool usage (>35 calls) to avoid cache breaks in unproductive loops. | ✅ |
-| updater.py | Core | Session Notes core update engine. Manages the async update lifecycle: incremental merges, periodic f | ✅ |
+| updater.py | Core | Session Notes core update engine. Manages the async update lifecycle: incremental merges, periodic full refreshes, trailing-run mode, and circuit breaker. `_parse_notes_response` parses the LLM section-content object via `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas). | ✅ |
 
 ## Key Dependencies
 

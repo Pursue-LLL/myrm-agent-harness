@@ -478,6 +478,20 @@ class TestParseNotesResponse:
 
         assert _parse_notes_response("not json at all") is None
 
+    def test_parse_prose_with_trailing_comma(self) -> None:
+        from myrm_agent_harness.agent.context_management.strategies.session_notes.updater import _parse_notes_response
+
+        content = 'Here are the notes:\n{"session_title": "Test",}'
+        result = _parse_notes_response(content)
+        assert result == {"session_title": "Test"}
+
+    def test_parse_bare_newline_in_value(self) -> None:
+        from myrm_agent_harness.agent.context_management.strategies.session_notes.updater import _parse_notes_response
+
+        content = '{"session_title": "Line1\nLine2"}'
+        result = _parse_notes_response(content)
+        assert result == {"session_title": "Line1\nLine2"}
+
 
 # ---------------------------------------------------------------------------
 # session_notes_processor.py

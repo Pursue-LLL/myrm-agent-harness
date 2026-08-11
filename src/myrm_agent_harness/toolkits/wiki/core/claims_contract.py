@@ -1,7 +1,7 @@
 """Structured wiki claims and evidence frontmatter contract.
 
 [INPUT]
-agent.meta_tools.file_ops.utils.markdown_frontmatter (POS: frontmatter block detection)
+utils.markdown_frontmatter (POS: frontmatter block detection)
 
 [OUTPUT]
 WikiClaim, WikiEvidence, parse_claims_from_content, validate_compile_claims, ensure_compile_claims,
@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
+from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure

@@ -6,7 +6,7 @@ See module docstring.
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.security.types import AccessRoot
+from myrm_agent_harness.core.security.types import AccessRoot
 from myrm_agent_harness.toolkits.code_execution.sandbox.sandbox_types import SandboxPolicy
 
 

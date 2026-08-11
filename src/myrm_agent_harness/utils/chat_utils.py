@@ -297,12 +297,11 @@ def _iter_json_blocks(text: str, open_ch: str, close_ch: str) -> Iterable[str]:
             if depth == 0:
                 start = i
             depth += 1
-        elif ch == close_ch:
-            if depth > 0:
-                depth -= 1
-                if depth == 0 and start != -1:
-                    yield text[start : i + 1]
-                    start = -1
+        elif ch == close_ch and depth > 0:
+            depth -= 1
+            if depth == 0 and start != -1:
+                yield text[start : i + 1]
+                start = -1
 
 
 def _iter_json_objects(text: str) -> Iterable[str]:
@@ -333,7 +332,7 @@ def _iter_json_candidates(content: str) -> Iterable[str]:
 def _try_load(text: str) -> object | None:
     """Return ``json.loads(text)`` or ``None`` when the text is malformed."""
     try:
-        return json.loads(text)
+        return cast(object | None, json.loads(text))
     except json.JSONDecodeError:
         return None
 

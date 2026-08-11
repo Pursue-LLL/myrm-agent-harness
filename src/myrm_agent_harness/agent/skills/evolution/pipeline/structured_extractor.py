@@ -1,6 +1,7 @@
 """[INPUT]
 - langchain_core.language_models::BaseChatModel (POS: LLM instance for structured skill extraction)
 - myrm_agent_harness.utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+- myrm_agent_harness.utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - SkillCaptureResult: Structured output for skill extraction with form routing.
@@ -17,7 +18,10 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field, field_validator
 
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import (
+    extract_answer_text,
+    parse_llm_json_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -188,13 +192,9 @@ class StructuredExtractor:
             raw_result = await self._llm.ainvoke(messages)
             # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
             content = extract_answer_text(raw_result)
-            import json
-            import re
-
-            match = re.search(r"\{.*\}", content, re.DOTALL)
-            if match:
-                data = json.loads(match.group(0))
-                result = SkillCaptureResult(**data)
+            data = parse_llm_json_object(content)
+            if data is not None:
+                result = SkillCaptureResult.model_validate(data)
                 logger.info(
                     f"Fallback extracted structured skill: {result.name} (general: {result.is_general}, conf: {result.confidence})"
                 )

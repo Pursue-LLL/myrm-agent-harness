@@ -45,7 +45,7 @@ class _FakeGraphStore:
 class _FakeMemoryManager:
     def __init__(self, llm_response: str = "[]") -> None:
         self.stored_memories: list[SemanticMemory] = []
-        self.graph_store: _FakeGraphStore | None = _FakeGraphStore()
+        self._graph: _FakeGraphStore | None = _FakeGraphStore()
         self.llm_response = llm_response
 
     async def _consolidation_llm(self, sys_prompt: str, user_prompt: str) -> str:
@@ -110,10 +110,10 @@ async def test_cognitive_deriver_success() -> None:
     assert mem.preference_type == "implicit"
     assert mem.preference_strength == 1.0  # supersede sets to 1.0
 
-    assert manager.graph_store is not None
-    assert len(manager.graph_store.nodes) == 2  # Evidence and Claim
-    assert len(manager.graph_store.relationships) == 1
-    assert manager.graph_store.relationships[0][2] in ("SUPERSEDED_BY", "CONTRADICTED_BY")
+    assert manager._graph is not None
+    assert len(manager._graph.nodes) == 2  # Evidence and Claim
+    assert len(manager._graph.relationships) == 1
+    assert manager._graph.relationships[0][2] in ("SUPERSEDED_BY", "CONTRADICTED_BY")
 
 
 @pytest.mark.asyncio
@@ -165,5 +165,35 @@ async def test_cognitive_deriver_low_confidence() -> None:
     assert result["success"] is True
     assert result["extracted_count"] == 0
     assert result["has_disruptive_change"] is False
+    assert len(manager.stored_memories) == 0
+
+
+@pytest.mark.asyncio
+async def test_cognitive_deriver_prose_trailing_comma() -> None:
+    llm_resp = (
+        'Preferences found:\n'
+        '[{"preference_key": "reply_style", "preference_claim": "User prefers '
+        'concise answers", "confidence": 0.95, "scope": "global", '
+        '"change_kind": "support",}]'
+    )
+    manager = _FakeMemoryManager(llm_response=llm_resp)
+    deriver = CognitiveDeriver(manager)  # type: ignore
+
+    result = await deriver.run_derivation("sess1", "chat1", [{"role": "user", "content": "Just code"}])
+
+    assert result["success"] is True
+    assert result["extracted_count"] == 1
+    assert len(manager.stored_memories) == 1
+    assert manager.stored_memories[0].metadata.get("preference_key") == "reply_style"
+
+
+@pytest.mark.asyncio
+async def test_cognitive_deriver_invalid_json() -> None:
+    manager = _FakeMemoryManager(llm_response="the model refused to output json")
+    deriver = CognitiveDeriver(manager)  # type: ignore
+
+    result = await deriver.run_derivation("sess1", "chat1", [{"role": "user", "content": "Just code"}])
+
+    assert result["success"] is False
     assert len(manager.stored_memories) == 0
 

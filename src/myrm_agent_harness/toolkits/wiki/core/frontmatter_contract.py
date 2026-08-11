@@ -1,7 +1,7 @@
 """Wiki page frontmatter contract — required `type` field and enum validation.
 
 [INPUT]
-agent.meta_tools.file_ops.utils.markdown_frontmatter::parse_frontmatter (POS: YAML FM parse SSOT)
+utils.markdown_frontmatter::parse_frontmatter (POS: YAML FM parse SSOT)
 
 [OUTPUT]
 WikiPageType, WikiPublishStatus, WikiProvenance, validate_wiki_frontmatter, infer_type_for_import,
@@ -24,7 +24,7 @@ from pathlib import Path
 
 import yaml
 
-from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import (
+from myrm_agent_harness.utils.markdown_frontmatter import (
     parse_frontmatter,
 )
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure

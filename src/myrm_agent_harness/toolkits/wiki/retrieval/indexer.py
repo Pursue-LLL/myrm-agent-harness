@@ -29,7 +29,7 @@ import re
 import sqlite3
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
+from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
 from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
 from myrm_agent_harness.utils.db.fts5 import fts5_auto_heal, fts5_integrity_check, fts5_rebuild

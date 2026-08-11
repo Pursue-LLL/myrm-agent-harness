@@ -4,6 +4,7 @@
 langchain_core.language_models::BaseChatModel (POS: compile LLM)
 ..core.structure::WikiStructure (POS: read concept summaries)
 utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - detect_conflict: structured verdict for a concept pair
@@ -14,8 +15,6 @@ Optional LLM pass after zero-LLM pairing. Returns None when no factual conflict 
 
 from __future__ import annotations
 
-import json
-import re
 from typing import TYPE_CHECKING
 
 from langchain_core.language_models import BaseChatModel
@@ -24,7 +23,10 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from myrm_agent_harness.toolkits.wiki.core.section_contract import (
     extract_compiled_truth_summary,
 )
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import (
+    extract_answer_text,
+    parse_llm_json_object,
+)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .types import ConceptPair, ConflictVerdict
@@ -35,8 +37,6 @@ if TYPE_CHECKING:
 logger = get_agent_logger(__name__)
 
 MIN_CONFLICT_CONFIDENCE = 0.7
-
-_JSON_BLOCK_RE = re.compile(r"\{[\s\S]*\}")
 
 
 def _concept_summary(
@@ -92,10 +92,9 @@ async def detect_conflict(
     try:
         response = await llm.ainvoke([system_msg, human_msg])
         text = extract_answer_text(response).strip()
-        match = _JSON_BLOCK_RE.search(text)
-        if match is None:
+        payload = parse_llm_json_object(text)
+        if payload is None:
             return None
-        payload = json.loads(match.group(0))
     except Exception as exc:
         logger.warning(
             "Conflict detection failed for %s vs %s: %s",
@@ -107,9 +106,14 @@ async def detect_conflict(
 
     is_conflict = bool(payload.get("is_factual_conflict"))
     confidence_raw = payload.get("confidence", 0.0)
-    try:
+    if isinstance(confidence_raw, str):
+        try:
+            confidence = float(confidence_raw)
+        except ValueError:
+            confidence = 0.0
+    elif isinstance(confidence_raw, (int, float)):
         confidence = float(confidence_raw)
-    except (TypeError, ValueError):
+    else:
         confidence = 0.0
 
     if not is_conflict or confidence < MIN_CONFLICT_CONFIDENCE:

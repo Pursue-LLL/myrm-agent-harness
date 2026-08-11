@@ -1391,6 +1391,7 @@ class TestPrivacyFilterStream:
             reference_llms=[ref],
             aggregator_llm=_make_llm("agg", "Aggregated"),
             config=ConsensusConfig(privacy_filter="display", min_successful=1),
+            privacy_redactor=lambda text: text,
         )
         with patch(
             "myrm_agent_harness.toolkits.llms.consensus.advisor_fanout._redact_for_privacy",
@@ -1411,6 +1412,7 @@ class TestPrivacyFilterStream:
             reference_llms=[ref],
             aggregator_llm=_make_llm("agg", "unused"),
             config=ConsensusConfig(privacy_filter="full", min_successful=1),
+            privacy_redactor=lambda text: text,
         )
         with patch(
             "myrm_agent_harness.toolkits.llms.consensus.advisor_fanout._redact_for_privacy",
@@ -1422,3 +1424,18 @@ class TestPrivacyFilterStream:
         assert len(done_events) == 1
         assert done_events[0].result is not None
         assert done_events[0].result.final_answer == "REDACTED"
+
+    def test_engine_requires_redactor_when_privacy_active(self) -> None:
+        with pytest.raises(ValueError, match="privacy_redactor"):
+            ConsensusEngine(
+                reference_llms=[_make_llm("ref-a")],
+                aggregator_llm=_make_llm("agg"),
+                config=ConsensusConfig(privacy_filter="display"),
+            )
+
+    def test_engine_allows_missing_redactor_when_privacy_off(self) -> None:
+        engine = ConsensusEngine(
+            reference_llms=[_make_llm("ref-a")],
+            aggregator_llm=_make_llm("agg"),
+        )
+        assert engine._privacy_redactor is None

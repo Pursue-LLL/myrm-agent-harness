@@ -3,6 +3,8 @@
 [INPUT]
 - agent.hooks.types (POS: Hook 类型定义)
 - core.security.http.secure_fetch::secure_request (POS: SSRF-protected outbound HTTP)
+- utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM hook output — fences, prose, bare control chars, trailing commas)
 - utils.logger_utils (POS: 日志工具)
 
 [OUTPUT]
@@ -27,6 +29,7 @@ import time
 from collections import defaultdict
 from contextvars import ContextVar
 from dataclasses import asdict, replace
+from typing import Any, cast
 
 from myrm_agent_harness.agent.hooks.types import (
     EMPTY_RESULT,
@@ -38,7 +41,7 @@ from myrm_agent_harness.agent.hooks.types import (
     HttpHookDefinition,
     LLMHookDefinition,
 )
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import extract_answer_text, parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
@@ -306,10 +309,21 @@ class HookExecutor:
             prefix += " Reason carefully over the full payload before deciding."
 
         try:
-            from myrm_agent_harness.toolkits.llms.adapters.converters import get_default_llm
+            from myrm_agent_harness.toolkits.llms import create_litellm_model
 
-            llm = get_default_llm(model_name=hook.model)
-            response = await asyncio.wait_for(llm.ainvoke(f"{prefix}\n\n{prompt}"), timeout=hook.timeout_seconds)
+            model = hook.model or os.environ.get("MYRM_HOOK_MODEL")
+            if model is None:
+                return HookResult(
+                    hook_type="llm",
+                    success=False,
+                    blocked=hook.block_on_failure,
+                    reason="LLM hook requires a model (set 'model' or MYRM_HOOK_MODEL)",
+                )
+            llm = create_litellm_model(model=model)
+            response = await asyncio.wait_for(
+                llm.ainvoke(f"{prefix}\n\n{prompt}"),  # type: ignore[no-untyped-call]
+                timeout=hook.timeout_seconds,
+            )
             # 兼容 reasoning 模型 content 空回退（DeepSeek-R1/Qwen3 等）
             text = extract_answer_text(response)
         except (ImportError, TypeError):
@@ -332,7 +346,7 @@ class HookExecutor:
             success=False,
             output=text[:200],
             blocked=hook.block_on_failure,
-            reason=parsed.get("reason", "LLM hook rejected the event"),
+            reason=str(parsed.get("reason", "LLM hook rejected the event")),
         )
 
     # -- Output spilling --
@@ -382,10 +396,10 @@ def _inject_arguments(template: str, payload: dict[str, object], *, shell_escape
 
 def _parse_hook_json(text: str) -> dict[str, object]:
     try:
-        parsed = json.loads(text)
-        if isinstance(parsed, dict) and isinstance(parsed.get("ok"), bool):
+        parsed = parse_llm_json_object(text)
+        if parsed is not None and isinstance(parsed.get("ok"), bool):
             return parsed
-    except json.JSONDecodeError:
+    except (ValueError, TypeError):
         pass
     lowered = text.strip().lower()
     if lowered in {"ok", "true", "yes"}:
@@ -425,7 +439,7 @@ async def fire_hook(event: str, payload: dict[str, object]) -> AggregatedHookRes
 
 def payload_from_dataclass(obj: object) -> dict[str, object]:
     """Convert a frozen dataclass payload to dict for hook execution."""
-    return asdict(obj)  # type: ignore[arg-type]
+    return cast(dict[str, object], asdict(cast(Any, obj)))
 
 
 def bootstrap_hook_registry() -> HookRegistry:

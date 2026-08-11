@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING, ParamSpec
 
 if TYPE_CHECKING:
     from .session_lifecycle_hook import SessionLifecycleHookProtocol
+    from .session_persistence import SessionPersistence
+    from .tab_controller import TabController
 
 P = ParamSpec("P")
 logger = logging.getLogger(__name__)
@@ -33,14 +35,14 @@ def require_persistence[**P](func: Callable[P, Awaitable[str]]) -> Callable[P, A
     @functools.wraps(func)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> str:
         self = args[0]
-        if self._persistence is None:
+        if getattr(self, "_persistence", None) is None:
             return "Error: SessionVault not configured for this BrowserSession"
         return await func(*args, **kwargs)
 
     return wrapper
 
 
-def _fire_and_forget(coro: object) -> None:
+def _fire_and_forget(coro: Awaitable[object]) -> None:
     """Schedule a coroutine as a fire-and-forget background task."""
 
     def _log_exception(t: asyncio.Task[object]) -> None:
@@ -49,7 +51,7 @@ def _fire_and_forget(coro: object) -> None:
             if exc is not None:
                 logger.warning("SessionLifecycleHook fire-and-forget failed: %s", exc)
 
-    task = asyncio.ensure_future(coro)  # type: ignore[arg-type]
+    task = asyncio.ensure_future(coro)
     task.add_done_callback(_log_exception)
 
 
@@ -57,6 +59,12 @@ class BrowserSessionPersistenceMixin:
     """save_session / restore_session / list / delete when SessionVault is configured."""
 
     _session_lifecycle_hook: SessionLifecycleHookProtocol | None
+    _persistence: SessionPersistence | None
+    _tab_controller: TabController
+    _session_hash_cache: dict[str, str]
+
+    async def _ensure_components(self) -> None:
+        ...
 
     def set_session_lifecycle_hook(self, hook: SessionLifecycleHookProtocol) -> None:
         """Inject an optional lifecycle observer (e.g. SessionMemoryBridge)."""
@@ -64,7 +72,7 @@ class BrowserSessionPersistenceMixin:
 
     @require_persistence
     async def save_session(self, domain: str) -> str:
-        from ..backends.file_backend import is_valid_domain_name
+        from ..session_vault.backends.file_backend import is_valid_domain_name
 
         if not is_valid_domain_name(domain):
             return (
@@ -75,6 +83,7 @@ class BrowserSessionPersistenceMixin:
         page = self._tab_controller.get_active_page()
         context = page.context
 
+        assert self._persistence is not None  # require_persistence guards this
         result = await self._persistence.save(context, domain)
 
         if not result.startswith("Error:"):
@@ -91,7 +100,7 @@ class BrowserSessionPersistenceMixin:
 
     @require_persistence
     async def restore_session(self, domain: str) -> str:
-        from ..backends.file_backend import is_valid_domain_name
+        from ..session_vault.backends.file_backend import is_valid_domain_name
 
         if not is_valid_domain_name(domain):
             return (
@@ -101,23 +110,25 @@ class BrowserSessionPersistenceMixin:
         await self._ensure_components()
         page = self._tab_controller.get_active_page()
 
+        assert self._persistence is not None  # require_persistence guards this
         return await self._persistence.restore(page.context, domain)
 
     @require_persistence
     async def list_sessions(self) -> str:
+        assert self._persistence is not None  # require_persistence guards this
         return await self._persistence.list_domains()
 
     @require_persistence
     async def delete_session(self, domain: str) -> str:
-        from ..backends.file_backend import is_valid_domain_name
+        from ..session_vault.backends.file_backend import is_valid_domain_name
 
         if not is_valid_domain_name(domain):
             return (
                 f"Error: Invalid domain name: {domain!r}. Only [a-zA-Z0-9._-:] allowed, no path traversal (.., /, \\)"
             )
 
+        assert self._persistence is not None  # require_persistence guards this
         result = await self._persistence.delete(domain)
-
         if not result.startswith("Error:") and "No saved session" not in result:
             hook = getattr(self, "_session_lifecycle_hook", None)
             if hook is not None:

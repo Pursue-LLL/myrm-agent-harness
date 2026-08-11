@@ -3,6 +3,7 @@
 [INPUT]
 - memory.strategies.extractor::{FeedbackSignal, detect_feedback_signals} (POS: regex-based fast pre-filter)
 - memory.types::{AnyMemory, SemanticMemory, MemoryType} (POS: memory data models)
+- utils.chat_utils::parse_llm_json_object, parse_llm_json_list (POS: robust JSON object/list extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - ImplicitFeedbackResult: Detected signals with planned memory actions
@@ -19,7 +20,6 @@ for the Governance queue.
 
 from __future__ import annotations
 
-import json
 import logging
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
@@ -30,6 +30,7 @@ from myrm_agent_harness.toolkits.memory.strategies.extractor import (
     detect_feedback_signals,
     detect_language,
 )
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_list, parse_llm_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -234,8 +235,8 @@ async def _llm_detect_contradiction(
 
     try:
         raw = await llm_func(_SIGNAL_DETECTION_SYSTEM, prompt)
-        parsed = _parse_json_response(raw)
-        if parsed and isinstance(parsed, dict):
+        parsed = parse_llm_json_object(raw)
+        if parsed is not None:
             return bool(parsed.get("has_contradiction", False)), raw
         return False, raw
     except Exception as e:
@@ -245,8 +246,8 @@ async def _llm_detect_contradiction(
 
 def _parse_plan_response(raw: str) -> list[CorrectionProposal]:
     """Parse LLM planning response into CorrectionProposal objects."""
-    data = _parse_json_response(raw)
-    if not isinstance(data, list):
+    data = parse_llm_json_list(raw)
+    if data is None:
         return []
 
     proposals: list[CorrectionProposal] = []
@@ -274,18 +275,3 @@ def _parse_plan_response(raw: str) -> list[CorrectionProposal]:
         except (ValueError, TypeError) as e:
             logger.debug("Skipping malformed correction proposal: %s", e)
     return proposals
-
-
-def _parse_json_response(raw: str) -> dict | list | None:
-    """Robustly parse a JSON response from LLM output."""
-    import re
-
-    raw = raw.strip()
-    match = re.search(r"(\[.*\]|\{.*\})", raw, re.DOTALL)
-    if match:
-        raw = match.group(1)
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        logger.debug("Failed to parse JSON from LLM: %.100s...", raw)
-        return None

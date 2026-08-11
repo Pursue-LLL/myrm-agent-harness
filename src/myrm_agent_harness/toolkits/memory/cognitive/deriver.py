@@ -6,22 +6,31 @@ conflict resolution.
 
 [POS]
 Cognitive derivation module for implicit preference extraction using LLM and Claim Graph.
+
+[INPUT]
+- utils.chat_utils::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- memory.types::ClaimConflictState (POS: claim conflict state enum)
 """
 
 from __future__ import annotations
 
-import json
 import logging
-import re
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from myrm_agent_harness.toolkits.memory.types import ClaimConflictState
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_list
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
 logger = logging.getLogger(__name__)
+
+LLMFunc = Callable[[str, str], Awaitable[str]] | BaseChatModel | None
 
 _DERIVER_PROMPT = """You are an advanced Cognitive Deriver analyzing a conversation.
 Your goal is to extract deep, implicit user preferences, communication styles, and constraints from the interaction.
@@ -59,8 +68,8 @@ class CognitiveDeriver:
 
     def __init__(self, manager: MemoryManager) -> None:
         self.manager = manager
-        self.llm_func = manager._consolidation_llm
-        self.graph = manager.graph_store
+        self.llm_func: LLMFunc = manager._consolidation_llm
+        self.graph = manager._graph
 
     async def run_derivation(
         self, session_id: str, chat_id: str, messages: list[dict[str, str]]
@@ -81,16 +90,28 @@ class CognitiveDeriver:
         prompt = f"## Recent Conversation\\n\\n{formatted}\\n\\n## Task\\nExtract implicit preferences as JSON array."
 
         try:
-            raw = await self.llm_func(_DERIVER_PROMPT, prompt)
+            llm = self.llm_func
+            if isinstance(llm, BaseChatModel):
+                raw_msg = await llm.ainvoke(
+                    [
+                        SystemMessage(content=_DERIVER_PROMPT),
+                        HumanMessage(content=prompt),
+                    ]
+                )
+                raw = str(raw_msg.content)
+            else:
+                raw = await llm(_DERIVER_PROMPT, prompt)
 
-            match = re.search(r"(\[.*\])", raw, re.DOTALL)
-            if match:
-                raw = match.group(1)
-            data = json.loads(raw)
+            data = parse_llm_json_list(raw)
+            if data is None:
+                logger.warning("Cognitive derivation: LLM returned no valid JSON array")
+                return {"success": False, "error": "Invalid JSON response from LLM"}
 
             extracted_count = 0
             has_disruptive_change = False
             for item in data:
+                if not isinstance(item, dict):
+                    continue
                 confidence = float(item.get("confidence", 0.0))
                 if confidence < 0.8:
                     continue

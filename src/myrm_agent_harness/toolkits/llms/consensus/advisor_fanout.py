@@ -19,7 +19,11 @@ from myrm_agent_harness.toolkits.llms.consensus._history import flatten_tool_fre
 from myrm_agent_harness.toolkits.llms.consensus._streaming import collect_stream
 from myrm_agent_harness.toolkits.llms.consensus.advisor_prompts import ADVISOR_SYSTEM
 from myrm_agent_harness.toolkits.llms.consensus.moa_overlay_types import MoAOverlayConfig
-from myrm_agent_harness.toolkits.llms.consensus.types import PrivacyFilterMode, ReferenceResponse
+from myrm_agent_harness.toolkits.llms.consensus.types import (
+    PrivacyFilterMode,
+    PrivacyRedactor,
+    ReferenceResponse,
+)
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -27,17 +31,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _redact_for_privacy(text: str, mode: PrivacyFilterMode) -> str:
+def _redact_for_privacy(
+    text: str,
+    mode: PrivacyFilterMode,
+    redact_fn: PrivacyRedactor | None,
+) -> str:
     if mode == "off" or not text:
         return text
-    from myrm_agent_harness.agent.security.redact import redact_sensitive_text
-
-    redacted = redact_sensitive_text(text)
-    if mode in ("display", "full"):
-        from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
-
-        redacted, _ = redact_pii(redacted)
-    return redacted
+    if redact_fn is None:
+        logger.warning(
+            "Consensus privacy filter is active but no redactor injected; emitting raw content"
+        )
+        return text
+    return redact_fn(text)
 
 
 def _extract_last_human_query(messages: list[BaseMessage]) -> str:
@@ -247,12 +253,16 @@ class AdvisorFanoutRunner:
         return type(llm).__name__
 
 
-def apply_privacy_to_ref(ref: ReferenceResponse, mode: PrivacyFilterMode) -> ReferenceResponse:
+def apply_privacy_to_ref(
+    ref: ReferenceResponse,
+    mode: PrivacyFilterMode,
+    redact_fn: PrivacyRedactor | None = None,
+) -> ReferenceResponse:
     if mode == "off" or not ref.content:
         return ref
     return ReferenceResponse(
         model=ref.model,
-        content=_redact_for_privacy(ref.content, mode),
+        content=_redact_for_privacy(ref.content, mode, redact_fn),
         elapsed_seconds=ref.elapsed_seconds,
         success=ref.success,
         error=ref.error,

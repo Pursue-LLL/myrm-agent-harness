@@ -5,6 +5,7 @@
 - str (POS: raw page text to extract from)
 - dict (POS: JSON Schema defining desired output structure)
 - myrm_agent_harness.utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+- myrm_agent_harness.utils.chat_utils::parse_llm_json_object, parse_llm_json_list (POS: robust JSON extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - StructuredExtractor: Component that extracts structured data from raw text using LLM.
@@ -21,17 +22,19 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from typing import (
     TYPE_CHECKING,
     Any,
-    cast,
 )  # Any: required for JSON Schema (inherently dynamic dict values)
 
 from pydantic import BaseModel, ValidationError, create_model
 from pydantic.fields import FieldInfo
 
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import (
+    extract_answer_text,
+    parse_llm_json_list,
+    parse_llm_json_object,
+)
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -128,7 +131,7 @@ class StructuredExtractor:
             )
 
         # Strategy 2: Raw JSON extraction from LLM response
-        parsed: dict[str, Any] | list[dict[str, Any]] | None = None
+        parsed: dict[str, object] | list[object] | None = None
         try:
             raw_response = await self._llm.ainvoke(
                 [
@@ -138,18 +141,12 @@ class StructuredExtractor:
             )
             # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
             content = extract_answer_text(raw_response)
-            parsed = _extract_json_from_text(content)
+            parsed = _extract_json_from_text(content, expect_array=is_array_schema)
             if parsed is not None:
-                if is_array_schema and isinstance(parsed, list):
+                if is_array_schema:
                     return json.dumps(parsed, ensure_ascii=False, indent=2)
                 if isinstance(parsed, dict):
                     validated = pydantic_model.model_validate(parsed)
-                    if is_array_schema:
-                        return json.dumps(
-                            validated.model_dump().get("items", []),
-                            ensure_ascii=False,
-                            indent=2,
-                        )
                     return validated.model_dump_json(indent=2)
         except ValidationError as ve:
             logger.warning("StructuredExtractor: validation failed: %s", ve)
@@ -279,35 +276,16 @@ def _json_type_to_python(field_name: str, field_schema: dict[str, Any]) -> type:
         return str
 
 
-def _extract_json_from_text(text: str) -> dict[str, Any] | list[Any] | None:
-    """Extract JSON object or array from LLM response text."""
-    text = text.strip()
+def _extract_json_from_text(
+    text: str, *, expect_array: bool
+) -> dict[str, object] | list[object] | None:
+    """Extract JSON from LLM response text, guided by the expected top-level type.
 
-    # Try direct parse (object or array)
-    if text.startswith("{") or text.startswith("["):
-        try:
-            parsed = cast("dict[str, Any] | list[Any]", json.loads(text))
-            return parsed
-        except json.JSONDecodeError:
-            pass
-
-    # Try to find JSON in markdown code block
-    match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
-    if match:
-        try:
-            parsed = cast("dict[str, Any] | list[Any]", json.loads(match.group(1)))
-            return parsed
-        except json.JSONDecodeError:
-            pass
-
-    # Try to find any JSON object or array
-    for pattern in (r"\[.*\]", r"\{.*\}"):
-        match = re.search(pattern, text, re.DOTALL)
-        if match:
-            try:
-                parsed = cast("dict[str, Any] | list[Any]", json.loads(match.group(0)))
-                return parsed
-            except json.JSONDecodeError:
-                pass
-
-    return None
+    ``expect_array=True`` selects the array parser (array schemas); otherwise
+    the object parser (object schemas). This avoids the ambiguity where an
+    object schema containing array fields (e.g. ``{"items": [...]}``) would be
+    misread as the embedded array.
+    """
+    if expect_array:
+        return parse_llm_json_list(text)
+    return parse_llm_json_object(text)

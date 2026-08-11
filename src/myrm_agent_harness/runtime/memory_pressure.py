@@ -189,12 +189,18 @@ class MemoryPressureMonitor:
 
     async def stop(self) -> None:
         """Stop the monitoring loop."""
-        if self._monitor_task is None:
-            return
-        self._monitor_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await self._monitor_task
-        self._monitor_task = None
+        if self._monitor_task is not None:
+            self._monitor_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._monitor_task
+            self._monitor_task = None
+
+        # Subscribers belong to the application lifecycle. Keeping old
+        # subscribers on the module singleton retains stale event buses and
+        # service objects after a restart.
+        self._subscribers.clear()
+        self._consecutive_at_target = 0
+        self._consecutive_below = 0
         logger.info("Memory pressure monitor stopped")
 
     def subscribe(self, subscriber: PressureSubscriber) -> None:
@@ -301,25 +307,30 @@ class MemoryPressureMonitor:
 
     async def _notify_subscribers(self, event: PressureEvent) -> None:
         """Notify all subscribers with per-subscriber exception isolation."""
-        for subscriber in list(self._subscribers):
-            try:
-                await asyncio.wait_for(
-                    subscriber.on_pressure_change(event),
-                    timeout=self._config.subscriber_timeout_seconds,
-                )
-            except TimeoutError:
-                logger.warning(
-                    "Subscriber %s timed out (%.1fs) on pressure change %s",
-                    type(subscriber).__name__,
-                    self._config.subscriber_timeout_seconds,
-                    event.level.name,
-                )
-            except Exception:
-                logger.exception(
-                    "Subscriber %s failed on pressure change %s",
-                    type(subscriber).__name__,
-                    event.level.name,
-                )
+        await asyncio.gather(
+            *(self._notify_subscriber(subscriber, event) for subscriber in list(self._subscribers))
+        )
+
+    async def _notify_subscriber(self, subscriber: PressureSubscriber, event: PressureEvent) -> None:
+        """Notify one subscriber without delaying other subscribers."""
+        try:
+            await asyncio.wait_for(
+                subscriber.on_pressure_change(event),
+                timeout=self._config.subscriber_timeout_seconds,
+            )
+        except TimeoutError:
+            logger.warning(
+                "Subscriber %s timed out (%.1fs) on pressure change %s",
+                type(subscriber).__name__,
+                self._config.subscriber_timeout_seconds,
+                event.level.name,
+            )
+        except Exception:
+            logger.exception(
+                "Subscriber %s failed on pressure change %s",
+                type(subscriber).__name__,
+                event.level.name,
+            )
 
     async def _emergency_gc(self) -> None:
         """Run garbage collection in thread pool to avoid blocking event loop."""

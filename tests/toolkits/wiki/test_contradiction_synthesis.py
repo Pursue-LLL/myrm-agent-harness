@@ -321,6 +321,42 @@ async def test_detect_conflict_invalid_json_returns_none(
 
 
 @pytest.mark.asyncio
+async def test_detect_conflict_robust_json_parsing(
+    temp_wiki: WikiStructure,
+) -> None:
+    """detect_conflict tolerates prose framing and trailing commas in LLM verdict."""
+    from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.detector import (
+        detect_conflict,
+    )
+    from langchain_core.messages import AIMessage
+
+    llm = MagicMock()
+    llm.ainvoke = AsyncMock(
+        return_value=AIMessage(
+            content=(
+                "Assessment of the pair:\n"
+                '{"is_factual_conflict": true, "confidence": 0.9, '
+                '"topic": "Agent", "side_a": "autonomous", "side_b": "tool", '
+                '"resolution_hint": "Unify definitions",}'
+            )
+        )
+    )
+    pair = ConceptPair(
+        concept_a="AI/Agent-A", concept_b="AI/Agent-B", reason="related_concept"
+    )
+    verdict = await detect_conflict(
+        llm,
+        temp_wiki,
+        pair,
+        definition_a="Agent is autonomous",
+        definition_b="Agent is a tool",
+    )
+    assert verdict is not None
+    assert verdict.is_factual_conflict is True
+    assert verdict.confidence == 0.9
+
+
+@pytest.mark.asyncio
 async def test_detect_conflict_reads_existing_concept_file(
     temp_wiki: WikiStructure,
 ) -> None:

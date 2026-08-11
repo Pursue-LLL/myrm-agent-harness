@@ -3,6 +3,7 @@
 [INPUT]
 - memory.types::{BaseMemory, SemanticMemory, EpisodicMemory, MemoryStatus} (POS: memory data models)
 - memory.strategies.forgetting::{ForgettableMemory} (POS: type alias)
+- utils.chat_utils::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - StalenessReviewConfig: Configuration for staleness review thresholds
@@ -29,6 +30,7 @@ from enum import StrEnum
 
 from myrm_agent_harness.toolkits.memory.strategies.forgetting import ForgettableMemory
 from myrm_agent_harness.toolkits.memory.types import MemoryStatus
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_list
 
 logger = logging.getLogger(__name__)
 
@@ -217,20 +219,9 @@ class StalenessReviewer:
         self, raw: str, valid_ids: set[str]
     ) -> list[StalenessDecision]:
         """Parse LLM response into typed decisions."""
-        import re
-
-        raw = raw.strip()
-        match = re.search(r"\[.*\]", raw, re.DOTALL)
-        if match:
-            raw = match.group(0)
-
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
+        data = parse_llm_json_list(raw)
+        if data is None:
             logger.warning("Staleness review: failed to parse LLM response")
-            return []
-
-        if not isinstance(data, list):
             return []
 
         decisions: list[StalenessDecision] = []

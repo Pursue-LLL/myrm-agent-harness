@@ -79,7 +79,42 @@ async def test_start_and_stop() -> None:
         assert mon._monitor_task is not None
         await asyncio.sleep(0.06)
         await mon.stop()
-        assert mon._monitor_task.done()
+        assert mon._monitor_task is None
+
+
+@pytest.mark.asyncio
+async def test_start_is_idempotent_and_stop_resets_runtime_state() -> None:
+    mock_psutil = _mock_psutil_module()
+    with patch.object(resource_monitor, "psutil", mock_psutil):
+        mon = ResourceMonitor(report_interval=0.02)
+        mon.collect_metrics = AsyncMock(  # type: ignore[method-assign]
+            return_value=ResourceMetrics(1.0, 1.0, 1.0, 100, 0.5, 1.0, 0.0, 0.0, 1.0)
+        )
+        listener = AsyncMock()
+        mon.add_listener(listener)
+        await mon.start()
+        first_task = mon._monitor_task
+        await mon.start()
+        assert mon._monitor_task is first_task
+        await asyncio.sleep(0.03)
+        await mon.stop()
+        assert mon._monitor_task is None
+        assert mon._listeners == []
+        assert mon.get_history() == []
+
+        await mon.start()
+        assert mon._monitor_task is not None
+        await mon.stop()
+
+
+@pytest.mark.asyncio
+async def test_collect_metrics_uses_non_blocking_cpu_sample() -> None:
+    mock_psutil = _mock_psutil_module()
+    with patch.object(resource_monitor, "psutil", mock_psutil):
+        mon = ResourceMonitor()
+        await mon.collect_metrics()
+    calls = mock_psutil.Process.return_value.cpu_percent.call_args_list
+    assert calls[-1].kwargs == {"interval": None}
 
 
 @pytest.mark.asyncio

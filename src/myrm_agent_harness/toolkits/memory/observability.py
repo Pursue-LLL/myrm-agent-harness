@@ -25,6 +25,7 @@ from typing import Literal, Protocol
 from pydantic import BaseModel, Field
 
 ScalarValue = str | int | float | bool | None
+type JsonValue = ScalarValue | dict[str, "JsonValue"] | list["JsonValue"]
 
 
 class MemoryOperationKind(StrEnum):
@@ -100,7 +101,7 @@ class MemoryOperationEvent(BaseModel):
     target_id: str | None = None
     correlation_id: str | None = None
     influence_refs: list[MemoryInfluenceRef] = Field(default_factory=list)
-    metadata: dict[str, ScalarValue] = Field(default_factory=dict)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class MemoryTraceStep(BaseModel):
@@ -113,7 +114,7 @@ class MemoryTraceStep(BaseModel):
     duration_ms: float | None = None
     input_count: int = 0
     output_count: int = 0
-    metadata: dict[str, ScalarValue] = Field(default_factory=dict)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class MemoryRetrievalTrace(BaseModel):

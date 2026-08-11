@@ -14,7 +14,8 @@ SessionState: Lifecycle states enum.
 
 [POS]
 Abstract persistent shell session base. Manages subprocess lifecycle, state machine,
-execute/stream with auto-tee, auto-recovery, and SSE flood protection.
+execute/stream with auto-tee, auto-recovery, SSE flood protection, PII-scrubbed real-time
+output, random per-command output markers, and bash syntax pre-check.
 """
 
 from __future__ import annotations
@@ -442,6 +443,9 @@ class PersistentSession(ABC):
 
             import aiofiles
 
+            from myrm_agent_harness.toolkits.code_execution.executors.models import (
+                scrub_sensitive_info,
+            )
             from myrm_agent_harness.toolkits.code_execution.session.stream_buffer import (
                 ExecutionStreamBuffer,
             )
@@ -464,7 +468,11 @@ class PersistentSession(ABC):
                             safe_text = stream_buf.process_bytes(chunk, exit_marker, end_marker)
                             if safe_text:
                                 await sop.write_tee(tee_file, safe_text)
-                                sse_emit = sop.accumulate_sse(safe_text)
+                                # Mirror the execute path: scrub before the SSE
+                                # valve so real-time UI output never leaks host
+                                # paths or credential tokens (tee keeps the raw
+                                # log for debugging).
+                                sse_emit = sop.accumulate_sse(scrub_sensitive_info(safe_text))
                                 if sse_emit:
                                     yield sse_emit
 

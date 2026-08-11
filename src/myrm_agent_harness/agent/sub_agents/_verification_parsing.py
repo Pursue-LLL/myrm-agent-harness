@@ -3,6 +3,7 @@
 [INPUT]
 - core.events.types::AgentEventType (POS: VERIFICATION_VERDICT event type)
 - utils.runtime.progress_sink::get_tool_progress_sink (POS: SSE emission sink)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas; requires the ``verdict`` key)
 
 [OUTPUT]
 - VerificationVerdict: Parsed verdict from verifier output
@@ -14,10 +15,9 @@ Shared verification parsing for sub_agents verifier rounds and delegate verifica
 
 from __future__ import annotations
 
-import json
-import re
 from dataclasses import dataclass
 
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)
@@ -36,30 +36,9 @@ class VerificationVerdict:
     raw: str
 
 
-_VERDICT_JSON_RE = re.compile(r"\{[\s\S]*\"verdict\"\s*:", re.IGNORECASE)
-
-
 def _parse_verdict(raw_result: str) -> VerificationVerdict:
     """Extract the verification verdict from a Verifier agent's output."""
-    text = raw_result.strip()
-
-    fenced = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text, re.IGNORECASE)
-    if fenced:
-        text = fenced.group(1)
-    else:
-        match = _VERDICT_JSON_RE.search(text)
-        if match:
-            start = match.start()
-            depth, end = 0, start
-            for i in range(start, len(text)):
-                if text[i] == "{":
-                    depth += 1
-                elif text[i] == "}":
-                    depth -= 1
-                    if depth == 0:
-                        end = i + 1
-                        break
-            text = text[start:end]
+    data = parse_llm_json_object(raw_result, require_key="verdict")
 
     def _enforce_evidence(passed: bool, summary: str, raw: str) -> tuple[bool, str]:
         if not passed:
@@ -72,25 +51,31 @@ def _parse_verdict(raw_result: str) -> VerificationVerdict:
             )
         return passed, summary
 
-    try:
-        data = json.loads(text)
-        verdict_str = str(data.get("verdict", "")).strip().upper()
-        passed = verdict_str == "PASS"
-        summary = str(data.get("summary", ""))
+    if data is not None:
+        try:
+            verdict_str = str(data.get("verdict", "")).strip().upper()
+            passed = verdict_str == "PASS"
+            summary = str(data.get("summary", ""))
 
-        passed, summary = _enforce_evidence(passed, summary, raw_result)
+            passed, summary = _enforce_evidence(passed, summary, raw_result)
 
-        findings_raw = data.get("findings", [])
-        findings = [{k: str(v) for k, v in item.items()} for item in findings_raw if isinstance(item, dict)]
-        return VerificationVerdict(
-            passed=passed,
-            summary=summary,
-            confidence=str(data.get("confidence", "UNKNOWN")),
-            findings=findings,
-            raw=raw_result,
-        )
-    except (json.JSONDecodeError, ValueError):
-        pass
+            findings_raw = data.get("findings", [])
+            findings: list[dict[str, str]] = []
+            if isinstance(findings_raw, list):
+                findings = [
+                    {k: str(v) for k, v in item.items()}
+                    for item in findings_raw
+                    if isinstance(item, dict)
+                ]
+            return VerificationVerdict(
+                passed=passed,
+                summary=summary,
+                confidence=str(data.get("confidence", "UNKNOWN")),
+                findings=findings,
+                raw=raw_result,
+            )
+        except (ValueError, TypeError):
+            pass
 
     upper = raw_result.upper()
     if '"VERDICT": "PASS"' in upper or '"VERDICT":"PASS"' in upper:

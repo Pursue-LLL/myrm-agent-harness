@@ -5,6 +5,7 @@
 - ReferenceResponse: single reference model's response
 - ConsensusResult: aggregated result of a consensus run
 - PrivacyFilterMode: shared privacy redaction mode for consensus and overlay
+- PrivacyRedactor: redaction callable injected by the agent layer when privacy filtering is enabled
 
 [POS]
 Framework-level data types for multi-model consensus inference.
@@ -12,10 +13,13 @@ Framework-level data types for multi-model consensus inference.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal
 
 PrivacyFilterMode = Literal["off", "display", "full"]
+
+PrivacyRedactor = Callable[[str], str]
 
 
 @dataclass(frozen=True, slots=True)

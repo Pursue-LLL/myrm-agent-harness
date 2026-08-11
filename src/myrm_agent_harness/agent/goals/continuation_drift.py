@@ -4,6 +4,7 @@
 - .protocols::GoalProvider (POS: Goal provider protocol)
 - .types::ContinuationDecision, GoalStatus, Goal (POS: Guard chain result)
 - langchain_core.messages::BaseMessage, HumanMessage (POS: Message types)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from judge output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - check_goal_drift: Evaluates trajectory drift, returns ContinuationDecision or None.
@@ -16,12 +17,12 @@ verdicts consumed by the continuation guard chain. Fail-open on errors.
 
 from __future__ import annotations
 
-import json as _json
 import logging
-import re as _re
 from typing import TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage, HumanMessage
+
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
 
 from .types import ContinuationDecision, GoalStatus
 
@@ -56,25 +57,17 @@ def _extract_recent_tool_summary(messages: list[BaseMessage], window: int = 5) -
 
 def _parse_drift_score(reason: str) -> int | None:
     """Extract drift_score integer from judge response."""
-    json_match = _re.search(r"\{[^}]*\"drift_score\"\s*:\s*(\d+)[^}]*\}", reason)
-    if json_match:
-        try:
-            return int(json_match.group(1))
-        except (ValueError, IndexError):
-            pass
-
-    try:
-        parsed = _json.loads(reason)
-        if isinstance(parsed, dict) and "drift_score" in parsed:
-            return int(parsed["drift_score"])
-    except (ValueError, TypeError, _json.JSONDecodeError):
-        pass
-
+    data = parse_llm_json_object(reason)
+    if data is None:
+        return None
+    raw_score = data.get("drift_score")
+    if isinstance(raw_score, (int, float)) and not isinstance(raw_score, bool):
+        return int(raw_score)
     return None
 
 
-def _goal_metrics(goal: Goal) -> dict[str, int | None]:
-    return {"turns_used": goal.turns_used, "max_turns": goal.budget.max_turns if goal.budget else None}
+def _goal_metrics(goal: Goal) -> tuple[int | None, int | None]:
+    return goal.turns_used, goal.budget.max_turns if goal.budget else None
 
 
 async def check_goal_drift(
@@ -133,9 +126,10 @@ async def check_goal_drift(
             )
             return ContinuationDecision(
                 should_continue=False,
-                verdict="drift_pause",  # type: ignore[arg-type]
+                verdict="drift_pause",
                 reason=f"Goal drift detected (score={score}/10) — paused for human review",
-                **_goal_metrics(goal),
+                turns_used=goal.turns_used,
+                max_turns=goal.budget.max_turns if goal.budget else None,
             )
 
         if score >= _DRIFT_NUDGE_THRESHOLD:
@@ -146,10 +140,11 @@ async def check_goal_drift(
             collected_messages.append(HumanMessage(content=nudge_msg, name="developer"))
             return ContinuationDecision(
                 should_continue=True,
-                verdict="drift_nudge",  # type: ignore[arg-type]
+                verdict="drift_nudge",
                 reason=f"Drift nudge injected (score={score})",
                 message=nudge_msg,
-                **_goal_metrics(goal),
+                turns_used=goal.turns_used,
+                max_turns=goal.budget.max_turns if goal.budget else None,
             )
 
     except NotImplementedError:

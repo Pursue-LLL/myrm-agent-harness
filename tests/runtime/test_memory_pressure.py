@@ -341,7 +341,21 @@ class TestMonitorLifecycle:
     @pytest.mark.asyncio()
     async def test_stop_without_start(self):
         monitor = MemoryPressureMonitor()
+        subscriber = AsyncMock(spec=PressureSubscriber)
+        monitor.subscribe(subscriber)
         await monitor.stop()
+        assert monitor._subscribers == []
+
+    @pytest.mark.asyncio()
+    async def test_stop_clears_subscribers_and_hysteresis_state(self):
+        monitor = MemoryPressureMonitor()
+        monitor.subscribe(AsyncMock(spec=PressureSubscriber))
+        monitor._consecutive_at_target = 2
+        monitor._consecutive_below = 1
+        await monitor.stop()
+        assert monitor._subscribers == []
+        assert monitor._consecutive_at_target == 0
+        assert monitor._consecutive_below == 0
 
 
 class TestEmergencyGC:

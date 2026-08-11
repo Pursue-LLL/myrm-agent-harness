@@ -757,3 +757,34 @@ async def test_engine_select_evolution_action():
     )
     action2 = SkillEvolutionEngine._select_evolution_action(skill, evidence_low_fallback)
     assert action2 == EvolutionType.FIX
+
+
+@pytest.mark.asyncio
+async def test_description_eval_robust_json_parsing():
+    """evaluate_description_variants tolerates prose framing + trailing commas in LLM score JSON."""
+    mock_llm = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.content = (
+        'Here is my assessment:\n'
+        '{"score": 0.9, "reasoning": "Clear trigger conditions",}'
+    )
+    mock_llm.ainvoke = AsyncMock(return_value=mock_resp)
+
+    evaluator = BatchEvaluator(llm=mock_llm)
+    original = SkillRecord(
+        skill_id="s1",
+        name="deploy-skill",
+        description="Deploys stuff",
+        content="## Deploy Guide\n1. Run deploy",
+        path="/fake",
+        lineage=None,
+        evolution_locked=False,
+    )
+    best_desc, score, reasoning, is_general = await evaluator.evaluate_description_variants(
+        original_skill=original, variants=["Deploys things", "Runs deployments"]
+    )
+
+    assert score == 0.9
+    assert reasoning == "Clear trigger conditions"
+    assert is_general is True
+    assert best_desc in ("Deploys things", "Runs deployments")

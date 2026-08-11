@@ -12,7 +12,6 @@ Utility functions module.
 | file_utils.py | Core | Provides parse_path_with_range. | ✅ |
 | image_reader.py | Core | Provides is_image_path, read_image_as_content_blocks. | ✅ |
 | line_endings.py | Core | Line ending detection and normalization. Preserves CRLF/LF across agent edits. | ✅ |
-| markdown_frontmatter.py | Core | YAML frontmatter parse/preserve helpers for vault markdown notes | ✅ |
 | vault_scope.py | Core | Obsidian vault root detection via `.obsidian/` marker | ✅ |
 | office_scope.py | Core | Office `.docx`/`.xlsx` extension scope for write guards | ✅ |
 | office_opc.py | Core | OPC metrics + xlsx formula snapshots + corrupt Office file audit read errors for bash post-audit | ✅ |

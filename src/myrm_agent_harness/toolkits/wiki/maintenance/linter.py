@@ -7,6 +7,7 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: LangChain message typ
 ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 ..core.types::LintIssue, LintResult (POS: Wiki toolkit type definition center)
 utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+utils.chat_utils::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 WikiLinter: Wiki health check and maintenance engine
@@ -18,7 +19,6 @@ broken link detection, completeness checks (report-only; no LLM auto-write), sta
 
 from __future__ import annotations
 
-import json
 import random
 import re
 from datetime import UTC, datetime
@@ -52,7 +52,10 @@ from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
     publish_concept_article,
 )
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import (
+    extract_answer_text,
+    parse_llm_json_list,
+)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
@@ -394,15 +397,10 @@ class WikiLinter:
                 response_text = extract_answer_text(response).strip()
 
                 try:
-                    if response_text.startswith("```"):
-                        response_text = response_text.split("```")[1]
-                        if response_text.startswith("json"):
-                            response_text = response_text[4:]
-                    suggested = json.loads(response_text)
-                except (json.JSONDecodeError, IndexError):
-                    continue
-
-                if not isinstance(suggested, list):
+                    suggested = parse_llm_json_list(response_text)
+                    if suggested is None:
+                        continue
+                except (TypeError, ValueError):
                     continue
 
                 # Add new wikilinks

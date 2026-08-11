@@ -19,8 +19,8 @@ Optional memory strategies: forgetting, extraction, deduplication, consolidation
 | preference_stability.py | Core | Preference stability detection strategy. Manages user preference lifecycle through evidence accumulation, time decay, and category-aware half-lives. | ✅ |
 | preference_stability_store.py | Core | Preference facet store — Protocol and SQLite implementation for persistent storage of preference metadata. | ✅ |
 | recurrence.py | Core | Recurrence-triggered memory consolidation. Detects topics that appear repeatedly across sessions via embedding similarity, then triggers LLM refinement to produce high-quality long-term memories. Includes importance-preemption bypass for safety/health/identity signals. | ✅ |
-| implicit_feedback.py | Core | Session-level implicit feedback detection (regex + LLM) and memory correction planner. Produces structured CorrectionProposal (add/update/delete) for the Governance queue. | ✅ |
-| staleness_review.py | Core | LLM-driven staleness review. Identifies memories past their per-fact TTL (expected_valid_days) and submits for LLM semantic judgment (KEEP/EXTEND/REMOVE). Conservative: protects pinned, recently-accessed, and correction-chain memories. | ✅ |
+| implicit_feedback.py | Core | Session-level implicit feedback detection (regex + LLM) and memory correction planner. Produces structured CorrectionProposal (add/update/delete) for the Governance queue. Detection uses `parse_llm_json_object` (verdict object); planning uses `parse_llm_json_list` (action array) — robust against fences, prose, bare control chars, trailing commas. | ✅ |
+| staleness_review.py | Core | LLM-driven staleness review. Identifies memories past their per-fact TTL (expected_valid_days) and submits for LLM semantic judgment (KEEP/EXTEND/REMOVE). Conservative: protects pinned, recently-accessed, and correction-chain memories. Parses the decision array via `parse_llm_json_list` (robust against fences, prose, trailing commas). | ✅ |
 | subsumption.py | Core | Cognitive consolidation engine. Identifies and safely soft-deletes old semantic memories | ✅ |
 
 ## Key Dependencies

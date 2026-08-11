@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import (
+from myrm_agent_harness.utils.markdown_frontmatter import (
     has_frontmatter_block,
     parse_frontmatter,
     preserve_frontmatter_on_edit,

@@ -525,6 +525,19 @@ class TestParseHookJson:
         result = _parse_hook_json('{"result": "good"}')
         assert result["ok"] is False
 
+    def test_malformed_json_with_trailing_comma(self):
+        from myrm_agent_harness.agent.hooks.executor import _parse_hook_json
+
+        result = _parse_hook_json('{"ok": true,}')
+        assert result["ok"] is True
+
+    def test_prose_framed_json(self):
+        from myrm_agent_harness.agent.hooks.executor import _parse_hook_json
+
+        result = _parse_hook_json('Approved.\n{"ok": false, "reason": "denied"}')
+        assert result["ok"] is False
+        assert result["reason"] == "denied"
+
 
 class TestInjectArguments:
     def test_basic_injection(self):

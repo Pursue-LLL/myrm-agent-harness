@@ -44,6 +44,7 @@ from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import (
 from myrm_agent_harness.toolkits.llms.consensus.types import (
     ConsensusConfig,
     ConsensusResult,
+    PrivacyRedactor,
     ReferenceResponse,
 )
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
@@ -87,12 +88,18 @@ class ConsensusEngine:
         reference_llms: list[BaseChatModel],
         aggregator_llm: BaseChatModel,
         config: ConsensusConfig | None = None,
+        privacy_redactor: PrivacyRedactor | None = None,
     ) -> None:
         if not reference_llms:
             raise ValueError("At least one reference LLM is required")
         self._refs = reference_llms
         self._agg = aggregator_llm
         self._cfg = config or ConsensusConfig()
+        if self._cfg.privacy_filter != "off" and privacy_redactor is None:
+            raise ValueError(
+                "privacy_redactor must be provided when ConsensusConfig.privacy_filter is not 'off'"
+            )
+        self._privacy_redactor = privacy_redactor
 
     async def run(
         self,
@@ -202,7 +209,9 @@ class ConsensusEngine:
                 for coro in asyncio.as_completed(tasks, timeout=cfg.timeout_total):
                     ref = await coro
                     ref_responses.append(ref)
-                    sse_ref = apply_privacy_to_ref(ref, sse_privacy_mode(cfg.privacy_filter))
+                    sse_ref = apply_privacy_to_ref(
+                        ref, sse_privacy_mode(cfg.privacy_filter), self._privacy_redactor
+                    )
                     yield ConsensusStreamEvent(kind="ref_done", ref=sse_ref)
                     if cancel_token and cancel_token.is_cancelled:
                         break
@@ -315,7 +324,7 @@ class ConsensusEngine:
         mode = inject_privacy_mode(self._cfg.privacy_filter)
         if mode == "off":
             return successful
-        return [apply_privacy_to_ref(r, mode) for r in successful]
+        return [apply_privacy_to_ref(r, mode, self._privacy_redactor) for r in successful]
 
     async def _query_references(
         self,

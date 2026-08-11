@@ -7,6 +7,7 @@ parsing, with confidence thresholds and deduplication.
 [INPUT]
 - commitment.types::{CommitmentCandidate, ExtractionBatchResult, CommitmentKind, CommitmentSensitivity} (POS: type definitions)
 - commitment.config::CommitmentConfig (POS: extraction thresholds)
+- utils.chat_utils::parse_llm_json_object (POS: LLM 回复容错 JSON 对象提取)
 
 [OUTPUT]
 - CommitmentExtractor: Stateless extractor class
@@ -34,6 +35,7 @@ from myrm_agent_harness.toolkits.memory.proactive.types import (
     CommitmentSensitivity,
     ExtractionBatchResult,
 )
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -150,28 +152,20 @@ def _detect_language(messages: Sequence[dict[str, str]]) -> str:
 
 def _parse_response(raw: str) -> ExtractionBatchResult:
     """Parse LLM output into structured result with fallback."""
-    import json
-    import re
-
-    raw = raw.strip()
-    if not raw:
+    if not raw.strip():
         return ExtractionBatchResult()
 
-    match = re.search(r"(\{.*\})", raw, re.DOTALL)
-    if match:
-        raw = match.group(1)
-
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
+    data = parse_llm_json_object(raw, require_key="candidates")
+    if data is None:
         logger.warning("Commitment extraction: failed to parse JSON response")
         return ExtractionBatchResult()
 
-    if not isinstance(data, dict) or "candidates" not in data:
+    raw_candidates = data.get("candidates")
+    if not isinstance(raw_candidates, list):
         return ExtractionBatchResult()
 
     candidates: list[CommitmentCandidate] = []
-    for item in data.get("candidates", []):
+    for item in raw_candidates:
         if not isinstance(item, dict):
             continue
         try:

@@ -24,6 +24,7 @@ from myrm_agent_harness.toolkits.llms.consensus.types import (
     ConsensusConfig,
     ConsensusResult,
     PrivacyFilterMode,
+    PrivacyRedactor,
     ReferenceResponse,
 )
 
@@ -37,6 +38,7 @@ __all__ = [
     "MoAFanoutMode",
     "MoAOverlayConfig",
     "PrivacyFilterMode",
+    "PrivacyRedactor",
     "ReferenceResponse",
     "build_advisor_injection_block",
 ]

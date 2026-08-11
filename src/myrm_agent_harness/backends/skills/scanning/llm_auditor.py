@@ -4,6 +4,7 @@
 - scanning.scanner::ScanResult, (POS: Skill content security scanner. Part of the framework's defense-in-depth. Trust attenuation is the hard limit (restricts tools), scanner is the soft detection layer (warns users and recommends trust levels). Detects 26 threat categories (108 patterns): prompt injection, command injection, credential exposure, data exfiltration, file system access, process operations, network access, screen/input capture, memory/config snooping, code injection, privilege escalation, environment manipulation, reflection/metaprogramming, deserialization attacks, log/audit tampering, scheduled task injection, container escape, memory manipulation, DNS tunneling, supply chain attacks, obfuscation, destructive operations, persistence mechanisms, path traversal, crypto mining, reverse shell, invisible unicode. Scan results influence SkillTrust level via SkillTrustRecommendation: Critical findings → REJECT High findings → UNTRUSTED Medium/Low findings → INSTALLED (normal install with attenuation) No findings → TRUSTED)
 - langchain_core.language_models::BaseChatModel (LLM interface)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - SkillLLMAuditor: LLM auditor that enhances static scan results
@@ -22,7 +23,6 @@ gracefully falls back to pure regex scanning.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from typing import TYPE_CHECKING
 
@@ -32,7 +32,10 @@ from myrm_agent_harness.backends.skills.scanning.scanner import (
     ScanSeverity,
     SkillTrustRecommendation,
 )
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import (
+    extract_answer_text,
+    parse_llm_json_object,
+)
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -130,23 +133,9 @@ class SkillLLMAuditor:
 
 def _parse_llm_response(text: str) -> list[ScanFinding]:
     """Parse LLM JSON response into ScanFinding objects."""
-    text = text.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        end_idx = len(lines)
-        for i in range(len(lines) - 1, 0, -1):
-            if lines[i].startswith("```"):
-                end_idx = i
-                break
-        text = "\n".join(lines[1:end_idx])
-
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
+    data = parse_llm_json_object(text)
+    if data is None:
         logger.warning("LLM audit returned invalid JSON")
-        return []
-
-    if not isinstance(data, dict):
         return []
 
     severity_map: dict[str, ScanSeverity] = {
@@ -157,7 +146,10 @@ def _parse_llm_response(text: str) -> list[ScanFinding]:
     }
 
     findings: list[ScanFinding] = []
-    for item in data.get("findings", []):
+    findings_raw = data.get("findings", [])
+    if not isinstance(findings_raw, list):
+        return findings
+    for item in findings_raw:
         if not isinstance(item, dict):
             continue
         desc = item.get("description", "")

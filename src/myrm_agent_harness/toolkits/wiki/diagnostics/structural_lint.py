@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import (
+from myrm_agent_harness.utils.markdown_frontmatter import (
     parse_frontmatter,
 )
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (

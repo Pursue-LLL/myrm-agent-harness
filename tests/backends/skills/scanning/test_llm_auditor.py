@@ -57,6 +57,16 @@ class TestParseLlmResponse:
     def test_non_dict_returns_empty(self):
         assert _parse_llm_response("[1, 2, 3]") == []
 
+    def test_prose_with_trailing_comma(self):
+        resp = (
+            'Audit result:\n'
+            '{"findings": [{"description": "exfil", "severity": "high"},]}'
+        )
+        findings = _parse_llm_response(resp)
+        assert len(findings) == 1
+        assert "exfil" in findings[0].description
+        assert findings[0].severity == ScanSeverity.HIGH
+
     def test_missing_description_skipped(self):
         resp = '{"findings": [{"severity": "high"}]}'
         findings = _parse_llm_response(resp)

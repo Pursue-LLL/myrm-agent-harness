@@ -10,7 +10,7 @@ knowledge direction, compile/query configs, and recursive file system operations
 |------|------|-------------|-------|
 | __init__.py | Package | Init | — |
 | config.py | Config | WikiConfig, WikiQueryConfig (incl. index_first/sidecar/best-first/raw_claim knobs), WikiCompileConfig | ✅ |
-| parsers.py | Core | LLM response parsers — JSON and bullet-point format to ConceptInfo list | ✅ |
+| parsers.py | Core | LLM response parsers — JSON (via `parse_llm_json_list`, robust against fences, prose, bare control chars, trailing commas) and bullet-point format to ConceptInfo list | ✅ |
 | structure.py | Core | File system layout, OKF paths (`index.md`, `log.md`, `hot.md`, `SCHEMA.md`), directory sidecar helpers, tree CRUD | ✅ |
 | types.py | Types | Data models: ConceptInfo, WikiArticle, CompileResult (incl. publication counts), SourceSnippet (incl. claim citation + `claim_confidence` + `evidence_snapshot_status`), QueryResult (incl. `retrieval_trace`, derived `confidence_score`), LintIssue, LintResult | ✅ |
 | frontmatter_contract.py | Contract | WikiPageType + WikiPublishStatus + WikiProvenance; validate/infer/repair `type`; yaml-aware `load_frontmatter_metadata` / `serialize_frontmatter_block`; `repair_publication_on_disk` grandfathers missing publish_status only (skips draft/blocked) | ✅ |

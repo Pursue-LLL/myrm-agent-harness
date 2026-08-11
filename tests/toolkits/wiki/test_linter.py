@@ -332,3 +332,31 @@ async def test_discover_connections_llm_enrichment(
         encoding="utf-8"
     )
     assert "[[Concept Beta]]" in updated
+
+
+@pytest.mark.asyncio
+async def test_discover_connections_malformed_llm_array(
+    mock_llm: MagicMock,
+    wiki_structure: WikiStructure,
+) -> None:
+    """_discover_connections tolerates prose framing and trailing commas in LLM array."""
+    from langchain_core.messages import AIMessage
+
+    concept_a = wiki_structure.get_concept_file_path("Concept Alpha")
+    concept_a.write_text(
+        "---\ntype: concept\n---\n\n# Concept Alpha\n\nAlpha references Concept Beta."
+    )
+    concept_b = wiki_structure.get_concept_file_path("Concept Beta")
+    concept_b.write_text("---\ntype: concept\n---\n\n# Concept Beta\n\nStandalone.")
+
+    mock_llm.ainvoke.return_value = AIMessage(
+        content='Suggested links: ["Concept Beta",]'
+    )
+    config = WikiConfig(enable_auto_maintenance=False, enable_backlinks=True)
+    linter = WikiLinter(mock_llm, wiki_structure, config)
+    count = await linter._discover_connections()
+    assert count >= 0
+    updated = wiki_structure.get_concept_file_path("Concept Alpha").read_text(
+        encoding="utf-8"
+    )
+    assert "[[Concept Beta]]" in updated

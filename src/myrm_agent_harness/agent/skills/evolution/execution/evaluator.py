@@ -7,6 +7,7 @@ ensuring the fix works and preventing skill bloat.
 [INPUT]
 - agent.skills.evolution.core.types::SkillRecord (POS: Data types for skill evolution system.)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - BatchEvaluator: Evaluates multiple skill variants and picks the highest s...
@@ -22,7 +23,10 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.skills.evolution.core.types import SkillRecord
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import (
+    extract_answer_text,
+    parse_llm_json_object,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -119,19 +123,23 @@ class BatchEvaluator:
                 scoring_content, feedback, trajectory
             )
             try:
-                if hasattr(self._llm, "with_structured_output"):
+                if self._llm is not None and hasattr(self._llm, "with_structured_output"):
                     structured_llm = self._llm.with_structured_output(
                         SkillEvaluationRubric
                     )
-                    rubric: SkillEvaluationRubric = await structured_llm.ainvoke(prompt)
+                    rubric_raw = await structured_llm.ainvoke(prompt)
+                    if isinstance(rubric_raw, SkillEvaluationRubric):
+                        rubric: SkillEvaluationRubric = rubric_raw
+                    else:
+                        rubric = SkillEvaluationRubric.model_validate(rubric_raw)
                 else:
                     # Fallback for MagicMock in tests
-                    await self._llm.ainvoke(prompt)
+                    if self._llm is not None:
+                        await self._llm.ainvoke(prompt)
                     rubric = SkillEvaluationRubric(
                         accuracy_score=0.95,
                         anti_fragmentation_score=0.95,
                         redundancy_score=0.95,
-                        total_score=0.95,
                         reasoning="Looks good",
                         is_general=True,
                     )
@@ -198,16 +206,17 @@ class BatchEvaluator:
                 f'Output JSON: {{"score": float, "reasoning": str}}'
             )
             try:
-                resp = await self._llm.ainvoke([{"role": "user", "content": prompt}])  # type: ignore[arg-type]
-                import json
-                import re
+                if self._llm is None:
+                    return 0.5, ""
+                resp = await self._llm.ainvoke([{"role": "user", "content": prompt}])
 
                 # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
                 text = extract_answer_text(resp).strip()
-                match = re.search(r"\{.*\}", text, re.DOTALL)
-                if match:
-                    data = json.loads(match.group())
-                    return float(data.get("score", 0.5)), str(data.get("reasoning", ""))
+                data = parse_llm_json_object(text)
+                if data is not None:
+                    score_raw = data.get("score", 0.5)
+                    score = score_raw if isinstance(score_raw, (int, float)) else 0.5
+                    return float(score), str(data.get("reasoning", ""))
                 return 0.5, text[:200]
             except Exception as e:
                 logger.error("Description evaluation failed: %s", e)

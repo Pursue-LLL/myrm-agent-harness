@@ -7,6 +7,7 @@
 - langchain_core.language_models::BaseChatModel (POS: LLM 基类)
 - langchain_core.messages::BaseMessage, HumanMessage (POS: 消息类型)
 - utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - SessionNotesManager: 后台异步更新管理器
@@ -21,7 +22,6 @@ Session Notes core update engine. Manages the async update lifecycle: incrementa
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
@@ -30,7 +30,7 @@ from myrm_agent_harness.observability.metrics.circuit_breaker_metrics import (
     circuit_breaker_failures_total,
     circuit_breaker_state,
 )
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import extract_answer_text, parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .prompts import build_full_refresh_prompt, build_incremental_prompt
@@ -331,36 +331,7 @@ def _truncate_messages_for_update(messages: list[BaseMessage], max_chars: int) -
 
 def _parse_notes_response(content: str) -> dict[str, str] | None:
     """解析 LLM 响应为 section key → content 映射"""
-    json_str = _extract_json_block(content)
-    if not json_str:
-        json_str = content.strip()
-
-    try:
-        data = json.loads(json_str)
-        if isinstance(data, dict):
-            return {k: str(v) for k, v in data.items()}
-    except (json.JSONDecodeError, ValueError):
-        pass
-
+    data = parse_llm_json_object(content)
+    if data is not None:
+        return {k: str(v) for k, v in data.items()}
     return None
-
-
-def _extract_json_block(text: str) -> str | None:
-    """从文本中提取 JSON 代码块"""
-    start = text.find("```json")
-    if start == -1:
-        start = text.find("```")
-        if start == -1:
-            return None
-        start = text.find("\n", start)
-    else:
-        start = text.find("\n", start)
-
-    if start == -1:
-        return None
-
-    end = text.find("```", start + 1)
-    if end == -1:
-        return None
-
-    return text[start:end].strip()

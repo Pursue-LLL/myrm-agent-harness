@@ -4,6 +4,7 @@
 - schemas::StructuredSummary (POS: structured summary dataclass)
 - langchain_core.messages::BaseMessage (POS: LangChain message base class)
 - security.detection.leak_detector::redact_leaks (POS: 输出侧凭证泄露检测器)
+- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas; requires the ``user_goal`` key for summary-message scan)
 
 [OUTPUT]
 - extract_existing_summary: detect existing summary in message list
@@ -19,7 +20,6 @@ format_messages_for_summary applies credential redaction before sending to summa
 from __future__ import annotations
 
 import json
-import re
 
 from langchain_core.messages import (
     AIMessage,
@@ -30,6 +30,7 @@ from langchain_core.messages import (
 )
 
 from myrm_agent_harness.agent.security.detection.leak_detector import redact_leaks
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import smart_truncate
 
@@ -155,38 +156,7 @@ def _try_json_load_dict(raw: str) -> dict[str, object] | None:
 
 
 def _extract_summary_dict_from_llm_text(text: str) -> dict[str, object] | None:
-    stripped = text.strip()
-    direct = _try_json_load_dict(stripped)
-    if direct is not None:
-        return direct
-    tag = re.search(r"<summary>(.*?)</summary>", stripped, re.DOTALL | re.IGNORECASE)
-    if tag:
-        inner = tag.group(1).strip()
-        tagged = _try_json_load_decor(inner)
-        if tagged is not None:
-            return tagged
-    return _scan_json_objects_for_dict(stripped)
-
-
-def _try_json_load_decor(inner: str) -> dict[str, object] | None:
-    parsed = _try_json_load_dict(inner)
-    if parsed is not None:
-        return parsed
-    return _scan_json_objects_for_dict(inner)
-
-
-def _scan_json_objects_for_dict(text: str) -> dict[str, object] | None:
-    start = text.find("{")
-    while start != -1:
-        try:
-            obj, _end = json.JSONDecoder().raw_decode(text, start)
-        except json.JSONDecodeError:
-            start = text.find("{", start + 1)
-            continue
-        if isinstance(obj, dict):
-            return obj
-        start = text.find("{", start + 1)
-    return None
+    return parse_llm_json_object(text)
 
 
 def _as_str_list(val: object) -> list[str]:
@@ -208,14 +178,14 @@ def _parse_summary_from_message(content: str) -> StructuredSummary | None:
 
     三级回退：
     1. ``<!-- SUMMARY_JSON`` 嵌入块（Pipeline 产生，最可靠）
-    2. 内嵌 JSON dict 扫描（覆盖 server 注入的 ``[Previous conversation summary]\\n{JSON}`` 格式）
+    2. robust JSON object 提取（覆盖 server 注入的 ``[Previous conversation summary]\\n{JSON}`` 格式，含尾逗号/裸换行/散文包裹）
     3. 中文行标签文本解析（最后回退）
     """
     json_summary = _parse_summary_from_json_block(content)
     if json_summary:
         return json_summary
-    raw_dict = _scan_json_objects_for_dict(content)
-    if raw_dict and "user_goal" in raw_dict:
+    raw_dict = parse_llm_json_object(content, require_key="user_goal")
+    if raw_dict is not None:
         return _build_summary_from_dict(raw_dict)
     return _parse_summary_from_text(content)
 

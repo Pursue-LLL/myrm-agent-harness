@@ -356,3 +356,28 @@ class TestStalenessReviewer:
 
         assert result.kept_count == 3
         assert result.removed_count == 0
+
+    @pytest.mark.asyncio
+    async def test_prose_with_trailing_commas_and_bare_newlines(self) -> None:
+        """Prose framing, trailing commas, and bare newlines are tolerated."""
+        llm_response = (
+            'Decisions:\n'
+            '[{"id": "m-1", "action": "remove", "reason": "outdated",},'
+            ' {"id": "m-2", "action": "keep", "reason": "still\nvalid",},'
+            ' {"id": "m-3", "action": "extend", "reason": "stable", "extend_by_days": 90,},]\n'
+            'That is all.'
+        )
+        llm = AsyncMock(return_value=llm_response)
+        reviewer = StalenessReviewer(llm, StalenessReviewConfig(min_candidates=3))
+        candidates = [
+            _make_semantic(mem_id="m-1", days_old=60, expected_valid_days=30),
+            _make_semantic(mem_id="m-2", days_old=60, expected_valid_days=30),
+            _make_semantic(mem_id="m-3", days_old=60, expected_valid_days=30),
+        ]
+        result = await reviewer.review(candidates)
+
+        assert result.reviewed_count == 3
+        assert result.removed_count == 1
+        assert result.extended_count == 1
+        assert result.extended_updates[0] == ("m-3", 90)
+        assert result.kept_count == 1

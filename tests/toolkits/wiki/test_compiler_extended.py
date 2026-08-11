@@ -80,6 +80,19 @@ def test_parse_empty_response(wiki_structure: WikiStructure, mock_llm: AsyncMock
     assert concepts == []
 
 
+def test_parse_prose_with_trailing_commas_and_bare_newlines(
+    wiki_structure: WikiStructure, mock_llm: AsyncMock
+) -> None:
+    concepts = parse_concepts_response(
+        'Concepts found:\n[{"name": "ML", "definition": "Machine\nLearning", '
+        '"related_concepts": ["AI"],},]\nThat is all.',
+        "test.md",
+    )
+    assert len(concepts) == 1
+    assert concepts[0].name == "ML"
+    assert concepts[0].related_concepts == ["AI"]
+
+
 # --- _filter_changed_files ---
 
 

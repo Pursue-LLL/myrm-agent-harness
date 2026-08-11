@@ -399,10 +399,10 @@ async def evaluate_semantic_assertions(
                 "temperature": 0.0,
                 "num_retries": 2,
             }
-            # Prefer explicit per-assertion credentials, then the caller-level
-            # override, then ambient environment variables. This keeps
+            # The caller-level override (resolved from the user's model_cfg by
+            # the server) wins over per-assertion credentials, keeping
             # non-OpenAI setups (DeepSeek/Qwen/self-hosted) able to run
-            # LLM-judge assertions without exporting provider keys.
+            # LLM-judge assertions with their own provider keys.
             judge_api_key = (
                 judge_override.api_key
                 if judge_override and judge_override.api_key

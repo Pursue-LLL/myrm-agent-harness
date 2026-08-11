@@ -11,7 +11,7 @@ LLM-based structured summarization strategy with quality gate, circuit breaker, 
 | `summarizer.py` | Core | LLM-invoked structured summarization with streaming progress tracking, cache-safe invocation, and aux-model context guard. |
 | `summary_auditor.py` | Core | Quality gate that validates generated summaries for coverage and accuracy. |
 | `summary_builder.py` | Core | Message history reconstruction after summarisation (protected head extraction, compacted messages assembly). |
-| `summary_parser.py` | Core | Summary format parsing and message-to-text formatting with credential redaction. |
+| `summary_parser.py` | Core | Summary format parsing and message-to-text formatting with credential redaction. Uses `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas) for LLM responses and `require_key="user_goal"` for summary-message scans. |
 | `summary_prompts.py` | Core | Prompt templates for structured JSON summary and merge operations. |
 | `summarize_circuit_guard.py` | Core | Circuit breaker shared by turn pipeline and server compact paths. |
 | `progress_timeout.py` | Core | Progress-aware timeout primitives for detecting stalled summarization (InactivityTimeoutError, TotalCeilingTimeoutError). |

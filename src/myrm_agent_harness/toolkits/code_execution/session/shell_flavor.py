@@ -5,7 +5,7 @@ platform::PlatformInfo (POS: OS detection and shell path resolution)
 
 [OUTPUT]
 ShellFlavor: ABC for platform-specific shell command formatting.
-BashFlavor: Bash/POSIX shell driver with ulimit init.
+BashFlavor: Bash/POSIX shell driver with ulimit init, exit() interceptor, and block-rc command wrapping.
 WindowsFlavor: Windows cmd driver.
 get_flavor: Factory returning the appropriate flavor for the platform.
 
@@ -66,9 +66,19 @@ class BashFlavor(ShellFlavor):
         return f'export {key}="{escaped}"'
 
     def build_wrapped_command(self, command: str, exit_marker: str, end_marker: str, exit_code_var: str) -> str:
+        # EXIT trap backs up the marker pair so an errexit crash (e.g. `set -e`
+        # failing) still emits a parseable boundary. `set -e` is a bash-native
+        # "fail fast" that terminates the shell — without the trap the process
+        # dies markerless, the session reads EOF and misreports an unexpected
+        # crash (triggering a pointless recovery). The trap only fires when the
+        # shell actually exits; a healthy command leaves it dormant so markers
+        # are emitted exactly once per execution.
         return (
-            f"{{ {command}; }}\n"
+            f"trap 'echo \"{exit_marker}\"$?; echo \"{end_marker}\"' EXIT\n"
+            "{\n"
+            f"{command}\n"
             f"__myrm_rc__={exit_code_var}\n"
+            "}\n"
             f"echo '{exit_marker}'\"$__myrm_rc__\"\n"
             f"echo '{end_marker}'\n"
         )

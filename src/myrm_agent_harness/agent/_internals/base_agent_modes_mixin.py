@@ -15,7 +15,7 @@ Mixin: run_deep_research and run_consensus on BaseAgent.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -38,6 +38,23 @@ if TYPE_CHECKING:
         ConsensusResult,
     )
     from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
+
+
+def _make_consensus_redactor() -> Callable[[str], str]:
+    """Build the consensus privacy redactor from the agent security layer.
+
+    Delayed imports keep this mixin free of the security stack until a
+    privacy-filtered consensus run actually needs it.
+    """
+    from myrm_agent_harness.agent.security.detection.pii_redactor import redact_pii
+    from myrm_agent_harness.agent.security.redact import redact_sensitive_text
+
+    def redact(text: str) -> str:
+        redacted = redact_sensitive_text(text)
+        redacted, _ = redact_pii(redacted)
+        return redacted
+
+    return redact
 
 
 class BaseAgentModesMixin:
@@ -104,12 +121,14 @@ class BaseAgentModesMixin:
             ConsensusEngine,
         )
 
+        cfg = config or ConsensusConfig()
         refs = reference_llms or [self.llm]
         agg = aggregator_llm or self.llm
         engine = ConsensusEngine(
             reference_llms=refs,
             aggregator_llm=agg,
-            config=config or ConsensusConfig(),
+            config=cfg,
+            privacy_redactor=_make_consensus_redactor() if cfg.privacy_filter != "off" else None,
         )
         return await engine.run(
             query, system_prompt=self.system_prompt, cancel_token=cancel_token

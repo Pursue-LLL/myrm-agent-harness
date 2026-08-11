@@ -167,6 +167,7 @@ class EvalManifest:
     profile_id: str = "default"
     benchmark_mode: bool = False
     judge_model: str = "none"  # LLM judge model used for semantic assertions
+    limit: int | None = None  # Reproducible sample size actually applied (None = full run)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -184,6 +185,7 @@ class EvalManifest:
             "profile_id": self.profile_id,
             "benchmark_mode": self.benchmark_mode,
             "judge_model": self.judge_model,
+            "limit": self.limit,
         }
 
 

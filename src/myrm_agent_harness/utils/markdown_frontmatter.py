@@ -9,7 +9,7 @@
 - preserve_frontmatter_on_edit: reinject FM when LLM drops the block
 
 [POS]
-Generic markdown FM utilities shared by vault write guard and server wiki import.
+Generic markdown FM utilities shared by vault write guard, toolkits wiki and server wiki import.
 """
 
 from __future__ import annotations

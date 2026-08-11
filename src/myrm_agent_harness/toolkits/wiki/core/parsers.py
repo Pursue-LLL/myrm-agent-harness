@@ -1,9 +1,9 @@
 """LLM response parsers for concept extraction.
 
 [INPUT]
-json (POS: standard library JSON parser)
-re (POS: standard library regex)
-..core.types::ConceptInfo (POS: Wiki toolkit type definition)
+- utils.chat_utils::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- re (POS: standard library regex for bullet-point fallback)
+- .core.types::ConceptInfo (POS: Wiki toolkit type definition)
 
 [OUTPUT]
 parse_concepts_response(): Parse LLM response into ConceptInfo list
@@ -15,8 +15,9 @@ structured ConceptInfo objects.
 
 from __future__ import annotations
 
-import json
 import re
+
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_list
 
 from .types import ConceptInfo
 
@@ -26,36 +27,22 @@ def parse_concepts_response(response: str, source_file: str) -> list[ConceptInfo
     concepts: list[ConceptInfo] = []
     response_clean = response.strip()
 
-    if response_clean.startswith("```json"):
-        response_clean = response_clean[7:]
-        if response_clean.endswith("```"):
-            response_clean = response_clean[:-3]
-        response_clean = response_clean.strip()
-    elif response_clean.startswith("```"):
-        response_clean = response_clean[3:]
-        if response_clean.endswith("```"):
-            response_clean = response_clean[:-3]
-        response_clean = response_clean.strip()
-
-    try:
-        json_data = json.loads(response_clean)
-        if isinstance(json_data, list):
-            for item in json_data:
-                if isinstance(item, dict) and "name" in item and "definition" in item:
-                    raw_related = item.get("related_concepts", [])
-                    related = [str(r) for r in raw_related] if isinstance(raw_related, list) else []
-                    concepts.append(
-                        ConceptInfo(
-                            name=item["name"],
-                            definition=item["definition"],
-                            mentions=1,
-                            source_files=[source_file],
-                            related_concepts=related,
-                        )
+    json_data = parse_llm_json_list(response_clean)
+    if json_data is not None:
+        for item in json_data:
+            if isinstance(item, dict) and "name" in item and "definition" in item:
+                raw_related = item.get("related_concepts", [])
+                related = [str(r) for r in raw_related] if isinstance(raw_related, list) else []
+                concepts.append(
+                    ConceptInfo(
+                        name=item["name"],
+                        definition=item["definition"],
+                        mentions=1,
+                        source_files=[source_file],
+                        related_concepts=related,
                     )
-            return concepts
-    except (json.JSONDecodeError, KeyError):
-        pass
+                )
+        return concepts
 
     for line in response_clean.split("\n"):
         line = line.strip()

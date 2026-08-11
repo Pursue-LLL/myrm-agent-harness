@@ -2,16 +2,12 @@
 
 import json
 
-import pytest
-
 from myrm_agent_harness.agent.skills.packaging.evals import (
-    EVALS_FILE,
     EVALS_SCHEMA_VERSION,
     is_evals_file,
     parse_evals_json,
     serialize_eval_cases,
 )
-
 
 EVAL_CASES = [
     {
@@ -22,7 +18,9 @@ EVAL_CASES = [
     },
     {
         "message": "query sales for March",
-        "sandbox_assertions": [{"type": "db_query", "query": "SELECT * FROM sales WHERE month='march'"}],
+        "sandbox_assertions": [
+            {"type": "db_query", "query": "SELECT * FROM sales WHERE month='march'"}
+        ],
     },
 ]
 
@@ -56,12 +54,20 @@ def test_parse_evals_json_invalid_json():
 
 
 def test_parse_evals_json_unsupported_schema_version():
-    content = json.dumps({"schema_version": EVALS_SCHEMA_VERSION + 1, "skill_name": "s", "evals": []})
+    content = json.dumps(
+        {"schema_version": EVALS_SCHEMA_VERSION + 1, "skill_name": "s", "evals": []}
+    )
     assert parse_evals_json(content) is None
 
 
 def test_parse_evals_json_non_object_entries():
-    content = json.dumps({"schema_version": EVALS_SCHEMA_VERSION, "skill_name": "s", "evals": ["nope", 42]})
+    content = json.dumps(
+        {
+            "schema_version": EVALS_SCHEMA_VERSION,
+            "skill_name": "s",
+            "evals": ["nope", 42],
+        }
+    )
     assert parse_evals_json(content) is None
 
 

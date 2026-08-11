@@ -11,7 +11,7 @@ Skill content security scanning — regex patterns, Python AST analysis, package
 | ast_analyzer.py | Core | AST-level Python security analysis (eval, subprocess, pickle, etc.). | ✅ |
 | archive_security.py | Core | Canonical archive security contract (error code/message), executable signature detection, and structured logs/metrics. | ✅ |
 | cache.py | Core | Persistent scan result cache under MYRM data dir (~/.myrm/skill_scans/). | ✅ |
-| llm_auditor.py | Core | LLM-based semantic threat detection beyond regex/AST coverage. | ✅ |
+| llm_auditor.py | Core | LLM-based semantic threat detection beyond regex/AST coverage. Parses the finding object via `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas). | ✅ |
 | package_audit.py | Core | package.json supply-chain audit (install scripts, suspicious deps). | ✅ |
 | patterns.py | Core | Regex pattern groups for 26 threat categories. | ✅ |
 | scanner.py | Core | Multi-file skill directory scanner and scan summary aggregation. | ✅ |

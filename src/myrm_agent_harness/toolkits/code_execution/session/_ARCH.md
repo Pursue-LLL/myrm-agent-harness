@@ -9,9 +9,9 @@ state (env vars, cwd) across commands.
 | File | Role | Description |
 |------|------|-------------|
 | __init__.py | Package | Re-exports all public API |
-| persistent_session.py | Core | Abstract `PersistentSession` base class: state machine, execute, stream, auto-recovery, shield-protected cleanup |
+| persistent_session.py | Core | Abstract `PersistentSession` base class: state machine, execute, stream, auto-recovery, shield-protected cleanup; per-command random markers + `bash -n` syntax gate |
 | local_session.py | Core | `LocalPersistentSession` concrete implementation with bwrap sandbox support |
-| shell_flavor.py | Core | Platform-specific shell drivers: `BashFlavor`, `WindowsFlavor` |
+| shell_flavor.py | Core | Platform-specific shell drivers: `BashFlavor` (with `exit()` interceptor + block-rc wrapper + errexit `EXIT` trap), `WindowsFlavor` |
 | stream_output_processor.py | Core | `StreamOutputProcessor` — unified tee writing, SSE throttle/valve, disk quota |
 | stream_buffer.py | Core | `ExecutionStreamBuffer` — zero-copy byte stream parsing with marker detection |
 

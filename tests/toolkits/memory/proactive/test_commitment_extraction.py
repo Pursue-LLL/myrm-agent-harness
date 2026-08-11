@@ -198,6 +198,67 @@ class TestParseResponse:
         result = _parse_response(json.dumps(data))
         assert len(result.candidates) == 0
 
+    def test_prose_framing(self) -> None:
+        raw = (
+            "Here are the detected commitments:\n"
+            '{"candidates": [{"kind": "open_loop", "sensitivity": "routine", "reason": "r", '
+            '"suggestedText": "s", "dedupeKey": "d", "confidence": 0.7, '
+            '"dueWindow": {"earliest": "' + FUTURE_ISO + '"}}]}'
+        )
+        result = _parse_response(raw)
+        assert len(result.candidates) == 1
+
+    def test_prose_with_braces_not_misparsed(self) -> None:
+        raw = (
+            "Found {2} patterns.\n"
+            '{"candidates": [{"kind": "open_loop", "sensitivity": "routine", "reason": "r", '
+            '"suggestedText": "s", "dedupeKey": "d", "confidence": 0.7, '
+            '"dueWindow": {"earliest": "' + FUTURE_ISO + '"}}]}'
+        )
+        result = _parse_response(raw)
+        assert len(result.candidates) == 1
+
+    def test_trailing_comma(self) -> None:
+        raw = (
+            '{"candidates": [{"kind": "open_loop", "sensitivity": "routine", "reason": "r", '
+            '"suggestedText": "s", "dedupeKey": "d", "confidence": 0.7, '
+            '"dueWindow": {"earliest": "' + FUTURE_ISO + '"}},]}'
+        )
+        result = _parse_response(raw)
+        assert len(result.candidates) == 1
+
+    def test_bare_newline_in_reason(self) -> None:
+        raw = (
+            '{"candidates": [{"kind": "open_loop", "sensitivity": "routine", '
+            '"reason": "line1\nline2", "suggestedText": "s", "dedupeKey": "d", '
+            '"confidence": 0.7, "dueWindow": {"earliest": "' + FUTURE_ISO + '"}}]}'
+        )
+        result = _parse_response(raw)
+        assert len(result.candidates) == 1
+        assert result.candidates[0].reason == "line1\nline2"
+
+    def test_array_wrapping_object(self) -> None:
+        raw = (
+            '[{"candidates": [{"kind": "open_loop", "sensitivity": "routine", "reason": "r", '
+            '"suggestedText": "s", "dedupeKey": "d", "confidence": 0.7, '
+            '"dueWindow": {"earliest": "' + FUTURE_ISO + '"}}]}]'
+        )
+        result = _parse_response(raw)
+        assert len(result.candidates) == 1
+
+    def test_format_example_then_real_result(self) -> None:
+        raw = (
+            '{"candidates": [{"kind": "open_loop", "sensitivity": "routine", "reason": "example", '
+            '"suggestedText": "s", "dedupeKey": "example", "confidence": 0.5, '
+            '"dueWindow": {"earliest": "' + FUTURE_ISO + '"}}]}\n\n'
+            '{"candidates": [{"kind": "event_check_in", "sensitivity": "personal", "reason": "real", '
+            '"suggestedText": "s", "dedupeKey": "real", "confidence": 0.8, '
+            '"dueWindow": {"earliest": "' + FUTURE_ISO + '"}}]}'
+        )
+        result = _parse_response(raw)
+        assert len(result.candidates) == 1
+        assert result.candidates[0].dedupe_key == "real"
+
 
 class TestValidateCandidates:
     @pytest.fixture()

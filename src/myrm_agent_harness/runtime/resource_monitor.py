@@ -115,7 +115,7 @@ class ResourceMonitor:
             mem = self._process.memory_info()
             rss_mb = int(mem.rss / (1024 * 1024))
             vms_mb = int(mem.vms / (1024 * 1024))
-            cpu = self._process.cpu_percent(interval=0)
+            cpu = self._process.cpu_percent(interval=None)
             threads = threading.active_count()
             uptime = int(time.monotonic() - self._start_time) if self._start_time else 0
             tag = f"{prefix} " if prefix else ""
@@ -133,7 +133,13 @@ class ResourceMonitor:
 
     async def start(self) -> None:
         """Start monitoring loop."""
+        if self._monitor_task is not None and not self._monitor_task.done():
+            return
+
         self._start_time = time.monotonic()
+        self._network_baseline = psutil.net_io_counters()
+        # Prime psutil's non-blocking CPU counter before the first sample.
+        self._process.cpu_percent(interval=None)
         logger.info(
             "Starting resource monitor (interval=%ss, history=%d)",
             self.report_interval,
@@ -192,7 +198,9 @@ class ResourceMonitor:
             now = time.time()
 
             # CPU usage
-            cpu_percent = self._process.cpu_percent(interval=0.1)
+            # A finite psutil interval blocks the event loop.  The monitor is
+            # shared by all requests, so use the primed non-blocking counter.
+            cpu_percent = self._process.cpu_percent(interval=None)
 
             # Memory usage
             memory_info = self._process.memory_info()
@@ -292,10 +300,19 @@ class ResourceMonitor:
             self._monitor_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._monitor_task
+            self._monitor_task = None
 
         if self._is_profiling:
             tracemalloc.stop()
             self._is_profiling = False
+
+        # Listeners usually close over an application event bus. Retaining
+        # them across a service restart keeps the old bus and its resources
+        # reachable, so a stopped monitor must not retain runtime callbacks.
+        self._listeners.clear()
+        self._history.clear()
+        self._tick_count = 0
+        self._start_time = 0.0
 
         logger.info("Resource monitor stopped")
 

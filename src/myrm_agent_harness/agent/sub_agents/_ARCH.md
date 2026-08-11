@@ -20,7 +20,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | executor_retry_mixin.py | Internal | Retry loop, workspace isolation (immediate sync_back → `apply_isolated_sync_back_with_snapshots` before return; merge fail → merge_warning + result metadata), hooks, graceful cancellation (`run_with_retry`). | ✅ |
 | executor_attempt_mixin.py | Internal | Single child-agent attempt: fork context, event forwarding, handover parsing, taint propagation (`_inherit_parent_context`, `_run_single_attempt`). | ✅ |
 | executor_delegation_mixin.py | Internal | Orchestrator-role delegation meta-tool attachment (`_attach_child_delegation_tools`). | ✅ |
-| executor_helpers.py | Internal | Pure helpers: fork filter, error compaction, `_auto_vault_or_truncate` (vault + inline artifact + file_read hint), handover parse, cascade cancel. | ✅ |
+| executor_helpers.py | Internal | Pure helpers: fork filter, error compaction, `_auto_vault_or_truncate` (vault + inline artifact + file_read hint), handover parse (via `parse_llm_json_object`, robust against fences/prose/trailing commas), cascade cancel. | ✅ |
 | manager.py | Core | Subagent lifecycle manager. Core state tracking, validation, cleanup, capacity, and observability. Inherits spawn/execution from `_manager_spawn` and control operations from `_manager_control`. | ✅ |
 | _manager_spawn.py | Internal | Spawn and execution mixin for SubagentManager (`_run_subagent*`, `spawn_child`). No wall-clock timeout by default; hard timeout only when `timeout_seconds` is explicitly set. | ✅ |
 | _manager_control.py | Internal | Control plane mixin for SubagentManager (`cancel_child`, `steer_child`, `list_children`, `wait_children`, `drain_notifications`, `run_alternatives`, `run_chain`, `run_council`, `run_with_verification`). | ✅ |
@@ -32,7 +32,7 @@ Detailed design: [SUB_AGENT_SYSTEM.md](SUB_AGENT_SYSTEM.md)
 | _orchestrator_council.py | Internal | Council orchestration — multi-expert parallel analysis with cross-review debate and chair synthesis, COUNCIL_PHASE event emission. | ✅ |
 | _orchestrator_verification.py | Internal | Adversarial verification retry loop (`run_with_verification`). Delegates single-round verifier spawn to `_verifier_round.py`. | ✅ |
 | _verifier_round.py | Internal | Single-round verifier spawn + `verify_worker_output()` (Cron post-run and delegate paths). | ✅ |
-| _verification_parsing.py | Internal | `VerificationVerdict` parsing + VERIFICATION_VERDICT SSE emission. | ✅ |
+| _verification_parsing.py | Internal | `VerificationVerdict` parsing + VERIFICATION_VERDICT SSE emission. Parses the verifier verdict via `parse_llm_json_object(require_key="verdict")` (robust against fences, prose, bare control chars, trailing commas). | ✅ |
 | _workspace_diff.py | Internal | Lightweight stat-based workspace file change detection for adversarial verification diff injection. | ✅ |
 | prompts.py | Core | Default prompt templates for multi-agent coordination. | ✅ |
 | registry.py | Core | Subagent configuration registry and loader. Provides global config registration and lookup. | ✅ |

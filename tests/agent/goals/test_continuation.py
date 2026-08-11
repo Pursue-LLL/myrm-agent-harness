@@ -1392,3 +1392,22 @@ async def test_semantic_judge_blocked_by_tamper():
     assert "BLOCKED" in decision.message
     assert "src/main.py (deleted)" in decision.message
     provider.update_status.assert_not_called()
+
+
+class TestParseDriftScore:
+    def test_plain_json(self) -> None:
+        from myrm_agent_harness.agent.goals.continuation_drift import _parse_drift_score
+
+        assert _parse_drift_score('{"drift_score": 7, "reason": "off topic"}') == 7
+
+    def test_prose_with_trailing_comma(self) -> None:
+        from myrm_agent_harness.agent.goals.continuation_drift import _parse_drift_score
+
+        raw = 'Judge: {"drift_score": 4, "reason": "slightly off",}'
+        assert _parse_drift_score(raw) == 4
+
+    def test_invalid_returns_none(self) -> None:
+        from myrm_agent_harness.agent.goals.continuation_drift import _parse_drift_score
+
+        assert _parse_drift_score("no structured score") is None
+        assert _parse_drift_score('{"drift_score": "high"}') is None

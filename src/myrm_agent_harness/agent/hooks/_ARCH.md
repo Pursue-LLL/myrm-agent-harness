@@ -10,7 +10,7 @@ User-configurable lifecycle hook system. Complements middlewares (framework-inte
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | User-configurable lifecycle hook system. Complements middlewares (framework-internal safety logic) b | — |
-| executor.py | Core | Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation and per-hook elapsed_ms timing. | ✅ |
+| executor.py | Core | Hook execution layer. Manages hook registration and execution with ContextVar-based session isolation and per-hook elapsed_ms timing. LLM hooks build the model via `create_litellm_model` (model from hook config or `MYRM_HOOK_MODEL` env). `_parse_hook_json` parses LLM-hook verdicts via `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas). | ✅ |
 | output_spiller.py | Core | Hook output spiller. Prevents oversized hook outputs (>2500 tokens) from bloating context by writing to disk. | ✅ |
 | graceful_shutdown.py | Core | Graceful shutdown manager. Handles SIGTERM/SIGINT signals, triggers graceful shutdown, and auto-save | ✅ |
 | hot_reload.py | Core | Hook hot-reload watcher. Monitors JSON/YAML config file changes and auto-reloads hook definitions wi | ✅ |

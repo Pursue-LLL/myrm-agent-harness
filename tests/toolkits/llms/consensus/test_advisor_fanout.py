@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
@@ -125,3 +127,48 @@ async def test_advisor_fanout_calls_on_ref_done_per_completion() -> None:
     assert on_ref_done.await_count == 2
     models_seen = {call.args[0].model for call in on_ref_done.await_args_list}
     assert models_seen == {"ref-a", "ref-b"}
+
+
+def test_apply_privacy_to_ref_uses_injected_redactor() -> None:
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import apply_privacy_to_ref
+
+    ref = ReferenceResponse(
+        model="ref-a",
+        content="Contact alice@example.com at 555-0100",
+        elapsed_seconds=0.1,
+        success=True,
+    )
+    redacted = apply_privacy_to_ref(ref, "display", redact_fn=lambda text: "REDACTED")
+    assert redacted.content == "REDACTED"
+    assert redacted.model == ref.model
+    assert redacted.success == ref.success
+
+
+def test_apply_privacy_to_ref_off_passthrough_without_redactor() -> None:
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import apply_privacy_to_ref
+
+    ref = ReferenceResponse(
+        model="ref-a",
+        content="raw content",
+        elapsed_seconds=0.1,
+        success=True,
+    )
+    assert apply_privacy_to_ref(ref, "off") is ref
+
+
+def test_apply_privacy_to_ref_missing_redactor_emits_raw_with_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import apply_privacy_to_ref
+
+    ref = ReferenceResponse(
+        model="ref-a",
+        content="raw content",
+        elapsed_seconds=0.1,
+        success=True,
+    )
+    # fail-open fallback keeps behaviour usable when a caller bypasses the engine guard
+    with caplog.at_level(logging.WARNING, logger="myrm_agent_harness.toolkits.llms.consensus.advisor_fanout"):
+        redacted = apply_privacy_to_ref(ref, "full")
+    assert redacted.content == "raw content"
+    assert any("no redactor injected" in message for message in caplog.messages)

@@ -329,6 +329,30 @@ class TestParseSummaryResponse:
         result = extract_existing_summary(msgs)
         assert result is None
 
+    def test_server_injected_malformed_json_parsed(self) -> None:
+        """Server-injected JSON with trailing commas / bare newlines is tolerated."""
+        content = (
+            '[Previous conversation summary]\n'
+            '{"user_goal": "重构认证模块", "completed_actions": ["实现JWT",], '
+            '"last_action": "提交\n代码",}'
+        )
+        msgs = [AIMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.user_goal == "重构认证模块"
+        assert result.completed_actions == ["实现JWT"]
+
+    def test_parse_response_malformed_json(self) -> None:
+        """parse_summary_response tolerates trailing commas and prose framing."""
+        response = (
+            'Here is the summary:\n'
+            '{"user_goal": "build app", "completed_actions": ["step1",], '
+            '"last_action": "done",}'
+        )
+        result = parse_summary_response(response)
+        assert result.user_goal == "build app"
+        assert result.completed_actions == ["step1"]
+
 
 class TestServerInjectedSummary:
     """Verify ``[Previous conversation summary]\n{JSON}`` format is correctly parsed."""

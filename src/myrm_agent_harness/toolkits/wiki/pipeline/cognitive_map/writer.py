@@ -3,7 +3,7 @@
 [INPUT]
 ..core.structure::WikiStructure (POS: Wiki file system abstraction layer)
 ..core.frontmatter_contract::validate_wiki_frontmatter, WIKI_PAGE_TYPES (POS: Wiki frontmatter type gate)
-.agent.meta_tools.file_ops.utils.markdown_frontmatter::parse_frontmatter (POS: Markdown frontmatter parser)
+.utils.markdown_frontmatter::parse_frontmatter (POS: Markdown frontmatter parser)
 .snapshot::HotSnapshot, build_hot_snapshot, render_hot_markdown (POS: Hot cache snapshot builder)
 .events::WikiMapEvent (POS: Event taxonomy for wiki/log.md entries)
 
@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from myrm_agent_harness.agent.meta_tools.file_ops.utils.markdown_frontmatter import parse_frontmatter
+from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     WIKI_PAGE_TYPES,
     WikiPageType,

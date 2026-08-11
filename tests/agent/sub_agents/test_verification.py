@@ -187,6 +187,21 @@ class TestParseVerdict:
         v = _parse_verdict('{"verdict": "PASS", "confidence": "HIGH", "findings": [], "STDOUT": "here"}')
         assert v.summary == ""
 
+    def test_prose_with_trailing_comma_and_bare_newline(self):
+        raw = (
+            'Verdict after review:\n'
+            '{"verdict": "PASS", "summary": "Ran the tool, output matches STDOUT",'
+            ' "confidence": "HIGH", "findings": [],}'
+        )
+        v = _parse_verdict(raw)
+        assert v.passed is True
+        assert v.confidence == "HIGH"
+
+    def test_malformed_json_defaults_to_fail(self):
+        raw = '{"verdict": "PASS", "summary": "ok", "findings": [}'
+        v = _parse_verdict(raw)
+        assert v.passed is False
+
 
 class TestVerificationResultShape:
     def test_append_verification_preserves_isolation_dict(self):

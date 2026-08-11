@@ -25,6 +25,7 @@ Utility library exports. Public interface for the utils module providing commonl
 | locale.py | Core | BCP-47 locale normalization and Chinese detection (LocaleResolver SSOT) | ✅ |
 | response_locale.py | Core | Agent output locale/formality suffix from engine_params.response_locale_policy | ✅ |
 | lru_cache.py | Core | LRU cache utility. OrderedDict-based LRU cache implementation with TTL support. | ✅ |
+| markdown_frontmatter.py | Core | Markdown YAML frontmatter parse/preserve helpers shared by vault write guard and toolkits wiki | ✅ |
 | mime_types.py | Core | Centralized image MIME type utilities: extension ↔ MIME mappings and magic-bytes detection (detect_image_mime, extension_for_mime). | ✅ |
 | network.py | Core | Pure network utilities. Get local IP using UDP socket (no actual data sent). | ✅ |
 | progress_sink.py | Core | Progress event push mechanism. Tools implicitly obtain a sink via ContextVar to push intermediate pr | ✅ |

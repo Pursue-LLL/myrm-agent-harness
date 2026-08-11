@@ -42,3 +42,21 @@ class TestBashFlavorNoColor:
         exit_lines = [c for c in cmds if c.startswith("exit()")]
         assert len(exit_lines) == 1
         assert "builtin return" in exit_lines[0]
+
+    def test_wrapped_command_multiline_rc_capture(self) -> None:
+        """The wrapper captures rc inside the block so comment-only or empty
+        commands cannot wedge an open brace block (which would hang the shell),
+        and an EXIT trap backs up the marker pair for errexit crashes."""
+        flavor = BashFlavor()
+        wrapped = flavor.build_wrapped_command("echo hi", "EX", "END", "$?")
+
+        assert wrapped.startswith("trap 'echo \"EX\"$?; echo \"END\"' EXIT\n{\necho hi\n")
+        assert "__myrm_rc__=$?" in wrapped
+        assert "}\necho 'EX'" in wrapped
+        assert "\necho 'END'\n" in wrapped
+
+    def test_wrapped_command_single_line_variant(self) -> None:
+        """A single-line command still round-trips through the wrapper."""
+        flavor = BashFlavor()
+        wrapped = flavor.build_wrapped_command("echo a; echo b", "EX", "END", "$?")
+        assert "{\necho a; echo b\n__myrm_rc__=$?\n}\n" in wrapped
