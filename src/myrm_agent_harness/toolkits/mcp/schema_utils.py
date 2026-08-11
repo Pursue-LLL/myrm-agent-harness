@@ -10,6 +10,7 @@ with various LLMs.
 [OUTPUT]
 - canonicalize_schema_for_cache: Deterministic key ordering for prompt prefix cache stability.
 - flatten_json_schema: Resolves $ref pointers inline securely.
+- collapse_const_unions: Collapses property-level anyOf/oneOf unions of same-typed consts into enum (lone null branch → nullable, outer metadata preserved).
 - flatten_top_level_composite: Merges top-level anyOf/oneOf/allOf object branches into a flat properties set (cross-branch const/enum union, common-required promotion, exclusivity hints).
 - analyze_schema_complexity: Measures leaf count and max depth.
 - flatten_deep_schema: Flattens deeply-nested schemas to dot-path notation.

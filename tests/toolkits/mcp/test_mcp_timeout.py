@@ -2,7 +2,7 @@
 
 Covers:
 - MCPConfig timeout field defaults and custom values
-- MCPAgent._wrap_tools_with_timeout execution timeout
+- wrap_tools_with_timeout execution timeout
 - MCPAgent._enumerate_server_tools connection timeout
 - MCPClientManager.prepare_server_configs with MCPServerConfigProtocol
 """
@@ -18,6 +18,10 @@ from langchain_core.tools import BaseTool
 from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 from myrm_agent_harness.toolkits.mcp.client import MCPClientManager
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
+from myrm_agent_harness.toolkits.mcp.tool_processing import (
+    enforce_description_limits,
+    wrap_tools_with_timeout,
+)
 
 
 class TestMCPConfigTimeoutFields:
@@ -54,7 +58,7 @@ class TestMCPConfigTimeoutFields:
 
 
 class TestWrapToolsWithTimeout:
-    """Test MCPAgent._wrap_tools_with_timeout."""
+    """Test wrap_tools_with_timeout."""
 
     @staticmethod
     def _make_tool(name: str, coroutine: object) -> BaseTool:
@@ -69,7 +73,7 @@ class TestWrapToolsWithTimeout:
             return "result"
 
         tool = self._make_tool("fast", fast_fn)
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
         result = await tool.coroutine()
         assert "result" in result
         assert "UNTRUSTED_DATA" in result
@@ -81,7 +85,7 @@ class TestWrapToolsWithTimeout:
             return "never"
 
         tool = self._make_tool("slow", slow_fn)
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=0.1)
+        wrap_tools_with_timeout([tool], timeout=0.1)
         result = await tool.coroutine()
         assert isinstance(result, str)
         assert "timed out" in result
@@ -89,7 +93,7 @@ class TestWrapToolsWithTimeout:
 
     def test_sync_tool_skipped(self) -> None:
         tool = self._make_tool("sync", None)
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
         assert tool.coroutine is None
 
     @pytest.mark.asyncio
@@ -99,7 +103,7 @@ class TestWrapToolsWithTimeout:
             return "unreachable"
 
         tool = self._make_tool("hang_tool", hang)
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=0.05)
+        wrap_tools_with_timeout([tool], timeout=0.05)
         result = await tool.coroutine()
         assert isinstance(result, str)
         assert "hang_tool" in result
@@ -116,7 +120,7 @@ class TestWrapToolsWithTimeout:
 
         tool_a = self._make_tool("tool_a", fn_a)
         tool_b = self._make_tool("tool_b", fn_b)
-        MCPAgent._wrap_tools_with_timeout([tool_a, tool_b], timeout=0.1)
+        wrap_tools_with_timeout([tool_a, tool_b], timeout=0.1)
 
         result_a = await tool_a.coroutine()
         assert "a" in result_a
@@ -134,7 +138,7 @@ class TestWrapToolsWithTimeout:
             return "never"
 
         tool = self._make_tool("slow_svc", slow)
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=0.05)
+        wrap_tools_with_timeout([tool], timeout=0.05)
         result = await tool.coroutine()
         assert "timed out" in result
         assert "UNTRUSTED_DATA" not in result
@@ -158,7 +162,7 @@ class TestWrapToolsWithTimeout:
             )
 
         tool = self._make_tool("vision_tool", multimodal_fn)
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
         result = await tool.coroutine()
         assert isinstance(result, list)
         image_blocks = [b for b in result if b.get("type") == "image"]
@@ -460,7 +464,7 @@ class TestAgentToolMapping:
         tool = MagicMock(spec=BaseTool)
         tool.name = "verbose"
         tool.description = "x" * 5000
-        MCPAgent._enforce_description_limits([tool])
+        enforce_description_limits([tool])
         assert len(tool.description) <= 2048 + 3
 
 
