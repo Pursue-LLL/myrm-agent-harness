@@ -31,6 +31,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `file_line_baseline.txt` | 辅助 | legacy 大文件 grandfather 清单：允许 >500 行但不得超过登记行数；拆分至 ≤500 后移除 | — |
 | `fractal_header_baseline.txt` | 辅助 | 允许暂缺 IOP 头的 legacy 路径清单（相对 `src/`）；新文件不得加入 | — |
 | `detect_blocking_io.py` | 辅助 | 阻塞 I/O 检测 | ✅ |
+| `measure_turn1_token_inventory.py` | 辅助 | Turn-1 bind_tools token 成本测量（tiktoken planning SSOT） | ✅ |
 
 ## 边界 enforcement 用法
 
