@@ -4,6 +4,7 @@
 - langchain_core.language_models::BaseChatModel (POS: LLM instance for structured extraction)
 - str (POS: raw page text to extract from)
 - dict (POS: JSON Schema defining desired output structure)
+- myrm_agent_harness.utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 - StructuredExtractor: Component that extracts structured data from raw text using LLM.
@@ -25,6 +26,8 @@ from typing import TYPE_CHECKING, Any  # Any: required for JSON Schema (inherent
 
 from pydantic import BaseModel, ValidationError, create_model
 from pydantic.fields import FieldInfo
+
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -122,7 +125,8 @@ class StructuredExtractor:
                     {"role": "user", "content": user_content},
                 ]
             )
-            content = str(raw_response.content)
+            # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
+            content = extract_answer_text(raw_response)
             parsed = _extract_json_from_text(content)
             if parsed is not None:
                 if is_array_schema and isinstance(parsed, list):

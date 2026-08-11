@@ -76,6 +76,31 @@ class TestA2uiSpec:
         assert "invalid UI graph" in msg
         assert "missing" in msg
 
+    def test_normalize_component_dicts_preserves_explicit_type(self) -> None:
+        normalized = normalize_component_dicts([{"id": "c", "type": "card", "props": {}}])
+        assert normalized[0]["type"] == "card"
+
+    def test_normalize_component_dicts_infers_button_from_events(self) -> None:
+        normalized = normalize_component_dicts([{"id": "b", "props": {}, "events": {"onClick": "go"}}])
+        assert normalized[0]["type"] == "button"
+
+    def test_normalize_component_dicts_infers_text_field_from_label(self) -> None:
+        normalized = normalize_component_dicts([{"id": "n", "props": {"label": "Name"}}])
+        assert normalized[0]["type"] == "text_field"
+
+    def test_normalize_component_dicts_infers_text_from_text_prop(self) -> None:
+        normalized = normalize_component_dicts([{"id": "t", "props": {"text": "Hi"}}])
+        assert normalized[0]["type"] == "text"
+
+    def test_normalize_component_dicts_defaults_unknown_props_to_text(self) -> None:
+        normalized = normalize_component_dicts([{"id": "x", "props": {}}])
+        assert normalized[0]["type"] == "text"
+
+    def test_normalize_component_dicts_passes_through_non_dict_entries(self) -> None:
+        raw: list[dict[str, object]] = [{"id": "a", "type": "text", "props": {"text": "x"}}, "junk"]  # type: ignore[list-item]
+        normalized = normalize_component_dicts(raw)
+        assert normalized == raw
+
     def test_validate_ui_adjacency_detects_missing_root(self) -> None:
         errors = validate_ui_adjacency(
             [{"id": "a", "type": "text", "props": {}}],

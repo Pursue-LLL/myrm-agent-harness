@@ -14,7 +14,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.messages import HumanMessage
 from langchain_core.outputs import ChatGenerationChunk
 from langchain_core.outputs.chat_result import ChatResult
@@ -95,8 +94,8 @@ async def _async_iter(chunks: list[dict[str, Any]]) -> AsyncIterator[_Chunk]:
         yield _Chunk(c)
 
 
-class _SyncRunManager(CallbackManagerForLLMRun):
-    """Recording run_manager for the sync ``_stream`` path."""
+class _SyncRunManager:
+    """Recording run_manager for the sync ``_stream`` path (duck-typed)."""
 
     def __init__(self) -> None:
         self.tokens: list[str] = []
@@ -112,7 +111,7 @@ class _SyncRunManager(CallbackManagerForLLMRun):
         return None
 
 
-class _AsyncRunManager(CallbackManagerForLLMRun):
+class _AsyncRunManager:
     """Recording run_manager for the async ``_astream`` path (awaited call)."""
 
     def __init__(self) -> None:
@@ -158,7 +157,7 @@ class TestAsyncStreamRetryAndFlush:
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
         # content is empty on every delta; only reasoning accumulates in the buffer
-        chunks = [
+        chunks: list[dict[str, Any]] = [
             {
                 "choices": [
                     {
@@ -190,9 +189,7 @@ class TestSyncFullStream:
         manager = _SyncRunManager()
 
         results = list(
-            model._stream(
-                [HumanMessage(content="hi")], run_manager=manager  # type: ignore[arg-type]
-            )
+            model._stream([HumanMessage(content="hi")], run_manager=manager)
         )
 
         # tool-call chunk + content + sentinel are all yielded
@@ -228,7 +225,7 @@ class TestSyncFullStream:
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
         # content stays empty; reasoning accumulates until flush
-        chunks = [
+        chunks: list[dict[str, Any]] = [
             {
                 "choices": [
                     {
@@ -368,7 +365,7 @@ class TestAsyncAgenerateStreaming:
         """Streamed tool calls are recovered and yielded as the final chunk."""
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
-        chunks = [
+        chunks: list[dict[str, Any]] = [
             {
                 "choices": [
                     {
@@ -414,7 +411,7 @@ class TestAsyncAgenerateStreaming:
     async def test_async_stream_with_run_manager(self) -> None:
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
-        chunks = [
+        chunks: list[dict[str, Any]] = [
             {"choices": [{"delta": {"role": "assistant", "content": "hi"}}]},
             {
                 "choices": [
@@ -426,7 +423,7 @@ class TestAsyncAgenerateStreaming:
         manager = _AsyncRunManager()
 
         async for _ in model._astream(
-            [HumanMessage(content="hi")], run_manager=manager  # type: ignore[arg-type]
+            [HumanMessage(content="hi")], run_manager=manager
         ):
             pass
         assert len(manager.tokens) >= 1

@@ -5,6 +5,7 @@ Tests cover:
 - JSON text extraction from LLM responses
 - Schema complexity validation
 - Full extraction flow with mocked LLM (both strategies)
+- Reasoning-model content fallback (empty content → reasoning_content)
 - Disabled state handling
 - Error handling
 """
@@ -16,6 +17,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from langchain_core.messages import AIMessage
 from pydantic import BaseModel
 
 from myrm_agent_harness.toolkits.browser.session.structured_extractor import (
@@ -349,6 +351,48 @@ class TestStructuredExtractorExtract:
         parsed = json.loads(result)
         assert isinstance(parsed, list)
         assert len(parsed) == 2
+
+    @pytest.mark.asyncio
+    async def test_strategy2_reasoning_content_fallback(self) -> None:
+        """Reasoning model: content empty, JSON lives in reasoning_content."""
+        mock_llm = MagicMock()
+        mock_llm.with_structured_output.side_effect = NotImplementedError()
+
+        reasoning_json = '[{"name": "Reasoned"}, {"name": "Fallback"}]'
+        mock_response = AIMessage(
+            content="",
+            additional_kwargs={"reasoning_content": reasoning_json},
+        )
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        extractor = StructuredExtractor(llm=mock_llm)
+        schema = {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}}}}
+        result = await extractor.extract(text="X and Y", schema=schema)
+        parsed = json.loads(result)
+        assert isinstance(parsed, list)
+        assert len(parsed) == 2
+        assert parsed[0]["name"] == "Reasoned"
+
+    @pytest.mark.asyncio
+    async def test_strategy2_reasoning_content_none_content(self) -> None:
+        """Reasoning model: content is None, JSON lives in reasoning_content."""
+        mock_llm = MagicMock()
+        mock_llm.with_structured_output.side_effect = NotImplementedError()
+
+        reasoning_json = '{"name": "FromReasoning"}'
+        mock_response = AIMessage(
+            content=None,
+            additional_kwargs={"reasoning_content": reasoning_json},
+        )
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        extractor = StructuredExtractor(llm=mock_llm)
+        result = await extractor.extract(
+            text="content",
+            schema={"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+        )
+        parsed = json.loads(result)
+        assert parsed["name"] == "FromReasoning"
 
     @pytest.mark.asyncio
     async def test_all_strategies_fail(self) -> None:

@@ -1,13 +1,15 @@
 """Tests for StructuredExtractor — skill extraction from conversation trajectories.
 
 Covers: SkillCaptureResult validation, confidence parsing,
-form routing, structured LLM path and JSON fallback path.
+form routing, structured LLM path, JSON fallback path, and
+reasoning-model content fallback (empty content → reasoning_content).
 """
 
 import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from langchain_core.messages import AIMessage
 
 from myrm_agent_harness.agent.skills.evolution.pipeline.structured_extractor import (
     SkillCaptureResult,
@@ -150,6 +152,64 @@ class TestStructuredExtractor:
         assert result is not None
         assert result.name == "fallback-skill"
         assert result.confidence == 0.85
+
+    @pytest.mark.asyncio
+    async def test_fallback_reasoning_content(self, mock_llm: MagicMock) -> None:
+        """Reasoning model: content empty, JSON lives in reasoning_content."""
+        mock_llm.with_structured_output = MagicMock(side_effect=Exception("Not supported"))
+
+        raw_json = json.dumps(
+            {
+                "is_general": True,
+                "confidence": 0.9,
+                "safety_analysis": "Safe",
+                "name": "reasoning-skill",
+                "content": "---\nname: reasoning-skill\n---\n# Reasoning",
+                "recommended_form": "skill",
+                "form_reasoning": "Extracted via reasoning fallback.",
+            }
+        )
+        raw_response = AIMessage(
+            content="",
+            additional_kwargs={"reasoning_content": raw_json},
+        )
+        mock_llm.ainvoke = AsyncMock(return_value=raw_response)
+
+        extractor = StructuredExtractor(llm=mock_llm)
+        result = await extractor.extract_from_trajectory("User: complex task\nAssistant: steps...")
+
+        assert result is not None
+        assert result.name == "reasoning-skill"
+        assert result.confidence == 0.9
+
+    @pytest.mark.asyncio
+    async def test_fallback_content_none(self, mock_llm: MagicMock) -> None:
+        """Reasoning model: content is None, JSON lives in reasoning_content."""
+        mock_llm.with_structured_output = MagicMock(side_effect=Exception("Not supported"))
+
+        raw_json = json.dumps(
+            {
+                "is_general": True,
+                "confidence": 0.75,
+                "safety_analysis": "Safe",
+                "name": "none-skill",
+                "content": "---\nname: none-skill\n---\n# None",
+                "recommended_form": "skill",
+                "form_reasoning": "Extracted from None content.",
+            }
+        )
+        raw_response = AIMessage(
+            content=None,
+            additional_kwargs={"reasoning_content": raw_json},
+        )
+        mock_llm.ainvoke = AsyncMock(return_value=raw_response)
+
+        extractor = StructuredExtractor(llm=mock_llm)
+        result = await extractor.extract_from_trajectory("User: complex task\nAssistant: steps...")
+
+        assert result is not None
+        assert result.name == "none-skill"
+        assert result.confidence == 0.75
 
     @pytest.mark.asyncio
     async def test_total_failure_returns_none(self, mock_llm: MagicMock) -> None:

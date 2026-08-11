@@ -1,5 +1,6 @@
 """[INPUT]
-- (none)
+- langchain_core.language_models::BaseChatModel (POS: LLM instance for structured skill extraction)
+- myrm_agent_harness.utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
 
 [OUTPUT]
 - SkillCaptureResult: Structured output for skill extraction with form routing.
@@ -15,6 +16,8 @@ from typing import Literal
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field, field_validator
+
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +176,8 @@ class StructuredExtractor:
         try:
             logger.info("Falling back to raw JSON parsing for skill extraction.")
             raw_result = await self._llm.ainvoke(messages)
-            content = raw_result.content
+            # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
+            content = extract_answer_text(raw_result)
             import json
             import re
 

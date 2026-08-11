@@ -206,7 +206,7 @@ class TestProcessChunk:
             AIMessageChunk,
         )
         assert cg is not None
-        assert len(cg.message.tool_call_chunks) == 1
+        assert len(getattr(cg.message, "tool_call_chunks", [])) == 1
 
     def test_fallback_generic_chunk(self) -> None:
         model = self._make()
@@ -278,7 +278,7 @@ class TestAsyncStreamEdges:
     async def test_stream_with_reasoning_and_content(self) -> None:
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
-        chunks = [
+        chunks: list[dict[str, Any]] = [
             {
                 "choices": [
                     {
