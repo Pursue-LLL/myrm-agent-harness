@@ -18,7 +18,6 @@ broken link detection, completeness checks (report-only; no LLM auto-write), sta
 
 from __future__ import annotations
 
-import inspect
 import json
 import random
 import re
@@ -392,11 +391,7 @@ class WikiLinter:
                 )
 
                 response = await self._llm.ainvoke([system_msg, human_msg])
-                raw_content = response.content
-                if inspect.isawaitable(raw_content):
-                    response_text = str(await raw_content).strip()
-                else:
-                    response_text = extract_answer_text(response).strip()
+                response_text = extract_answer_text(response).strip()
 
                 try:
                     if response_text.startswith("```"):

@@ -14,7 +14,6 @@ Optional LLM pass after zero-LLM pairing. Returns None when no factual conflict 
 
 from __future__ import annotations
 
-import inspect
 import json
 import re
 from typing import TYPE_CHECKING
@@ -84,11 +83,7 @@ async def detect_conflict(
 
     try:
         response = await llm.ainvoke([system_msg, human_msg])
-        raw_content = response.content
-        if inspect.isawaitable(raw_content):
-            text = str(await raw_content).strip()
-        else:
-            text = extract_answer_text(response).strip()
+        text = extract_answer_text(response).strip()
         match = _JSON_BLOCK_RE.search(text)
         if match is None:
             return None

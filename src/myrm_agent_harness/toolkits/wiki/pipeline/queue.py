@@ -21,8 +21,9 @@ from __future__ import annotations
 
 import contextlib
 import sqlite3
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, cast
 
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 
@@ -60,7 +61,7 @@ class WikiIngestionQueue:
         return self._circuit
 
     @contextlib.contextmanager
-    def _get_conn(self):
+    def _get_conn(self) -> Iterator[sqlite3.Connection]:
         from myrm_agent_harness.utils.db.sqlite import DEFAULT, harden_connection_sync
 
         conn = sqlite3.connect(self.db_path)
@@ -126,7 +127,7 @@ class WikiIngestionQueue:
             )
             return cursor.lastrowid or 0
 
-    def add_batch(self, file_paths: list[Path | str]) -> None:
+    def add_batch(self, file_paths: Sequence[Path | str]) -> None:
         """Add multiple files to the queue."""
         from myrm_agent_harness.toolkits.wiki.pipeline.corpus_dedup.eligibility import (
             CorpusEligibilityFilter,
@@ -273,7 +274,7 @@ class WikiIngestionQueue:
                 """,
                 (max_retries, limit * 3),
             )
-            items = [dict(row) for row in cursor.fetchall()]  # type: ignore[misc]
+            items = cast(list[QueueItem], [dict(row) for row in cursor.fetchall()])
         return [
             item
             for item in items
@@ -333,7 +334,7 @@ class WikiIngestionQueue:
                 WHERE status = 'failed'
                 """
             )
-            return cursor.rowcount
+            return int(cursor.rowcount)
 
     def cancel_pending(self) -> int:
         with self._get_conn() as conn:
@@ -348,7 +349,7 @@ class WikiIngestionQueue:
                 WHERE status = 'pending'
                 """
             )
-            return cursor.rowcount
+            return int(cursor.rowcount)
 
     def reset_stale_processing(self, stale_seconds: int = 300) -> int:
         with self._get_conn() as conn:
@@ -361,7 +362,7 @@ class WikiIngestionQueue:
                 """,
                 (f"-{stale_seconds}",),
             )
-            return cursor.rowcount
+            return int(cursor.rowcount)
 
     def get_stats(self) -> dict[str, int]:
         with self._get_conn() as conn:

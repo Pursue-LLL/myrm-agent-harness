@@ -28,19 +28,18 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import inspect
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
-from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -54,7 +53,7 @@ from .cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventTy
 from .cognitive_map.schema_writer import read_index_context
 from .contradiction_synthesis import run_contradiction_synthesis_pass
 from .postprocess import generate_backlinks, save_metadata
-from .queue import WikiIngestionQueue
+from .queue import QueueItem, WikiIngestionQueue
 from .resilience import (
     CompileRunSnapshot,
     evaluate_batch_pause,
@@ -99,7 +98,7 @@ class WikiCompiler:
     - Automatic index and Obsidian-compatible backlink generation
     """
 
-    _active_workers: ClassVar[dict[str, asyncio.Task]] = {}
+    _active_workers: ClassVar[dict[str, asyncio.Task[Any]]] = {}
     _compile_sessions: ClassVar[dict[str, CompileSessionState]] = {}
 
     def __init__(
@@ -172,7 +171,9 @@ class WikiCompiler:
         except ValueError:
             return doc_path.name
 
-    def _sort_queue_items_for_survey(self, queue_items: list[dict]) -> list[dict]:
+    def _sort_queue_items_for_survey(
+        self, queue_items: list[QueueItem]
+    ) -> list[QueueItem]:
         session = self._get_session()
         if session is None or session.context.skipped:
             return queue_items
@@ -182,7 +183,7 @@ class WikiCompiler:
             for index, facet_id in enumerate(session.context.processing_order)
         }
 
-        def _sort_key(item: dict) -> tuple[int, str]:
+        def _sort_key(item: QueueItem) -> tuple[int, str]:
             rel = self._relative_raw_path(Path(str(item["file_path"])))
             facet_id = session.context.path_to_facet.get(rel, "")
             return (order_index.get(facet_id, len(order_index)), rel)
@@ -228,7 +229,7 @@ class WikiCompiler:
         return "\n\n".join(sections) + "\n\n"
 
     def _record_facet_seeds(
-        self, queue_items: list[dict], concepts: list[ConceptInfo]
+        self, queue_items: list[QueueItem], concepts: list[ConceptInfo]
     ) -> None:
         session = self._get_session()
         if session is None or session.context.skipped or not concepts:
@@ -372,7 +373,7 @@ class WikiCompiler:
                         await self._generate_backlinks(all_concepts)
                     if self._config.enable_directory_sidecars:
                         await self._build_sidecars(all_concepts)
-                    await self._save_metadata(len(all_concepts), articles)
+                    await self._save_metadata(len(all_concepts), articles.generated)
                     await self._maybe_commit_vault_git("compile batch")
 
                 await asyncio.sleep(1)
@@ -549,8 +550,8 @@ class WikiCompiler:
             return raw_files
 
         try:
-            with open(metadata_path, encoding="utf-8") as f:
-                metadata = json.load(f)
+            with open(metadata_path, encoding="utf-8") as meta_f:
+                metadata = json.load(meta_f)
             from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
                 get_last_compile_raw_hashes,
                 raw_relative_storage_key,
@@ -573,14 +574,14 @@ class WikiCompiler:
         return changed
 
     async def _extract_concepts_batch(
-        self, queue_items: list[dict]
+        self, queue_items: list[QueueItem]
     ) -> _BatchExtractOutcome:
         """Extract concepts from queue items with configurable parallelism."""
         queue_items = self._sort_queue_items_for_survey(queue_items)
         failure_kinds: list[str] = []
         success_count = 0
 
-        async def _process_single_item(item: dict) -> list[ConceptInfo]:
+        async def _process_single_item(item: QueueItem) -> list[ConceptInfo]:
             nonlocal success_count
             item_id = item["id"]
             raw_file = Path(item["file_path"])
@@ -638,7 +639,9 @@ class WikiCompiler:
         for result in results:
             if isinstance(result, BaseException):
                 logger.error(f"Unexpected error in concept extraction: {result}")
-                resolution = resolve_llm_failure(result)
+                resolution = resolve_llm_failure(
+                    result if isinstance(result, Exception) else RuntimeError(str(result))
+                )
                 failure_kinds.append(resolution.error_kind)
                 continue
             for concept in result:
@@ -692,11 +695,7 @@ class WikiCompiler:
 
         try:
             response = await self._llm.ainvoke([system_msg, human_msg])
-            raw_content = response.content
-            if inspect.isawaitable(raw_content):
-                response_text = str(await raw_content)
-            else:
-                response_text = extract_answer_text(response)
+            response_text = extract_answer_text(response).strip()
             logger.info(f"LLM extraction response for {doc_path}: {response_text}")
             concepts = parse_concepts_response(response_text, str(relative_path))
             return concepts
@@ -800,11 +799,7 @@ class WikiCompiler:
 
         try:
             response = await self._llm.ainvoke([system_msg, human_msg])
-            raw_content = response.content
-            if inspect.isawaitable(raw_content):
-                article_content = str(await raw_content)
-            else:
-                article_content = extract_answer_text(response)
+            article_content = extract_answer_text(response)
 
             if len(article_content) > self._compile_config.max_article_length:
                 article_content = (
