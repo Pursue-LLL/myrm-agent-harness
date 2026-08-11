@@ -12,6 +12,17 @@ from mcp.types import (
 )
 
 from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
+from myrm_agent_harness.toolkits.mcp.result_processing import (
+    coerce_content_block,
+    emit_mcp_app_event,
+    extract_mcp_app_metadata,
+    normalize_mcp_result,
+)
+from myrm_agent_harness.toolkits.mcp.tool_processing import (
+    apply_tool_filter,
+    prefix_tool_names,
+    wrap_tools_with_timeout,
+)
 
 
 class DummyConfig:
@@ -898,12 +909,12 @@ async def test_get_tools_parallel_gather_exception_object():
 class TestApplyToolFilter:
     def test_no_filter_returns_all(self) -> None:
         tools = [_make_tool(name="a"), _make_tool(name="b")]
-        result = MCPAgent._apply_tool_filter(tools, "srv", None, None)
+        result = apply_tool_filter(tools, "srv", None, None)
         assert len(result) == 2
 
     def test_empty_lists_return_all(self) -> None:
         tools = [_make_tool(name="a"), _make_tool(name="b")]
-        result = MCPAgent._apply_tool_filter(tools, "srv", [], [])
+        result = apply_tool_filter(tools, "srv", [], [])
         assert len(result) == 2
 
     def test_include_filters(self) -> None:
@@ -912,7 +923,7 @@ class TestApplyToolFilter:
             _make_tool(name="write"),
             _make_tool(name="delete"),
         ]
-        result = MCPAgent._apply_tool_filter(tools, "srv", ["read", "write"], None)
+        result = apply_tool_filter(tools, "srv", ["read", "write"], None)
         assert [t.name for t in result] == ["read", "write"]
 
     def test_exclude_filters(self) -> None:
@@ -921,7 +932,7 @@ class TestApplyToolFilter:
             _make_tool(name="write"),
             _make_tool(name="delete"),
         ]
-        result = MCPAgent._apply_tool_filter(tools, "srv", None, ["delete"])
+        result = apply_tool_filter(tools, "srv", None, ["delete"])
         assert [t.name for t in result] == ["read", "write"]
 
     def test_include_takes_precedence(self) -> None:
@@ -930,17 +941,17 @@ class TestApplyToolFilter:
             _make_tool(name="write"),
             _make_tool(name="delete"),
         ]
-        result = MCPAgent._apply_tool_filter(tools, "srv", ["read"], ["write"])
+        result = apply_tool_filter(tools, "srv", ["read"], ["write"])
         assert [t.name for t in result] == ["read"]
 
     def test_include_all_removed(self) -> None:
         tools = [_make_tool(name="a"), _make_tool(name="b")]
-        result = MCPAgent._apply_tool_filter(tools, "srv", ["nonexistent"], None)
+        result = apply_tool_filter(tools, "srv", ["nonexistent"], None)
         assert result == []
 
     def test_exclude_all_removed(self) -> None:
         tools = [_make_tool(name="a"), _make_tool(name="b")]
-        result = MCPAgent._apply_tool_filter(tools, "srv", None, ["a", "b"])
+        result = apply_tool_filter(tools, "srv", None, ["a", "b"])
         assert result == []
 
 
@@ -974,19 +985,19 @@ async def test_get_tools_applies_tool_filter():
 class TestPrefixToolNames:
     def test_basic_prefix(self) -> None:
         tools = [_make_tool(name="search"), _make_tool(name="create")]
-        MCPAgent._prefix_tool_names(tools, "github")
+        prefix_tool_names(tools, "github")
         assert [t.name for t in tools] == ["mcp__github__search", "mcp__github__create"]
 
     def test_special_chars_sanitized(self) -> None:
         tools = [_make_tool(name="my-tool")]
-        MCPAgent._prefix_tool_names(tools, "my-server")
+        prefix_tool_names(tools, "my-server")
         assert tools[0].name == "mcp__my_server__my_tool"
 
     def test_multiple_servers_no_collision(self) -> None:
         github_tools = [_make_tool(name="search_repos")]
         gitlab_tools = [_make_tool(name="search_repos")]
-        MCPAgent._prefix_tool_names(github_tools, "github")
-        MCPAgent._prefix_tool_names(gitlab_tools, "gitlab")
+        prefix_tool_names(github_tools, "github")
+        prefix_tool_names(gitlab_tools, "gitlab")
         assert github_tools[0].name == "mcp__github__search_repos"
         assert gitlab_tools[0].name == "mcp__gitlab__search_repos"
         assert github_tools[0].name != gitlab_tools[0].name
@@ -1034,8 +1045,8 @@ class TestPrefixToolNames:
         """server 'github_actions' + tool 'run' differs from server 'github' + tool 'actions_run'."""
         tools_a = [_make_tool(name="run")]
         tools_b = [_make_tool(name="actions_run")]
-        MCPAgent._prefix_tool_names(tools_a, "github_actions")
-        MCPAgent._prefix_tool_names(tools_b, "github")
+        prefix_tool_names(tools_a, "github_actions")
+        prefix_tool_names(tools_b, "github")
         assert tools_a[0].name == "mcp__github_actions__run"
         assert tools_b[0].name == "mcp__github__actions_run"
         assert tools_a[0].name != tools_b[0].name
@@ -1043,13 +1054,13 @@ class TestPrefixToolNames:
     def test_server_name_with_consecutive_hyphens(self) -> None:
         """Consecutive hyphens collapse to single underscore after sanitize."""
         tools = [_make_tool(name="echo")]
-        MCPAgent._prefix_tool_names(tools, "my--server")
+        prefix_tool_names(tools, "my--server")
         assert tools[0].name == "mcp__my_server__echo"
 
     def test_unicode_server_name(self) -> None:
         """Non-ASCII characters sanitized to underscores."""
         tools = [_make_tool(name="list")]
-        MCPAgent._prefix_tool_names(tools, "飞书mcp")
+        prefix_tool_names(tools, "飞书mcp")
         assert tools[0].name == "mcp__mcp__list"
 
     def test_roundtrip_prefix_parse(self) -> None:
@@ -1057,7 +1068,7 @@ class TestPrefixToolNames:
         from myrm_agent_harness.toolkits.mcp.config import parse_mcp_tool_name
 
         tools = [_make_tool(name="search_repos")]
-        MCPAgent._prefix_tool_names(tools, "github")
+        prefix_tool_names(tools, "github")
         result = parse_mcp_tool_name(tools[0].name)
         assert result == ("github", "search_repos")
 
@@ -1126,7 +1137,7 @@ class TestParseMcpToolName:
 class TestPrefixEdgeCases:
     def test_empty_tool_list(self) -> None:
         tools: list[StructuredTool] = []
-        MCPAgent._prefix_tool_names(tools, "srv")
+        prefix_tool_names(tools, "srv")
         assert tools == []
 
     def test_annotations_use_prefixed_names(self) -> None:
@@ -1145,19 +1156,19 @@ class TestPrefixEdgeCases:
 # _coerce_content_block: LLM-safe content block coercion
 # ---------------------------------------------------------------------------
 class TestCoerceContentBlock:
-    """Tests for MCPAgent._coerce_content_block — ensures only LLM-safe block types."""
+    """Tests for coerce_content_block — ensures only LLM-safe block types."""
 
     def test_text_passthrough(self) -> None:
         block = {"type": "text", "text": "hello world"}
-        assert MCPAgent._coerce_content_block(block) is block
+        assert coerce_content_block(block) is block
 
     def test_image_with_base64_passthrough(self) -> None:
         block = {"type": "image", "base64": "abc123", "mime_type": "image/png"}
-        assert MCPAgent._coerce_content_block(block) is block
+        assert coerce_content_block(block) is block
 
     def test_image_with_data_passthrough(self) -> None:
         block = {"type": "image", "data": "abc123", "mime_type": "image/png"}
-        assert MCPAgent._coerce_content_block(block) is block
+        assert coerce_content_block(block) is block
 
     def test_image_with_url_passthrough(self) -> None:
         block = {
@@ -1165,11 +1176,11 @@ class TestCoerceContentBlock:
             "url": "https://example.com/img.png",
             "mime_type": "image/png",
         }
-        assert MCPAgent._coerce_content_block(block) is block
+        assert coerce_content_block(block) is block
 
     def test_malformed_image_degraded(self) -> None:
         block = {"type": "image", "mime_type": "image/png"}
-        result = MCPAgent._coerce_content_block(block)
+        result = coerce_content_block(block)
         assert result["type"] == "text"
         assert "image" in str(result["text"])
 
@@ -1179,25 +1190,25 @@ class TestCoerceContentBlock:
             "url": "https://notion.so/page/xxx",
             "mime_type": "application/pdf",
         }
-        result = MCPAgent._coerce_content_block(block)
+        result = coerce_content_block(block)
         assert result["type"] == "text"
         assert "https://notion.so/page/xxx" in str(result["text"])
 
     def test_file_block_degraded_without_url(self) -> None:
         block = {"type": "file", "mime_type": "audio/wav"}
-        result = MCPAgent._coerce_content_block(block)
+        result = coerce_content_block(block)
         assert result["type"] == "text"
         assert "audio/wav" in str(result["text"])
 
     def test_unknown_type_degraded(self) -> None:
         block = {"type": "video", "data": "binary_data"}
-        result = MCPAgent._coerce_content_block(block)
+        result = coerce_content_block(block)
         assert result["type"] == "text"
         assert "video" in str(result["text"])
 
     def test_none_type_degraded(self) -> None:
         block = {"text": "no type field"}
-        result = MCPAgent._coerce_content_block(block)
+        result = coerce_content_block(block)
         assert result["type"] == "text"
 
 
@@ -1209,7 +1220,7 @@ class TestNormalizeMcpResultCoercion:
 
     def test_text_only_returns_string(self) -> None:
         result = CallToolResult(content=[TextContent(type="text", text="hello")])
-        assert MCPAgent._normalize_mcp_result(result) == "hello"
+        assert normalize_mcp_result(result) == "hello"
 
     def test_image_returns_list(self) -> None:
         result = CallToolResult(
@@ -1218,7 +1229,7 @@ class TestNormalizeMcpResultCoercion:
                 ImageContent(type="image", data="abc", mime_type="image/png"),
             ]
         )
-        normalized = MCPAgent._normalize_mcp_result(result)
+        normalized = normalize_mcp_result(result)
         assert isinstance(normalized, list)
         assert len(normalized) == 2
 
@@ -1235,7 +1246,7 @@ class TestNormalizeMcpResultCoercion:
                 ),
             ]
         )
-        normalized = MCPAgent._normalize_mcp_result(result)
+        normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
         assert "Sprint Board" in normalized
         assert "https://notion.so/page/xxx" in normalized
@@ -1253,7 +1264,7 @@ class TestNormalizeMcpResultCoercion:
                 ),
             ]
         )
-        normalized = MCPAgent._normalize_mcp_result(result)
+        normalized = normalize_mcp_result(result)
         assert isinstance(normalized, list)
         assert normalized[0]["type"] == "image"
         assert normalized[1]["type"] == "text"
@@ -1264,7 +1275,7 @@ class TestNormalizeMcpResultCoercion:
             content=[TextContent(type="text", text="data")],
             structured_content={"key": "val"},
         )
-        normalized = MCPAgent._normalize_mcp_result(result)
+        normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
         assert "key" in normalized
         assert "val" in normalized
@@ -1274,7 +1285,7 @@ class TestNormalizeMcpResultCoercion:
             content=[TextContent(type="text", text="invalid args")],
             is_error=True,
         )
-        normalized = MCPAgent._normalize_mcp_result(result)
+        normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
         assert "[MCP tool error]" in normalized
         assert "invalid args" in normalized
@@ -1289,7 +1300,7 @@ class TestNormalizeMcpResultCoercion:
             },
             is_error=True,
         )
-        normalized = MCPAgent._normalize_mcp_result(result)
+        normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
         assert "permission denied" in normalized
         assert "403" in normalized
@@ -1301,7 +1312,7 @@ class TestNormalizeMcpResultCoercion:
             structured_content={"details": "field qty must be > 0, got -5"},
             is_error=True,
         )
-        normalized = MCPAgent._normalize_mcp_result(result)
+        normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
         assert "invalid args" in normalized
         assert "field qty must be > 0" in normalized
@@ -1318,12 +1329,12 @@ class TestNormalizeMcpResultCoercion:
             structured_content={"error": "oops"},
             is_error=True,
         )
-        normalized = MCPAgent._normalize_mcp_result(result)
+        normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
         assert normalized.count('"error"') == 1
 
     def test_plain_string_result(self) -> None:
-        assert MCPAgent._normalize_mcp_result("just text") == "just text"
+        assert normalize_mcp_result("just text") == "just text"
 
     def test_non_standard_block_coerced_to_text(self) -> None:
         """Non-ContentBlock entries in content degrade to text instead of crashing."""
@@ -1332,13 +1343,13 @@ class TestNormalizeMcpResultCoercion:
         raw = SimpleNamespace(
             content=[42, "raw_str"],
         )
-        normalized = MCPAgent._normalize_mcp_result(raw)
+        normalized = normalize_mcp_result(raw)
         assert isinstance(normalized, str)
         assert "42" in normalized
         assert "raw_str" in normalized
 
     def test_non_tuple_non_string_stringified(self) -> None:
-        result = MCPAgent._normalize_mcp_result(12345)
+        result = normalize_mcp_result(12345)
         assert result == "12345"
 
 
@@ -1356,7 +1367,7 @@ class TestTimeoutWrapperFaultTolerance:
             raise NotImplementedError("AudioContent not supported")
 
         tool = _make_tool(coroutine=raise_not_impl)
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -1372,7 +1383,7 @@ class TestTimeoutWrapperFaultTolerance:
             raise ValueError("Unknown MCP content type: FutureContent")
 
         tool = _make_tool(coroutine=raise_value_err)
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -1387,7 +1398,7 @@ class TestTimeoutWrapperFaultTolerance:
             raise TypeError("expected str, got NoneType")
 
         tool = _make_tool(coroutine=raise_type_err)
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -1402,21 +1413,21 @@ class TestTimeoutWrapperFaultTolerance:
             raise RuntimeError("unexpected crash")
 
         tool = _make_tool(coroutine=raise_runtime)
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         with pytest.raises(RuntimeError, match="unexpected crash"):
             await tool.coroutine()
 
 
 class TestExtractMcpAppMetadata:
-    """Tests for MCPAgent._extract_mcp_app_metadata — ext-apps UI detection."""
+    """Tests for extract_mcp_app_metadata — ext-apps UI detection."""
 
     def test_valid_artifact_with_resource_uri(self) -> None:
         artifact = {
             "_meta": {"ui": {"resourceUri": "ui://weather/dashboard"}},
             "structured_content": {"temp": 22},
         }
-        result = MCPAgent._extract_mcp_app_metadata(artifact)
+        result = extract_mcp_app_metadata(artifact)
         assert result == {
             "resource_uri": "ui://weather/dashboard",
             "structured_content": {"temp": 22},
@@ -1424,45 +1435,45 @@ class TestExtractMcpAppMetadata:
 
     def test_valid_artifact_without_structured_content(self) -> None:
         artifact = {"_meta": {"ui": {"resourceUri": "ui://charts/pie"}}}
-        result = MCPAgent._extract_mcp_app_metadata(artifact)
+        result = extract_mcp_app_metadata(artifact)
         assert result == {"resource_uri": "ui://charts/pie"}
 
     def test_none_artifact(self) -> None:
-        assert MCPAgent._extract_mcp_app_metadata(None) is None
+        assert extract_mcp_app_metadata(None) is None
 
     def test_no_meta_key(self) -> None:
-        assert MCPAgent._extract_mcp_app_metadata({"data": "hello"}) is None
+        assert extract_mcp_app_metadata({"data": "hello"}) is None
 
     def test_meta_without_ui(self) -> None:
-        assert MCPAgent._extract_mcp_app_metadata({"_meta": {"version": 1}}) is None
+        assert extract_mcp_app_metadata({"_meta": {"version": 1}}) is None
 
     def test_ui_without_resource_uri(self) -> None:
         assert (
-            MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"height": 300}}})
+            extract_mcp_app_metadata({"_meta": {"ui": {"height": 300}}})
             is None
         )
 
     def test_empty_resource_uri(self) -> None:
         assert (
-            MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": ""}}})
+            extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": ""}}})
             is None
         )
 
     def test_non_string_resource_uri(self) -> None:
         assert (
-            MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": 123}}})
+            extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": 123}}})
             is None
         )
 
     def test_non_dict_meta(self) -> None:
-        assert MCPAgent._extract_mcp_app_metadata({"_meta": "not a dict"}) is None
+        assert extract_mcp_app_metadata({"_meta": "not a dict"}) is None
 
     def test_non_dict_ui(self) -> None:
-        assert MCPAgent._extract_mcp_app_metadata({"_meta": {"ui": "string"}}) is None
+        assert extract_mcp_app_metadata({"_meta": {"ui": "string"}}) is None
 
 
 class TestEmitMcpAppEvent:
-    """Tests for MCPAgent._emit_mcp_app_event — SSE event emission via progress_sink."""
+    """Tests for emit_mcp_app_event — SSE event emission via progress_sink."""
 
     @pytest.mark.asyncio
     async def test_emits_event_for_valid_artifact(self) -> None:
@@ -1476,7 +1487,7 @@ class TestEmitMcpAppEvent:
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
             return_value=mock_sink,
         ):
-            await MCPAgent._emit_mcp_app_event(raw_result, "mcp__weather__forecast")
+            await emit_mcp_app_event(raw_result, "mcp__weather__forecast")
 
         mock_sink.emit.assert_called_once()
         event = mock_sink.emit.call_args[0][0]
@@ -1496,7 +1507,7 @@ class TestEmitMcpAppEvent:
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
             return_value=mock_sink,
         ):
-            await MCPAgent._emit_mcp_app_event(raw_result, "mcp__srv__tool")
+            await emit_mcp_app_event(raw_result, "mcp__srv__tool")
 
         event = mock_sink.emit.call_args[0][0]
         assert event["mcp_app"]["structured_content"] == {"key": "val"}
@@ -1508,7 +1519,7 @@ class TestEmitMcpAppEvent:
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
             return_value=mock_sink,
         ):
-            await MCPAgent._emit_mcp_app_event("plain string", "mcp__s__t")
+            await emit_mcp_app_event("plain string", "mcp__s__t")
         mock_sink.emit.assert_not_called()
 
     @pytest.mark.asyncio
@@ -1519,7 +1530,7 @@ class TestEmitMcpAppEvent:
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
             return_value=mock_sink,
         ):
-            await MCPAgent._emit_mcp_app_event(raw_result, "mcp__s__t")
+            await emit_mcp_app_event(raw_result, "mcp__s__t")
         mock_sink.emit.assert_not_called()
 
     @pytest.mark.asyncio
@@ -1533,7 +1544,7 @@ class TestEmitMcpAppEvent:
             return_value=None,
         ):
             # Should not raise
-            await MCPAgent._emit_mcp_app_event(raw_result, "mcp__s__t")
+            await emit_mcp_app_event(raw_result, "mcp__s__t")
 
     @pytest.mark.asyncio
     async def test_handles_emit_exception_gracefully(self) -> None:
@@ -1548,7 +1559,7 @@ class TestEmitMcpAppEvent:
             return_value=mock_sink,
         ):
             # Should not raise, just log
-            await MCPAgent._emit_mcp_app_event(raw_result, "mcp__s__t")
+            await emit_mcp_app_event(raw_result, "mcp__s__t")
 
     @pytest.mark.asyncio
     async def test_non_mcp_tool_name_yields_empty_server(self) -> None:
@@ -1561,7 +1572,7 @@ class TestEmitMcpAppEvent:
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
             return_value=mock_sink,
         ):
-            await MCPAgent._emit_mcp_app_event(raw_result, "regular_tool")
+            await emit_mcp_app_event(raw_result, "regular_tool")
         event = mock_sink.emit.call_args[0][0]
         assert event["mcp_app"]["server_name"] == ""
 
@@ -1592,7 +1603,7 @@ class TestWrapToolsAuthError:
         with patch(
             "myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool"
         ) as mock_emit:
-            MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+            wrap_tools_with_timeout([tool], timeout=5.0)
             result = await tool.ainvoke({"a": "1"})
 
         assert "auth_server" in result
@@ -1611,7 +1622,7 @@ class TestWrapToolsAuthError:
         )
 
         tool = _make_tool(name="mcp__srv__boom", coroutine=AsyncMock(side_effect=err))
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
         with pytest.raises(httpx2.HTTPStatusError):
             await tool.ainvoke({"a": "1"})
 
@@ -1630,7 +1641,7 @@ class TestWrapToolsAuthError:
         with patch(
             "myrm_agent_harness.toolkits.mcp.tool_processing._emit_auth_expired_for_tool"
         ):
-            MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+            wrap_tools_with_timeout([tool], timeout=5.0)
             result = await tool.ainvoke({"a": "1"})
 
         # No mcp__server__tool prefix -> falls back to the raw tool name.

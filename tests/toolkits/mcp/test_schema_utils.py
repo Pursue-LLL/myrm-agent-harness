@@ -6,6 +6,7 @@ from myrm_agent_harness.toolkits.mcp.schema_utils import (
     canonicalize_schema_for_cache,
     coerce_arguments_by_schema,
     coerce_value,
+    collapse_const_unions,
     flatten_deep_schema,
     flatten_json_schema,
     flatten_top_level_composite,
@@ -1322,3 +1323,118 @@ def test_flatten_top_level_composite_union_keeps_title():
     result = flatten_top_level_composite(schema)
     assert result["properties"]["action"]["title"] == "操作"
     assert result["properties"]["action"]["enum"] == ["up", "down"]
+
+
+def test_collapse_const_unions_string_enum():
+    """String const unions collapse into a typed enum."""
+    schema = {
+        "type": "object",
+        "properties": {"color": {"anyOf": [{"const": "red"}, {"const": "green"}]}},
+    }
+    result = collapse_const_unions(schema)
+    assert result["properties"]["color"] == {
+        "type": "string",
+        "enum": ["red", "green"],
+    }
+
+
+def test_collapse_const_unions_integer_enum():
+    """Integer const unions collapse preserving the numeric type."""
+    result = collapse_const_unions({"anyOf": [{"const": 1}, {"const": 2}]})
+    assert result == {"type": "integer", "enum": [1, 2]}
+
+
+def test_collapse_const_unions_bool_not_merged_into_integer():
+    """True/False are booleans and never merge with integer consts."""
+    schema = {"anyOf": [{"const": True}, {"const": 1}]}
+    assert collapse_const_unions(schema) == schema
+
+
+def test_collapse_const_unions_mixed_types_passthrough():
+    """Mixed-typed const unions are left untouched."""
+    schema = {"anyOf": [{"const": "red"}, {"const": 1}]}
+    assert collapse_const_unions(schema) == schema
+
+
+def test_collapse_const_unions_constrained_branch_rejected():
+    """A const branch carrying extra constraining keywords is not pure."""
+    schema = {"anyOf": [{"const": "red", "minLength": 2}, {"const": "green"}]}
+    assert collapse_const_unions(schema) == schema
+
+
+def test_collapse_const_unions_declared_type_mismatch_rejected():
+    """A const whose declared type disagrees with its value blocks the fold."""
+    schema = {"anyOf": [{"const": "red", "type": "integer"}, {"const": "green"}]}
+    assert collapse_const_unions(schema) == schema
+
+
+def test_collapse_const_unions_null_branch_becomes_nullable():
+    """A lone null branch is dropped and recorded as nullable."""
+    result = collapse_const_unions({"anyOf": [{"const": "red"}, {"type": "null"}]})
+    assert result == {"type": "string", "enum": ["red"], "nullable": True}
+
+
+def test_collapse_const_unions_recursive_nested_properties():
+    """Const unions nested deep inside properties are folded recursively."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "inner": {
+                "type": "object",
+                "properties": {"mode": {"anyOf": [{"const": "a"}, {"const": "b"}]}},
+            }
+        },
+    }
+    result = collapse_const_unions(schema)
+    assert result["properties"]["inner"]["properties"]["mode"] == {
+        "type": "string",
+        "enum": ["a", "b"],
+    }
+
+
+def test_collapse_const_unions_keeps_outer_metadata():
+    """Outer title/description/default are carried onto the replacement."""
+    schema = {
+        "description": "pick one color",
+        "default": "red",
+        "anyOf": [{"const": "red"}, {"const": "green"}],
+    }
+    result = collapse_const_unions(schema)
+    assert result["description"] == "pick one color"
+    assert result["default"] == "red"
+    assert result["enum"] == ["red", "green"]
+
+
+def test_collapse_const_unions_idempotent():
+    """Collapsing an already-folded enum is a no-op."""
+    schema = {
+        "type": "object",
+        "properties": {"color": {"anyOf": [{"const": "red"}, {"const": "green"}]}},
+    }
+    once = collapse_const_unions(schema)
+    assert collapse_const_unions(once) == once
+
+
+def test_collapse_const_unions_chain_with_flatten():
+    """Property-level const union + top-level discriminator flatten coexist."""
+    schema = {
+        "type": "object",
+        "properties": {"color": {"anyOf": [{"const": "red"}, {"const": "green"}]}},
+        "oneOf": [
+            {
+                "type": "object",
+                "properties": {"action": {"const": "click"}, "idx": {"type": "integer"}},
+                "required": ["action"],
+            },
+            {
+                "type": "object",
+                "properties": {"action": {"const": "type"}, "txt": {"type": "string"}},
+                "required": ["action"],
+            },
+        ],
+    }
+    collapsed = collapse_const_unions(flatten_json_schema(schema))
+    result = flatten_top_level_composite(collapsed)
+    assert result["properties"]["color"]["enum"] == ["red", "green"]
+    assert result["properties"]["action"]["enum"] == ["click", "type"]
+    assert result["required"] == ["action"]

@@ -57,23 +57,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 
 from langchain_core.tools import BaseTool
 
 from .client import MCPClientManager, MCPServerConfigProtocol
-from .config import parse_mcp_tool_name
-from .result_processing import (
-    OversizedResultHandler,
-    coerce_content_block,
-    emit_mcp_app_event,
-    extract_mcp_app_metadata,
-    handle_oversized_output,
-    mcp_block_to_lc,
-    normalize_mcp_result,
-    truncate_multimodal_text_blocks,
-    wrap_multimodal_text_blocks,
-)
+from .result_processing import OversizedResultHandler
 from .tool_processing import (
     apply_tool_filter,
     enforce_description_limits,
@@ -104,92 +93,6 @@ class MCPAgent:
         tool_desc = getattr(tool, "description", "")
         return f"{tool_name}:{hash(tool_desc)}"
 
-    @staticmethod
-    def _apply_tool_filter(
-        tools: list[BaseTool],
-        server_name: str,
-        tool_include: list[str] | None,
-        tool_exclude: list[str] | None,
-    ) -> list[BaseTool]:
-        """Apply the per-server include/exclude whitelist to fetched tools."""
-        return apply_tool_filter(tools, server_name, tool_include, tool_exclude)
-
-    @staticmethod
-    def _enforce_description_limits(tools: list[BaseTool]) -> None:
-        """Truncate overlong MCP tool descriptions to prevent token waste."""
-        enforce_description_limits(tools)
-
-    @staticmethod
-    def _extract_mcp_app_metadata(result: object) -> dict[str, object] | None:
-        """Extract MCP Apps (ext-apps) metadata from a tool result."""
-        return extract_mcp_app_metadata(result)
-
-    @staticmethod
-    def _coerce_content_block(block: dict[str, object]) -> dict[str, object]:
-        """Coerce a LangChain content block to an LLM-safe type."""
-        return coerce_content_block(block)
-
-    @staticmethod
-    def _wrap_multimodal_text_blocks(
-        blocks: list[dict[str, object]], *, source: str
-    ) -> list[dict[str, object]]:
-        """Apply content-boundary defense to text blocks inside multimodal output."""
-        return wrap_multimodal_text_blocks(blocks, source=source)
-
-    @staticmethod
-    def _truncate_multimodal_text_blocks(
-        blocks: list[dict[str, object]],
-        tool_name: str,
-        max_chars: int,
-        handler: OversizedResultHandler | None,
-    ) -> list[dict[str, object]]:
-        """Apply the output-size guard to text blocks inside multimodal output."""
-        return truncate_multimodal_text_blocks(
-            blocks, tool_name, max_chars, handler
-        )
-
-    @staticmethod
-    def _normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
-        """Normalize an MCP tool execution result for the LLM."""
-        return normalize_mcp_result(result)
-
-    @staticmethod
-    def _mcp_block_to_lc(block: object) -> dict[str, object]:
-        """Map an MCP ``ContentBlock`` to a LangChain-style content block dict."""
-        return mcp_block_to_lc(block)
-
-    @staticmethod
-    def _handle_oversized_output(
-        content: str,
-        tool_name: str,
-        max_chars: int,
-        handler: OversizedResultHandler | None,
-    ) -> str:
-        """Persist oversized output via *handler*, falling back to head-truncation."""
-        return handle_oversized_output(content, tool_name, max_chars, handler)
-
-    @staticmethod
-    def _wrap_tools_with_timeout(
-        tools: list[BaseTool],
-        timeout: float,
-        max_output_chars: int = 100_000,
-        oversized_result_handler: OversizedResultHandler | None = None,
-    ) -> None:
-        """Wrap MCP tool execution with asyncio.timeout, normalize, and guard output size."""
-        wrap_tools_with_timeout(
-            tools, timeout, max_output_chars, oversized_result_handler
-        )
-
-    @staticmethod
-    async def _emit_mcp_app_event(raw_result: object, tool_name: str) -> None:
-        """Emit an MCP_APP_VIEW event if the raw result carries ext-apps UI metadata."""
-        await emit_mcp_app_event(raw_result, tool_name)
-
-    @staticmethod
-    def _sanitize_tools(tools: list[BaseTool]) -> None:
-        """Sanitize tool schemas: $ref resolution -> canonicalize -> deep-flatten -> coerce -> nest."""
-        sanitize_tools(tools)
-
     def _store_tool_server_mapping(
         self, tools: list[BaseTool], server_name: str
     ) -> None:
@@ -197,18 +100,6 @@ class MCPAgent:
         for tool in tools:
             tool_id = self._get_tool_id(tool)
             self._tool_server_mapping[tool_id] = server_name
-
-    @staticmethod
-    def _register_tool_annotations(
-        tools: list[BaseTool], server_name: str, host_serial: bool = False
-    ) -> None:
-        """Extract and register MCP native annotations into PTC safety registry."""
-        register_tool_annotations(tools, server_name, host_serial)
-
-    @staticmethod
-    def _prefix_tool_names(tools: list[BaseTool], server_name: str) -> None:
-        """Add ``mcp__{server}__{tool}`` prefix to each tool name."""
-        prefix_tool_names(tools, server_name)
 
     @staticmethod
     def process_session_tools(

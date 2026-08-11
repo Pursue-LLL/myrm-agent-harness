@@ -30,6 +30,7 @@ from .protocols import (
     MultiTurnEvalCase,
     OnTurnFail,
     SandboxAssertion,
+    SemanticAssertion,
     StateAssertion,
 )
 from .reporters import JsonlReporter, MarkdownReporter
@@ -53,6 +54,7 @@ __all__ = [
     "MultiTurnEvalCase",
     "OnTurnFail",
     "SandboxAssertion",
+    "SemanticAssertion",
     "StateAssertion",
     "ToolAssertion",
     "build_skill_eval_cases",

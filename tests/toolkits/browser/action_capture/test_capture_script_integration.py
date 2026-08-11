@@ -116,7 +116,7 @@ def recorder(capture_js: str) -> Recorder:
                 )
             await page.wait_for_timeout(100)
             results[key] = (steps[-1].get("elementText") if steps else None, None)
-        except BaseException as exc:  # noqa: BLE001 - surfaced to the test thread
+        except BaseException as exc:  # surfaced to the test thread
             results[key] = (None, exc)
         finally:
             if browser is not None:

@@ -4,7 +4,7 @@ Exercises the coercion and normalization pipeline for MCP tool result
 content blocks using the real SDK 2.x ``CallToolResult`` shape produced by
 ``tool_converter._invoke`` (which now passes the raw result through).  Verifies
 that every MCP content type that can appear in production is safely handled
-end-to-end through ``_coerce_content_block`` and ``_normalize_mcp_result``.
+end-to-end through ``coerce_content_block`` and ``normalize_mcp_result``.
 
 Uses MCP SDK v2 types directly.
 """
@@ -27,6 +27,8 @@ from mcp.types import (
 )
 
 from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
+from myrm_agent_harness.toolkits.mcp.result_processing import normalize_mcp_result
+from myrm_agent_harness.toolkits.mcp.tool_processing import wrap_tools_with_timeout
 
 
 def _make_tool(name: str = "tool") -> StructuredTool:
@@ -43,14 +45,14 @@ class TestCallToolResultNormalization:
 
     def test_text_content_passthrough(self):
         """TextContent flows through unchanged."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(content=[TextContent(type="text", text="hello world")])
         )
         assert result == "hello world"
 
     def test_image_content_preserved_as_multimodal(self):
         """ImageContent with base64 produces a multimodal list result."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[
                     ImageContent(type="image", data="base64data", mime_type="image/png")
@@ -62,7 +64,7 @@ class TestCallToolResultNormalization:
 
     def test_resource_link_degraded_to_text(self):
         """ResourceLink -> file block -> safely degraded to text."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[
                     ResourceLink(
@@ -79,7 +81,7 @@ class TestCallToolResultNormalization:
 
     def test_mixed_text_and_resource_link(self):
         """Mix of TextContent + ResourceLink: text survives, file degraded."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[
                     TextContent(type="text", text="Here is the report:"),
@@ -98,7 +100,7 @@ class TestCallToolResultNormalization:
 
     def test_mixed_image_and_resource_link(self):
         """Image + ResourceLink: returns multimodal list, file becomes text."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[
                     ImageContent(type="image", data="imgdata", mime_type="image/jpeg"),
@@ -119,7 +121,7 @@ class TestCallToolResultNormalization:
 
     def test_structured_content_appended(self):
         """structured_content from CallToolResult is appended as JSON text."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[TextContent(type="text", text="summary")],
                 structured_content={"key": "value", "num": 42},
@@ -132,7 +134,7 @@ class TestCallToolResultNormalization:
 
     def test_is_error_collapses_to_error_string(self):
         """is_error=True yields a single error string for the agent."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[TextContent(type="text", text="permission denied")],
                 is_error=True,
@@ -144,14 +146,14 @@ class TestCallToolResultNormalization:
 
     def test_is_error_with_empty_content(self):
         """is_error=True with no text yields a bare error marker."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(content=[], is_error=True)
         )
         assert result == "[MCP tool error]"
 
     def test_embedded_resource_text_passthrough(self):
         """EmbeddedResource with TextResourceContents passes through as text."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[
                     EmbeddedResource(
@@ -170,7 +172,7 @@ class TestCallToolResultNormalization:
 
     def test_embedded_resource_blob_degraded(self):
         """EmbeddedResource with non-image BlobResourceContents -> file -> degraded to text."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[
                     EmbeddedResource(
@@ -188,7 +190,7 @@ class TestCallToolResultNormalization:
 
     def test_embedded_resource_image_blob_preserved(self):
         """EmbeddedResource with image/png BlobResourceContents -> image (valid passthrough)."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[
                     EmbeddedResource(
@@ -207,7 +209,7 @@ class TestCallToolResultNormalization:
 
     def test_audio_content_degraded_to_text_marker(self):
         """AudioContent degrades to a short text marker, not a base64 dump."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[AudioContent(type="audio", data="audio_b64", mime_type="audio/mpeg")]
             )
@@ -218,13 +220,13 @@ class TestCallToolResultNormalization:
 
     def test_empty_content_blocks(self):
         """Empty content blocks list returns empty string."""
-        result = MCPAgent._normalize_mcp_result(CallToolResult(content=[]))
+        result = normalize_mcp_result(CallToolResult(content=[]))
         assert isinstance(result, str)
         assert result == ""
 
     def test_multiple_file_blocks_all_degraded(self):
         """Multiple ResourceLink file blocks all degrade to text."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[
                     ResourceLink(
@@ -244,7 +246,7 @@ class TestCallToolResultNormalization:
 
     def test_multiple_text_blocks_joined(self):
         """Multiple text blocks are joined with newline separator."""
-        result = MCPAgent._normalize_mcp_result(
+        result = normalize_mcp_result(
             CallToolResult(
                 content=[
                     TextContent(type="text", text=f"line {i}") for i in range(3)
@@ -258,11 +260,11 @@ class TestCallToolResultNormalization:
 
     def test_plain_string_passthrough(self):
         """A raw string (timeout/auth message) returns unchanged."""
-        assert MCPAgent._normalize_mcp_result("already rendered") == "already rendered"
+        assert normalize_mcp_result("already rendered") == "already rendered"
 
     def test_non_list_content_falls_back_to_str(self):
         """A result without a list content falls back to str()."""
-        result = MCPAgent._normalize_mcp_result(object())
+        result = normalize_mcp_result(object())
         assert isinstance(result, str)
 
 
@@ -281,7 +283,7 @@ class TestAudioContentUpstreamFault:
 
         tool = _make_tool("audio_tool")
         tool.coroutine = _raise_not_impl
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -297,7 +299,7 @@ class TestAudioContentUpstreamFault:
 
         tool = _make_tool("widget_tool")
         tool.coroutine = _raise_value_error
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -313,7 +315,7 @@ class TestAudioContentUpstreamFault:
 
         tool = _make_tool("bad_args_tool")
         tool.coroutine = _raise_type_error
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -328,7 +330,7 @@ class TestAudioContentUpstreamFault:
 
         tool = _make_tool("net_tool")
         tool.coroutine = _raise_runtime
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         with pytest.raises(RuntimeError, match="network down"):
             await tool.coroutine()
@@ -355,7 +357,7 @@ class TestFullToolExecutionPipeline:
 
         tool = _make_tool("csv_tool")
         tool.coroutine = _mock_invoke
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -372,7 +374,7 @@ class TestFullToolExecutionPipeline:
 
         tool = _make_tool("query_tool")
         tool.coroutine = _mock_invoke
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -390,7 +392,7 @@ class TestFullToolExecutionPipeline:
 
         tool = _make_tool("chart_tool")
         tool.coroutine = _mock_invoke
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, list)
@@ -415,7 +417,7 @@ class TestFullToolExecutionPipeline:
 
         tool = _make_tool("report_tool")
         tool.coroutine = _mock_invoke
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, list)
@@ -435,7 +437,7 @@ class TestFullToolExecutionPipeline:
 
         tool = _make_tool("limited_tool")
         tool.coroutine = _mock_invoke
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -452,7 +454,7 @@ class TestFullToolExecutionPipeline:
 
         tool = _make_tool("slow_tool")
         tool.coroutine = _slow
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=0.1)
+        wrap_tools_with_timeout([tool], timeout=0.1)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -478,7 +480,7 @@ class TestFullToolExecutionPipeline:
 
         tool = _make_tool("archive_tool")
         tool.coroutine = _mock_invoke
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -493,7 +495,7 @@ class TestFullToolExecutionPipeline:
 
         tool = _make_tool("simple_tool")
         tool.coroutine = _mock_invoke
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
@@ -508,7 +510,7 @@ class TestFullToolExecutionPipeline:
 
         tool = _make_tool("empty_tool")
         tool.coroutine = _mock_invoke
-        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+        wrap_tools_with_timeout([tool], timeout=5.0)
 
         result = await tool.coroutine()
         assert isinstance(result, str)
