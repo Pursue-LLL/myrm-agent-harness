@@ -42,6 +42,9 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "get_local_ip": ("myrm_agent_harness.utils.network", "get_local_ip"),
     # File utilities
     "extract_file_id_from_url": ("myrm_agent_harness.utils.files", "extract_file_id_from_url"),
+    # LLM response extraction
+    "extract_answer_text": ("myrm_agent_harness.utils.chat_utils", "extract_answer_text"),
+    "extract_litellm_answer_text": ("myrm_agent_harness.utils.chat_utils", "extract_litellm_answer_text"),
     # Device fingerprint utilities (legacy, kept for migration compatibility)
     "get_device_fingerprint": ("myrm_agent_harness.utils.device_fingerprint", "get_device_fingerprint"),
     "derive_key_from_fingerprint": ("myrm_agent_harness.utils.device_fingerprint", "derive_key_from_fingerprint"),
@@ -57,8 +60,10 @@ __all__ = [
     "SteeringToken",
     "TruncationStats",
     "derive_key_from_fingerprint",
-    # File utilities
+    # File & LLM response extraction utilities
+    "extract_answer_text",
     "extract_file_id_from_url",
+    "extract_litellm_answer_text",
     "extract_original_content",
     "format_crawl_results",
     # Context formatting
