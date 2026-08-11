@@ -30,6 +30,7 @@ def mock_vector_store():
 def mock_embedding():
     embedding = AsyncMock()
     embedding.embed.return_value = [0.1, 0.2, 0.3]
+    embedding.embed_batch.side_effect = lambda chunks: [[0.1, 0.2, 0.3] for _ in chunks]
     return embedding
 
 
@@ -342,7 +343,7 @@ async def test_sidecar_deep_nested_directory(wiki_structure):
 async def test_sidecar_hybrid_embedding_failure_graceful(wiki_structure, mock_vector_store, mock_embedding):
     """Sidecar upsert handles embedding failure gracefully in hybrid mode."""
     config = WikiConfig(enable_hybrid_search=True)
-    mock_embedding.embed.side_effect = RuntimeError("Embedding service down")
+    mock_embedding.embed_batch.side_effect = RuntimeError("Embedding service down")
     indexer = WikiIndexer(wiki_structure, config, vector_store=mock_vector_store, embedding=mock_embedding)
 
     await indexer.upsert_sidecar("fail-dir", level=0, content="Content that fails embedding.")

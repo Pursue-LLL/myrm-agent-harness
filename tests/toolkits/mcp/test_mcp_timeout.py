@@ -140,21 +140,36 @@ class TestWrapToolsWithTimeout:
         assert "UNTRUSTED_DATA" not in result
 
     @pytest.mark.asyncio
-    async def test_multimodal_output_not_wrapped(self) -> None:
-        """Multimodal (image) outputs return list[dict] and must NOT be wrapped."""
-        blocks: list[dict[str, object]] = [
-            {"type": "text", "text": "Image description"},
-            {"type": "image", "base64": "iVBORw0KGgoAAAANSUhEUg=="},
-        ]
+    async def test_multimodal_image_blocks_kept_but_text_wrapped(self) -> None:
+        """Multimodal outputs return list[dict]; image blocks pass through, text
+        blocks still receive the content-boundary defense."""
+        from mcp.types import CallToolResult, ImageContent, TextContent
 
-        async def multimodal_fn(*args: object, **kwargs: object) -> tuple[list[dict[str, object]], None]:
-            return (blocks, None)
+        async def multimodal_fn(*args: object, **kwargs: object) -> CallToolResult:
+            return CallToolResult(
+                content=[
+                    TextContent(type="text", text="Image description"),
+                    ImageContent(
+                        type="image",
+                        data="iVBORw0KGgoAAAANSUhEUg==",
+                        mime_type="image/png",
+                    ),
+                ]
+            )
 
         tool = self._make_tool("vision_tool", multimodal_fn)
         MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
         result = await tool.coroutine()
         assert isinstance(result, list)
-        assert any(b.get("type") == "image" for b in result)
+        image_blocks = [b for b in result if b.get("type") == "image"]
+        text_blocks = [b for b in result if b.get("type") == "text"]
+        assert len(image_blocks) == 1
+        assert len(text_blocks) == 1
+        # Image data must stay intact (no wrapping); the text block must be
+        # wrapped with the security boundary.
+        assert image_blocks[0]["base64"] == "iVBORw0KGgoAAAANSUhEUg=="
+        assert "UNTRUSTED_DATA" in text_blocks[0]["text"]
+        assert "Image description" in text_blocks[0]["text"]
 
 
 class TestEnumerateServerToolsTimeout:

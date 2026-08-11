@@ -5,6 +5,7 @@ status polling, and task management.
 
 [INPUT]
 - agent.artifacts.constants::ArtifactType (POS: Provides ArtifactType, ArtifactMappings, is_active_content.)
+- core.security.http.secure_fetch::secure_get / ContentTooLargeError (POS: SSRF-protected media URL downloads with size cap)
 
 [OUTPUT]
 - VideoGenerationTools: Video generation tools for Agent integration.
@@ -479,7 +480,10 @@ async def _resolve_media_sources(
     from pathlib import Path
 
     from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
-    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+    from myrm_agent_harness.core.security.http.secure_fetch import (
+        ContentTooLargeError,
+        secure_get,
+    )
 
     results: list[bytes] = []
     for src in sources:
@@ -496,9 +500,17 @@ async def _resolve_media_sources(
             data = base64.b64decode(src[header_end + 1 :])
         elif src.startswith(("http://", "https://")):
             try:
-                resp = await secure_get(src, timeout=timeout_seconds)
+                resp = await secure_get(
+                    src,
+                    timeout=timeout_seconds,
+                    max_content_length=max_bytes,
+                )
                 resp.raise_for_status()
                 data = resp.content
+            except ContentTooLargeError as exc:
+                raise ValueError(
+                    f"{media_label} too large (>{max_bytes} bytes): {src[:80]}"
+                ) from exc
             except SSRFSecurityError as exc:
                 raise ValueError(f"URL blocked by SSRF protection: {exc} ({src[:80]})") from exc
         else:

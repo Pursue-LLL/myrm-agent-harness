@@ -2,6 +2,8 @@
 
 from myrm_agent_harness.core.security.http.secure_fetch import (
     DEFAULT_MAX_REDIRECTS,
+    DEFAULT_MAX_CONTENT_LENGTH,
+    ContentTooLargeError,
     SecureHttpTarget,
     is_ssrf_shield_enabled,
     parse_allowed_internal_hosts,
@@ -12,6 +14,8 @@ from myrm_agent_harness.core.security.http.secure_fetch import (
 
 __all__ = [
     "DEFAULT_MAX_REDIRECTS",
+    "DEFAULT_MAX_CONTENT_LENGTH",
+    "ContentTooLargeError",
     "SecureHttpTarget",
     "is_ssrf_shield_enabled",
     "parse_allowed_internal_hosts",

@@ -10,7 +10,7 @@ import pytest
 from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
     BashExecutionError,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutor
+from myrm_agent_harness.agent.meta_tools.bash._executor.executor import BashExecutor
 from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionResult
 
 
@@ -76,7 +76,7 @@ async def test_execute_bash_success_returns_eviction_fields() -> None:
         ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            "myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction.maybe_evict_large_output",
             AsyncMock(
                 return_value=MagicMock(text="evicted-text", evicted_ref="vault://x")
             ),
@@ -131,7 +131,7 @@ async def test_execute_symmetrically_evicts_stderr() -> None:
         ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            "myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction.maybe_evict_large_output",
             AsyncMock(side_effect=_fake_evict),
         ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
@@ -178,7 +178,7 @@ async def test_execute_empty_stderr_passes_through_eviction() -> None:
         ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            "myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction.maybe_evict_large_output",
             AsyncMock(return_value=MagicMock(text="out", evicted_ref=None)),
         ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
@@ -275,7 +275,7 @@ async def test_execute_failure_evicts_stderr_into_message() -> None:
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()) as mock_log,
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            "myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction.maybe_evict_large_output",
             AsyncMock(side_effect=_fake_evict),
         ),
         pytest.raises(BashExecutionError) as exc_info,
@@ -473,7 +473,7 @@ def test_build_execution_context_merges_env() -> None:
 async def test_log_bash_command_execution_delegates() -> None:
     bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash._event_logging.log_bash_command_execution",
+        "myrm_agent_harness.agent.meta_tools.bash._executor.event_logging.log_bash_command_execution",
         AsyncMock(),
     ) as mock_log:
         await bash_exec._log_bash_command_execution(
@@ -556,7 +556,7 @@ async def test_execute_strips_markdown_fence_and_clears_invalidated_cache() -> N
         patch.object(bash_exec._skill_manager, "clear_workspace_cache") as mock_clear,
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            "myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction.maybe_evict_large_output",
             AsyncMock(return_value=MagicMock(text="ok", evicted_ref=None)),
         ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
@@ -604,7 +604,7 @@ async def test_execute_with_skill_paths_stages_detected_skill() -> None:
             mock_ensure_skills,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin.rewrite_skill_paths",
+            "myrm_agent_harness.agent.meta_tools.bash._executor.prepare_mixin.rewrite_skill_paths",
             return_value=("python3 scripts/run.py", "demo_skill"),
         ),
         patch(
@@ -612,7 +612,7 @@ async def test_execute_with_skill_paths_stages_detected_skill() -> None:
             return_value=["/workspace/.claude/skills/demo_skill"],
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            "myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction.maybe_evict_large_output",
             AsyncMock(return_value=MagicMock(text="ok", evicted_ref=None)),
         ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
@@ -677,7 +677,7 @@ async def test_execute_import_mode_keeps_detected_skill() -> None:
             return_value=["/workspace/.claude/skills/demo_skill"],
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            "myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction.maybe_evict_large_output",
             AsyncMock(return_value=MagicMock(text="ok", evicted_ref=None)),
         ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
@@ -726,7 +726,7 @@ async def test_execute_python_path_and_generated_files() -> None:
         ),
         patch.object(bash_exec, "_register_generated_files") as mock_register,
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            "myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction.maybe_evict_large_output",
             AsyncMock(return_value=MagicMock(text="done", evicted_ref=None)),
         ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
@@ -762,7 +762,7 @@ async def test_execute_nonzero_exit_without_error_logs_warning() -> None:
         ),
         patch.object(bash_exec, "_ensure_mcp_proxy_started", AsyncMock()),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash._output_eviction.maybe_evict_large_output",
+            "myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction.maybe_evict_large_output",
             AsyncMock(return_value=MagicMock(text="", evicted_ref=None)),
         ),
         patch.object(bash_exec, "_log_bash_command_execution", AsyncMock()),
@@ -954,7 +954,7 @@ def test_inject_resilience_script_prepends_when_present() -> None:
 def test_rewrite_skill_paths_returns_detected_skill() -> None:
     bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
     with patch(
-        "myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin.rewrite_skill_paths",
+        "myrm_agent_harness.agent.meta_tools.bash._executor.prepare_mixin.rewrite_skill_paths",
         return_value=("rewritten", "demo"),
     ):
         code, skill = bash_exec._rewrite_skill_paths("orig")
@@ -973,7 +973,7 @@ def test_convert_to_container_paths_empty_root() -> None:
 
 def test_maybe_extend_timeout_for_mcp() -> None:
     bash_exec = BashExecutor(_mock_code_executor(), enable_skill_execution=False)
-    from myrm_agent_harness.agent.meta_tools.bash.bash_executor_constants import (
+    from myrm_agent_harness.agent.meta_tools.bash._executor.constants import (
         MCP_MIN_TIMEOUT,
     )
 

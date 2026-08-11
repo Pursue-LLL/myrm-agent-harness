@@ -18,7 +18,7 @@ def _enable_compression(monkeypatch: pytest.MonkeyPatch) -> None:
 def compress():
     from importlib import reload
 
-    import myrm_agent_harness.agent.meta_tools.bash.output_compressor as mod
+    import myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor as mod
 
     reload(mod)
     return mod.compress_output
@@ -47,7 +47,7 @@ class TestCompressOutput:
         monkeypatch.setenv("MYRM_BASH_COMPRESSION", "0")
         from importlib import reload
 
-        import myrm_agent_harness.agent.meta_tools.bash.output_compressor as mod
+        import myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor as mod
 
         reload(mod)
         output = "On branch main\nnothing to commit, working tree clean\n"
@@ -57,7 +57,7 @@ class TestCompressOutput:
         monkeypatch.setenv("MYRM_BASH_COMPRESSION", "0")
         from importlib import reload
 
-        import myrm_agent_harness.agent.meta_tools.bash.output_compressor as mod
+        import myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor as mod
 
         reload(mod)
         output = "On branch main\nnothing to commit, working tree clean\n"
@@ -106,7 +106,7 @@ class TestCompressOutput:
         from myrm_agent_harness.agent.context_management.infra.evicted_content import (
             build_delivery_footer,
         )
-        from myrm_agent_harness.agent.meta_tools.bash._output_eviction import (
+        from myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction import (
             _create_smart_preview,
         )
 
@@ -723,7 +723,9 @@ class TestBuildToolCompressor:
 
 class TestSafety:
     def test_compressor_exception_passthrough(self, compress, monkeypatch):
-        from myrm_agent_harness.agent.meta_tools.bash import output_compressor as mod
+        from myrm_agent_harness.agent.meta_tools.bash._compression import (
+            output_compressor as mod,
+        )
 
         original_registry = mod._COMPRESSOR_REGISTRY
 
@@ -743,8 +745,14 @@ class TestSafety:
 
     def test_compression_never_grows_output(self, compress):
         commands_and_outputs = [
-            ("git status", "On branch x\nChanges not staged for commit:\n\tmodified: a\n"),
-            ("git diff", "diff --git a/x b/x\nindex a..b 100\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n"),
+            (
+                "git status",
+                "On branch x\nChanges not staged for commit:\n\tmodified: a\n",
+            ),
+            (
+                "git diff",
+                "diff --git a/x b/x\nindex a..b 100\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n",
+            ),
             ("git log", "commit abc123\nAuthor: A\nDate: D\n\n    msg\n"),
             (
                 "ls -la /tmp",
@@ -757,14 +765,19 @@ class TestSafety:
 
     def test_failure_compression_never_grows_output(self, compress):
         commands_and_outputs = [
-            ("pytest", "FAILED tests/test_x.py::test_a - assert 1 == 2\n1 failed in 0.1s\n"),
+            (
+                "pytest",
+                "FAILED tests/test_x.py::test_a - assert 1 == 2\n1 failed in 0.1s\n",
+            ),
             ("npm install", "npm ERR! code ERESOLVE\nnpm ERR! unable to resolve\n"),
             ("git push", "error: failed to push some refs\nhint: Try pulling first.\n"),
             ("docker build .", "#1 ERROR: some error\n"),
         ]
         for cmd, output in commands_and_outputs:
             result = compress(cmd, output, exit_code="1")
-            assert len(result) <= len(output), f"Failure compression grew output for: {cmd}"
+            assert len(result) <= len(
+                output
+            ), f"Failure compression grew output for: {cmd}"
 
 
 # ---------------------------------------------------------------------------
@@ -786,7 +799,10 @@ class TestCompilerErrorCompressor:
         result = compress("tsc --noEmit", output, exit_code="1")
         assert "Compiler output aggregated for clarity" in result
         assert "src/app/layout.tsx:" in result
-        assert "Line 10: [TS2322] Type 'string' is not assignable to type 'number'." in result
+        assert (
+            "Line 10: [TS2322] Type 'string' is not assignable to type 'number'."
+            in result
+        )
         assert "src/components/Button.tsx:" in result
         assert "Line 15: [TS2304] Cannot find name 'React'." in result
         assert "TS6133" not in result  # Warnings are ignored
@@ -821,7 +837,10 @@ class TestCompilerErrorCompressor:
         result = compress("eslint .", output, exit_code="1")
         assert "Compiler output aggregated for clarity" in result
         assert "/Users/project/src/app.ts:" in result
-        assert "Line 10: [no-unused-vars] 'foo' is assigned a value but never used" in result
+        assert (
+            "Line 10: [no-unused-vars] 'foo' is assigned a value but never used"
+            in result
+        )
         assert "/Users/project/src/utils.ts:" in result
         assert "Line 5: [no-undef] 'bar' is not defined" in result
         assert "comma-dangle" not in result  # Warnings are ignored
@@ -857,7 +876,9 @@ class TestCompilerErrorCompressor:
 
 class TestLogCompressor:
     def test_massive_repetitive_logs(self):
-        from myrm_agent_harness.agent.meta_tools.bash.output_compressor import LogCompressor
+        from myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor import (
+            LogCompressor,
+        )
 
         compressor = LogCompressor()
         lines = []
@@ -866,7 +887,9 @@ class TestLogCompressor:
                 f"2026-05-21 10:00:01.{i:03d} ERROR 12345 --- [main] com.zaxxer.hikari.pool.HikariPool : Connection refused to 127.0.0.1:5432"
             )
         for i in range(50):
-            lines.append(f"2026-05-21 10:00:02.{i:03d} WARN 12345 --- [main] com.example.App : Retrying connection...")
+            lines.append(
+                f"2026-05-21 10:00:02.{i:03d} WARN 12345 --- [main] com.example.App : Retrying connection..."
+            )
 
         output = "\n".join(lines)
         result = compressor.compress(output)
@@ -882,7 +905,9 @@ class TestLogCompressor:
         assert len(result) < len(output) * 0.1
 
     def test_non_repetitive_logs_passthrough(self):
-        from myrm_agent_harness.agent.meta_tools.bash.output_compressor import LogCompressor
+        from myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor import (
+            LogCompressor,
+        )
 
         compressor = LogCompressor()
         lines = []
@@ -894,7 +919,9 @@ class TestLogCompressor:
         assert result is None  # Should return None because unique_total > len * 0.5
 
     def test_short_logs_passthrough(self):
-        from myrm_agent_harness.agent.meta_tools.bash.output_compressor import LogCompressor
+        from myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor import (
+            LogCompressor,
+        )
 
         compressor = LogCompressor()
         lines = []
@@ -908,7 +935,9 @@ class TestLogCompressor:
         assert result is None
 
     def test_single_count_and_empty_lines(self):
-        from myrm_agent_harness.agent.meta_tools.bash.output_compressor import LogCompressor
+        from myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor import (
+            LogCompressor,
+        )
 
         compressor = LogCompressor()
         lines = []
@@ -918,12 +947,22 @@ class TestLogCompressor:
             )
 
         # Add a single unique error and warning
-        lines.append("2026-05-21 10:00:01.000 ERROR 12345 --- [main] com.example.App : Unique error")
-        lines.append("2026-05-21 10:00:01.000 WARN 12345 --- [main] com.example.App : Unique warning")
-        lines.append("2026-05-21 10:00:01.000 INFO 12345 --- [main] com.example.App : Just some info")
-        lines.append("2026-05-21 10:00:01.000 INFO 12345 --- [main] com.example.App : Just some info")
+        lines.append(
+            "2026-05-21 10:00:01.000 ERROR 12345 --- [main] com.example.App : Unique error"
+        )
+        lines.append(
+            "2026-05-21 10:00:01.000 WARN 12345 --- [main] com.example.App : Unique warning"
+        )
+        lines.append(
+            "2026-05-21 10:00:01.000 INFO 12345 --- [main] com.example.App : Just some info"
+        )
+        lines.append(
+            "2026-05-21 10:00:01.000 INFO 12345 --- [main] com.example.App : Just some info"
+        )
         lines.append("")  # Empty line (will become empty normalized string)
-        lines.append("2026-05-21 10:00:01.000")  # Just timestamp (will become empty normalized string)
+        lines.append(
+            "2026-05-21 10:00:01.000"
+        )  # Just timestamp (will become empty normalized string)
 
         output = "\n".join(lines)
         result = compressor.compress(output)

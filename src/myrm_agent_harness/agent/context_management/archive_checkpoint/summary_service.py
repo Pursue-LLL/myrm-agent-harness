@@ -10,7 +10,9 @@ from typing import TYPE_CHECKING, Literal
 
 from langchain_core.messages import HumanMessage
 
-from myrm_agent_harness.agent.context_management.tracking.task_metrics import get_task_metrics
+from myrm_agent_harness.agent.context_management.tracking.task_metrics import (
+    get_task_metrics,
+)
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.token_estimation import (
     estimate_content_tokens,
@@ -23,7 +25,9 @@ if TYPE_CHECKING:
     from langchain_core.language_models.chat_models import BaseChatModel
     from langchain_core.runnables.config import RunnableConfig
 
-    from myrm_agent_harness.agent.context_management.infra.schemas import CacheTtlPruneConfig
+    from myrm_agent_harness.agent.context_management.infra.schemas import (
+        CacheTtlPruneConfig,
+    )
 
 logger = logging.getLogger(__name__)
 

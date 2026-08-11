@@ -105,15 +105,15 @@ class TestExecuteRequest:
             request=httpx.Request("GET", "https://api.example.com/health"),
         )
 
-        with patch.object(executor, "_get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.request.return_value = mock_response
-            mock_get_client.return_value = mock_client
-
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_secure_request:
             result = await executor.execute(method="GET", path="/health")
 
         assert '"status": "ok"' in result
-        mock_client.request.assert_called_once()
+        mock_secure_request.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_retry_on_5xx(self):
@@ -137,15 +137,15 @@ class TestExecuteRequest:
             request=httpx.Request("GET", "https://api.example.com/data"),
         )
 
-        with patch.object(executor, "_get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.request.side_effect = [error_response, success_response]
-            mock_get_client.return_value = mock_client
-
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            side_effect=[error_response, success_response],
+        ) as mock_secure_request:
             result = await executor.execute(method="GET", path="/data")
 
         assert '"data": "ok"' in result
-        assert mock_client.request.call_count == 2
+        assert mock_secure_request.await_count == 2
 
     @pytest.mark.asyncio
     async def test_max_retries_exhausted(self):
@@ -163,15 +163,15 @@ class TestExecuteRequest:
             request=httpx.Request("GET", "https://api.example.com/fail"),
         )
 
-        with patch.object(executor, "_get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.request.return_value = error_response
-            mock_get_client.return_value = mock_client
-
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            return_value=error_response,
+        ) as mock_secure_request:
             result = await executor.execute(method="GET", path="/fail")
 
         assert "Error after 2 attempts" in result
-        assert mock_client.request.call_count == 2
+        assert mock_secure_request.await_count == 2
 
     @pytest.mark.asyncio
     async def test_network_error_retry(self):
@@ -189,17 +189,18 @@ class TestExecuteRequest:
             request=httpx.Request("GET", "https://api.example.com/data"),
         )
 
-        with patch.object(executor, "_get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.request.side_effect = [
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            side_effect=[
                 httpx.ConnectError("Connection refused"),
                 success_response,
-            ]
-            mock_get_client.return_value = mock_client
-
+            ],
+        ) as mock_secure_request:
             result = await executor.execute(method="GET", path="/data")
 
         assert '"ok": true' in result
+        assert mock_secure_request.await_count == 2
 
     @pytest.mark.asyncio
     async def test_auth_headers_injected(self):
@@ -217,14 +218,14 @@ class TestExecuteRequest:
             request=httpx.Request("GET", "https://api.example.com/protected"),
         )
 
-        with patch.object(executor, "_get_client") as mock_get_client:
-            mock_client = AsyncMock()
-            mock_client.request.return_value = mock_response
-            mock_get_client.return_value = mock_client
-
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_secure_request:
             await executor.execute(method="GET", path="/protected")
 
-        call_kwargs = mock_client.request.call_args[1]
+        call_kwargs = mock_secure_request.call_args[1]
         assert "Authorization" in call_kwargs["headers"]
         assert call_kwargs["headers"]["Authorization"] == "Bearer my-token"
 

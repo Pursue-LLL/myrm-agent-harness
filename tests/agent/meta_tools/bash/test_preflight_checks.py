@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._preflight_checks import (
+from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import (
     check_command_url_exfiltration,
     check_interactive_command,
     check_sensitive_paths,

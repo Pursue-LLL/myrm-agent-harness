@@ -40,7 +40,6 @@ from acp.schema import (
     ResumeSessionResponse,
     SessionInfo,
     SetSessionConfigOptionResponse,
-    SetSessionModelResponse,
     SetSessionModeResponse,
     TextContentBlock,
 )
@@ -155,14 +154,6 @@ class MyrmAcpServer:
         session_id: str,
         **kwargs: object,
     ) -> SetSessionModeResponse | None:
-        return None
-
-    async def set_session_model(
-        self,
-        model_id: str,
-        session_id: str,
-        **kwargs: object,
-    ) -> SetSessionModelResponse | None:
         return None
 
     async def set_config_option(

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.executor import (
     BashExecutionError,
     BashExecutor,
 )
@@ -48,7 +48,7 @@ class TestPrepareExecutionPythonRouting:
         assert "await" in prepared
 
     def test_mcp_timeout_floor_applied(self, bash_executor: BashExecutor) -> None:
-        from myrm_agent_harness.agent.meta_tools.bash.bash_executor_constants import MCP_MIN_TIMEOUT
+        from myrm_agent_harness.agent.meta_tools.bash._executor.constants import MCP_MIN_TIMEOUT
 
         assert bash_executor._maybe_extend_timeout_for_mcp([object()], 30) == MCP_MIN_TIMEOUT
         assert bash_executor._maybe_extend_timeout_for_mcp(None, 600) == 600

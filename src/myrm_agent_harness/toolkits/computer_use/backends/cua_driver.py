@@ -146,8 +146,18 @@ class _McpSession:
 
 
 def _extract_result(mcp_result: Any) -> dict[str, Any]:
-    """Flatten an MCP CallToolResult into a plain dict."""
-    is_error = bool(getattr(mcp_result, "isError", False))
+    """Flatten an MCP CallToolResult into a plain dict.
+
+    Reads both snake_case (MCP SDK 2.x native field names) and camelCase
+    aliases so results deserialized by any SDK version are handled.
+    """
+    is_error = bool(
+        getattr(mcp_result, "is_error", None)
+        or getattr(mcp_result, "isError", False)
+    )
+    structured = getattr(mcp_result, "structured_content", None)
+    if structured is None:
+        structured = getattr(mcp_result, "structuredContent", None)
     text_chunks: list[str] = []
     images: list[str] = []
     for part in getattr(mcp_result, "content", []) or []:
@@ -159,7 +169,6 @@ def _extract_result(mcp_result: Any) -> dict[str, Any]:
             if b64:
                 images.append(b64)
     data: Any = "\n".join(text_chunks) if text_chunks else None
-    structured = getattr(mcp_result, "structuredContent", None)
     return {"data": data, "images": images, "structuredContent": structured, "isError": is_error}
 
 

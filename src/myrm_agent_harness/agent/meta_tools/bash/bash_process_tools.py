@@ -155,7 +155,7 @@ async def _handle_output(
         }
     line_filter = None
     if filter_pattern:
-        from myrm_agent_harness.agent.meta_tools.bash._bash_output_filter_core import (
+        from myrm_agent_harness.agent.meta_tools.bash._tool.output_filter_core import (
             compile_output_filter,
         )
 
@@ -176,7 +176,7 @@ async def _handle_output(
     stdout = streams["stdout"]
     stderr = streams["stderr"]
     if line_filter is not None:
-        from myrm_agent_harness.agent.meta_tools.bash._bash_output_filter_core import (
+        from myrm_agent_harness.agent.meta_tools.bash._tool.output_filter_core import (
             filter_output_lines,
         )
 

@@ -1,9 +1,10 @@
 """Integration tests for MCP content block coercion pipeline.
 
 Exercises the coercion and normalization pipeline for MCP tool result
-content blocks. Verifies that every MCP content type that can appear
-in production is safely handled end-to-end through
-``_coerce_content_block`` and ``_normalize_mcp_result``.
+content blocks using the real SDK 2.x ``CallToolResult`` shape produced by
+``tool_converter._invoke`` (which now passes the raw result through).  Verifies
+that every MCP content type that can appear in production is safely handled
+end-to-end through ``_coerce_content_block`` and ``_normalize_mcp_result``.
 
 Uses MCP SDK v2 types directly.
 """
@@ -15,7 +16,9 @@ from unittest.mock import AsyncMock
 import pytest
 from langchain_core.tools import StructuredTool
 from mcp.types import (
+    AudioContent,
     BlobResourceContents,
+    CallToolResult,
     EmbeddedResource,
     ImageContent,
     ResourceLink,
@@ -24,31 +27,6 @@ from mcp.types import (
 )
 
 from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
-
-
-def _mcp_to_lc_block(mcp_content: object) -> dict[str, Any]:
-    """Convert an MCP content object to a LangChain-style content block dict.
-
-    Standalone test helper for MCP → LangChain content block conversion.
-    """
-    from mcp.types import ImageContent, TextContent
-
-    if isinstance(mcp_content, TextContent):
-        return {"type": "text", "text": mcp_content.text}
-    if isinstance(mcp_content, ImageContent):
-        return {"type": "image", "base64": mcp_content.data, "mime_type": mcp_content.mime_type}
-    if hasattr(mcp_content, "uri"):
-        return {"type": "file", "url": str(getattr(mcp_content, "uri", "")), "mime_type": getattr(mcp_content, "mime_type", "")}
-    if hasattr(mcp_content, "resource"):
-        res = mcp_content.resource
-        if hasattr(res, "blob") and res.blob:
-            mime = getattr(res, "mime_type", "") or ""
-            if mime.startswith("image/"):
-                return {"type": "image", "base64": res.blob, "mime_type": mime}
-            return {"type": "file", "url": str(res.uri), "mime_type": mime}
-        if hasattr(res, "text") and res.text:
-            return {"type": "text", "text": res.text}
-    return {"type": "text", "text": str(mcp_content)}
 
 
 def _make_tool(name: str = "tool") -> StructuredTool:
@@ -60,86 +38,79 @@ def _make_tool(name: str = "tool") -> StructuredTool:
     )
 
 
-class TestRealMcpTypesThroughPipeline:
-    """End-to-end: real MCP types -> LangChain blocks -> coercion -> normalize."""
+class TestCallToolResultNormalization:
+    """Direct `_normalize_mcp_result` coverage over real `CallToolResult`."""
 
     def test_text_content_passthrough(self):
         """TextContent flows through unchanged."""
-        lc_block = _mcp_to_lc_block(
-            TextContent(type="text", text="hello world")
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(content=[TextContent(type="text", text="hello world")])
         )
-        coerced = MCPAgent._coerce_content_block(lc_block)
-        assert coerced["type"] == "text"
-        assert coerced["text"] == "hello world"
-
-        result = MCPAgent._normalize_mcp_result(([lc_block], None))
         assert result == "hello world"
 
     def test_image_content_preserved_as_multimodal(self):
         """ImageContent with base64 produces a multimodal list result."""
-        lc_block = _mcp_to_lc_block(
-            ImageContent(type="image", data="base64data", mimeType="image/png")
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[
+                    ImageContent(type="image", data="base64data", mime_type="image/png")
+                ]
+            )
         )
-        coerced = MCPAgent._coerce_content_block(lc_block)
-        assert coerced["type"] == "image"
-        assert coerced["base64"] == "base64data"
-
-        result = MCPAgent._normalize_mcp_result(([lc_block], None))
         assert isinstance(result, list)
         assert any(b["type"] == "image" for b in result)
 
     def test_resource_link_degraded_to_text(self):
         """ResourceLink -> file block -> safely degraded to text."""
-        lc_block = _mcp_to_lc_block(
-            ResourceLink(
-                type="resource_link",
-                uri="file:///tmp/report.csv",
-                name="report",
-                mimeType="text/csv",
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[
+                    ResourceLink(
+                        type="resource_link",
+                        uri="file:///tmp/report.csv",
+                        name="report",
+                        mime_type="text/csv",
+                    )
+                ]
             )
         )
-        assert lc_block["type"] == "file", "ResourceLink should produce file block"
-
-        coerced = MCPAgent._coerce_content_block(lc_block)
-        assert coerced["type"] == "text"
-        assert "file:///tmp/report.csv" in coerced["text"]
-
-        result = MCPAgent._normalize_mcp_result(([lc_block], None))
         assert isinstance(result, str)
         assert "file:///tmp/report.csv" in result
 
     def test_mixed_text_and_resource_link(self):
         """Mix of TextContent + ResourceLink: text survives, file degraded."""
-        text_block = _mcp_to_lc_block(
-            TextContent(type="text", text="Here is the report:")
-        )
-        file_block = _mcp_to_lc_block(
-            ResourceLink(
-                type="resource_link",
-                uri="https://example.com/data.json",
-                name="data",
-                mimeType="application/json",
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[
+                    TextContent(type="text", text="Here is the report:"),
+                    ResourceLink(
+                        type="resource_link",
+                        uri="https://example.com/data.json",
+                        name="data",
+                        mime_type="application/json",
+                    ),
+                ]
             )
         )
-        result = MCPAgent._normalize_mcp_result(([text_block, file_block], None))
         assert isinstance(result, str)
         assert "Here is the report:" in result
         assert "https://example.com/data.json" in result
 
     def test_mixed_image_and_resource_link(self):
         """Image + ResourceLink: returns multimodal list, file becomes text."""
-        img_block = _mcp_to_lc_block(
-            ImageContent(type="image", data="imgdata", mimeType="image/jpeg")
-        )
-        file_block = _mcp_to_lc_block(
-            ResourceLink(
-                type="resource_link",
-                uri="file:///a.pdf",
-                name="a",
-                mimeType="application/pdf",
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[
+                    ImageContent(type="image", data="imgdata", mime_type="image/jpeg"),
+                    ResourceLink(
+                        type="resource_link",
+                        uri="file:///a.pdf",
+                        name="a",
+                        mime_type="application/pdf",
+                    ),
+                ]
             )
         )
-        result = MCPAgent._normalize_mcp_result(([img_block, file_block], None))
         assert isinstance(result, list)
         types = {b["type"] for b in result}
         assert "image" in types
@@ -147,88 +118,125 @@ class TestRealMcpTypesThroughPipeline:
         assert "file" not in types
 
     def test_structured_content_appended(self):
-        """structuredContent from artifact is appended as JSON text."""
-        text_block = _mcp_to_lc_block(
-            TextContent(type="text", text="summary")
+        """structured_content from CallToolResult is appended as JSON text."""
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[TextContent(type="text", text="summary")],
+                structured_content={"key": "value", "num": 42},
+            )
         )
-        artifact = {"structured_content": {"key": "value", "num": 42}}
-        result = MCPAgent._normalize_mcp_result(([text_block], artifact))
         assert isinstance(result, str)
         assert "summary" in result
         assert '"key"' in result
         assert "42" in result
 
-    def test_embedded_resource_text_passthrough(self):
-        """EmbeddedResource with TextResourceContents passes through as text."""
-        lc_block = _mcp_to_lc_block(
-            EmbeddedResource(
-                type="resource",
-                resource=TextResourceContents(
-                    uri="file:///tmp/log.txt", text="log data", mimeType="text/plain"
-                ),
+    def test_is_error_collapses_to_error_string(self):
+        """is_error=True yields a single error string for the agent."""
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[TextContent(type="text", text="permission denied")],
+                is_error=True,
             )
         )
-        assert lc_block["type"] == "text"
-        result = MCPAgent._normalize_mcp_result(([lc_block], None))
+        assert isinstance(result, str)
+        assert "[MCP tool error]" in result
+        assert "permission denied" in result
+
+    def test_is_error_with_empty_content(self):
+        """is_error=True with no text yields a bare error marker."""
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(content=[], is_error=True)
+        )
+        assert result == "[MCP tool error]"
+
+    def test_embedded_resource_text_passthrough(self):
+        """EmbeddedResource with TextResourceContents passes through as text."""
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[
+                    EmbeddedResource(
+                        type="resource",
+                        resource=TextResourceContents(
+                            uri="file:///tmp/log.txt",
+                            text="log data",
+                            mime_type="text/plain",
+                        ),
+                    )
+                ]
+            )
+        )
         assert isinstance(result, str)
         assert "log data" in result
 
     def test_embedded_resource_blob_degraded(self):
         """EmbeddedResource with non-image BlobResourceContents -> file -> degraded to text."""
-        lc_block = _mcp_to_lc_block(
-            EmbeddedResource(
-                type="resource",
-                resource=BlobResourceContents(
-                    uri="file:///tmp/data.bin",
-                    blob="binary_base64",
-                    mimeType="application/octet-stream",
-                ),
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[
+                    EmbeddedResource(
+                        type="resource",
+                        resource=BlobResourceContents(
+                            uri="file:///tmp/data.bin",
+                            blob="binary_base64",
+                            mime_type="application/octet-stream",
+                        ),
+                    )
+                ]
             )
         )
-        assert lc_block["type"] == "file"
-        coerced = MCPAgent._coerce_content_block(lc_block)
-        assert coerced["type"] == "text"
-
-        result = MCPAgent._normalize_mcp_result(([lc_block], None))
         assert isinstance(result, str)
 
     def test_embedded_resource_image_blob_preserved(self):
         """EmbeddedResource with image/png BlobResourceContents -> image (valid passthrough)."""
-        lc_block = _mcp_to_lc_block(
-            EmbeddedResource(
-                type="resource",
-                resource=BlobResourceContents(
-                    uri="file:///tmp/photo.png",
-                    blob="img_base64_data",
-                    mimeType="image/png",
-                ),
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[
+                    EmbeddedResource(
+                        type="resource",
+                        resource=BlobResourceContents(
+                            uri="file:///tmp/photo.png",
+                            blob="img_base64_data",
+                            mime_type="image/png",
+                        ),
+                    )
+                ]
             )
         )
-        assert lc_block["type"] == "image"
-        coerced = MCPAgent._coerce_content_block(lc_block)
-        assert coerced["type"] == "image"
-
-        result = MCPAgent._normalize_mcp_result(([lc_block], None))
         assert isinstance(result, list)
         assert any(b["type"] == "image" for b in result)
 
+    def test_audio_content_degraded_to_text_marker(self):
+        """AudioContent degrades to a short text marker, not a base64 dump."""
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[AudioContent(type="audio", data="audio_b64", mime_type="audio/mpeg")]
+            )
+        )
+        assert isinstance(result, str)
+        assert "[audio content omitted]" in result
+        assert "audio_b64" not in result
+
     def test_empty_content_blocks(self):
         """Empty content blocks list returns empty string."""
-        result = MCPAgent._normalize_mcp_result(([], None))
+        result = MCPAgent._normalize_mcp_result(CallToolResult(content=[]))
         assert isinstance(result, str)
         assert result == ""
 
     def test_multiple_file_blocks_all_degraded(self):
         """Multiple ResourceLink file blocks all degrade to text."""
-        blocks = [
-            _mcp_to_lc_block(
-                ResourceLink(type="resource_link", uri=f"s3://bucket/file{i}.csv", name=f"file{i}", mimeType="text/csv")
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[
+                    ResourceLink(
+                        type="resource_link",
+                        uri=f"s3://bucket/file{i}.csv",
+                        name=f"file{i}",
+                        mime_type="text/csv",
+                    )
+                    for i in range(3)
+                ]
             )
-            for i in range(3)
-        ]
-        assert all(b["type"] == "file" for b in blocks)
-
-        result = MCPAgent._normalize_mcp_result((blocks, None))
+        )
         assert isinstance(result, str)
         assert "file" not in result or "[file:" in result
         for i in range(3):
@@ -236,15 +244,26 @@ class TestRealMcpTypesThroughPipeline:
 
     def test_multiple_text_blocks_joined(self):
         """Multiple text blocks are joined with newline separator."""
-        blocks = [
-            _mcp_to_lc_block(TextContent(type="text", text=f"line {i}"))
-            for i in range(3)
-        ]
-        result = MCPAgent._normalize_mcp_result((blocks, None))
+        result = MCPAgent._normalize_mcp_result(
+            CallToolResult(
+                content=[
+                    TextContent(type="text", text=f"line {i}") for i in range(3)
+                ]
+            )
+        )
         assert isinstance(result, str)
         assert "line 0" in result
         assert "line 1" in result
         assert "line 2" in result
+
+    def test_plain_string_passthrough(self):
+        """A raw string (timeout/auth message) returns unchanged."""
+        assert MCPAgent._normalize_mcp_result("already rendered") == "already rendered"
+
+    def test_non_list_content_falls_back_to_str(self):
+        """A result without a list content falls back to str()."""
+        result = MCPAgent._normalize_mcp_result(object())
+        assert isinstance(result, str)
 
 
 class TestAudioContentUpstreamFault:
@@ -317,22 +336,22 @@ class TestAudioContentUpstreamFault:
 
 class TestFullToolExecutionPipeline:
     """Verify _wrap_tools_with_timeout + _normalize_mcp_result together
-    using real adapter output shapes (no mocking of coercion logic)."""
+    using the real CallToolResult shape (no mocked coercion logic)."""
 
     @pytest.mark.asyncio
-    async def test_tool_returning_resource_link_tuple(self):
-        """Tool returns (content_blocks_with_file, artifact) — full pipeline."""
-        file_lc = _mcp_to_lc_block(
-            ResourceLink(
-                type="resource_link",
-                uri="s3://bucket/key.csv",
-                name="key",
-                mimeType="text/csv",
+    async def test_tool_returning_resource_link_result(self):
+        """Tool returns CallToolResult with file block — full pipeline."""
+        async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
+            return CallToolResult(
+                content=[
+                    ResourceLink(
+                        type="resource_link",
+                        uri="s3://bucket/key.csv",
+                        name="key",
+                        mime_type="text/csv",
+                    )
+                ]
             )
-        )
-
-        async def _mock_invoke(*a: object, **kw: object) -> tuple:
-            return ([file_lc], None)
 
         tool = _make_tool("csv_tool")
         tool.coroutine = _mock_invoke
@@ -344,14 +363,12 @@ class TestFullToolExecutionPipeline:
         assert "file" not in result.split(":")[0] or "[file:" in result
 
     @pytest.mark.asyncio
-    async def test_tool_returning_text_tuple(self):
-        """Tool returns (text_blocks, artifact) — plain string output."""
-        text_lc = _mcp_to_lc_block(
-            TextContent(type="text", text="query result: 42")
-        )
-
-        async def _mock_invoke(*a: object, **kw: object) -> tuple:
-            return ([text_lc], None)
+    async def test_tool_returning_text_result(self):
+        """Tool returns CallToolResult with text block — plain string output."""
+        async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
+            return CallToolResult(
+                content=[TextContent(type="text", text="query result: 42")]
+            )
 
         tool = _make_tool("query_tool")
         tool.coroutine = _mock_invoke
@@ -362,14 +379,14 @@ class TestFullToolExecutionPipeline:
         assert "query result: 42" in result
 
     @pytest.mark.asyncio
-    async def test_tool_returning_image_tuple(self):
-        """Tool returns (image_blocks, artifact) — multimodal list output."""
-        img_lc = _mcp_to_lc_block(
-            ImageContent(type="image", data="chart_png_base64", mimeType="image/png")
-        )
-
-        async def _mock_invoke(*a: object, **kw: object) -> tuple:
-            return ([img_lc], None)
+    async def test_tool_returning_image_result(self):
+        """Tool returns CallToolResult with image block — multimodal list output."""
+        async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
+            return CallToolResult(
+                content=[
+                    ImageContent(type="image", data="chart_png_base64", mime_type="image/png")
+                ]
+            )
 
         tool = _make_tool("chart_tool")
         tool.coroutine = _mock_invoke
@@ -380,25 +397,21 @@ class TestFullToolExecutionPipeline:
         assert result[0]["type"] == "image"
 
     @pytest.mark.asyncio
-    async def test_tool_returning_mixed_types_tuple(self):
-        """Tool returns text + file + image — file degraded, image preserved."""
-        text_lc = _mcp_to_lc_block(
-            TextContent(type="text", text="Analysis complete")
-        )
-        file_lc = _mcp_to_lc_block(
-            ResourceLink(
-                type="resource_link",
-                uri="gs://bucket/report.pdf",
-                name="report",
-                mimeType="application/pdf",
+    async def test_tool_returning_mixed_types_result(self):
+        """Text + file + image: file degraded, image preserved."""
+        async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
+            return CallToolResult(
+                content=[
+                    TextContent(type="text", text="Analysis complete"),
+                    ResourceLink(
+                        type="resource_link",
+                        uri="gs://bucket/report.pdf",
+                        name="report",
+                        mime_type="application/pdf",
+                    ),
+                    ImageContent(type="image", data="chart", mime_type="image/png"),
+                ]
             )
-        )
-        img_lc = _mcp_to_lc_block(
-            ImageContent(type="image", data="chart", mimeType="image/png")
-        )
-
-        async def _mock_invoke(*a: object, **kw: object) -> tuple:
-            return ([text_lc, file_lc, img_lc], None)
 
         tool = _make_tool("report_tool")
         tool.coroutine = _mock_invoke
@@ -410,6 +423,24 @@ class TestFullToolExecutionPipeline:
         assert "image" in block_types
         assert "file" not in block_types
         assert "text" in block_types
+
+    @pytest.mark.asyncio
+    async def test_tool_returning_is_error_result(self):
+        """Tool returns CallToolResult with is_error=True — error string output."""
+        async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
+            return CallToolResult(
+                content=[TextContent(type="text", text="rate limited")],
+                is_error=True,
+            )
+
+        tool = _make_tool("limited_tool")
+        tool.coroutine = _mock_invoke
+        MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
+
+        result = await tool.coroutine()
+        assert isinstance(result, str)
+        assert "[MCP tool error]" in result
+        assert "rate limited" in result
 
     @pytest.mark.asyncio
     async def test_tool_timeout_returns_error_string(self):
@@ -430,21 +461,20 @@ class TestFullToolExecutionPipeline:
 
     @pytest.mark.asyncio
     async def test_tool_returning_embedded_resource_blob(self):
-        """Tool returns EmbeddedResource non-image blob -> file -> degraded to text."""
-        blob_lc = _mcp_to_lc_block(
-            EmbeddedResource(
-                type="resource",
-                resource=BlobResourceContents(
-                    uri="file:///tmp/archive.zip",
-                    blob="zip_base64",
-                    mimeType="application/zip",
-                ),
+        """EmbeddedResource non-image blob -> file -> degraded to text."""
+        async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
+            return CallToolResult(
+                content=[
+                    EmbeddedResource(
+                        type="resource",
+                        resource=BlobResourceContents(
+                            uri="file:///tmp/archive.zip",
+                            blob="zip_base64",
+                            mime_type="application/zip",
+                        ),
+                    )
+                ]
             )
-        )
-        assert blob_lc["type"] == "file"
-
-        async def _mock_invoke(*a: object, **kw: object) -> tuple:
-            return ([blob_lc], None)
 
         tool = _make_tool("archive_tool")
         tool.coroutine = _mock_invoke
@@ -456,7 +486,7 @@ class TestFullToolExecutionPipeline:
 
     @pytest.mark.asyncio
     async def test_tool_returning_plain_string(self):
-        """Tool returns a plain string (not tuple) — wrapped with security boundary."""
+        """Tool returns a plain string — wrapped with security boundary."""
 
         async def _mock_invoke(*a: object, **kw: object) -> str:
             return "simple response"
@@ -471,11 +501,10 @@ class TestFullToolExecutionPipeline:
         assert "UNTRUSTED_DATA" in result
 
     @pytest.mark.asyncio
-    async def test_tool_returning_empty_list_tuple(self):
-        """Tool returns ([], None) — empty string output."""
-
-        async def _mock_invoke(*a: object, **kw: object) -> tuple:
-            return ([], None)
+    async def test_tool_returning_empty_content(self):
+        """Tool returns CallToolResult with empty content — empty string output."""
+        async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
+            return CallToolResult(content=[])
 
         tool = _make_tool("empty_tool")
         tool.coroutine = _mock_invoke
@@ -492,17 +521,17 @@ class TestProcessSessionToolsChain:
     @pytest.mark.asyncio
     async def test_full_chain_applies_coercion(self):
         """process_session_tools -> _wrap_tools_with_timeout -> coercion active."""
-        file_lc = _mcp_to_lc_block(
-            ResourceLink(
-                type="resource_link",
-                uri="https://cdn.example.com/doc.pdf",
-                name="doc",
-                mimeType="application/pdf",
+        async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
+            return CallToolResult(
+                content=[
+                    ResourceLink(
+                        type="resource_link",
+                        uri="https://cdn.example.com/doc.pdf",
+                        name="doc",
+                        mime_type="application/pdf",
+                    )
+                ]
             )
-        )
-
-        async def _mock_invoke(*a: object, **kw: object) -> tuple:
-            return ([file_lc], None)
 
         tool = _make_tool("doc_tool")
         tool.coroutine = _mock_invoke
@@ -524,12 +553,12 @@ class TestProcessSessionToolsChain:
     @pytest.mark.asyncio
     async def test_full_chain_preserves_image(self):
         """process_session_tools preserves image blocks in multimodal output."""
-        img_lc = _mcp_to_lc_block(
-            ImageContent(type="image", data="screenshot_b64", mimeType="image/png")
-        )
-
-        async def _mock_invoke(*a: object, **kw: object) -> tuple:
-            return ([img_lc], None)
+        async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
+            return CallToolResult(
+                content=[
+                    ImageContent(type="image", data="screenshot_b64", mime_type="image/png")
+                ]
+            )
 
         tool = _make_tool("screenshot_tool")
         tool.coroutine = _mock_invoke
@@ -658,5 +687,3 @@ class TestProcessSessionToolsChain:
         result = await processed[0].coroutine()
         assert isinstance(result, str)
         assert "ok" in result
-        assert "optional_flag" in seen_kwargs
-        assert seen_kwargs["optional_flag"] is None

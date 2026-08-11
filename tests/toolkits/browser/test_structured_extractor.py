@@ -170,12 +170,20 @@ class TestValidateSchemaComplexity:
         assert _validate_schema_complexity(schema) is True
 
     def test_deep_nesting_rejected(self) -> None:
-        schema: dict[str, Any] = {"type": "object", "properties": {"a": {"type": "string"}}}
+        schema: dict[str, Any] = {
+            "type": "object",
+            "properties": {"a": {"type": "string"}},
+        }
         current = schema
         for i in range(6):
             nested: dict[str, Any] = {
                 "type": "object",
-                "properties": {f"level_{i}": {"type": "object", "properties": {"x": {"type": "string"}}}},
+                "properties": {
+                    f"level_{i}": {
+                        "type": "object",
+                        "properties": {"x": {"type": "string"}},
+                    }
+                },
             }
             current["properties"]["deep"] = nested
             current = nested
@@ -241,7 +249,7 @@ class TestExtractJsonFromText:
         assert _extract_json_from_text("{invalid json}") is None
 
     def test_whitespace_handling(self) -> None:
-        result = _extract_json_from_text("  \n  {\"key\": \"value\"}  \n  ")
+        result = _extract_json_from_text('  \n  {"key": "value"}  \n  ')
         assert result == {"key": "value"}
 
 
@@ -305,14 +313,19 @@ class TestStructuredExtractorExtract:
     async def test_strategy1_array_unwraps(self) -> None:
         mock_llm = MagicMock()
         mock_model_instance = MagicMock(spec=BaseModel)
-        mock_model_instance.model_dump.return_value = {"items": [{"name": "A"}, {"name": "B"}]}
+        mock_model_instance.model_dump.return_value = {
+            "items": [{"name": "A"}, {"name": "B"}]
+        }
 
         mock_structured = MagicMock()
         mock_structured.ainvoke = AsyncMock(return_value=mock_model_instance)
         mock_llm.with_structured_output.return_value = mock_structured
 
         extractor = StructuredExtractor(llm=mock_llm)
-        schema = {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}}}}
+        schema = {
+            "type": "array",
+            "items": {"type": "object", "properties": {"name": {"type": "string"}}},
+        }
         result = await extractor.extract(text="A and B", schema=schema)
         parsed = json.loads(result)
         assert isinstance(parsed, list)
@@ -331,7 +344,11 @@ class TestStructuredExtractorExtract:
         extractor = StructuredExtractor(llm=mock_llm)
         result = await extractor.extract(
             text="Fallback content",
-            schema={"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]},
+            schema={
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+            },
         )
         parsed = json.loads(result)
         assert parsed["name"] == "Fallback"
@@ -346,7 +363,10 @@ class TestStructuredExtractorExtract:
         mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
         extractor = StructuredExtractor(llm=mock_llm)
-        schema = {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}}}}
+        schema = {
+            "type": "array",
+            "items": {"type": "object", "properties": {"name": {"type": "string"}}},
+        }
         result = await extractor.extract(text="X and Y", schema=schema)
         parsed = json.loads(result)
         assert isinstance(parsed, list)
@@ -366,7 +386,10 @@ class TestStructuredExtractorExtract:
         mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
         extractor = StructuredExtractor(llm=mock_llm)
-        schema = {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}}}}
+        schema = {
+            "type": "array",
+            "items": {"type": "object", "properties": {"name": {"type": "string"}}},
+        }
         result = await extractor.extract(text="X and Y", schema=schema)
         parsed = json.loads(result)
         assert isinstance(parsed, list)
@@ -400,7 +423,10 @@ class TestStructuredExtractorExtract:
         mock_llm.ainvoke = AsyncMock(return_value=mock_response)
 
         extractor = StructuredExtractor(llm=mock_llm)
-        schema = {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}}}}
+        schema = {
+            "type": "array",
+            "items": {"type": "object", "properties": {"name": {"type": "string"}}},
+        }
         result = await extractor.extract(
             text="content",
             schema=schema,
@@ -413,3 +439,141 @@ class TestStructuredExtractorExtract:
         user_msg = call_args[1]["content"]
         assert "Already collected" in user_msg
         assert "Old" in user_msg
+
+
+# --- Additional branch coverage ---
+
+
+@pytest.mark.asyncio
+async def test_schema_to_pydantic_failure_returns_error() -> None:
+    """A schema whose property name collides with create_model kwargs fails cleanly (lines 99, 227-229)."""
+    mock_llm = MagicMock()
+    extractor = StructuredExtractor(llm=mock_llm)
+    schema = {
+        "type": "object",
+        "properties": {"__base__": {"type": "string"}},
+    }
+    result = await extractor.extract(text="text", schema=schema)
+    assert "[Error]" in result
+    assert "Failed to convert" in result
+    mock_llm.ainvoke.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_strategy1_generic_exception_falls_back() -> None:
+    """with_structured_output throwing a generic error falls back to raw parsing (lines 124-125)."""
+    mock_llm = MagicMock()
+    mock_structured = MagicMock()
+    mock_structured.ainvoke = AsyncMock(side_effect=RuntimeError("provider down"))
+    mock_llm.with_structured_output.return_value = mock_structured
+
+    mock_response = MagicMock()
+    mock_response.content = '{"name": "Survived"}'
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    extractor = StructuredExtractor(llm=mock_llm)
+    result = await extractor.extract(
+        text="text",
+        schema={
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+    )
+    parsed = json.loads(result)
+    assert parsed["name"] == "Survived"
+    assert mock_llm.ainvoke.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_strategy2_array_schema_with_dict_response() -> None:
+    """Array schema with a dict response is validated and unwrapped (line 148)."""
+    mock_llm = MagicMock()
+    mock_llm.with_structured_output.side_effect = NotImplementedError()
+
+    mock_response = MagicMock()
+    mock_response.content = '{"items": [{"name": "A"}, {"name": "B"}]}'
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    extractor = StructuredExtractor(llm=mock_llm)
+    schema = {
+        "type": "array",
+        "items": {"type": "object", "properties": {"name": {"type": "string"}}},
+    }
+    result = await extractor.extract(text="A and B", schema=schema)
+    parsed = json.loads(result)
+    assert isinstance(parsed, list)
+    assert len(parsed) == 2
+
+
+@pytest.mark.asyncio
+async def test_strategy2_validation_error_returns_raw_parsed() -> None:
+    """Pydantic validation failure still returns the raw parsed JSON (lines 154-159)."""
+    mock_llm = MagicMock()
+    mock_llm.with_structured_output.side_effect = NotImplementedError()
+
+    mock_response = MagicMock()
+    mock_response.content = '{"name": 123}'
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    extractor = StructuredExtractor(llm=mock_llm)
+    result = await extractor.extract(
+        text="text",
+        schema={
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+            "required": ["name"],
+        },
+    )
+    parsed = json.loads(result)
+    assert parsed["name"] == 123
+
+
+def test_build_user_prompt_truncates_long_text() -> None:
+    """_build_user_prompt truncates text beyond the 60k limit (line 181)."""
+    extractor = StructuredExtractor(llm=None)
+    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+    prompt = extractor._build_user_prompt("x" * 60001, schema, None)
+    assert "[...text truncated...]" in prompt
+    assert len(prompt) < 61000
+
+
+def test_validate_schema_complexity_deep_array_nesting() -> None:
+    """Deeply nested array-of-object schemas exceed the depth limit (line 204)."""
+
+    def build_nested(depth: int) -> dict[str, Any]:
+        leaf: dict[str, Any] = {"type": "object", "properties": {"v": {"type": "string"}}}
+        for _ in range(depth):
+            leaf = {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {"nested": leaf},
+                },
+            }
+        return {"type": "object", "properties": {"root": leaf}}
+
+    assert _validate_schema_complexity(build_nested(3)) is True
+    assert _validate_schema_complexity(build_nested(8)) is False
+
+
+def test_extract_json_invalid_markdown_block_returns_none() -> None:
+    """A code block containing invalid JSON yields None without raising (lines 300-301)."""
+    text = "```json\n{invalid json here}\n```"
+    assert _extract_json_from_text(text) is None
+
+
+@pytest.mark.asyncio
+async def test_strategy2_generic_exception_returns_error() -> None:
+    """A non-validation error during fallback extraction yields the final error (lines 158-159)."""
+    mock_llm = MagicMock()
+    mock_llm.with_structured_output.side_effect = NotImplementedError()
+    mock_llm.ainvoke = AsyncMock(side_effect=RuntimeError("fallback crashed"))
+
+    extractor = StructuredExtractor(llm=mock_llm)
+    result = await extractor.extract(
+        text="text",
+        schema={"type": "object", "properties": {"x": {"type": "string"}}},
+    )
+    assert "[Error]" in result
+    assert "failed" in result

@@ -5,6 +5,7 @@ Uses the submit → poll → download pattern consistent with other providers.
 
 [INPUT]
 - toolkits.llms._media_shared.types::ModeCapabilities, ProviderModeCapabilities (POS: These types are imported by video/models.py, normalization.py, and task_store.py. They define the contract between provider declarations and the normalization engine.)
+- core.security.http.secure_fetch::secure_get / ContentTooLargeError (POS: SSRF-protected result URL download with size cap)
 
 [OUTPUT]
 - XAIGrokProvider: class — xAI Grok video generation provider
@@ -229,7 +230,7 @@ class XAIGrokProvider(VideoGenerationProvider):
             if config.progress_callback:
                 await config.progress_callback("Generation complete, downloading video...")
 
-            video_bytes = await self._download(client, video_url, config)
+            video_bytes = await self._download(video_url, config)
 
             video_meta: dict[str, object] = {
                 "request_id": request_id,
@@ -298,16 +299,31 @@ class XAIGrokProvider(VideoGenerationProvider):
 
     async def _download(
         self,
-        client: httpx.AsyncClient,
         video_url: str,
         config: VideoGenerationConfig,
     ) -> bytes:
-        resp = await client.get(video_url)
+        """Download the generated video from a provider-returned URL.
+
+        The URL comes from the provider response body, so it is treated as
+        untrusted: SSRF shield + streaming size cap are enforced via secure_get.
+        """
+        from myrm_agent_harness.core.security.http.secure_fetch import (
+            ContentTooLargeError,
+            secure_get,
+        )
+
+        try:
+            resp = await secure_get(
+                video_url,
+                timeout=config.timeout_seconds,
+                max_content_length=config.max_download_bytes,
+            )
+        except ContentTooLargeError as exc:
+            raise ValueError(
+                f"Video exceeds max download size (>{config.max_download_bytes} bytes): {video_url[:80]}"
+            ) from exc
         resp.raise_for_status()
-        data = resp.content
-        if len(data) > config.max_download_bytes:
-            raise ValueError(f"Video exceeds max download size ({len(data)} > {config.max_download_bytes} bytes)")
-        return data
+        return resp.content
 
     async def health_check(self, config: VideoGenerationConfig) -> bool:
         api_key = config.api_key.get_secret_value() if config.api_key else None

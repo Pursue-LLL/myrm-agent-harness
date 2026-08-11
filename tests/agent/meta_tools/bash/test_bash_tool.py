@@ -7,7 +7,7 @@ from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategor
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     create_bash_code_execute_tool,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutionError
+from myrm_agent_harness.agent.meta_tools.bash._executor.executor import BashExecutionError
 from myrm_agent_harness.utils.errors import ToolError
 
 
@@ -33,7 +33,7 @@ def _patch_bash_tool_deps():
             return_value=mock_executor,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_executor.BashExecutor",
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
             return_value=mock_bash_executor,
         ),
         patch(
@@ -329,13 +329,13 @@ async def test_bash_tool_success_emits_stderr_evicted_ref() -> None:
 
 def test_mcp_min_timeout_constant_exceeds_ipc_client() -> None:
     """_MCP_MIN_TIMEOUT must be > IPC client TOTAL_TIMEOUT (90s)."""
-    from myrm_agent_harness.agent.meta_tools.bash.bash_executor import _MCP_MIN_TIMEOUT
+    from myrm_agent_harness.agent.meta_tools.bash._executor.executor import _MCP_MIN_TIMEOUT
     from myrm_agent_harness.agent.skills.mcp.client_templates import TOTAL_TIMEOUT
 
     assert _MCP_MIN_TIMEOUT > TOTAL_TIMEOUT
 
 
 def test_mcp_min_timeout_is_120() -> None:
-    from myrm_agent_harness.agent.meta_tools.bash.bash_executor import _MCP_MIN_TIMEOUT
+    from myrm_agent_harness.agent.meta_tools.bash._executor.executor import _MCP_MIN_TIMEOUT
 
     assert _MCP_MIN_TIMEOUT == 120

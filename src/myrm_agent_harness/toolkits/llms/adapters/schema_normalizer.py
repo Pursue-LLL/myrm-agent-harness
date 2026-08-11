@@ -21,7 +21,9 @@ the ``description`` field so the LLM still understands the intent.
 - (none)
 
 [OUTPUT]
-- normalize_tool_schema: Normalize an OpenAI-format tool schema for provider compatibility
+- normalize_tool_schema: Normalize an OpenAI-format tool schema for provider compatibility.
+  Top-level anyOf/oneOf/allOf object branches are merged into a flat properties set
+  (allOf conjunctively, anyOf/oneOf as alternatives with exclusivity hints).
 
 [POS]
 Tool Schema Normalizer for OpenAI-compatible Providers
@@ -138,8 +140,9 @@ def _ensure_object_type(schema: dict[str, object]) -> dict[str, object]:
     """Ensure the top-level schema is ``{type: "object"}``.
 
     If the schema uses a top-level composite keyword (anyOf/oneOf/allOf),
-    attempt to extract a single object branch.  Falls back to a permissive
-    empty object schema as a safe default.
+    extract a single object branch, or merge multiple object branches into a
+    flat property set (allOf conjunctively, anyOf/oneOf as alternatives).
+    Falls back to a permissive empty object schema as a safe default.
     """
     if schema.get("type") == "object":
         return schema
@@ -152,6 +155,17 @@ def _ensure_object_type(schema: dict[str, object]) -> dict[str, object]:
         obj_branches = [b for b in branches if isinstance(b, dict) and b.get("type") == "object"]
         if len(obj_branches) == 1:
             merged = obj_branches[0]
+            for preserve_key in ("description", "default"):
+                if preserve_key in schema and preserve_key not in merged:
+                    merged[preserve_key] = schema[preserve_key]
+            return merged
+
+        if len(obj_branches) > 1:
+            merged = (
+                _merge_allof_branches(obj_branches)
+                if kw == "allOf"
+                else _merge_union_object_branches(obj_branches)
+            )
             for preserve_key in ("description", "default"):
                 if preserve_key in schema and preserve_key not in merged:
                     merged[preserve_key] = schema[preserve_key]
@@ -257,6 +271,40 @@ def _merge_allof_branches(branches: list[object]) -> dict[str, object] | None:
     result: dict[str, object] = {"type": "object", "properties": merged_props}
     if merged_required:
         result["required"] = list(dict.fromkeys(merged_required))
+    return result
+
+
+def _merge_union_object_branches(branches: list[object]) -> dict[str, object]:
+    """Merge multiple oneOf/anyOf object branches into a single flat schema.
+
+    Union branches are alternatives: every branch's ``properties`` are merged,
+    but ``required`` is dropped — merging it would force mutually-exclusive
+    parameters to be supplied together.  The alternative constraint is folded
+    into ``description`` so the LLM still picks one valid combination.
+    """
+    merged_props: dict[str, object] = {}
+    alternatives: list[list[str]] = []
+
+    for branch in branches:
+        if not isinstance(branch, dict) or branch.get("type") != "object":
+            continue
+        props = branch.get("properties")
+        if isinstance(props, dict):
+            merged_props.update(props)
+            alternatives.append(sorted(props))
+        else:
+            alternatives.append([])
+
+    if not merged_props:
+        return {"type": "object", "properties": {}, "additionalProperties": True}
+
+    result: dict[str, object] = {"type": "object", "properties": merged_props}
+    non_empty = [alt for alt in alternatives if alt]
+    if len(non_empty) >= 2:
+        groups = "; ".join(f"({', '.join(alt)})" for alt in non_empty)
+        result["description"] = (
+            f"Parameters are mutually exclusive alternatives — provide exactly one group: {groups}."
+        )
     return result
 
 

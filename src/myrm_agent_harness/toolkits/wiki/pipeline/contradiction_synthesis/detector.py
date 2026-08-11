@@ -21,7 +21,9 @@ from typing import TYPE_CHECKING
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.toolkits.wiki.core.section_contract import extract_compiled_truth_summary
+from myrm_agent_harness.toolkits.wiki.core.section_contract import (
+    extract_compiled_truth_summary,
+)
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
@@ -37,7 +39,9 @@ MIN_CONFLICT_CONFIDENCE = 0.7
 _JSON_BLOCK_RE = re.compile(r"\{[\s\S]*\}")
 
 
-def _concept_summary(structure: WikiStructure, concept_name: str, *, fallback_definition: str) -> str:
+def _concept_summary(
+    structure: WikiStructure, concept_name: str, *, fallback_definition: str
+) -> str:
     path = structure.get_concept_file_path(concept_name)
     if path.exists():
         try:
@@ -61,8 +65,12 @@ async def detect_conflict(
     definition_b: str,
 ) -> ConflictVerdict | None:
     """Return a conflict verdict when the pair has a factual contradiction above confidence threshold."""
-    summary_a = _concept_summary(structure, pair.concept_a, fallback_definition=definition_a)
-    summary_b = _concept_summary(structure, pair.concept_b, fallback_definition=definition_b)
+    summary_a = _concept_summary(
+        structure, pair.concept_a, fallback_definition=definition_a
+    )
+    summary_b = _concept_summary(
+        structure, pair.concept_b, fallback_definition=definition_b
+    )
 
     system_msg = SystemMessage(
         content=(
@@ -89,7 +97,12 @@ async def detect_conflict(
             return None
         payload = json.loads(match.group(0))
     except Exception as exc:
-        logger.warning("Conflict detection failed for %s vs %s: %s", pair.concept_a, pair.concept_b, exc)
+        logger.warning(
+            "Conflict detection failed for %s vs %s: %s",
+            pair.concept_a,
+            pair.concept_b,
+            exc,
+        )
         return None
 
     is_conflict = bool(payload.get("is_factual_conflict"))
@@ -102,7 +115,10 @@ async def detect_conflict(
     if not is_conflict or confidence < MIN_CONFLICT_CONFIDENCE:
         return None
 
-    topic = str(payload.get("topic", "")).strip() or pair.concept_a.rsplit("/", maxsplit=1)[-1]
+    topic = (
+        str(payload.get("topic", "")).strip()
+        or pair.concept_a.rsplit("/", maxsplit=1)[-1]
+    )
     side_a = str(payload.get("side_a", "")).strip() or summary_a[:240]
     side_b = str(payload.get("side_b", "")).strip() or summary_b[:240]
     resolution_hint = str(payload.get("resolution_hint", "")).strip() or (

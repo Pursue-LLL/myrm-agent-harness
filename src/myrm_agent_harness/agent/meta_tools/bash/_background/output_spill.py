@@ -7,7 +7,7 @@
 - BackgroundOutputSpillWriter: Append-only log writer; exposes evicted API basename via vault_log_ref
 
 [POS]
-Long-running background bash stdout/stderr spill under .context/{session}/evicted/ (same filename contract as foreground _output_eviction).
+Long-running background bash stdout/stderr spill under .context/{session}/evicted/ (same filename contract as foreground _compression/output_eviction).
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class BackgroundOutputSpillWriter:
 
     @property
     def vault_log_ref(self) -> str | None:
-        """Basename for /files/evicted API (matches foreground _output_eviction)."""
+        """Basename for /files/evicted API (matches foreground _compression/output_eviction)."""
         if self._filename is None:
             return None
         return self._filename
@@ -56,7 +56,9 @@ class BackgroundOutputSpillWriter:
                 handle.write(f"{prefix}{text}\n")
             self._spill_active = True
         except OSError as exc:
-            logger.warning("Background spill write failed job=%s: %s", self._job_id, exc)
+            logger.warning(
+                "Background spill write failed job=%s: %s", self._job_id, exc
+            )
 
     def _ensure_paths(self) -> None:
         if self._filename is not None:

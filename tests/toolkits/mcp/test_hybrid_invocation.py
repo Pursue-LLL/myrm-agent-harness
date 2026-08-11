@@ -8,7 +8,15 @@ Verifies:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+from mcp.types import (
+    CallToolResult,
+    ImageContent,
+    ResourceLink,
+    TextContent,
+)
 
 from myrm_agent_harness.agent._factory.mcp_routing import (
     DIRECT_MCP_DESCRIPTION_SOFT_LIMIT,
@@ -170,42 +178,39 @@ class TestNormalizeMcpResult:
     def test_text_content_blocks(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        result = ([{"type": "text", "text": "Hello world"}], None)
+        result = CallToolResult(content=[TextContent(type="text", text="Hello world")])
         assert MCPAgent._normalize_mcp_result(result) == "Hello world"
 
     def test_multiple_text_blocks(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        result = (
-            [{"type": "text", "text": "line1"}, {"type": "text", "text": "line2"}],
-            None,
+        result = CallToolResult(
+            content=[
+                TextContent(type="text", text="line1"),
+                TextContent(type="text", text="line2"),
+            ]
         )
         assert MCPAgent._normalize_mcp_result(result) == "line1\nline2"
 
     def test_image_block_passthrough(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        block = {"type": "image", "data": "base64..."}
-        result = ([block], None)
+        result = CallToolResult(
+            content=[ImageContent(type="image", data="base64...", mime_type="image/png")]
+        )
         normalized = MCPAgent._normalize_mcp_result(result)
         assert isinstance(normalized, list)
-        assert block in normalized
+        assert normalized[0]["type"] == "image"
 
     def test_plain_string_passthrough(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
         assert MCPAgent._normalize_mcp_result("direct string") == "direct string"
 
-    def test_tuple_with_string_content(self) -> None:
-        from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
-
-        result = ("string content", {"artifact": True})
-        assert MCPAgent._normalize_mcp_result(result) == "string content"
-
     def test_empty_blocks(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        assert MCPAgent._normalize_mcp_result(([], None)) == ""
+        assert MCPAgent._normalize_mcp_result(CallToolResult(content=[])) == ""
 
     def test_non_tuple_non_string(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
@@ -216,118 +221,127 @@ class TestNormalizeMcpResult:
         """File blocks are degraded to text, so mixed text+file returns a plain string."""
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        blocks = [
-            {"type": "text", "text": "ticket info"},
-            {"type": "file", "uri": "file:///tmp/x"},
-        ]
-        result = MCPAgent._normalize_mcp_result((blocks, None))
-        assert isinstance(result, str)
-        assert "ticket info" in result
-        assert "[file" in result
+        result = CallToolResult(
+            content=[
+                TextContent(type="text", text="ticket info"),
+                ResourceLink(
+                    type="resource_link",
+                    uri="file:///tmp/x",
+                    name="x",
+                    mime_type="text/plain",
+                ),
+            ]
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert "ticket info" in normalized
+        assert "[file" in normalized
 
     def test_structured_content_appended(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        artifact = {"structured_content": {"status": "ok", "count": 42}}
-        result = MCPAgent._normalize_mcp_result(
-            ([{"type": "text", "text": "done"}], artifact)
+        result = CallToolResult(
+            content=[TextContent(type="text", text="done")],
+            structured_content={"status": "ok", "count": 42},
         )
-        assert isinstance(result, str)
-        assert "done" in result
-        assert '"status": "ok"' in result
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert "done" in normalized
+        assert '"status": "ok"' in normalized
 
     def test_image_with_text_mixed(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        blocks = [
-            {"type": "text", "text": "screenshot taken"},
-            {"type": "image", "base64": "iVBOR...", "mime_type": "image/png"},
-        ]
-        result = MCPAgent._normalize_mcp_result((blocks, None))
-        assert isinstance(result, list)
-        assert len(result) == 2
-        assert result[0]["type"] == "text"
-        assert result[1]["type"] == "image"
-
-    def test_artifact_object_with_structured_content(self) -> None:
-        from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
-
-        class FakeArtifact:
-            structured_content: dict[str, str] = {"key": "value"}  # noqa: RUF012
-
-        result = MCPAgent._normalize_mcp_result(
-            ([{"type": "text", "text": "info"}], FakeArtifact())
+        result = CallToolResult(
+            content=[
+                TextContent(type="text", text="screenshot taken"),
+                ImageContent(type="image", data="iVBOR...", mime_type="image/png"),
+            ]
         )
-        assert isinstance(result, str)
-        assert "info" in result
-        assert '"key": "value"' in result
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, list)
+        assert len(normalized) == 2
+        assert normalized[0]["type"] == "text"
+        assert normalized[1]["type"] == "image"
 
-    def test_string_element_in_content_blocks(self) -> None:
+    def test_is_error_result(self) -> None:
+        """is_error=True collapses to a single error string."""
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        result = MCPAgent._normalize_mcp_result(
-            (["raw string block", {"type": "text", "text": "dict block"}], None)
+        result = CallToolResult(
+            content=[TextContent(type="text", text="invalid request")],
+            is_error=True,
         )
-        assert isinstance(result, str)
-        assert "raw string block" in result
-        assert "dict block" in result
-
-    def test_non_dict_non_str_element(self) -> None:
-        from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
-
-        result = MCPAgent._normalize_mcp_result(([42, True], None))
-        assert isinstance(result, str)
-        assert "42" in result
-
-    def test_text_block_with_none_text(self) -> None:
-        from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
-
-        result = MCPAgent._normalize_mcp_result(
-            ([{"type": "text", "text": None}], None)
-        )
-        assert isinstance(result, str)
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert "[MCP tool error]" in normalized
+        assert "invalid request" in normalized
 
     def test_multimodal_with_structured_content(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        artifact = {"structured_content": {"rows": 5}}
-        blocks = [
-            {"type": "image", "base64": "abc123"},
-            {"type": "text", "text": "caption"},
-        ]
-        result = MCPAgent._normalize_mcp_result((blocks, artifact))
-        assert isinstance(result, list)
-        assert len(result) == 3
-        assert result[2]["type"] == "text"
-        assert '"rows": 5' in result[2]["text"]
-
-    def test_artifact_without_structured_content(self) -> None:
-        from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
-
-        result = MCPAgent._normalize_mcp_result(
-            ([{"type": "text", "text": "data"}], {"other_key": True})
+        result = CallToolResult(
+            content=[
+                ImageContent(type="image", data="abc123", mime_type="image/png"),
+                TextContent(type="text", text="caption"),
+            ],
+            structured_content={"rows": 5},
         )
-        assert isinstance(result, str)
-        assert result == "data"
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, list)
+        assert len(normalized) == 3
+        assert normalized[2]["type"] == "text"
+        assert '"rows": 5' in normalized[2]["text"]
 
-    def test_tuple_wrong_length_fallback(self) -> None:
+    def test_embedded_resource_text_passthrough(self) -> None:
+        """EmbeddedResource with TextResourceContents passes through as text."""
+        from mcp.types import EmbeddedResource, TextResourceContents
+
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        result = MCPAgent._normalize_mcp_result((1, 2, 3))
-        assert isinstance(result, str)
-        assert result == "(1, 2, 3)"
+        result = CallToolResult(
+            content=[
+                EmbeddedResource(
+                    type="resource",
+                    resource=TextResourceContents(
+                        uri="file:///tmp/log.txt",
+                        text="log data",
+                        mime_type="text/plain",
+                    ),
+                )
+            ]
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert "log data" in normalized
+
+    def test_audio_block_degraded_to_marker(self) -> None:
+        """AudioContent degrades to a short marker, not a base64 dump."""
+        from mcp.types import AudioContent
+
+        from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
+
+        result = CallToolResult(
+            content=[AudioContent(type="audio", data="audio_b64", mime_type="audio/mpeg")]
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert "[audio content omitted]" in normalized
 
     def test_content_blocks_not_list_not_str(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        result = MCPAgent._normalize_mcp_result((42, None))
+        result = MCPAgent._normalize_mcp_result(SimpleNamespace(content=42))
         assert isinstance(result, str)
-        assert result == "(42, None)"
+        assert "content=42" in result
 
     def test_structured_content_does_not_mutate_original(self) -> None:
         from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
-        original_blocks = [{"type": "text", "text": "original"}]
-        artifact = {"structured_content": {"added": True}}
-        MCPAgent._normalize_mcp_result((original_blocks, artifact))
+        original_blocks = [TextContent(type="text", text="original")]
+        result = CallToolResult(
+            content=original_blocks,
+            structured_content={"added": True},
+        )
+        MCPAgent._normalize_mcp_result(result)
         assert len(original_blocks) == 1

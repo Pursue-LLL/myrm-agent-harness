@@ -34,6 +34,19 @@ def xai_config() -> VideoGenerationConfig:
     )
 
 
+@pytest.fixture(autouse=True)
+def _no_dns_pin(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Short-circuit SSRF DNS pinning so respx can intercept secure_get downloads."""
+
+    async def _no_pin(url: str, allowed_internal_hosts: list[str] | None = None) -> tuple[str, dict[str, str]]:
+        return url, {}
+
+    monkeypatch.setattr(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        _no_pin,
+    )
+
+
 class TestResolveMode:
     """Unit tests for _resolve_mode static method."""
 

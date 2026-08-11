@@ -290,6 +290,55 @@ class TestTopLevelComposite:
         assert result["type"] == "object"
         assert "query" in result["properties"]
 
+    def test_top_level_oneof_multi_object_branches(self) -> None:
+        schema = _wrap(
+            {
+                "oneOf": [
+                    {
+                        "type": "object",
+                        "properties": {"index": {"type": "integer"}},
+                        "required": ["index"],
+                    },
+                    {
+                        "type": "object",
+                        "properties": {"x": {"type": "number"}, "y": {"type": "number"}},
+                        "required": ["x", "y"],
+                    },
+                ]
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert result["type"] == "object"
+        assert set(result["properties"]) == {"index", "x", "y"}
+        # Union alternatives must not be forced together.
+        assert "required" not in result
+        assert "oneOf" not in result
+        assert "mutually exclusive" in result["description"]
+        assert "(x, y)" in result["description"]
+
+    def test_top_level_allof_multi_object_branches(self) -> None:
+        schema = _wrap(
+            {
+                "allOf": [
+                    {
+                        "type": "object",
+                        "properties": {"id": {"type": "string"}},
+                        "required": ["id"],
+                    },
+                    {
+                        "type": "object",
+                        "properties": {"tags": {"type": "array", "items": {"type": "string"}}},
+                        "required": ["tags"],
+                    },
+                ]
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert result["type"] == "object"
+        assert set(result["properties"]) == {"id", "tags"}
+        assert set(result["required"]) == {"id", "tags"}
+        assert "allOf" not in result
+
 
 class TestNestedSchemas:
     """Nested objects and arrays."""

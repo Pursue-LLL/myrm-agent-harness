@@ -7,7 +7,7 @@ Retries transient failures with exponential backoff; permanent errors
 Zero application-layer dependencies — uses only framework types and httpx.
 
 [INPUT]
-- (none)
+- core.security.http.secure_fetch::secure_request / ContentTooLargeError (POS: SSRF-protected webhook delivery with size cap)
 
 [OUTPUT]
 - WebhookDelivery: class — Webhook Delivery
@@ -121,16 +121,22 @@ class WebhookDelivery:
             timeout=httpx.Timeout(self._read_timeout, connect=self._connect_timeout),
             follow_redirects=False,
         ) as client:
-            from myrm_agent_harness.core.security.http.secure_fetch import secure_request
-
-            resp = await secure_request(
-                client,
-                "POST",
-                url,
-                content=body,
-                headers=headers,
-                timeout=httpx.Timeout(self._read_timeout, connect=self._connect_timeout),
+            from myrm_agent_harness.core.security.http.secure_fetch import (
+                ContentTooLargeError,
+                secure_request,
             )
+
+            try:
+                resp = await secure_request(
+                    client,
+                    "POST",
+                    url,
+                    content=body,
+                    headers=headers,
+                    timeout=httpx.Timeout(self._read_timeout, connect=self._connect_timeout),
+                )
+            except ContentTooLargeError as exc:
+                raise RuntimeError(f"Webhook response body too large: {exc}") from exc
             status_code = resp.status_code
             if status_code >= 400:
                 raise RuntimeError(f"Webhook returned {status_code}: {resp.text[:200]}")

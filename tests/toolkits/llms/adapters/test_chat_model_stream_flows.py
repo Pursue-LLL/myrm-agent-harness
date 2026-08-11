@@ -324,12 +324,12 @@ class TestAsyncAgenerateStreaming:
         async def _stream_bug(messages: Any, **kwargs: Any) -> Any:
             raise RuntimeError("stream exploded")
 
+        async def _agg_from_stream(stream_iter: Any) -> Any:
+            await stream_iter
+            raise RuntimeError("stream exploded")
+
         monkeypatch.setattr(model, "_astream", _stream_bug)
-        monkeypatch.setattr(
-            mod,
-            "agenerate_from_stream",
-            MagicMock(side_effect=RuntimeError("stream exploded")),
-        )
+        monkeypatch.setattr(mod, "agenerate_from_stream", _agg_from_stream)
 
         with pytest.raises(RuntimeError, match="stream exploded"):
             await model._agenerate_inner(

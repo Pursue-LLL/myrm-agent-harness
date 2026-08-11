@@ -48,16 +48,16 @@ class TestDownloadReferenceImages:
 
     @pytest.mark.asyncio()
     async def test_oversized_image_skipped(self, caplog: pytest.LogCaptureFixture) -> None:
-        huge_data = b"x" * (11 * 1024 * 1024)
-        mock_resp = MagicMock()
-        mock_resp.content = huge_data
-        mock_resp.raise_for_status = MagicMock()
+        from myrm_agent_harness.core.security.http.secure_fetch import ContentTooLargeError
+
+        async def _oversized_secure_get(*args: object, **kwargs: object) -> None:
+            raise ContentTooLargeError("Response body exceeds 10485760 byte limit")
 
         with (
             patch(
                 "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
                 new_callable=AsyncMock,
-                return_value=mock_resp,
+                side_effect=_oversized_secure_get,
             ),
             caplog.at_level(logging.WARNING, logger="myrm_agent_harness.toolkits.llms.image.generator"),
         ):

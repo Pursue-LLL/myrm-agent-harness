@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
-from myrm_agent_harness.agent.meta_tools.bash._preflight_checks import check_myrm_tools_import
+from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import check_myrm_tools_import
 from myrm_agent_harness.utils.errors import ToolError
 
 
@@ -164,7 +164,7 @@ def test_myrm_tools_cat_pipe_to_grep_not_scanned(tmp_path: Path) -> None:
 
 
 def test_myrm_tools_oversized_referenced_python_file_skipped(tmp_path: Path) -> None:
-    from myrm_agent_harness.agent.meta_tools.bash._preflight_checks import (
+    from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import (
         _MAX_REFERENCED_PY_SCAN_BYTES,
     )
 

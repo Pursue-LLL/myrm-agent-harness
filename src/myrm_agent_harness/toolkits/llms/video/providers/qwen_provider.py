@@ -5,6 +5,7 @@ Uses the async submit → poll → download pattern.
 
 [INPUT]
 - toolkits.llms._media_shared.types::ModeCapabilities, ProviderModeCapabilities (POS: These types are imported by video/models.py, normalization.py, and task_store.py. They define the contract between provider declarations and the normalization engine.)
+- core.security.http.secure_fetch::secure_get (POS: SSRF-protected result video download with size cap)
 
 [OUTPUT]
 - QwenVideoProvider: Qwen (Tongyi Wanxiang) video generation provider.
@@ -251,14 +252,24 @@ class QwenVideoProvider(VideoGenerationProvider):
 
         videos: list[VideoAsset] = []
         dl_timeout = config.timeout_seconds
-        from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+        from myrm_agent_harness.core.security.http.secure_fetch import (
+            ContentTooLargeError,
+            secure_get,
+        )
 
         for i, url in enumerate(urls):
-            resp = await secure_get(url, timeout=dl_timeout)
+            try:
+                resp = await secure_get(
+                    url,
+                    timeout=dl_timeout,
+                    max_content_length=config.max_download_bytes,
+                )
+            except ContentTooLargeError as exc:
+                raise ValueError(
+                    f"Video exceeds max download size (>{config.max_download_bytes} bytes): {url[:80]}"
+                ) from exc
             resp.raise_for_status()
             data = resp.content
-            if len(data) > config.max_download_bytes:
-                raise ValueError("Video exceeds max download size")
             mime = resp.headers.get("content-type", "video/mp4").strip()
             videos.append(
                 VideoAsset(

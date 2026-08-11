@@ -358,6 +358,7 @@ class BrowserSessionNavigationMixin:
             result = f"{result}\n\n{verify_msg}"
 
         result = await self._append_navigate_interactive_summary(result)
+        await self._publish_inspector_view()
         return result
 
     async def _navigate_via_extension(self, url: str, *, verify_goal: str | None = None) -> str:

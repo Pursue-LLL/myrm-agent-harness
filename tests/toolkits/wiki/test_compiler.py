@@ -1,9 +1,11 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from langchain_core.messages import AIMessage
 
-from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_from_content
+from myrm_agent_harness.toolkits.wiki.core.claims_contract import (
+    parse_claims_from_content,
+)
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.pipeline.compiler import WikiCompiler
@@ -20,7 +22,9 @@ def wiki_structure(tmp_path):
 @pytest.fixture
 def mock_llm():
     llm = AsyncMock()
-    llm.ainvoke.return_value = AIMessage(content="## Compiled Truth\nGenerated article content.")
+    llm.ainvoke.return_value = AIMessage(
+        content="## Compiled Truth\nGenerated article content."
+    )
     return llm
 
 
@@ -35,7 +39,9 @@ def mock_indexer():
 async def test_wiki_compiler_generate_article(wiki_structure, mock_llm, mock_indexer):
     config = WikiConfig()
     compile_config = WikiCompileConfig(require_approval=False)
-    compiler = WikiCompiler(mock_llm, wiki_structure, config, compile_config, indexer=mock_indexer)
+    compiler = WikiCompiler(
+        mock_llm, wiki_structure, config, compile_config, indexer=mock_indexer
+    )
 
     # We mock _generate_article directly since process() might involve multiple steps
     # We can test process but let's test the core generation first
@@ -66,7 +72,9 @@ async def test_wiki_compiler_generate_article(wiki_structure, mock_llm, mock_ind
 async def test_wiki_compiler_require_approval(wiki_structure, mock_llm, mock_indexer):
     config = WikiConfig()
     compile_config = WikiCompileConfig(require_approval=True)
-    compiler = WikiCompiler(mock_llm, wiki_structure, config, compile_config, indexer=mock_indexer)
+    compiler = WikiCompiler(
+        mock_llm, wiki_structure, config, compile_config, indexer=mock_indexer
+    )
 
     class DummyConcept:
         name = "Test Concept"
@@ -83,7 +91,9 @@ async def test_wiki_compiler_require_approval(wiki_structure, mock_llm, mock_ind
     mock_indexer.upsert.assert_not_called()
 
     # Instead, check if pending edit was added
-    from myrm_agent_harness.toolkits.wiki.pipeline.pending import WikiPendingEditsManager
+    from myrm_agent_harness.toolkits.wiki.pipeline.pending import (
+        WikiPendingEditsManager,
+    )
 
     mgr = WikiPendingEditsManager(wiki_structure)
     edits = mgr.get_pending_edits()
@@ -93,10 +103,99 @@ async def test_wiki_compiler_require_approval(wiki_structure, mock_llm, mock_ind
 
 
 @pytest.mark.asyncio
-async def test_generate_articles_batch_records_embed_pause(wiki_structure, mock_llm, mock_indexer):
-    from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
+async def test_extract_concepts_from_doc(wiki_structure, mock_llm, mock_indexer):
+    """_extract_concepts_from_doc parses an LLM concept list from a raw doc."""
+    from myrm_agent_harness.toolkits.wiki.core.config import (
+        WikiCompileConfig,
+        WikiConfig,
+    )
+
+    compiler = WikiCompiler(
+        mock_llm,
+        wiki_structure,
+        WikiConfig(),
+        WikiCompileConfig(require_approval=False, min_concept_mentions=1),
+        indexer=mock_indexer,
+    )
+    raw_dir = wiki_structure.raw_dir
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    doc_path = raw_dir / "architecture.md"
+    doc_path.write_text("# Architecture\n\nSystem design notes.", encoding="utf-8")
+
+    mock_llm.ainvoke.return_value = AIMessage(
+        content=(
+            '[{"name": "API Gateway", "definition": "Entry point", "mentions": 3, '
+            '"source_files": ["architecture.md"], "related_concepts": []}]'
+        )
+    )
+    concepts = await compiler._extract_concepts_from_doc(doc_path)
+    assert len(concepts) == 1
+    assert concepts[0].name == "API Gateway"
+
+
+@pytest.mark.asyncio
+async def test_extract_concepts_from_doc_reasoning_fallback(
+    wiki_structure, mock_llm, mock_indexer
+):
+    """_extract_concepts_from_doc falls back to reasoning_content when content is empty."""
+    from myrm_agent_harness.toolkits.wiki.core.config import (
+        WikiCompileConfig,
+        WikiConfig,
+    )
+
+    compiler = WikiCompiler(
+        mock_llm,
+        wiki_structure,
+        WikiConfig(),
+        WikiCompileConfig(require_approval=False, min_concept_mentions=1),
+        indexer=mock_indexer,
+    )
+    raw_dir = wiki_structure.raw_dir
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    doc_path = raw_dir / "architecture.md"
+    doc_path.write_text("# Architecture\n\nSystem design notes.", encoding="utf-8")
+
+    mock_llm.ainvoke.return_value = MagicMock(
+        content="",
+        additional_kwargs={
+            "reasoning_content": (
+                '[{"name": "API Gateway", "definition": "Entry point", "mentions": 3, '
+                '"source_files": ["architecture.md"], "related_concepts": []}]'
+            )
+        },
+    )
+    concepts = await compiler._extract_concepts_from_doc(doc_path)
+    assert len(concepts) == 1
+    assert concepts[0].name == "API Gateway"
+
+
+@pytest.mark.asyncio
+async def test_extract_concepts_from_doc_unreadable(
+    wiki_structure, mock_llm, mock_indexer
+):
+    """_extract_concepts_from_doc returns [] for an unreadable doc without raising."""
+    from myrm_agent_harness.toolkits.wiki.core.config import (
+        WikiCompileConfig,
+        WikiConfig,
+    )
+
+    compiler = WikiCompiler(
+        mock_llm,
+        wiki_structure,
+        WikiConfig(),
+        WikiCompileConfig(require_approval=False, min_concept_mentions=1),
+        indexer=mock_indexer,
+    )
+    doc_path = wiki_structure.raw_dir / "missing.md"
+    concepts = await compiler._extract_concepts_from_doc(doc_path)
+    assert concepts == []
+    from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
+        EmbedInputTooLargeError,
+    )
     from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
-    from myrm_agent_harness.toolkits.wiki.pipeline.resilience import EMBED_WINDOW_VIOLATION
+    from myrm_agent_harness.toolkits.wiki.pipeline.resilience import (
+        EMBED_WINDOW_VIOLATION,
+    )
 
     compiler = WikiCompiler(
         mock_llm,
@@ -117,7 +216,12 @@ async def test_generate_articles_batch_records_embed_pause(wiki_structure, mock_
     compiler._generate_article = _raise_embed  # type: ignore[method-assign]
 
     concepts = [
-        ConceptInfo(name="Big Doc", definition="large compiled truth", mentions=1, source_files=["a.md"])
+        ConceptInfo(
+            name="Big Doc",
+            definition="large compiled truth",
+            mentions=1,
+            source_files=["a.md"],
+        )
     ]
     stats = await compiler._generate_articles_batch(concepts)
 

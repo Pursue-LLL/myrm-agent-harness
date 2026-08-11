@@ -8,7 +8,9 @@ Browser session components.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Browser session components. | — |
-| browser_session.py | Core | Browser session aggregate root: __init__, snapshot, interact (semantic HITL + `_hitl_caller_tool` for execute_script audit), downloads, observability hooks, notify_progress→progress_sink SSE, stats. Composes mixins below; MRO: Network before Navigation before Lifecycle. | ✅ |
+| browser_session.py | Core | Browser session aggregate root: snapshot/interact/navigate, `_publish_inspector_view`→`browser_view_update` SSE, stats. MRO: ViewMixin first, then Network before Navigation before Lifecycle. | ✅ |
+| browser_session_view_mixin.py | Core | Browser Live Co-View SSE mixin: `_publish_inspector_view` with 300ms throttle via progress_sink. | ✅ |
+| view_update_payload.py | Core | Shared browser inspector payload builder for SSE + REST (`capture_browser_view_update_data`, `build_browser_view_update_data`). | ✅ |
 | browser_session_navigation_mixin.py | Core | Navigation, tab switching, private-network extension routing (`navigate_to_url` + capability guard), CAPTCHA coordination, Stealth Ladder auto-upgrade (Patchright→Camoufox), HTTP 403/429 fallthrough to CAPTCHA after proxy retries, engine affinity clear on terminal challenge / Camoufox launch failure (`ToolError`), site-experience injection | ✅ |
 | browser_session_lifecycle_mixin.py | Core | Restart/close, component initialization, SessionVault auto-save on close | ✅ |
 | browser_session_network_mixin.py | Core | Console log and network log/detail/replay APIs | ✅ |

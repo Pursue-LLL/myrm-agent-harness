@@ -1,15 +1,15 @@
 """Bash code execution tool (aggregate root).
 
 [INPUT]
-- ._tool_description::TOOL_DESCRIPTION (POS: Static LLM-facing description prompt)
-- ._preflight_checks (POS: Security preflight checks)
-- .bash_executor::BashExecutor (POS: Bash executor aggregate root. MRO: Execute → Background → Prepare → Context)
+- ._tool.tool_description::TOOL_DESCRIPTION (POS: Static LLM-facing description prompt)
+- ._security.preflight_checks (POS: Security preflight checks)
+- ._executor.executor::BashExecutor (POS: Bash executor aggregate root. MRO: Execute → Background → Prepare → Context)
 - .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
-- .bash_tool_helpers (POS: BashInput, OS hint, context tracking)
-- .bash_tool_formatting (POS: Output formatting and truncation)
-- .bash_tool_background_listeners (POS: Background ptc_notify listeners)
-- .bash_tool_multimodal (POS: Vision ContentBlock return path)
-- .bash_tool_exit_semantics (POS: Exit-code semantic interpretation)
+- ._tool.helpers (POS: BashInput, OS hint, context tracking)
+- ._tool.formatting (POS: Output formatting and truncation)
+- ._tool.background_listeners (POS: Background ptc_notify listeners)
+- ._tool.multimodal (POS: Vision ContentBlock return path)
+- ._tool.exit_semantics (POS: Exit-code semantic interpretation)
 - .._context_recovery::ensure_executor, restore_context_vars (POS: Executor ContextVar recovery)
 
 [OUTPUT]
@@ -40,38 +40,40 @@ from myrm_agent_harness.agent.meta_tools._context_recovery import (
 from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     get_background_registry,
 )
-from myrm_agent_harness.agent.meta_tools.bash._preflight_checks import (
+from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import (
     check_command_url_exfiltration,
     check_install_packages,
     check_interactive_command,
     check_myrm_tools_import,
     check_sensitive_paths,
 )
-from myrm_agent_harness.agent.meta_tools.bash._tool_description import TOOL_DESCRIPTION
+from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
+    TOOL_DESCRIPTION,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_auto_yield import (
     build_auto_yield_return,
     resolve_yield_seconds,
     should_auto_yield,
     wait_for_yield_window,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.background_listeners import (
     build_background_listeners,
     classify_background_exit,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.exit_semantics import (
     interpret_exit_code,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_formatting import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.formatting import (
     format_result,
     truncate_bash_output,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_helpers import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import (
     CONTEXT_PATH_PATTERNS,
     BashInput,
     get_os_hint,
     track_context_access_in_command,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_multimodal import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.multimodal import (
     MAX_IMAGES_PER_RETURN,
     maybe_build_image_blocks,
 )
@@ -164,7 +166,7 @@ def create_bash_code_execute_tool(
 
             session_id = str(context.get("session_id", "")) or None
 
-            from myrm_agent_harness.agent.meta_tools.bash.bash_executor import (
+            from myrm_agent_harness.agent.meta_tools.bash._executor.executor import (
                 BashExecutor,
             )
             from myrm_agent_harness.agent.skills.mcp.notify_registry import (
@@ -206,7 +208,7 @@ def create_bash_code_execute_tool(
                 from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
                     BASH_PROCESS_TOOL_NAME,
                 )
-                from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
+                from myrm_agent_harness.agent.meta_tools.bash._executor.session_spawn_lifecycle import (
                     activate_session_spawn_tool,
                 )
 
@@ -372,7 +374,7 @@ def create_bash_code_execute_tool(
                 "metadata": metadata,
             }
         except Exception as e:
-            from myrm_agent_harness.agent.meta_tools.bash.bash_executor import (
+            from myrm_agent_harness.agent.meta_tools.bash._executor.executor import (
                 BashExecutionError,
             )
             from myrm_agent_harness.utils.errors import ToolError

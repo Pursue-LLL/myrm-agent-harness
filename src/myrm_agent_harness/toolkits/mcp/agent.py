@@ -197,18 +197,20 @@ class MCPAgent:
                 tool.description = desc[:limit] + "..."
 
     @staticmethod
-    def _extract_mcp_app_metadata(artifact: object) -> dict[str, object] | None:
-        """Extract MCP Apps (ext-apps) metadata from an MCP artifact.
+    def _extract_mcp_app_metadata(result: object) -> dict[str, object] | None:
+        """Extract MCP Apps (ext-apps) metadata from a tool result.
 
-        Returns a dict with ``resource_uri`` and optionally ``structured_content``
-        when the artifact carries ``_meta.ui.resourceUri`` (ext-apps standard).
+        Accepts either a ``mcp.types.CallToolResult`` (SDK 2.x native shape) or
+        a plain dict.  Returns a dict with ``resource_uri`` and optionally
+        ``structured_content`` when the result carries ``_meta.ui.resourceUri``
+        (ext-apps standard).
         """
-        if artifact is None:
+        if result is None:
             return None
         meta = (
-            artifact.get("_meta")
-            if isinstance(artifact, dict)
-            else getattr(artifact, "_meta", None)
+            result.get("_meta")
+            if isinstance(result, dict)
+            else getattr(result, "_meta", None) or getattr(result, "meta", None)
         )
         if not isinstance(meta, dict):
             return None
@@ -219,14 +221,14 @@ class MCPAgent:
         if not isinstance(resource_uri, str) or not resource_uri:
             return None
         structured = (
-            artifact.get("structured_content")
-            if isinstance(artifact, dict)
-            else getattr(artifact, "structured_content", None)
+            result.get("structured_content")
+            if isinstance(result, dict)
+            else getattr(result, "structured_content", None)
         )
-        result: dict[str, object] = {"resource_uri": resource_uri}
+        extracted: dict[str, object] = {"resource_uri": resource_uri}
         if structured is not None:
-            result["structured_content"] = structured
-        return result
+            extracted["structured_content"] = structured
+        return extracted
 
     @staticmethod
     def _coerce_content_block(block: dict[str, object]) -> dict[str, object]:
@@ -266,63 +268,152 @@ class MCPAgent:
         return {"type": "text", "text": json.dumps(block, default=str)}
 
     @staticmethod
-    def _normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
-        """Normalize content_and_artifact tuple from MCP tool execution.
+    def _wrap_multimodal_text_blocks(
+        blocks: list[dict[str, object]], *, source: str
+    ) -> list[dict[str, object]]:
+        """Apply content-boundary defense to text blocks inside multimodal output.
 
-        MCP tool results arrive as ``(list[ContentBlock], artifact | None)``
-        where ContentBlock is ``{"type": "text", "text": "..."}`` or image/file
-        blocks.  Every block is passed through ``_coerce_content_block`` to
-        guarantee only LLM-safe types (``text``, ``image``) reach the API —
-        preventing 400 errors and session history poisoning from ``file``,
-        ``audio``, or unknown block types.
-
-        When the coerced result contains **only** text blocks, returns a plain
-        ``str`` for backward compatibility.  When image blocks are present,
-        returns the full ``list[dict]`` so ToolNode can construct a multimodal
-        ``ToolMessage`` that flows through the existing streaming pipeline
-        (``event_handlers.TOOL_IMAGE_OUTPUT`` → frontend ``ToolImageGallery``).
-        ``structuredContent`` from the MCP artifact is appended as a
-        supplementary text block when present.
+        ``_timeout_wrapper`` wraps plain ``str`` results with ``wrap_untrusted``;
+        multimodal ``list[dict]`` results must get the same 5-layer boundary
+        treatment on their text blocks, otherwise a malicious MCP server could
+        smuggle prompt-injection text next to a legit image and bypass the
+        content-boundary defense entirely. Image blocks pass through untouched.
         """
-        if isinstance(result, tuple) and len(result) == 2:
-            content_blocks, artifact = result
-            if isinstance(content_blocks, list):
-                coerced: list[dict[str, object]] = [
-                    (
-                        MCPAgent._coerce_content_block(b)
-                        if isinstance(b, dict)
-                        else {"type": "text", "text": str(b)}
-                    )
-                    for b in content_blocks
-                ]
+        from myrm_agent_harness.core.security.detection.content_boundary import (
+            wrap_untrusted,
+        )
 
-                if artifact is not None:
-                    structured = (
-                        artifact.get("structured_content")
-                        if isinstance(artifact, dict)
-                        else getattr(artifact, "structured_content", None)
-                    )
-                    if structured is not None:
-                        coerced.append(
-                            {
-                                "type": "text",
-                                "text": json.dumps(structured, ensure_ascii=False),
-                            }
-                        )
+        wrapped: list[dict[str, object]] = []
+        for block in blocks:
+            if block.get("type") == "text":
+                text = str(block.get("text", "") or "")
+                if text:
+                    block = {**block, "text": wrap_untrusted(text, source=source)}
+            wrapped.append(block)
+        return wrapped
 
-                has_image = any(b.get("type") == "image" for b in coerced)
-                if has_image:
-                    return coerced
+    @staticmethod
+    def _normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
+        """Normalize an MCP tool execution result for the LLM.
 
-                texts: list[str] = []
-                for block in coerced:
-                    texts.append(str(block.get("text", "") or ""))
-                return "\n".join(texts) if texts else ""
-            if isinstance(content_blocks, str):
-                return content_blocks
-        if isinstance(result, str):
-            return result
-        return str(result)
+        Accepts either a ``mcp.types.CallToolResult`` (SDK 2.x native shape,
+        produced by ``tool_converter._invoke``) or a plain ``str`` (e.g. an
+        already-rendered timeout/auth message from ``_timeout_wrapper``).
+
+        CallToolResult handling:
+        - ``is_error`` results collapse to a single error ``str`` so the agent
+          sees the failure instead of fabricating success (MCP spec: tool-level
+          errors are reported inside the result with ``is_error`` so the LLM
+          can self-correct).
+        - Every ``ContentBlock`` is mapped to a LangChain-style block and passed
+          through ``_coerce_content_block`` to guarantee only LLM-safe types
+          (``text``, ``image``) reach the API — preventing 400 errors and
+          session history poisoning from ``file``, ``audio``, or unknown types.
+        - ``structured_content`` is appended as a supplementary JSON text block
+          when present.
+        - When image blocks survive coercion the full ``list[dict]`` is
+          returned so ToolNode can construct a multimodal ``ToolMessage`` that
+          flows through the existing streaming pipeline
+          (``event_handlers.TOOL_IMAGE_OUTPUT`` → frontend ``ToolImageGallery``);
+          otherwise the result is joined into a plain ``str``.
+        """
+        content_blocks = getattr(result, "content", None)
+        if not isinstance(content_blocks, list):
+            return str(result)
+
+        is_error = bool(getattr(result, "is_error", False))
+
+        coerced: list[dict[str, object]] = []
+        for block in content_blocks:
+            if isinstance(block, dict):
+                coerced.append(MCPAgent._coerce_content_block(block))
+            else:
+                coerced.append(MCPAgent._coerce_content_block(MCPAgent._mcp_block_to_lc(block)))
+
+        if is_error:
+            error_parts: list[str] = []
+            for block in coerced:
+                if block.get("type") == "text":
+                    text = str(block.get("text", "") or "").strip()
+                    if text:
+                        error_parts.append(text)
+            message = "\n".join(error_parts).strip()
+            return f"[MCP tool error] {message}" if message else "[MCP tool error]"
+
+        structured = getattr(result, "structured_content", None)
+        if structured is not None:
+            coerced.append(
+                {"type": "text", "text": json.dumps(structured, ensure_ascii=False)}
+            )
+
+        has_image = any(b.get("type") == "image" for b in coerced)
+        if has_image:
+            return coerced
+
+        texts: list[str] = []
+        for block in coerced:
+            texts.append(str(block.get("text", "") or ""))
+        return "\n".join(texts) if texts else ""
+
+    @staticmethod
+    def _mcp_block_to_lc(block: object) -> dict[str, object]:
+        """Map an MCP ``ContentBlock`` to a LangChain-style content block dict.
+
+        ``mcp.types.CallToolResult.content`` holds typed block objects
+        (``TextContent`` / ``ImageContent`` / ``AudioContent`` /
+        ``ResourceLink`` / ``EmbeddedResource``).  This converts them to the
+        flat ``{"type": ...}`` shape consumed by ``_coerce_content_block``:
+        - ``text`` → ``{"type": "text"}``
+        - ``image`` → ``{"type": "image", "base64", "mime_type"}``
+        - ``resource_link`` → ``{"type": "file", "url", "mime_type"}``
+        - ``resource`` (embedded) → text or image/blob, else file
+        - unknown / ``audio`` → degraded ``{"type": "text"}`` marker so the
+          LLM still learns the block existed without a huge base64 dump
+        """
+        block_type = getattr(block, "type", None)
+
+        if block_type == "text":
+            return {"type": "text", "text": getattr(block, "text", "") or ""}
+
+        if block_type == "image":
+            return {
+                "type": "image",
+                "base64": getattr(block, "data", "") or "",
+                "mime_type": getattr(block, "mime_type", "") or "",
+            }
+
+        if block_type == "resource_link":
+            return {
+                "type": "file",
+                "url": getattr(block, "uri", "") or "",
+                "mime_type": getattr(block, "mime_type", "") or "",
+            }
+
+        if block_type == "resource":
+            resource = getattr(block, "resource", None)
+            res_text = getattr(resource, "text", None)
+            if res_text:
+                return {"type": "text", "text": str(res_text)}
+            res_blob = getattr(resource, "blob", None)
+            mime = getattr(resource, "mime_type", "") or ""
+            if res_blob:
+                if mime.startswith("image/"):
+                    return {"type": "image", "base64": res_blob, "mime_type": mime}
+                return {
+                    "type": "file",
+                    "url": getattr(resource, "uri", "") or "",
+                    "mime_type": mime,
+                }
+            return {
+                "type": "file",
+                "url": getattr(resource, "uri", "") or "",
+                "mime_type": mime,
+            }
+
+        if block_type == "audio":
+            return {"type": "text", "text": "[audio content omitted]"}
+
+        return {"type": "text", "text": str(block)}
 
     @staticmethod
     def _handle_oversized_output(
@@ -404,7 +495,6 @@ class MCPAgent:
                     async with asyncio.timeout(_timeout):
                         raw = await _orig(*args, **kwargs)  # type: ignore[misc]
                         normalized = MCPAgent._normalize_mcp_result(raw)
-                        await MCPAgent._emit_mcp_app_event(raw, _name)
                         if isinstance(normalized, str) and len(normalized) > _max_chars:
                             normalized = MCPAgent._handle_oversized_output(
                                 normalized,
@@ -416,7 +506,10 @@ class MCPAgent:
                             normalized = wrap_untrusted(
                                 normalized, source=f"mcp:{_name}"
                             )
-                        return normalized
+                        else:
+                            normalized = MCPAgent._wrap_multimodal_text_blocks(
+                                normalized, source=f"mcp:{_name}"
+                            )
                 except TimeoutError:
                     error_msg = f"MCP tool '{_name}' timed out after {_timeout}s. Server may be slow or unresponsive."
                     logger.error(error_msg)
@@ -441,6 +534,12 @@ class MCPAgent:
                         )
                     raise
 
+                # ext-apps emission runs outside the call-timeout budget so a
+                # slow progress sink can never turn a healthy tool call into a
+                # spurious timeout.
+                await MCPAgent._emit_mcp_app_event(raw, _name)
+                return normalized
+
             tool.coroutine = _timeout_wrapper
             # Override response_format to prevent ToolNode from tuple-destructuring
             if hasattr(tool, "response_format"):
@@ -449,10 +548,7 @@ class MCPAgent:
     @staticmethod
     async def _emit_mcp_app_event(raw_result: object, tool_name: str) -> None:
         """Emit an MCP_APP_VIEW event if the raw result carries ext-apps UI metadata."""
-        if not isinstance(raw_result, tuple) or len(raw_result) != 2:
-            return
-        _, artifact = raw_result
-        mcp_app_meta = MCPAgent._extract_mcp_app_metadata(artifact)
+        mcp_app_meta = MCPAgent._extract_mcp_app_metadata(raw_result)
         if mcp_app_meta is None:
             return
         from myrm_agent_harness.core.events import AgentEventType

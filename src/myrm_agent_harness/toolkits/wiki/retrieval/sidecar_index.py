@@ -121,20 +121,23 @@ class SidecarIndexMixin:
 
         if self._config.enable_hybrid_search and self._vector and self._embedding:
             await self._ensure_collection()
-            await upsert_text_vectors(
-                embedding=self._embedding,
-                vector=self._vector,
-                collection_name=self._collection_name,
-                parent_key=entry_id,
-                text=payload,
-                base_metadata={
-                    "concept_name": entry_id,
-                    "entry_type": "sidecar",
-                    "level": _SIDECAR_LEVEL_LABEL[level],
-                    "dir_path": normalized_dir,
-                },
-                metadata_key="concept_name",
-            )
+            try:
+                await upsert_text_vectors(
+                    embedding=self._embedding,
+                    vector=self._vector,
+                    collection_name=self._collection_name,
+                    parent_key=entry_id,
+                    text=payload,
+                    base_metadata={
+                        "concept_name": entry_id,
+                        "entry_type": "sidecar",
+                        "level": _SIDECAR_LEVEL_LABEL[level],
+                        "dir_path": normalized_dir,
+                    },
+                    metadata_key="concept_name",
+                )
+            except Exception as e:
+                logger.warning(f"Sidecar vector upsert failed for '{entry_id}', keeping FTS only: {e}")
 
     async def delete_sidecar(self, dir_path: str, *, level: int) -> None:
         """Delete one directory sidecar entry from FTS + vector index."""

@@ -16,7 +16,7 @@ _PATCH_GET_LOGGER = "myrm_agent_harness.agent.middlewares._session_context.get_e
 @pytest.mark.asyncio
 async def test_log_bash_command_execution_no_logger() -> None:
     """When no event logger is available, function returns silently."""
-    from myrm_agent_harness.agent.meta_tools.bash._event_logging import (
+    from myrm_agent_harness.agent.meta_tools.bash._executor.event_logging import (
         log_bash_command_execution,
     )
 
@@ -35,7 +35,7 @@ async def test_log_bash_command_execution_no_logger() -> None:
 @pytest.mark.asyncio
 async def test_log_bash_command_execution_with_logger() -> None:
     """When event logger is available, function logs the event."""
-    from myrm_agent_harness.agent.meta_tools.bash._event_logging import (
+    from myrm_agent_harness.agent.meta_tools.bash._executor.event_logging import (
         log_bash_command_execution,
     )
 
@@ -65,7 +65,7 @@ async def test_log_bash_command_execution_with_logger() -> None:
 @pytest.mark.asyncio
 async def test_log_bash_command_execution_with_error() -> None:
     """When event logger is available and command failed, error_message is included."""
-    from myrm_agent_harness.agent.meta_tools.bash._event_logging import (
+    from myrm_agent_harness.agent.meta_tools.bash._executor.event_logging import (
         log_bash_command_execution,
     )
 
@@ -92,7 +92,7 @@ async def test_log_bash_command_execution_with_error() -> None:
 @pytest.mark.asyncio
 async def test_log_bash_command_execution_exception_safe() -> None:
     """If logging raises, function catches silently (failure-safe)."""
-    from myrm_agent_harness.agent.meta_tools.bash._event_logging import (
+    from myrm_agent_harness.agent.meta_tools.bash._executor.event_logging import (
         log_bash_command_execution,
     )
 

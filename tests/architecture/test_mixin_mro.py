@@ -10,11 +10,11 @@ from __future__ import annotations
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutor
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_background_mixin import BashExecutorBackgroundMixin
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_context_mixin import BashExecutorContextMixin
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_execute_mixin import BashExecutorExecuteMixin
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin import BashExecutorPrepareMixin
+from myrm_agent_harness.agent.meta_tools.bash._executor.executor import BashExecutor
+from myrm_agent_harness.agent.meta_tools.bash._executor.background_mixin import BashExecutorBackgroundMixin
+from myrm_agent_harness.agent.meta_tools.bash._executor.context_mixin import BashExecutorContextMixin
+from myrm_agent_harness.agent.meta_tools.bash._executor.execute_mixin import BashExecutorExecuteMixin
+from myrm_agent_harness.agent.meta_tools.bash._executor.prepare_mixin import BashExecutorPrepareMixin
 from myrm_agent_harness.agent.skills.optimization.scheduler import OptimizationScheduler
 from myrm_agent_harness.agent.skills.optimization.scheduler_batch_mixin import (
     OptimizationSchedulerBatchMixin,

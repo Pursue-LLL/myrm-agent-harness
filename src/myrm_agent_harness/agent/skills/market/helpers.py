@@ -5,7 +5,7 @@ Shared utilities for scanning, deduplication, ranking, origin tracking, and Lobe
 [INPUT]
 - backends.skills.market_protocols::SkillSearchResult (POS: unified skill market result type)
 - backends.skills.scanning::ScanResult (POS: scan result cache layer for skill content)
-- core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP)
+- core.security.http.secure_fetch::secure_get / ContentTooLargeError (POS: SSRF-protected outbound HTTP with size cap)
 
 [OUTPUT]
 - scan_all_text_files: Scan all text files in a skill package for security threats.
@@ -94,9 +94,15 @@ def rank_results(results: list[SkillSearchResult], query: str) -> list[SkillSear
 
 async def fetch_lobehub_as_skill(detail: SkillSearchResult) -> dict[str, bytes]:
     """Download a LobeHub agent JSON and convert it to a SKILL.md file set."""
-    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+    from myrm_agent_harness.core.security.http.secure_fetch import (
+        ContentTooLargeError,
+        secure_get,
+    )
 
-    resp = await secure_get(detail.install_url, timeout=15.0)
+    try:
+        resp = await secure_get(detail.install_url, timeout=15.0)
+    except ContentTooLargeError as exc:
+        raise ValueError(f"LobeHub agent JSON too large: {exc}") from exc
     if resp.status_code != 200:
         raise ValueError(f"LobeHub agent fetch failed: HTTP {resp.status_code}")
     data = resp.json()

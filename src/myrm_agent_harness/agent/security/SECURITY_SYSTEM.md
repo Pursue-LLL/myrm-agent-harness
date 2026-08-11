@@ -198,7 +198,7 @@ class SSRFResult:
 
 提供同步 (`validate_url_for_ssrf`) 和异步 (`async_validate_url_for_ssrf`) 两个版本。
 
-**出站 HTTP 执行层（httpx）**：`core/security/http/secure_fetch.py` 提供 `secure_get` / `secure_request` / `resolve_secure_http_target`，在 httpx 出站路径上强制执行 DNS pinning 与逐跳 redirect 复检。消费者包括 MediaResolver、ZipInstaller、OpenAPI Bridge、A2A resolver、cron webhook、HTTP hooks、LobeHub 技能安装、wiki URL ingestion、image/video 用户与模型结果 URL 下载、server 媒体下载。`async_pin_url` 阻断时写入 `SSRF_BLOCKED` 审计条目。
+**出站 HTTP 执行层（httpx）**：`core/security/http/secure_fetch.py` 提供 `secure_get` / `secure_request` / `resolve_secure_http_target`，在 httpx 出站路径上强制执行 DNS pinning 与逐跳 redirect 复检。下载体量默认受 `DEFAULT_MAX_CONTENT_LENGTH`（20 MB）上限约束，超限在流式读取中即时终止并抛出 `ContentTooLargeError`；各调用点可显式传 `max_content_length` 收紧（如 zip/图片/视频/附件）或传 `None` 关闭。消费者包括 MediaResolver、ZipInstaller、OpenAPI Bridge、A2A resolver、cron webhook、HTTP hooks、LobeHub 技能安装、wiki URL ingestion 与 asset 下载、image/video 用户与模型结果 URL 下载、server 媒体/模型发现/渠道下载。`async_pin_url` 阻断时写入 `SSRF_BLOCKED` 审计条目。
 
 **浏览器 document 导航层（Playwright）**：`toolkits/browser/navigation_ssrf_guard.py` 在 `page.goto` 期间注册 document 级 route 拦截，对每个 document 请求与 redirect 链逐跳调用 `async_pin_url` 校验。不拦截 subresource（与 OpenClaw 同级策略）。本地模式 `allow_private_networks=True` 时跳过 SSRF 校验。
 
@@ -262,7 +262,7 @@ BLOCK → DENY（硬拒绝），ESCALATE → ASK（提升审批）。保留 `|`,
 
 ### 3.2.3 用户会话亲和性凭证继承与传递机制
 
-**位置**：`core/security/types.py` (`EphemeralUserCredential`, `user_credentials_ctx`) + `core/security/safe_exec.py` (`credential_env_overrides`) + `toolkits/code_execution/executors/local/executor.py` (`LocalExecutor._build_bash_env`) + `agent/meta_tools/bash/bash_executor.py`（skill 检测 → `allowed_credential_issuers`）
+**位置**：`core/security/types.py` (`EphemeralUserCredential`, `user_credentials_ctx`) + `core/security/safe_exec.py` (`credential_env_overrides`) + `toolkits/code_execution/executors/local/executor.py` (`LocalExecutor._build_bash_env`) + `agent/meta_tools/bash/_executor/executor.py`（skill 检测 → `allowed_credential_issuers`）
 
 为了实现类似阿里悟空“紧箍咒”系统的平台级用户安全权限继承，避免 Agent 使用全局默认权限对外部系统（如 Feishu, GitHub, DingTalk, Google Workspace）进行未授权的提权或越权访问，本系统实现了基于异步上下文变量的临时凭证继承传递链。
 

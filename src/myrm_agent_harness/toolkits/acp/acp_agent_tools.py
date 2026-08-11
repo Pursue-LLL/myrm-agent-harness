@@ -191,6 +191,7 @@ context and capabilities.
                 retryable = getattr(getattr(exc, "__cause__", None), "retryable", False) or getattr(
                     exc, "retryable", False
                 )
+                last_error = f"{type(exc).__name__}: {exc}"
                 if retryable and attempt < _MAX_RETRIES:
                     logger.warning(
                         "acp_delegate_retry agent=%s attempt=%d error=%s",
@@ -201,9 +202,12 @@ context and capabilities.
                     continue
 
                 logger.error("acp_delegate_error agent=%s error=%s", agent_name, exc, exc_info=True)
-                return f"[error] Delegation to '{agent_name}' failed"
+                return f"[error] Delegation to '{agent_name}' failed: {last_error}"
 
-        return f"[error] Delegation to '{agent_name}' failed after {_MAX_RETRIES + 1} attempts"
+        logger.error(
+            "acp_delegate_retry_exhausted agent=%s retries=%d", agent_name, _MAX_RETRIES
+        )
+        return f"[error] Delegation to '{agent_name}' failed after {_MAX_RETRIES + 1} attempts: {last_error}"
 
     return delegate_to_agent_func
 

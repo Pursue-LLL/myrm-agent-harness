@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.output_compressor import (
+from myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor import (
     DeclarativeFilterEngine,
     compress_output,
 )

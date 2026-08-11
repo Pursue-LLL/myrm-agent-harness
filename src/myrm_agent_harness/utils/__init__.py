@@ -26,30 +26,69 @@ from importlib import import_module
 
 _EXPORTS: dict[str, tuple[str, str]] = {
     # Runtime utilities
-    "CancellationToken": ("myrm_agent_harness.utils.runtime.cancellation", "CancellationToken"),
+    "CancellationToken": (
+        "myrm_agent_harness.utils.runtime.cancellation",
+        "CancellationToken",
+    ),
     "SteeringToken": ("myrm_agent_harness.utils.runtime.steering", "SteeringToken"),
     "RWLock": ("myrm_agent_harness.utils.rwlock", "RWLock"),
     # Document utilities
-    "parse_front_matter": ("myrm_agent_harness.utils.document_utils", "parse_front_matter"),
-    "extract_original_content": ("myrm_agent_harness.utils.document_utils", "extract_original_content"),
+    "parse_front_matter": (
+        "myrm_agent_harness.utils.document_utils",
+        "parse_front_matter",
+    ),
+    "extract_original_content": (
+        "myrm_agent_harness.utils.document_utils",
+        "extract_original_content",
+    ),
     # Context formatting
-    "format_documents_with_metadata": ("myrm_agent_harness.utils.context_format", "format_documents_with_metadata"),
-    "format_crawl_results": ("myrm_agent_harness.utils.context_format", "format_crawl_results"),
-    "wrap_with_external_sources_tag": ("myrm_agent_harness.utils.context_format", "wrap_with_external_sources_tag"),
-    "wrap_with_tool_output_tag": ("myrm_agent_harness.utils.context_format", "wrap_with_tool_output_tag"),
+    "format_documents_with_metadata": (
+        "myrm_agent_harness.utils.context_format",
+        "format_documents_with_metadata",
+    ),
+    "format_crawl_results": (
+        "myrm_agent_harness.utils.context_format",
+        "format_crawl_results",
+    ),
+    "wrap_with_external_sources_tag": (
+        "myrm_agent_harness.utils.context_format",
+        "wrap_with_external_sources_tag",
+    ),
+    "wrap_with_tool_output_tag": (
+        "myrm_agent_harness.utils.context_format",
+        "wrap_with_tool_output_tag",
+    ),
     "TruncationStats": ("myrm_agent_harness.utils.context_format", "TruncationStats"),
     # Network utilities
     "get_local_ip": ("myrm_agent_harness.utils.network", "get_local_ip"),
     # File utilities
-    "extract_file_id_from_url": ("myrm_agent_harness.utils.files", "extract_file_id_from_url"),
+    "extract_file_id_from_url": (
+        "myrm_agent_harness.utils.files",
+        "extract_file_id_from_url",
+    ),
     # LLM response extraction
-    "extract_answer_text": ("myrm_agent_harness.utils.chat_utils", "extract_answer_text"),
-    "extract_litellm_answer_text": ("myrm_agent_harness.utils.chat_utils", "extract_litellm_answer_text"),
+    "extract_answer_text": (
+        "myrm_agent_harness.utils.chat_utils",
+        "extract_answer_text",
+    ),
+    "extract_litellm_answer_text": (
+        "myrm_agent_harness.utils.chat_utils",
+        "extract_litellm_answer_text",
+    ),
     # Device fingerprint utilities (legacy, kept for migration compatibility)
-    "get_device_fingerprint": ("myrm_agent_harness.utils.device_fingerprint", "get_device_fingerprint"),
-    "derive_key_from_fingerprint": ("myrm_agent_harness.utils.device_fingerprint", "derive_key_from_fingerprint"),
+    "get_device_fingerprint": (
+        "myrm_agent_harness.utils.device_fingerprint",
+        "get_device_fingerprint",
+    ),
+    "derive_key_from_fingerprint": (
+        "myrm_agent_harness.utils.device_fingerprint",
+        "derive_key_from_fingerprint",
+    ),
     # Encryption key resolution
-    "resolve_local_encryption_key": ("myrm_agent_harness.utils.encryption_key", "resolve_local_encryption_key"),
+    "resolve_local_encryption_key": (
+        "myrm_agent_harness.utils.encryption_key",
+        "resolve_local_encryption_key",
+    ),
 }
 
 __all__ = [
@@ -94,4 +133,6 @@ def __getattr__(name: str) -> object:
 
 
 def __dir__() -> list[str]:
-    return sorted(set(__all__ + [name for name in globals() if not name.startswith("_")]))
+    return sorted(
+        set(__all__ + [name for name in globals() if not name.startswith("_")])
+    )

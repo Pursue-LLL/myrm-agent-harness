@@ -953,6 +953,41 @@ Frontend → POST /agents/agent-stream { resume_value: { action: "completed" } }
 
 ---
 
+### 18. Browser Live Co-View (WebUI Inspector SSE)
+
+**设计目标**：Agent 执行 `browser_navigate` / `browser_snapshot` / `browser_interact` 时，WebUI Browser Inspector 实时展示截图与 ARIA ref 叠加层，无需 TOOL_END REST 轮询。
+
+**架构设计**：
+
+```
+BrowserSession.navigate/snapshot/interact
+  ↓ BrowserSessionViewMixin._publish_inspector_view (300ms throttle)
+  ↓ capture_browser_view_update_data (view_update_payload SSOT)
+  ↓ progress_sink.emit({ type: browser_view_update, data: { screenshot_base64, refs, page_url, ... } })
+Frontend fileDiffEvents handler
+  ↓ useBrowserInspectorStore.updateViewData(sourceChatId) — no auto openPanel
+Frontend toolLifecycleEvents TOOL_START (browser_*)
+  ↓ openPanel only when stream chatId === foreground chatId
+Frontend BrowserLiveView / Toggle
+  ↓ render scoped view when viewData.sourceChatId === active chatId
+Manual refresh: GET /webui/browser/snapshot?chat_id=<active chat>
+  ↓ collect_browser_snapshot_payload(chat_id) → same payload builder
+```
+
+**核心约束**：
+- SSE 推送为主路径；REST snapshot 仅用于手动刷新与 mobile takeover
+- SSE 更新 viewData 时不强制 openPanel；`browser_*` TOOL_START 仅在前台 chat 匹配时 openPanel
+- `viewData.sourceChatId` 与前台 chatId 不一致时不渲染截图（多 pane 隔离）
+- `get_active_browser_session(session_id)` 必须带 chat_id，避免多 chat 并行时串会话
+- `capture_browser_view_update_data` 内部 snapshot 使用 `publish_inspector_view=False`，避免嵌套双 emit
+- 与 Desktop Inspector 对齐：desktop 工具不在 TOOL_END 重复 fetchSnapshot
+
+**实现位置**：`session/browser_session_view_mixin.py`、`session/view_update_payload.py`；server `app/services/agent/browser_snapshot.py`；frontend `fileDiffEvents.ts` / `useBrowserInspectorStore.ts`
+
+---
+
+---
+
 ## 竞品对比
 
 ### 功能覆盖

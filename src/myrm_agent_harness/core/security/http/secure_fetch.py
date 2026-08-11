@@ -7,6 +7,8 @@
 [OUTPUT]
 - secure_get / secure_request: SSRF-safe HTTP with manual redirect loop
 - resolve_secure_http_target: pinned target for streaming callers
+- ContentTooLargeError: raised when a response body exceeds max_content_length
+- DEFAULT_MAX_CONTENT_LENGTH: secure-by-default response body cap (20 MB)
 
 [POS]
 Shared outbound HTTP primitive for all harness and server paths that must not bypass SSRF guards.
@@ -28,6 +30,7 @@ from myrm_agent_harness.infra.tls_compat import create_httpx_client
 logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_REDIRECTS = 5
+DEFAULT_MAX_CONTENT_LENGTH = 20 * 1024 * 1024  # 20 MB secure-by-default body cap
 _REDIRECT_STATUS = frozenset({301, 302, 303, 307, 308})
 _METHODS_WITH_BODY = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
@@ -40,6 +43,10 @@ class SecureHttpTarget:
     request_url: str
     headers: dict[str, str]
     method: str
+
+
+class ContentTooLargeError(Exception):
+    """Raised when a response body exceeds the configured ``max_content_length``."""
 
 
 def is_ssrf_shield_enabled() -> bool:
@@ -192,8 +199,14 @@ async def secure_request(
     allowed_internal_hosts: list[str] | None = None,
     enable_ssrf_shield: bool | None = None,
     max_redirects: int = DEFAULT_MAX_REDIRECTS,
+    max_content_length: int | None = DEFAULT_MAX_CONTENT_LENGTH,
 ) -> httpx.Response:
-    """Execute an HTTP request with SSRF shield and manual redirect handling."""
+    """Execute an HTTP request with SSRF shield and manual redirect handling.
+
+    The response body is streamed and aborted as soon as it exceeds
+    ``max_content_length`` (secure-by-default cap of 20 MB), so oversized
+    responses never fully load into memory. Pass ``None`` to disable the cap.
+    """
     shield_enabled = is_ssrf_shield_enabled() if enable_ssrf_shield is None else enable_ssrf_shield
     allowed_hosts = parse_allowed_internal_hosts() if allowed_internal_hosts is None else allowed_internal_hosts
 
@@ -216,17 +229,17 @@ async def secure_request(
 
         hop_headers = {**request_headers, **pin_headers}
         pin_extensions = _https_pin_extensions(request_url, pin_headers)
-        response = await client.request(
-            current_method,
-            request_url,
-            headers=hop_headers,
-            params=params if redirect_count == 0 else None,
-            json=json if redirect_count == 0 else None,
-            content=content if redirect_count == 0 else None,
-            timeout=timeout,
-            follow_redirects=False,
-            extensions=pin_extensions,
-        )
+        build_kwargs: dict[str, object] = {
+            "headers": hop_headers,
+            "params": params if redirect_count == 0 else None,
+            "json": json if redirect_count == 0 else None,
+            "content": content if redirect_count == 0 else None,
+            "extensions": pin_extensions,
+        }
+        if timeout is not None:
+            build_kwargs["timeout"] = timeout
+        request = client.build_request(current_method, request_url, **build_kwargs)
+        response = await client.send(request, stream=True)
 
         redirected = _next_redirect(
             logical_url=logical_url,
@@ -247,6 +260,34 @@ async def secure_request(
     if response is None:
         raise ValueError(f"No response received for {url}")
 
+    if max_content_length is None:
+        await response.aread()
+    else:
+        declared_length = response.headers.get("Content-Length")
+        if (
+            declared_length is not None
+            and declared_length.isdigit()
+            and int(declared_length) > max_content_length
+        ):
+            await response.aclose()
+            raise ContentTooLargeError(
+                f"Response body exceeds {max_content_length} byte limit"
+            )
+        chunks: list[bytes] = []
+        total = 0
+        async for chunk in response.aiter_bytes():
+            total += len(chunk)
+            if total > max_content_length:
+                await response.aclose()
+                raise ContentTooLargeError(
+                    f"Response body exceeds {max_content_length} byte limit"
+                )
+            chunks.append(chunk)
+        # httpx leaves `_content` unset on streamed responses; backfill it so
+        # callers can read `.content`/`.json()` after the size-capped read.
+        response._content = b"".join(chunks)
+        await response.aclose()
+
     return response
 
 
@@ -258,10 +299,11 @@ async def secure_get(
     allowed_internal_hosts: list[str] | None = None,
     enable_ssrf_shield: bool | None = None,
     max_redirects: int = DEFAULT_MAX_REDIRECTS,
+    max_content_length: int | None = DEFAULT_MAX_CONTENT_LENGTH,
 ) -> httpx.Response:
     """Perform a GET request with SSRF shield and manual redirect handling."""
     async with create_httpx_client(timeout=timeout, follow_redirects=False) as client:
-        response = await secure_request(
+        return await secure_request(
             client,
             "GET",
             url,
@@ -270,13 +312,14 @@ async def secure_get(
             allowed_internal_hosts=allowed_internal_hosts,
             enable_ssrf_shield=enable_ssrf_shield,
             max_redirects=max_redirects,
+            max_content_length=max_content_length,
         )
-        await response.aread()
-        return response
 
 
 __all__ = [
     "DEFAULT_MAX_REDIRECTS",
+    "DEFAULT_MAX_CONTENT_LENGTH",
+    "ContentTooLargeError",
     "SecureHttpTarget",
     "is_ssrf_shield_enabled",
     "parse_allowed_internal_hosts",

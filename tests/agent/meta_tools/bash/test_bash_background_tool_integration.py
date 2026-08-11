@@ -19,7 +19,7 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
     BASH_PROCESS_TOOL_NAME,
     create_bash_process_tool,
 )
-from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.session_spawn_lifecycle import (
     get_session_spawn_tool_names,
     reset_spawn_lifecycle_for_tests,
 )

@@ -1,7 +1,7 @@
 """Bash tool output formatting and truncation.
 
 [INPUT]
-- .bash_tool_exit_semantics::interpret_exit_code (POS: Exit-code semantic notes)
+- .exit_semantics::interpret_exit_code (POS: Exit-code semantic notes)
 - output_compressor::compress_output (POS: Command-aware semantic output compressor)
 - utils.context_format::wrap_with_tool_output_tag (POS: Tool output tag wrapping)
 
@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_exit_semantics import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.exit_semantics import (
     interpret_exit_code,
 )
 
@@ -66,7 +66,7 @@ def format_result(
     exit_code = str(result.get("exit_code", "0"))
 
     if stdout_raw and command:
-        from myrm_agent_harness.agent.meta_tools.bash.output_compressor import (
+        from myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor import (
             compress_output,
         )
 

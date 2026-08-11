@@ -2,7 +2,7 @@
 
 [INPUT]
 - agent.artifacts.file_id_registry::resolve_file_ids_in_text (POS: File ID resolution)
-- ._output_eviction::maybe_evict_large_output (POS: Provides maybe_evict_large_output and EvictionResult for stdout/stderr large-output persistence)
+- .._compression.output_eviction::maybe_evict_large_output (POS: Provides maybe_evict_large_output and EvictionResult for stdout/stderr large-output persistence)
 - .mcp_citation_handler::MCPMetadataExtractor (POS: MCP citation handler)
 - .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 
@@ -46,7 +46,7 @@ class BashExecutorExecuteMixin:
         """
         command = resolve_file_ids_in_text(command)
 
-        from myrm_agent_harness.agent.meta_tools.bash._output_eviction import (
+        from myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction import (
             maybe_evict_large_output,
         )
         from myrm_agent_harness.utils.text_utils import unwrap_markdown_fence

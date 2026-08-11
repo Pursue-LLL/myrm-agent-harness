@@ -188,11 +188,15 @@ class TestExtractLitellmAnswerText:
 
     def test_reasoning_model_falls_back_to_reasoning_content(self) -> None:
         msg = _FakeLitellmMessage(None, "reasoned answer")
-        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+        assert (
+            extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+        )
 
     def test_empty_string_content_falls_back_to_reasoning(self) -> None:
         msg = _FakeLitellmMessage("", "reasoned answer")
-        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+        assert (
+            extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+        )
 
     def test_anthropic_block_list_extracts_text(self) -> None:
         msg = _FakeLitellmMessage(
@@ -205,16 +209,22 @@ class TestExtractLitellmAnswerText:
         assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "answer"
 
     def test_block_list_with_inline_think_stripped(self) -> None:
-        msg = _FakeLitellmMessage([{"type": "text", "text": "<think>plan</think>block answer"}])
+        msg = _FakeLitellmMessage(
+            [{"type": "text", "text": "<think>plan</think>block answer"}]
+        )
         assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "block answer"
 
     def test_content_only_think_falls_back_to_reasoning(self) -> None:
         msg = _FakeLitellmMessage("<think>only plan</think>", "reasoned answer")
-        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+        assert (
+            extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+        )
 
     def test_none_text_block_does_not_leak_none(self) -> None:
         msg = _FakeLitellmMessage([{"type": "text", "text": None}], "reasoned answer")
-        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+        assert (
+            extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+        )
 
     def test_reasoning_content_non_string_ignored(self) -> None:
         msg = _FakeLitellmMessage(None, "  ")

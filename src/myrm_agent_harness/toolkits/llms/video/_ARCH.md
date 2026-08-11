@@ -21,5 +21,5 @@ Video generation module — multi-provider video generation with failover.
 
 ## Key Dependencies
 
-- `core.security.http.secure_fetch` (secure_get for user/model result URL downloads in `video_engine` and providers)
+- `core.security.http.secure_fetch` (secure_get/secure_request for user/model result URL downloads in `video_engine` and all providers, with `max_content_length` cap and `ContentTooLargeError` handling)
 - `core`

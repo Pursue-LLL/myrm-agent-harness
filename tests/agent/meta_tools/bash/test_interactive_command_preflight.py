@@ -5,7 +5,7 @@ Validates that commands requiring stdin input are blocked before execution.
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._preflight_checks import (
+from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import (
     check_interactive_command as _check_interactive_command,
 )
 

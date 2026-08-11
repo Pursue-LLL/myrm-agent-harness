@@ -23,4 +23,4 @@ Background bash process registry and durable job ledger for ``bash_code_execute_
 ## Key Dependencies
 
 - `toolkits.code_execution.executors`
-- `agent.meta_tools.bash.session_spawn_lifecycle`
+- `agent.meta_tools.bash._executor.session_spawn_lifecycle`

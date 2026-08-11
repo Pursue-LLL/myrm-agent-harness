@@ -606,7 +606,7 @@ class TestPtcInjection:
     @pytest.mark.asyncio
     async def test_bash_executor_python_skips_turn1_ptc_injection(self):
         """BashExecutor routes Python to plain CodeExecutor.execute (no Turn1 stub RPC)."""
-        from myrm_agent_harness.agent.meta_tools.bash.bash_executor import (
+        from myrm_agent_harness.agent.meta_tools.bash._executor.executor import (
             BashExecutor,
         )
         from myrm_agent_harness.toolkits.code_execution.executors.models import (

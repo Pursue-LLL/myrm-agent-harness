@@ -162,7 +162,7 @@ async def consume_background_entry(
         entry.info.exit_code = exit_code
         if entry.info.status == "running":
             entry.info.status = "exited"
-        from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
+        from myrm_agent_harness.agent.meta_tools.bash._tool.background_listeners import (
             classify_background_exit,
         )
 

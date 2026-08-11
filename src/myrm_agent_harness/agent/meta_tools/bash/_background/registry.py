@@ -431,7 +431,7 @@ class BackgroundProcessRegistry:
             )
         if has_running:
             return
-        from myrm_agent_harness.agent.meta_tools.bash.session_spawn_lifecycle import (
+        from myrm_agent_harness.agent.meta_tools.bash._executor.session_spawn_lifecycle import (
             clear_session_spawn_tools,
         )
 

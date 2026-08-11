@@ -146,10 +146,13 @@ async def _download_url(url: str) -> bytes | None:
     exceeding :data:`_MAX_DOWNLOAD_BYTES`.
     """
     from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
-    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+    from myrm_agent_harness.core.security.http.secure_fetch import (
+        ContentTooLargeError,
+        secure_get,
+    )
 
     try:
-        resp = await secure_get(url, timeout=30.0)
+        resp = await secure_get(url, timeout=30.0, max_content_length=_MAX_DOWNLOAD_BYTES)
         if resp.status_code != 200:
             logger.warning("Image download returned HTTP %d for %s", resp.status_code, url[:120])
             return None
@@ -157,15 +160,14 @@ async def _download_url(url: str) -> bytes | None:
         if not data:
             logger.warning("Image download returned 0 bytes for %s", url[:120])
             return None
-        if len(data) > _MAX_DOWNLOAD_BYTES:
-            logger.warning(
-                "Image download too large (%d bytes, cap %d) for %s",
-                len(data),
-                _MAX_DOWNLOAD_BYTES,
-                url[:120],
-            )
-            return None
         return data
+    except ContentTooLargeError:
+        logger.warning(
+            "Image download too large (cap %d) for %s",
+            _MAX_DOWNLOAD_BYTES,
+            url[:120],
+        )
+        return None
     except SSRFSecurityError:
         logger.warning("Image download blocked by SSRF protection for %s", url[:120])
         return None

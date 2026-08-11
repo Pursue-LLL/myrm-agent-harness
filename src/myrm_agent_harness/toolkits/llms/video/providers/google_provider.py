@@ -5,6 +5,7 @@ Uses the Google GenAI SDK's operation-based polling pattern.
 
 [INPUT]
 - toolkits.llms._media_shared.types::ModeCapabilities, ProviderModeCapabilities (POS: These types are imported by video/models.py, normalization.py, and task_store.py. They define the contract between provider declarations and the normalization engine.)
+- core.security.http.secure_fetch::secure_get (POS: SSRF-protected result video download with size cap)
 
 [OUTPUT]
 - GoogleVeoProvider: class — Google Veo Provider
@@ -241,13 +242,23 @@ class GoogleVeoProvider(VideoGenerationProvider):
             else:
                 uri = video.get("uri")
                 if uri:
-                    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+                    from myrm_agent_harness.core.security.http.secure_fetch import (
+                        ContentTooLargeError,
+                        secure_get,
+                    )
 
-                    resp = await secure_get(str(uri), timeout=config.timeout_seconds)
+                    try:
+                        resp = await secure_get(
+                            str(uri),
+                            timeout=config.timeout_seconds,
+                            max_content_length=config.max_download_bytes,
+                        )
+                    except ContentTooLargeError as exc:
+                        raise ValueError(
+                            f"Video exceeds max download size (>{config.max_download_bytes} bytes): {str(uri)[:80]}"
+                        ) from exc
                     resp.raise_for_status()
                     data = resp.content
-                    if len(data) > config.max_download_bytes:
-                        raise ValueError("Video exceeds max download size")
                     videos.append(
                         VideoAsset(
                             data=data,

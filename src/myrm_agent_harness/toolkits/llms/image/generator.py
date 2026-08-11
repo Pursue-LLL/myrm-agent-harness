@@ -511,7 +511,10 @@ async def _download_reference_images(
     Returns empty list if all downloads fail.
     """
     from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
-    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+    from myrm_agent_harness.core.security.http.secure_fetch import (
+        ContentTooLargeError,
+        secure_get,
+    )
 
     results: list[bytes] = []
     for url in urls:
@@ -520,17 +523,16 @@ async def _download_reference_images(
                 url,
                 timeout=_REF_DOWNLOAD_TIMEOUT_S,
                 enable_ssrf_shield=not allow_private_networks,
+                max_content_length=_REF_MAX_SIZE_BYTES,
             )
             resp.raise_for_status()
-            data = resp.content
-            if len(data) <= _REF_MAX_SIZE_BYTES:
-                results.append(data)
-            else:
-                logger.warning(
-                    "Reference image too large (%d bytes), skipping: %s",
-                    len(data),
-                    url[:100],
-                )
+            results.append(resp.content)
+        except ContentTooLargeError:
+            logger.warning(
+                "Reference image too large (cap %d), skipping: %s",
+                _REF_MAX_SIZE_BYTES,
+                url[:100],
+            )
         except SSRFSecurityError as exc:
             logger.warning("Reference image blocked by SSRF protection %s: %s", url[:100], exc)
         except Exception as e:

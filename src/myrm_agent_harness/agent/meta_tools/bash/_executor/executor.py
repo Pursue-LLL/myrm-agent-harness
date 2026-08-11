@@ -1,12 +1,12 @@
 """Bash code execution orchestrator (aggregate root).
 
 [INPUT]
-- .bash_executor_execute_mixin::BashExecutorExecuteMixin (POS: Primary synchronous bash/python/skill execution orchestration for BashExecutor)
-- .bash_executor_background_mixin::BashExecutorBackgroundMixin (POS: Background spawn via process registry.)
-- .bash_executor_prepare_mixin::BashExecutorPrepareMixin (POS: MCP proxy, code-type detection, skill staging.)
-- .bash_executor_context_mixin::BashExecutorContextMixin (POS: ExecutionContext build, logging, artifacts.)
+- .execute_mixin::BashExecutorExecuteMixin (POS: Primary synchronous bash/python/skill execution orchestration for BashExecutor)
+- .background_mixin::BashExecutorBackgroundMixin (POS: Background spawn via process registry.)
+- .prepare_mixin::BashExecutorPrepareMixin (POS: MCP proxy, code-type detection, skill staging.)
+- .context_mixin::BashExecutorContextMixin (POS: ExecutionContext build, logging, artifacts.)
 - .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
-- .bash_executor_constants::MCP_MIN_TIMEOUT (POS: MCP skill execution timeout floor.)
+- .constants::MCP_MIN_TIMEOUT (POS: MCP skill execution timeout floor.)
 
 [OUTPUT]
 - BashExecutor: Code execution orchestrator aggregate root
@@ -15,7 +15,7 @@
 
 [POS]
 Bash executor aggregate root. MRO: Execute → Background → Prepare → Context (locked by architecture tests).
-Public import path: ``from ...bash_executor import BashExecutor``.
+Public import path: ``from ...bash._executor.executor import BashExecutor``.
 """
 
 from __future__ import annotations
@@ -25,28 +25,30 @@ from typing import TYPE_CHECKING
 from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
     BashExecutionError,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_background_mixin import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.background_mixin import (
     BashExecutorBackgroundMixin,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_constants import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.constants import (
     MCP_MIN_TIMEOUT,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_context_mixin import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.context_mixin import (
     BashExecutorContextMixin,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_execute_mixin import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.execute_mixin import (
     BashExecutorExecuteMixin,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_prepare_mixin import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.prepare_mixin import (
     BashExecutorPrepareMixin,
 )
-from myrm_agent_harness.agent.meta_tools.bash.mcp_citation_handler import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.mcp_citation_handler import (
     MCPMetadataExtractor,
 )
-from myrm_agent_harness.agent.meta_tools.bash.skill_workspace_manager import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.skill_workspace_manager import (
     SkillWorkspaceManager,
 )
-from myrm_agent_harness.agent.meta_tools.bash.workspace_manager import WorkspaceManager
+from myrm_agent_harness.agent.meta_tools.bash._executor.workspace_manager import (
+    WorkspaceManager,
+)
 from myrm_agent_harness.toolkits.code_execution import ExecutionConfig
 
 if TYPE_CHECKING:

@@ -106,10 +106,6 @@ class TestOptionalMethods:
         assert await server.set_session_mode(mode_id="agent", session_id="s1") is None
 
     @pytest.mark.asyncio
-    async def test_set_session_model_returns_none(self, server: MyrmAcpServer) -> None:
-        assert await server.set_session_model(model_id="gpt-4", session_id="s1") is None
-
-    @pytest.mark.asyncio
     async def test_set_config_option_returns_none(self, server: MyrmAcpServer) -> None:
         assert await server.set_config_option(config_id="c1", session_id="s1", value=True) is None
 

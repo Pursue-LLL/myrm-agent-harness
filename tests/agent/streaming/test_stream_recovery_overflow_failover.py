@@ -200,6 +200,65 @@ async def test_failover_no_fallback(ctx):
 
 
 @pytest.mark.asyncio
+async def test_failover_unconfigured_emits_status(ctx):
+    """Failoverable error without fallback LLM emits unconfigured STATUS once."""
+    executor = _make_executor(ctx)
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        return_value=ErrorKind.MODEL_NOT_FOUND,
+    ):
+        result = await executor._handle_failover(RuntimeError("no tool use"))
+
+    assert result is False
+    events = executor._compactor.events
+    unconfigured = [
+        e
+        for e in events
+        if isinstance(e, dict) and e.get("step_key") == "model_failover_unconfigured"
+    ]
+    assert len(unconfigured) == 1
+    assert unconfigured[0]["error_kind"] == ErrorKind.MODEL_NOT_FOUND.value
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        return_value=ErrorKind.MODEL_NOT_FOUND,
+    ):
+        result2 = await executor._handle_failover(RuntimeError("no tool use again"))
+
+    assert result2 is False
+    unconfigured2 = [
+        e
+        for e in executor._compactor.events
+        if isinstance(e, dict) and e.get("step_key") == "model_failover_unconfigured"
+    ]
+    assert len(unconfigured2) == 1
+
+
+@pytest.mark.asyncio
+async def test_safety_fallback_unconfigured_emits_status(ctx):
+    """Safety block without safety_fallback_llm emits safety_fallback_unconfigured STATUS."""
+    executor = _make_executor(ctx)
+
+    from myrm_agent_harness.toolkits.llms.errors.classifier import ErrorKind
+
+    with patch(
+        "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
+        return_value=ErrorKind.SAFETY_BLOCK,
+    ):
+        result = await executor._handle_failover(RuntimeError("content blocked"))
+
+    assert result is False
+    events = executor._compactor.events
+    assert any(
+        isinstance(e, dict) and e.get("step_key") == "safety_fallback_unconfigured"
+        for e in events
+    )
+
+
+@pytest.mark.asyncio
 async def test_failover_success(ctx):
     """Failover with available fallback LLM succeeds (using TIMEOUT, a non-deferred kind)."""
     fallback_llm = MagicMock()

@@ -72,7 +72,9 @@ class BatchEvolutionConfirmer:
         """
         self._llm = llm
 
-    async def batch_confirm_evolution(self, candidates: list[dict], trigger_context: str) -> list[ConfirmationResult]:
+    async def batch_confirm_evolution(
+        self, candidates: list[dict], trigger_context: str
+    ) -> list[ConfirmationResult]:
         """Batch confirm multiple evolution candidates in a single LLM call.
 
         Args:
@@ -105,7 +107,9 @@ class BatchEvolutionConfirmer:
             # Parse JSON array
             data = self._extract_json(response_text)
             if not data or "confirmations" not in data:
-                logger.error("Batch confirmation: LLM response missing 'confirmations' key")
+                logger.error(
+                    "Batch confirmation: LLM response missing 'confirmations' key"
+                )
                 return self._default_rejections(candidates)
 
             confirmations = data["confirmations"]
@@ -118,20 +122,26 @@ class BatchEvolutionConfirmer:
             for candidate in candidates:
                 skill_id = candidate["skill_id"]
                 # Find matching confirmation
-                confirmation = next((c for c in confirmations if c.get("skill_id") == skill_id), None)
+                confirmation = next(
+                    (c for c in confirmations if c.get("skill_id") == skill_id), None
+                )
 
                 if confirmation:
                     results.append(
                         ConfirmationResult(
                             skill_id=skill_id,
                             confirmed=bool(confirmation.get("confirmed", False)),
-                            reason=str(confirmation.get("reason", "No reason provided")),
+                            reason=str(
+                                confirmation.get("reason", "No reason provided")
+                            ),
                             confidence=float(confirmation.get("confidence", 0.5)),
                         )
                     )
                 else:
                     # LLM didn't return confirmation for this skill - default reject
-                    logger.warning(f"Batch confirmation: no result for skill {skill_id}")
+                    logger.warning(
+                        f"Batch confirmation: no result for skill {skill_id}"
+                    )
                     results.append(
                         ConfirmationResult(
                             skill_id=skill_id,
@@ -141,7 +151,9 @@ class BatchEvolutionConfirmer:
                         )
                     )
 
-            logger.info(f"Batch confirmation: {sum(1 for r in results if r.confirmed)}/{len(results)} confirmed")
+            logger.info(
+                f"Batch confirmation: {sum(1 for r in results if r.confirmed)}/{len(results)} confirmed"
+            )
             return results
 
         except Exception as e:
@@ -161,7 +173,11 @@ class BatchEvolutionConfirmer:
         # Build candidate summary
         candidate_lines = []
         for i, c in enumerate(candidates, 1):
-            metrics_str = f"\n   Metrics: {c['recent_metrics']}" if c.get("recent_metrics") else ""
+            metrics_str = (
+                f"\n   Metrics: {c['recent_metrics']}"
+                if c.get("recent_metrics")
+                else ""
+            )
             candidate_lines.append(
                 f"{i}. **{c['skill_id']}** ({c['skill_name']})\n"
                 f" Type: {c['proposed_type']}\n"
@@ -236,7 +252,9 @@ Guidelines:
             data = json.loads(text)
             if isinstance(data, dict):
                 return data
-            logger.warning(f"Batch confirmation: LLM returned non-dict JSON: {type(data)}")
+            logger.warning(
+                f"Batch confirmation: LLM returned non-dict JSON: {type(data)}"
+            )
             return None
         except json.JSONDecodeError as e:
             logger.warning(f"Batch confirmation: Failed to parse JSON: {e}")
@@ -255,7 +273,10 @@ Guidelines:
         """
         return [
             ConfirmationResult(
-                skill_id=c["skill_id"], confirmed=False, reason="Batch confirmation failed", confidence=0.0
+                skill_id=c["skill_id"],
+                confirmed=False,
+                reason="Batch confirmation failed",
+                confidence=0.0,
             )
             for c in candidates
         ]

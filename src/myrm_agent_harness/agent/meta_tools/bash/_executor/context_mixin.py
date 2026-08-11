@@ -2,7 +2,7 @@
 
 [INPUT]
 - toolkits.code_execution::ExecutionContext (POS: Code executor protocol and context)
-- ._event_logging::log_bash_command_execution (POS: Event logging with redaction)
+- .event_logging::log_bash_command_execution (POS: Event logging with redaction)
 - agent.artifacts.registry::register_generated_files (POS: Artifact registration)
 
 [OUTPUT]
@@ -22,8 +22,12 @@ from myrm_agent_harness.toolkits.code_execution import ExecutionContext
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.code_execution import Workspace
-    from myrm_agent_harness.toolkits.code_execution.executors.base import ExecutionResult
-    from myrm_agent_harness.toolkits.code_execution.executors.models import MCPConfigItem
+    from myrm_agent_harness.toolkits.code_execution.executors.base import (
+        ExecutionResult,
+    )
+    from myrm_agent_harness.toolkits.code_execution.executors.models import (
+        MCPConfigItem,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +35,9 @@ logger = logging.getLogger(__name__)
 class BashExecutorContextMixin:
     """Build ExecutionContext and handle logging / artifact registration."""
 
-    def _resolve_allowed_credential_issuers(self, skill_names: list[str] | None) -> list[str] | None:
+    def _resolve_allowed_credential_issuers(
+        self, skill_names: list[str] | None
+    ) -> list[str] | None:
         """Scope OAuth injection: all issuers for generic bash; filtered when a skill is active."""
         if not skill_names:
             return None
@@ -64,7 +70,9 @@ class BashExecutorContextMixin:
 
         executor_workspace = getattr(self._executor, "workspace_path", None)
         workspace_root = (
-            str(executor_workspace) if executor_workspace else self._workspace_manager.get_workspace_path(workspace)
+            str(executor_workspace)
+            if executor_workspace
+            else self._workspace_manager.get_workspace_path(workspace)
         )
 
         work_dir = working_dir if working_dir else "/workspace"
@@ -91,7 +99,9 @@ class BashExecutorContextMixin:
             work_dir=work_dir,
             workspace_root=workspace_root,
             active_skills=skill_names,
-            allowed_credential_issuers=self._resolve_allowed_credential_issuers(skill_names),
+            allowed_credential_issuers=self._resolve_allowed_credential_issuers(
+                skill_names
+            ),
             timeout=timeout if timeout is not None else self._get_timeout(),
             env=env,
             allow_network=network_config.allow_network,
@@ -107,7 +117,9 @@ class BashExecutorContextMixin:
         """Register generated artifact files from execution result."""
         from myrm_agent_harness.agent.artifacts.registry import register_generated_files
 
-        register_generated_files(generated_files=result.generated_files, container_id=result.container_id)
+        register_generated_files(
+            generated_files=result.generated_files, container_id=result.container_id
+        )
 
     def _build_error_details(self, result: ExecutionResult) -> str:
         """Build error detail string from execution result (error > stdout > stderr)."""
@@ -131,7 +143,7 @@ class BashExecutorContextMixin:
         error_message: str = "",
     ) -> None:
         """Delegate to module-level event logging (failure-safe)."""
-        from myrm_agent_harness.agent.meta_tools.bash._event_logging import (
+        from myrm_agent_harness.agent.meta_tools.bash._executor.event_logging import (
             log_bash_command_execution,
         )
 

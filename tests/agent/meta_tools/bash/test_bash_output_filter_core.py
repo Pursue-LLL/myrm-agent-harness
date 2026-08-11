@@ -1,6 +1,6 @@
 """Tests for bash_process output line filter."""
 
-from myrm_agent_harness.agent.meta_tools.bash._bash_output_filter_core import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.output_filter_core import (
     compile_output_filter,
     filter_output_lines,
 )

@@ -7,6 +7,7 @@ authentication injection, timeout handling, and retry logic.
 - httpx (POS: async HTTP client)
 - .auth::OpenAPIAuthProvider (POS: authentication header resolver)
 - .config::OpenAPIServiceConfig (POS: service configuration)
+- core.security.http.secure_fetch::secure_request / ContentTooLargeError (POS: SSRF-protected request execution with size cap)
 
 [OUTPUT]
 - OpenAPIExecutor: Async HTTP request executor for OpenAPI endpoints
@@ -26,7 +27,10 @@ from typing import Any
 import httpx
 
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
-from myrm_agent_harness.core.security.http.secure_fetch import secure_request
+from myrm_agent_harness.core.security.http.secure_fetch import (
+    ContentTooLargeError,
+    secure_request,
+)
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 from .auth import OpenAPIAuthProvider
@@ -225,6 +229,9 @@ class OpenAPIExecutor:
             except SSRFSecurityError as exc:
                 logger.warning("SSRF policy blocked request: %s", exc)
                 return "Error: Blocked by SSRF policy"
+            except ContentTooLargeError as exc:
+                logger.warning("OpenAPI response body too large: %s", exc)
+                return "Error: Response body exceeded the download size limit"
             except httpx.RequestError as e:
                 if attempt < self._max_retries:
                     logger.warning(

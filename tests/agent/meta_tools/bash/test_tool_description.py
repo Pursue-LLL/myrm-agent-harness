@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.meta_tools.bash._tool_description import TOOL_DESCRIPTION
+from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
+    TOOL_DESCRIPTION,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     create_bash_code_execute_tool,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
     create_bash_process_tool,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_helpers import get_os_hint
+from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import get_os_hint
 
 
 def test_tool_description_module_exports() -> None:
-    from myrm_agent_harness.agent.meta_tools.bash import _tool_description as mod
+    from myrm_agent_harness.agent.meta_tools.bash._tool import tool_description as mod
 
     assert mod.__all__ == ["TOOL_DESCRIPTION"]
     assert 2400 < len(TOOL_DESCRIPTION) < 5000

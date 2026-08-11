@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._tool_description import TOOL_DESCRIPTION
+from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import TOOL_DESCRIPTION
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     create_bash_code_execute_tool,
 )

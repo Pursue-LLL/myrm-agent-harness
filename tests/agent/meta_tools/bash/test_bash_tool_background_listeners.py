@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.background_listeners import (
     build_background_listeners,
     classify_background_exit,
 )

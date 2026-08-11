@@ -1,4 +1,4 @@
-from myrm_agent_harness.agent.meta_tools.bash.output_compressor import GitDiffCompressor
+from myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor import GitDiffCompressor
 
 
 def test_git_diff_compressor_truncates_long_hunks():

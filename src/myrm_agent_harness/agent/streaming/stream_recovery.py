@@ -18,7 +18,7 @@
 - _is_escalation_marker_message: module-level helper function
 
 [POS]
-StreamRecoveryMixin composes overflow, deferred failover (429 never failover; 529 after 3 consecutive), safety refusal fallback (HTTP 200 refusal/content_filter → safety_fallback_llm), escalation, transient retry, iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies.
+StreamRecoveryMixin composes overflow, deferred failover (429 never failover; 529 after 3 consecutive; emits `model_failover_unconfigured` when failoverable but no fallback LLM), safety refusal fallback (HTTP 200 refusal/content_filter → safety_fallback_llm), escalation, transient retry, iteration-limit (with grace-call summary), empty-response, truncation, steering, subagent, and goal continuation recovery strategies.
 
 """
 
@@ -188,11 +188,12 @@ class StreamRecoveryMixin(
             "ready" if target_fallback_llm and not self.failover_used else "none",
         )
 
-        if (
-            not error_kind.is_failoverable
-            or target_fallback_llm is None
-            or self.failover_used
-        ):
+        if not error_kind.is_failoverable or self.failover_used:
+            return False
+
+        if target_fallback_llm is None:
+            if self._should_hint_missing_fallback(error_kind):
+                await self._emit_failover_unconfigured_hint(error_kind)
             return False
 
         if error_kind == ErrorKind.RATE_LIMIT:
@@ -236,6 +237,28 @@ class StreamRecoveryMixin(
         )
         self.streaming_final_answer = False
         return True
+
+    async def _emit_failover_unconfigured_hint(self, error_kind: ErrorKind) -> None:
+        """Emit STATUS when failover is possible but no fallback LLM is configured."""
+        if getattr(self, "failover_unconfigured_notified", False):
+            return
+        self.failover_unconfigured_notified = True
+        step_key = (
+            "safety_fallback_unconfigured"
+            if error_kind == ErrorKind.SAFETY_BLOCK
+            else "model_failover_unconfigured"
+        )
+        logger.warning(
+            " Failover skipped: no %s LLM configured (%s)",
+            "safety fallback" if error_kind == ErrorKind.SAFETY_BLOCK else "fallback",
+            error_kind.value,
+        )
+        await self._emit_recovery_event(step_key, error_kind=error_kind.value)
+
+    @staticmethod
+    def _should_hint_missing_fallback(error_kind: ErrorKind) -> bool:
+        """Hint only when missing fallback is the blocker (not deferred-retry kinds)."""
+        return error_kind not in (ErrorKind.RATE_LIMIT, ErrorKind.OVERLOADED)
 
     async def _handle_safety_refusal_fallback(self) -> bool:
         """Fallback on HTTP 200 safety refusal (finish_reason in SAFETY_FINISH_REASONS).

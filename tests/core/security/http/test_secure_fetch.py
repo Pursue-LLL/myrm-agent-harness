@@ -9,6 +9,7 @@ import pytest
 
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
 from myrm_agent_harness.core.security.http.secure_fetch import (
+    ContentTooLargeError,
     _https_pin_extensions,
     resolve_secure_http_target,
     secure_get,
@@ -138,11 +139,8 @@ def test_https_pin_extensions_skips_non_ip_and_http() -> None:
 async def test_secure_request_passes_sni_extensions_for_pinned_https_ip() -> None:
     captured_extensions: list[dict[str, object]] = []
 
-    async def _capture_request(*_args: object, **kwargs: object) -> httpx.Response:
-        extensions = kwargs.get("extensions")
-        if isinstance(extensions, dict):
-            captured_extensions.append(extensions)
-        request = httpx.Request("GET", "https://93.184.216.34/zen/go/v1/models")
+    async def _capture_send(request: httpx.Request, **_kwargs: object) -> httpx.Response:
+        captured_extensions.append(dict(request.extensions))
         return httpx.Response(200, text="ok", request=request)
 
     with patch(
@@ -152,7 +150,113 @@ async def test_secure_request_passes_sni_extensions_for_pinned_https_ip() -> Non
         ),
     ):
         client = AsyncMock()
-        client.request = AsyncMock(side_effect=_capture_request)
+        client.build_request = httpx.AsyncClient().build_request
+        client.send = AsyncMock(side_effect=_capture_send)
         response = await secure_request(client, "GET", "https://opencode.ai/zen/go/v1/models")
         assert response.status_code == 200
-        assert captured_extensions == [{"sni_hostname": "opencode.ai"}]
+        assert len(captured_extensions) == 1
+        assert captured_extensions[0]["sni_hostname"] == "opencode.ai"
+
+
+@pytest.mark.asyncio
+async def test_secure_request_raises_when_content_length_exceeds_limit() -> None:
+    """A Content-Length over the limit is rejected before the body is downloaded."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"Content-Length": "1000"},
+            content=b"x" * 1000,
+            request=request,
+        )
+
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(return_value=("https://example.com/", {"Host": "example.com"})),
+    ):
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+            with pytest.raises(ContentTooLargeError):
+                await secure_request(
+                    client, "GET", "https://example.com", max_content_length=100
+                )
+
+
+@pytest.mark.asyncio
+async def test_secure_request_raises_when_stream_exceeds_limit() -> None:
+    """Bodies without a usable Content-Length are aborted mid-stream when oversized."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"y" * 500, request=request)
+
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(return_value=("https://example.com/", {"Host": "example.com"})),
+    ):
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+            with pytest.raises(ContentTooLargeError):
+                await secure_request(
+                    client, "GET", "https://example.com", max_content_length=100
+                )
+
+
+@pytest.mark.asyncio
+async def test_secure_request_returns_full_body_without_limit() -> None:
+    """Passing max_content_length=None disables the cap (opt-out, backwards compatible)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=b"z" * 500, request=request)
+
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(return_value=("https://example.com/", {"Host": "example.com"})),
+    ):
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+            response = await secure_request(
+                client, "GET", "https://example.com", max_content_length=None
+            )
+            assert len(response.content) == 500
+
+
+@pytest.mark.asyncio
+async def test_secure_request_applies_default_cap() -> None:
+    """The secure-by-default cap rejects a body whose Content-Length exceeds it."""
+    from myrm_agent_harness.core.security.http.secure_fetch import (
+        DEFAULT_MAX_CONTENT_LENGTH,
+    )
+
+    oversized = DEFAULT_MAX_CONTENT_LENGTH + 1
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"Content-Length": str(oversized)},
+            content=b"x" * oversized,
+            request=request,
+        )
+
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(return_value=("https://example.com/", {"Host": "example.com"})),
+    ):
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+            with pytest.raises(ContentTooLargeError):
+                await secure_request(client, "GET", "https://example.com")
+
+
+@pytest.mark.asyncio
+async def test_secure_get_passes_max_content_length() -> None:
+    mock_response = httpx.Response(
+        200,
+        content=b"payload",
+        request=httpx.Request("GET", "https://example.com"),
+    )
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.secure_request",
+        new=AsyncMock(return_value=mock_response),
+    ) as mock_secure_request:
+        await secure_get("https://example.com", max_content_length=42)
+        assert mock_secure_request.await_args.kwargs["max_content_length"] == 42

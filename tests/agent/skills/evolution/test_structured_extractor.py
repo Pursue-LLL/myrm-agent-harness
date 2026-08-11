@@ -132,7 +132,9 @@ class TestStructuredExtractor:
     @pytest.mark.asyncio
     async def test_fallback_json_path(self, mock_llm: MagicMock) -> None:
         """Fallback: structured output fails, raw JSON parsed from response."""
-        mock_llm.with_structured_output = MagicMock(side_effect=Exception("Not supported"))
+        mock_llm.with_structured_output = MagicMock(
+            side_effect=Exception("Not supported")
+        )
 
         raw_json = json.dumps(
             {
@@ -150,7 +152,9 @@ class TestStructuredExtractor:
         mock_llm.ainvoke = AsyncMock(return_value=raw_response)
 
         extractor = StructuredExtractor(llm=mock_llm)
-        result = await extractor.extract_from_trajectory("User: complex task\nAssistant: steps...")
+        result = await extractor.extract_from_trajectory(
+            "User: complex task\nAssistant: steps..."
+        )
 
         assert result is not None
         assert result.name == "fallback-skill"
@@ -159,7 +163,9 @@ class TestStructuredExtractor:
     @pytest.mark.asyncio
     async def test_fallback_reasoning_content(self, mock_llm: MagicMock) -> None:
         """Reasoning model: content empty, JSON lives in reasoning_content."""
-        mock_llm.with_structured_output = MagicMock(side_effect=Exception("Not supported"))
+        mock_llm.with_structured_output = MagicMock(
+            side_effect=Exception("Not supported")
+        )
 
         raw_json = json.dumps(
             {
@@ -179,7 +185,9 @@ class TestStructuredExtractor:
         mock_llm.ainvoke = AsyncMock(return_value=raw_response)
 
         extractor = StructuredExtractor(llm=mock_llm)
-        result = await extractor.extract_from_trajectory("User: complex task\nAssistant: steps...")
+        result = await extractor.extract_from_trajectory(
+            "User: complex task\nAssistant: steps..."
+        )
 
         assert result is not None
         assert result.name == "reasoning-skill"

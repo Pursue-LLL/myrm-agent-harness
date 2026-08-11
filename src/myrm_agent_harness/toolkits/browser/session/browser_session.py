@@ -22,6 +22,8 @@
 - session.browser_session_recording_mixin::BrowserSessionRecordingMixin (POS: trace/HAR recording API)
 - session.browser_session_navigation_mixin::BrowserSessionNavigationMixin (POS: navigation, tab switching, CAPTCHA)
 - session.browser_session_lifecycle_mixin::BrowserSessionLifecycleMixin (POS: restart/close and component init)
+- session.browser_session_view_mixin::BrowserSessionViewMixin (POS: Browser Live Co-View SSE mixin)
+- session.view_update_payload::capture_browser_view_update_data (POS: shared browser inspector payload builder)
 - session.browser_session_network_mixin::BrowserSessionNetworkMixin (POS: console and network log APIs)
 - session.download_manager::DownloadManager, DownloadConfig (POS: file download management)
 - session.dialog_manager::DialogManager, DialogPolicy (POS: JS dialog lifecycle management)
@@ -81,6 +83,7 @@ from .browser_session_network_mixin import BrowserSessionNetworkMixin
 from .browser_session_page_mixin import BrowserSessionPageMixin
 from .browser_session_persistence_mixin import BrowserSessionPersistenceMixin
 from .browser_session_recording_mixin import BrowserSessionRecordingMixin
+from .browser_session_view_mixin import BrowserSessionViewMixin
 from .console_logger import ConsoleLogger
 from .dialog_manager import DialogManager, DialogPolicy
 from .download_manager import DownloadConfig, DownloadManager, DownloadResult
@@ -109,6 +112,7 @@ logger = logging.getLogger(__name__)
 
 
 class BrowserSession(
+    BrowserSessionViewMixin,
     BrowserSessionPersistenceMixin,
     BrowserSessionRecordingMixin,
     BrowserSessionExtractionMixin,
@@ -251,6 +255,8 @@ class BrowserSession(
         from myrm_agent_harness.toolkits.browser.session.consent_dismisser import ConsentDismisser
 
         self._consent_dismisser = ConsentDismisser(enabled=auto_dismiss_consent)
+        self._view_emit_last_monotonic = 0.0
+
     async def snapshot(
         self,
         scope: str = "content",
@@ -262,6 +268,8 @@ class BrowserSession(
         include_iframes: bool = True,
         max_depth: int | None = None,
         include_bbox: bool = False,
+        *,
+        publish_inspector_view: bool = True,
     ) -> SnapshotResult:
         """Generate ARIA snapshot (with iframe traversal)"""
         await self._ensure_components()
@@ -290,6 +298,8 @@ class BrowserSession(
         self._tab_controller.update_snapshot_url(tab_id, current_url)
         interactor.update_refs(result.refs, last_snapshot_url=current_url)
 
+        if publish_inspector_view:
+            await self._publish_inspector_view(snapshot_result=result)
         return result
 
     async def inspect(self) -> str:
@@ -376,6 +386,7 @@ class BrowserSession(
             # We append the failure to the result so the LLM can reflect on it.
             # The tool call itself doesn't raise an exception, it just reports the failure.
 
+        await self._publish_inspector_view()
         return result
 
     async def interact_at(
@@ -419,6 +430,7 @@ class BrowserSession(
             )
             result = f"{result}\n\n{verify_msg}"
 
+        await self._publish_inspector_view()
         return result
 
     async def download_url(self, url: str, timeout: float | None = None) -> DownloadResult | None:

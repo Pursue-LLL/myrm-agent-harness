@@ -37,7 +37,9 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
+    EmbedInputTooLargeError,
+)
 from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig, WikiConfig
 from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_response
 from myrm_agent_harness.utils.chat_utils import extract_answer_text
@@ -640,7 +642,9 @@ class WikiCompiler:
             if isinstance(result, BaseException):
                 logger.error(f"Unexpected error in concept extraction: {result}")
                 resolution = resolve_llm_failure(
-                    result if isinstance(result, Exception) else RuntimeError(str(result))
+                    result
+                    if isinstance(result, Exception)
+                    else RuntimeError(str(result))
                 )
                 failure_kinds.append(resolution.error_kind)
                 continue

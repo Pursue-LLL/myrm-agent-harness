@@ -29,7 +29,7 @@
 | # | 工具名 | Token (tiktoken) | 来源文件 | 说明 | 加载条件 |
 |---|--------|------------------:|----------|------|----------|
 | 4a | web_fetch_tool | 118 | `harness/toolkits/web_fetch/web_fetch_agent_tools.py` | HTTP 抓取/深读 | Turn1 基线 |
-| 6 | **bash_code_execute_tool** | **1,682** | `harness/agent/meta_tools/bash/_tool_description.py` | Shell/Python；静态 ~4k-char 描述 + OS hint（路由+skill_select+MCP 依赖决策+禁 myrm_tools；无动态 append） | 通用 Agent 基线 |
+| 6 | **bash_code_execute_tool** | **1,682** | `harness/agent/meta_tools/bash/_tool/tool_description.py` | Shell/Python；静态 ~4k-char 描述 + OS hint（路由+skill_select+MCP 依赖决策+禁 myrm_tools；无动态 append） | 通用 Agent 基线 |
 | 6b | **bash_process_tool** | **79** | `harness/agent/meta_tools/bash/bash_process_tools.py` | 后台进程 list/output/kill（CORE；与 bash_code_execute 同挂） | enable_shell_tools |
 | 7 | file_edit_tool | 149 | `harness/agent/meta_tools/file_ops/file_edit_tool.py` | 批量 edits[] 原子编辑 | 通用 Agent 基线 |
 | 8 | file_read_tool | 356 | `harness/agent/meta_tools/file_ops/file_read_tool.py` | 读取文件 | 通用 Agent 基线 |

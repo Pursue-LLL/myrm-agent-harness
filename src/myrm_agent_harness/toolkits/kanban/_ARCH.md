@@ -189,10 +189,11 @@ Protocol-first architecture with strict framework-business separation.
 
 20. **Task-level workspace / worktree isolation**: Each `KanbanTask` carries optional
     `workspace_path` and `branch` fields. `BoardSettings.default_workdir` provides a
-    board-level default. The server's `TaskRunner._resolve_workspace()` resolves the
+    board-level default. The server's `resolve_workspace()` (task_runner/worktree.py) resolves the
     effective workspace (task-level > board-level default). When `branch` is set, the
-    runner calls `_create_worktree()` which executes `git worktree add` to create an
-    isolated checkout under `<workspace>/.worktrees/<task_id>-<branch>`. The resolved
+    runner calls `create_worktree()` (worktree.py) which executes `git worktree add`
+    to create an isolated checkout under `<workspace>/.worktrees/<branch>-<task_id[:8]>`.
+    The resolved
     workspace is passed to `GeneralAgentParams.declared_allowed_roots`, binding the
     agent's file operations to the worktree. A `BRANCH_SWITCHED` event is emitted
     only when the worktree is newly created (not on repeat resolutions, so frequent

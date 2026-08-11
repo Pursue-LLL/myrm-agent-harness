@@ -15,7 +15,7 @@
 - agent.context_management.strategies.filter::should_filter (POS: token 阈值判定)
 - agent.context_management.strategies.filters.base::STRUCTURAL_CONTENT_TYPES, FilterContext, detect_content_type (POS: 内容类型检测)
 - agent.context_management.strategies.filters.structural_filter::StructuralFilter (POS: JSON XML CSV)
-- agent.meta_tools.bash.bash_tool_formatting::BASH_OUTPUT_MAX_CHARS (POS: 字符阈值，与格式层硬截断对齐)
+- agent.meta_tools.bash._tool.formatting::BASH_OUTPUT_MAX_CHARS (POS: 字符阈值，与格式层硬截断对齐)
 - toolkits.code_execution.executors.base::CodeExecutor (POS: Code executor base classes.)
 
 [OUTPUT]
@@ -48,7 +48,7 @@ from myrm_agent_harness.agent.context_management.strategies.filters.base import 
 from myrm_agent_harness.agent.context_management.strategies.filters.structural_filter import (
     StructuralFilter,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_formatting import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.formatting import (
     BASH_OUTPUT_MAX_CHARS,
 )
 from myrm_agent_harness.utils.text_utils import get_token_count, smart_truncate

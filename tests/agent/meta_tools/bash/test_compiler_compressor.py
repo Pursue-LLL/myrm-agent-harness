@@ -1,4 +1,4 @@
-from myrm_agent_harness.agent.meta_tools.bash.output_compressor import CompilerErrorCompressor
+from myrm_agent_harness.agent.meta_tools.bash._compression.output_compressor import CompilerErrorCompressor
 
 
 def test_compiler_error_compressor_tsc():

@@ -15,6 +15,29 @@ Core engine that attaches JavaScript event listeners to a Playwright Page via
 forwarded to Python via a bridge function, structured into ActionStep objects,
 and dispatched to registered callbacks (e.g. SSE, WebSocket).
 
+Recording quality notes:
+- Text input uses a session-based fill model: focus starts a session, each
+  keystroke only syncs the value, and the final value is emitted once on
+  commit (blur / click-away / change / navigation / pagehide). This avoids
+  fragmented `type` steps produced by debounce-based capture, which would be
+  re-typed append-style on replay.
+- IME composition (Chinese input) is protected: in-progress pinyin is never
+  emitted as fragments, and Enter/Escape presses during composition (candidate
+  selection/cancellation) are not recorded as page-level actions.
+- Unchanged or empty values are dropped (no-op focus, clear-without-commit).
+- Enter-press clicks are deduplicated via a keyboard-activation window.
+- Autocomplete/typeahead option clicks fold into the active fill session.
+- Clicks on search/chat chrome that only focus the nearby input fold into the
+  fill session (search-style selectors only; form submit buttons unaffected).
+- Event targets resolve through open shadow DOM boundaries via `composedPath`
+  so selectors point at the real element rather than the shadow host.
+- SPA navigations (history.pushState/replaceState, hash changes) are reported
+  through the bridge and folded together with real browser navigations.
+- Navigation folding lives on the Python side (`_record_navigation`):
+  consecutive navigations collapse to the final hop, and a navigation that
+  immediately follows an action step is merged into that step's URL instead of
+  emitting a redundant NAVIGATE step.
+
 This module is agent-agnostic — it operates on a raw Playwright Page and has
 zero imports from `agent/`, `runtime/`, or `backends/`.
 """
@@ -26,7 +49,10 @@ import base64
 import contextlib
 import json
 import logging
+import time
 import uuid
+from dataclasses import replace
+from importlib.resources import files
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from .types import ActionStep, ActionType, CaptureSession
@@ -36,114 +62,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_CAPTURE_JS = """
-(function() {
-  if (window.__myrmActionCapture) return;
+# A navigation arriving within this window after an action step (click/dblclick/press)
+# is considered caused by that action and folded into its URL instead of producing
+# a standalone NAVIGATE step. Mirrors BrowserSkill's `expects_navigation` semantics.
+_NAV_ACTION_WINDOW_S = 1.5
 
-  const SENSITIVE_TYPES = new Set(['password', 'credit-card-number', 'cc-csc']);
-
-  function getSelector(el) {
-    if (el.id) return '#' + CSS.escape(el.id);
-    if (el.getAttribute('data-testid')) return '[data-testid="' + el.getAttribute('data-testid') + '"]';
-    if (el.getAttribute('aria-label')) return '[aria-label="' + el.getAttribute('aria-label') + '"]';
-    if (el.getAttribute('name')) return el.tagName.toLowerCase() + '[name="' + el.getAttribute('name') + '"]';
-
-    const tag = el.tagName.toLowerCase();
-    const parent = el.parentElement;
-    if (!parent) return tag;
-    const siblings = Array.from(parent.children).filter(c => c.tagName === el.tagName);
-    if (siblings.length === 1) return getSelector(parent) + ' > ' + tag;
-    const idx = siblings.indexOf(el) + 1;
-    return getSelector(parent) + ' > ' + tag + ':nth-child(' + idx + ')';
-  }
-
-  function getRole(el) {
-    return el.getAttribute('role') || el.tagName.toLowerCase();
-  }
-
-  function isSensitive(el) {
-    const type = (el.getAttribute('type') || '').toLowerCase();
-    const ac = (el.getAttribute('autocomplete') || '').toLowerCase();
-    return type === 'password' || SENSITIVE_TYPES.has(ac);
-  }
-
-  function getText(el) {
-    const label = el.getAttribute('aria-label') || el.getAttribute('placeholder') || '';
-    if (label) return label;
-    const text = (el.textContent || '').trim();
-    return text.length > 80 ? text.slice(0, 80) + '...' : text;
-  }
-
-  function emit(action, el, value) {
-    if (!window.__myrmCaptureActive) return;
-    window.__myrmCaptureCallback(JSON.stringify({
-      action: action,
-      selector: getSelector(el),
-      value: value || '',
-      url: location.href,
-      title: document.title,
-      elementText: getText(el),
-      elementRole: getRole(el),
-      isPassword: isSensitive(el),
-      ts: Date.now() / 1000
-    }));
-  }
-
-  document.addEventListener('click', function(e) {
-    const el = e.target.closest('a, button, input, select, textarea, [role="button"], [role="link"], [role="tab"], [role="menuitem"], label');
-    if (el) emit('click', el);
-  }, true);
-
-  document.addEventListener('dblclick', function(e) {
-    const el = e.target.closest('a, button, input, select, textarea, [role="button"]');
-    if (el) emit('dblclick', el);
-  }, true);
-
-  document.addEventListener('change', function(e) {
-    const el = e.target;
-    if (!el || !el.tagName) return;
-    const tag = el.tagName.toLowerCase();
-    if (tag === 'select') {
-      emit('select', el, el.value);
-    } else if (tag === 'input' && (el.type === 'checkbox' || el.type === 'radio')) {
-      emit(el.checked ? 'check' : 'uncheck', el, String(el.checked));
-    } else if (tag === 'input' && el.type === 'file') {
-      const names = Array.from(el.files || []).map(f => f.name).join(', ');
-      emit('upload', el, names);
-    }
-  }, true);
-
-  let inputTimer = null;
-  let lastInputEl = null;
-  document.addEventListener('input', function(e) {
-    const el = e.target;
-    if (!el || !el.tagName) return;
-    const tag = el.tagName.toLowerCase();
-    if (tag !== 'input' && tag !== 'textarea') return;
-    if (el.type === 'checkbox' || el.type === 'radio' || el.type === 'file') return;
-
-    lastInputEl = el;
-    clearTimeout(inputTimer);
-    inputTimer = setTimeout(function() {
-      if (lastInputEl) {
-        const val = isSensitive(lastInputEl) ? '***' : lastInputEl.value;
-        emit('type', lastInputEl, val);
-        lastInputEl = null;
-      }
-    }, 600);
-  }, true);
-
-  document.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' || e.key === 'Escape' || e.key === 'Tab') {
-      const el = e.target;
-      if (el && el.tagName) emit('press', el, e.key);
-    }
-  }, true);
-
-  window.__myrmActionCapture = true;
-  window.__myrmCaptureActive = true;
-})();
-"""
+_CAPTURE_JS = (
+    files(__package__).joinpath("capture_script.js").read_text(encoding="utf-8")
+)
 
 
 @runtime_checkable
@@ -250,8 +176,14 @@ class ActionCaptureEngine:
             logger.debug(f"Unknown action type: {action_str}")
             return
 
+        # SPA navigations reported from JS are folded here together with real
+        # navigations (same collapsing rules, no screenshot, no step push).
+        if action_type == ActionType.NAVIGATE:
+            await self._record_navigation(data.get("url", ""))
+            return
+
         screenshot_b64: str | None = None
-        if self._capture_screenshots:
+        if self._capture_screenshots and action_type != ActionType.HOVER:
             try:
                 raw = await self._page.screenshot(type="png", timeout=3000)
                 screenshot_b64 = base64.b64encode(raw).decode("ascii")
@@ -270,6 +202,7 @@ class ActionCaptureEngine:
             element_text=data.get("elementText", ""),
             element_role=data.get("elementRole", ""),
             is_password=data.get("isPassword", False),
+            modifiers=data.get("modifiers", []),
         )
 
         self._session.add_step(step)
@@ -281,27 +214,53 @@ class ActionCaptureEngine:
                 logger.exception("Capture callback error")
 
     async def _on_navigation(self, frame: object) -> None:
-        """Re-inject capture script after same-page navigations."""
+        """Handle frame navigation events during recording."""
         if not self._session or self._session.status != "recording":
             return
         try:
             page_frame = self._page.main_frame
             if hasattr(frame, "url") and frame == page_frame:
-                url = getattr(frame, "url", "")
-                step = ActionStep(
-                    seq=self._session.next_seq,
-                    action=ActionType.NAVIGATE,
-                    selector="",
-                    value=url,
-                    url=url,
-                    title="",
-                )
-                self._session.add_step(step)
-
-                for cb in self._callbacks:
-                    try:
-                        await cb.on_step(step)
-                    except Exception:
-                        logger.exception("Capture callback error on navigation")
+                await self._record_navigation(getattr(frame, "url", ""))
         except Exception:
             logger.debug("Navigation capture failed (page may have closed)")
+
+    async def _record_navigation(self, url: str) -> None:
+        """Record a NAVIGATE step, folding redundant hops.
+
+        Two folding rules:
+        1. A navigation arriving within `_NAV_ACTION_WINDOW_S` after a click /
+           dblclick / press step is caused by that action — the step's URL is
+           updated to the destination and no standalone NAVIGATE is emitted.
+        2. Consecutive NAVIGATE steps collapse to the last hop (redirect chains).
+        """
+        steps = self._session.steps
+
+        def _updated(step: ActionStep, **overrides: object) -> ActionStep:
+            return replace(step, **overrides)
+
+        if steps:
+            last = steps[-1]
+            now = time.time()
+            action_follow = last.action in {
+                ActionType.CLICK,
+                ActionType.DBLCLICK,
+                ActionType.PRESS,
+            }
+            if action_follow and (now - last.timestamp) < _NAV_ACTION_WINDOW_S:
+                steps[-1] = _updated(last, url=url)
+                return
+
+            if last.action == ActionType.NAVIGATE:
+                steps[-1] = _updated(last, value=url, url=url)
+                return
+
+        self._session.add_step(
+            ActionStep(
+                seq=self._session.next_seq,
+                action=ActionType.NAVIGATE,
+                selector="",
+                value=url,
+                url=url,
+                title="",
+            )
+        )

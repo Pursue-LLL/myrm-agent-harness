@@ -60,7 +60,7 @@ async def test_create_note_builds_managed_sections(wiki_structure: WikiStructure
             metadata={"source_chat": "chat-1", "source_message": "msg-1"},
             provenance="chat-save",
         ),
-        caller="chat",
+        caller="agent",
     )
     assert result.created is True
     content = wiki_structure.get_concept_file_path("chat/saved-note").read_text(encoding="utf-8")
@@ -241,7 +241,7 @@ async def test_create_note_canonical_conflict_on_alias(wiki_structure: WikiStruc
                 body="Duplicate topic",
                 aliases=("React Hooks",),
             ),
-            caller="chat",
+            caller="agent",
         )
     assert exc.value.code == "canonical_conflict"
 
@@ -282,6 +282,6 @@ async def test_create_note_conflicts_when_exists(wiki_structure: WikiStructure) 
                 concept_name="dup",
                 body="new",
             ),
-            caller="chat",
+            caller="agent",
         )
     assert exc.value.code == "concept_exists"

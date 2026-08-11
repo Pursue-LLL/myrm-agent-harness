@@ -7,6 +7,7 @@ representation. Supports fetching from URL or parsing inline content (JSON/YAML)
 - httpx (POS: async HTTP client for fetching remote specs)
 - PyYAML (POS: YAML parsing)
 - .config::ParsedEndpoint (POS: endpoint metadata model)
+- core.security.http.secure_fetch::secure_get / ContentTooLargeError (POS: SSRF-protected spec download with size cap)
 
 [OUTPUT]
 - ParsedSpec: Complete parsed specification with metadata and endpoints
@@ -80,13 +81,18 @@ async def parse_spec_from_url(url: str, *, timeout: float = 30.0) -> ParsedSpec:
         ValueError: If the spec cannot be fetched or parsed
     """
     from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
-    from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+    from myrm_agent_harness.core.security.http.secure_fetch import (
+        ContentTooLargeError,
+        secure_get,
+    )
 
     try:
         response = await secure_get(url, timeout=timeout)
         response.raise_for_status()
     except SSRFSecurityError as e:
         raise ValueError(f"Blocked by SSRF policy: {e}") from e
+    except ContentTooLargeError as e:
+        raise ValueError(f"Spec too large from {url}: {e}") from e
     except httpx.HTTPStatusError as e:
         raise ValueError(f"Failed to fetch spec from {url}: HTTP {e.response.status_code}") from e
     except httpx.RequestError as e:

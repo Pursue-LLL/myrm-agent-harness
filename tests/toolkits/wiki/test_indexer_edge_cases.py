@@ -30,6 +30,7 @@ def mock_vector_store():
 def mock_embedding():
     embedding = AsyncMock()
     embedding.embed.return_value = [0.1, 0.2, 0.3]
+    embedding.embed_batch.side_effect = lambda chunks: [[0.1, 0.2, 0.3] for _ in chunks]
     return embedding
 
 

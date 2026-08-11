@@ -310,20 +310,23 @@ class WikiIndexer(SidecarIndexMixin):
             and self._embedding
         ):
             await self._ensure_collection()
-            await upsert_text_vectors(
-                embedding=self._embedding,
-                vector=self._vector,
-                collection_name=self._collection_name,
-                parent_key=concept_name,
-                text=truth_content,
-                base_metadata={
-                    "concept_name": concept_name,
-                    "entry_type": "concept",
-                    "level": "L2",
-                    "dir_path": self._concept_dir_path(concept_name),
-                },
-                metadata_key="concept_name",
-            )
+            try:
+                await upsert_text_vectors(
+                    embedding=self._embedding,
+                    vector=self._vector,
+                    collection_name=self._collection_name,
+                    parent_key=concept_name,
+                    text=truth_content,
+                    base_metadata={
+                        "concept_name": concept_name,
+                        "entry_type": "concept",
+                        "level": "L2",
+                        "dir_path": self._concept_dir_path(concept_name),
+                    },
+                    metadata_key="concept_name",
+                )
+            except Exception as e:
+                logger.warning(f"Vector upsert failed for wiki concept '{concept_name}', keeping FTS only: {e}")
 
     async def delete(self, concept_name: str) -> None:
         """

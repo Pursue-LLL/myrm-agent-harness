@@ -35,3 +35,16 @@ async def test_resolve_image_inputs_uses_secure_get() -> None:
 
     mock_secure_get.assert_awaited_once()
     assert data == [b"png"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_image_inputs_rejects_oversized_download() -> None:
+    """A response exceeding the media cap is rejected via ContentTooLargeError."""
+    from myrm_agent_harness.core.security.http.secure_fetch import ContentTooLargeError
+
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.secure_get",
+        new_callable=AsyncMock,
+        side_effect=ContentTooLargeError("too large"),
+    ), pytest.raises(ValueError, match="too large"):
+        await _resolve_image_inputs(["https://example.com/huge.png"])

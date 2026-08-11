@@ -10,6 +10,7 @@ with various LLMs.
 [OUTPUT]
 - canonicalize_schema_for_cache: Deterministic key ordering for prompt prefix cache stability.
 - flatten_json_schema: Resolves $ref pointers inline securely.
+- flatten_top_level_composite: Merges top-level anyOf/oneOf/allOf object branches into a flat properties set (with exclusivity hints).
 - analyze_schema_complexity: Measures leaf count and max depth.
 - flatten_deep_schema: Flattens deeply-nested schemas to dot-path notation.
 - nest_flat_arguments: Restores dot-path args to nested structure for dispatch.
@@ -20,7 +21,8 @@ with various LLMs.
 [POS]
 MCP Schema Utilities. Provides schema sanitization, $ref flattening,
 cache-stable canonicalization, deep-nesting flattening (dot-path),
-dynamic type coercion, strict-host nullable completion, mixed-union safe container coercion,
+top-level composite flattening, dynamic type coercion, strict-host
+nullable completion, mixed-union safe container coercion,
 and coercion observability counters.
 """
 
@@ -614,3 +616,124 @@ def nest_flat_arguments(flat_args: dict[str, Any]) -> dict[str, Any]:
             cur = cur[part]
         cur[parts[-1]] = value
     return result
+
+
+# ---------------------------------------------------------------------------
+# Top-level composite flattening: anyOf/oneOf/allOf object branches
+# ---------------------------------------------------------------------------
+
+_COMPOSITE_KEYS = ("anyOf", "oneOf", "allOf")
+_MAX_COMPOSITE_FLATTEN_DEPTH = 5
+
+
+def flatten_top_level_composite(schema: dict[str, Any]) -> dict[str, Any]:
+    """Flatten top-level ``anyOf``/``oneOf``/``allOf`` object branches.
+
+    Third-party MCP servers sometimes declare a tool's parameters with a
+    top-level composite keyword — e.g. kimi-cu ``click`` accepts ``index``
+    *or* ``x``/``y``. Strict providers reject top-level combinators, and the
+    Pydantic args builder only reads ``properties``, so such tools silently
+    lose every parameter. Merging each object branch's ``properties`` into a
+    single flat set makes the tool usable; the original alternative constraint
+    is folded into ``description`` so the LLM picks one valid combination.
+
+    ``allOf`` branches are conjunctive — their ``required`` lists are merged.
+    ``anyOf``/``oneOf`` branches are alternative — ``required`` is dropped and
+    the alternatives are spelled out in ``description`` only when there are at
+    least two non-empty groups (a single branch needs no extra guidance).
+
+    Top-level ``properties`` / ``required`` coexist conjunctively with the
+    composite keyword and are always preserved.
+
+    Idempotent: a schema without a top-level composite is returned unchanged.
+    """
+    return _flatten_top_level_composite(schema, depth=0)
+
+
+def _flatten_top_level_composite(schema: dict[str, Any], *, depth: int) -> dict[str, Any]:
+    if not isinstance(schema, dict):
+        return schema
+
+    composite: dict[str, list[dict[str, Any]]] = {}
+    for key in _COMPOSITE_KEYS:
+        branches = schema.get(key)
+        if isinstance(branches, list) and branches:
+            dict_branches = [b for b in branches if isinstance(b, dict)]
+            if dict_branches:
+                composite[key] = dict_branches
+    if not composite:
+        return schema
+
+    merged_props: dict[str, Any] = {}
+    merged_required: list[str] = []
+    alternatives: list[list[str]] = []
+
+    # Top-level properties/required apply conjunctively alongside the
+    # composite keyword (JSON Schema semantics) — always keep them.
+    top_props = schema.get("properties")
+    if isinstance(top_props, dict) and top_props:
+        merged_props.update(top_props)
+    top_required = schema.get("required")
+    if isinstance(top_required, list):
+        merged_required.extend(top_required)
+
+    for keyword, branches in composite.items():
+        for branch in branches:
+            resolved = _resolve_composite_branch(branch, depth)
+            props = resolved.get("properties")
+            if not isinstance(props, dict):
+                continue
+            for name in props:
+                if name in merged_props:
+                    logger.debug(
+                        "Top-level composite flatten: property '%s' redefined across branches",
+                        name,
+                    )
+            merged_props.update(props)
+            if keyword == "allOf":
+                req = resolved.get("required")
+                if isinstance(req, list):
+                    merged_required.extend(req)
+            else:
+                alternatives.append(sorted(props))
+
+    if not merged_props:
+        return schema
+
+    result: dict[str, Any] = {"type": "object", "properties": merged_props}
+    for key, value in schema.items():
+        if key not in ("anyOf", "oneOf", "allOf", "type", "properties"):
+            result[key] = value
+    if merged_required:
+        result["required"] = list(dict.fromkeys(merged_required))
+
+    constraint = _build_alternative_constraint(alternatives)
+    if constraint:
+        existing = result.get("description")
+        result["description"] = f"{existing} {constraint}".strip() if existing else constraint
+
+    logger.debug(
+        "Flattened top-level composite (%s) into %d flat properties",
+        "+".join(composite),
+        len(merged_props),
+    )
+    return result
+
+
+def _resolve_composite_branch(branch: dict[str, Any], depth: int) -> dict[str, Any]:
+    """Return a branch schema with any nested combinators flattened."""
+    if depth >= _MAX_COMPOSITE_FLATTEN_DEPTH:
+        return branch
+    for key in _COMPOSITE_KEYS:
+        if isinstance(branch.get(key), list):
+            return _flatten_top_level_composite(branch, depth=depth + 1)
+    return branch
+
+
+def _build_alternative_constraint(alternatives: list[list[str]]) -> str | None:
+    """Build a mutual-exclusivity hint when several non-empty groups exist."""
+    non_empty = [alt for alt in alternatives if alt]
+    if len(non_empty) < 2:
+        return None
+    groups = "; ".join(f"({', '.join(alt)})" for alt in non_empty)
+    return f"Parameters are mutually exclusive alternatives — provide exactly one group: {groups}."

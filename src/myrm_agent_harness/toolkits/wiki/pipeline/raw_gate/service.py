@@ -152,8 +152,13 @@ def _publish_raw_impl(
     caller: RawGateCaller,
 ) -> RawPublishResult:
     """Synchronous raw write logic (caller must hold vault lock)."""
-    rel_path = _normalize_relative_path(request.relative_path)
-    raw_path = structure.get_raw_file_path(rel_path)
+    try:
+        rel_path = _normalize_relative_path(request.relative_path)
+        raw_path = structure.get_raw_file_path(rel_path)
+    except RawGateError:
+        raise
+    except ValueError as exc:
+        raise RawGateError("invalid_path", str(exc)) from exc
 
     try:
         write_content, security_redacted = _prepare_write_content(

@@ -213,7 +213,9 @@ class TestGoogleVeoGenerateMocked:
         ) as mock_get:
             prov = GoogleVeoProvider()
             out = await prov.generate("prompt", cfg)
-            mock_get.assert_called_once_with(video_uri, timeout=cfg.timeout_seconds)
+            mock_get.assert_called_once_with(
+                video_uri, timeout=cfg.timeout_seconds, max_content_length=200 * 1024 * 1024
+            )
         assert len(out.assets) == 1
         assert out.assets[0].data == b"\x00\x01\x02"
 

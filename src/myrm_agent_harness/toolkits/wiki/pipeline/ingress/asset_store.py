@@ -19,7 +19,10 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
-from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+from myrm_agent_harness.core.security.http.secure_fetch import (
+    ContentTooLargeError,
+    secure_get,
+)
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 
 from .types import ClipAssetInput, IngressAssetStats
@@ -144,7 +147,11 @@ async def localize_public_markdown_images(
         if parsed.scheme not in {"http", "https"}:
             continue
         try:
-            response = await secure_get(resolved, timeout=20.0)
+            response = await secure_get(
+                resolved,
+                timeout=20.0,
+                max_content_length=_MAX_ASSET_BYTES,
+            )
             if response.status_code != 200:
                 failed += 1
                 continue
@@ -162,6 +169,9 @@ async def localize_public_markdown_images(
             if resolved != raw_ref:
                 url_to_filename[resolved] = filename
             stored += 1
+        except ContentTooLargeError:
+            logger.debug("Asset too large for %s", resolved[:120])
+            failed += 1
         except Exception as exc:
             logger.debug("Asset fetch failed for %s: %s", resolved[:120], exc)
             failed += 1

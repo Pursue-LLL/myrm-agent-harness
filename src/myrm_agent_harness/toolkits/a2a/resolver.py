@@ -5,7 +5,7 @@ with TTL caching, timeout control, and SSRF protection.
 
 [INPUT]
 - types::AgentCard, WELL_KNOWN_AGENT_CARD_PATH
-- core.security.http.secure_fetch::secure_get (POS: SSRF-protected outbound HTTP)
+- core.security.http.secure_fetch::secure_get / ContentTooLargeError (POS: SSRF-protected outbound HTTP with size cap)
 
 [OUTPUT]
 - A2ACardResolver: Client for discovering remote AgentCards
@@ -111,7 +111,10 @@ class A2ACardResolver:
                     resp.raise_for_status()
                     data = resp.json()
             else:
-                from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+                from myrm_agent_harness.core.security.http.secure_fetch import (
+                    ContentTooLargeError,
+                    secure_get,
+                )
 
                 resp = await secure_get(
                     full_url,
@@ -122,6 +125,8 @@ class A2ACardResolver:
                 data = resp.json()
         except SSRFSecurityError as exc:
             raise SSRFBlockedError(str(exc)) from exc
+        except ContentTooLargeError as exc:
+            raise A2AResolveError(f"AgentCard fetch failed: response too large: {exc}") from exc
         except httpx.HTTPStatusError as exc:
             raise A2AResolveError(
                 f"AgentCard fetch failed: HTTP {exc.response.status_code}"

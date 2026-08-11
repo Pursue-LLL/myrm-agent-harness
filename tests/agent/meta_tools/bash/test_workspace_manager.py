@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.workspace_manager import WorkspaceManager
+from myrm_agent_harness.agent.meta_tools.bash._executor.workspace_manager import WorkspaceManager
 
 
 class TestWorkspaceManager:

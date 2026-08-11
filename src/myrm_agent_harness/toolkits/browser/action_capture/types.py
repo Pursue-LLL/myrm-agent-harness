@@ -55,6 +55,7 @@ class ActionStep:
         element_text: Visible text content of the interacted element, if available.
         element_role: ARIA role of the interacted element, if available.
         is_password: Whether the target field is a password/sensitive input.
+        modifiers: Keyboard modifier keys held during a press action (e.g. ["ctrl"]).
     """
 
     seq: int
@@ -68,6 +69,7 @@ class ActionStep:
     element_text: str = ""
     element_role: str = ""
     is_password: bool = False
+    modifiers: list[str] = field(default_factory=list)
 
 
 @dataclass

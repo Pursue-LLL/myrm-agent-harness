@@ -10,7 +10,7 @@ import pytest
 @pytest.mark.architecture
 def test_bash_executor_all_exports_are_importable() -> None:
     """Every name in bash_executor.__all__ must resolve on the public aggregate module."""
-    mod = importlib.import_module("myrm_agent_harness.agent.meta_tools.bash.bash_executor")
+    mod = importlib.import_module("myrm_agent_harness.agent.meta_tools.bash._executor.executor")
     for name in mod.__all__:
         assert hasattr(mod, name), f"Missing bash executor export: {name}"
 
@@ -18,6 +18,6 @@ def test_bash_executor_all_exports_are_importable() -> None:
 @pytest.mark.architecture
 def test_bash_executor_all_matches_public_surface() -> None:
     """__all__ must list exactly the supported public bash executor symbols."""
-    mod = importlib.import_module("myrm_agent_harness.agent.meta_tools.bash.bash_executor")
+    mod = importlib.import_module("myrm_agent_harness.agent.meta_tools.bash._executor.executor")
     expected = {"BashExecutionError", "BashExecutor", "_MCP_MIN_TIMEOUT"}
     assert set(mod.__all__) == expected

@@ -5,6 +5,7 @@ Uses the submit → poll → download pattern with file_id or direct URL.
 
 [INPUT]
 - toolkits.llms._media_shared.types::ModeCapabilities, ProviderModeCapabilities (POS: These types are imported by video/models.py, normalization.py, and task_store.py. They define the contract between provider declarations and the normalization engine.)
+- core.security.http.secure_fetch::secure_get (POS: SSRF-protected result video download with size cap)
 
 [OUTPUT]
 - MiniMaxVideoProvider: class — Mini Max Video Provider
@@ -227,13 +228,23 @@ class MiniMaxVideoProvider(VideoGenerationProvider):
         url: str,
         config: VideoGenerationConfig,
     ) -> VideoAsset:
-        from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+        from myrm_agent_harness.core.security.http.secure_fetch import (
+            ContentTooLargeError,
+            secure_get,
+        )
 
-        resp = await secure_get(url, timeout=config.timeout_seconds)
+        try:
+            resp = await secure_get(
+                url,
+                timeout=config.timeout_seconds,
+                max_content_length=config.max_download_bytes,
+            )
+        except ContentTooLargeError as exc:
+            raise ValueError(
+                f"Video exceeds max download size (>{config.max_download_bytes} bytes): {url[:80]}"
+            ) from exc
         resp.raise_for_status()
         data = resp.content
-        if len(data) > config.max_download_bytes:
-            raise ValueError("Video exceeds max download size")
         mime = resp.headers.get("content-type", "video/mp4").strip()
         ext = "webm" if "webm" in mime else "mp4"
         return VideoAsset(data=data, mime_type=mime, filename=f"video-1.{ext}")

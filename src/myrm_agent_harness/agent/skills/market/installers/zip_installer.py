@@ -45,16 +45,23 @@ class ZipInstaller:
         return self._extract_skill(zip_bytes, subdirectory)
 
     async def _download_zip(self, url: str) -> bytes:
-        from myrm_agent_harness.core.security.http.secure_fetch import secure_get
+        from myrm_agent_harness.core.security.http.secure_fetch import (
+            ContentTooLargeError,
+            secure_get,
+        )
 
-        response = await secure_get(url, timeout=ZIP_DOWNLOAD_TIMEOUT)
+        try:
+            response = await secure_get(
+                url,
+                timeout=ZIP_DOWNLOAD_TIMEOUT,
+                max_content_length=MAX_ZIP_SIZE,
+            )
+        except ContentTooLargeError as exc:
+            raise ValueError(f"ZIP too large (max {MAX_ZIP_SIZE} bytes)") from exc
         if response.status_code != 200:
             raise ValueError(f"ZIP download failed: HTTP {response.status_code}")
 
-        content = response.content
-        if len(content) > MAX_ZIP_SIZE:
-            raise ValueError(f"ZIP too large: {len(content)} bytes (max {MAX_ZIP_SIZE})")
-        return content
+        return response.content
 
     def _extract_skill(self, zip_bytes: bytes, subdirectory: str | None) -> InstalledSkillFiles:
         all_files = safe_extract_zip(zip_bytes, strip_top_dir=True, forbidden_check=_is_excluded_file)

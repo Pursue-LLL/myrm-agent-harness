@@ -5,7 +5,7 @@
 - agent.skills.mcp.executor::skill_executor (POS: Skill MCP execution bridge)
 - agent.skills.runtime.command_paths::rewrite_skill_paths, detect_skill_script_command (POS: Skill command path utilities)
 - .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
-- .bash_executor_constants::MCP_MIN_TIMEOUT (POS: MCP timeout floor)
+- .constants::MCP_MIN_TIMEOUT (POS: MCP timeout floor)
 
 [OUTPUT]
 - BashExecutorPrepareMixin: _prepare_execution, MCP proxy, skill path rewrite
@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
     BashExecutionError,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor_constants import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.constants import (
     MCP_MIN_TIMEOUT,
 )
 from myrm_agent_harness.agent.skills.runtime.command_paths import (

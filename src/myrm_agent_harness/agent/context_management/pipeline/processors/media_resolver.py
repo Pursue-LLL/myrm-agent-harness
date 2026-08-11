@@ -226,13 +226,10 @@ async def _resolve_http(url: str) -> str | None:
             url,
             timeout=_RESOLVE_TIMEOUT,
             allowed_internal_hosts=allowed_internal,
+            max_content_length=MAX_IMAGE_READ_BYTES,
         )
         response.raise_for_status()
         data = response.content
-
-        if len(data) > MAX_IMAGE_READ_BYTES:
-            logger.warning("[MediaResolver] HTTP response too large (%d bytes): %s", len(data), url[:80])
-            return None
 
         content_type = response.headers.get("content-type", "")
         mime = content_type.split(";")[0].strip() if content_type else ""

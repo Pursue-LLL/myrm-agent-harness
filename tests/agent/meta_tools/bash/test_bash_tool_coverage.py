@@ -13,11 +13,11 @@ from myrm_agent_harness.agent.meta_tools._context_recovery import (
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     create_bash_code_execute_tool,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_background_listeners import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.background_listeners import (
     build_background_listeners,
     classify_background_exit,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_tool_helpers import (
+from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import (
     get_os_hint,
     track_context_access_in_command,
 )
@@ -172,7 +172,7 @@ def _patch_bash_tool_success(mock_execute_result: dict[str, object]):
             return_value=mock_executor,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_executor.BashExecutor",
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
             return_value=mock_bash_executor,
         ),
         patch(
@@ -206,7 +206,7 @@ async def test_bash_tool_background_path_returns_pid_metadata() -> None:
             return_value=mock_executor,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_executor.BashExecutor",
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
             return_value=mock_bash_executor,
         ),
         patch(
@@ -246,7 +246,7 @@ async def test_bash_tool_interactive_command_allowed_in_background() -> None:
             return_value=mock_executor,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_executor.BashExecutor",
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
             return_value=mock_bash_executor,
         ),
         patch(
@@ -337,7 +337,7 @@ async def test_bash_tool_foreground_with_truncation_eviction_and_hint() -> None:
             return_value=mock_executor,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_executor.BashExecutor",
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
             return_value=mock_bash_executor,
         ),
         patch(
@@ -423,7 +423,7 @@ async def test_bash_tool_restores_stashed_executor() -> None:
             "myrm_agent_harness.agent.meta_tools._context_recovery.restore_context_vars",
         ) as mock_restore,
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_executor.BashExecutor",
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
             return_value=mock_bash_executor,
         ),
         patch(
@@ -460,7 +460,7 @@ async def test_bash_tool_background_requires_session_id() -> None:
             return_value=mock_executor,
         ),
         patch(
-            "myrm_agent_harness.agent.meta_tools.bash.bash_executor.BashExecutor",
+            "myrm_agent_harness.agent.meta_tools.bash._executor.executor.BashExecutor",
             return_value=AsyncMock(),
         ),
     ):
@@ -476,7 +476,7 @@ async def test_bash_tool_background_requires_session_id() -> None:
 async def test_maybe_build_image_blocks_exception_str_fallback_and_overflow() -> None:
     from langchain_core.messages.content import create_text_block
 
-    from myrm_agent_harness.agent.meta_tools.bash.bash_tool_multimodal import (
+    from myrm_agent_harness.agent.meta_tools.bash._tool.multimodal import (
         MAX_IMAGES_PER_RETURN,
         maybe_build_image_blocks,
     )

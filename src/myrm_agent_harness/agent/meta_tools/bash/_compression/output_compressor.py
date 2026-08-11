@@ -5,8 +5,8 @@ while preserving all semantically meaningful information. Compresses both succes
 and failed command outputs; unrecognized commands pass through.
 
 [INPUT]
-- ._output_eviction::EVICTION_BANNER_PREFIX (POS: eviction preview banner，用于跳过对已 evict 预览的二次压缩)
-- ._compressors::各类语义压缩器 (POS: 命令感知压缩器注册表)
+- .output_eviction::EVICTION_BANNER_PREFIX (POS: eviction preview banner，用于跳过对已 evict 预览的二次压缩)
+- .compressors::各类语义压缩器 (POS: 命令感知压缩器注册表)
 
 [OUTPUT]
 - compress_output(): Entry function called by bash_code_execute_tool._format_result()
@@ -27,7 +27,7 @@ from typing import Protocol
 
 import yaml
 
-from ._compressors import (
+from myrm_agent_harness.agent.meta_tools.bash._compression.compressors import (
     BuildToolCompressor,
     CompilerErrorCompressor,
     DockerBuildCompressor,
@@ -40,7 +40,9 @@ from ._compressors import (
     PackageInstallCompressor,
     TestCompressor,
 )
-from ._output_eviction import EVICTION_BANNER_PREFIX
+from myrm_agent_harness.agent.meta_tools.bash._compression.output_eviction import (
+    EVICTION_BANNER_PREFIX,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +111,13 @@ class DeclarativeFilterEngine:
                         "name": f_def.get("name", "unnamed"),
                         "match_command": re.compile(f_def["match_command"]),
                         "strip_ansi": f_def.get("strip_ansi", False),
-                        "strip_lines_matching": [re.compile(p) for p in f_def.get("strip_lines_matching", [])],
-                        "replace": [(re.compile(r["pattern"]), r["replacement"]) for r in f_def.get("replace", [])],
+                        "strip_lines_matching": [
+                            re.compile(p) for p in f_def.get("strip_lines_matching", [])
+                        ],
+                        "replace": [
+                            (re.compile(r["pattern"]), r["replacement"])
+                            for r in f_def.get("replace", [])
+                        ],
                         "max_lines": f_def.get("max_lines"),
                         "on_empty": f_def.get("on_empty"),
                     }
@@ -179,7 +186,11 @@ class DeclarativeFilterEngine:
 
         strip_rules = filter_def["strip_lines_matching"]
         if strip_rules and isinstance(strip_rules, list):
-            lines = [line for line in lines if not any(pat.search(line) for pat in strip_rules)]
+            lines = [
+                line
+                for line in lines
+                if not any(pat.search(line) for pat in strip_rules)
+            ]
 
         max_lines_val = filter_def["max_lines"]
         if isinstance(max_lines_val, int) and len(lines) > max_lines_val:
@@ -206,17 +217,26 @@ _COMPRESSOR_REGISTRY: list[tuple[re.Pattern[str], Compressor]] = [
     (re.compile(r"\bgit\s+status\b"), GitStatusCompressor()),
     (re.compile(r"\bgit\s+diff\b"), GitDiffCompressor()),
     (re.compile(r"\bgit\s+log\b"), GitLogCompressor()),
-    (re.compile(r"\bgit\s+(add|commit|push|pull|fetch|merge)\b"), GitOperationCompressor()),
+    (
+        re.compile(r"\bgit\s+(add|commit|push|pull|fetch|merge)\b"),
+        GitOperationCompressor(),
+    ),
     (re.compile(r"\bls\s+.*-[a-zA-Z]*l"), LsCompressor()),
     (re.compile(r"\b(pytest|py\.test|python\s+-m\s+pytest)\b"), TestCompressor()),
-    (re.compile(r"\b(cargo\s+test|go\s+test|npm\s+test|bun\s+test|vitest|jest)\b"), TestCompressor()),
+    (
+        re.compile(r"\b(cargo\s+test|go\s+test|npm\s+test|bun\s+test|vitest|jest)\b"),
+        TestCompressor(),
+    ),
     (re.compile(r"\b(npm|bun|yarn|pnpm)\s+install\b"), PackageInstallCompressor()),
     (re.compile(r"\b(pip|pip3|uv)\s+(install|sync)\b"), PackageInstallCompressor()),
     (re.compile(r"\bdocker\s+(build|buildx)\b"), DockerBuildCompressor()),
     (re.compile(r"\bdocker\s+compose\s+build\b"), DockerBuildCompressor()),
     (re.compile(r"\b(cargo|rustc)\s+build\b"), BuildToolCompressor()),
     (re.compile(r"\bcargo\s+(check|clippy|run)\b"), BuildToolCompressor()),
-    (re.compile(r"\b(tsc|npx\s+tsc|bunx\s+tsc|eslint|npx\s+eslint|bunx\s+eslint)\b"), CompilerErrorCompressor()),
+    (
+        re.compile(r"\b(tsc|npx\s+tsc|bunx\s+tsc|eslint|npx\s+eslint|bunx\s+eslint)\b"),
+        CompilerErrorCompressor(),
+    ),
 ]
 
 

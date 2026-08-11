@@ -4,6 +4,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.tools import StructuredTool
+from mcp.types import (
+    CallToolResult,
+    ImageContent,
+    ResourceLink,
+    TextContent,
+)
 
 from myrm_agent_harness.toolkits.mcp.agent import MCPAgent
 
@@ -422,15 +428,17 @@ async def test_wrap_tools_output_guard_truncates_large_output():
 
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_skips_multimodal():
-    """Multimodal results (image + text tuple) are NOT truncated."""
+    """Multimodal results (image + text CallToolResult) are NOT truncated."""
     agent = MCPAgent()
-    content_blocks = [
-        {"type": "image", "base64": "abc123", "media_type": "image/png"},
-        {"type": "text", "text": "x" * 500},
-    ]
+    raw_result = CallToolResult(
+        content=[
+            ImageContent(type="image", data="abc123", mime_type="image/png"),
+            TextContent(type="text", text="x" * 500),
+        ]
+    )
 
     async def image_output(*_a, **_kw):
-        return (content_blocks, None)
+        return raw_result
 
     tool = _make_tool(coroutine=image_output)
     agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=100)
@@ -476,15 +484,14 @@ async def test_wrap_tools_output_guard_empty_string():
 
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_text_tuple_truncated():
-    """Text-only tuple result (normalized to str) is truncated when oversized."""
+    """Text-only CallToolResult (normalized to str) is truncated when oversized."""
     agent = MCPAgent()
     large_text = "z" * 300
-    content_blocks = [{"type": "text", "text": large_text}]
 
-    async def tuple_output(*_a, **_kw):
-        return (content_blocks, None)
+    async def text_output(*_a, **_kw):
+        return CallToolResult(content=[TextContent(type="text", text=large_text)])
 
-    tool = _make_tool(coroutine=tuple_output)
+    tool = _make_tool(coroutine=text_output)
     agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=50)
 
     result = await tool.coroutine()
@@ -1194,69 +1201,91 @@ class TestNormalizeMcpResultCoercion:
     """Tests for _normalize_mcp_result with _coerce_content_block integration."""
 
     def test_text_only_returns_string(self) -> None:
-        result = ([{"type": "text", "text": "hello"}], None)
+        result = CallToolResult(content=[TextContent(type="text", text="hello")])
         assert MCPAgent._normalize_mcp_result(result) == "hello"
 
     def test_image_returns_list(self) -> None:
-        blocks = [
-            {"type": "text", "text": "caption"},
-            {"type": "image", "base64": "abc", "mime_type": "image/png"},
-        ]
-        result = MCPAgent._normalize_mcp_result((blocks, None))
-        assert isinstance(result, list)
-        assert len(result) == 2
+        result = CallToolResult(
+            content=[
+                TextContent(type="text", text="caption"),
+                ImageContent(type="image", data="abc", mime_type="image/png"),
+            ]
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, list)
+        assert len(normalized) == 2
 
     def test_file_block_degraded_to_text(self) -> None:
         """file blocks (from ResourceLink) must be degraded — prevents Anthropic 400."""
-        blocks = [
-            {"type": "text", "text": "Sprint Board"},
-            {
-                "type": "file",
-                "url": "https://notion.so/page/xxx",
-                "mime_type": "application/pdf",
-            },
-        ]
-        result = MCPAgent._normalize_mcp_result((blocks, None))
-        assert isinstance(result, str)
-        assert "Sprint Board" in result
-        assert "https://notion.so/page/xxx" in result
+        result = CallToolResult(
+            content=[
+                TextContent(type="text", text="Sprint Board"),
+                ResourceLink(
+                    type="resource_link",
+                    uri="https://notion.so/page/xxx",
+                    name="page",
+                    mime_type="application/pdf",
+                ),
+            ]
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert "Sprint Board" in normalized
+        assert "https://notion.so/page/xxx" in normalized
 
     def test_mixed_file_and_image_preserves_image(self) -> None:
         """When both file and image are present, image passes through, file degrades."""
-        blocks = [
-            {"type": "image", "base64": "abc", "mime_type": "image/png"},
-            {
-                "type": "file",
-                "url": "https://example.com/doc.pdf",
-                "mime_type": "application/pdf",
-            },
-        ]
-        result = MCPAgent._normalize_mcp_result((blocks, None))
-        assert isinstance(result, list)
-        assert result[0]["type"] == "image"
-        assert result[1]["type"] == "text"
-        assert "https://example.com/doc.pdf" in str(result[1]["text"])
+        result = CallToolResult(
+            content=[
+                ImageContent(type="image", data="abc", mime_type="image/png"),
+                ResourceLink(
+                    type="resource_link",
+                    uri="https://example.com/doc.pdf",
+                    name="doc",
+                    mime_type="application/pdf",
+                ),
+            ]
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, list)
+        assert normalized[0]["type"] == "image"
+        assert normalized[1]["type"] == "text"
+        assert "https://example.com/doc.pdf" in str(normalized[1]["text"])
 
     def test_structured_content_appended(self) -> None:
-        blocks = [{"type": "text", "text": "data"}]
-        artifact = {"structured_content": {"key": "val"}}
-        result = MCPAgent._normalize_mcp_result((blocks, artifact))
-        assert isinstance(result, str)
-        assert "key" in result
-        assert "val" in result
+        result = CallToolResult(
+            content=[TextContent(type="text", text="data")],
+            structured_content={"key": "val"},
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert "key" in normalized
+        assert "val" in normalized
+
+    def test_is_error_collapses_to_error_string(self) -> None:
+        result = CallToolResult(
+            content=[TextContent(type="text", text="invalid args")],
+            is_error=True,
+        )
+        normalized = MCPAgent._normalize_mcp_result(result)
+        assert isinstance(normalized, str)
+        assert "[MCP tool error]" in normalized
+        assert "invalid args" in normalized
 
     def test_plain_string_result(self) -> None:
         assert MCPAgent._normalize_mcp_result("just text") == "just text"
 
-    def test_non_dict_block_coerced_to_text(self) -> None:
-        result = MCPAgent._normalize_mcp_result(([42, "raw_str"], None))
-        assert isinstance(result, str)
-        assert "42" in result
-        assert "raw_str" in result
+    def test_non_standard_block_coerced_to_text(self) -> None:
+        """Non-ContentBlock entries in content degrade to text instead of crashing."""
+        from types import SimpleNamespace
 
-    def test_string_content_blocks_passthrough(self) -> None:
-        result = MCPAgent._normalize_mcp_result(("direct string", None))
-        assert result == "direct string"
+        raw = SimpleNamespace(
+            content=[42, "raw_str"],
+        )
+        normalized = MCPAgent._normalize_mcp_result(raw)
+        assert isinstance(normalized, str)
+        assert "42" in normalized
+        assert "raw_str" in normalized
 
     def test_non_tuple_non_string_stringified(self) -> None:
         result = MCPAgent._normalize_mcp_result(12345)
@@ -1388,8 +1417,10 @@ class TestEmitMcpAppEvent:
     @pytest.mark.asyncio
     async def test_emits_event_for_valid_artifact(self) -> None:
         mock_sink = AsyncMock()
-        artifact = {"_meta": {"ui": {"resourceUri": "ui://srv/view"}}}
-        raw_result = ("text content", artifact)
+        raw_result = CallToolResult(
+            content=[TextContent(type="text", text="text content")],
+            _meta={"ui": {"resourceUri": "ui://srv/view"}},
+        )
 
         with patch(
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
@@ -1405,11 +1436,11 @@ class TestEmitMcpAppEvent:
     @pytest.mark.asyncio
     async def test_includes_structured_content(self) -> None:
         mock_sink = AsyncMock()
-        artifact = {
-            "_meta": {"ui": {"resourceUri": "ui://a/b"}},
-            "structured_content": {"key": "val"},
-        }
-        raw_result = ("txt", artifact)
+        raw_result = CallToolResult(
+            content=[TextContent(type="text", text="txt")],
+            structured_content={"key": "val"},
+            _meta={"ui": {"resourceUri": "ui://a/b"}},
+        )
 
         with patch(
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
@@ -1433,7 +1464,7 @@ class TestEmitMcpAppEvent:
     @pytest.mark.asyncio
     async def test_skips_tuple_without_ext_apps_meta(self) -> None:
         mock_sink = AsyncMock()
-        raw_result = ("text", {"no_meta": True})
+        raw_result = CallToolResult(content=[TextContent(type="text", text="text")])
         with patch(
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
             return_value=mock_sink,
@@ -1443,8 +1474,10 @@ class TestEmitMcpAppEvent:
 
     @pytest.mark.asyncio
     async def test_skips_when_no_progress_sink(self) -> None:
-        artifact = {"_meta": {"ui": {"resourceUri": "ui://x/y"}}}
-        raw_result = ("txt", artifact)
+        raw_result = CallToolResult(
+            content=[TextContent(type="text", text="txt")],
+            _meta={"ui": {"resourceUri": "ui://x/y"}},
+        )
         with patch(
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
             return_value=None,
@@ -1456,8 +1489,10 @@ class TestEmitMcpAppEvent:
     async def test_handles_emit_exception_gracefully(self) -> None:
         mock_sink = AsyncMock()
         mock_sink.emit.side_effect = RuntimeError("sink broken")
-        artifact = {"_meta": {"ui": {"resourceUri": "ui://x/y"}}}
-        raw_result = ("txt", artifact)
+        raw_result = CallToolResult(
+            content=[TextContent(type="text", text="txt")],
+            _meta={"ui": {"resourceUri": "ui://x/y"}},
+        )
         with patch(
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
             return_value=mock_sink,
@@ -1468,8 +1503,10 @@ class TestEmitMcpAppEvent:
     @pytest.mark.asyncio
     async def test_non_mcp_tool_name_yields_empty_server(self) -> None:
         mock_sink = AsyncMock()
-        artifact = {"_meta": {"ui": {"resourceUri": "ui://x/y"}}}
-        raw_result = ("txt", artifact)
+        raw_result = CallToolResult(
+            content=[TextContent(type="text", text="txt")],
+            _meta={"ui": {"resourceUri": "ui://x/y"}},
+        )
         with patch(
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
             return_value=mock_sink,
@@ -1542,7 +1579,7 @@ class TestWrapToolsAuthError:
         tool = _make_tool(name="plain_tool", coroutine=AsyncMock(side_effect=err))
         with patch(
             "myrm_agent_harness.toolkits.mcp.agent._emit_auth_expired_for_tool"
-        ) as mock_emit:
+        ):
             MCPAgent._wrap_tools_with_timeout([tool], timeout=5.0)
             result = await tool.ainvoke({"a": "1"})
 

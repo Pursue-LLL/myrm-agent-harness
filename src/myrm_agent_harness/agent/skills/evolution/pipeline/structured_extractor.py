@@ -30,7 +30,8 @@ class SkillCaptureResult(BaseModel):
         description="Whether the skill is generalizable and reusable across different contexts, projects, or users. False if it's tied to highly specific local file paths or one-off tasks.",
     )
     confidence: float | str = Field(
-        ..., description="Confidence score between 0.0 and 1.0 that this skill is correct and valuable."
+        ...,
+        description="Confidence score between 0.0 and 1.0 that this skill is correct and valuable.",
     )
 
     @field_validator("confidence", mode="before")
@@ -56,7 +57,10 @@ class SkillCaptureResult(BaseModel):
         ...,
         description="Brief analysis of potential safety risks (e.g., does it execute destructive commands? leak credentials?).",
     )
-    name: str = Field(..., description="A short, kebab-case name for the skill (e.g., 'nginx-502-fix').")
+    name: str = Field(
+        ...,
+        description="A short, kebab-case name for the skill (e.g., 'nginx-502-fix').",
+    )
     content: str = Field(
         ...,
         description="The complete, valid SKILL.md file content including YAML frontmatter and Markdown instructions.",
@@ -149,11 +153,15 @@ class StructuredExtractor:
     def __init__(self, llm: BaseChatModel):
         self._llm = llm
 
-    async def extract_from_trajectory(self, trajectory: str) -> SkillCaptureResult | None:
+    async def extract_from_trajectory(
+        self, trajectory: str
+    ) -> SkillCaptureResult | None:
         """Extract a skill from a conversation trajectory."""
         messages = [
             SystemMessage(content=_EXTRACTION_PROMPT),
-            HumanMessage(content=f"Analyze this conversation trajectory:\n\n{trajectory}"),
+            HumanMessage(
+                content=f"Analyze this conversation trajectory:\n\n{trajectory}"
+            ),
         ]
 
         try:

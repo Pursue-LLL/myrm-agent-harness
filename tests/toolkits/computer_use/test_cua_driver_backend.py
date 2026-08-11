@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -325,30 +326,58 @@ async def test_resolve_target_no_caching(backend: CuaDriverBackend):
 # ── _extract_result ───────────────────────────────────────────────
 
 def test_extract_result_text():
-    mock_result = MagicMock()
-    mock_result.isError = False
-    mock_result.structuredContent = None
-    text_part = MagicMock()
-    text_part.type = "text"
-    text_part.text = "hello"
-    mock_result.content = [text_part]
-
-    out = _extract_result(mock_result)
+    result = SimpleNamespace(
+        isError=False,
+        structuredContent=None,
+        content=[SimpleNamespace(type="text", text="hello")],
+    )
+    out = _extract_result(result)
     assert out["data"] == "hello"
     assert out["isError"] is False
 
 
 def test_extract_result_image():
-    mock_result = MagicMock()
-    mock_result.isError = False
-    mock_result.structuredContent = None
-    img_part = MagicMock()
-    img_part.type = "image"
-    img_part.data = "base64data"
-    mock_result.content = [img_part]
-
-    out = _extract_result(mock_result)
+    result = SimpleNamespace(
+        isError=False,
+        structuredContent=None,
+        content=[SimpleNamespace(type="image", data="base64data")],
+    )
+    out = _extract_result(result)
     assert out["images"] == ["base64data"]
+
+
+def test_extract_result_snake_case_fields():
+    """MCP SDK 2.x uses snake_case field names (is_error / structured_content)."""
+    result = SimpleNamespace(
+        is_error=True,
+        structured_content={"windows": [{"pid": 1}]},
+        content=[SimpleNamespace(type="text", text="boom")],
+    )
+    out = _extract_result(result)
+    assert out["isError"] is True
+    assert out["data"] == "boom"
+    assert out["structuredContent"] == {"windows": [{"pid": 1}]}
+
+
+def test_extract_result_camel_case_fields():
+    """Legacy SDK / wire aliases (isError / structuredContent) still work."""
+    result = SimpleNamespace(
+        isError=True,
+        structuredContent={"windows": [{"pid": 2}]},
+        content=[SimpleNamespace(type="text", text="nope")],
+    )
+    out = _extract_result(result)
+    assert out["isError"] is True
+    assert out["data"] == "nope"
+    assert out["structuredContent"] == {"windows": [{"pid": 2}]}
+
+
+def test_extract_result_no_error_fields_defaults_false():
+    """Missing error fields default to False / None."""
+    result = SimpleNamespace(content=[])
+    out = _extract_result(result)
+    assert out["isError"] is False
+    assert out["structuredContent"] is None
 
 
 # ── is_cua_driver_available ───────────────────────────────────────

@@ -32,6 +32,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 
 | Submodule | Description |
 |-----------|-------------|
+| action_capture/ | DOM action recorder for the server Browser Skill Recording Wizard — captures click/fill/select/press/hover/navigate into ActionStep sequences via injected JS. |
 | backends/ | Storage backend abstraction layer for SessionVault. Defines interfaces via Protocol, |
 | captcha/ | CAPTCHA detection and coordination subpackage. Provides Protocol-based pluggable solver architecture, HTML regex detector, asyncio.Event state machine coordinator, and default ManualSolver. Integrated into BrowserSession.navigate(). |
 | checkpoint/ | Task-level checkpoint/resume module for the browser toolkit. Fully reuses LangGraph Checkpointer's p |

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_executor import BashExecutor
+from myrm_agent_harness.agent.meta_tools.bash._executor.executor import BashExecutor
 from myrm_agent_harness.agent.security.types import EphemeralUserCredential, user_credentials_ctx
 from myrm_agent_harness.toolkits.code_execution import ExecutionConfig
 from myrm_agent_harness.toolkits.code_execution.executors.local.executor import LocalExecutor

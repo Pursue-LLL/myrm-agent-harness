@@ -8,6 +8,7 @@ from myrm_agent_harness.toolkits.mcp.schema_utils import (
     coerce_value,
     flatten_deep_schema,
     flatten_json_schema,
+    flatten_top_level_composite,
     get_schema_coercion_stats,
     has_dot_keys,
     nest_flat_arguments,
@@ -1004,3 +1005,141 @@ def test_prepare_mcp_call_arguments_keeps_required_nullable_null():
     }
     prepared = prepare_mcp_call_arguments({"payload": None}, schema)
     assert prepared == {"payload": None}
+
+
+# ---------------------------------------------------------------------------
+# Top-level composite flattening tests
+# ---------------------------------------------------------------------------
+
+
+def test_flatten_top_level_composite_oneof_kimi_cu_style():
+    """kimi-cu click-style oneOf: index *or* x/y must survive flattening."""
+    schema = {
+        "type": "object",
+        "oneOf": [
+            {"type": "object", "properties": {"index": {"type": "integer"}}},
+            {
+                "type": "object",
+                "properties": {"x": {"type": "number"}, "y": {"type": "number"}},
+            },
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["type"] == "object"
+    assert set(result["properties"]) == {"index", "x", "y"}
+    assert "oneOf" not in result
+    assert "required" not in result
+    assert "mutually exclusive" in result["description"]
+    assert "(index)" in result["description"]
+    assert "(x, y)" in result["description"]
+
+
+def test_flatten_top_level_composite_allof_merges_required():
+    """allOf branches are conjunctive — properties and required merge."""
+    schema = {
+        "allOf": [
+            {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]},
+            {
+                "type": "object",
+                "properties": {"tags": {"type": "array", "items": {"type": "string"}}},
+                "required": ["tags"],
+            },
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["type"] == "object"
+    assert set(result["properties"]) == {"id", "tags"}
+    assert set(result["required"]) == {"id", "tags"}
+    assert "allOf" not in result
+
+
+def test_flatten_top_level_composite_single_branch_no_constraint():
+    """A single object branch needs no mutual-exclusivity hint."""
+    schema = {
+        "anyOf": [
+            {"type": "object", "properties": {"query": {"type": "string"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["properties"] == {"query": {"type": "string"}}
+    assert "description" not in result
+
+
+def test_flatten_top_level_composite_idempotent_no_composite():
+    """Schemas without top-level composite pass through unchanged (same object)."""
+    schema = {"type": "object", "properties": {"a": {"type": "string"}}}
+    assert flatten_top_level_composite(schema) is schema
+
+
+def test_flatten_top_level_composite_preserves_metadata():
+    """description/title/default on the wrapper are preserved."""
+    schema = {
+        "description": "Activate a window",
+        "oneOf": [
+            {"type": "object", "properties": {"windowId": {"type": "string"}}},
+            {"type": "object", "properties": {"name": {"type": "string"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert "Activate a window" in result["description"]
+    assert "mutually exclusive" in result["description"]
+    assert set(result["properties"]) == {"windowId", "name"}
+
+
+def test_flatten_top_level_composite_skips_non_object_branches():
+    """Non-object branches (null/string) are ignored during merging."""
+    schema = {
+        "anyOf": [
+            {"type": "object", "properties": {"a": {"type": "string"}}},
+            {"type": "null"},
+            {"type": "string"},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["properties"] == {"a": {"type": "string"}}
+    assert "description" not in result
+
+
+def test_flatten_top_level_composite_keeps_top_level_properties():
+    """Top-level properties coexist conjunctively with the composite keyword."""
+    schema = {
+        "type": "object",
+        "properties": {"windowId": {"type": "string"}},
+        "required": ["windowId"],
+        "oneOf": [
+            {"type": "object", "properties": {"index": {"type": "integer"}}},
+            {"type": "object", "properties": {"x": {"type": "number"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert set(result["properties"]) == {"windowId", "index", "x"}
+    assert result["required"] == ["windowId"]
+    # Top-level property is conjunctive — never part of the exclusive groups.
+    assert "windowId" not in result["description"]
+
+
+def test_flatten_top_level_composite_keeps_top_level_required_with_allof():
+    """Top-level required merges conjunctively with allOf branch required."""
+    schema = {
+        "type": "object",
+        "required": ["tenant"],
+        "allOf": [
+            {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]},
+            {"type": "object", "properties": {"tags": {"type": "array"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert set(result["required"]) == {"tenant", "id"}
+
+
+def test_flatten_top_level_composite_branch_without_type():
+    """A branch with properties but no type keyword must still merge."""
+    schema = {
+        "oneOf": [
+            {"properties": {"index": {"type": "integer"}}},
+            {"type": "object", "properties": {"x": {"type": "number"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert set(result["properties"]) == {"index", "x"}
+    assert "mutually exclusive" in result["description"]

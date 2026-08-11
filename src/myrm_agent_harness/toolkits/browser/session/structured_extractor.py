@@ -22,7 +22,11 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import TYPE_CHECKING, Any, cast  # Any: required for JSON Schema (inherently dynamic dict values)
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    cast,
+)  # Any: required for JSON Schema (inherently dynamic dict values)
 
 from pydantic import BaseModel, ValidationError, create_model
 from pydantic.fields import FieldInfo
@@ -81,18 +85,18 @@ class StructuredExtractor:
             or error message if extraction fails.
         """
         if self._llm is None:
-            return '[Error] Structured extraction unavailable: no extraction LLM configured.'
+            return "[Error] Structured extraction unavailable: no extraction LLM configured."
 
         if not _validate_schema_complexity(schema):
             return (
-                f'[Error] Schema too complex (max {_MAX_SCHEMA_PROPERTIES} properties, '
-                f'max {_MAX_SCHEMA_DEPTH} nesting levels).'
+                f"[Error] Schema too complex (max {_MAX_SCHEMA_PROPERTIES} properties, "
+                f"max {_MAX_SCHEMA_DEPTH} nesting levels)."
             )
 
         is_array_schema = schema.get("type") == "array"
         pydantic_model = _schema_to_pydantic(schema)
         if pydantic_model is None:
-            return '[Error] Failed to convert JSON Schema to extraction model.'
+            return "[Error] Failed to convert JSON Schema to extraction model."
 
         user_content = self._build_user_prompt(text, schema, already_collected)
 
@@ -108,13 +112,20 @@ class StructuredExtractor:
             if isinstance(result, BaseModel):
                 if is_array_schema:
                     return json.dumps(
-                        result.model_dump().get("items", []), ensure_ascii=False, indent=2
+                        result.model_dump().get("items", []),
+                        ensure_ascii=False,
+                        indent=2,
                     )
                 return result.model_dump_json(indent=2)
         except (NotImplementedError, AttributeError):
-            logger.debug("StructuredExtractor: with_structured_output not supported, using fallback.")
+            logger.debug(
+                "StructuredExtractor: with_structured_output not supported, using fallback."
+            )
         except Exception as e:
-            logger.warning("StructuredExtractor: structured output failed (%s), trying fallback.", e)
+            logger.warning(
+                "StructuredExtractor: structured output failed (%s), trying fallback.",
+                e,
+            )
 
         # Strategy 2: Raw JSON extraction from LLM response
         parsed: dict[str, Any] | list[dict[str, Any]] | None = None
@@ -135,7 +146,9 @@ class StructuredExtractor:
                     validated = pydantic_model.model_validate(parsed)
                     if is_array_schema:
                         return json.dumps(
-                            validated.model_dump().get("items", []), ensure_ascii=False, indent=2
+                            validated.model_dump().get("items", []),
+                            ensure_ascii=False,
+                            indent=2,
                         )
                     return validated.model_dump_json(indent=2)
         except ValidationError as ve:
@@ -145,7 +158,7 @@ class StructuredExtractor:
         except Exception as e:
             logger.error("StructuredExtractor: fallback extraction failed: %s", e)
 
-        return '[Error] Structured extraction failed after all attempts.'
+        return "[Error] Structured extraction failed after all attempts."
 
     def _build_user_prompt(
         self,
@@ -185,7 +198,9 @@ def _validate_schema_complexity(schema: dict[str, Any], depth: int = 0) -> bool:
                 return False
         elif prop.get("type") == "array":
             items = prop.get("items", {})
-            if items.get("type") == "object" and not _validate_schema_complexity(items, depth + 1):
+            if items.get("type") == "object" and not _validate_schema_complexity(
+                items, depth + 1
+            ):
                 return False
 
     return True
@@ -200,11 +215,14 @@ def _schema_to_pydantic(schema: dict[str, Any]) -> type[BaseModel] | None:
     """
     try:
         if schema.get("type") == "array":
-            return _build_model("ExtractedData", {
-                "type": "object",
-                "properties": {"items": schema},
-                "required": ["items"],
-            })
+            return _build_model(
+                "ExtractedData",
+                {
+                    "type": "object",
+                    "properties": {"items": schema},
+                    "required": ["items"],
+                },
+            )
         return _build_model("ExtractedData", schema)
     except Exception as e:
         logger.error("Failed to build Pydantic model from schema: %s", e)
@@ -223,9 +241,15 @@ def _build_model(name: str, schema: dict[str, Any]) -> type[BaseModel]:
         is_required = field_name in required_fields
 
         if is_required:
-            field_definitions[field_name] = (python_type, FieldInfo(description=description))
+            field_definitions[field_name] = (
+                python_type,
+                FieldInfo(description=description),
+            )
         else:
-            field_definitions[field_name] = (python_type | None, FieldInfo(default=None, description=description))
+            field_definitions[field_name] = (
+                python_type | None,
+                FieldInfo(default=None, description=description),
+            )
 
     return create_model(name, **field_definitions)
 

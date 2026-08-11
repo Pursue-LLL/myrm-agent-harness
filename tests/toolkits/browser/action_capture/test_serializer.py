@@ -84,7 +84,9 @@ class TestSerializeSession:
 
 class TestNaturalLanguage:
     def test_click(self) -> None:
-        step = _make_step(action=ActionType.CLICK, element_text="Submit", element_role="button")
+        step = _make_step(
+            action=ActionType.CLICK, element_text="Submit", element_role="button"
+        )
         nl = step_to_natural_language(step)
         assert "Submit" in nl
         assert "button" in nl
@@ -94,10 +96,94 @@ class TestNaturalLanguage:
         nl = step_to_natural_language(step)
         assert "hello" in nl
 
+    def test_fill(self) -> None:
+        step = _make_step(
+            action=ActionType.FILL, value="hello world", element_role="textbox"
+        )
+        nl = step_to_natural_language(step)
+        assert "hello world" in nl
+
+    def test_fill_includes_element_context(self) -> None:
+        step = _make_step(
+            action=ActionType.FILL,
+            value="hello",
+            element_text="Username",
+            element_role="textbox",
+        )
+        nl = step_to_natural_language(step)
+        assert 'Fill "hello" into textbox "Username"' in nl
+
+    def test_element_context_falls_back_to_selector(self) -> None:
+        step = _make_step(
+            action=ActionType.TYPE,
+            value="hello",
+            element_text="",
+            element_role="",
+            selector="#user-field",
+        )
+        nl = step_to_natural_language(step)
+        assert 'Type "hello" into element "#user-field"' in nl
+
+    def test_credential_label_emits_fill_credential(self) -> None:
+        step = _make_step(
+            action=ActionType.FILL,
+            value="***",
+            element_text="Password",
+            element_role="textbox",
+            is_password=True,
+        )
+        nl = step_to_natural_language(step, credential_label="login-password")
+        assert 'Fill credential "login-password" into textbox "Password"' in nl
+        assert "***" not in nl
+
+    def test_credential_label_ignored_for_non_sensitive_step(self) -> None:
+        step = _make_step(action=ActionType.FILL, value="hello", element_role="textbox")
+        nl = step_to_natural_language(step, credential_label="oops")
+        assert "Fill credential" not in nl
+        assert 'Fill "hello"' in nl
+
     def test_navigate(self) -> None:
         step = _make_step(action=ActionType.NAVIGATE, value="https://example.com")
         nl = step_to_natural_language(step)
         assert "https://example.com" in nl
+
+    def test_press_plain_key(self) -> None:
+        step = _make_step(action=ActionType.PRESS, value="Enter")
+        nl = step_to_natural_language(step)
+        assert nl == "Press Enter"
+
+    def test_press_with_modifiers(self) -> None:
+        step = ActionStep(
+            seq=1,
+            action=ActionType.PRESS,
+            selector="",
+            value="Enter",
+            modifiers=["ctrl"],
+            url="https://example.com",
+            title="",
+            timestamp=1000.0,
+        )
+        nl = step_to_natural_language(step)
+        assert nl == "Press Ctrl+Enter"
+
+    def test_serialize_step_includes_modifiers(self) -> None:
+        step = ActionStep(
+            seq=1,
+            action=ActionType.PRESS,
+            selector="",
+            value="Enter",
+            modifiers=["ctrl", "shift"],
+            url="https://example.com",
+            title="",
+            timestamp=1000.0,
+        )
+        d = serialize_step(step)
+        assert d["modifiers"] == ["ctrl", "shift"]
+
+    def test_serialize_step_modifiers_default_empty(self) -> None:
+        step = _make_step()
+        d = serialize_step(step)
+        assert d["modifiers"] == []
 
     def test_steps_to_natural_language(self) -> None:
         steps = [
