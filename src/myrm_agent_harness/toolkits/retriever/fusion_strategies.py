@@ -16,15 +16,18 @@ ranking using rank-based (not score-based) fusion.
 
 import logging
 from collections import defaultdict
+from typing import TypeVar
 
 logger = logging.getLogger(__name__)
 
+_T = TypeVar("_T")
+
 
 def rrf_fusion(
-    query_results: list[list[tuple[int, float]]],
+    query_results: list[list[tuple[_T, float]]],
     k: int = 60,
     top_k: int | None = None,
-) -> list[tuple[int, float]]:
+) -> list[tuple[_T, float]]:
     """Reciprocal Rank Fusion — merges multiple query results into a single ranking.
 
     A concise and efficient multi-query fusion strategy based on rank positions
@@ -68,7 +71,7 @@ def rrf_fusion(
         ... ]
         >>> fused = rrf_fusion(filtered_results, k=60)
     """
-    rrf_scores = defaultdict(float)
+    rrf_scores: defaultdict[_T, float] = defaultdict(float)
 
     for results in query_results:
         for rank, (doc_idx, _) in enumerate(results):
@@ -158,10 +161,10 @@ def unified_fusion(
     need_consensus = w3 > 0
     need_rank = w4 > 0
 
-    absolute_scores = defaultdict(float)
-    relative_scores = defaultdict(float) if need_relative else {}
-    rank_scores = defaultdict(float) if need_rank else {}
-    appearance_counts = defaultdict(int)
+    absolute_scores: defaultdict[int, float] = defaultdict(float)
+    relative_scores: dict[int, float] = defaultdict(float) if need_relative else {}
+    rank_scores: dict[int, float] = defaultdict(float) if need_rank else {}
+    appearance_counts: defaultdict[int, int] = defaultdict(int)
 
     # Step 2: First pass — compute normalization parameters (only when relative scores needed)
     #

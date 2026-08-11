@@ -1,7 +1,8 @@
 """RuntimePool — unified pool for managing arbitrary RuntimeBackend instances.
 
 Supports ACP, SDK, and CLI backends with config-driven registration,
-concurrency control via asyncio.Semaphore, and optional health monitoring.
+concurrency control via a global asyncio.Semaphore plus per-backend
+serialization locks, and optional health monitoring.
 
 
 [INPUT]
@@ -84,6 +85,7 @@ class RuntimePool:
         self._configs: dict[str, RuntimeConfig] = {}
         self._backends: dict[str, RuntimeBackend] = {}
         self._semaphore = asyncio.Semaphore(max_concurrent)
+        self._backend_locks: dict[str, asyncio.Lock] = {}
         self._event_bus = event_bus
         self._health_monitor: HealthMonitor | None = (
             HealthMonitor(event_bus=event_bus) if enable_health_monitor else None
@@ -169,18 +171,23 @@ class RuntimePool:
 
         async with self._semaphore:
             backend = self.get(name)
-            try:
-                async for event in backend.run_turn(
-                    prompt,
-                    session_id,
-                    mcp_servers=effective_mcp or None,
-                ):
-                    if self._event_bus is not None:
-                        await self._event_bus.emit(event)
-                    yield event
-            finally:
-                if mode == "oneshot":
-                    await backend.close()
+            # Serialize turns per backend: a backend instance (e.g. CliRuntime)
+            # holds mutable per-turn state (active process handle) that cannot
+            # be safely shared across concurrent turns.
+            backend_lock = self._backend_locks.setdefault(name, asyncio.Lock())
+            async with backend_lock:
+                try:
+                    async for event in backend.run_turn(
+                        prompt,
+                        session_id,
+                        mcp_servers=effective_mcp or None,
+                    ):
+                        if self._event_bus is not None:
+                            await self._event_bus.emit(event)
+                        yield event
+                finally:
+                    if mode == "oneshot":
+                        await backend.close()
 
     async def cancel(self, name: str, session_id: str) -> None:
         """Cancel a running turn for the named backend.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -771,6 +772,78 @@ class TestCliRuntimeSessionResume:
         rt._process = mock_proc
         assert rt.is_alive is False
 
+    @pytest.mark.asyncio
+    async def test_resume_invalid_clears_cached_session_id(self) -> None:
+        """Stale --resume that crashes the CLI must drop the cached session id.
+
+        Regression: a cached CLI session id that no longer resolves (cleared
+        externally / expired) made the retry reuse the same stale --resume and
+        fail twice instead of degrading to a fresh session.
+        """
+        rt = CliRuntime("test", _make_config())
+        rt._cli_session_ids["s1"] = "cli-sess-abc"
+
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.stdout.__aiter__ = lambda self: aiter([])
+        mock_proc.stderr = AsyncMock()
+        mock_proc.stderr.read = AsyncMock(return_value=b"Error: Session cli-sess-abc not found")
+        mock_proc.stdin = None
+
+        async def fake_wait() -> int:
+            mock_proc.returncode = 1
+            return 1
+
+        mock_proc.wait = fake_wait
+
+        captured_args: list[object] = []
+        call_count = 0
+
+        async def capture_exec(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            captured_args.append(args)
+            return mock_proc
+
+        with patch("asyncio.create_subprocess_exec", side_effect=capture_exec):
+            events = [e async for e in rt._do_run_turn("hello", "s1")]
+
+        assert call_count == 1
+        assert "--resume" in captured_args[0]
+        error_events = [e for e in events if e.type == RuntimeEventType.ERROR]
+        assert len(error_events) == 1
+        assert error_events[0].data["error"].retryable is True
+        assert "s1" not in rt._cli_session_ids, "stale CLI session id must be dropped on crash"
+
+    @pytest.mark.asyncio
+    async def test_resume_kept_on_nonzero_exit_with_output(self) -> None:
+        """A CLI that produced text before a nonzero exit keeps its session id.
+
+        Only a crash without any output (spawn/resume failure) is treated as a
+        stale-resume signal; a partial-response failure must not lose context.
+        """
+        rt = CliRuntime("test", _make_config())
+        rt._cli_session_ids["s1"] = "cli-sess-abc"
+
+        ndjson_lines = (json.dumps({"type": "assistant", "content": "partial"}) + "\n").encode()
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.stdout.__aiter__ = lambda self: aiter([ndjson_lines])
+        mock_proc.stderr = AsyncMock()
+        mock_proc.stderr.read = AsyncMock(return_value=b"")
+        mock_proc.stdin = None
+
+        async def fake_wait() -> int:
+            mock_proc.returncode = 1
+            return 1
+
+        mock_proc.wait = fake_wait
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            _ = [e async for e in rt._do_run_turn("hello", "s1")]
+
+        assert rt._cli_session_ids.get("s1") == "cli-sess-abc"
+
 
 class TestCliRuntimeVerboseAndPrompt:
     """Tests for --verbose injection and stdin vs positional prompt."""
@@ -1044,3 +1117,26 @@ async def aiter(items: list[bytes]) -> asyncio.StreamReader:
     """Helper to create an async iterator from a list of byte lines."""
     for item in items:
         yield item  # type: ignore[misc]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="requires bash")
+class TestRealProcessCleanup:
+    """Real subprocess lifecycle: timed-out turns must not leak processes."""
+
+    @pytest.mark.asyncio
+    async def test_timeout_terminates_real_process(self) -> None:
+        rt = CliRuntime(
+            "sleep-timeout",
+            RuntimeConfig(
+                backend_type="cli",
+                command="bash",
+                args=["-c", "sleep 30"],
+                timeout_seconds=2,
+            ),
+        )
+        _ = [e async for e in rt.run_turn("hi", "s1")]
+
+        proc = rt._process
+        assert proc is not None, "process should exist before cleanup"
+        assert proc.returncode is not None, "timed-out process must have been terminated"
+        await rt.close()

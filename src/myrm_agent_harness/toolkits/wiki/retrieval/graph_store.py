@@ -40,10 +40,10 @@ class WikiGraphStore:
 
     def get_knowledge_graph(
         self, center_node: str | None = None, depth: int = 1, limit: int = 1000
-    ) -> dict[str, list]:
+    ) -> dict[str, list[dict[str, object]]]:
         """Fetch the full topology graph in O(1) DB read time, with progressive BFS support."""
-        nodes: list[dict] = []
-        edges: list[dict] = []
+        nodes: list[dict[str, object]] = []
+        edges: list[dict[str, object]] = []
         node_ids: set[str] = set()
 
         with self._get_conn() as conn:
@@ -97,12 +97,12 @@ class WikiGraphStore:
         limit: int,
         fts_union: str,
         edges_union: str,
-    ) -> tuple[list[dict], list[dict]]:
+    ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
         """BFS starting from center_node across federated databases."""
-        nodes: list[dict] = []
+        nodes: list[dict[str, object]] = []
         current_level = {center_node}
         visited_nodes = {center_node}
-        all_edges: list[dict] = []
+        all_edges: list[dict[str, object]] = []
 
         cursor = conn.execute(
             f"SELECT concept_name FROM ({fts_union}) WHERE concept_name = ?",
@@ -172,14 +172,14 @@ class WikiGraphStore:
             if len(visited_nodes) >= limit:
                 break
 
-        unique_edges: dict[tuple[str, str], dict] = {}
+        unique_edges: dict[tuple[str, str], dict[str, object]] = {}
         for e in all_edges:
             if e["source"] in visited_nodes and e["target"] in visited_nodes:
                 unique_edges[(e["source"], e["target"])] = e
 
         return nodes, list(unique_edges.values())
 
-    def graph_insights(self) -> dict[str, list[dict]]:
+    def graph_insights(self) -> dict[str, list[dict[str, object]]]:
         """Analyze graph structure for unexpected connections, knowledge gaps, and communities."""
         with self._get_conn() as conn:
             return compute_graph_insights(conn)

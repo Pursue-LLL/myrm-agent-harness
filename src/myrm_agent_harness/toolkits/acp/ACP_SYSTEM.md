@@ -423,7 +423,9 @@ acp/
 - **直连路由模式**：`force_delegate_agent` 参数允许前端绕过 LangChain Agent，直接将请求路由到指定外部 Agent，零 LLM 开销、零延迟的流式响应
 - **流式文本推送**：`_direct_delegate_stream` 将 RuntimeEvent 实时转换为前端 SSE 事件（MESSAGE / REASONING / TASKS_STEPS / TOKEN_USAGE / ERROR），实现外部 Agent 响应的逐字流式展示。连接前发送 connecting 状态，完成后发送 completed 状态，提供全生命周期进度反馈
 - **REASONING_DELTA 前端传递**：`delegate_to_agent_tool` 工具将外部 Agent 的思维链（REASONING_DELTA）通过 `ToolProgressSink` 实时推送至前端，用户可看到外部 Agent 的推理过程
-- **CLI Session 复用**：`CliRuntime` 捕获 CLI 返回的 session_id，后续调用自动注入 `--resume` 参数，实现多轮对话上下文保持（支持 claude CLI）
+- **CLI Session 复用**：`CliRuntime` 捕获 CLI 返回的 session_id，后续调用自动注入 `--resume` 参数，实现多轮对话上下文保持（支持 claude CLI）；**resume 失效自愈**——注入 `--resume` 后进程无输出崩溃（PROCESS_CRASHED）时自动丢弃失效 session_id，重试降级开新会话，避免拿着过期 id 二次失败
+- **Per-backend 并发串行化**：`RuntimePool.run_turn` 在全局 Semaphore 之外对同一 backend 增 per-backend `asyncio.Lock`，保证单后端实例（如 CliRuntime 的可变进程句柄）同时只跑一个 turn；`cancel()` 不取该锁（调用方在 turn 循环内取消，无死锁），不同 backend 仍可并行
+- **超时/异常进程清理**：`BaseRuntime.run_turn` 在超时或意外异常分支先 `cancel()` 再产出 ERROR 事件，终止可能仍存活的外部 CLI 进程，杜绝超时后孤儿进程在后台继续消耗资源
 - **NDJSON 解析器模块化**：`_parser.py` 提取 CLI/SDK 共享的解析逻辑，消除代码重复
 - **Delegate 元数据 TypedDict**：`DelegateUsage` / `DelegateMeta` 提供精确的类型提示
 - **直连模式 Session 隔离**：基于 `chat_id` 生成独立 `session_id`，不同对话的外部 Agent 上下文互不干扰
@@ -483,8 +485,9 @@ acp/
 11. **并发受控**：RuntimePool Semaphore
 12. **框架/业务可替换**：PermissionManager 等 Protocol 注入点明确
 13. **全链路取消**：CancellationToken 通过 ContextVar 传播，用户取消 → delegate_tool → pool.cancel() → backend.cancel() → 进程终止，零资源泄漏
-14. **双层 Max Turns 安全护栏**：Layer 1（CLI 参数）让支持的 CLI 优雅停止，Layer 2（delegate_tool 事件计数）对所有后端通用兜底——业界唯一的双层方案
-15. **Agent 能力描述**：description 注入 tool description，帮助 LLM 在多 Agent 场景下做出正确的委派决策
+14. **超时零孤儿**：run_turn 超时/异常分支自动 cancel 存活进程，外部 CLI 无后台残留
+15. **双层 Max Turns 安全护栏**：Layer 1（CLI 参数）让支持的 CLI 优雅停止，Layer 2（delegate_tool 事件计数）对所有后端通用兜底——业界唯一的双层方案
+16. **Agent 能力描述**：description 注入 tool description，帮助 LLM 在多 Agent 场景下做出正确的委派决策
 
 **已知局限**：
 - SdkRuntime 依赖外部 SDK 版本兼容性（不可避免的外部风险，不影响评分）

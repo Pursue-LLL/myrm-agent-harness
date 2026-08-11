@@ -197,6 +197,9 @@ class BaseRuntime:
             logger.error(
                 "runtime_timeout name=%s session=%s timeout=%ds", self._name, session_id, self._config.timeout_seconds
             )
+            # Terminate the spawned external process so a timed-out turn does not
+            # leave an orphan CLI agent running in the background.
+            await self.cancel(session_id)
             yield create_event(
                 RuntimeEventType.ERROR,
                 session_id,
@@ -210,6 +213,9 @@ class BaseRuntime:
             raise
         except Exception as exc:
             logger.error("runtime_error name=%s session=%s error=%s", self._name, session_id, exc, exc_info=True)
+            # A failed turn may still have a live process; clean it up before
+            # surfacing the error to avoid process leaks on unexpected failures.
+            await self.cancel(session_id)
             yield create_event(
                 RuntimeEventType.ERROR,
                 session_id,

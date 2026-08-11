@@ -988,6 +988,46 @@ class TestBaseRuntimeTimeout:
         assert "kaboom" in error_event.data["error"].message
 
 
+    @pytest.mark.asyncio
+    async def test_timeout_cancels_process(self) -> None:
+        class _SlowRuntime(BaseRuntime):
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                super().__init__(*args, **kwargs)
+                self.cancel_calls: list[str] = []
+
+            async def _do_run_turn(self, prompt, session_id, *, mcp_servers=None):
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="start")
+                await asyncio.sleep(100)
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="never")
+
+            async def _do_cancel(self, session_id: str) -> None:
+                self.cancel_calls.append(session_id)
+
+        rt = _SlowRuntime("slow-rt", RuntimeConfig(backend_type="cli", command="x", timeout_seconds=1), "cli")
+        _ = [e async for e in rt.run_turn("hello", "s1")]
+
+        assert rt.cancel_calls == ["s1"], "timeout must terminate the spawned process"
+
+    @pytest.mark.asyncio
+    async def test_runtime_exception_cancels_process(self) -> None:
+        class _BrokenRuntime(BaseRuntime):
+            def __init__(self, *args: object, **kwargs: object) -> None:
+                super().__init__(*args, **kwargs)
+                self.cancel_calls: list[str] = []
+
+            async def _do_run_turn(self, prompt, session_id, *, mcp_servers=None):
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="before")
+                raise RuntimeError("kaboom")
+
+            async def _do_cancel(self, session_id: str) -> None:
+                self.cancel_calls.append(session_id)
+
+        rt = _BrokenRuntime("broken", RuntimeConfig(backend_type="cli", command="x"), "cli")
+        _ = [e async for e in rt.run_turn("hello", "s1")]
+
+        assert rt.cancel_calls == ["s1"], "unexpected failure must clean up the spawned process"
+
+
 class TestLazyImports:
     """Tests for ACP __init__.py lazy import mechanism."""
 

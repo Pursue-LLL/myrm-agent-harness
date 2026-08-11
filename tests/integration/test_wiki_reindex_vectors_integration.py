@@ -69,7 +69,9 @@ async def test_reindex_refreshes_fts_and_sidecars_skips_drafts(tmp_path: Path) -
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_reindex_embed_window_violation_surfaces_in_errors(tmp_path: Path) -> None:
+async def test_reindex_embed_window_violation_surfaces_in_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     structure = WikiStructure(tmp_path)
     structure.ensure_structure()
     config = WikiConfig(enable_hybrid_search=True, enable_directory_sidecars=False)
@@ -82,6 +84,20 @@ async def test_reindex_embed_window_violation_surfaces_in_errors(tmp_path: Path)
     vector_store.delete_by_filter = AsyncMock()
 
     embedding = CloudEmbedding(model="BAAI/bge-large-zh-v1.5", api_key="integration-test-key")
+
+    from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
+        EmbedInputTooLargeError,
+    )
+
+    async def _reject_window(embedding_self, texts):
+        raise EmbedInputTooLargeError(
+            token_count=900,
+            limit=512,
+            model="BAAI/bge-large-zh-v1.5",
+            parent_key="huge-note",
+        )
+
+    monkeypatch.setattr(CloudEmbedding, "embed_batch", _reject_window)
     indexer = WikiIndexer(structure, config, vector_store=vector_store, embedding=embedding)
 
     huge_body = "token " * 3000
@@ -95,3 +111,4 @@ async def test_reindex_embed_window_violation_surfaces_in_errors(tmp_path: Path)
     assert result.failed == 1
     assert result.errors
     assert result.errors[0].startswith("concept:huge-note:")
+    assert "exceeds" in result.errors[0]

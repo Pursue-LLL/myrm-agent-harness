@@ -14,7 +14,7 @@ with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory s
 | contradiction_synthesis/ | Core | Cross-concept evolution page synthesis (pairing → LLM verdict → pending) | ✅ |
 | postprocess.py | Core | Post-compilation: backlink generation, metadata persistence with `last_compile_raw_hashes` (preserves `raw_supersede`) | ✅ |
 | cognitive_map/ | Core | OKF index.md, log.md, hot.md, **SCHEMA.md** deterministic writers + refresh service | ✅ |
-| sidecar.py | Core | Directory sidecar builder (`.abstract.md`/`.overview.md`): bottom-up DAG invalidation + incremental rebuild + index sync | ✅ |
+| sidecar.py | Core | Directory sidecar builder (`.abstract.md`/`.overview.md`): bottom-up DAG invalidation + incremental rebuild + index sync; LLM summary parsed via `parse_llm_json_object` (robust against fences, prose, bare control chars, trailing commas) | ✅ |
 | pending.py | Core | HITL pending edits; `stage_pending_edit` demotes stale published + stores `provenance`; approve blocks stale + uses `publish_concept_article`; **CCSP approve backlinks**; `count_synthesis_pending` SQL | ✅ |
 | publication/ | Core | WPG publish SSOT: `publish_concept_article`, `repair_publication_status` | ✅ |
 | apply/ | Core | Narrow-write apply SSOT: `apply_wiki_mutation` (metadata/truth/timeline/create) | ✅ |

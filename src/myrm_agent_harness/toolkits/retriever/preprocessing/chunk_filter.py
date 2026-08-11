@@ -16,6 +16,7 @@ Document chunk filter
 
 import asyncio
 import logging
+from collections.abc import Sequence
 
 from langchain_core.documents import Document
 
@@ -148,10 +149,10 @@ class ChunkFilter:
         self,
         url: str,
         chunks: list[Document],
-        sorted_indices: list,
-        query_rankings: list,
+        sorted_indices: list[tuple[int, float]],
+        query_rankings: list[list[tuple[int, float]]],
         queries: list[str],
-    ):
+    ) -> None:
         """Log filtering results"""
         logger.warning(f"\n{'=' * 100}")
         logger.warning(f"URL {url} - RRF fusion results (top {min(20, len(sorted_indices))} )")
@@ -173,7 +174,7 @@ _chunk_filter = ChunkFilter()
 
 
 async def create_document_chunks_from_crawl_results(
-    success_results,
+    success_results: Sequence[tuple[str, Document]],
     queries: list[str] | None = None,
     long_doc_threshold: int = 20000,
     bm25_topk_ratio: int = 7,

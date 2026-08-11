@@ -27,6 +27,7 @@ import contextlib
 import logging
 import re
 import sqlite3
+from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
@@ -79,7 +80,7 @@ class WikiIndexer(SidecarIndexMixin):
         self._graph_store = WikiGraphStore(self._get_conn, structure)
 
     @contextlib.contextmanager
-    def _get_conn(self):
+    def _get_conn(self) -> Iterator[sqlite3.Connection]:
         from myrm_agent_harness.utils.db.sqlite import CACHE, harden_connection_sync
 
         conn = sqlite3.connect(self.db_path)
@@ -139,11 +140,11 @@ class WikiIndexer(SidecarIndexMixin):
 
     def get_knowledge_graph(
         self, center_node: str | None = None, depth: int = 1, limit: int = 1000
-    ) -> dict[str, list]:
+    ) -> dict[str, list[dict[str, object]]]:
         """Delegate to WikiGraphStore for BFS graph traversal."""
         return self._graph_store.get_knowledge_graph(center_node, depth, limit)
 
-    def graph_insights(self) -> dict[str, list[dict]]:
+    def graph_insights(self) -> dict[str, list[dict[str, object]]]:
         """Delegate to WikiGraphStore for graph structural analysis."""
         return self._graph_store.graph_insights()
 
@@ -288,7 +289,7 @@ class WikiIndexer(SidecarIndexMixin):
         truth_content = self._extract_truth(full_markdown)
         publish_status = self._resolve_publish_status(full_markdown)
 
-        def sync_upsert():
+        def sync_upsert() -> None:
             with self._get_conn() as conn:
                 conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (concept_name,))
                 conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (f"raw:{concept_name}",))
@@ -325,6 +326,10 @@ class WikiIndexer(SidecarIndexMixin):
                     },
                     metadata_key="concept_name",
                 )
+            except EmbedInputTooLargeError:
+                # Window violations must surface (reindex layer reports them); other
+                # vector failures degrade gracefully to FTS-only.
+                raise
             except Exception as e:
                 logger.warning(f"Vector upsert failed for wiki concept '{concept_name}', keeping FTS only: {e}")
 
@@ -334,7 +339,7 @@ class WikiIndexer(SidecarIndexMixin):
         """
 
         # 1. Delete from SQLite FTS5 and edges (Sync wrapped in async thread)
-        def sync_delete():
+        def sync_delete() -> None:
             with self._get_conn() as conn:
                 conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (concept_name,))
                 conn.execute("DELETE FROM wiki_edges WHERE source = ? OR target = ?", (concept_name, concept_name))
@@ -367,7 +372,7 @@ class WikiIndexer(SidecarIndexMixin):
         # 1. FTS5 Search
         fts_results: list[tuple[str, float]] = []
 
-        def sync_fts_search():
+        def sync_fts_search() -> list[tuple[str, float]]:
             results = []
             with self._get_conn() as conn:
                 try:

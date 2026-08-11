@@ -27,6 +27,7 @@ import logging
 import re
 import sqlite3
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -103,7 +104,7 @@ class WikiAssetIndexer:
         return self._structure.wiki_dir / "assets"
 
     @contextlib.contextmanager
-    def _get_conn(self):
+    def _get_conn(self) -> Iterator[sqlite3.Connection]:
         from myrm_agent_harness.utils.db.sqlite import CACHE, harden_connection_sync
 
         conn = sqlite3.connect(self.db_path)

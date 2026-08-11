@@ -7,6 +7,7 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: prompt messages)
 ..core.config::WikiCompileConfig (POS: sidecar generation knobs)
 ..core.types::ConceptInfo (POS: touched concept hints from compiler)
 utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 SidecarBuildResult: sidecar build statistics
@@ -32,7 +33,10 @@ from typing import TYPE_CHECKING
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import (
+    extract_answer_text,
+    parse_llm_json_object,
+)
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from ..core.config import WikiCompileConfig
@@ -397,24 +401,22 @@ class WikiDirectorySidecarBuilder:
 
     @staticmethod
     def _parse_sidecar_payload(raw: str) -> tuple[str, str] | None:
+        """Parse the LLM sidecar summary into (abstract, overview).
+
+        Delegates to the shared robust LLM JSON parser so markdown fences,
+        prose framing, trailing commas and bare control characters inside
+        string values do not cause the directory summary to be dropped.
+        """
         text = raw.strip()
         if not text:
             return None
-        candidates = [text]
-        fenced = re.search(r"\{.*\}", text, re.DOTALL)
-        if fenced:
-            candidates.append(fenced.group(0))
-        for candidate in candidates:
-            try:
-                payload = json.loads(candidate)
-            except json.JSONDecodeError:
-                continue
-            if not isinstance(payload, dict):
-                continue
-            abstract = payload.get("abstract")
-            overview = payload.get("overview")
-            if isinstance(abstract, str) and isinstance(overview, str):
-                return abstract.strip(), overview.strip()
+        payload = parse_llm_json_object(text)
+        if not isinstance(payload, dict):
+            return None
+        abstract = payload.get("abstract")
+        overview = payload.get("overview")
+        if isinstance(abstract, str) and isinstance(overview, str):
+            return abstract.strip(), overview.strip()
         return None
 
     @staticmethod

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import pytest
@@ -30,6 +31,12 @@ def test_build_advisor_injection_block_formats_refs() -> None:
     assert "[gpt-a]" in block
     assert "Try approach A" in block
     assert "reference only" in block.lower()
+
+
+def test_build_advisor_injection_block_empty_and_blank() -> None:
+    assert build_advisor_injection_block([]) == ""
+    blank = [ReferenceResponse(model="gpt-a", content="  ", elapsed_seconds=1.0, success=True)]
+    assert build_advisor_injection_block(blank) == ""
 
 
 @pytest.mark.parametrize(
@@ -172,3 +179,135 @@ def test_apply_privacy_to_ref_missing_redactor_emits_raw_with_warning(
         redacted = apply_privacy_to_ref(ref, "full")
     assert redacted.content == "raw content"
     assert any("no redactor injected" in message for message in caplog.messages)
+
+
+def test_redact_for_privacy_empty_text_passthrough() -> None:
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import _redact_for_privacy
+
+    assert _redact_for_privacy("", "full", redact_fn=lambda t: "X") == ""
+
+
+def test_runner_requires_reference_llms() -> None:
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
+
+    with pytest.raises(ValueError, match="At least one reference LLM"):
+        AdvisorFanoutRunner([])
+
+
+@pytest.mark.asyncio
+async def test_runner_iteration_counter() -> None:
+    from unittest.mock import MagicMock
+
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
+
+    runner = AdvisorFanoutRunner([MagicMock(model_name="ref-a")])
+    assert runner.iteration == 0
+    assert runner.next_iteration() == 1
+    assert runner.next_iteration() == 2
+
+
+@pytest.mark.asyncio
+async def test_runner_skips_when_fanout_disabled() -> None:
+    from unittest.mock import MagicMock
+
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
+
+    llm = MagicMock(model_name="ref-a")
+    runner = AdvisorFanoutRunner([llm], MoAOverlayConfig(fanout="every_n", every_n=3))
+    assert await runner.run([HumanMessage(content="q")]) == []
+
+
+@pytest.mark.asyncio
+async def test_runner_skips_without_human_query() -> None:
+    from unittest.mock import MagicMock
+
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
+
+    llm = MagicMock(model_name="ref-a")
+    runner = AdvisorFanoutRunner([llm], MoAOverlayConfig(fanout="per_iteration"))
+    assert await runner.run([ToolMessage(content="tool done", tool_call_id="1")]) == []
+
+
+def test_extract_last_human_query_list_content() -> None:
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import _extract_last_human_query
+
+    msgs = [
+        HumanMessage(content="ignored"),
+        HumanMessage(content=[{"type": "text", "text": "hello "}, {"type": "image", "image_url": "x"}]),
+    ]
+    assert _extract_last_human_query(msgs) == "hello"
+
+
+def test_model_name_fallback_uses_class_name() -> None:
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
+
+    assert AdvisorFanoutRunner._model_name(object()) == "object"
+
+
+@pytest.mark.asyncio
+async def test_query_single_success_and_empty_retry_exhaustion() -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
+
+    llm = MagicMock(model_name="ref-a")
+    runner = AdvisorFanoutRunner([llm], MoAOverlayConfig(fanout="per_iteration", max_retries_per_model=1))
+
+    with patch(
+        "myrm_agent_harness.toolkits.llms.consensus.advisor_fanout.collect_stream",
+        new_callable=AsyncMock,
+    ) as stream:
+        stream.return_value = "   useful answer  "
+        ref = await runner._query_single(llm, "q", None)
+        assert ref.success and ref.content == "useful answer"
+
+        stream.return_value = "   "
+        failed = await runner._query_single(llm, "q", None)
+        assert not failed.success and failed.error == "empty response"
+
+
+@pytest.mark.asyncio
+async def test_query_single_timeout_and_exception() -> None:
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
+
+    llm = MagicMock(model_name="ref-a")
+    runner = AdvisorFanoutRunner([llm], MoAOverlayConfig(fanout="per_iteration", max_retries_per_model=1))
+
+    with patch(
+        "myrm_agent_harness.toolkits.llms.consensus.advisor_fanout.collect_stream",
+        side_effect=TimeoutError,
+    ):
+        ref = await runner._query_single(llm, "q", None)
+        assert not ref.success and "timeout" in ref.error
+
+    with patch(
+        "myrm_agent_harness.toolkits.llms.consensus.advisor_fanout.collect_stream",
+        side_effect=RuntimeError("boom"),
+    ):
+        ref = await runner._query_single(llm, "q", None)
+        assert not ref.success and ref.error == "boom"
+
+
+@pytest.mark.asyncio
+async def test_query_references_global_timeout() -> None:
+    from unittest.mock import MagicMock, patch
+
+    from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
+
+    llm = MagicMock(model_name="ref-a")
+    runner = AdvisorFanoutRunner(
+        [llm],
+        MoAOverlayConfig(fanout="per_iteration", timeout_total=0.05),
+    )
+
+    async def hanging_query_single(self, _llm, _query, _history) -> ReferenceResponse:
+        await asyncio.sleep(10)
+        return ReferenceResponse(model="ref-a", content="late", elapsed_seconds=1.0, success=True)
+
+    with patch.object(AdvisorFanoutRunner, "_query_single", hanging_query_single):
+        refs = await runner._query_references("q", None)
+
+    assert len(refs) == 1
+    assert not refs[0].success and refs[0].error == "global timeout"

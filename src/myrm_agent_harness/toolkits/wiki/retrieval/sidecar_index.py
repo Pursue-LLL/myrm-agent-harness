@@ -26,6 +26,7 @@ import logging
 import uuid
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import EmbedInputTooLargeError
 from myrm_agent_harness.toolkits.retriever.fusion_strategies import rrf_fusion
 
 from ..core.config import WikiConfig
@@ -33,8 +34,14 @@ from .tokenizer import tokenize_for_fts
 from .vector_chunks import delete_text_vectors, upsert_text_vectors
 
 if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Awaitable, Callable
+    from contextlib import AbstractContextManager
+
     from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
     from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
+
+    from ..core.structure import WikiStructure
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +65,13 @@ class SidecarIndexMixin:
     _embedding: EmbeddingProtocol | None
     _collection_name: str
     _collection_ready: bool
+
+    if TYPE_CHECKING:
+        # Attributes provided by the host class (WikiIndexer); only for type checking.
+        _get_conn: Callable[[], AbstractContextManager[sqlite3.Connection]]
+        _structure: WikiStructure
+        _ensure_collection: Callable[[], Awaitable[None]]
+        get_truth: Callable[[str], str | None]
 
     @staticmethod
     def _normalize_dir_path(dir_path: str) -> str:
@@ -109,7 +123,7 @@ class SidecarIndexMixin:
         if not payload:
             payload = "No validated knowledge yet for this directory."
 
-        def sync_upsert():
+        def sync_upsert() -> None:
             with self._get_conn() as conn:
                 conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (entry_id,))
                 conn.execute(
@@ -136,6 +150,10 @@ class SidecarIndexMixin:
                     },
                     metadata_key="concept_name",
                 )
+            except EmbedInputTooLargeError:
+                # Window violations must surface (reindex layer reports them); other
+                # vector failures degrade gracefully to FTS-only.
+                raise
             except Exception as e:
                 logger.warning(f"Sidecar vector upsert failed for '{entry_id}', keeping FTS only: {e}")
 
@@ -143,7 +161,7 @@ class SidecarIndexMixin:
         """Delete one directory sidecar entry from FTS + vector index."""
         entry_id = self._sidecar_entry_id(dir_path, level)
 
-        def sync_delete():
+        def sync_delete() -> None:
             with self._get_conn() as conn:
                 conn.execute("DELETE FROM wiki_fts WHERE concept_name = ?", (entry_id,))
 
@@ -160,7 +178,7 @@ class SidecarIndexMixin:
     async def delete_all_sidecars(self) -> None:
         """Delete all sidecar entries from FTS + vector index."""
 
-        def sync_delete_all():
+        def sync_delete_all() -> None:
             with self._get_conn() as conn:
                 conn.execute(
                     "DELETE FROM wiki_fts WHERE concept_name GLOB ?",

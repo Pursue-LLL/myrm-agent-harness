@@ -67,7 +67,9 @@ class CliRuntime(BaseRuntime):
 
     For CLI tools that support session resume (e.g. Claude CLI ``--resume``),
     the runtime captures the session ID from ``result`` events and injects
-    ``--resume <id>`` on subsequent calls to the same session.
+    ``--resume <id>`` on subsequent calls to the same session. A crash on
+    resume (no output produced) drops the stale session ID so the next call
+    degrades to a fresh session.
     """
 
     def __init__(self, runtime_name: str, config: RuntimeConfig) -> None:
@@ -120,9 +122,11 @@ class CliRuntime(BaseRuntime):
         if "--output-format" in args and "stream-json" in args and "--verbose" not in args:
             args.append("--verbose")
 
+        resumed = False
         cli_session = self._cli_session_ids.get(session_id)
         if cli_session and _supports_resume(command) and "--resume" not in args:
             args.extend(["--resume", cli_session])
+            resumed = True
             logger.info("cli_resume name=%s session=%s cli_session=%s", self._name, session_id, cli_session)
 
         if self._config.max_turns > 0 and _supports_max_turns(command):
@@ -193,6 +197,18 @@ class CliRuntime(BaseRuntime):
                     stderr_text[:200],
                 )
             else:
+                if resumed:
+                    # The cached CLI session id no longer resolves (e.g. cleared
+                    # externally or expired). Drop it so a retry starts a fresh
+                    # session instead of failing on the same stale --resume.
+                    self._cli_session_ids.pop(session_id, None)
+                    logger.warning(
+                        "cli_resume_invalid name=%s session=%s dropped stale cli_session=%s",
+                        self._name,
+                        session_id,
+                        cli_session,
+                    )
+
                 from myrm_agent_harness.toolkits.acp.runtime._spawn_hints import format_cli_spawn_failure_message
 
                 message = format_cli_spawn_failure_message(

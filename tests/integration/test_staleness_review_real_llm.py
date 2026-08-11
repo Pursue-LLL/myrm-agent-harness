@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -24,6 +25,24 @@ from myrm_agent_harness.toolkits.memory.strategies.staleness_review import (
 from myrm_agent_harness.toolkits.memory.types import MemoryStatus, SemanticMemory
 
 pytestmark = [pytest.mark.integration, pytest.mark.timeout(30)]
+
+_ENV_TEST = (
+    Path(__file__).resolve().parents[3] / "myrm-agent" / "myrm-agent-server" / ".env.test"
+)
+
+
+@pytest.fixture(autouse=True)
+def _load_env_test() -> None:
+    """Load .env.test into the process environment (never overriding existing vars)."""
+    if not _ENV_TEST.exists():
+        pytest.skip(f"{_ENV_TEST} not found — real-LLM integration cannot run")
+    for line in _ENV_TEST.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        if key and value:
+            os.environ.setdefault(key, value)
 
 
 def _get_lite_llm_config() -> tuple[str, str, str]:

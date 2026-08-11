@@ -211,45 +211,45 @@ class TestExtractJsonFromText:
     """Tests for _extract_json_from_text."""
 
     def test_direct_json_object(self) -> None:
-        result = _extract_json_from_text('{"name": "test"}')
+        result = _extract_json_from_text('{"name": "test"}', expect_array=False)
         assert result == {"name": "test"}
 
     def test_direct_json_array(self) -> None:
-        result = _extract_json_from_text('[{"name": "A"}, {"name": "B"}]')
+        result = _extract_json_from_text('[{"name": "A"}, {"name": "B"}]', expect_array=True)
         assert result == [{"name": "A"}, {"name": "B"}]
 
     def test_empty_array(self) -> None:
-        result = _extract_json_from_text("[]")
+        result = _extract_json_from_text("[]", expect_array=True)
         assert result == []
 
     def test_markdown_code_block_object(self) -> None:
         text = '```json\n{"title": "hello"}\n```'
-        result = _extract_json_from_text(text)
+        result = _extract_json_from_text(text, expect_array=False)
         assert result == {"title": "hello"}
 
     def test_markdown_code_block_array(self) -> None:
         text = '```json\n[{"a": 1}]\n```'
-        result = _extract_json_from_text(text)
+        result = _extract_json_from_text(text, expect_array=True)
         assert result == [{"a": 1}]
 
     def test_json_embedded_in_text(self) -> None:
         text = 'Here is the result: {"price": "$10"} end'
-        result = _extract_json_from_text(text)
+        result = _extract_json_from_text(text, expect_array=False)
         assert result == {"price": "$10"}
 
     def test_array_embedded_in_text(self) -> None:
         text = 'Results: [{"x": 1}] done'
-        result = _extract_json_from_text(text)
+        result = _extract_json_from_text(text, expect_array=True)
         assert result == [{"x": 1}]
 
     def test_no_json_returns_none(self) -> None:
-        assert _extract_json_from_text("no json here") is None
+        assert _extract_json_from_text("no json here", expect_array=False) is None
 
     def test_invalid_json_returns_none(self) -> None:
-        assert _extract_json_from_text("{invalid json}") is None
+        assert _extract_json_from_text("{invalid json}", expect_array=False) is None
 
     def test_whitespace_handling(self) -> None:
-        result = _extract_json_from_text('  \n  {"key": "value"}  \n  ')
+        result = _extract_json_from_text('  \n  {"key": "value"}  \n  ', expect_array=False)
         assert result == {"key": "value"}
 
 
@@ -560,7 +560,7 @@ def test_validate_schema_complexity_deep_array_nesting() -> None:
 def test_extract_json_invalid_markdown_block_returns_none() -> None:
     """A code block containing invalid JSON yields None without raising (lines 300-301)."""
     text = "```json\n{invalid json here}\n```"
-    assert _extract_json_from_text(text) is None
+    assert _extract_json_from_text(text, expect_array=False) is None
 
 
 @pytest.mark.asyncio
