@@ -27,7 +27,7 @@ MCP toolkit entry point. Aggregates client management, agent tool fetching, conn
 configuration, and security validation for unified MCP protocol support.
 """
 
-from .agent import MCPAgent, OversizedResultHandler
+from .agent import MCPAgent
 from .client import MCPClientManager, MCPServerConfigProtocol
 from .config import MCPConfig
 from .connection_manager import (
@@ -43,7 +43,8 @@ from .oauth import (
     build_authorization_url,
     generate_pkce_pair,
 )
-from .schema_utils import get_schema_coercion_stats, reset_schema_coercion_stats
+from .result_processing import OversizedResultHandler
+from .schema_coerce import get_schema_coercion_stats, reset_schema_coercion_stats
 from .security import (
     MCPResponseError,
     MCPResponseValidator,

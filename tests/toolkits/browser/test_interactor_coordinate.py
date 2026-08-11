@@ -9,7 +9,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.session.interactor import Interactor
 
-_WAIT_PATCH = "myrm_agent_harness.toolkits.browser.wait_strategies.wait_for_page_ready"
+_WAIT_PATCH = "myrm_agent_harness.toolkits.browser.wait.wait_for_page_ready"
 
 
 @pytest.fixture

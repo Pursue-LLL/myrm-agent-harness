@@ -12,6 +12,7 @@
 - extract_text_content(): 从字符串 / 多媒体列表 / JSON 中提取纯文本
 - extract_answer_text(): 从 LLM 响应提取用户可见答案文本（str / block list / think 剥离 / reasoning 模型回退）
 - extract_litellm_answer_text(): 从 litellm 原生响应提取用户可见答案文本（choices[0].message / reasoning_content / block list）
+- parse_llm_json_object() / parse_llm_json_list(): 从 LLM 回复中容错提取 JSON 对象 / 数组（fence / 裸控制字符 / 多候选取末）
 
 [POS]
 Chat utility functions. Provides business-config-independent chat history conversion (generic part).
@@ -20,6 +21,8 @@ Chat utility functions. Provides business-config-independent chat history conver
 
 import json
 import logging
+import re
+from collections.abc import Iterable
 from typing import Literal, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -168,3 +171,171 @@ def extract_litellm_answer_text(response: object) -> str:
         getattr(message, "content", None),
         getattr(message, "reasoning_content", None),
     )
+
+
+# =============================================================================
+# LLM JSON parsing
+# =============================================================================
+
+_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)\s*```", re.DOTALL)
+
+
+def _escape_control_chars_in_strings(text: str) -> str:
+    """Escape unescaped control characters inside JSON string literals.
+
+    JSON forbids raw control characters (code points < 0x20) inside string
+    literals. Reasoning providers occasionally emit bare newlines or tabs,
+    so they are rewritten to the standard short escapes (``\\n``/``\\t``)
+    and any other control character to ``\\uXXXX``.
+    """
+    out: list[str] = []
+    in_string = False
+    escape_next = False
+    for ch in text:
+        if in_string:
+            if escape_next:
+                out.append(ch)
+                escape_next = False
+                continue
+            if ch == "\\":
+                out.append(ch)
+                escape_next = True
+                continue
+            if ch == '"':
+                out.append(ch)
+                in_string = False
+                continue
+            if ch == "\n":
+                out.append("\\n")
+                continue
+            if ch == "\t":
+                out.append("\\t")
+                continue
+            if ch == "\r":
+                out.append("\\r")
+                continue
+            if ord(ch) < 0x20:
+                out.append(f"\\u{ord(ch):04x}")
+                continue
+            out.append(ch)
+            continue
+        if ch == '"':
+            in_string = True
+        out.append(ch)
+    return "".join(out)
+
+
+def _iter_json_blocks(text: str, open_ch: str, close_ch: str) -> Iterable[str]:
+    """Yield every balanced ``{open_ch}...{close_ch}`` block in ``text``.
+
+    A single state-machine pass that respects string literals, escape
+    sequences, and nesting, and ignores orphan closing tokens outside any
+    block. This lets callers inspect *all* candidate blocks instead of
+    committing to the first opener (which reasoning providers occasionally
+    precede with a format example before the real result).
+    """
+    depth = 0
+    start = -1
+    in_string = False
+    escape_next = False
+    for i, ch in enumerate(text):
+        if in_string:
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == "\\":
+                escape_next = True
+                continue
+            if ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == open_ch:
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == close_ch:
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start != -1:
+                    yield text[start : i + 1]
+                    start = -1
+
+
+def _iter_json_objects(text: str) -> Iterable[str]:
+    """Yield every balanced ``{...}`` object in ``text``."""
+    yield from _iter_json_blocks(text, "{", "}")
+
+
+def _iter_json_arrays(text: str) -> Iterable[str]:
+    """Yield every balanced ``[...]`` array in ``text``."""
+    yield from _iter_json_blocks(text, "[", "]")
+
+
+def _iter_json_candidates(content: str) -> Iterable[str]:
+    """Yield candidate JSON texts: every fence body, every balanced object,
+    every balanced array, and finally the stripped raw text."""
+    stripped = content.strip()
+    if not stripped:
+        return
+    for match in _JSON_FENCE_RE.finditer(stripped):
+        body = match.group(1).strip()
+        if body:
+            yield body
+    yield from _iter_json_objects(stripped)
+    yield from _iter_json_arrays(stripped)
+    yield stripped
+
+
+def _iter_parsed_containers(
+    content: str,
+) -> Iterable[dict[str, object] | list[object]]:
+    """Yield every dict or list recoverable from ``content``.
+
+    Each candidate (fence body, balanced object/array, stripped raw text)
+    is tried raw first and then with unescaped control characters inside
+    string literals escaped, matching the artifacts reasoning providers emit.
+    """
+    for candidate in _iter_json_candidates(content):
+        for candidate_text in (candidate, _escape_control_chars_in_strings(candidate)):
+            try:
+                parsed = json.loads(candidate_text)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, (dict, list)):
+                yield parsed
+
+
+def parse_llm_json_object(content: str) -> dict[str, object] | None:
+    """Parse a JSON object out of an LLM reply.
+
+    Tolerates the artifacts reasoning providers actually emit: markdown
+    fences, prose framing around the object, unescaped control characters
+    inside string literals (e.g. bare newlines or tabs), and multiple
+    objects/fences where the last one is the real result (format examples
+    preceding the actual result). When several objects are recoverable,
+    the *last* parseable dict wins, matching how reasoning providers tend
+    to end with the final verdict. Returns ``None`` when no object can be
+    recovered.
+    """
+    parsed_last: dict[str, object] | None = None
+    for parsed in _iter_parsed_containers(content):
+        if isinstance(parsed, dict):
+            parsed_last = parsed
+    return parsed_last
+
+
+def parse_llm_json_list(content: str) -> list[object] | None:
+    """Parse a JSON array out of an LLM reply.
+
+    Mirrors :func:`parse_llm_json_object` for arrays: tolerates fences,
+    prose framing, unescaped control characters inside string literals,
+    and multiple arrays where the last one is the real result. Returns
+    ``None`` when no array can be recovered.
+    """
+    parsed_last: list[object] | None = None
+    for parsed in _iter_parsed_containers(content):
+        if isinstance(parsed, list):
+            parsed_last = parsed
+    return parsed_last

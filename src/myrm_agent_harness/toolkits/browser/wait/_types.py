@@ -18,7 +18,7 @@
 
 [POS]
 Wait strategy type definitions and runtime statistics module.
-Provides shared type foundation for wait_strategies.py and _wait_impl.py.
+Provides shared type foundation for wait/__init__.py and wait/_impl.py.
 """
 
 from __future__ import annotations

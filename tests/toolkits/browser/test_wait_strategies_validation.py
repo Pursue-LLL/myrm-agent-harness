@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.wait_strategies import (
+from myrm_agent_harness.toolkits.browser.wait import (
     WaitStrategy,
     wait_for_page_ready,
 )
@@ -64,7 +64,7 @@ async def test_quiet_ms_auto_adjustment():
     mock_page.wait_for_load_state = AsyncMock()
 
     # quiet_ms=1000 > max_ms=500，应该被调整为500
-    with patch("myrm_agent_harness.toolkits.browser.wait_strategies.logger") as mock_logger:
+    with patch("myrm_agent_harness.toolkits.browser.wait.logger") as mock_logger:
         await wait_for_page_ready(
             mock_page,
             strategy=WaitStrategy.NETWORKIDLE,
@@ -109,7 +109,7 @@ async def test_task_cancellation_cleanup():
 @pytest.mark.asyncio
 async def test_stats_precision_with_float():
     """验证统计精度（使用float存储）."""
-    from myrm_agent_harness.toolkits.browser.wait_strategies import (
+    from myrm_agent_harness.toolkits.browser.wait import (
         _global_stats,
         reset_wait_strategy_stats,
     )
@@ -173,7 +173,7 @@ async def test_concurrent_stats_updates():
     """验证并发统计更新的正确性."""
     import concurrent.futures
 
-    from myrm_agent_harness.toolkits.browser.wait_strategies import (
+    from myrm_agent_harness.toolkits.browser.wait import (
         _global_stats,
         reset_wait_strategy_stats,
     )

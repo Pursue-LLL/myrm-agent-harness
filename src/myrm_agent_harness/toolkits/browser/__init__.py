@@ -13,7 +13,7 @@ Reuses the existing ``ManagedBrowser`` (Patchright) infrastructure.
 - screenshot_diff::DiffResult (POS: immutable screenshot comparison result)
 - session_vault::SessionVault (POS: AES-256-GCM encrypted session storage)
 - session_vault::SessionEntry (POS: immutable session record)
-- session_vault_types::SessionSummary (POS: lightweight session metadata without sensitive data)
+- session_vault::SessionSummary (POS: lightweight session metadata without sensitive data)
 - exceptions::BrowserError (POS: browser toolkit root exception)
 - retry_policy::RetryPolicy (POS: retry policy framework)
 - observability::BrowserObservability (POS: browser observability manager)
@@ -107,15 +107,17 @@ if TYPE_CHECKING:
         run_doctor,
     )
     from .observability import BrowserObservability, RecordingConfig
-    from .session_vault import SessionVault
-    from .session_vault_exceptions import (
+    from .session_vault import (
         CorruptedSessionError,
         DecryptionError,
         EncryptionError,
         InvalidDomainError,
+        SessionEntry,
+        SessionSummary,
+        SessionVault,
         SessionVaultError,
+        VaultMetrics,
     )
-    from .session_vault_types import SessionEntry, SessionSummary, VaultMetrics
 
 __all__ = [
     "ActionCaptureEngine",
@@ -207,18 +209,20 @@ _LAZY_MODULES = {
         "find_orphan_driver_processes",
         "cleanup_orphan_processes",
     ],
-    "session_vault": ["SessionVault"],
-    "session_vault_types": ["SessionEntry", "SessionSummary", "VaultMetrics"],
-    "backends.file_backend": ["FileVaultBackend"],
-    "backends.protocol": ["SessionVaultBackend"],
-    "backends.storage_backend": ["StorageVaultBackend"],
-    "session_vault_exceptions": [
+    "session_vault": [
+        "SessionVault",
+        "SessionEntry",
+        "SessionSummary",
+        "VaultMetrics",
         "SessionVaultError",
         "InvalidDomainError",
         "EncryptionError",
         "DecryptionError",
         "CorruptedSessionError",
     ],
+    "session_vault.backends.file_backend": ["FileVaultBackend"],
+    "session_vault.backends.protocols": ["SessionVaultBackend"],
+    "session_vault.backends.storage_backend": ["StorageVaultBackend"],
     "observability": ["BrowserObservability", "RecordingConfig"],
     "action_capture": [
         "ActionCaptureEngine",

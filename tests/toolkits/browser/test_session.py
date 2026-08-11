@@ -7,10 +7,10 @@ import pytest
 pytestmark = pytest.mark.integration
 
 from myrm_agent_harness.toolkits.browser import BrowserSession
-from myrm_agent_harness.toolkits.browser.backends import FileVaultBackend
-from myrm_agent_harness.toolkits.browser.backends.file_backend import load_or_create_key
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
+from myrm_agent_harness.toolkits.browser.session_vault.backends import FileVaultBackend
+from myrm_agent_harness.toolkits.browser.session_vault.backends.file_backend import load_or_create_key
 
 
 @pytest.fixture

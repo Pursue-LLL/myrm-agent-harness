@@ -386,7 +386,7 @@ class Interactor:
                 healed_msg = f" [Auto-Healed to '{new_name or ref_info.name}']"
                 logger.info(f"Interactor: locator for {ref} self-healed.{healed_msg}")
 
-        from myrm_agent_harness.toolkits.browser.wait_strategies import (
+        from myrm_agent_harness.toolkits.browser.wait import (
             WaitStrategy,
             wait_for_page_ready,
         )
@@ -704,7 +704,7 @@ class Interactor:
                 "Use coordinates within the visible viewport area."
             )
 
-        from myrm_agent_harness.toolkits.browser.wait_strategies import (
+        from myrm_agent_harness.toolkits.browser.wait import (
             WaitStrategy,
             wait_for_page_ready,
         )

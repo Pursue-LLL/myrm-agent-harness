@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
-from myrm_agent_harness.toolkits.browser.navigation_ssrf_guard import (
+from myrm_agent_harness.toolkits.browser.navigation.ssrf_guard import (
     BrowserNavigationBlockedError,
     assert_browser_navigation_allowed,
     assert_browser_redirect_chain_allowed,
@@ -34,7 +34,7 @@ async def test_assert_browser_redirect_chain_walks_hops() -> None:
     hop2.redirected_from = hop1
 
     with patch(
-        "myrm_agent_harness.toolkits.browser.navigation_ssrf_guard.assert_browser_navigation_allowed",
+        "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.assert_browser_navigation_allowed",
         new_callable=AsyncMock,
     ) as mock_assert:
         await assert_browser_redirect_chain_allowed(hop2)

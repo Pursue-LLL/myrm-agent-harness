@@ -218,7 +218,7 @@ async def test_convert_tool_invocation():
     )
     result = await tools[0].ainvoke({"query": "test"})
     # _invoke passes the raw CallToolResult through unchanged; content
-    # normalization happens later in MCPAgent._normalize_mcp_result.
+    # normalization happens later in result_processing.normalize_mcp_result.
     assert result.content[0].text == "result"
     assert captured[0] == ("search", {"query": "test"})
 

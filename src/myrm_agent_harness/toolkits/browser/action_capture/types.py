@@ -95,7 +95,9 @@ class CaptureSession:
 
     @property
     def next_seq(self) -> int:
-        return len(self.steps) + 1
+        # Based on the highest existing seq (not the list length) so steps
+        # appended after a mid-session delete never collide with surviving seqs.
+        return max((s.seq for s in self.steps), default=0) + 1
 
     def add_step(self, step: ActionStep) -> None:
         self.steps.append(step)

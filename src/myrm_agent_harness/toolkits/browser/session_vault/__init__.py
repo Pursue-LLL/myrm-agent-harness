@@ -20,8 +20,8 @@ Architecture
 
 
 [INPUT]
-- .backends.protocol::SessionVaultBackend (POS: storage backend interface)
-- .session_vault_exceptions::* (POS: Exception type definitions for SessionVault. Provides fine-grained error classification for targeted error handling by callers.)
+- .backends.protocols::SessionVaultBackend (POS: storage backend interface)
+- .exceptions::* (POS: Exception type definitions for SessionVault. Provides fine-grained error classification for targeted error handling by callers.)
 - ...utils.rwlock::RWLock (POS: concurrency control)
 
 [OUTPUT]
@@ -47,18 +47,19 @@ from typing import TYPE_CHECKING, Any
 
 import orjson
 
-from ...utils.rwlock import RWLock
+from ....utils.rwlock import RWLock
 
 if TYPE_CHECKING:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from .backends.protocols import SessionVaultBackend
-from .session_vault_exceptions import (
+from .exceptions import (
     CorruptedSessionError,
     DecryptionError,
     EncryptionError,
     InvalidDomainError,
+    SessionVaultError,
 )
-from .session_vault_types import SessionEntry, SessionSummary, VaultMetrics
+from .types import SessionEntry, SessionSummary, VaultMetrics
 
 logger = logging.getLogger(__name__)
 
@@ -495,3 +496,16 @@ class SessionVault:
 
         removed = sum(1 for r in results if r is True)
         return removed
+
+
+__all__ = [
+    "CorruptedSessionError",
+    "DecryptionError",
+    "EncryptionError",
+    "InvalidDomainError",
+    "SessionEntry",
+    "SessionSummary",
+    "SessionVault",
+    "SessionVaultError",
+    "VaultMetrics",
+]

@@ -73,3 +73,10 @@ class TestCaptureSession:
             session.add_step(ActionStep(seq=i + 1, action=ActionType.CLICK, selector=f"#btn{i}"))
         assert len(session.steps) == 5
         assert session.next_seq == 6
+
+    def test_next_seq_after_delete_never_collides(self) -> None:
+        session = CaptureSession(session_id="s3")
+        for i in range(5):
+            session.add_step(ActionStep(seq=i + 1, action=ActionType.CLICK, selector=f"#btn{i}"))
+        session.steps = [s for s in session.steps if s.seq != 3]
+        assert session.next_seq == 6

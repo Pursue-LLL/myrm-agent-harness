@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.backends.file_backend import FileVaultBackend
 from myrm_agent_harness.toolkits.browser.session_vault import SessionEntry, SessionVault
+from myrm_agent_harness.toolkits.browser.session_vault.backends.file_backend import FileVaultBackend
 from myrm_agent_harness.toolkits.web_fetch.fetchers.http_fetcher import HttpFetcher
 
 

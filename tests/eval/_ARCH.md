@@ -2,7 +2,7 @@
 
 ## Overview
 
-Unit tests for `myrm_agent_harness.eval` — assertion engines (sandbox/file/command/json, state, semantic), task-native suite judge + reward/JUnit payload parsing, runner, loader, builder, reporters, protocols, metrics, and `memory_retrieval/` submodule.
+Unit tests for `myrm_agent_harness.eval` — assertion engines (sandbox/file/command/json, state, semantic), task-native suite judge + reward/JUnit payload parsing, runner, loader, builder, and reporters.
 
 ## File Index
 
@@ -16,8 +16,6 @@ Unit tests for `myrm_agent_harness.eval` — assertion engines (sandbox/file/com
 | `test_loader.py` | JSON case loading |
 | `test_reporters.py` | JSONL and Markdown reporters |
 | `test_protocol.py` | EvalCase / AgentExecutor protocol types |
-| `test_metrics.py` | IR metrics (recall@k, NDCG, MRR) |
-| `test_memory_retrieval.py` | memory retrieval eval runner |
 | `test_reward_payload.py` | reward/JUnit payload parsing unit tests |
 | `test_suite_judge.py` | task-native test suite judging integration tests |
 | `test_state_assertions.py` | state assertion engine (evaluate_state_assertions) |

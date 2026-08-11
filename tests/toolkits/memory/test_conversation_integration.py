@@ -25,7 +25,10 @@ from myrm_agent_harness.toolkits.memory.types import ConversationMemory, MemoryT
 @pytest.fixture
 async def memory_manager():
     """Create MemoryManager with real Qdrant embedded store."""
-    from myrm_agent_harness.toolkits.vector.qdrant import create_embedded_store
+    from myrm_agent_harness.toolkits.vector.qdrant import (
+        create_embedded_store,
+        evict_embedded_store,
+    )
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         vector_store = await create_embedded_store(path=Path(tmp_dir))
@@ -43,6 +46,7 @@ async def memory_manager():
 
         config = MemoryConfig(
             embedding_model="mock-model",
+            blob_storage_path=str(Path(tmp_dir) / "blobs"),
             retrieval=RetrievalConfig(keyword_overlap_weight=0.0, temporal_boost_weight=0.0),
         )
 
@@ -60,7 +64,7 @@ async def memory_manager():
 
         yield manager
 
-        await vector_store.close()
+        await evict_embedded_store(tmp_dir)
 
 
 @pytest.mark.asyncio

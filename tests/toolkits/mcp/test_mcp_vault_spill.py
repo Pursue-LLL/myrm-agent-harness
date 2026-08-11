@@ -1,8 +1,8 @@
 """Tests for MCP oversized output vault spill.
 
 Covers:
-- MCPAgent._handle_oversized_output: handler call, fallback, exception handling
-- _wrap_tools_with_timeout: vault spill integration with handler parameter
+- handle_oversized_output: handler call, fallback, exception handling
+- wrap_tools_with_timeout: vault spill integration with handler parameter
 - OversizedResultHandler type alias export
 """
 
@@ -13,23 +13,27 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_core.tools import BaseTool
 
-from myrm_agent_harness.toolkits.mcp.agent import MCPAgent, OversizedResultHandler
+from myrm_agent_harness.toolkits.mcp.result_processing import (
+    OversizedResultHandler,
+    handle_oversized_output,
+)
+from myrm_agent_harness.toolkits.mcp.tool_processing import wrap_tools_with_timeout
 
 
 class TestHandleOversizedOutput:
-    """Test MCPAgent._handle_oversized_output static method."""
+    """Test handle_oversized_output module function."""
 
     def test_handler_returns_summary(self) -> None:
         def handler(c, t):
             return f"summary of {t}"
-        result = MCPAgent._handle_oversized_output("x" * 200_000, "big_tool", 100_000, handler)
+        result = handle_oversized_output("x" * 200_000, "big_tool", 100_000, handler)
         assert result == "summary of big_tool"
 
     def test_handler_returns_none_falls_back_to_truncation(self) -> None:
         def handler(c, t):
             return None
         content = "a" * 150_000
-        result = MCPAgent._handle_oversized_output(content, "tool_x", 100_000, handler)
+        result = handle_oversized_output(content, "tool_x", 100_000, handler)
         assert "[Output truncated" in result
         assert "100,000" in result
         assert "150,000" in result
@@ -39,19 +43,19 @@ class TestHandleOversizedOutput:
             raise RuntimeError("vault write failed")
 
         content = "b" * 120_000
-        result = MCPAgent._handle_oversized_output(content, "fail_tool", 100_000, bad_handler)
+        result = handle_oversized_output(content, "fail_tool", 100_000, bad_handler)
         assert "[Output truncated" in result
         assert "100,000" in result
 
     def test_no_handler_truncates(self) -> None:
         content = "c" * 200_000
-        result = MCPAgent._handle_oversized_output(content, "no_handler", 100_000, None)
+        result = handle_oversized_output(content, "no_handler", 100_000, None)
         assert "[Output truncated" in result
         assert len(result) < 200_000
 
     def test_truncation_preserves_head(self) -> None:
         content = "HEAD_MARKER" + "x" * 200_000
-        result = MCPAgent._handle_oversized_output(content, "head_test", 100_000, None)
+        result = handle_oversized_output(content, "head_test", 100_000, None)
         assert result.startswith("HEAD_MARKER")
 
     def test_handler_receives_correct_args(self) -> None:
@@ -62,13 +66,13 @@ class TestHandleOversizedOutput:
             return "spied"
 
         content = "Z" * 110_000
-        MCPAgent._handle_oversized_output(content, "spy_tool", 100_000, spy_handler)
+        handle_oversized_output(content, "spy_tool", 100_000, spy_handler)
         assert len(captured) == 1
         assert captured[0] == ("Z" * 10, "spy_tool")
 
 
 class TestWrapToolsVaultSpill:
-    """Test _wrap_tools_with_timeout with oversized_result_handler."""
+    """Test wrap_tools_with_timeout with oversized_result_handler."""
 
     @staticmethod
     def _make_tool(name: str, coroutine: object) -> BaseTool:
@@ -92,7 +96,7 @@ class TestWrapToolsVaultSpill:
             return f"vaulted:{t}:{len(c)}"
 
         tool = self._make_tool("big_mcp", big_fn)
-        MCPAgent._wrap_tools_with_timeout(
+        wrap_tools_with_timeout(
             [tool], timeout=5.0, max_output_chars=100_000,
             oversized_result_handler=mock_handler,
         )
@@ -113,7 +117,7 @@ class TestWrapToolsVaultSpill:
             return "should not be called"
 
         tool = self._make_tool("small_mcp", small_fn)
-        MCPAgent._wrap_tools_with_timeout(
+        wrap_tools_with_timeout(
             [tool], timeout=5.0, max_output_chars=100_000,
             oversized_result_handler=mock_handler,
         )
@@ -132,7 +136,7 @@ class TestWrapToolsVaultSpill:
             raise ValueError("vault error")
 
         tool = self._make_tool("fail_mcp", big_fn)
-        MCPAgent._wrap_tools_with_timeout(
+        wrap_tools_with_timeout(
             [tool], timeout=5.0, max_output_chars=100_000,
             oversized_result_handler=failing_handler,
         )
@@ -147,7 +151,7 @@ class TestWrapToolsVaultSpill:
             return big_output
 
         tool = self._make_tool("trunc_mcp", big_fn)
-        MCPAgent._wrap_tools_with_timeout(
+        wrap_tools_with_timeout(
             [tool], timeout=5.0, max_output_chars=100_000,
         )
         result = await tool.coroutine()
@@ -181,7 +185,7 @@ class TestBoundaryConditions:
             return "vaulted"
 
         tool = self._make_tool("exact", exact_fn)
-        MCPAgent._wrap_tools_with_timeout(
+        wrap_tools_with_timeout(
             [tool], timeout=5.0, max_output_chars=100_000,
             oversized_result_handler=spy_handler,
         )
@@ -205,7 +209,7 @@ class TestBoundaryConditions:
             return "vaulted"
 
         tool = self._make_tool("over", over_fn)
-        MCPAgent._wrap_tools_with_timeout(
+        wrap_tools_with_timeout(
             [tool], timeout=5.0, max_output_chars=100_000,
             oversized_result_handler=spy_handler,
         )
@@ -226,7 +230,7 @@ class TestBoundaryConditions:
             return "vaulted"
 
         tool = self._make_tool("empty", empty_fn)
-        MCPAgent._wrap_tools_with_timeout(
+        wrap_tools_with_timeout(
             [tool], timeout=5.0, max_output_chars=100_000,
             oversized_result_handler=spy_handler,
         )
@@ -245,7 +249,7 @@ class TestBoundaryConditions:
             return f"vaulted:{len(c)}"
 
         tool = self._make_tool("unicode", unicode_fn)
-        MCPAgent._wrap_tools_with_timeout(
+        wrap_tools_with_timeout(
             [tool], timeout=5.0, max_output_chars=100_000,
             oversized_result_handler=handler,
         )
@@ -256,7 +260,7 @@ class TestBoundaryConditions:
         """Handler returning empty string (not None) should be accepted as valid."""
         def handler(c, t):
             return ""
-        result = MCPAgent._handle_oversized_output("x" * 200_000, "empty_ret", 100_000, handler)
+        result = handle_oversized_output("x" * 200_000, "empty_ret", 100_000, handler)
         assert result == ""
 
     @pytest.mark.asyncio
@@ -278,7 +282,7 @@ class TestBoundaryConditions:
 
         tool_a = self._make_tool("tool_a", big_a)
         tool_b = self._make_tool("tool_b", big_b)
-        MCPAgent._wrap_tools_with_timeout(
+        wrap_tools_with_timeout(
             [tool_a, tool_b], timeout=5.0, max_output_chars=100_000,
             oversized_result_handler=log_handler,
         )

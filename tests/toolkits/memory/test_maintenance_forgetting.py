@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -5,8 +6,12 @@ import pytest
 from myrm_agent_harness.toolkits.memory._internal.maintenance import run_forgetting
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig
 from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
-from myrm_agent_harness.toolkits.memory.strategies.forgetting import ForgettingConfig, ForgettingMode
-from myrm_agent_harness.toolkits.memory.types import SemanticMemory
+from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
+    ForgettingConfig,
+    ForgettingMode,
+    ForgettingStrategy,
+)
+from myrm_agent_harness.toolkits.memory.types import ProceduralMemory, SemanticMemory
 
 
 @pytest.mark.asyncio
@@ -73,3 +78,34 @@ async def test_run_forgetting_delete_graph_error():
     assert result.forgotten_count == 2
     assert len(result.errors) == 2
     assert result.errors[0][0] == "doc1"
+
+
+def test_forgetting_scores_procedural_memory_without_vector_importance() -> None:
+    rule = ProceduralMemory(content="rule", trigger="when", action="do")
+    score = ForgettingStrategy().calculate_retention_score(rule)
+    assert score.importance_score == 0.5
+
+
+@pytest.mark.asyncio
+async def test_run_forgetting_handles_procedural_rules_without_importance_attribute() -> None:
+    config = MemoryConfig(
+        embedding_model="test",
+        forgetting=ForgettingConfig(mode=ForgettingMode.ARCHIVE, max_forget_per_run=10),
+    )
+    vector = AsyncMock()
+    vector.scroll.side_effect = [([], None), ([], None)]
+    relational = AsyncMock()
+    rule = ProceduralMemory(
+        id="rule-1",
+        content="old rule",
+        trigger="when",
+        action="do",
+        created_at=datetime.now(UTC) - timedelta(days=1000),
+        user_rating=0.0,
+    )
+    relational.list_rules.return_value = [rule]
+
+    result = await run_forgetting(vector, config, relational=relational)
+
+    assert result.archived_count == 1
+    relational.update_rule.assert_awaited_once()

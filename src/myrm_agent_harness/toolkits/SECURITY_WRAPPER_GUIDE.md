@@ -45,7 +45,7 @@
 | **Web 抓取** | `web_fetch` | 网页内容可能包含恶意指令 | `wrap_with_external_sources_tag(html_content, source="web_fetch")` |
 | **浏览器工具** | `browser_snapshot_tool`, `browser_extract_tool` | 网页内容不可信 | `wrap_with_external_sources_tag(page_content, source="browser")` |
 | **知识库查询** | `wiki_query_tool` | 知识库内容可能来自外部摄取 | `wrap_with_external_sources_tag(wiki_content, source="wiki")` |
-| **MCP 远程数据** | MCP 工具（如 `github_api`, `slack_api`） | 第三方 API 返回的数据不可信 | 框架层已统一处理（`MCPAgent._wrap_tools_with_timeout` 自动调用 `wrap_untrusted`） |
+| **MCP 远程数据** | MCP 工具（如 `github_api`, `slack_api`） | 第三方 API 返回的数据不可信 | 框架层已统一处理（`tool_processing.wrap_tools_with_timeout` 自动调用 `wrap_untrusted`） |
 
 ### ❌ 无需包装的工具
 
@@ -183,7 +183,7 @@ wrapped = wrap_with_tool_output_tag(content)
 
 ### Q2: MCP 工具输出需要包装吗？
 
-**A**: 已由框架层统一处理。`MCPAgent._wrap_tools_with_timeout` 自动对所有 MCP 工具的字符串输出调用 `wrap_untrusted(source="mcp:{tool_name}")`，工具层无需额外处理。
+**A**: 已由框架层统一处理。`tool_processing.wrap_tools_with_timeout` 自动对所有 MCP 工具的字符串输出调用 `wrap_untrusted(source="mcp:{tool_name}")`，工具层无需额外处理。
 
 ### Q3: 包装会影响性能吗？
 

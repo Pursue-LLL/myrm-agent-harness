@@ -17,6 +17,7 @@ Server loads DB history and converts to BaseMessage before calling here.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -30,6 +31,13 @@ logger = logging.getLogger(__name__)
 
 class ContinuitySyncError(Exception):
     """Raised when checkpoint message sync did not complete for all thread aliases."""
+
+
+def _next_channel_version(existing: object) -> int:
+    """Return the next monotonic channel version accepted by LangGraph savers."""
+    if isinstance(existing, int) and not isinstance(existing, bool):
+        return existing + 1
+    return 1
 
 
 def resolve_thread_ids(chat_id: str) -> tuple[str, str]:
@@ -73,27 +81,36 @@ async def sync_checkpoint_messages(
         return updated
 
     now_iso = datetime.now(tz=UTC).isoformat()
-    checkpoint_id = str(uuid4())
+    # MemorySaver selects the latest checkpoint by lexicographic id order.
+    # A random UUID can make a newer rewrite invisible, so prefix it with a
+    # monotonic wall-clock value while retaining a random collision suffix.
+    checkpoint_id = f"{time.time_ns():020d}-{uuid4().hex}"
     updated = 0
 
     for thread_id in thread_ids:
         config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
         metadata: CheckpointMetadata = {}
         checkpoint: Checkpoint
+        new_versions: dict[str, int]
         try:
             existing = await checkpointer.aget_tuple(config)
             if existing and existing.checkpoint:
                 metadata = existing.metadata or {}
                 channel_values = dict(existing.checkpoint.get("channel_values") or {})
                 channel_values["messages"] = list(messages)
+                channel_versions = dict(existing.checkpoint.get("channel_versions") or {})
+                next_version = _next_channel_version(channel_versions.get("messages"))
+                channel_versions["messages"] = next_version
                 prior_updated = existing.checkpoint.get("updated_channels") or []
                 checkpoint = {
                     **existing.checkpoint,
                     "id": checkpoint_id,
                     "ts": now_iso,
                     "channel_values": channel_values,
+                    "channel_versions": channel_versions,
                     "updated_channels": list({*prior_updated, "messages"}),
                 }
+                new_versions = {"messages": next_version}
             else:
                 checkpoint = {
                     "v": 1,
@@ -104,7 +121,8 @@ async def sync_checkpoint_messages(
                     "versions_seen": {},
                     "updated_channels": ["messages"],
                 }
-            await checkpointer.aput(config, checkpoint, metadata, {})
+                new_versions = {"messages": 1}
+            await checkpointer.aput(config, checkpoint, metadata, new_versions)
             updated += 1
         except Exception as exc:
             logger.warning(

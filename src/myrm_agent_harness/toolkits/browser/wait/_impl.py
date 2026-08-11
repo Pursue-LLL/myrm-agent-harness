@@ -2,7 +2,7 @@
 
 
 [INPUT]
-- _wait_types::WaitStrategy, WaitMetrics, ReasonType, _HybridTaskResult (POS: type definitions)
+- _types::WaitStrategy, WaitMetrics, ReasonType, _HybridTaskResult (POS: type definitions)
 - _dom_stable_js::generate_dom_stable_js (POS: JS generator)
 - patchright.async_api::Page (POS: Patchright page instance)
 
@@ -14,7 +14,7 @@
 
 [POS]
 Concrete wait strategy implementations. Each strategy function receives a Page instance and parameters, returns WaitMetrics.
-Dispatched by wait_for_page_ready in wait_strategies.py.
+Dispatched by wait_for_page_ready in wait/__init__.py.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ import time
 from typing import TYPE_CHECKING
 
 from ._dom_stable_js import generate_dom_stable_js
-from ._wait_types import ReasonType, WaitMetrics, WaitStrategy, _HybridTaskResult
+from ._types import ReasonType, WaitMetrics, WaitStrategy, _HybridTaskResult
 
 if TYPE_CHECKING:
     from patchright.async_api import Page

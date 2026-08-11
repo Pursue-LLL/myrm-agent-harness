@@ -7,7 +7,8 @@ module-level functions.
 
 [INPUT]
 - config::sanitize_mcp_name_component, should_register_mcp_tool (POS: MCP configuration, name sanitization, tool name parsing, and per-server tool filter function)
-- schema_utils::FlattenMeta, canonicalize_schema_for_cache, coerce_arguments_by_schema, prepare_mcp_call_arguments, flatten_deep_schema, flatten_json_schema, has_dot_keys, nest_flat_arguments (POS: MCP schema tolerance utilities)
+- schema_normalize::FlattenMeta, canonicalize_schema_for_cache, flatten_deep_schema, flatten_json_schema, has_dot_keys, nest_flat_arguments (POS: MCP schema normalization)
+- schema_coerce::coerce_arguments_by_schema, prepare_mcp_call_arguments (POS: MCP schema-driven argument coercion)
 - core.security.tool_registry::MCPAnnotations, SafetyMetadata, register_ptc_safety_metadata (POS: Tool metadata and permission mapping)
 
 [OUTPUT]
@@ -46,15 +47,14 @@ from .result_processing import (
     truncate_multimodal_text_blocks,
     wrap_multimodal_text_blocks,
 )
-from .schema_utils import (
+from .schema_coerce import coerce_arguments_by_schema, prepare_mcp_call_arguments
+from .schema_normalize import (
     FlattenMeta,
     canonicalize_schema_for_cache,
-    coerce_arguments_by_schema,
     flatten_deep_schema,
     flatten_json_schema,
     has_dot_keys,
     nest_flat_arguments,
-    prepare_mcp_call_arguments,
 )
 
 logger = logging.getLogger(__name__)

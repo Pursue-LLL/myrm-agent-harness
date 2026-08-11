@@ -86,24 +86,24 @@ class TestAdDomainsModule:
     """Test the ad_domains data module."""
 
     def test_import_and_type(self) -> None:
-        from myrm_agent_harness.toolkits.browser.ad_domains import AD_DOMAINS
+        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import AD_DOMAINS
 
         assert isinstance(AD_DOMAINS, frozenset)
 
     def test_minimum_domain_count(self) -> None:
-        from myrm_agent_harness.toolkits.browser.ad_domains import AD_DOMAINS
+        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import AD_DOMAINS
 
         assert len(AD_DOMAINS) >= 3000
 
     def test_known_ad_domains_present(self) -> None:
-        from myrm_agent_harness.toolkits.browser.ad_domains import AD_DOMAINS
+        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import AD_DOMAINS
 
         assert "doubleclick.net" in AD_DOMAINS
         assert "googlesyndication.com" in AD_DOMAINS
         assert "adnxs.com" in AD_DOMAINS
 
     def test_no_legitimate_domains(self) -> None:
-        from myrm_agent_harness.toolkits.browser.ad_domains import AD_DOMAINS
+        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import AD_DOMAINS
 
         assert "google.com" not in AD_DOMAINS
         assert "github.com" not in AD_DOMAINS
@@ -111,7 +111,7 @@ class TestAdDomainsModule:
         assert "cdn.jsdelivr.net" not in AD_DOMAINS
 
     def test_all_entries_are_strings(self) -> None:
-        from myrm_agent_harness.toolkits.browser.ad_domains import AD_DOMAINS
+        from myrm_agent_harness.toolkits.browser.domain_filter.ad_domains import AD_DOMAINS
 
         for domain in list(AD_DOMAINS)[:100]:
             assert isinstance(domain, str)

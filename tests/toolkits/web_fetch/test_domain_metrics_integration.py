@@ -5,7 +5,7 @@
 2. DomainMetricsManager 持久化
 3. CostLearner 域名级学习
 4. AdaptiveRouter 失败衰减和自适应探索
-5. wait_strategies SMART 策略基于实测数据优化
+5. SMART 等待策略基于实测数据优化
 6. 云沙箱文件锁机制
 """
 

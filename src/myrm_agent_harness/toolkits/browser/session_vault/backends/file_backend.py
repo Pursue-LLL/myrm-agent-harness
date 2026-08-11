@@ -1,7 +1,7 @@
 """Local filesystem backend for SessionVault.
 
 [INPUT]
-- .session_vault_exceptions::InvalidDomainError (POS: Exception type definitions for SessionVault. Provides fine-grained error classification for targeted error handling by callers.)
+- ..exceptions::InvalidDomainError (POS: Exception type definitions for SessionVault. Provides fine-grained error classification for targeted error handling by callers.)
 
 [OUTPUT]
 - FileVaultBackend: Local filesystem backend implementation
@@ -23,7 +23,7 @@ import re
 from pathlib import Path
 from urllib.parse import quote, unquote
 
-from ..session_vault_exceptions import InvalidDomainError
+from ..exceptions import InvalidDomainError
 
 logger = logging.getLogger(__name__)
 

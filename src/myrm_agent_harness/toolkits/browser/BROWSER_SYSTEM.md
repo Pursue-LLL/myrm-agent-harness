@@ -19,7 +19,7 @@
 |------|------|-----|
 | 复用用户 Chrome 登录态（JIRA、内网等） | Agent 配置 `browser_source=extension` → Extension Bridge **CDP relay**（loopback façade + MV3 debugger 隧道，无需 remote-debugging） | server `services/extension/cdp_relay/` |
 | 手动登录后跨会话保持 | `SessionVault` 加密保存 Cookies/Storage；`browser_manage` 保存/恢复 | harness `session/` + server `browser_vault` |
-| Agent 跨引擎共享登录态 | SessionVault 注入 FetchEngine / HttpFetcher | harness `navigation.py` |
+| Agent 跨引擎共享登录态 | SessionVault 注入 FetchEngine / HttpFetcher | harness `navigation/` |
 | 找回「跟 Agent 聊过的 URL」 | `memory_search_tool`（corpus=sessions opt-in） | harness memory + server adapter |
 
 Extension Bridge 与 SessionVault 覆盖竞品（orca/holaboss）cookie 导入的核心收益，且无需读取 OS 浏览器数据库。
@@ -1074,6 +1074,11 @@ browser/
 │   ├── detector.py — 页面级 CAPTCHA 检测（HTML 正则，两层模式）
 │   ├── coordinator.py — CAPTCHA 协调状态机（asyncio.Event 暂停/恢复）
 │   └── manual_solver.py — 默认手动求解器（轮询检测 CAPTCHA 消失）
+├── wait/
+│   ├── __init__.py — 门面（wait_for_page_ready + WaitStrategy/WaitMetrics + 全局统计）
+│   ├── _impl.py — 4 种策略实现（networkidle/dom_stable/smart/hybrid + spa_stable）
+│   ├── _types.py — 类型定义与运行时统计（线程安全）
+│   └── _dom_stable_js.py — DOM 稳定性检测 JS 生成器（含 Shadow DOM）
 ├── tools/
 │   ├── __init__.py — 8 LangChain @tool 导出与 create_browser_tools 工厂
 │   ├── navigate.py — browser_navigate_tool
@@ -1127,8 +1132,8 @@ browser/
 │   ├── download_manager.py — 文件下载
 │   └── consent_dismisser.py — Cookie consent 自动 dismiss
 │   （Navigator 位于 `navigation/` 包，BrowserSession 与 BrowserFetcher 共用）
-├── domain_filter.py (317 行) — 四层域名过滤（CSP + HTTP + 主线程硬化 + CDP）；支持 allowlist + 用户 blocklist
-├── session_vault.py (678 行) — 加密 Session 存储（O(1) LRU + 内存限制 + 并发锁 + Metrics + 批量 API）
+├── domain_filter/ — 四层域名过滤（CSP + HTTP + 主线程硬化 + CDP）；支持 allowlist + 用户 blocklist
+├── session_vault/ — 加密 Session 存储（O(1) LRU + 内存限制 + 并发锁 + Metrics + 批量 API）
 ├── exceptions.py (约 150 行) — 异常类型
 └── retry_policy.py (约 200 行) — 重试策略
 ```

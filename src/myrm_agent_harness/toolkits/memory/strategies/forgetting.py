@@ -32,6 +32,23 @@ logger = logging.getLogger(__name__)
 ForgettableMemory = SemanticMemory | EpisodicMemory | ProceduralMemory
 
 
+def _importance_score(memory: ForgettableMemory) -> float:
+    """Read the shared importance signal without assuming a vector-only field.
+
+    Procedural rules predate the vector-memory importance column and persist
+    their optional score in metadata. Forgetting must still score them instead
+    of raising ``AttributeError`` and silently aborting the whole maintenance
+    scan.
+    """
+    raw = getattr(memory, "importance", None)
+    if raw is None:
+        raw = memory.metadata.get("importance", 0.5)
+    try:
+        return max(0.0, min(1.0, float(raw)))
+    except (TypeError, ValueError):
+        return 0.5
+
+
 class ForgettingMode(StrEnum):
     DELETE = "delete"
     ARCHIVE = "archive"
@@ -98,7 +115,7 @@ class ForgettingStrategy:
         else:
             time_score = 0.5 ** (age_days / cfg.time_decay_half_life_days)
         access_score = min(1.0, memory.access_count / cfg.max_access_score)
-        importance_score = memory.importance
+        importance_score = _importance_score(memory)
         rel_score = min(1.0, relation_count / cfg.max_relation_score)
         rating_score = getattr(memory, "user_rating", 0.5)
 

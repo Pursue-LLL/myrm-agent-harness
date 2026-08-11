@@ -30,7 +30,7 @@ Layer 3 — CDP Audit Monitor (``Network.webSocketCreated``)
 
 [INPUT]
 - pool.config::ResourceBlockConfig (POS: resource blocking config, includes block_ad_domains flag)
-- ad_domains::AD_DOMAINS (POS: frozenset of ~3500 ad/tracker domains, lazy-loaded when block_ad_domains=True)
+- .ad_domains::AD_DOMAINS (POS: frozenset of ~3500 ad/tracker domains, lazy-loaded when block_ad_domains=True)
 
 [OUTPUT]
 - DomainAllowlist: immutable domain pattern matcher
@@ -264,7 +264,7 @@ async def install_domain_filter(
 
     ad_blocklist: frozenset[str] | None = None
     if resource_block and resource_block.block_ad_domains:
-        from myrm_agent_harness.toolkits.browser.ad_domains import AD_DOMAINS
+        from .ad_domains import AD_DOMAINS
 
         ad_blocklist = AD_DOMAINS
 

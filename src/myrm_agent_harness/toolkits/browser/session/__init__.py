@@ -1,9 +1,7 @@
 """Browser session components.
 
-Single-responsibility components following SOLID principles.
-
-Note: Navigator has been moved to myrm_agent_harness.toolkits.browser.navigation
-to be reusable by both BrowserSession and BrowserFetcher.
+Single-responsibility components following SOLID principles. Navigator lives in
+``toolkits/browser/navigation``, shared by BrowserSession and BrowserFetcher.
 """
 
 from .browser_session import BrowserSession

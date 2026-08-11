@@ -5,6 +5,7 @@ SecurityConfig-compatible dict.
 
 [INPUT]
 - Raw LLM response text (expected JSON)
+- utils.chat_utils::parse_llm_json_object (POS: LLM 回复容错 JSON 对象提取)
 
 [OUTPUT]
 - parse_policy_response(): cleaned SecurityConfig dict
@@ -18,6 +19,8 @@ from __future__ import annotations
 
 import json
 import re
+
+from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
 
 
 class PolicyParseError(ValueError):
@@ -65,9 +68,7 @@ def parse_policy_response(raw_text: str) -> dict[str, object]:
 
     parsed = _try_parse_json(cleaned)
     if parsed is None:
-        extracted = _extract_json_object(cleaned)
-        if extracted:
-            parsed = _try_parse_json(extracted)
+        parsed = parse_llm_json_object(cleaned)
 
     if parsed is None:
         raise PolicyParseError(f"Failed to parse LLM output as JSON. Raw output (first 200 chars): {raw_text[:200]}")
@@ -91,23 +92,6 @@ def _try_parse_json(text: str) -> dict[str, object] | list[object] | None:
         return json.loads(text)  # type: ignore[return-value]
     except (json.JSONDecodeError, ValueError):
         return None
-
-
-def _extract_json_object(text: str) -> str | None:
-    """Extract the first JSON object from text with surrounding noise."""
-    brace_start = text.find("{")
-    if brace_start == -1:
-        return None
-
-    depth = 0
-    for i in range(brace_start, len(text)):
-        if text[i] == "{":
-            depth += 1
-        elif text[i] == "}":
-            depth -= 1
-            if depth == 0:
-                return text[brace_start : i + 1]
-    return None
 
 
 def _normalize_config(raw: dict[str, object]) -> dict[str, object]:

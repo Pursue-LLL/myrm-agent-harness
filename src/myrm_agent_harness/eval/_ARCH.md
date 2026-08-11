@@ -28,11 +28,6 @@ Business wiring (AgentFactory, background jobs, GUI flywheel) lives in **`myrm-a
 | protocols.py | Core | Defines the eval framework's type system (EvalCase, MultiTurnEvalCase with on_turn_fail strategy, OnTurnFail, EvalManifest for environment reproducibility snapshots with profile_id/benchmark_mode, SemanticAssertion with judge_prompt/judge_model/threshold, SandboxAssertion with result_file/timeout/readonly_paths, EvalTurnResult with per-turn scores, EvalResult aggregating `avg_pass_rate` = mean of per-turn test pass rates) and the AgentExecutor protocol. | ✅ |
 | reporters.py | Core | Out-of-the-box JSONL (with time_secs, usage, scores, per-assertion result_file/readonly_paths, and `avg_pass_rate` summary) and Markdown reporting (incl. Avg Test Pass Rate line). | ✅ |
 | runner.py | Core | Orchestrates eval execution. Supports concurrent case execution via asyncio.Semaphore, progress callbacks, single/multi-turn scenarios with configurable `on_turn_fail` strategy (continue/skip_remaining/abort). Collects sandbox/test_suite scores into each EvalTurnResult. | ✅ |
-| metrics.py | Core | Pure IR metric functions: recall@k, precision@k, ndcg@k, mrr, hit_rate, latency_percentile. Reusable across eval submodules. | ✅ |
-
-| Submodule | Description |
-|-----------|-------------|
-| memory_retrieval/ | Memory retrieval quality eval. See [memory_retrieval/_ARCH.md](memory_retrieval/_ARCH.md). |
 
 ## Key Dependencies
 

@@ -20,7 +20,10 @@ from myrm_agent_harness.toolkits.mcp.result_processing import (
 )
 from myrm_agent_harness.toolkits.mcp.tool_processing import (
     apply_tool_filter,
+    enforce_description_limits,
     prefix_tool_names,
+    register_tool_annotations,
+    sanitize_tools,
     wrap_tools_with_timeout,
 )
 
@@ -355,10 +358,9 @@ async def test_tool_server_mapping():
 # _wrap_tools_with_timeout: skips tools without coroutine (covers line 91)
 # ---------------------------------------------------------------------------
 def test_wrap_tools_with_timeout_no_coroutine():
-    agent = MCPAgent()
     tool = MagicMock()
     tool.coroutine = None
-    agent._wrap_tools_with_timeout([tool], 10.0)
+    wrap_tools_with_timeout([tool], 10.0)
     assert tool.coroutine is None
 
 
@@ -367,13 +369,11 @@ def test_wrap_tools_with_timeout_no_coroutine():
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_wrap_tools_timeout_fires():
-    agent = MCPAgent()
-
     async def slow_fn(*_a, **_kw):
         await asyncio.sleep(5)
 
     tool = _make_tool(coroutine=slow_fn)
-    agent._wrap_tools_with_timeout([tool], timeout=0.05)
+    wrap_tools_with_timeout([tool], timeout=0.05)
 
     result = await tool.coroutine()
     assert "timed out" in result
@@ -384,13 +384,11 @@ async def test_wrap_tools_timeout_fires():
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_wrap_tools_normal_execution():
-    agent = MCPAgent()
-
     async def fast_fn(*_a, **_kw):
         return "success"
 
     tool = _make_tool(coroutine=fast_fn)
-    agent._wrap_tools_with_timeout([tool], timeout=5.0)
+    wrap_tools_with_timeout([tool], timeout=5.0)
 
     result = await tool.coroutine()
     assert "success" in result
@@ -403,13 +401,11 @@ async def test_wrap_tools_normal_execution():
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_no_truncation():
     """Output within limit passes through unchanged."""
-    agent = MCPAgent()
-
     async def small_output(*_a, **_kw):
         return "short result"
 
     tool = _make_tool(coroutine=small_output)
-    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
+    wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
 
     result = await tool.coroutine()
     assert "short result" in result
@@ -419,14 +415,13 @@ async def test_wrap_tools_output_guard_no_truncation():
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_truncates_large_output():
     """Output exceeding max_output_chars is truncated with notice."""
-    agent = MCPAgent()
     large_text = "x" * 500
 
     async def large_output(*_a, **_kw):
         return large_text
 
     tool = _make_tool(coroutine=large_output)
-    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=100)
+    wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=100)
 
     result = await tool.coroutine()
     assert isinstance(result, str)
@@ -440,7 +435,6 @@ async def test_wrap_tools_output_guard_truncates_large_output():
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_truncates_multimodal_text_blocks():
     """Multimodal oversized text blocks are truncated; image blocks are kept."""
-    agent = MCPAgent()
     raw_result = CallToolResult(
         content=[
             ImageContent(type="image", data="abc123", mime_type="image/png"),
@@ -452,7 +446,7 @@ async def test_wrap_tools_output_guard_truncates_multimodal_text_blocks():
         return raw_result
 
     tool = _make_tool(coroutine=image_output)
-    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=100)
+    wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=100)
 
     result = await tool.coroutine()
     assert isinstance(result, list)
@@ -470,14 +464,13 @@ async def test_wrap_tools_output_guard_truncates_multimodal_text_blocks():
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_exact_boundary():
     """Output exactly at limit should NOT be truncated."""
-    agent = MCPAgent()
     exact_text = "y" * 1000
 
     async def exact_output(*_a, **_kw):
         return exact_text
 
     tool = _make_tool(coroutine=exact_output)
-    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
+    wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
 
     result = await tool.coroutine()
     assert exact_text in result
@@ -488,13 +481,11 @@ async def test_wrap_tools_output_guard_exact_boundary():
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_empty_string():
     """Empty string output passes through without truncation."""
-    agent = MCPAgent()
-
     async def empty_output(*_a, **_kw):
         return ""
 
     tool = _make_tool(coroutine=empty_output)
-    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
+    wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
 
     result = await tool.coroutine()
     assert result == ""
@@ -503,14 +494,13 @@ async def test_wrap_tools_output_guard_empty_string():
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_text_tuple_truncated():
     """Text-only CallToolResult (normalized to str) is truncated when oversized."""
-    agent = MCPAgent()
     large_text = "z" * 300
 
     async def text_output(*_a, **_kw):
         return CallToolResult(content=[TextContent(type="text", text=large_text)])
 
     tool = _make_tool(coroutine=text_output)
-    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=50)
+    wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=50)
 
     result = await tool.coroutine()
     assert isinstance(result, str)
@@ -523,14 +513,13 @@ async def test_wrap_tools_output_guard_text_tuple_truncated():
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_one_char_over():
     """Output 1 char over the limit should still be truncated."""
-    agent = MCPAgent()
     text = "a" * 1001
 
     async def over_by_one(*_a, **_kw):
         return text
 
     tool = _make_tool(coroutine=over_by_one)
-    agent._wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
+    wrap_tools_with_timeout([tool], timeout=5.0, max_output_chars=1000)
 
     result = await tool.coroutine()
     assert "[Output truncated:" in result
@@ -543,13 +532,12 @@ async def test_wrap_tools_output_guard_one_char_over():
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_sanitize_tools_coercion():
-    agent = MCPAgent()
     inner_mock = AsyncMock(return_value="coerced_result")
     tool = _make_tool(
         schema={"type": "object", "properties": {"count": {"type": "integer"}}},
         coroutine=inner_mock,
     )
-    agent._sanitize_tools([tool])
+    sanitize_tools([tool])
     result = await tool.coroutine(count="42")
     assert result == "coerced_result"
     inner_mock.assert_called_once()
@@ -558,7 +546,6 @@ async def test_sanitize_tools_coercion():
 @pytest.mark.asyncio
 async def test_sanitize_tools_strict_host_required_nullable_contract():
     """End-to-end strict-host contract: missing required+nullable args are completed."""
-    agent = MCPAgent()
     inner_mock = AsyncMock(return_value="strict_ok")
     strict_schema = {
         "type": "object",
@@ -570,7 +557,7 @@ async def test_sanitize_tools_strict_host_required_nullable_contract():
         "required": ["captureTransform", "annotations", "bShowUI"],
     }
     tool = _make_tool(schema=strict_schema, coroutine=inner_mock)
-    agent._sanitize_tools([tool])
+    sanitize_tools([tool])
 
     result = await tool.coroutine(bShowUI="false")
     assert result == "strict_ok"
@@ -583,7 +570,6 @@ async def test_sanitize_tools_strict_host_required_nullable_contract():
 @pytest.mark.asyncio
 async def test_sanitize_tools_nullable_true_contract():
     """OpenAPI nullable:true must be treated as explicit null-allowed."""
-    agent = MCPAgent()
     inner_mock = AsyncMock(return_value="nullable_flag_ok")
     schema = {
         "type": "object",
@@ -594,7 +580,7 @@ async def test_sanitize_tools_nullable_true_contract():
         "required": ["opt", "name"],
     }
     tool = _make_tool(schema=schema, coroutine=inner_mock)
-    agent._sanitize_tools([tool])
+    sanitize_tools([tool])
 
     result = await tool.coroutine(name="demo")
     assert result == "nullable_flag_ok"
@@ -606,7 +592,6 @@ async def test_sanitize_tools_nullable_true_contract():
 @pytest.mark.asyncio
 async def test_sanitize_tools_anyof_enum_null_contract():
     """Null-literal enum branches in anyOf must permit explicit null completion."""
-    agent = MCPAgent()
     inner_mock = AsyncMock(return_value="enum_null_ok")
     schema = {
         "type": "object",
@@ -622,7 +607,7 @@ async def test_sanitize_tools_anyof_enum_null_contract():
         "required": ["opt", "name"],
     }
     tool = _make_tool(schema=schema, coroutine=inner_mock)
-    agent._sanitize_tools([tool])
+    sanitize_tools([tool])
 
     result = await tool.coroutine(name="demo")
     assert result == "enum_null_ok"
@@ -634,7 +619,6 @@ async def test_sanitize_tools_anyof_enum_null_contract():
 @pytest.mark.asyncio
 async def test_sanitize_tools_mixed_union_prefers_container_literal():
     """Mixed unions should parse JSON object literals when schema accepts object."""
-    agent = MCPAgent()
     inner_mock = AsyncMock(return_value="mixed_union_ok")
     schema = {
         "type": "object",
@@ -649,7 +633,7 @@ async def test_sanitize_tools_mixed_union_prefers_container_literal():
         },
     }
     tool = _make_tool(schema=schema, coroutine=inner_mock)
-    agent._sanitize_tools([tool])
+    sanitize_tools([tool])
 
     result = await tool.coroutine(payload='{"x": 1}')
     assert result == "mixed_union_ok"
@@ -660,7 +644,6 @@ async def test_sanitize_tools_mixed_union_prefers_container_literal():
 @pytest.mark.asyncio
 async def test_sanitize_tools_mixed_union_keeps_plain_string():
     """Mixed unions should preserve plain text payloads as strings."""
-    agent = MCPAgent()
     inner_mock = AsyncMock(return_value="mixed_union_string_ok")
     schema = {
         "type": "object",
@@ -675,7 +658,7 @@ async def test_sanitize_tools_mixed_union_keeps_plain_string():
         },
     }
     tool = _make_tool(schema=schema, coroutine=inner_mock)
-    agent._sanitize_tools([tool])
+    sanitize_tools([tool])
 
     result = await tool.coroutine(payload="hello world")
     assert result == "mixed_union_string_ok"
@@ -689,7 +672,6 @@ async def test_sanitize_tools_mixed_union_keeps_plain_string():
 def test_sanitize_tools_canonicalizes_schema_keys():
     """Verify that _sanitize_tools produces deterministic key ordering
     regardless of the original key order from MCP server."""
-    agent = MCPAgent()
     schema_shuffled: dict[str, Any] = {
         "required": ["z_param", "a_param"],
         "type": "object",
@@ -699,7 +681,7 @@ def test_sanitize_tools_canonicalizes_schema_keys():
         },
     }
     tool = _make_tool(schema=schema_shuffled)
-    agent._sanitize_tools([tool])
+    sanitize_tools([tool])
 
     result_schema = tool.args_schema
     assert list(result_schema.keys()) == ["properties", "required", "type"]
@@ -717,7 +699,6 @@ def test_sanitize_tools_deterministic_across_restarts():
     After _sanitize_tools, both must serialize identically (cache-stable)."""
     import json as _json
 
-    agent = MCPAgent()
     schema_v1: dict[str, Any] = {
         "type": "object",
         "properties": {"repo": {"type": "string"}, "branch": {"type": "string"}},
@@ -730,8 +711,8 @@ def test_sanitize_tools_deterministic_across_restarts():
     }
     tool1 = _make_tool(name="git_clone", schema=schema_v1)
     tool2 = _make_tool(name="git_clone", schema=schema_v2)
-    agent._sanitize_tools([tool1])
-    agent._sanitize_tools([tool2])
+    sanitize_tools([tool1])
+    sanitize_tools([tool2])
 
     assert _json.dumps(tool1.args_schema) == _json.dumps(tool2.args_schema)
 
@@ -740,7 +721,6 @@ def test_sanitize_tools_deterministic_across_restarts():
 # _register_tool_annotations: extracts MCP annotations (covers line 178)
 # ---------------------------------------------------------------------------
 def test_register_tool_annotations():
-    agent = MCPAgent()
     tool = _make_tool(
         metadata={
             "readOnlyHint": True,
@@ -753,7 +733,7 @@ def test_register_tool_annotations():
     with patch(
         "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
     ) as mock_reg:
-        agent._register_tool_annotations([tool], "my-server")
+        register_tool_annotations([tool], "my-server")
 
     mock_reg.assert_called_once()
     call_args = mock_reg.call_args
@@ -767,7 +747,6 @@ def test_register_tool_annotations():
 
 
 def test_register_tool_annotations_host_serial_forces_non_concurrent():
-    agent = MCPAgent()
     tool = _make_tool(
         metadata={
             "readOnlyHint": True,
@@ -780,7 +759,7 @@ def test_register_tool_annotations_host_serial_forces_non_concurrent():
     with patch(
         "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
     ) as mock_reg:
-        agent._register_tool_annotations([tool], "my-server", host_serial=True)
+        register_tool_annotations([tool], "my-server", host_serial=True)
 
     safety = mock_reg.call_args[0][2]
     assert safety.is_read_only is True
@@ -791,25 +770,23 @@ def test_register_tool_annotations_host_serial_forces_non_concurrent():
 # _register_tool_annotations: server name normalization
 # ---------------------------------------------------------------------------
 def test_register_tool_annotations_name_normalization():
-    agent = MCPAgent()
     tool = _make_tool(metadata={})
 
     with patch(
         "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
     ) as mock_reg:
-        agent._register_tool_annotations([tool], "mcp_already_skill")
+        register_tool_annotations([tool], "mcp_already_skill")
 
     assert mock_reg.call_args[0][0] == "mcp_already_skill"
 
 
 def test_register_tool_annotations_plain_name():
-    agent = MCPAgent()
     tool = _make_tool(metadata={})
 
     with patch(
         "myrm_agent_harness.toolkits.mcp.tool_processing.register_ptc_safety_metadata"
     ) as mock_reg:
-        agent._register_tool_annotations([tool], "github")
+        register_tool_annotations([tool], "github")
 
     assert mock_reg.call_args[0][0] == "mcp_github_skill"
 
@@ -818,23 +795,20 @@ def test_register_tool_annotations_plain_name():
 # Description truncation boundary
 # ---------------------------------------------------------------------------
 def test_enforce_description_limits_no_truncation():
-    agent = MCPAgent()
     tool = _make_tool(description="short")
-    agent._enforce_description_limits([tool])
+    enforce_description_limits([tool])
     assert tool.description == "short"
 
 
 def test_enforce_description_limits_exact_boundary():
-    agent = MCPAgent()
     tool = _make_tool(description="x" * 2048)
-    agent._enforce_description_limits([tool])
+    enforce_description_limits([tool])
     assert len(tool.description) == 2048
 
 
 def test_enforce_description_limits_truncates():
-    agent = MCPAgent()
     tool = _make_tool(description="x" * 3000)
-    agent._enforce_description_limits([tool])
+    enforce_description_limits([tool])
     assert len(tool.description) == 2051
     assert tool.description.endswith("...")
 
@@ -846,7 +820,6 @@ def test_enforce_description_limits_truncates():
 async def test_sanitize_tools_flattened_dot_keys():
     """When schema exceeds depth threshold, flatten_deep_schema activates.
     The coercion wrapper must then restore nested structure from dot-path keys."""
-    agent = MCPAgent()
     inner_mock = AsyncMock(return_value="nested_ok")
     deep_schema: dict[str, Any] = {
         "type": "object",
@@ -865,7 +838,7 @@ async def test_sanitize_tools_flattened_dot_keys():
         },
     }
     tool = _make_tool(schema=deep_schema, coroutine=inner_mock)
-    agent._sanitize_tools([tool])
+    sanitize_tools([tool])
 
     result = await tool.coroutine(**{"level1.level2.value": "deep"})
     assert result == "nested_ok"

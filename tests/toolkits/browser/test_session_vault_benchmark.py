@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.backends import FileVaultBackend
 from myrm_agent_harness.toolkits.browser.session_vault import SessionVault
+from myrm_agent_harness.toolkits.browser.session_vault.backends import FileVaultBackend
 
 
 @pytest.fixture

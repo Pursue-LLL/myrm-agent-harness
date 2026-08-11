@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -105,7 +106,7 @@ async def test_capture_snapshot_skips_nested_inspector_publish() -> None:
 
     class _FakeSession:
         snapshot_calls = 0
-        publish_flags: list[bool] = []
+        publish_flags: ClassVar[list[bool]] = []
 
         async def snapshot(self, **kwargs: object) -> object:
             self.snapshot_calls += 1

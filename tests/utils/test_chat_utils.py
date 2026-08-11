@@ -9,6 +9,8 @@ from myrm_agent_harness.utils.chat_utils import (
     extract_answer_text,
     extract_litellm_answer_text,
     extract_text_content,
+    parse_llm_json_list,
+    parse_llm_json_object,
 )
 
 
@@ -229,3 +231,71 @@ class TestExtractLitellmAnswerText:
     def test_reasoning_content_non_string_ignored(self) -> None:
         msg = _FakeLitellmMessage(None, "  ")
         assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == ""
+
+
+class TestParseLlmJsonObject:
+    def test_plain_object(self) -> None:
+        assert parse_llm_json_object('{"done": true}') == {"done": True}
+
+    def test_fenced_object(self) -> None:
+        raw = "```json\n{\"a\": 1}\n```"
+        assert parse_llm_json_object(raw) == {"a": 1}
+
+    def test_prose_framing(self) -> None:
+        raw = 'Here is the verdict: {"done": false}. Hope that helps.'
+        assert parse_llm_json_object(raw) == {"done": False}
+
+    def test_unescaped_newline_and_tab_in_string(self) -> None:
+        raw = '{"main_topic": "line one\nline two", "structure": "a\tb"}'
+        assert parse_llm_json_object(raw) == {
+            "main_topic": "line one\nline two",
+            "structure": "a\tb",
+        }
+
+    def test_last_object_wins(self) -> None:
+        raw = '{"done": false} Example: {"done": true}'
+        assert parse_llm_json_object(raw) == {"done": True}
+
+    def test_brackets_inside_strings_ignored(self) -> None:
+        raw = '{"s": "a } b", "t": "c { d"}'
+        assert parse_llm_json_object(raw) == {"s": "a } b", "t": "c { d"}
+
+    def test_no_object_returns_none(self) -> None:
+        assert parse_llm_json_object("no json here") is None
+        assert parse_llm_json_object("") is None
+
+    def test_bare_control_char_escaped(self) -> None:
+        raw = '{"a": "bell\u0007char"}'
+        assert parse_llm_json_object(raw) == {"a": "bell\x07char"}
+
+    def test_object_preceded_by_array_ignored(self) -> None:
+        raw = '[1, 2] then {"done": true}'
+        assert parse_llm_json_object(raw) == {"done": True}
+
+
+class TestParseLlmJsonList:
+    def test_plain_array(self) -> None:
+        assert parse_llm_json_list('[{"a": 1}, {"b": 2}]') == [{"a": 1}, {"b": 2}]
+
+    def test_fenced_array(self) -> None:
+        raw = "```json\n[1, 2, 3]\n```"
+        assert parse_llm_json_list(raw) == [1, 2, 3]
+
+    def test_prose_framing(self) -> None:
+        raw = 'Suggestions: ["a", "b"] Enjoy!'
+        assert parse_llm_json_list(raw) == ["a", "b"]
+
+    def test_unescaped_newlines(self) -> None:
+        raw = '["line one\nline two", "ok"]'
+        assert parse_llm_json_list(raw) == ["line one\nline two", "ok"]
+
+    def test_last_array_wins(self) -> None:
+        raw = '["example"] Real: ["real"]'
+        assert parse_llm_json_list(raw) == ["real"]
+
+    def test_array_wrapped_in_object_returns_object_last(self) -> None:
+        raw = '{"result": ["a"]}'
+        assert parse_llm_json_list(raw) == ["a"]
+
+    def test_no_array_returns_none(self) -> None:
+        assert parse_llm_json_list("no array here") is None

@@ -2,7 +2,7 @@
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.wait_strategies import (
+from myrm_agent_harness.toolkits.browser.wait import (
     WaitStrategy,
     get_wait_strategy_stats,
     reset_wait_strategy_stats,
@@ -25,7 +25,7 @@ def test_stats_reset():
     reset_wait_strategy_stats()
 
     # 模拟一些调用（通过内部API）
-    from myrm_agent_harness.toolkits.browser.wait_strategies import _global_stats
+    from myrm_agent_harness.toolkits.browser.wait import _global_stats
 
     _global_stats.record_call(WaitStrategy.SMART, "network_only", 100)
     _global_stats.record_call(WaitStrategy.HYBRID, "both", 200)
@@ -43,7 +43,7 @@ def test_stats_strategy_counting():
     """验证策略使用次数统计."""
     reset_wait_strategy_stats()
 
-    from myrm_agent_harness.toolkits.browser.wait_strategies import _global_stats
+    from myrm_agent_harness.toolkits.browser.wait import _global_stats
 
     _global_stats.record_call(WaitStrategy.SMART, "network_only", 10)
     _global_stats.record_call(WaitStrategy.SMART, "network_only", 20)
@@ -62,7 +62,7 @@ def test_stats_smart_hit_rate():
     """验证SMART策略快速路径命中率统计."""
     reset_wait_strategy_stats()
 
-    from myrm_agent_harness.toolkits.browser.wait_strategies import _global_stats
+    from myrm_agent_harness.toolkits.browser.wait import _global_stats
 
     # 3次快速路径命中
     _global_stats.record_call(WaitStrategy.SMART, "network_only", 10)
@@ -83,7 +83,7 @@ def test_stats_hybrid_both_rate():
     """验证HYBRID策略双完成率统计."""
     reset_wait_strategy_stats()
 
-    from myrm_agent_harness.toolkits.browser.wait_strategies import _global_stats
+    from myrm_agent_harness.toolkits.browser.wait import _global_stats
 
     # 6次双完成
     for _ in range(6):
@@ -104,7 +104,7 @@ def test_stats_avg_elapsed_ms():
     """验证平均等待时长统计."""
     reset_wait_strategy_stats()
 
-    from myrm_agent_harness.toolkits.browser.wait_strategies import _global_stats
+    from myrm_agent_harness.toolkits.browser.wait import _global_stats
 
     _global_stats.record_call(WaitStrategy.SMART, "network_only", 10)
     _global_stats.record_call(WaitStrategy.SMART, "network_only", 20)
@@ -160,7 +160,7 @@ def test_stats_thread_safety():
 
     reset_wait_strategy_stats()
 
-    from myrm_agent_harness.toolkits.browser.wait_strategies import _global_stats
+    from myrm_agent_harness.toolkits.browser.wait import _global_stats
 
     def record_many(count: int) -> None:
         for i in range(count):

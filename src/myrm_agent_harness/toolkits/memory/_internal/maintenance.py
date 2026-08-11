@@ -254,7 +254,12 @@ async def _forget_procedural_rules(
 
     for rule in rules:
         if rule.tool_rule_priority == ToolRulePriority.CRITICAL:
-            rule.importance = max(rule.importance, 0.95)
+            current_importance = rule.metadata.get("importance", 0.5)
+            try:
+                normalized_importance = float(current_importance)
+            except (TypeError, ValueError):
+                normalized_importance = 0.5
+            rule.metadata["importance"] = max(normalized_importance, 0.95)
 
     candidates = strategy.select_candidates(rules, {})
     if not candidates:
@@ -458,4 +463,3 @@ async def sweep_orphaned_blobs(
         logger.info("Blob GC: deleted %d orphaned blobs", deleted_count)
 
     return deleted_count
-

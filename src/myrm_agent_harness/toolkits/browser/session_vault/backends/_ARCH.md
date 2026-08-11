@@ -1,4 +1,4 @@
-# backends/
+# session_vault/backends/
 
 ## Overview
 Storage backend abstraction layer for SessionVault. Defines interfaces via Protocol,

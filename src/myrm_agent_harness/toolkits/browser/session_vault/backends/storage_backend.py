@@ -3,7 +3,7 @@
 
 [INPUT]
 - myrm_agent_harness.toolkits.storage.base::StorageProvider (POS: storage provider protocol)
-- ..session_vault_exceptions::InvalidDomainError (POS: Exception type definitions for SessionVault. Provides fine-grained error classification for targeted error handling by callers.)
+- ..exceptions::InvalidDomainError (POS: Exception type definitions for SessionVault. Provides fine-grained error classification for targeted error handling by callers.)
 - .file_backend::is_valid_domain_name (POS: domain name validation utility)
 
 [OUTPUT]
@@ -23,7 +23,7 @@ from urllib.parse import quote, unquote
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.storage.base import StorageProvider
 
-from ..session_vault_exceptions import InvalidDomainError
+from ..exceptions import InvalidDomainError
 from .file_backend import is_valid_domain_name
 
 logger = logging.getLogger(__name__)

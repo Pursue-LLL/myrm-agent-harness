@@ -2,8 +2,8 @@
 
 
 [INPUT]
-- _wait_types (POS: type definitions and statistics)
-- _wait_impl (POS: strategy implementations)
+- _types (POS: type definitions and statistics)
+- _impl (POS: strategy implementations)
 - patchright.async_api::Page (POS: Patchright page instance)
 - time::perf_counter (POS: high-precision timer)
 - logging::getLogger (POS: Python logging)
@@ -33,10 +33,10 @@ Features:
 - Resource cleanup: complete cleanup after Task cancellation to avoid ResourceWarning
 
 Module structure:
-- _wait_types.py: type definitions (WaitStrategy/WaitMetrics/WaitStrategyStats) and runtime stats
-- _wait_impl.py: 4 strategy implementations (networkidle/dom_stable/smart/hybrid)
+- _types.py: type definitions (WaitStrategy/WaitMetrics/WaitStrategyStats) and runtime stats
+- _impl.py: 4 strategy implementations (networkidle/dom_stable/smart/hybrid)
 - _dom_stable_js.py: DOM stability detection JavaScript generator
-- wait_strategies.py: public interface (this file)
+- __init__.py: public interface (this file)
 """
 
 from __future__ import annotations
@@ -45,14 +45,14 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from ._wait_impl import (
+from ._impl import (
     wait_dom_stable_only,
     wait_hybrid,
     wait_networkidle_only,
     wait_smart,
     wait_spa_stable,
 )
-from ._wait_types import (
+from ._types import (
     WaitMetrics,
     WaitStrategy,
     WaitStrategyStats,

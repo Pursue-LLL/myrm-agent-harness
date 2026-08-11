@@ -417,7 +417,7 @@ def _check_extension_relay() -> DoctorCheckResult:
     base = os.environ.get("MYRM_SERVER_URL", "http://127.0.0.1:8080").rstrip("/")
     url = f"{base}/api/v1/extension/setup-hints"
     try:
-        with urllib.request.urlopen(url, timeout=2.0) as response:
+        with urllib.request.urlopen(url, timeout=2.0) as response:  # noqa: S310 — local diagnostics endpoint, scheme controlled by MYRM_SERVER_URL
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.URLError:
         return DoctorCheckResult(

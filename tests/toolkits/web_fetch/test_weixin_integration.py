@@ -43,20 +43,22 @@ async def test_non_weixin_url_skips_extractor() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
-        with patch(
-            "myrm_agent_harness.toolkits.web_fetch.engine.extract_weixin_article",
-            new_callable=AsyncMock,
-        ) as mock_extract:
-            with patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl:
-                mock_crawl.return_value = (
-                    MagicMock(page_content="Article content", metadata={}),
-                    MagicMock(status_code=200, etag=None, last_modified=None),
-                )
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.engine.extract_weixin_article",
+                new_callable=AsyncMock,
+            ) as mock_extract,
+            patch.object(engine, "_crawl_with_degradation", new_callable=AsyncMock) as mock_crawl,
+        ):
+            mock_crawl.return_value = (
+                MagicMock(page_content="Article content", metadata={}),
+                MagicMock(status_code=200, etag=None, last_modified=None),
+            )
 
-                await engine.crawl("https://example.com/article")
+            await engine.crawl("https://example.com/article")
 
-                mock_extract.assert_not_called()
-                mock_crawl.assert_awaited_once()
+            mock_extract.assert_not_called()
+            mock_crawl.assert_awaited_once()
 
         await engine.shutdown()
 

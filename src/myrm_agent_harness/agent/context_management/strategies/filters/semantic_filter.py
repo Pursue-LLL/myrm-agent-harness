@@ -7,6 +7,7 @@
 - prompts::CONTENT_DESCRIPTION_PROMPT 等 (POS: LLM 提示词模板)
 - langchain_core.language_models::BaseChatModel (POS: LangChain LLM 基类)
 - utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
+- utils.chat_utils::parse_llm_json_object (POS: LLM 回复容错 JSON 对象提取)
 - utils.text_utils::get_token_count (POS: Token 计数工具)
 
 [OUTPUT]
@@ -18,13 +19,12 @@ Semantic filter. Uses LLM to describe the structure and key points of unstructur
 """
 
 import asyncio
-import json
 import re
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
-from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.chat_utils import extract_answer_text, parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
 
@@ -163,22 +163,16 @@ class SemanticFilter(BaseFilter):
         }.get(content_type, CONTENT_DESCRIPTION_PROMPT)
 
     def _parse_llm_response(self, response_content: str) -> dict[str, object]:
-        """解析 LLM 响应"""
-        content = response_content
+        """解析 LLM 响应
 
-        # 尝试提取 JSON
-        try:
-            # 查找 JSON 块
-            start = content.find("{")
-            end = content.rfind("}") + 1
-            if start != -1 and end > start:
-                json_str = content[start:end]
-                return dict(json.loads(json_str))
-        except json.JSONDecodeError:
-            logger.warning("LLM response JSON parsing failed")
-
-        # 解析失败，返回原始内容作为描述
-        return {"main_topic": content[:200], "structure": "unknown"}
+        使用框架级容错解析提取 JSON 对象（兼容 fence、裸换行等推理模型
+        产物）。解析失败时降级为文本预览，保留纯文本描述场景。
+        """
+        parsed = parse_llm_json_object(response_content)
+        if parsed is not None:
+            return parsed
+        logger.warning("LLM response JSON parsing failed")
+        return {"main_topic": response_content[:200], "structure": "unknown"}
 
     def _build_fallback_summary(self, context: FilterContext) -> str:
         """LLM 失败时构建降级摘要（使用代码提取）"""

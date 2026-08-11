@@ -33,7 +33,9 @@ def _mask_sensitive_value(step: ActionStep) -> str:
     return step.value
 
 
-def serialize_step(step: ActionStep, *, include_screenshot: bool = False) -> dict[str, object]:
+def serialize_step(
+    step: ActionStep, *, include_screenshot: bool = False
+) -> dict[str, object]:
     """Serialize a single ActionStep for SSE streaming.
 
     Args:
@@ -62,7 +64,9 @@ def serialize_step(step: ActionStep, *, include_screenshot: bool = False) -> dic
     return d
 
 
-def serialize_session(session: CaptureSession, *, include_screenshots: bool = False) -> dict[str, object]:
+def serialize_session(
+    session: CaptureSession, *, include_screenshots: bool = False
+) -> dict[str, object]:
     """Serialize a full CaptureSession.
 
     Args:
@@ -78,7 +82,10 @@ def serialize_session(session: CaptureSession, *, include_screenshots: bool = Fa
         "start_url": session.start_url,
         "start_time": session.start_time,
         "step_count": len(session.steps),
-        "steps": [serialize_step(s, include_screenshot=include_screenshots) for s in session.steps],
+        "steps": [
+            serialize_step(s, include_screenshot=include_screenshots)
+            for s in session.steps
+        ],
     }
 
 
@@ -113,7 +120,9 @@ def _element_context(step: ActionStep) -> str:
     return f'{role} "{text}"' if text else role
 
 
-def step_to_natural_language(step: ActionStep, *, credential_label: str | None = None) -> str:
+def step_to_natural_language(
+    step: ActionStep, *, credential_label: str | None = None
+) -> str:
     """Convert a single ActionStep to a human-readable sentence.
 
     Args:
@@ -129,15 +138,15 @@ def step_to_natural_language(step: ActionStep, *, credential_label: str | None =
         # Without a credential label there is no vault lookup, so the captured
         # value (masked or not) must never reach the natural-language surface —
         # e.g. LLM description generation that renders steps without labels.
-        return f'Fill the password field into {_element_context(step)}'
+        return f"Fill the password field into {_element_context(step)}"
     if step.action == ActionType.SELECT:
         base = f'Select "{step.value}"'
         if step.label:
-            base = f'{base} ({step.label})'
+            base = f"{base} ({step.label})"
         # When no external label exists the element text is the option label
         # again — appending the context would only repeat it.
         if not (step.element_text and step.label and step.element_text == step.label):
-            base = f'{base} from {_element_context(step)}'
+            base = f"{base} from {_element_context(step)}"
         return base
     if step.action == ActionType.PRESS:
         key = step.value.title()
@@ -150,9 +159,11 @@ def step_to_natural_language(step: ActionStep, *, credential_label: str | None =
         return template.format(
             element_text=step.element_text or step.selector,
             element_role=step.element_role or "element",
-            element_context=_element_context(step)
-            if step.action.value in _CONTEXT_TEMPLATES
-            else "",
+            element_context=(
+                _element_context(step)
+                if step.action.value in _CONTEXT_TEMPLATES
+                else ""
+            ),
             value=step.value,
             action=step.action.value,
         )

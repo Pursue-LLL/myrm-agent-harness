@@ -866,7 +866,7 @@ async def test_interact_self_healing():
         mock_loc = AsyncMock()
         mock_resolve.return_value = mock_loc
 
-        with patch("myrm_agent_harness.toolkits.browser.wait_strategies.wait_for_page_ready", side_effect=Exception("error")):
+        with patch("myrm_agent_harness.toolkits.browser.wait.wait_for_page_ready", side_effect=Exception("error")):
             res = await interactor.interact("click", "e0")
             assert "Clicked" in res
 

@@ -1,12 +1,12 @@
-"""Unit tests for wait_strategies module."""
+"""Unit tests for wait subpackage."""
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser._dom_stable_js import generate_dom_stable_js
-from myrm_agent_harness.toolkits.browser.wait_strategies import (
+from myrm_agent_harness.toolkits.browser.wait import (
     WaitMetrics,
     WaitStrategy,
 )
+from myrm_agent_harness.toolkits.browser.wait._dom_stable_js import generate_dom_stable_js
 
 
 def test_wait_strategy_enum():

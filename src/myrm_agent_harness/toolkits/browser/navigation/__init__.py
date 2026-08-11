@@ -8,8 +8,8 @@
 - patchright.async_api::Page (POS: Patchright page instance)
 - .pool.throttle::ThrottleStrategy (POS: throttle strategy protocol)
 - .pool.config::BrowserMode, NavigationWaitConfig (POS: browser configuration)
-- .wait_strategies::wait_for_page_ready, WaitStrategy, WaitMetrics (POS: smart wait strategies)
-- .navigation_ssrf_guard::goto_with_ssrf_guard (POS: Playwright document navigation SSRF guard)
+- .wait::wait_for_page_ready, WaitStrategy, WaitMetrics (POS: smart wait strategies)
+- .ssrf_guard::goto_with_ssrf_guard (POS: Playwright document navigation SSRF guard)
 - .session.consent_dismisser::ConsentDismisser (POS: cookie consent auto-dismiss)
 
 [OUTPUT]
@@ -36,16 +36,16 @@ import logging
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from .wait_strategies import WaitMetrics, WaitStrategy, wait_for_page_ready
+from ..wait import WaitMetrics, WaitStrategy, wait_for_page_ready
 
 if TYPE_CHECKING:
     from patchright.async_api import Page
 
     from myrm_agent_harness.toolkits.web_fetch.router.domain_metrics import DomainMetricsManager
 
-    from .pool.circuit_breaker import CircuitBreaker
-    from .pool.config import BrowserMode, NavigationWaitConfig
-    from .pool.throttle import ThrottleStrategy
+    from ..pool.circuit_breaker import CircuitBreaker
+    from ..pool.config import BrowserMode, NavigationWaitConfig
+    from ..pool.throttle import ThrottleStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -98,14 +98,14 @@ class Navigator:
         self._current_domain: str | None = None
         self._allow_private_networks = allow_private_networks
         if auto_dismiss_popups:
-            from .session.consent_dismisser import ConsentDismisser
+            from ..session.consent_dismisser import ConsentDismisser
 
             self._consent_dismisser = ConsentDismisser(enabled=True)
         else:
             self._consent_dismisser = None
 
         if wait_config is None:
-            from .pool.config import BrowserMode, _navigation_wait_for_mode
+            from ..pool.config import BrowserMode, _navigation_wait_for_mode
 
             effective_mode = mode if mode is not None else BrowserMode.STANDARD
             self._wait_config = _navigation_wait_for_mode(effective_mode)
@@ -135,7 +135,7 @@ class Navigator:
         if self._circuit_breaker:
             state = self._circuit_breaker.get_state(url)
             if state == "OPEN":
-                from .pool.circuit_breaker import CircuitBreakerOpenError
+                from ..pool.circuit_breaker import CircuitBreakerOpenError
 
                 raise CircuitBreakerOpenError(f"Circuit breaker is OPEN for {url}")
 
@@ -175,7 +175,7 @@ class Navigator:
             return title, final_url, 200
 
         try:
-            from .navigation_ssrf_guard import goto_with_ssrf_guard
+            from .ssrf_guard import goto_with_ssrf_guard
 
             response = await goto_with_ssrf_guard(
                 self._page,
