@@ -62,8 +62,19 @@ class BashFlavor(ShellFlavor):
         ]
 
     def format_env_set(self, key: str, value: str) -> str:
-        escaped = value.replace("\\\\", "\\\\\\\\").replace('"', '\\\\"')
-        return f'export {key}="{escaped}"'
+        # ANSI-C quoting ($'...') keeps $, backticks and double quotes
+        # literal and escapes control chars (\n\r\t) to single-line
+        # sequences, so an env value can never break the init batch or let
+        # the shell re-expand injected tokens. Backslash is doubled first so
+        # existing escape sequences survive verbatim.
+        escaped = (
+            value.replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+        )
+        return f"export {key}=$'{escaped}'"
 
     def build_wrapped_command(self, command: str, exit_marker: str, end_marker: str, exit_code_var: str) -> str:
         # EXIT trap backs up the marker pair so an errexit crash (e.g. `set -e`

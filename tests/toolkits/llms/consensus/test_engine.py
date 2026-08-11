@@ -13,6 +13,7 @@ from myrm_agent_harness.toolkits.llms.consensus import (
     ConsensusResult,
     ConsensusStreamEvent,
     ReferenceResponse,
+    _fanout,
 )
 from myrm_agent_harness.toolkits.llms.consensus._prompts import AGGREGATOR_SYSTEM
 from myrm_agent_harness.utils.runtime.cancellation import CancellationToken
@@ -158,21 +159,21 @@ class TestRun:
         assert result.final_answer == ""
         assert ref.astream_calls == []
 
-    async def test_cancel_after_references(self):
+    async def test_cancel_after_references(self, monkeypatch):
         ref = _make_llm("ref", "response")
         agg = _make_llm("agg", "final")
         engine = ConsensusEngine(reference_llms=[ref], aggregator_llm=agg)
 
         token = CancellationToken(request_id="test")
 
-        original_query_refs = engine._query_references
+        original_query_refs = _fanout.query_references
 
         async def _cancel_after_refs(*args, **kwargs):
             result = await original_query_refs(*args, **kwargs)
             token.cancel()
             return result
 
-        engine._query_references = _cancel_after_refs
+        monkeypatch.setattr(_fanout, "query_references", _cancel_after_refs)
 
         result = await engine.run("q", cancel_token=token)
         assert not result.success
@@ -372,19 +373,19 @@ class TestModelName:
     def test_model_name_attr(self):
         llm = MagicMock()
         llm.model_name = "anthropic/claude-sonnet-4"
-        assert ConsensusEngine._model_name(llm) == "anthropic/claude-sonnet-4"
+        assert _fanout.model_name_of(llm) == "anthropic/claude-sonnet-4"
 
     def test_model_attr_fallback(self):
         llm = MagicMock(spec=[])
         llm.model = "openai/gpt-4.1"
-        assert ConsensusEngine._model_name(llm) == "openai/gpt-4.1"
+        assert _fanout.model_name_of(llm) == "openai/gpt-4.1"
 
     def test_class_name_fallback(self):
         llm = MagicMock(spec=[])
         del llm.model_name
         del llm.model
         del llm.name
-        assert "Mock" in ConsensusEngine._model_name(llm)
+        assert "Mock" in _fanout.model_name_of(llm)
 
 
 # -----------------------------------------------------------------------

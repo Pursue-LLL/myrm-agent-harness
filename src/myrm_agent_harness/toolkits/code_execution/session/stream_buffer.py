@@ -36,6 +36,7 @@ class ExecutionStreamBuffer:
 
         self.done = False
         self.exit_code = 1
+        self.parse_failed = False
 
     def process_bytes(self, chunk: bytes, exit_marker: str, end_marker: str) -> str:
         """Process binary chunk, detecting markers and returning safe text.
@@ -65,6 +66,7 @@ class ExecutionStreamBuffer:
 
                     logging.getLogger(__name__).error(f"Failed to parse exit code from {exit_code_bytes!r}: {e}")
                     self.exit_code = 1
+                    self.parse_failed = True
 
                 safe_text = self._decoder.decode(safe_bytes, final=True)
                 self.done = True

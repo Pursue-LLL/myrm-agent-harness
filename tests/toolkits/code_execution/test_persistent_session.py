@@ -72,6 +72,126 @@ class TestBasicExecution:
             await session.close()
 
 
+class TestSessionWedgeRecovery:
+    """A wedged shell (blocking command / stdin-swallowing command) must be
+    killed and transparently rebuilt on the next call, not left poisoned."""
+
+    @pytest.mark.asyncio
+    async def test_timeout_wedge_recovered_on_next_execute(self) -> None:
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            result = await session.execute("sleep 30", timeout=1)
+            assert not result.success
+            assert result.error == "Timeout"
+            assert session.state == SessionState.TERMINATED
+            assert session.is_alive is False
+
+            recovered = await session.execute("echo ok", timeout=5)
+            assert recovered.success
+            assert recovered.stdout == "ok"
+            assert session.state == SessionState.ACTIVE
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_stdin_swallowing_command_detected_and_recovered(self) -> None:
+        """`cat` consumes the trailing marker commands from stdin and echoes
+        them back; the corrupted boundary must poison-kill the shell."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            poisoned = await session.execute("cat", timeout=2)
+            assert not poisoned.success
+            assert poisoned.error in ("Session corrupted", "Timeout")
+            assert session.state == SessionState.TERMINATED
+
+            recovered = await session.execute("echo ok", timeout=5)
+            assert recovered.success
+            assert recovered.stdout == "ok"
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_stream_timeout_wedge_recovered(self) -> None:
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            chunks: list[str] = []
+            async for chunk in session.execute_stream("sleep 30", timeout=1):
+                chunks.append(chunk)
+            assert any("Timeout" in c for c in chunks)
+            assert session.state == SessionState.TERMINATED
+
+            recovered = await session.execute("echo ok", timeout=5)
+            assert recovered.success
+            assert recovered.stdout == "ok"
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_stream_stdin_swallowing_command_detected(self) -> None:
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            chunks: list[str] = []
+            async for chunk in session.execute_stream("cat", timeout=2):
+                chunks.append(chunk)
+            assert any("corrupted" in c for c in chunks)
+            assert session.state == SessionState.TERMINATED
+        finally:
+            await session.close()
+
+
+class TestRealUserFlow:
+    """End-to-end session flow as a real user would drive it: consecutive
+    commands, env persistence across rebuilds, special-char output fidelity,
+    wedge recovery mid-flow, and the exit interceptor."""
+
+    @pytest.mark.asyncio
+    async def test_full_session_lifecycle(self) -> None:
+        config = _make_config()
+        config.env = {
+            "APP_TOKEN": 'sk-x"y$HOME`id`\txyz',
+        }
+        session = LocalPersistentSession(config)
+        await session.start()
+        try:
+            # 1. Special-char env stays literal.
+            result = await session.execute("printf '%s' \"$APP_TOKEN\"")
+            assert result.success
+            assert result.stdout == 'sk-x"y$HOME`id`\txyz'
+
+            # 2. cwd + env persist across commands.
+            await session.execute("mkdir -p /tmp/myrm-user-flow && cd /tmp/myrm-user-flow")
+            assert (await session.execute("pwd")).stdout == "/tmp/myrm-user-flow"
+            assert (
+                await session.execute('echo "$APP_TOKEN"')
+            ).stdout == 'sk-x"y$HOME`id`\txyz'
+
+            # 3. Multi-line output round-trips.
+            result = await session.execute("printf 'a\\nb\\nc\\n'")
+            assert result.success
+            assert result.stdout == "a\nb\nc"
+
+            # 4. Wedge (blocking command) kills + rebuilds; env re-injected.
+            wedged = await session.execute("sleep 30", timeout=1)
+            assert wedged.error == "Timeout"
+            assert session.state == SessionState.TERMINATED
+            result = await session.execute("printf '%s' \"$APP_TOKEN\"")
+            assert result.success
+            assert result.stdout == 'sk-x"y$HOME`id`\txyz'
+            assert session.state == SessionState.ACTIVE
+
+            # 5. exit N is intercepted; shell survives.
+            result = await session.execute("exit 3")
+            assert not result.success
+            assert result.exit_code == 3
+            assert (await session.execute("echo final-ok")).stdout == "final-ok"
+        finally:
+            await session.close()
+
+
 class TestAutoRestartRetry:
     @pytest.mark.asyncio
     async def test_restart_on_process_death(self) -> None:

@@ -396,12 +396,33 @@ class PersistentSession(ABC):
                             await dispatch_custom_event("tool_stdout_chunk", {"chunk": remaining})
         except TimeoutError:
             self._consecutive_failures += 1
+            # A wedged shell (blocking command like `cat`/`tail -f`/`sleep 9999`)
+            # never finishes; leaving the process alive poisons every later
+            # execute. Kill the group and mark TERMINATED so the next call
+            # transparently rebuilds the session.
+            await self._kill_process_group()
+            await self._transit_state(SessionState.TERMINATED)
             return SessionExecutionResult(
                 False,
                 stream_buf.get_final_output(),
                 f"Timeout after {timeout}s",
                 124,
                 error="Timeout",
+            )
+
+        if stream_buf.parse_failed:
+            # exit_marker was echoed back as raw text (e.g. `cat`/`ssh`/`python
+            # -c input()` consumed the trailing marker commands from stdin),
+            # which is indistinguishable from a permanently broken shell.
+            self._consecutive_failures += 1
+            await self._kill_process_group()
+            await self._transit_state(SessionState.TERMINATED)
+            return SessionExecutionResult(
+                False,
+                "",
+                "Session output boundary corrupted",
+                1,
+                error="Session corrupted",
             )
 
         stdout = stream_buf.get_final_output().rstrip("\n")
@@ -479,7 +500,17 @@ class PersistentSession(ABC):
                         remaining = sop.flush()
                         if remaining:
                             yield remaining
+
+                        if stream_buf.parse_failed:
+                            await self._kill_process_group()
+                            await self._transit_state(SessionState.TERMINATED)
+                            yield "\n[ERROR] Session output boundary corrupted\n"
+                            return
             except TimeoutError:
+                # Mirror execute(): kill the wedged shell so the next stream
+                # transparently rebuilds instead of re-hanging forever.
+                await self._kill_process_group()
+                await self._transit_state(SessionState.TERMINATED)
                 yield f"\n[ERROR] Timeout After {timeout}s\n"
 
     async def _kill_process_group(self, grace_period: float = 2.0) -> None:

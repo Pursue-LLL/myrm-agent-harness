@@ -144,6 +144,8 @@ Python wrapper 在用户代码运行前注入一个 import 钩子，惰性拦截
 - 命令包装为**块内捕获 rc** 的多行结构（`{ <command>; __myrm_rc__=$?; }`），注释行/空命令/heredoc/续行均不会使花括号块悬挂，rc 语义与退出状态零变化
 - 包装命令前置 **`EXIT` trap**，当 `set -e` 等 errexit 崩溃导致 Shell 进程终止时仍输出完整标记对与真实退出码，使流式解析正常收尾而非误报「意外崩溃」触发无谓恢复；正常命令下 trap 静默，标记恰好输出一次
 - 实时输出（SSE）经 **PII 脱敏**（主机路径 + 凭证 token 掩码），`execute` 与 `execute_stream` 双路径一致；tee 日志保留原始供排查
+- 环境变量注入使用 **ANSI-C quoting**（`$'…'`）:值内 `$`、反引号、双引号保持字面（不二次展开），`\n`/`\t` 等控制字符转义为单行序列，注入命令永不破坏初始化批次（曾出现过 `"` 转义成 `\\"` 导致引号错配、长驻 Shell 卡死等续行的故障）
+- **卡死自愈**：阻塞型命令（`sleep 9999`/`tail -f`）超时、或 stdin 吞噬型命令（`cat`/`ssh`/`python -c input()`）把 marker 回显导致边界损坏时，直接 kill 进程组并置 TERMINATED，下一次 execute/stream 透明重建会话，避免永久毒化
 - 进程意外退出时自动重启并重试
 - POSIX 进程组隔离 / Windows 进程树终止
 - `asyncio.shield()` 保护子进程清理，防止异步取消导致僵尸进程

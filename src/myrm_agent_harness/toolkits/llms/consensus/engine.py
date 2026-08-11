@@ -7,6 +7,7 @@ works out of the box.
 
 [INPUT]
 - langchain_core.language_models::BaseChatModel
+- ._fanout::query_references / query_single / model_name_of (POS: reference fan-out split out of the engine)
 - ._prompts::build_aggregation_messages (POS: persona-aware aggregator prompt builder)
 - ._streaming::collect_stream (POS: shared stream-to-string collector with reasoning fallback)
 - .types::ConsensusConfig, ConsensusResult, ReferenceResponse
@@ -29,8 +30,9 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import BaseMessage
 
+from myrm_agent_harness.toolkits.llms.consensus import _fanout
 from myrm_agent_harness.toolkits.llms.consensus._history import flatten_tool_free_history
 from myrm_agent_harness.toolkits.llms.consensus._prompts import (
     build_aggregation_messages,
@@ -141,7 +143,9 @@ class ConsensusEngine:
         if cancel_token and cancel_token.is_cancelled:
             return self._cancelled_result(t0)
 
-        ref_responses = await self._query_references(query, system_prompt, flat_history, cancel_token)
+        ref_responses = await _fanout.query_references(
+            self._refs, query, system_prompt, flat_history, cfg, cancel_token
+        )
 
         if cancel_token and cancel_token.is_cancelled:
             return self._cancelled_result(t0, ref_responses)
@@ -152,7 +156,7 @@ class ConsensusEngine:
             return ConsensusResult(
                 final_answer="",
                 reference_responses=ref_responses,
-                aggregator_model=self._model_name(self._agg),
+                aggregator_model=_fanout.model_name_of(self._agg),
                 elapsed_seconds=elapsed,
                 success=False,
                 error=(
@@ -205,7 +209,7 @@ class ConsensusEngine:
         ref_responses: list[ReferenceResponse] = []
         if not (cancel_token and cancel_token.is_cancelled):
             tasks = [
-                asyncio.ensure_future(self._query_single(llm, query, system_prompt, flat_history))
+                asyncio.ensure_future(_fanout.query_single(llm, query, system_prompt, flat_history, cfg))
                 for llm in self._refs
             ]
             task_to_llm = dict(zip(tasks, self._refs, strict=True))
@@ -226,7 +230,7 @@ class ConsensusEngine:
                         task.cancel()
                         ref_responses.append(
                             ReferenceResponse(
-                                model=self._model_name(task_to_llm[task]),
+                                model=_fanout.model_name_of(task_to_llm[task]),
                                 content="",
                                 elapsed_seconds=cfg.timeout_total,
                                 success=False,
@@ -245,7 +249,7 @@ class ConsensusEngine:
                 result=ConsensusResult(
                     final_answer="",
                     reference_responses=ref_responses,
-                    aggregator_model=self._model_name(self._agg),
+                    aggregator_model=_fanout.model_name_of(self._agg),
                     elapsed_seconds=time.monotonic() - t0,
                     success=False,
                     error=(
@@ -304,7 +308,7 @@ class ConsensusEngine:
         return ConsensusResult(
             final_answer="",
             reference_responses=ref_responses or [],
-            aggregator_model=self._model_name(self._agg),
+            aggregator_model=_fanout.model_name_of(self._agg),
             elapsed_seconds=time.monotonic() - t0,
             success=False,
             error="cancelled",
@@ -320,7 +324,7 @@ class ConsensusEngine:
         return ConsensusResult(
             final_answer=final_answer,
             reference_responses=ref_responses,
-            aggregator_model=self._model_name(self._agg),
+            aggregator_model=_fanout.model_name_of(self._agg),
             elapsed_seconds=time.monotonic() - t0,
         )
 
@@ -329,108 +333,6 @@ class ConsensusEngine:
         if mode == "off":
             return successful
         return [apply_privacy_to_ref(r, mode, self._privacy_redactor) for r in successful]
-
-    async def _query_references(
-        self,
-        query: str,
-        system_prompt: str | None,
-        chat_history: list[BaseMessage] | None = None,
-        cancel_token: CancellationToken | None = None,
-    ) -> list[ReferenceResponse]:
-        """Fan-out to all reference models in parallel."""
-        if cancel_token and cancel_token.is_cancelled:
-            return []
-
-        tasks = [self._query_single(llm, query, system_prompt, chat_history) for llm in self._refs]
-        try:
-            return list(
-                await asyncio.wait_for(
-                    asyncio.gather(*tasks, return_exceptions=False),
-                    timeout=self._cfg.timeout_total,
-                )
-            )
-        except TimeoutError:
-            logger.warning("Consensus global timeout (%.0fs)", self._cfg.timeout_total)
-            return [
-                ReferenceResponse(
-                    model=self._model_name(llm),
-                    content="",
-                    elapsed_seconds=self._cfg.timeout_total,
-                    success=False,
-                    error="global timeout",
-                )
-                for llm in self._refs
-            ]
-
-    async def _query_single(
-        self,
-        llm: BaseChatModel,
-        query: str,
-        system_prompt: str | None,
-        chat_history: list[BaseMessage] | None = None,
-    ) -> ReferenceResponse:
-        """Query one reference model with retry and per-model timeout."""
-        model_name = self._model_name(llm)
-        cfg = self._cfg
-
-        messages: list[BaseMessage] = []
-        if system_prompt:
-            messages.append(SystemMessage(content=system_prompt))
-        if chat_history:
-            messages.extend(chat_history)
-        messages.append(HumanMessage(content=query))
-
-        last_error = ""
-        t0 = time.monotonic()
-        for attempt in range(1, cfg.max_retries_per_model + 1):
-            t0 = time.monotonic()
-            try:
-                streamed = await asyncio.wait_for(
-                    collect_stream(
-                        llm,
-                        messages,
-                        cfg.reference_temperature,
-                        cfg.reference_max_tokens,
-                        cfg.reference_reasoning_effort,
-                    ),
-                    timeout=cfg.timeout_per_model,
-                )
-                content = streamed.strip()
-                if not content:
-                    last_error = "empty response"
-                    logger.warning("%s returned empty (attempt %d)", model_name, attempt)
-                    if attempt < cfg.max_retries_per_model:
-                        await asyncio.sleep(min(2**attempt, 30))
-                        continue
-                    break
-
-                elapsed = time.monotonic() - t0
-                logger.info("%s responded (%d chars, %.1fs)", model_name, len(content), elapsed)
-                return ReferenceResponse(
-                    model=model_name,
-                    content=content,
-                    elapsed_seconds=elapsed,
-                    success=True,
-                )
-
-            except TimeoutError:
-                last_error = f"timeout ({cfg.timeout_per_model}s)"
-                logger.warning("%s timed out (attempt %d)", model_name, attempt)
-            except Exception as exc:
-                last_error = str(exc)
-                logger.warning("%s error (attempt %d): %s", model_name, attempt, last_error)
-
-            if attempt < cfg.max_retries_per_model:
-                await asyncio.sleep(min(2**attempt, 30))
-
-        elapsed = time.monotonic() - t0
-        return ReferenceResponse(
-            model=model_name,
-            content="",
-            elapsed_seconds=elapsed,
-            success=False,
-            error=last_error,
-        )
 
     async def _aggregate(
         self,
@@ -528,16 +430,3 @@ class ConsensusEngine:
             best = max(successful, key=lambda r: len(r.content))
             logger.info("Falling back to best reference response (%s)", best.model)
             yield best.content
-
-    @staticmethod
-    def _flatten_history(chat_history: list[BaseMessage]) -> list[BaseMessage]:
-        return flatten_tool_free_history(chat_history)
-
-    @staticmethod
-    def _model_name(llm: BaseChatModel) -> str:
-        """Extract a human-readable model name."""
-        for attr in ("model_name", "model", "name"):
-            val = getattr(llm, attr, None)
-            if val and isinstance(val, str):
-                return val
-        return type(llm).__name__

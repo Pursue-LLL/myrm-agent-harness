@@ -2,7 +2,92 @@
 
 from __future__ import annotations
 
+import subprocess
+
+import pytest
+
 from myrm_agent_harness.toolkits.code_execution.session.shell_flavor import BashFlavor
+
+
+def _bash_roundtrip(value: str) -> str:
+    """Inject ``value`` via format_env_set, then read it back with printf.
+
+    Reads raw bytes so literal ``\\r`` survives (text mode would translate it
+    through universal newlines).
+    """
+    cmd = BashFlavor().format_env_set("MY_KEY", value) + "; printf '%s' \"$MY_KEY\""
+    proc = subprocess.run(
+        ["bash", "-c", cmd],
+        capture_output=True,
+        check=False,
+    )
+    assert proc.returncode == 0, f"bash rejected injected env: {proc.stderr!r}"
+    return proc.stdout.decode("utf-8")
+
+
+class TestBashFlavorEnvQuoting:
+    """format_env_set must survive arbitrary env values byte-for-byte.
+
+    Env values travel through a long-lived interactive bash, so ``$``/backticks
+    must not be re-expanded and a single literal ``"`` must not close the
+    quoting early (which previously wedged the shell in PS2 continuation).
+    """
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "plain",
+            "",
+            "with spaces",
+            'with "double" quotes',
+            "a\"b",  # odd quote count: previously hung the shell
+            "it's single quotes",
+            r"back\\slash",
+            r"path\/to\/file",
+            "$HOME",  # must NOT expand
+            "`whoami`",  # must NOT execute
+            r"\$NOT_VAR",  # literal dollar
+            "!history",
+            "%percent%",
+            "100%",
+            "mixed \"quotes\" and $VAR and `cmd` and 'sq'",
+            "tab\there",
+            "newline\nhere",
+            "cr\rhere",
+            "中文值 and émojis 🚀",
+            "comma, semicolon; pipe| redirect> < and&",
+        ],
+    )
+    def test_env_value_roundtrip_literal(self, value: str) -> None:
+        assert _bash_roundtrip(value) == value
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "a\"b",
+            "line1\nline2",
+            "$HOME",
+            "it's",
+        ],
+    )
+    def test_env_command_stays_single_line(self, value: str) -> None:
+        """The generated export command must never split across batch lines."""
+        cmd = BashFlavor().format_env_set("KEY", value)
+        assert "\n" not in cmd
+        assert cmd.startswith("export KEY=$'")
+        assert cmd.endswith("'")
+
+    def test_multiple_env_values_inject_cleanly(self) -> None:
+        flavor = BashFlavor()
+        cmds = [
+            flavor.format_env_set("K1", 'a"b'),
+            flavor.format_env_set("K2", "$HOME"),
+            flavor.format_env_set("K3", "plain"),
+        ]
+        joined = "\n".join(cmds) + "\nprintf '%s|%s|%s' \"$K1\" \"$K2\" \"$K3\""
+        proc = subprocess.run(["bash", "-c", joined], capture_output=True, text=True, check=False)
+        assert proc.returncode == 0
+        assert proc.stdout == 'a"b|$HOME|plain'
 
 
 class TestBashFlavorNoColor:
