@@ -144,6 +144,8 @@ def extract_litellm_answer_text(response: object) -> str:
     - Anthropic 风格块列表（``[{"type": "text", "text": "..."}]``）
     - reasoning 模型（DeepSeek-R1/Qwen3 等）content 为空、
       答案存于 ``message.reasoning_content``
+    与 ``extract_answer_text`` 同源：内联 think 标签块剥离 + 空文本块
+    列表不泄漏 repr（此时回退到 reasoning_content）。
     """
     if response is None:
         return ""
@@ -154,18 +156,17 @@ def extract_litellm_answer_text(response: object) -> str:
     if message is None:
         return ""
     content = getattr(message, "content", None)
-    if isinstance(content, list):
-        text_parts = []
-        for item in content:
-            if isinstance(item, dict) and item.get("type") == "text":
-                raw_text = item.get("text", "")
-                text_parts.append(str(raw_text) if raw_text is not None else "")
-            elif not isinstance(item, dict):
-                text_parts.append(str(item))
-        text = " ".join(text_parts).strip()
+    if content is None or (isinstance(content, list) and not content):
+        text = ""
     else:
-        text = str(content).strip() if content is not None else ""
+        text = extract_text_content(cast("ContentItem", content))
+        if isinstance(content, list) and text == str(content):
+            # extract_text_content 在无文本块时回退到列表 repr，
+            # 这里清空以触发 reasoning_content 回退。
+            text = ""
     if text:
-        return text
+        clean_text, _ = extract_and_strip_think_blocks(text)
+        if clean_text:
+            return clean_text
     reasoning = getattr(message, "reasoning_content", None)
     return reasoning.strip() if isinstance(reasoning, str) and reasoning else ""

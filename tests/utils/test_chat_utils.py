@@ -200,6 +200,18 @@ class TestExtractLitellmAnswerText:
         )
         assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "hello world"
 
+    def test_plain_content_with_inline_think_stripped(self) -> None:
+        msg = _FakeLitellmMessage("<think>plan</think>answer")
+        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "answer"
+
+    def test_block_list_with_inline_think_stripped(self) -> None:
+        msg = _FakeLitellmMessage([{"type": "text", "text": "<think>plan</think>block answer"}])
+        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "block answer"
+
+    def test_content_only_think_falls_back_to_reasoning(self) -> None:
+        msg = _FakeLitellmMessage("<think>only plan</think>", "reasoned answer")
+        assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
+
     def test_none_text_block_does_not_leak_none(self) -> None:
         msg = _FakeLitellmMessage([{"type": "text", "text": None}], "reasoned answer")
         assert extract_litellm_answer_text(_FakeLitellmResponse(msg)) == "reasoned answer"
