@@ -3,7 +3,8 @@
 Converts MCP ``Tool`` objects (from ``client.list_tools()``) into LangChain
 ``StructuredTool`` instances whose ``ainvoke`` calls the provided
 session/client's ``call_tool`` method. The input schema is normalized:
-``$ref``/``$defs`` are inlined and top-level composite keywords
+``$ref``/``$defs`` are inlined, property-level const unions collapse into
+``enum`` (Rust/TypeScript servers), and top-level composite keywords
 (``anyOf``/``oneOf``/``allOf``) are flattened so FastMCP nested/optional
 models and kimi-cu-style multi-branch tools never degrade to empty schemas.
 
@@ -28,7 +29,7 @@ owned by ``result_processing.normalize_mcp_result`` /
 [INPUT]
 - mcp.types::Tool (POS: MCP tool schema type)
 - mcp.client.client::Client (POS: MCP SDK 2.x high-level client)
-- schema_utils::flatten_json_schema, flatten_top_level_composite, prepare_mcp_call_arguments (POS: MCP schema tolerance utilities)
+- schema_utils::collapse_const_unions, flatten_json_schema, flatten_top_level_composite, prepare_mcp_call_arguments (POS: MCP schema tolerance utilities)
 
 [OUTPUT]
 - convert_mcp_tools: MCP Tool list → LangChain StructuredTool list
