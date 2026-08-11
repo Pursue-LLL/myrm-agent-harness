@@ -17,8 +17,8 @@ from myrm_agent_harness.toolkits.wiki.core.parsers import parse_concepts_respons
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.toolkits.wiki.core.types import ConceptInfo
 from myrm_agent_harness.toolkits.wiki.pipeline.compiler import (
-    _ArticleBatchStats,
     WikiCompiler,
+    _ArticleBatchStats,
 )
 from myrm_agent_harness.toolkits.wiki.pipeline.resilience import EMBED_WINDOW_VIOLATION
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer

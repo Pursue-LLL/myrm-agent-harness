@@ -26,7 +26,6 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     WIKI_PAGE_TYPES,
     WikiPageType,
@@ -34,6 +33,7 @@ from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
 )
 from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 
 from .atomic_io import atomic_write_text
 from .events import WikiMapEvent

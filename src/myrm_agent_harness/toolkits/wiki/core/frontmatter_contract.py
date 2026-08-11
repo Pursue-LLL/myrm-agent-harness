@@ -24,10 +24,10 @@ from pathlib import Path
 
 import yaml
 
+from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 from myrm_agent_harness.utils.markdown_frontmatter import (
     parse_frontmatter,
 )
-from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure
 
 
 class WikiPageType(StrEnum):

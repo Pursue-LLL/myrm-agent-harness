@@ -232,7 +232,6 @@ async def test_check_drift_full_mode_with_llm(
     wiki_structure: WikiStructure,
 ) -> None:
     """FULL mode with auto-maintenance runs drift check and parses LLM extraction output."""
-    from myrm_agent_harness.toolkits.wiki.maintenance.modes import MaintainMode
     from langchain_core.messages import AIMessage
 
     concept = wiki_structure.get_concept_file_path("Drift Article")

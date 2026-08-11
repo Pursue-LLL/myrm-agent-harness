@@ -19,12 +19,12 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     PUBLISH_STATUS_KEY,
     WikiPublishStatus,
     ensure_draft_frontmatter,
 )
+from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.wiki.core.structure import WikiStructure

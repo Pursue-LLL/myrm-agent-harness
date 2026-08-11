@@ -138,5 +138,5 @@ async def test_sidecar_builder_reasoning_model_content_empty(tmp_path):
         indexer=indexer,
     )
     assert result.rebuilt_directories >= 1
-    abstract_path, overview_path = structure.get_directory_sidecar_paths("ops", create=False)
+    abstract_path, _overview_path = structure.get_directory_sidecar_paths("ops", create=False)
     assert "summary" in abstract_path.read_text(encoding="utf-8").lower()

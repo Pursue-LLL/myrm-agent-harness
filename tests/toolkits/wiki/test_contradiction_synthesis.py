@@ -156,9 +156,6 @@ async def test_run_contradiction_synthesis_reasoning_model_content_empty(
         )
     )
     from myrm_agent_harness.toolkits.wiki.core.config import WikiCompileConfig
-    from myrm_agent_harness.toolkits.wiki.pipeline.pending import (
-        WikiPendingEditsManager,
-    )
 
     result = await run_contradiction_synthesis_pass(
         llm,
@@ -196,10 +193,11 @@ async def test_detect_conflict_high_confidence_verdict(
     temp_wiki: WikiStructure,
 ) -> None:
     """detect_conflict returns a verdict when LLM reports a high-confidence conflict."""
+    from langchain_core.messages import AIMessage
+
     from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.detector import (
         detect_conflict,
     )
-    from langchain_core.messages import AIMessage
 
     llm = MagicMock()
     llm.ainvoke = AsyncMock(
@@ -266,10 +264,11 @@ async def test_detect_conflict_low_confidence_returns_none(
     temp_wiki: WikiStructure,
 ) -> None:
     """detect_conflict returns None when confidence is below the threshold."""
+    from langchain_core.messages import AIMessage
+
     from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.detector import (
         detect_conflict,
     )
-    from langchain_core.messages import AIMessage
 
     llm = MagicMock()
     llm.ainvoke = AsyncMock(
@@ -298,10 +297,11 @@ async def test_detect_conflict_invalid_json_returns_none(
     temp_wiki: WikiStructure,
 ) -> None:
     """detect_conflict returns None on malformed LLM output without raising."""
+    from langchain_core.messages import AIMessage
+
     from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.detector import (
         detect_conflict,
     )
-    from langchain_core.messages import AIMessage
 
     llm = MagicMock()
     llm.ainvoke = AsyncMock(
@@ -325,10 +325,11 @@ async def test_detect_conflict_robust_json_parsing(
     temp_wiki: WikiStructure,
 ) -> None:
     """detect_conflict tolerates prose framing and trailing commas in LLM verdict."""
+    from langchain_core.messages import AIMessage
+
     from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.detector import (
         detect_conflict,
     )
-    from langchain_core.messages import AIMessage
 
     llm = MagicMock()
     llm.ainvoke = AsyncMock(
@@ -361,13 +362,14 @@ async def test_detect_conflict_reads_existing_concept_file(
     temp_wiki: WikiStructure,
 ) -> None:
     """detect_conflict uses the compiled truth summary from existing concept files."""
+    from langchain_core.messages import AIMessage
+
     from myrm_agent_harness.toolkits.wiki.core.section_contract import (
         build_note_body_skeleton,
     )
     from myrm_agent_harness.toolkits.wiki.pipeline.contradiction_synthesis.detector import (
         detect_conflict,
     )
-    from langchain_core.messages import AIMessage
 
     path_a = temp_wiki.get_concept_file_path("AI/Agent-A")
     path_a.write_text(

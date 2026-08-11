@@ -38,7 +38,7 @@ from myrm_agent_harness.utils.db.fts5 import fts5_auto_heal, fts5_integrity_chec
 from ..core.config import WikiConfig
 from ..core.structure import WikiStructure
 from .tokenizer import tokenize_for_fts
-from .vector_chunks import delete_text_vectors, upsert_text_vectors
+from .vector_chunks import upsert_text_vectors
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol

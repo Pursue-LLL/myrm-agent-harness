@@ -1010,6 +1010,26 @@ class TestInitializeShellEdge:
         finally:
             await session.close()
 
+    @pytest.mark.asyncio
+    async def test_initialize_shell_special_chars_env_preserved(self) -> None:
+        """Env values with $, backticks, quotes and backslashes stay literal.
+
+        ``format_env_set`` must not let the shell re-expand ``$VAR``/backticks
+        embedded in a user-provided env value (e.g. API tokens).
+        """
+        config = _make_config()
+        config.env = {
+            "MY_SPECIAL": 'a"b\\c d$HOME `whoami` \'q\''
+        }
+        session = LocalPersistentSession(config)
+        await session.start()
+        try:
+            result = await session.execute("printf '%s' \"$MY_SPECIAL\"")
+            assert result.success
+            assert result.stdout == 'a"b\\c d$HOME `whoami` \'q\''
+        finally:
+            await session.close()
+
 
 class TestEnsureActiveEdge:
     @pytest.mark.asyncio
@@ -1057,6 +1077,24 @@ class TestLifecycleSafety:
             assert result.exit_code == 0
             assert "hello __MYRM_EXIT__ world" in result.stdout
             assert "after" in result.stdout
+        finally:
+            await session.close()
+
+    @pytest.mark.asyncio
+    async def test_stream_path_marker_like_output_not_truncated(self) -> None:
+        """Stream path keeps marker-like user output intact (mirror of execute)."""
+        session = LocalPersistentSession(_make_config())
+        await session.start()
+        try:
+            chunks = []
+            async for chunk in session.execute_stream(
+                'echo "__MYRM_END_00000000__"; echo "__MYRM_EXIT_ffffffff__"; echo done'
+            ):
+                chunks.append(chunk)
+            combined = "".join(chunks)
+            assert "__MYRM_END_00000000__" in combined
+            assert "__MYRM_EXIT_ffffffff__" in combined
+            assert "done" in combined
         finally:
             await session.close()
 

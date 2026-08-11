@@ -15,6 +15,7 @@ DRY embed+vector path for WikiIndexer, SidecarIndexMixin, and WikiAssetIndexer.
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 from typing import TYPE_CHECKING
 
@@ -52,10 +53,8 @@ async def delete_text_vectors(
     if hasattr(vector, "delete"):
         ids = [legacy_vector_id(parent_key)]
         ids.extend(chunk_vector_id(parent_key, index) for index in range(128))
-        try:
+        with contextlib.suppress(Exception):
             await vector.delete(collection_name, ids)
-        except Exception:
-            pass
 
 
 async def upsert_text_vectors(

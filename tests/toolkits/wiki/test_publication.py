@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 from myrm_agent_harness.toolkits.wiki.core.claims_contract import parse_claims_from_content
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     PUBLISH_STATUS_KEY,
@@ -19,6 +18,7 @@ from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
     repair_publication_status,
 )
 from myrm_agent_harness.toolkits.wiki.retrieval.indexer import WikiIndexer
+from myrm_agent_harness.utils.markdown_frontmatter import parse_frontmatter
 
 
 @pytest.fixture

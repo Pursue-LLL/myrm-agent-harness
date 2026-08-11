@@ -26,9 +26,6 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from myrm_agent_harness.utils.markdown_frontmatter import (
-    parse_frontmatter,
-)
 from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
     WikiProvenance,
     load_frontmatter_metadata,
@@ -40,6 +37,9 @@ from myrm_agent_harness.toolkits.wiki.maintenance.issue_kind import (
     action_kind_for_issue_type,
 )
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
+from myrm_agent_harness.utils.markdown_frontmatter import (
+    parse_frontmatter,
+)
 
 logger = get_agent_logger(__name__)
 

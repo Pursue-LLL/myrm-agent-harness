@@ -81,6 +81,10 @@ class ConsensusEngine:
             aggregator_llm=llm_agg,
         )
         result = await engine.run("Prove sqrt(2) is irrational")
+
+    When :attr:`ConsensusConfig.privacy_filter` is active a
+    ``privacy_redactor`` callable must be injected; constructing the engine
+    without one fails fast so a privacy-required run never emits raw content.
     """
 
     def __init__(
