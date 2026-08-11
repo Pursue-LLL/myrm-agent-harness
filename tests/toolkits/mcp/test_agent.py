@@ -427,8 +427,8 @@ async def test_wrap_tools_output_guard_truncates_large_output():
 
 
 @pytest.mark.asyncio
-async def test_wrap_tools_output_guard_skips_multimodal():
-    """Multimodal results (image + text CallToolResult) are NOT truncated."""
+async def test_wrap_tools_output_guard_truncates_multimodal_text_blocks():
+    """Multimodal oversized text blocks are truncated; image blocks are kept."""
     agent = MCPAgent()
     raw_result = CallToolResult(
         content=[
@@ -447,6 +447,13 @@ async def test_wrap_tools_output_guard_skips_multimodal():
     assert isinstance(result, list)
     assert len(result) == 2
     assert result[0]["type"] == "image"
+    text_block = result[1]
+    assert text_block["type"] == "text"
+    assert "x" * 100 in text_block["text"]
+    assert "[Output truncated:" in text_block["text"]
+    assert "showing first 100 of 500 chars" in text_block["text"]
+    assert "Remaining 400 chars were discarded" in text_block["text"]
+    assert "UNTRUSTED_DATA" in text_block["text"]
 
 
 @pytest.mark.asyncio

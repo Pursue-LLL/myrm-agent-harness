@@ -104,6 +104,15 @@ def test_field_all_null_union_falls_back_to_str():
     assert py_type is str
 
 
+def test_field_direct_null_type_falls_back_to_str():
+    """type: "null" (bare) must not crash and resolves to str."""
+    py_type, _ = _json_schema_to_pydantic_field(
+        {"type": "null"},
+        required=True,
+    )
+    assert py_type is str
+
+
 # ---------------------------------------------------------------------------
 # _build_args_model
 # ---------------------------------------------------------------------------

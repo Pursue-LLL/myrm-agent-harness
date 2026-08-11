@@ -21,4 +21,4 @@ bash 工具横切能力域：LLM 描述提示词、输出格式化/截断、退�
 - `../_compression/output_compressor`（语义压缩）
 - `../_compression/output_eviction`（`BASH_OUTPUT_MAX_CHARS` 复用）
 - `../_background`（后台监听）
-- `bash_execution_error`（共享异常）
+- `../_executor/error`（共享异常）

@@ -61,7 +61,7 @@ def _build_interact_input_model(*, labels_str: str) -> type[BaseModel]:
             default="",
             description="Text for type/fill, key combo for press (e.g. 'Enter', 'Control+a'), "
             f"credential label for fill_credential (available labels: {labels_str}), "
-            "option value for select, signed scroll delta in pixels (positive=down, negative=up), "
+            "option value(s) for select (multi-select values separated by ';'), signed scroll delta in pixels (positive=down, negative=up), "
             "optional params for scroll_to_bottom (e.g. 'max_steps=20,delay_ms=300'), "
             "file path for upload_file, target ref for drag. Omit for click/dblclick/hover/focus/check/uncheck.",
         )

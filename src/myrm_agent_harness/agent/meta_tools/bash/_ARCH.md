@@ -21,10 +21,6 @@ bash/
   _ARCH.md                       # 本文件：域级入口文档
   bash_code_execute_tool.py      # 门面：bash 工具 LangChain 工厂
   bash_process_tools.py          # 门面：bash 后台进程管理工具工厂
-  bash_auto_yield.py             # 门面：前台命令自动后台化工具
-  bash_execution_error.py        # 共享：BashExecutionError 异常类型
-  command_classifier.py          # 共享：命令分类器
-  sensitive_parameter_redactor.py# 共享：敏感参数脱敏
   _executor/                     # 执行器域（聚合根 + mixins + 会话管理）
   _tool/                         # bash 工具能力域（描述/格式化/语义/多模态/监听）
   _compression/                  # 输出压缩域（语义压缩/eviction/声明式过滤）
@@ -35,7 +31,7 @@ bash/
 
 ## File & Submodule Index
 
-### 根：门面与共享
+### 根：门面
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
@@ -43,10 +39,6 @@ bash/
 | `_tool_description.py` → `_tool/tool_description.py` | Internal | 静态缓存稳定 `TOOL_DESCRIPTION`。 | ✅ |
 | `bash_code_execute_tool.py` | Core | `create_bash_code_execute_tool` LangChain 工厂；静态 TOOL_DESCRIPTION + OS hint；preflight ``ToolError`` 保留 ``guardrail_blocked``；``BashExecutionError`` 包装保留 stderr evicted ref。 | ✅ |
 | `bash_process_tools.py` | Core | 统一 ``bash_process_tool``（actions list/output/kill/wait/write_stdin/submit_stdin/close_stdin）。 | ✅ |
-| `bash_auto_yield.py` | Core | 前台白名单命令超时自动后台化。 | ✅ |
-| `bash_execution_error.py` | Core | 结构化 BashExecutionError，携带 stdout/stderr eviction 引用。 | ✅ |
-| `command_classifier.py` | Core | 命令分类器（READ/WRITE/DANGEROUS/NETWORK/GIT/SEARCH/PYTHON）。 | ✅ |
-| `sensitive_parameter_redactor.py` | Core | 命令参数脱敏（--token/--password/--api-key 等）。 | ✅ |
 
 ### `_executor/` 执行器域
 
@@ -64,6 +56,10 @@ bash/
 | `_executor/mcp_citation_handler.py` | Core | MCP Metadata Extractor。 |
 | `_executor/session_spawn_lifecycle.py` | Core | 会话 spawn 生命周期标记。 |
 | `_executor/event_logging.py` | Internal | 命令执行事件日志（脱敏+分类）。 |
+| `_executor/error.py` | Core | 结构化 BashExecutionError，携带 stdout/stderr eviction 引用。 |
+| `_executor/auto_yield.py` | Core | 前台白名单命令超时自动后台化。 |
+| `_executor/command_classifier.py` | Core | 命令分类器（READ/WRITE/DANGEROUS/NETWORK/GIT/SEARCH/PYTHON）。 |
+| `_executor/sensitive_parameter_redactor.py` | Core | 命令参数脱敏（--token/--password/--api-key 等）。 |
 
 ### `_tool/` bash 工具能力域
 

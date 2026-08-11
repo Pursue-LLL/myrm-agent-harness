@@ -35,10 +35,10 @@ async def log_bash_command_execution(
     Failure-safe: exceptions are caught and logged at DEBUG level.
     """
     try:
-        from myrm_agent_harness.agent.meta_tools.bash.command_classifier import (
+        from myrm_agent_harness.agent.meta_tools.bash._executor.command_classifier import (
             CommandClassifier,
         )
-        from myrm_agent_harness.agent.meta_tools.bash.sensitive_parameter_redactor import (
+        from myrm_agent_harness.agent.meta_tools.bash._executor.sensitive_parameter_redactor import (
             SensitiveParameterRedactor,
         )
         from myrm_agent_harness.agent.middlewares._session_context import (

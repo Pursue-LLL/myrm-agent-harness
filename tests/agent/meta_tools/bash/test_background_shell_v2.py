@@ -15,7 +15,7 @@ from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
 from myrm_agent_harness.agent.meta_tools.bash._background.types import (
     BackgroundProcessInfo,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_auto_yield import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.auto_yield import (
     DEFAULT_YIELD_AFTER_SECONDS,
     build_auto_yield_return,
     resolve_yield_seconds,

@@ -2,7 +2,11 @@
 
 Converts MCP ``Tool`` objects (from ``client.list_tools()``) into LangChain
 ``StructuredTool`` instances whose ``ainvoke`` calls the provided
-session/client's ``call_tool`` method.
+session/client's ``call_tool`` method. Before building Pydantic args models,
+the input schema is normalized: ``$ref``/``$defs`` are inlined and top-level
+composite keywords (``anyOf``/``oneOf``/``allOf``) are flattened so FastMCP
+nested/optional models and kimi-cu-style multi-branch tools never degrade to
+``str``/empty schemas.
 
 The coroutine returns the raw ``mcp.types.CallToolResult`` from ``call_tool``
 unchanged — result normalization (is_error detection, content-block coercion,
@@ -14,6 +18,7 @@ never flattened here.
 [INPUT]
 - mcp.types::Tool (POS: MCP tool schema type)
 - mcp.client.client::Client (POS: MCP SDK 2.x high-level client)
+- schema_utils::flatten_json_schema, flatten_top_level_composite, prepare_mcp_call_arguments, primary_json_type (POS: MCP schema tolerance utilities)
 
 [OUTPUT]
 - convert_mcp_tools: MCP Tool list → LangChain StructuredTool list
@@ -36,6 +41,7 @@ from myrm_agent_harness.toolkits.mcp.schema_utils import (
     flatten_json_schema,
     flatten_top_level_composite,
     prepare_mcp_call_arguments,
+    primary_json_type,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,47 +56,12 @@ _JSON_TYPE_MAP: dict[str, type] = {
 }
 
 
-def _primary_json_type(schema: dict[str, Any]) -> str:
-    """Resolve the primary JSON Schema type for a property.
-
-    FastMCP emits nullable fields as ``anyOf: [{...}, {"type": "null"}]`` and
-    some servers use array ``type`` (``["object", "null"]``); neither form has
-    a top-level string ``type``, so a naive lookup would degrade the field to
-    ``str``. Collapse to the first non-null variant for a concrete Pydantic
-    annotation. Unknown types fall back to ``string`` (permissive, never
-    blocks a call).
-    """
-    raw_type = schema.get("type")
-    if isinstance(raw_type, str):
-        return raw_type
-    if isinstance(raw_type, list):
-        for entry in raw_type:
-            if isinstance(entry, str) and entry != "null":
-                return entry
-        return "string"
-    for union_key in ("anyOf", "oneOf"):
-        variants = schema.get(union_key)
-        if not isinstance(variants, list):
-            continue
-        for variant in variants:
-            if not isinstance(variant, dict):
-                continue
-            variant_type = variant.get("type")
-            if isinstance(variant_type, str) and variant_type != "null":
-                return variant_type
-            if isinstance(variant_type, list):
-                for entry in variant_type:
-                    if isinstance(entry, str) and entry != "null":
-                        return entry
-    return "string"
-
-
 def _json_schema_to_pydantic_field(
     schema: dict[str, Any],
     required: bool,
 ) -> tuple[type, Any]:
     """Map a single JSON Schema property to a Pydantic (type, default) tuple."""
-    py_type: type = _JSON_TYPE_MAP.get(_primary_json_type(schema), str)
+    py_type: type = _JSON_TYPE_MAP.get(primary_json_type(schema), str)
     if not required:
         return (py_type | None, None)  # type: ignore[return-value]
     return (py_type, ...)

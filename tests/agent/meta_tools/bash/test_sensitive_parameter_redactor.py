@@ -1,6 +1,6 @@
 """Sensitive Parameter Redactor单元测试"""
 
-from myrm_agent_harness.agent.meta_tools.bash.sensitive_parameter_redactor import SensitiveParameterRedactor
+from myrm_agent_harness.agent.meta_tools.bash._executor.sensitive_parameter_redactor import SensitiveParameterRedactor
 
 
 class TestSensitiveParameterRedactor:

@@ -41,20 +41,51 @@
     return type === 'password' || SENSITIVE_TYPES.has(ac);
   }
 
+  function truncateText(text) {
+    const t = (text || '').trim();
+    return t.length > 80 ? t.slice(0, 80) + '...' : t;
+  }
+
+  function selectLabelText(el) {
+    const label = el.closest('label');
+    if (!label) return '';
+    // A wrapped select contributes its option text to label.textContent — clone
+    // and strip the form controls so only the field's wording remains.
+    const clone = label.cloneNode(true);
+    clone.querySelectorAll('select, input, textarea, button').forEach(n => n.remove());
+    return truncateText(clone.textContent);
+  }
+
   function getText(el) {
     const label = el.getAttribute('aria-label') || el.getAttribute('placeholder') || '';
     if (label) return label;
-    const text = (el.textContent || '').trim();
-    return text.length > 80 ? text.slice(0, 80) + '...' : text;
+    if (el.tagName === 'SELECT') {
+      // A select's textContent concatenates every option label — useless as a
+      // field description. Prefer the wrapping/adjacent label, then the label
+      // of the currently selected option, so multi-dropdown forms stay
+      // disambiguated in the generated skill.
+      const labelText = selectLabelText(el);
+      if (labelText) return labelText;
+      const prev = el.previousElementSibling;
+      if (prev && /^(LABEL|SPAN|DIV)$/i.test(prev.tagName)) {
+        const t = truncateText(prev.textContent);
+        if (t) return t;
+      }
+      const option = el.selectedOptions[0];
+      if (option) return truncateText(option.label || option.textContent || option.value);
+      return '';
+    }
+    return truncateText(el.textContent);
   }
 
-  function emit(action, el, value, modifiers) {
+  function emit(action, el, value, modifiers, label) {
     if (!window.__myrmCaptureActive) return;
     window.__myrmCaptureCallback(JSON.stringify({
       action: action,
       selector: getSelector(el),
       value: value || '',
       modifiers: modifiers || [],
+      label: label || '',
       url: location.href,
       title: document.title,
       elementText: getText(el),
@@ -295,7 +326,19 @@
     if (tag === 'select') {
       commitPendingInput();
       emitHoverBeforeClick(el);
-      emit('select', el, el.value);
+      // Multi-select captures every selected option (value + readable label);
+      // single-value selects keep the plain value so the trace stays minimal.
+      const options = Array.from(el.selectedOptions || []);
+      if (el.multiple && options.length > 1) {
+        const values = options.map(o => o.value).join('; ');
+        const labels = options.map(o => o.label || o.textContent || o.value).join(', ');
+        emit('select', el, values, [], labels);
+      } else {
+        const option = options[0] || null;
+        const value = option ? option.value : el.value;
+        const label = option ? (option.label || option.textContent || option.value) : '';
+        emit('select', el, value, [], label);
+      }
     } else if (tag === 'input' && (el.type === 'checkbox' || el.type === 'radio')) {
       commitPendingInput();
       emit(el.checked ? 'check' : 'uncheck', el, String(el.checked));

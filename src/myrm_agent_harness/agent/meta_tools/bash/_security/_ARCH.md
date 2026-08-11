@@ -12,5 +12,5 @@ bash 执行前安全预检域。
 
 ## Key Dependencies
 
-- `bash_code_execute_tool`（预检接入点）
-- `toolkits.code_execution`（安全校验）
+- `../bash_code_execute_tool`（预检接入点）
+- `../../toolkits.code_execution`（安全校验）

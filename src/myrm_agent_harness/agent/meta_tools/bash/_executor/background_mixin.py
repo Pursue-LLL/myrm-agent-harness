@@ -2,7 +2,7 @@
 
 [INPUT]
 - ._background.registry::get_background_registry, BackgroundQuotaError (POS: Background job registry)
-- .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
+- .error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 - agent.artifacts.file_id_registry::resolve_file_ids_in_text (POS: File ID resolution)
 
 [OUTPUT]
@@ -19,7 +19,7 @@ from contextlib import suppress
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.artifacts.file_id_registry import resolve_file_ids_in_text
-from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.error import (
     BashExecutionError,
 )
 from myrm_agent_harness.toolkits.code_execution import ExecutionContext

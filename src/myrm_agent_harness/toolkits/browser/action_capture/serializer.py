@@ -42,6 +42,7 @@ def serialize_step(step: ActionStep, *, include_screenshot: bool = False) -> dic
         "element_role": step.element_role,
         "is_password": step.is_password,
         "modifiers": list(step.modifiers),
+        "label": step.label,
     }
     if include_screenshot and step.screenshot_b64:
         d["screenshot_b64"] = step.screenshot_b64
@@ -73,7 +74,6 @@ _ACTION_TEMPLATES: dict[str, str] = {
     "dblclick": 'Double-click on "{element_text}" ({element_role})',
     "type": 'Type "{value}" into {element_context}',
     "fill": 'Fill "{value}" into {element_context}',
-    "select": 'Select "{value}" from dropdown',
     "check": "Check {element_text}",
     "uncheck": "Uncheck {element_text}",
     "navigate": "Navigate to {value}",
@@ -88,10 +88,11 @@ _CONTEXT_TEMPLATES = frozenset({"fill", "type"})
 
 
 def _element_context(step: ActionStep) -> str:
-    """Build an element description that disambiguates fill/type targets.
+    """Build an element description that disambiguates fill/type/select targets.
 
-    Prefers the captured text (aria-label/placeholder) and falls back to the
-    selector so the agent can tell input fields apart on multi-field forms.
+    Prefers the captured text (aria-label/placeholder or select label) and
+    falls back to the selector so the agent can tell fields apart on
+    multi-field forms.
     """
     text = step.element_text or step.selector
     role = step.element_role or "element"
@@ -110,6 +111,15 @@ def step_to_natural_language(step: ActionStep, *, credential_label: str | None =
     """
     if credential_label and step.is_password:
         return f'Fill credential "{credential_label}" into {_element_context(step)}'
+    if step.action == ActionType.SELECT:
+        base = f'Select "{step.value}"'
+        if step.label:
+            base = f'{base} ({step.label})'
+        # When no external label exists the element text is the option label
+        # again — appending the context would only repeat it.
+        if not (step.element_text and step.label and step.element_text == step.label):
+            base = f'{base} from {_element_context(step)}'
+        return base
     if step.action == ActionType.PRESS:
         key = step.value.title()
         if step.modifiers:
@@ -120,7 +130,7 @@ def step_to_natural_language(step: ActionStep, *, credential_label: str | None =
     try:
         return template.format(
             element_text=step.element_text or step.selector,
-            element_role=step.element_role,
+            element_role=step.element_role or "element",
             element_context=_element_context(step)
             if step.action.value in _CONTEXT_TEMPLATES
             else "",

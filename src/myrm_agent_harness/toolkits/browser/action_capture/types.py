@@ -56,6 +56,8 @@ class ActionStep:
         element_role: ARIA role of the interacted element, if available.
         is_password: Whether the target field is a password/sensitive input.
         modifiers: Keyboard modifier keys held during a press action (e.g. ["ctrl"]).
+        label: Human-readable option label(s) for a select action (multi-select
+            labels joined by ", "), used to make generated skills self-describing.
     """
 
     seq: int
@@ -70,6 +72,7 @@ class ActionStep:
     element_role: str = ""
     is_password: bool = False
     modifiers: list[str] = field(default_factory=list)
+    label: str = ""
 
 
 @dataclass

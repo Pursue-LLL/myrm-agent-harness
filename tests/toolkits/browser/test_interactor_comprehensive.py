@@ -259,6 +259,20 @@ async def test_interact_select(interactor: Interactor) -> None:
         mock_locator.select_option.assert_called_once_with("option1", timeout=10_000)
 
 
+@pytest.mark.asyncio
+async def test_interact_select_multi_value(interactor: Interactor) -> None:
+    """Multi-select recordings join values with ';' — each option is selected."""
+    mock_locator = AsyncMock()
+
+    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+        result = await interactor.interact("select", "e0", "en; zh")
+
+        assert result == "Selected 'en; zh' in e0"
+        mock_locator.select_option.assert_called_once_with(
+            ["en", "zh"], timeout=10_000
+        )
+
+
 # =============================================================================
 # Action: scroll
 # =============================================================================

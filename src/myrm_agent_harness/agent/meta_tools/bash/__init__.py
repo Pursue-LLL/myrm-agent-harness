@@ -7,8 +7,8 @@ See _ARCH.md for file index and module structure.
 from .bash_code_execute_tool import create_bash_code_execute_tool
 from ._executor.executor import BashExecutionError, BashExecutor
 from .bash_process_tools import BASH_PROCESS_TOOL_NAME, create_bash_process_tool
-from .command_classifier import CommandClassifier, CommandType, RiskLevel
-from .sensitive_parameter_redactor import SensitiveParameterRedactor
+from ._executor.command_classifier import CommandClassifier, CommandType, RiskLevel
+from ._executor.sensitive_parameter_redactor import SensitiveParameterRedactor
 
 __all__ = [
     "BASH_PROCESS_TOOL_NAME",

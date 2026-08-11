@@ -4,7 +4,7 @@
 - ._tool.tool_description::TOOL_DESCRIPTION (POS: Static LLM-facing description prompt)
 - ._security.preflight_checks (POS: Security preflight checks)
 - ._executor.executor::BashExecutor (POS: Bash executor aggregate root. MRO: Execute → Background → Prepare → Context)
-- .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
+- ._executor.error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 - ._tool.helpers (POS: BashInput, OS hint, context tracking)
 - ._tool.formatting (POS: Output formatting and truncation)
 - ._tool.background_listeners (POS: Background ptc_notify listeners)
@@ -50,7 +50,7 @@ from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import 
 from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
     TOOL_DESCRIPTION,
 )
-from myrm_agent_harness.agent.meta_tools.bash.bash_auto_yield import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.auto_yield import (
     build_auto_yield_return,
     resolve_yield_seconds,
     should_auto_yield,

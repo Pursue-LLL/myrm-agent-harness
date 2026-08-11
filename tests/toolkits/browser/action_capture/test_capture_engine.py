@@ -237,3 +237,29 @@ async def test_press_step_defaults_empty_modifiers() -> None:
     steps = engine._session.steps
     assert len(steps) == 1
     assert steps[0].modifiers == []
+
+
+async def test_select_step_carries_label() -> None:
+    engine, _ = _screenshot_engine()
+    await engine._on_action_event(
+        '{"action":"select","selector":"#lang","value":"en; zh",'
+        '"label":"English, Chinese","url":"https://example.com","title":"","ts":1000.0}'
+    )
+
+    steps = engine._session.steps
+    assert len(steps) == 1
+    assert steps[0].action == ActionType.SELECT
+    assert steps[0].value == "en; zh"
+    assert steps[0].label == "English, Chinese"
+
+
+async def test_select_step_label_defaults_empty() -> None:
+    engine, _ = _screenshot_engine()
+    await engine._on_action_event(
+        '{"action":"select","selector":"#lang","value":"en",'
+        '"url":"https://example.com","title":"","ts":1000.0}'
+    )
+
+    steps = engine._session.steps
+    assert len(steps) == 1
+    assert steps[0].label == ""

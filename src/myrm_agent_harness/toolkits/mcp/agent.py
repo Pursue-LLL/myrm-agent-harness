@@ -293,6 +293,34 @@ class MCPAgent:
         return wrapped
 
     @staticmethod
+    def _truncate_multimodal_text_blocks(
+        blocks: list[dict[str, object]],
+        tool_name: str,
+        max_chars: int,
+        handler: OversizedResultHandler | None,
+    ) -> list[dict[str, object]]:
+        """Apply the output-size guard to text blocks inside multimodal output.
+
+        ``_timeout_wrapper`` truncates plain ``str`` results that exceed
+        ``max_output_chars``; multimodal ``list[dict]`` results must apply the
+        same guard to each text block so a malicious or defective MCP server
+        cannot bypass the context budget by pairing a huge text block with a
+        legitimate image.  Image blocks pass through untouched — the vault
+        spill / head-truncation falls back to ``_handle_oversized_output``.
+        """
+        truncated: list[dict[str, object]] = []
+        for block in blocks:
+            if block.get("type") == "text":
+                text = str(block.get("text", "") or "")
+                if len(text) > max_chars:
+                    text = MCPAgent._handle_oversized_output(
+                        text, tool_name, max_chars, handler
+                    )
+                    block = {**block, "text": text}
+            truncated.append(block)
+        return truncated
+
+    @staticmethod
     def _normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
         """Normalize an MCP tool execution result for the LLM.
 
@@ -495,18 +523,27 @@ class MCPAgent:
                     async with asyncio.timeout(_timeout):
                         raw = await _orig(*args, **kwargs)  # type: ignore[misc]
                         normalized = MCPAgent._normalize_mcp_result(raw)
-                        if isinstance(normalized, str) and len(normalized) > _max_chars:
-                            normalized = MCPAgent._handle_oversized_output(
-                                normalized,
-                                _name,
-                                _max_chars,
-                                _handler,
-                            )
                         if isinstance(normalized, str):
+                            if len(normalized) > _max_chars:
+                                normalized = MCPAgent._handle_oversized_output(
+                                    normalized,
+                                    _name,
+                                    _max_chars,
+                                    _handler,
+                                )
                             normalized = wrap_untrusted(
                                 normalized, source=f"mcp:{_name}"
                             )
                         else:
+                            # Multimodal text blocks get the same output-size guard
+                            # as plain-string results first, then the content
+                            # boundary — a malicious/oversized server must not
+                            # bypass max_output_chars by pairing a huge text
+                            # block with a legitimate image.  Truncating before
+                            # wrapping keeps the UNTRUSTED_DATA markers intact.
+                            normalized = MCPAgent._truncate_multimodal_text_blocks(
+                                normalized, _name, _max_chars, _handler
+                            )
                             normalized = MCPAgent._wrap_multimodal_text_blocks(
                                 normalized, source=f"mcp:{_name}"
                             )

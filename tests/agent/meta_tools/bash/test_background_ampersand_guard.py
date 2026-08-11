@@ -146,7 +146,7 @@ async def test_spawn_background_clears_skill_cache_on_workspace_invalidation() -
 @pytest.mark.asyncio
 async def test_spawn_background_raises_when_executor_lacks_spawn() -> None:
     """Executors without spawn_background_process surface BACKGROUND_UNSUPPORTED."""
-    from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import BashExecutionError
+    from myrm_agent_harness.agent.meta_tools.bash._executor.error import BashExecutionError
 
     executor = _mock_executor()
     del executor.spawn_background_process
@@ -171,7 +171,7 @@ async def test_spawn_background_raises_when_executor_lacks_spawn() -> None:
 async def test_spawn_background_raises_on_quota_exceeded() -> None:
     """BackgroundQuotaError kills the spawned proc and raises BashExecutionError."""
     from myrm_agent_harness.agent.meta_tools.bash._background.registry import BackgroundQuotaError
-    from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import BashExecutionError
+    from myrm_agent_harness.agent.meta_tools.bash._executor.error import BashExecutionError
 
     executor = _mock_executor()
     proc = MagicMock()

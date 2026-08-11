@@ -1,6 +1,6 @@
 """Command Classifier单元测试"""
 
-from myrm_agent_harness.agent.meta_tools.bash.command_classifier import CommandClassifier, CommandType, RiskLevel
+from myrm_agent_harness.agent.meta_tools.bash._executor.command_classifier import CommandClassifier, CommandType, RiskLevel
 
 
 class TestCommandClassifier:

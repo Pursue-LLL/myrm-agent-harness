@@ -26,6 +26,9 @@ Recording quality notes:
   selection/cancellation) are not recorded as page-level actions.
 - Unchanged or empty values are dropped (no-op focus, clear-without-commit).
 - Enter-press clicks are deduplicated via a keyboard-activation window.
+- Multi-select records every selected option value plus its readable label
+  (option label, falling back to text/value) so generated skills are both
+  lossless and self-describing; single-value selects stay minimal.
 - Autocomplete/typeahead option clicks fold into the active fill session.
 - Clicks on search/chat chrome that only focus the nearby input fold into the
   fill session (search-style selectors only; form submit buttons unaffected).
@@ -203,6 +206,7 @@ class ActionCaptureEngine:
             element_role=data.get("elementRole", ""),
             is_password=data.get("isPassword", False),
             modifiers=data.get("modifiers", []),
+            label=data.get("label", ""),
         )
 
         self._session.add_step(step)

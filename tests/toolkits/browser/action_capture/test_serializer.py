@@ -64,6 +64,25 @@ class TestSerializeStep:
         d = serialize_step(step)
         assert d["is_password"] is True
 
+    def test_serialize_step_includes_label(self) -> None:
+        step = ActionStep(
+            seq=1,
+            action=ActionType.SELECT,
+            selector="#lang",
+            value="en; zh",
+            label="English, Chinese",
+            url="https://example.com",
+            title="",
+            timestamp=1000.0,
+        )
+        d = serialize_step(step)
+        assert d["label"] == "English, Chinese"
+
+    def test_serialize_step_label_default_empty(self) -> None:
+        step = _make_step()
+        d = serialize_step(step)
+        assert d["label"] == ""
+
 
 class TestSerializeSession:
     def test_empty_session(self) -> None:
@@ -90,6 +109,26 @@ class TestNaturalLanguage:
         nl = step_to_natural_language(step)
         assert "Submit" in nl
         assert "button" in nl
+
+    def test_click_empty_role_falls_back_to_element(self) -> None:
+        step = _make_step(
+            action=ActionType.CLICK,
+            element_text="Submit",
+            element_role="",
+        )
+        nl = step_to_natural_language(step)
+        assert nl == 'Click on "Submit" (element)'
+        assert "()" not in nl
+
+    def test_dblclick_empty_role_falls_back_to_element(self) -> None:
+        step = _make_step(
+            action=ActionType.DBLCLICK,
+            element_text="Submit",
+            element_role="",
+        )
+        nl = step_to_natural_language(step)
+        assert nl == 'Double-click on "Submit" (element)'
+        assert "()" not in nl
 
     def test_type(self) -> None:
         step = _make_step(action=ActionType.TYPE, value="hello", element_role="textbox")
@@ -184,6 +223,46 @@ class TestNaturalLanguage:
         step = _make_step()
         d = serialize_step(step)
         assert d["modifiers"] == []
+
+    def test_select_without_label(self) -> None:
+        step = _make_step(action=ActionType.SELECT, value="option-a")
+        nl = step_to_natural_language(step)
+        assert nl == 'Select "option-a" from button "Submit"'
+
+    def test_select_with_label(self) -> None:
+        step = ActionStep(
+            seq=1,
+            action=ActionType.SELECT,
+            selector="#lang",
+            value="en; zh",
+            label="English, Chinese",
+            url="https://example.com",
+            title="",
+            timestamp=1000.0,
+        )
+        nl = step_to_natural_language(step)
+        assert nl == 'Select "en; zh" (English, Chinese) from element "#lang"'
+
+    def test_select_multi_value_without_label(self) -> None:
+        step = _make_step(action=ActionType.SELECT, value="a; b")
+        nl = step_to_natural_language(step)
+        assert nl == 'Select "a; b" from button "Submit"'
+
+    def test_select_label_equals_element_text_drops_redundant_context(self) -> None:
+        step = ActionStep(
+            seq=1,
+            action=ActionType.SELECT,
+            selector="#lang",
+            value="en",
+            label="English",
+            element_text="English",
+            element_role="select",
+            url="https://example.com",
+            title="",
+            timestamp=1000.0,
+        )
+        nl = step_to_natural_language(step)
+        assert nl == 'Select "en" (English)'
 
     def test_steps_to_natural_language(self) -> None:
         steps = [

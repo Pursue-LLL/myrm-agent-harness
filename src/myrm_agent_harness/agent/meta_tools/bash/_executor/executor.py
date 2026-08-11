@@ -5,7 +5,7 @@
 - .background_mixin::BashExecutorBackgroundMixin (POS: Background spawn via process registry.)
 - .prepare_mixin::BashExecutorPrepareMixin (POS: MCP proxy, code-type detection, skill staging.)
 - .context_mixin::BashExecutorContextMixin (POS: ExecutionContext build, logging, artifacts.)
-- .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
+- .error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 - .constants::MCP_MIN_TIMEOUT (POS: MCP skill execution timeout floor.)
 
 [OUTPUT]
@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.error import (
     BashExecutionError,
 )
 from myrm_agent_harness.agent.meta_tools.bash._executor.background_mixin import (

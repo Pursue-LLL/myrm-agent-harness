@@ -11,6 +11,7 @@ with various LLMs.
 - canonicalize_schema_for_cache: Deterministic key ordering for prompt prefix cache stability.
 - flatten_json_schema: Resolves $ref pointers inline securely.
 - flatten_top_level_composite: Merges top-level anyOf/oneOf/allOf object branches into a flat properties set (with exclusivity hints).
+- primary_json_type: Returns the primary non-null JSON type token for a property (shared by Pydantic annotation inference).
 - analyze_schema_complexity: Measures leaf count and max depth.
 - flatten_deep_schema: Flattens deeply-nested schemas to dot-path notation.
 - nest_flat_arguments: Restores dot-path args to nested structure for dispatch.
@@ -281,6 +282,18 @@ def prepare_mcp_call_arguments(
         ):
             prepared[key] = None
     return prepared
+
+
+def primary_json_type(schema: dict[str, Any]) -> str:
+    """Return the primary JSON Schema type token for a property.
+
+    Collapses nullable unions (``anyOf``/``oneOf`` with a ``null`` branch) and
+    array ``type`` forms (``["object", "null"]``) to the first non-null
+    variant. Unknown or all-null schemas fall back to ``"string"`` (permissive,
+    never blocks a call). Shared by ``tool_converter`` for Pydantic annotation
+    inference; coercion keeps its own nullable-aware helpers.
+    """
+    return _primary_non_null_type(schema) or "string"
 
 
 def _primary_non_null_type(schema: dict[str, Any]) -> str | None:

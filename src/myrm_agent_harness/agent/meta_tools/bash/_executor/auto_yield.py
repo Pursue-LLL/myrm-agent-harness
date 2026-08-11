@@ -2,7 +2,7 @@
 
 [INPUT]
 - agent.goals.wait_background_bash::is_wait_eligible_command (POS: build/test whitelist SSOT)
-- ._background.registry::get_background_registry (POS: poll partial output)
+- .._background.registry::get_background_registry (POS: poll partial output)
 
 [OUTPUT]
 - DEFAULT_YIELD_AFTER_SECONDS: Profile-aligned default when arg omitted

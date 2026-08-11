@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.error import (
     BashExecutionError,
 )
 from myrm_agent_harness.agent.meta_tools.bash._executor.executor import BashExecutor

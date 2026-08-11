@@ -499,7 +499,13 @@ class Interactor:
                 return f"Focused {ref}{healed_msg}"
 
             elif action == "select":
-                await locator.select_option(text, timeout=_INTERACTION_TIMEOUT_MS)
+                # Recorded multi-select steps join option values with "; " —
+                # split them so every option is selected instead of trying to
+                # match a single blob that no option equals.
+                values: str | list[str] = (
+                    [v.strip() for v in text.split(";")] if ";" in text else text
+                )
+                await locator.select_option(values, timeout=_INTERACTION_TIMEOUT_MS)
                 return f"Selected '{text}' in {ref}{healed_msg}"
 
             elif action == "scroll":

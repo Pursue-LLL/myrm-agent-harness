@@ -4,7 +4,7 @@
 - toolkits.code_execution.code_detector::code_detector, CodeType (POS: Code type detector)
 - agent.skills.mcp.executor::skill_executor (POS: Skill MCP execution bridge)
 - agent.skills.runtime.command_paths::rewrite_skill_paths, detect_skill_script_command (POS: Skill command path utilities)
-- .bash_execution_error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
+- .error::BashExecutionError (POS: Shared error type for BashExecutor mixins and bash_code_execute_tool error surfacing)
 - .constants::MCP_MIN_TIMEOUT (POS: MCP timeout floor)
 
 [OUTPUT]
@@ -21,7 +21,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.meta_tools.bash.bash_execution_error import (
+from myrm_agent_harness.agent.meta_tools.bash._executor.error import (
     BashExecutionError,
 )
 from myrm_agent_harness.agent.meta_tools.bash._executor.constants import (
