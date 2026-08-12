@@ -165,7 +165,7 @@ def normalize_usage(usage: Any) -> dict[str, Any]:
     if isinstance(usage, dict):
         return usage
     if hasattr(usage, "model_dump"):
-        return usage.model_dump()
+        return dict(usage.model_dump())
     return {
         "prompt_tokens": getattr(usage, "prompt_tokens", 0),
         "completion_tokens": getattr(usage, "completion_tokens", 0),

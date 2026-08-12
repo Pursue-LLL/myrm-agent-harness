@@ -3547,6 +3547,53 @@ class TestListChildrenDetails:
         assert children[0]["agent_type"] == "search"
         assert children[0]["status"] in ("completed", "failed")
 
+    @pytest.mark.asyncio
+    async def test_list_children_hides_internal_nodes(self) -> None:
+        """Internal nodes (verification workers/verifiers) never surface in list_children."""
+        agent = BaseAgent(llm=FakeLLM())
+        manager = agent._subagent_manager
+
+        config = SubagentConfig(
+            tools=SUBAGENT_CONFIGS["search"].tools,
+            system_prompt="test",
+            timeout_seconds=10,
+            max_retries=0,
+        )
+
+        await manager.spawn_child(
+            task_id="biz_task_1",
+            agent_type="search",
+            task_description="business task",
+            config=config,
+            context={
+                "session_id": "s",
+                "workspace_path": "/tmp",
+                "workspaces_storage_root": "/tmp",
+            },
+            tool_registry_getter=lambda: [FakeSearchTool()],
+            wait=True,
+        )
+        await manager.spawn_child(
+            task_id="verify-worker-1-search",
+            agent_type="search",
+            task_description="verify round 1",
+            config=config,
+            context={
+                "session_id": "s",
+                "workspace_path": "/tmp",
+                "workspaces_storage_root": "/tmp",
+            },
+            tool_registry_getter=lambda: [FakeSearchTool()],
+            wait=True,
+            internal=True,
+        )
+
+        children = manager.list_children()
+        task_ids = {c["task_id"] for c in children}
+        assert "biz_task_1" in task_ids
+        assert "verify-worker-1-search" not in task_ids
+        assert "verify-worker-1-search" not in manager._children_results
+
 
 # ---------------------------------------------------------------------------
 # Drain notifications

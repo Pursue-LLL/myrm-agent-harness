@@ -56,7 +56,7 @@ from myrm_agent_harness.toolkits.llms.utils.litellm_utils import (
 logger = logging.getLogger(__name__)
 
 
-def lc_tool_call_to_openai_tool_call(tool_call: ToolCall) -> dict:
+def lc_tool_call_to_openai_tool_call(tool_call: ToolCall) -> dict[str, Any]:
     """将 LangChain   ToolCall Convert is  OpenAI Format"""
     return {
         "type": "function",
@@ -69,7 +69,7 @@ def lc_tool_call_to_openai_tool_call(tool_call: ToolCall) -> dict:
     }
 
 
-def ensure_arguments_json_string(tool_calls: list[dict]) -> list[dict]:
+def ensure_arguments_json_string(tool_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """ensure  tool_calls  in   arguments 是Valid  JSON string。
 
     Handles dict→JSON conversion, None→"{}", and validates existing strings.
@@ -101,7 +101,7 @@ def ensure_arguments_json_string(tool_calls: list[dict]) -> list[dict]:
     return result
 
 
-def convert_message_to_dict(message: BaseMessage) -> dict:
+def convert_message_to_dict(message: BaseMessage) -> dict[str, Any]:
     """将 LangChain 消息Convert is  LiteLLM DictFormat"""
     message_dict: dict[str, Any] = {"content": message.content}
     if isinstance(message, ChatMessage):

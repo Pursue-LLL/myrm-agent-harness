@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from acp.schema import PromptResponse
+from acp.schema import AgentMessageChunk, PromptResponse
 
 from myrm_agent_harness.toolkits.acp.server.bridge import AgentBridge, AgentFactory
 
@@ -114,6 +114,16 @@ class TestPromptExecution:
 
         await bridge.prompt(sid, "hello", conn)
         assert conn.session_update.call_count >= 1
+
+        # 回归保护：session_update 必须按 (session_id, update) 拆分传入，
+        # 而非把整个 SessionNotification 对象作为单一参数（曾因误用
+        # conn.session_notification(notification) 导致通知静默失败）。
+        first_call = conn.session_update.call_args
+        assert first_call is not None
+        call_sid, call_update = first_call.args
+        assert call_sid == sid
+        assert isinstance(call_update, AgentMessageChunk)
+        assert call_update.session_update == "agent_message_chunk"
 
     @pytest.mark.asyncio
     async def test_prompt_error_returns_end_turn(self) -> None:

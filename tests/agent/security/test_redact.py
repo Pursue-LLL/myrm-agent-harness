@@ -568,6 +568,13 @@ class TestRedactYamlColon:
         assert "hunter2" not in result
         assert "spring.datasource.password:" in result
 
+    def test_yaml_quoted_value(self) -> None:
+        """`password: "hunter2!"` 引号值必须脱敏且保留引号结构。"""
+        text = '  password: "hunter2!"'
+        result = redact_sensitive_text(text)
+        assert "hunter2!" not in result
+        assert 'password: "***"' in result
+
     def test_yaml_keyword_in_value_not_redacted(self) -> None:
         """关键词在 value（`note: secret meeting`）不得误伤。"""
         text = "note: secret meeting"

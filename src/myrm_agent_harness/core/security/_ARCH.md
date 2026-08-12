@@ -11,7 +11,7 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | audit.py | Core | Audit log writer — records security events to structured log. | ✅ |
 | execution_policy.py | Core | Execution policy enums and interception contracts. | ✅ |
 | path_security.py | Core | Path security — dangerous path sets, boundary checks, safe path joining. | ✅ |
-| redact.py | Core | Output redaction layer — token prefixes, ENV/JSON/Auth/header/URL userinfo/query/bare-token/JWT + control-split bypass guard. | ✅ |
+| redact.py | Core | Output redaction layer — token prefixes, ENV/JSON/Auth/header/URL userinfo/query/bare-token/JWT, YAML/colon + form-urlencoded configs, word-boundary key validation + control-split bypass guard. | ✅ |
 | safe_exec.py | Core | Safe execution primitives — sandboxed code evaluation with resource limits. | ✅ |
 | tool_registry.py | Core | Tool metadata registry — permission mapping, canonical params, safety metadata, canonical tool group mapping (TOOL_GROUP_MAP/TOOL_TO_GROUP for skill conditional activation). | ✅ |
 | tool_registry_safety.py | Internal | Module-load built-in tool safety metadata coverage check. | ✅ |

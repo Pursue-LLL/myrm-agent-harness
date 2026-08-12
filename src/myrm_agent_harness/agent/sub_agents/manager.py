@@ -249,7 +249,11 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
     def _save_all_checkpoints(self) -> None:
         """Save checkpoints for all running children (delegated to checkpoint manager)."""
         self._checkpoint_manager.save_all_checkpoints(
-            self._children,
+            {
+                task_id: task
+                for task_id, task in self._children.items()
+                if not self._children_internal.get(task_id, False)
+            },
             self._children_agents,
             self._children_configs,
             children_types=self._children_types,
@@ -442,11 +446,12 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         except Exception:
             pass
 
-        self._notification_manager.add_notification(result, now)
+        if not internal:
+            self._notification_manager.add_notification(result, now)
         session_id = ""
         if hasattr(self._parent_agent, "session_id"):
             session_id = str(getattr(self._parent_agent, "session_id", ""))
-        if session_id:
+        if session_id and not internal:
             from myrm_agent_harness.agent.coordination.mailbox import (
                 unregister_active_teammate,
             )

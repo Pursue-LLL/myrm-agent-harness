@@ -10,7 +10,7 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import (
-    _DEVELOPER_ROLE_PATTERN,
+    DEVELOPER_ROLE_PATTERN,
     ChatLiteLLM,
 )
 
@@ -53,7 +53,7 @@ class TestDeveloperRolePattern:
         ],
     )
     def test_pattern_matches_developer_role_models(self, model_name: str) -> None:
-        assert _DEVELOPER_ROLE_PATTERN.match(model_name), (
+        assert DEVELOPER_ROLE_PATTERN.match(model_name), (
             f"Expected pattern to match '{model_name}'"
         )
 
@@ -77,7 +77,7 @@ class TestDeveloperRolePattern:
         ],
     )
     def test_pattern_rejects_non_developer_role_models(self, model_name: str) -> None:
-        assert not _DEVELOPER_ROLE_PATTERN.match(model_name), (
+        assert not DEVELOPER_ROLE_PATTERN.match(model_name), (
             f"Expected pattern to NOT match '{model_name}'"
         )
 

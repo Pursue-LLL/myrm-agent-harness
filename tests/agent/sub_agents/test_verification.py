@@ -791,6 +791,120 @@ class TestRunWithVerification:
         assert "Verification: FAIL after 1 round(s)" in result.result
         assert result.success is False, "Verification failure must set success=False"
 
+    @pytest.mark.asyncio
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_business_task_id_first_worker_visible_retries_internal(
+        self, mock_get_executor
+    ):
+        """With a business task_id, the first worker runs under that id (visible),
+        while retry workers and verifiers spawn as internal nodes."""
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
+        mgr = MagicMock()
+        spawned: list[tuple[str, bool]] = []
+
+        async def _spawn(**kwargs):
+            spawned.append((kwargs["task_id"], kwargs.get("internal", False)))
+            tid = kwargs["task_id"]
+            if "worker" in tid:
+                return _ok(tid, kwargs["agent_type"], "work output")
+            if len(spawned) == 2:
+                return _ok(
+                    tid,
+                    kwargs["agent_type"],
+                    _verdict_json("FAIL", "Issues found", "HIGH"),
+                )
+            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH"))
+
+        mgr.spawn_child = _spawn
+        w_cfg = SubagentConfig(system_prompt="worker")
+        v_cfg = SubagentConfig(system_prompt="verifier")
+
+        result = await run_with_verification(
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=3,
+            task_id="biz-1234",
+        )
+        assert result.success
+        assert result.task_id == "biz-1234"
+        assert result.internal is False
+
+        assert spawned[0] == ("biz-1234", False), "first worker reuses business id, visible"
+        # Round 1 verifier, round 2 worker, round 2 verifier are all internal
+        assert all(internal for _, internal in spawned[1:]), spawned
+
+    @pytest.mark.asyncio
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_pass_first_round_keeps_business_task_id(self, mock_get_executor):
+        """PASS on the first round returns the business node with its id intact."""
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
+        mgr = MagicMock()
+
+        async def _spawn(**kwargs):
+            tid = kwargs["task_id"]
+            if "worker" in tid:
+                return _ok(tid, kwargs["agent_type"], "work output")
+            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH"))
+
+        mgr.spawn_child = _spawn
+        w_cfg = SubagentConfig(system_prompt="worker")
+        v_cfg = SubagentConfig(system_prompt="verifier")
+
+        result = await run_with_verification(
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=2,
+            task_id="biz-5678",
+        )
+        assert result.success
+        assert result.task_id == "biz-5678"
+        assert result.internal is False
+        assert result.verification is not None
+        assert result.verification.passed is True
+
+    @pytest.mark.asyncio
+    async def test_no_task_id_keeps_internal_worker_ids(self):
+        """Without a business task_id, every spawned worker is internal."""
+        mgr = MagicMock()
+        spawned: list[tuple[str, bool]] = []
+
+        async def _spawn(**kwargs):
+            spawned.append((kwargs["task_id"], kwargs.get("internal", False)))
+            tid = kwargs["task_id"]
+            if "worker" in tid:
+                return _ok(tid, kwargs["agent_type"], "work output")
+            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH"))
+
+        mgr.spawn_child = _spawn
+        w_cfg = SubagentConfig(system_prompt="worker")
+        v_cfg = SubagentConfig(system_prompt="verifier")
+
+        result = await run_with_verification(
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=2,
+        )
+        assert result.success
+        assert all(internal for _, internal in spawned), spawned
+
 
 class TestVerifyWorkerOutput:
     @pytest.mark.asyncio
@@ -818,3 +932,39 @@ class TestVerifyWorkerOutput:
         )
         assert verdict.passed is False
         assert "failed to complete" in verdict.summary
+
+
+class TestSubAgentResultInternal:
+    def test_internal_defaults_false(self):
+        r = SubAgentResult(success=True, task_id="t1", agent_type="w")
+        assert r.internal is False
+
+    def test_internal_excluded_from_to_dict_when_false(self):
+        r = SubAgentResult(success=True, task_id="t1", agent_type="w")
+        assert "internal" not in r.to_dict()
+
+    def test_internal_serialized_when_true(self):
+        r = SubAgentResult(
+            success=True,
+            task_id="t1",
+            agent_type="w",
+            completed_at=100.0,
+            internal=True,
+        )
+        d = r.to_dict()
+        assert d["internal"] is True
+
+    def test_verifier_result_dict_marks_internal(self):
+        """dict-shaped spawn results from internal verifiers keep the flag."""
+        from myrm_agent_harness.agent.sub_agents._orchestrator_verification import (
+            _spawn_dict_to_subagent_result,
+        )
+
+        r = _spawn_dict_to_subagent_result(
+            {"success": True, "result": "out", "error": ""},
+            task_id="verify-check-1-v",
+            agent_type="v",
+        )
+        assert r.internal is False  # conversion itself is neutral
+        r.internal = True  # set by callers after conversion
+        assert r.to_dict()["internal"] is True

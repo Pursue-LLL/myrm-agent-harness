@@ -106,7 +106,6 @@ async def _execute_verifier_round(
 
     verifier_task_id = f"verify-check-{round_num}-{verifier_type}"
     workspace_path = context.get("workspace_path")
-
     workspace_diff = ""
     if pre_snapshot and workspace_path and isinstance(workspace_path, str):
         try:
@@ -179,6 +178,7 @@ async def _execute_verifier_round(
             tool_registry_getter=verifier_tool_registry_getter,
             wait=True,
             cancel_token=cancel_token,
+            internal=True,
         )
 
     tracked_executor = proxy_executor or current_executor
@@ -193,7 +193,10 @@ async def _execute_verifier_round(
             result=str(verifier_result.get("result", "")),
             completed_at=time.time(),
             status=SubAgentStatus.COMPLETED,
+            internal=True,
         )
+    elif verifier_result is not None:
+        verifier_result.internal = True
 
     if not verifier_result.success:
         logger.warning(

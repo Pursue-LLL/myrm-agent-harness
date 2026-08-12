@@ -194,15 +194,16 @@ _ENV_ASSIGN_LOWER_RE = re.compile(
     re.IGNORECASE,
 )
 
-# YAML / 冒号式配置（`password: secret`、`spring.datasource.password: hunter2`）。
-# secret 关键词必须在 key 中（锚定行首/缩进），value 为单个无空白 token——
-# `note: secret meeting`（关键词在 value）与 `error: token expired` 不匹配。
-# 裸 `auth` 排除在 key 名单外，`Authorization:`/`author:` 不误伤（前者由
-# _AUTH_HEADER_RE 处理）；`auth_token`/`auth-token` 经 `token` 关键词仍匹配。
-# 带引号的 value 让给 _JSON_FIELD_RE（lookahead 跳过）。
+# YAML / 冒号式配置（`password: secret`、`spring.datasource.password: hunter2`、
+# `password: "hunter2!"`）。secret 关键词必须在 key 中（锚定行首/缩进），value
+# 为单个无空白 token——`note: secret meeting`（关键词在 value）与
+# `error: token expired` 不匹配。裸 `auth` 排除在 key 名单外，`Authorization:`/
+# `author:` 不误伤（前者由 _AUTH_HEADER_RE 处理）；`auth_token`/`auth-token` 经
+# `token` 关键词仍匹配。可选引号保留引号结构（quoted 值含空格的极罕见场景不匹配，
+# 与 JSON 的 `"password"` key 形式互斥）。
 _YAML_CFG_NAMES = r"(?:api[ _.\-]?key|token|secret|passwd|password|credential)"
 _YAML_ASSIGN_RE = re.compile(
-    rf"(^[ \t]*+[A-Za-z0-9_.\-]*{_YAML_CFG_NAMES}[A-Za-z0-9_.\-]*+)(:[ \t]*+)(?!['\"])([^\s&]++)",
+    rf"(^[ \t]*+[A-Za-z0-9_.\-]*{_YAML_CFG_NAMES}[A-Za-z0-9_.\-]*+)(:[ \t]*+)(['\"]?)([^\s&]+)\3",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -467,18 +468,19 @@ def _redact_lower_env_assignment(m: re.Match[str]) -> str:
 
 
 def _redact_yaml_assignment(m: re.Match[str]) -> str:
-    """Replacement for _YAML_ASSIGN_RE — skip programmatic lookups and prose keys.
+    """Replacement for _YAML_ASSIGN_RE / _YAML_QUOTED_ASSIGN_RE.
 
-    ``api_key: os.getenv('X')`` references a variable name (issue #2852);
-    ``secretary: J.Smith`` / ``tokenizer: cl100k_base`` embed a keyword
-    mid-word (issue #6129). Both pass through unchanged.
+    Skip programmatic lookups and prose keys. ``api_key: os.getenv('X')``
+    references a variable name (issue #2852); ``secretary: J.Smith`` /
+    ``tokenizer: cl100k_base`` embed a keyword mid-word (issue #6129). Both
+    pass through unchanged. Quoted values keep their quotes.
     """
-    key, sep, value = m.group(1), m.group(2), m.group(3)
+    key, sep, quote, value = m.group(1), m.group(2), m.group(3), m.group(4)
     if _ENV_LOOKUP_VALUE_RE.match(value):
         return m.group(0)
     if not _key_has_secret_keyword(key):
         return m.group(0)
-    return f"{key}{sep}{_mask_token(value)}"
+    return f"{key}{sep}{quote}{_mask_token(value)}{quote}"
 
 
 def redact_sensitive_text(text: str) -> str:
@@ -517,8 +519,8 @@ def redact_sensitive_text(text: str) -> str:
 
     text = _replace_pattern_bounded(text, _JSON_FIELD_RE, lambda m: f'{m.group(1)}: "{_mask_token(m.group(2))}"')
 
-    # Unquoted YAML / colon config（`password: secret`）。在 JSON 之后——quoted value
-    # 已由 _JSON_FIELD_RE 处理，lookahead 跳过引号。URL（含 `://`）不放行 YAML 误伤。
+    # Unquoted / quoted YAML-colon config（`password: secret`、`password: "hunter2!"`）。
+    # URL（含 `://`）不放行 YAML 误伤。
     if "://" not in text:
         text = _replace_pattern_bounded(text, _YAML_ASSIGN_RE, _redact_yaml_assignment)
 

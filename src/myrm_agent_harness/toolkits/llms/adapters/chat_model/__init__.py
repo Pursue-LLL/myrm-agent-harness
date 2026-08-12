@@ -17,7 +17,7 @@ LangChain LiteLLM chat-model adapter layer.
 """
 
 from .exceptions import (
-    _DEVELOPER_ROLE_PATTERN,
+    DEVELOPER_ROLE_PATTERN,
     EmptyChoicesError,
     EmptyStreamError,
     StreamStallTimeoutError,
@@ -25,7 +25,7 @@ from .exceptions import (
 from .model import ChatLiteLLM, clean_model_kwargs
 
 __all__ = [
-    "_DEVELOPER_ROLE_PATTERN",
+    "DEVELOPER_ROLE_PATTERN",
     "ChatLiteLLM",
     "EmptyChoicesError",
     "EmptyStreamError",

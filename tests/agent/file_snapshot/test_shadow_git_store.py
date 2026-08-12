@@ -381,10 +381,19 @@ async def test_list_snapshots_parses_trigger(store: ShadowGitSnapshotStore, work
 
 @pytest.mark.asyncio
 async def test_list_snapshots_parses_description(store: ShadowGitSnapshotStore, workspace: Path):
-    """Description should appear in the listed snapshot."""
+    """Description should surface the business text without the internal format prefix."""
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "my custom desc")
     snaps = await store.list_snapshots(str(workspace))
-    assert "my custom desc" in snaps[0].description
+    assert snaps[0].description == "my custom desc"
+
+
+@pytest.mark.asyncio
+async def test_list_snapshots_empty_description_has_no_prefix(store: ShadowGitSnapshotStore, workspace: Path):
+    """A snapshot with an empty description must not leak the stored line prefix."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.EXECUTE_TERMINAL, "")
+    snaps = await store.list_snapshots(str(workspace))
+    assert snaps[0].description == ""
+    assert "snapshot" not in snaps[0].description
 
 
 # ------------------------------------------------------------------

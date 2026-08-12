@@ -206,6 +206,7 @@ class SubagentSpawnMixin:
                 parent_progress_sink=parent_progress_sink,
                 complexity_tier=complexity_tier,
                 on_running_token_usage=lambda usage: self.patch_child_running_token_usage(task_id, usage),
+                internal=bool(self._children_internal.get(task_id, False)),
             )
         finally:
             self._cancel_flags.pop(task_id, None)
@@ -295,7 +296,7 @@ class SubagentSpawnMixin:
             if isinstance(parent_ctx, dict):
                 session_id = str(parent_ctx.get("session_id", "") or "")
 
-        if session_id:
+        if session_id and not internal:
             from .manager import ACTIVE_SUBAGENT_SESSIONS
 
             ACTIVE_SUBAGENT_SESSIONS[task_id] = session_id
@@ -349,7 +350,10 @@ class SubagentSpawnMixin:
                 if isinstance(result, SubAgentResult) and internal:
                     result.internal = True
                 sink = get_tool_progress_sink()
-                if sink:
+                # Internal nodes never drain the shared notification queue (their own
+                # notifications are suppressed) and emit no completion event, so they
+                # cannot steal notifications meant for sibling business nodes.
+                if sink and not internal:
                     notif_text = self.drain_notifications()  # type: ignore[attr-defined]
                     if notif_text:
                         await sink.emit(

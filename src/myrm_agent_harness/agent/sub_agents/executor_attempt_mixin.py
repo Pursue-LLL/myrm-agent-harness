@@ -95,6 +95,7 @@ class SubagentExecutorAttemptMixin:
         parent_progress_sink: ToolProgressSink | None = None,
         complexity_tier: str | None = None,
         on_running_token_usage: Callable[[dict[str, object]], None] | None = None,
+        internal: bool = False,
     ) -> SubAgentResult:
         """Execute one child-agent attempt. Raises on failure for retry."""
         parent_tools = tool_registry_getter()
@@ -142,14 +143,17 @@ class SubagentExecutorAttemptMixin:
         # Ensure subagent uses its own thread_id for checkpointing
         context["approval_session_key"] = task_id
 
-        # Create event forwarder for progress tracking and event routing
+        # Create event forwarder for progress tracking and event routing.
+        # Framework-internal nodes (verification workers/verifiers) stay silent:
+        # their events never reach user-facing trees or message timelines.
         event_forwarder = SubagentEventForwarder(
             task_id,
             agent_type,
             config,
             start_time,
-            parent_progress_sink=parent_progress_sink,
+            parent_progress_sink=parent_progress_sink if not internal else None,
             on_running_token_usage=on_running_token_usage,
+            internal=internal,
         )
 
         # Critical: Mark execution context as subagent to prevent approval deadlocks

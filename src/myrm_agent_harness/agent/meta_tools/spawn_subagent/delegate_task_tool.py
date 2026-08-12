@@ -440,6 +440,7 @@ def create_delegate_task_tool(
                         max_rounds=max_verification_rounds,
                         verifier_task_template=verifier_prompt,
                         cancel_token=cancel_token,
+                        task_id=task_id,
                     )
                 else:
                     result = await parent_agent._spawn_child(

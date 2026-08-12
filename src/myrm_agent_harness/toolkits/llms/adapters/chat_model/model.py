@@ -50,13 +50,19 @@ from operator import itemgetter
 from typing import (
     Any,
     TypeVar,
+    cast,
 )
 
 from langchain_core.language_models import LanguageModelInput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.output_parsers import JsonOutputParser, PydanticOutputParser
-from langchain_core.runnables import Runnable, RunnableMap, RunnablePassthrough
+from langchain_core.runnables import (
+    Runnable,
+    RunnableConfig,
+    RunnableMap,
+    RunnablePassthrough,
+)
 from langchain_core.tools import BaseTool
 from langchain_core.utils import get_from_dict_or_env
 from langchain_core.utils.function_calling import convert_to_openai_tool
@@ -67,8 +73,8 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin import (
     ChatLiteLLMAsyncMixin,
 )
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
-    _DEVELOPER_ROLE_PATTERN,
     _FRAMEWORK_REQUIRED_OPENAI_PARAMS,
+    DEVELOPER_ROLE_PATTERN,
     EmptyChoicesError,
     EmptyStreamError,
     StreamStallTimeoutError,
@@ -93,7 +99,7 @@ _BM = TypeVar("_BM", bound=BaseModel)
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "_DEVELOPER_ROLE_PATTERN",
+    "DEVELOPER_ROLE_PATTERN",
     "ChatLiteLLM",
     "EmptyChoicesError",
     "EmptyStreamError",
@@ -208,9 +214,15 @@ class ChatLiteLLM(
     @property
     def _client_params(self) -> dict[str, Any]:
         set_model_value = self.model_name or self.model
-        self.client.api_base = self.api_base
-        self.client.api_key = self.api_key or self.openai_api_key
-        self.client.organization = self.organization
+        client = self.client
+        if client is None:
+            raise RuntimeError("LiteLLM client not initialized")
+        # litellm is a dynamically-typed module; cast silences static property
+        # lookups that cannot be resolved from types.ModuleType.
+        litellm_client = cast(Any, client)
+        litellm_client.api_base = self.api_base
+        litellm_client.api_key = self.api_key or self.openai_api_key
+        litellm_client.organization = self.organization
         creds: dict[str, Any] = {
             "model": set_model_value,
             "force_timeout": self.request_timeout,
@@ -325,17 +337,24 @@ class ChatLiteLLM(
 
     @staticmethod
     def clean_model_kwargs(
-        kwargs: dict, model: str, additional_remove_keys: list[str] | None = None
-    ) -> dict:
-        return utils_clean_model_kwargs(kwargs, model, additional_remove_keys)
+        kwargs: dict[str, Any],
+        model: str,
+        additional_remove_keys: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return dict(utils_clean_model_kwargs(kwargs, model, additional_remove_keys))
 
     def _get_model_name(self) -> str:
         return getattr(self, "model", "") or getattr(self, "model_name", "") or ""
 
-    async def ainvoke(self, input, config=None, **kwargs):
+    async def ainvoke(
+        self,
+        input: LanguageModelInput,
+        config: RunnableConfig | None = None,
+        **kwargs: Any,
+    ) -> AIMessage:
         logger.debug(f"ainvoke kwargs keys: {list(kwargs.keys())}")
         if "tools" in kwargs:
-            logger.debug(f"ainvoke tools count: {len(kwargs.get('tools', []))}")  # type: ignore[override]
+            logger.debug(f"ainvoke tools count: {len(kwargs.get('tools', []))}")
         if kwargs.get("_in_fallback", False):
             return await super().ainvoke(
                 input, config, **self.clean_model_kwargs(kwargs, self._get_model_name())
@@ -374,7 +393,7 @@ class ChatLiteLLM(
         *,
         include_raw: bool = False,
         **kwargs: Any,
-    ) -> Runnable[LanguageModelInput, dict | _BM]:
+    ) -> Runnable[LanguageModelInput, dict[str, Any] | _BM]:
         if kwargs:
             raise ValueError(f"Received unsupported arguments {kwargs}")
 
@@ -393,9 +412,9 @@ class ChatLiteLLM(
         if is_pydantic_schema:
             # schema is guaranteed to be Type[BaseModel] when is_pydantic_schema is True
             output_parser: (
-                PydanticOutputParser | JsonOutputParser
+                PydanticOutputParser[BaseModel] | JsonOutputParser
             ) = PydanticOutputParser(
-                pydantic_object=schema  # type: ignore
+                pydantic_object=cast(type[BaseModel], schema)
             )
         else:
             output_parser = JsonOutputParser()
@@ -471,6 +490,8 @@ class ChatLiteLLM(
 
 
 def clean_model_kwargs(
-    kwargs: dict, model: str, additional_remove_keys: list[str] | None = None
-) -> dict:
+    kwargs: dict[str, Any],
+    model: str,
+    additional_remove_keys: list[str] | None = None,
+) -> dict[str, Any]:
     return ChatLiteLLM.clean_model_kwargs(kwargs, model, additional_remove_keys)

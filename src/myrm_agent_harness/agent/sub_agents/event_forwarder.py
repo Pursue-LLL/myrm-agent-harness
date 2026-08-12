@@ -44,6 +44,7 @@ class SubagentEventForwarder:
         start_time: float,
         parent_progress_sink: ToolProgressSink | None = None,
         on_running_token_usage: Callable[[dict[str, object]], None] | None = None,
+        internal: bool = False,
     ) -> None:
         self.task_id = task_id
         self.agent_type = agent_type
@@ -52,6 +53,8 @@ class SubagentEventForwarder:
         # Subagent runs in a child task: ContextVar sink targets the child queue; SSE uses the parent queue.
         self._parent_progress_sink = parent_progress_sink
         self._on_running_token_usage = on_running_token_usage
+        # Framework-internal nodes emit no progress/log/stale events to the user.
+        self._internal = internal
 
         # Progress tracking state
         self.cumulative_tokens = 0
@@ -79,6 +82,8 @@ class SubagentEventForwarder:
         return (time.time() - self._last_effective_progress_at) > threshold
 
     def _active_sink(self) -> ToolProgressSink | None:
+        if self._internal:
+            return None
         if self._parent_progress_sink is not None:
             return self._parent_progress_sink
         return get_tool_progress_sink()

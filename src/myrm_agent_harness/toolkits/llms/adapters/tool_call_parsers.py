@@ -24,7 +24,7 @@ import contextlib
 import json
 import logging
 import re
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, TypedDict, cast
 from uuid import uuid4
 
 logger = logging.getLogger(__name__)
@@ -149,7 +149,7 @@ def _parse_openai_format(response_dict: LLMResponseDict | dict[str, Any]) -> lis
             if "_vtx" not in original_id:
                 tc["id"] = f"{original_id}_vtx{uuid4().hex[:4]}"
 
-    return raw_tool_calls  # type: ignore[return-value]
+    return raw_tool_calls
 
 
 def _parse_glm_xml_format(reasoning_content: str) -> list[ToolCallDict]:
@@ -369,7 +369,10 @@ def _parse_xml_parameter_value(
 
     # Try parsing as JSON (arrays, objects, booleans, numbers, etc.)
     try:
-        return json.loads(value_str)
+        return cast(
+            "str | int | float | bool | list[Any] | dict[str, Any]",
+            json.loads(value_str),
+        )
     except (json.JSONDecodeError, TypeError):
         # Parsing failed，Return as plain string
         return value_str

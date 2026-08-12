@@ -140,9 +140,10 @@ async def run_with_verification(
 ) -> SubAgentResult:
     """Execute a worker then verify via an adversarial verifier, retrying on failure.
 
-    When ``task_id`` is provided it becomes the visible business node for this
-    delegation; retry workers and verifiers are spawned as framework-internal
-    nodes (``internal=True``) and hidden from user-facing subagent trees.
+    When ``task_id`` is provided it becomes the visible business node: the first
+    worker runs under that id (``internal=False``) so it shows in the subagent
+    tree, while retry workers and verifiers spawn as framework-internal nodes
+    (``internal=True``) that are hidden from user-facing surfaces.
     """
     max_rounds = max(1, min(max_rounds, 5))
     current_task = worker_task
@@ -155,6 +156,7 @@ async def run_with_verification(
         status=SubAgentStatus.FAILED,
         internal=task_id is None,
     )
+    business_result: SubAgentResult | None = None
     verdict = None
 
     workspace_path = context.get("workspace_path")
@@ -163,6 +165,7 @@ async def run_with_verification(
         if cancel_token and cancel_token.is_cancelled:
             last_worker_result.success = False
             last_worker_result.error = "Cancelled"
+            _sync_business_result(business_result, last_worker_result, task_id)
             return last_worker_result
 
         round_num = round_idx + 1
@@ -206,6 +209,8 @@ async def run_with_verification(
                 agent_type=worker_type,
             )
         worker_result.internal = worker_result.internal or worker_internal
+        if round_idx == 0 and task_id:
+            business_result = worker_result
         last_worker_result = worker_result
 
         if not worker_result.success:
@@ -251,10 +256,8 @@ async def run_with_verification(
             last_worker_result.result = _append_verification_block(
                 last_worker_result.result, pass_block
             )
-            if task_id:
-                last_worker_result.task_id = task_id
-                last_worker_result.internal = False
-            return last_worker_result
+            _sync_business_result(business_result, last_worker_result, task_id)
+            return business_result or last_worker_result
 
         if round_idx < max_rounds - 1:
             findings_text = (
@@ -296,7 +299,40 @@ async def run_with_verification(
     last_worker_result.result = _append_verification_block(
         last_worker_result.result, fail_block
     )
-    if task_id:
-        last_worker_result.task_id = task_id
-        last_worker_result.internal = False
-    return last_worker_result
+    _sync_business_result(business_result, last_worker_result, task_id)
+    return business_result or last_worker_result
+
+
+def _sync_business_result(
+    business_result: SubAgentResult | None,
+    source: SubAgentResult,
+    task_id: str | None,
+) -> None:
+    """Mirror the final worker/verifier outcome onto the visible business node.
+
+    The business node is the first worker's ``SubAgentResult`` registered in
+    ``_children_results`` under the business ``task_id``; retry workers are
+    internal nodes that must not leak into the tree, so their outcome is copied
+    onto the business node in place.
+    """
+    if business_result is None or business_result is source or not task_id:
+        return
+    for field_name in (
+        "success",
+        "result",
+        "error",
+        "token_usage",
+        "duration_seconds",
+        "completed_at",
+        "status",
+        "trace_id",
+        "checkpoint_data",
+        "payload",
+        "handover_state",
+        "accumulated_duration_seconds",
+        "still_running",
+        "verification",
+    ):
+        setattr(business_result, field_name, getattr(source, field_name))
+    business_result.task_id = task_id
+    business_result.internal = False

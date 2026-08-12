@@ -263,6 +263,7 @@ class SubagentControlMixin:
         max_rounds: int = 2,
         verifier_task_template: str = "",
         cancel_token: CancellationToken | None = None,
+        task_id: str | None = None,
     ) -> SubAgentResult:
         """Execute a worker then verify via an adversarial verifier, retrying on failure."""
         from .orchestrator import run_with_verification
@@ -279,6 +280,7 @@ class SubagentControlMixin:
             max_rounds=max_rounds,
             verifier_task_template=verifier_task_template,
             cancel_token=cancel_token,
+            task_id=task_id,
         )
 
     def drain_notifications(self) -> str | None:

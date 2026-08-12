@@ -24,8 +24,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
-    _DEVELOPER_ROLE_PATTERN,
     _SYSTEM_MESSAGE_DENYLIST_HINTS,
+    DEVELOPER_ROLE_PATTERN,
     EmptyChoicesError,
 )
 from myrm_agent_harness.toolkits.llms.adapters.converters import (
@@ -60,7 +60,10 @@ class ChatLiteLLMMessageMixin:
     model_name: str | None
     api_base: str | None
     custom_llm_provider: str | None
-    _client_params: dict[str, Any]
+
+    @property
+    def _client_params(self) -> dict[str, Any]:
+        raise NotImplementedError
 
     def _get_model_name(self) -> str:
         raise NotImplementedError
@@ -285,7 +288,7 @@ class ChatLiteLLMMessageMixin:
             return False
         model_name = self._get_model_name().lower()
         bare_model = model_name.rsplit("/", maxsplit=1)[-1]
-        return bool(_DEVELOPER_ROLE_PATTERN.match(bare_model))
+        return bool(DEVELOPER_ROLE_PATTERN.match(bare_model))
 
     def _create_chat_result(
         self,

@@ -6,7 +6,7 @@
 [OUTPUT]
 - EmptyChoicesError / EmptyStreamError: retryable empty LLM response exceptions
 - StreamStallTimeoutError: stream stall detection (first-event / inter-chunk timeout)
-- _DEVELOPER_ROLE_PATTERN, _SYSTEM_MESSAGE_DENYLIST_HINTS, _FRAMEWORK_REQUIRED_OPENAI_PARAMS
+- DEVELOPER_ROLE_PATTERN, _SYSTEM_MESSAGE_DENYLIST_HINTS, _FRAMEWORK_REQUIRED_OPENAI_PARAMS
 
 [POS]
 Shared adapter constants and exception types used by ChatLiteLLM mixins.
@@ -18,7 +18,7 @@ import re
 
 _SYSTEM_MESSAGE_DENYLIST_HINTS = ("minimax",)
 
-_DEVELOPER_ROLE_PATTERN = re.compile(r"^(?:gpt-(?:[5-9]|\d{2,})|codex|o[1-9]\d*)")
+DEVELOPER_ROLE_PATTERN = re.compile(r"^(?:gpt-(?:[5-9]|\d{2,})|codex|o[1-9]\d*)")
 
 # Parameters the framework may inject that must never be silently dropped
 # by LiteLLM's provider capability whitelist (see `litellm.drop_params`).

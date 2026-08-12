@@ -402,6 +402,7 @@ class SpawnSubagentTool(BaseTool):
                                 cancel_token=cast(
                                     "CancellationToken | None", self.cancel_token
                                 ),
+                                task_id=task_id,
                             )
                     else:
                         result = await cast(

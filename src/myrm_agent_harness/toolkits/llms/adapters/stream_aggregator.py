@@ -186,7 +186,7 @@ class StreamAggregator:
         if isinstance(chunk, dict):
             return chunk
         try:
-            return chunk.model_dump()
+            return dict(chunk.model_dump())
         except Exception:
             return None
 

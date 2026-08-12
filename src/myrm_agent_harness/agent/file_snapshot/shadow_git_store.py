@@ -441,7 +441,9 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
                     with contextlib.suppress(json.JSONDecodeError, IndexError):
                         meta = json.loads(line.split("=", 1)[1])
                 elif line.startswith("snapshot "):
-                    description = line
+                    # The stored first line is "snapshot {trigger}: {description}".
+                    # Surface only the business description, never the internal format prefix.
+                    description = line.split(": ", 1)[1] if ": " in line else ""
 
             with contextlib.suppress(RuntimeError):
                 tree_output = await self._run_cmd("git", "ls-tree", "-r", "--name-only", commit_hash, env=env)
@@ -503,7 +505,9 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
                 with contextlib.suppress(json.JSONDecodeError, IndexError):
                     meta = json.loads(line.split("=", 1)[1])
             elif line.startswith("snapshot "):
-                description = line
+                # The stored first line is "snapshot {trigger}: {description}".
+                # Surface only the business description, never the internal format prefix.
+                description = line.split(": ", 1)[1] if ": " in line else ""
 
         return FileSnapshotInfo(
             snapshot_id=commit_hash,
