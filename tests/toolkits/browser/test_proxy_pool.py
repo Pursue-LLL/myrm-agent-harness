@@ -132,3 +132,10 @@ def test_from_urls_and_csv():
     assert len(pool2._proxies) == 2
 
     assert RoundRobinProxyPool.from_csv("   ") is None
+
+
+def test_round_robin_proxy_pool_urls_strip_credentials():
+    urls = ["http://proxy1.com", "http://user:pwd@proxy2.com:8080"]
+    pool = RoundRobinProxyPool.from_urls(urls)
+
+    assert pool.urls == ["http://proxy1.com", "http://proxy2.com:8080"]
