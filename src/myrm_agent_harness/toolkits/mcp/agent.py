@@ -59,8 +59,12 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
+
+if TYPE_CHECKING:
+    import httpx2
 
 from .client import MCPClientManager, MCPServerConfigProtocol
 from .result_processing import OversizedResultHandler
@@ -90,7 +94,7 @@ class MCPAgent:
         # ``httpx2.AsyncClient`` instances created for headered streamable HTTP
         # enumeration targets. The SDK never closes an injected client, so the
         # owner must: we track them here and close them after enumeration.
-        self._pending_http_clients: list[object] = []
+        self._pending_http_clients: list[httpx2.AsyncClient] = []
 
     def _get_tool_id(self, tool: BaseTool) -> str:
         """Get a unique identifier for a tool (name + description hash)."""
@@ -153,7 +157,7 @@ class MCPAgent:
     @staticmethod
     def _build_enumeration_target(
         server_config: MCPServerConfigProtocol,
-        http_clients: list[object] | None = None,
+        http_clients: list[httpx2.AsyncClient] | None = None,
     ) -> object:
         """Build an SDK v2 ``Client`` target for one-shot tool enumeration.
 
@@ -219,7 +223,7 @@ class MCPAgent:
         last_error = "not found tools"
 
         for attempt in range(1, _TOOL_FETCH_MAX_ATTEMPTS + 1):
-            pending_http_clients: list[object] = []
+            pending_http_clients: list[httpx2.AsyncClient] = []
             try:
                 target = self._build_enumeration_target(
                     server_config, http_clients=pending_http_clients
