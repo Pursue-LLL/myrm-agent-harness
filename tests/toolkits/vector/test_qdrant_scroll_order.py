@@ -67,9 +67,9 @@ class TestEnsurePayloadIndexes:
     async def test_creates_four_indexes(self, store, mock_client):
         mock_client.create_payload_index.return_value = True
         await store.ensure_payload_indexes("test_col")
-        assert mock_client.create_payload_index.call_count == 4
+        assert mock_client.create_payload_index.call_count == 5
         created_fields = [c[1]["field_name"] for c in mock_client.create_payload_index.call_args_list]
-        assert set(created_fields) == {"_created_ts", "_updated_ts", "importance", "tags"}
+        assert set(created_fields) == {"_created_ts", "_updated_ts", "importance", "tags", "namespaces"}
 
     @pytest.mark.asyncio
     async def test_swallows_errors_gracefully(self, store, mock_client):

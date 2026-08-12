@@ -108,7 +108,7 @@ async def dedup_semantics(
                 config.semantic_collection,
                 mem.embedding,
                 limit=1,
-                filters=None,
+                filters=_user_filter(namespaces=list(mem.scope.namespaces) or None),
                 score_threshold=threshold,
             )
             return bool(hits)
@@ -164,7 +164,7 @@ async def run_forgetting(
             docs, _ = await vector.scroll(
                 collection,
                 limit=fg_cfg.max_forget_per_run * 2,
-                filters=None,
+                filters=_user_filter(namespaces=namespaces) if namespaces else None,
             )
             memories = [converter(d) for d in docs]
             rel_counts: dict[str, int] = {}

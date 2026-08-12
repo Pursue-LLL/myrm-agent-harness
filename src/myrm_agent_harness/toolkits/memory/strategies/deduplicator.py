@@ -59,6 +59,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from myrm_agent_harness.toolkits.memory._internal.hash_utils import (
     compute_normalized_hash,
 )
+from myrm_agent_harness.toolkits.memory._internal.storage_converters import (
+    _user_filter,
+)
 from myrm_agent_harness.toolkits.memory.strategies.llm_prompt import (
     DEDUPLICATION_SYSTEM_PROMPT,
 )
@@ -80,6 +83,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DeduplicatableMemory = SemanticMemory | EpisodicMemory
+
+_NAMESPACE_DELIMITER = "|"
+
+
+def _cache_key(memory: DeduplicatableMemory, content_hash: str) -> str:
+    """Namespace-scoped hash cache key.
+
+    Same content written into different scopes must not suppress each other,
+    so the cache key binds the hash to the memory's own namespaces.
+    """
+    namespaces = ",".join(sorted(memory.scope.namespaces))
+    return f"{namespaces}{_NAMESPACE_DELIMITER}{content_hash}"
+
 
 _VECTOR_SEARCH_LIMIT = 5
 _LLM_CANDIDATES_LIMIT = 3
@@ -236,13 +252,14 @@ class SmartDeduplicator:
             content_hash = compute_normalized_hash(
                 mem.content, self._normalization_level
             )
-            is_hit = content_hash in self._hash_cache or content_hash in batch_hashes
+            cache_key = _cache_key(mem, content_hash)
+            is_hit = cache_key in self._hash_cache or cache_key in batch_hashes
             hash_results.append((mem, content_hash, is_hit))
             self._metrics.total_checks += 1
             if is_hit:
                 self._metrics.cache_hits += 1
             else:
-                batch_hashes.add(content_hash)
+                batch_hashes.add(cache_key)
 
         need_embedding = [
             mem for mem, _, hit in hash_results if not hit and mem.embedding is None
@@ -376,7 +393,7 @@ class SmartDeduplicator:
             self._hash_cache.popitem(last=False)
             self._metrics.evictions += 1
 
-        self._hash_cache[content_hash] = None
+        self._hash_cache[_cache_key(memory, content_hash)] = None
 
         if self._metrics.total_checks % 1000 == 0:
             logger.info(
@@ -405,7 +422,7 @@ class SmartDeduplicator:
             collection,
             memory.embedding,
             limit=_VECTOR_SEARCH_LIMIT,
-            filters={},
+            filters=_user_filter(namespaces=list(memory.scope.namespaces) or None),
             score_threshold=low_thresh,
         )
 
@@ -594,6 +611,14 @@ class SmartDeduplicator:
 
             existing = converter(docs[0])
 
+            existing_ns = set(existing.scope.namespaces)
+            new_ns = set(new_memory.scope.namespaces)
+            if existing_ns and new_ns and not existing_ns & new_ns:
+                logger.warning(
+                    "Refusing cross-scope update on %s, creating NEW", target_id
+                )
+                return new_memory
+
             existing.content = merged_content
             existing.updated_at = datetime.now(UTC)
             existing.merge_count += 1
@@ -661,6 +686,8 @@ class SmartDeduplicator:
                 data = json.load(f)
                 hashes = data.get("hashes", [])
                 for h in hashes[-self._base_cache_size :]:
+                    if _NAMESPACE_DELIMITER not in h:
+                        continue
                     self._hash_cache[h] = None
                 logger.info(
                     "Loaded %d hashes from %s",

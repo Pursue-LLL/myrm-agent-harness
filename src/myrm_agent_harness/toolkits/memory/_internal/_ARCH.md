@@ -12,7 +12,7 @@ Internal implementation details — not part of the public API.
 | embedding_cache.py | Core | Two-tier embedding cache. L1 uses in-memory LRU (OrderedDict + access-count eviction), L2 calls the  | ✅ |
 | governance_service.py | Core | Governance-side orchestration. Handles approval flow, profile updates, and content scanning. | ✅ |
 | hash_utils.py | Core | Content hash computation utilities for deduplication. | ✅ |
-| maintenance.py | Core | Stateless background maintenance operations. Handles dedup, forgetting, access tracking, Task Digest evaporation, and Blob GC. | ✅ |
+| maintenance.py | Core | Stateless background maintenance operations. Handles dedup, forgetting, access tracking, Task Digest evaporation, and Blob GC. Dedup candidates and forgetting scrolls are namespace-scoped to never touch other agents' memories. | ✅ |
 | maintenance_claim_support.py | Internal | Claim graph helper utilities (parsing, scope, relation classification, search). | ✅ |
 | maintenance_claim_compile.py | Internal | Claim graph compilation from evaporated L2 digests. | ✅ |
 | maintenance_enrichment.py | Internal | Graph-enriched retrieval (sibling scoring + claim recall + namespace filtering). | ✅ |
@@ -25,7 +25,7 @@ Internal implementation details — not part of the public API.
 | storage_conversation.py | Core | Conversation memory storage with dual-embedding (Qdrant named vectors). | ✅ |
 | storage_converters.py | Core | Document ↔ Schema converters and shared metadata helpers (scope, lifecycle, filter). | ✅ |
 | storage_search.py | Core | Search operations: vector similarity, BM25 keyword, profile/procedural text, dual-channel conversation search with RRF fusion. | ✅ |
-| write_service.py | Core | Write-side orchestration for memory persistence. Handles memory scanning, approval routing, | ✅ |
+| write_service.py | Core | Write-side orchestration for memory persistence. Handles memory scanning, approval routing, batch dedup, and the write-scope fence (`_validate_write_scope`) that rejects namespaces outside the writer's grant. | ✅ |
 
 ## Key Dependencies
 

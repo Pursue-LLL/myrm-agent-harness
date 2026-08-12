@@ -18,6 +18,10 @@ dot here would make ``nest_flat_arguments`` split legitimate key names.
 Renaming ``meta.field`` to ``meta_field`` (and restoring before the call) is
 safe and unambiguous.
 
+The restore map is path-aware: keys are full nested paths (e.g.
+``filters.op_is``) rather than bare renamed names, so a nested key that
+legitimately matches a renamed top-level key is never wrongly restored.
+
 [INPUT]
 - raw MCP ``inputSchema`` dicts (third-party JSON Schema)
 
@@ -53,18 +57,21 @@ def sanitize_property_keys(
     """Rename non-conforming property keys in *schema* (in place when needed).
 
     Returns ``(new_schema, restore_map)`` where ``restore_map`` maps each
-    renamed key back to its original wire name (``{renamed: original}``).
+    renamed key's full nested path back to its original wire name
+    (``{path.to.renamed: original}``; top-level keys use the bare name).
     ``required`` arrays are remapped in lockstep; nested ``properties``,
     ``items``, ``additionalProperties`` and composite branches are handled
     recursively.  When no key needs renaming the original object passes
     through untouched (identity preserved).  Collisions are deduped
-    deterministically with numeric suffixes.
+    deterministically with numeric suffixes.  Paths are unambiguous because
+    renamed keys never contain ``.`` (see module docstring), so a renamed
+    top-level key can never shadow a nested key path.
     """
     restore_map: dict[str, str] = {}
 
-    def _walk(node: object) -> object:
+    def _walk(node: object, path: str = "") -> object:
         if isinstance(node, list):
-            return [_walk(item) for item in node]
+            return [_walk(item, path) for item in node]
         if not isinstance(node, dict):
             return node
         props = node.get("properties")
@@ -73,9 +80,10 @@ def sanitize_property_keys(
             new_props: dict[str, object] = {}
             for key, value in props.items():
                 renamed = renames.get(key, key)
-                new_props[renamed] = _walk(value)
+                child_path = f"{path}.{renamed}" if path else renamed
+                new_props[renamed] = _walk(value, child_path)
                 if key != renamed:
-                    restore_map[renamed] = key
+                    restore_map[child_path] = key
             if renames:
                 node["properties"] = new_props
                 required = node.get("required")
@@ -87,7 +95,7 @@ def sanitize_property_keys(
                     ]
         for key, value in node.items():
             if key != "properties":
-                node[key] = _walk(value)
+                node[key] = _walk(value, path)
         return node
 
     return _walk(schema), restore_map  # type: ignore[return-value]
@@ -117,20 +125,24 @@ def restore_property_keys(
 ) -> dict[str, Any]:
     """Restore renamed property keys in model-emitted *args* to wire names.
 
-    Recurses into nested object values and list items so renamed keys deep in
-    the argument tree are restored too; keys absent from the map pass through
-    untouched.
+    Walks *args* with a running path prefix and only restores keys whose
+    full path appears in the path-aware *restore_map*; keys absent from the
+    map pass through untouched.  Recurses into nested object values and list
+    items so renamed keys deep in the argument tree are restored too.
     """
     if not restore_map:
         return args
 
-    def _restore_value(value: object) -> object:
+    def _restore_value(value: object, path: str) -> object:
         if isinstance(value, dict):
-            return {
-                restore_map.get(k, k): _restore_value(v) for k, v in value.items()
-            }
+            out: dict[str, object] = {}
+            for key, item in value.items():
+                full = f"{path}.{key}" if path else key
+                new_key = restore_map.get(full, key)
+                out[new_key] = _restore_value(item, full)
+            return out
         if isinstance(value, list):
-            return [_restore_value(item) for item in value]
+            return [_restore_value(item, path) for item in value]
         return value
 
-    return {restore_map.get(k, k): _restore_value(v) for k, v in args.items()}
+    return _restore_value(args, "")  # type: ignore[return-value]

@@ -433,7 +433,7 @@ config = SubagentConfig(
 
 5. **级联取消（Cascade Cancel）**：
    - **第一层**（executor）：`executor.py` 的 CancelledError 处理中调用 `_cascade_cancel_descendants()` — 覆盖 IMMEDIATE 取消场景
-   - **第二层**（manager 安全网）：`manager.py:_run_subagent_core` 的 finally 块调用 `child.cancel_all_children()` — 覆盖 GRACEFUL/CHECKPOINT 主动退出及所有异常退出路径
+   - **第二层**（manager 安全网）：`manager.py:_run_subagent_core` 的 finally 块调用 `child.cancel_all_children(include_detached=not completed_normally)` — 覆盖 GRACEFUL/CHECKPOINT 主动退出及所有异常退出路径；正常完成的子代理保留其 `wait=false` 后台孙代理（与 §6 cleanup_run 语义一致）
    - 防止多层 orchestrator 场景（A→B→C）中取消 B 后孙级 C 继续运行消耗 token
    - 受 `max_spawn_depth` 硬性深度限制保护，不需要额外防环机制
 6. **父 run 结束清理 vs 后台子代理**：`run_lifecycle.py:cleanup_run` 在父 agent run 结束时调用 `cancel_all_children(include_detached=...)`：

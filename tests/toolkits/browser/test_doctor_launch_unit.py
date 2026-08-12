@@ -30,7 +30,7 @@ async def test_check_browser_launch_timeout():
         result = await _check_browser_launch(launch_options=None)
 
     assert result.status == CheckStatus.ERROR
-    assert "timeout" in result.message.lower()
+    assert "timed out" in result.message.lower()
     assert result.fix is not None
 
 
@@ -47,7 +47,7 @@ async def test_check_browser_launch_patchright_timeout():
         result = await _check_browser_launch(launch_options=None)
 
     assert result.status == CheckStatus.ERROR
-    assert "timeout" in result.message.lower()
+    assert "timed out" in result.message.lower()
     assert result.fix is not None
 
 

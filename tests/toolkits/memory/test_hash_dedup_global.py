@@ -135,9 +135,11 @@ async def test_fifo_eviction_order(mock_llm, mock_vector, mock_embedding, mock_c
 
     first_hash = compute_normalized_hash("Memory 1")
     last_hash = compute_normalized_hash("Memory 6")
+    first_key = f"|{first_hash}"
+    last_key = f"|{last_hash}"
 
-    assert first_hash not in dedup._hash_cache, "Oldest entry should be evicted"
-    assert last_hash in dedup._hash_cache, "Newest entry should be in cache"
+    assert first_key not in dedup._hash_cache, "Oldest entry should be evicted"
+    assert last_key in dedup._hash_cache, "Newest entry should be in cache"
 
 
 @pytest.mark.asyncio

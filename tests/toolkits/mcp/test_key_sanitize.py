@@ -76,7 +76,7 @@ def test_sanitize_property_keys_nested_recursive():
     assert "inner~key" not in str(result)
     inner = result["properties"]["outer"]["properties"]
     assert "inner_key" in inner
-    assert restore_map == {"inner_key": "inner~key"}
+    assert restore_map == {"outer.inner_key": "inner~key"}
 
 
 def test_sanitize_property_keys_collision_deterministic():
@@ -110,10 +110,10 @@ def test_restore_property_keys_flat():
 
 
 def test_restore_property_keys_nested():
-    restore_map = {"meta_x": "meta[x]"}
+    restore_map = {"outer.meta_x": "meta[x]", "meta_x": "meta[x]"}
     args = {"outer": {"meta_x": 1}, "list": [{"meta_x": 2}]}
     result = restore_property_keys(args, restore_map)
-    assert result == {"outer": {"meta[x]": 1}, "list": [{"meta[x]": 2}]}
+    assert result == {"outer": {"meta[x]": 1}, "list": [{"meta_x": 2}]}
 
 
 def test_restore_property_keys_empty_map_passthrough():
@@ -125,6 +125,20 @@ def test_restore_property_keys_unmapped_keys_untouched():
     args = {"keep": "x", "nested": {"also_keep": 1}}
     result = restore_property_keys(args, {"other": "mapped"})
     assert result == args
+
+
+def test_restore_property_keys_path_aware_no_cross_layer_collision():
+    """A nested conforming key equal to a renamed top-level key is kept intact."""
+    restore_map = {"meta__status__eq": "meta.<status>[eq]"}
+    args = {
+        "meta__status__eq": "open",
+        "filters": {"meta__status__eq": "x"},
+    }
+    result = restore_property_keys(args, restore_map)
+    assert result == {
+        "meta.<status>[eq]": "open",
+        "filters": {"meta__status__eq": "x"},
+    }
 
 
 def test_rename_restore_roundtrip_symmetry():
@@ -142,6 +156,11 @@ def test_rename_restore_roundtrip_symmetry():
         },
     }
     _sanitized, restore_map = sanitize_property_keys(schema)
+    assert restore_map == {
+        "filter_status": "filter~status",
+        "meta_page": "meta[page]",
+        "nested.deep_key": "deep~key",
+    }
     model_args = {
         "query": "abc",
         "filter_status": "open",
@@ -154,4 +173,29 @@ def test_rename_restore_roundtrip_symmetry():
         "filter~status": "open",
         "meta[page]": 2,
         "nested": {"deep~key": "v"},
+    }
+
+
+def test_rename_restore_cross_layer_collision_roundtrip():
+    """Top-level rename and same-named nested conforming key round-trip correctly."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "meta.<status>[eq]": {"type": "string"},
+            "filters": {
+                "type": "object",
+                "properties": {"meta__status__eq": {"type": "string"}},
+            },
+        },
+    }
+    _sanitized, restore_map = sanitize_property_keys(schema)
+    assert restore_map == {"meta__status__eq": "meta.<status>[eq]"}
+    model_args = {
+        "meta__status__eq": "open",
+        "filters": {"meta__status__eq": "x"},
+    }
+    restored = restore_property_keys(model_args, restore_map)
+    assert restored == {
+        "meta.<status>[eq]": "open",
+        "filters": {"meta__status__eq": "x"},
     }

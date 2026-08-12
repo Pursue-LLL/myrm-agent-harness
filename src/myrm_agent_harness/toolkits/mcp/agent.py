@@ -56,6 +56,7 @@ chain shared by persistent-session actors and one-shot enumeration.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Sequence
 
@@ -86,6 +87,10 @@ class MCPAgent:
 
     def __init__(self) -> None:
         self._tool_server_mapping: dict[str, str] = {}
+        # ``httpx2.AsyncClient`` instances created for headered streamable HTTP
+        # enumeration targets. The SDK never closes an injected client, so the
+        # owner must: we track them here and close them after enumeration.
+        self._pending_http_clients: list[object] = []
 
     def _get_tool_id(self, tool: BaseTool) -> str:
         """Get a unique identifier for a tool (name + description hash)."""
@@ -146,15 +151,24 @@ class MCPAgent:
         return "unknown_server"
 
     @staticmethod
-    def _build_enumeration_target(server_config: MCPServerConfigProtocol) -> object:
+    def _build_enumeration_target(
+        server_config: MCPServerConfigProtocol,
+        http_clients: list[object] | None = None,
+    ) -> object:
         """Build an SDK v2 ``Client`` target for one-shot tool enumeration.
 
         - SSE: ``sse_client(url, headers=...)`` — SSE transport accepts ``headers``
           directly (no ``http_client`` param).
         - Streamable HTTP with auth headers: ``streamable_http_client(url, http_client=...)``
-          — requires an explicit ``httpx2.AsyncClient`` for custom headers.
-        - Streamable HTTP without headers: bare URL string (``Client`` auto-wraps).
+          — requires an explicit ``httpx2.AsyncClient`` for custom headers. The
+          created client is appended to ``http_clients`` (when provided) so the
+          caller can close it after enumeration — the SDK never closes an
+          injected client.
+        - Streamable HTTP without headers: ``streamable_http_client(url)``.
         - stdio: ``stdio_client(StdioServerParameters(...))`` wrapping.
+
+        Every branch returns an async context manager yielding the transport
+        stream pair consumed by ``ClientSession``.
         """
         raw_target = MCPClientManager.build_client_target(server_config)
 
@@ -166,17 +180,15 @@ class MCPAgent:
 
                 return sse_client(raw_target, headers=headers or None)
             if headers:
-                import httpx2
-
-                http_client = httpx2.AsyncClient(
-                    headers=headers,
-                    timeout=httpx2.Timeout(30.0, read=300.0),
-                    follow_redirects=True,
-                )
+                http_client = MCPClientManager.build_streamable_http_client(headers)
+                if http_clients is not None:
+                    http_clients.append(http_client)
                 from mcp.client.streamable_http import streamable_http_client
 
                 return streamable_http_client(raw_target, http_client=http_client)
-            return raw_target
+            from mcp.client.streamable_http import streamable_http_client
+
+            return streamable_http_client(raw_target)
 
         from mcp.client.stdio import stdio_client
 
@@ -188,12 +200,14 @@ class MCPAgent:
     ) -> tuple[str, list[BaseTool], str | None]:
         """Fetch tools from a single MCP server with connection timeout and bounded retry.
 
-        Uses ``mcp.client.Client`` for a one-shot connect→list_tools→disconnect
-        cycle.  Transient enumeration failures (empty listing, timeout, connection
-        drop) are retried up to ``_TOOL_FETCH_MAX_ATTEMPTS`` times; genuine
-        cancellation is never retried.
+        Uses ``mcp.ClientSession`` over the transport built by
+        ``_build_enumeration_target`` for a one-shot connect→list_tools→
+        disconnect cycle.  Transient enumeration failures (empty listing,
+        timeout, connection drop) are retried up to
+        ``_TOOL_FETCH_MAX_ATTEMPTS`` times; genuine cancellation is never
+        retried.
         """
-        from mcp.client import Client
+        from mcp import ClientSession
         from mcp.types import Implementation
 
         from myrm_agent_harness import __version__
@@ -205,19 +219,27 @@ class MCPAgent:
         last_error = "not found tools"
 
         for attempt in range(1, _TOOL_FETCH_MAX_ATTEMPTS + 1):
+            pending_http_clients: list[object] = []
             try:
-                target = self._build_enumeration_target(server_config)
-                client = Client(
-                    target,
-                    client_info=Implementation(name="myrm-agent", version=__version__),
+                target = self._build_enumeration_target(
+                    server_config, http_clients=pending_http_clients
                 )
-                async with client:
-                    async with asyncio.timeout(connect_timeout):
-                        tools = convert_mcp_tools(
-                            list((await client.list_tools()).tools),
-                            client.call_tool,
-                            server_name=server_name,
-                        )
+                async with target as streams:
+                    read, write = streams[0], streams[1]
+                    async with ClientSession(
+                        read,
+                        write,
+                        client_info=Implementation(
+                            name="myrm-agent", version=__version__
+                        ),
+                    ) as session:
+                        await session.initialize()
+                        async with asyncio.timeout(connect_timeout):
+                            tools = convert_mcp_tools(
+                                list((await session.list_tools()).tools),
+                                session.call_tool,
+                                server_name=server_name,
+                            )
                 if tools:
                     return server_name, tools, None
                 last_error = "not found tools"
@@ -245,11 +267,23 @@ class MCPAgent:
                     _TOOL_FETCH_MAX_ATTEMPTS,
                     e,
                 )
+            finally:
+                await self._close_http_clients(pending_http_clients)
 
             if attempt < _TOOL_FETCH_MAX_ATTEMPTS:
                 await asyncio.sleep(_TOOL_FETCH_RETRY_BACKOFF)
 
         return server_name, [], last_error
+
+    async def _close_http_clients(self, clients: list[object]) -> None:
+        """Close ``httpx2.AsyncClient`` instances created for enumeration targets.
+
+        The MCP SDK never closes an injected client, so the owner must. Errors
+        are swallowed: a failed close must not mask a successful enumeration.
+        """
+        for http_client in clients:
+            with contextlib.suppress(Exception):
+                await http_client.aclose()  # type: ignore[attr-defined]
 
     async def get_tools(
         self, mcp_config: Sequence[MCPServerConfigProtocol] | None = None

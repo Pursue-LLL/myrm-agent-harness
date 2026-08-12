@@ -33,11 +33,9 @@ def _current_session_id() -> str | None:
     in which case no snapshot hook fires and behavior matches the previous flow.
     """
     try:
-        from myrm_agent_harness.agent.context_management.infra.session_lock import (
-            get_current_chat_id,
-        )
+        from myrm_agent_harness.core.context_vars import chat_id_var
 
-        return get_current_chat_id()
+        return chat_id_var.get().strip() or None
     except Exception:
         return None
 

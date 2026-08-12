@@ -128,23 +128,33 @@ async def test_get_tools_empty_config():
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_enumerate_server_tools_connection_timeout():
+    from types import SimpleNamespace
+
     agent = MCPAgent()
     config = DummyConfig()
     config.connect_timeout = 0.1
 
     async def slow_list(*_a, **_k):
         await asyncio.sleep(0.5)
-        return []
+        return SimpleNamespace(tools=[])
 
-    mock_aexit = AsyncMock(return_value=False)
+    mock_session = MagicMock()
+    mock_session.initialize = AsyncMock()
+    mock_session.list_tools = slow_list
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    mock_session_cls = MagicMock(return_value=mock_session)
+
+    fake_target = MagicMock()
+    fake_target.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
+    fake_target.__aexit__ = AsyncMock(return_value=False)
+
     with (
         patch("myrm_agent_harness.toolkits.mcp.agent._TOOL_FETCH_RETRY_BACKOFF", 0),
-        patch.object(MCPAgent, "_build_enumeration_target", return_value="http://mock"),
-        patch("mcp.client.Client.__aenter__", new_callable=AsyncMock) as mock_enter,
-        patch("mcp.client.Client.__aexit__", mock_aexit),
-        patch("mcp.client.Client.list_tools", side_effect=slow_list),
+        patch.object(MCPAgent, "_build_enumeration_target", return_value=fake_target),
+        patch("mcp.ClientSession", mock_session_cls),
     ):
-        mock_enter.return_value = MagicMock()
         _server_name, tools, err = await agent._enumerate_server_tools(config)
 
     assert err is not None
@@ -193,17 +203,22 @@ async def test_enumerate_server_tools_retry_then_succeeds():
             return SimpleNamespace(tools=[])
         return SimpleNamespace(tools=[mock_tool])
 
-    mock_client = MagicMock()
-    mock_client.list_tools = _fake_list_tools
-    mock_client.call_tool = AsyncMock(return_value=SimpleNamespace(content=[]))
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=False)
+    mock_session = MagicMock()
+    mock_session.initialize = AsyncMock()
+    mock_session.list_tools = _fake_list_tools
+    mock_session.call_tool = AsyncMock(return_value=SimpleNamespace(content=[]))
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
 
-    mock_client_cls = MagicMock(return_value=mock_client)
+    mock_session_cls = MagicMock(return_value=mock_session)
+
+    fake_target = MagicMock()
+    fake_target.__aenter__ = AsyncMock(return_value=(MagicMock(), MagicMock()))
+    fake_target.__aexit__ = AsyncMock(return_value=False)
 
     with (
-        patch("mcp.client.Client", mock_client_cls),
-        patch.object(agent, "_build_enumeration_target", return_value=MagicMock()),
+        patch("mcp.ClientSession", mock_session_cls),
+        patch.object(agent, "_build_enumeration_target", return_value=fake_target),
         patch("myrm_agent_harness.toolkits.mcp.agent._TOOL_FETCH_RETRY_BACKOFF", 0),
     ):
         _, tools, err = await agent._enumerate_server_tools(config)
@@ -437,7 +452,7 @@ async def test_wrap_tools_output_guard_truncates_multimodal_text_blocks():
     """Multimodal oversized text blocks are truncated; image blocks are kept."""
     raw_result = CallToolResult(
         content=[
-            ImageContent(type="image", data="abc123", mime_type="image/png"),
+            ImageContent(type="image", data="abc123", mimeType="image/png"),
             TextContent(type="text", text="x" * 500),
         ]
     )
@@ -1199,7 +1214,7 @@ class TestNormalizeMcpResultCoercion:
         result = CallToolResult(
             content=[
                 TextContent(type="text", text="caption"),
-                ImageContent(type="image", data="abc", mime_type="image/png"),
+                ImageContent(type="image", data="abc", mimeType="image/png"),
             ]
         )
         normalized = normalize_mcp_result(result)
@@ -1215,7 +1230,7 @@ class TestNormalizeMcpResultCoercion:
                     type="resource_link",
                     uri="https://notion.so/page/xxx",
                     name="page",
-                    mime_type="application/pdf",
+                    mimeType="application/pdf",
                 ),
             ]
         )
@@ -1228,12 +1243,12 @@ class TestNormalizeMcpResultCoercion:
         """When both file and image are present, image passes through, file degrades."""
         result = CallToolResult(
             content=[
-                ImageContent(type="image", data="abc", mime_type="image/png"),
+                ImageContent(type="image", data="abc", mimeType="image/png"),
                 ResourceLink(
                     type="resource_link",
                     uri="https://example.com/doc.pdf",
                     name="doc",
-                    mime_type="application/pdf",
+                    mimeType="application/pdf",
                 ),
             ]
         )

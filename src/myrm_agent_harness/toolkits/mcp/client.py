@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    import httpx2
     from mcp import StdioServerParameters
 
 logger = logging.getLogger(__name__)
@@ -239,6 +240,25 @@ class MCPClientManager:
             "yes" if server_config.client_key_password else "no",
         )
         return factory
+
+    @staticmethod
+    def build_streamable_http_client(
+        headers: dict[str, str],
+    ) -> httpx2.AsyncClient:
+        """Build a shared ``httpx2.AsyncClient`` for streamable HTTP transports.
+
+        Single construction point for the MCP streamable-HTTP transport client
+        (auth headers + MCP-appropriate timeouts + redirect following). The
+        caller owns the returned client and must close it when the session or
+        one-shot enumeration ends.
+        """
+        import httpx2
+
+        return httpx2.AsyncClient(
+            headers=headers,
+            timeout=httpx2.Timeout(30.0, read=300.0),
+            follow_redirects=True,
+        )
 
     @staticmethod
     def get_headers(server_config: MCPServerConfigProtocol) -> dict[str, str]:

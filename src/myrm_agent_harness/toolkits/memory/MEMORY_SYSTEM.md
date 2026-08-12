@@ -109,7 +109,7 @@ myrm_agent_harness/
 │   │   ├── storage.py                  # 存储辅助函数
 │   │   ├── approval.py                 # 审批序列化辅助
 │   │   ├── scope.py                    # namespace 派生、作用域绑定、写入目标裁剪、namespace 校验、渠道亲和力
-│   │   ├── write_service.py            # 写入编排（扫描、审批、分桶、批量去重、convenience memory 构造）
+│   │   ├── write_service.py            # 写入编排（扫描、审批、分桶、批量去重、convenience memory 构造、写入 scope 栅栏）
 │   │   ├── search_service.py           # 搜索编排（sanitize、typed recall 路由、RRF 前后编排、graph enrich、raw 裁剪、retrieval trace）
 │   │   ├── governance_service.py       # 治理编排（审批流、profile 写入、安全扫描）
 │   │   ├── maintenance_service.py      # 维护编排（health、snapshot、maintenance cycle）
@@ -161,6 +161,10 @@ myrm_agent_harness/
 > **时间约定**：所有 `datetime` 字段（`created_at`、`updated_at`、`last_accessed_at` 等）统一使用 **UTC timezone-aware** datetime（`datetime.now(UTC)`）。模型默认值、业务逻辑和测试均遵循此约定。
 >
 > **作用域约定**：所有 `BaseMemory` 均携带 `MemoryScope`。向量层会持久化 `primary_namespace/namespaces/channel_id/...` 元数据，检索时按当前 manager 的 `namespaces` 过滤，同时保留跨渠道可召回能力。`AgentMemoryPolicy` 允许把“读哪些 namespace”和“写入哪个 scope”正式配置化，例如只读 `global` 共享知识，同时把新记忆仅写入 `task` namespace。
+>
+> **写入 scope 栅栏**：`write_service` 在 `store`/`store_batch` 绑定 scope 后校验目标 namespaces 必须是当前 writer 允许集合（`self._namespaces ∪ self._scope.namespaces`）的子集，越界立即 `MemoryError` fail loud，杜绝跨 agent/channel/task 的越权写入。
+>
+> **去重与遗忘作用域安全**：三层去重 Layer 2 候选检索、`dedup_semantics` 兜底、以及 `run_forgetting` 向量遗忘均按内存自身 namespaces 过滤，保证同 scope 内去重/合并/删除，绝不跨 scope 抑制或清理他人记忆；Hash 缓存键绑定 namespaces 防串台；Qdrant 为 `namespaces` payload 建 KEYWORD 索引保证过滤性能。
 >
 > **Façade 编排边界**：`MemoryManager` 负责统一 façade，不再内联 `namespace` 派生、scope 绑定、写入目标裁剪和渠道亲和力重加权，这些纯逻辑统一收敛到 `_internal/scope.py`；扫描、审批路由、分桶、批量去重以及 convenience memory 构造统一收敛到 `_internal/write_service.py`；sanitize、typed recall 路由、RRF 前后编排、graph enrich 与 raw 裁剪统一收敛到 `_internal/search_service.py`；审批流、profile 写入和安全扫描统一收敛到 `_internal/governance_service.py`；health、snapshot 和 maintenance cycle 统一收敛到 `_internal/maintenance_service.py`。
 >
@@ -589,6 +593,7 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 - 合并追踪：`merge_count` 和 `merge_history` 记录演化历史
 - Metadata 合并：UPDATE_REPLACE 全替换 / UPDATE_MERGE 合并覆盖；tags 去重合并；source 字段始终更新为最新来源
 - 失败降级：LLM 失败时默认为 NEW（避免丢失）
+- 作用域栅栏：Layer 2 候选检索按记忆自身 `scope.namespaces` 过滤（仅召回同 scope 候选）；`_apply_update` 拒绝跨 scope 的 merge/replace 并降级为 NEW；Hash 缓存键绑定 namespaces（`namespaces|hash`），同内容写入不同 scope 互不抑制，旧格式键加载时自动废弃
 
 ### 7.2 遗忘策略 (`strategies/forgetting.py`)
 
@@ -612,6 +617,8 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 - 创建 7 天内的记忆不遗忘
 - importance ≥ 0.9 的记忆受保护
 - 最近 7 天内访问过的记忆受保护
+
+作用域安全：`run_forgetting` 的向量 scroll 按当前 manager 的 namespaces 过滤，只清理本 scope 的低保留记忆，绝不跨 agent/channel/task 误删。
 
 ### 7.2.1 Staleness Review (`strategies/staleness_review.py`)
 

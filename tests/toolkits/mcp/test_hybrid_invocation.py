@@ -191,7 +191,7 @@ class TestNormalizeMcpResult:
 
     def test_image_block_passthrough(self) -> None:
         result = CallToolResult(
-            content=[ImageContent(type="image", data="base64...", mime_type="image/png")]
+            content=[ImageContent(type="image", data="base64...", mimeType="image/png")]
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, list)
@@ -215,7 +215,7 @@ class TestNormalizeMcpResult:
                     type="resource_link",
                     uri="file:///tmp/x",
                     name="x",
-                    mime_type="text/plain",
+                    mimeType="text/plain",
                 ),
             ]
         )
@@ -238,7 +238,7 @@ class TestNormalizeMcpResult:
         result = CallToolResult(
             content=[
                 TextContent(type="text", text="screenshot taken"),
-                ImageContent(type="image", data="iVBOR...", mime_type="image/png"),
+                ImageContent(type="image", data="iVBOR...", mimeType="image/png"),
             ]
         )
         normalized = normalize_mcp_result(result)
@@ -261,7 +261,7 @@ class TestNormalizeMcpResult:
     def test_multimodal_with_structured_content(self) -> None:
         result = CallToolResult(
             content=[
-                ImageContent(type="image", data="abc123", mime_type="image/png"),
+                ImageContent(type="image", data="abc123", mimeType="image/png"),
                 TextContent(type="text", text="caption"),
             ],
             structured_content={"rows": 5},
@@ -283,7 +283,7 @@ class TestNormalizeMcpResult:
                     resource=TextResourceContents(
                         uri="file:///tmp/log.txt",
                         text="log data",
-                        mime_type="text/plain",
+                        mimeType="text/plain",
                     ),
                 )
             ]
@@ -297,7 +297,7 @@ class TestNormalizeMcpResult:
         from mcp.types import AudioContent
 
         result = CallToolResult(
-            content=[AudioContent(type="audio", data="audio_b64", mime_type="audio/mpeg")]
+            content=[AudioContent(type="audio", data="audio_b64", mimeType="audio/mpeg")]
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)

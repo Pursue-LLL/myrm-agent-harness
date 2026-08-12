@@ -156,7 +156,7 @@ class TestWrapToolsWithTimeout:
                     ImageContent(
                         type="image",
                         data="iVBORw0KGgoAAAANSUhEUg==",
-                        mime_type="image/png",
+                        mimeType="image/png",
                     ),
                 ]
             )

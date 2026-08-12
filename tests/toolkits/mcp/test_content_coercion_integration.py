@@ -55,7 +55,7 @@ class TestCallToolResultNormalization:
         result = normalize_mcp_result(
             CallToolResult(
                 content=[
-                    ImageContent(type="image", data="base64data", mime_type="image/png")
+                    ImageContent(type="image", data="base64data", mimeType="image/png")
                 ]
             )
         )
@@ -71,7 +71,7 @@ class TestCallToolResultNormalization:
                         type="resource_link",
                         uri="file:///tmp/report.csv",
                         name="report",
-                        mime_type="text/csv",
+                        mimeType="text/csv",
                     )
                 ]
             )
@@ -89,7 +89,7 @@ class TestCallToolResultNormalization:
                         type="resource_link",
                         uri="https://example.com/data.json",
                         name="data",
-                        mime_type="application/json",
+                        mimeType="application/json",
                     ),
                 ]
             )
@@ -103,12 +103,12 @@ class TestCallToolResultNormalization:
         result = normalize_mcp_result(
             CallToolResult(
                 content=[
-                    ImageContent(type="image", data="imgdata", mime_type="image/jpeg"),
+                    ImageContent(type="image", data="imgdata", mimeType="image/jpeg"),
                     ResourceLink(
                         type="resource_link",
                         uri="file:///a.pdf",
                         name="a",
-                        mime_type="application/pdf",
+                        mimeType="application/pdf",
                     ),
                 ]
             )
@@ -161,7 +161,7 @@ class TestCallToolResultNormalization:
                         resource=TextResourceContents(
                             uri="file:///tmp/log.txt",
                             text="log data",
-                            mime_type="text/plain",
+                            mimeType="text/plain",
                         ),
                     )
                 ]
@@ -180,7 +180,7 @@ class TestCallToolResultNormalization:
                         resource=BlobResourceContents(
                             uri="file:///tmp/data.bin",
                             blob="binary_base64",
-                            mime_type="application/octet-stream",
+                            mimeType="application/octet-stream",
                         ),
                     )
                 ]
@@ -198,7 +198,7 @@ class TestCallToolResultNormalization:
                         resource=BlobResourceContents(
                             uri="file:///tmp/photo.png",
                             blob="img_base64_data",
-                            mime_type="image/png",
+                            mimeType="image/png",
                         ),
                     )
                 ]
@@ -211,7 +211,7 @@ class TestCallToolResultNormalization:
         """AudioContent degrades to a short text marker, not a base64 dump."""
         result = normalize_mcp_result(
             CallToolResult(
-                content=[AudioContent(type="audio", data="audio_b64", mime_type="audio/mpeg")]
+                content=[AudioContent(type="audio", data="audio_b64", mimeType="audio/mpeg")]
             )
         )
         assert isinstance(result, str)
@@ -233,7 +233,7 @@ class TestCallToolResultNormalization:
                         type="resource_link",
                         uri=f"s3://bucket/file{i}.csv",
                         name=f"file{i}",
-                        mime_type="text/csv",
+                        mimeType="text/csv",
                     )
                     for i in range(3)
                 ]
@@ -350,7 +350,7 @@ class TestFullToolExecutionPipeline:
                         type="resource_link",
                         uri="s3://bucket/key.csv",
                         name="key",
-                        mime_type="text/csv",
+                        mimeType="text/csv",
                     )
                 ]
             )
@@ -386,7 +386,7 @@ class TestFullToolExecutionPipeline:
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(
                 content=[
-                    ImageContent(type="image", data="chart_png_base64", mime_type="image/png")
+                    ImageContent(type="image", data="chart_png_base64", mimeType="image/png")
                 ]
             )
 
@@ -409,9 +409,9 @@ class TestFullToolExecutionPipeline:
                         type="resource_link",
                         uri="gs://bucket/report.pdf",
                         name="report",
-                        mime_type="application/pdf",
+                        mimeType="application/pdf",
                     ),
-                    ImageContent(type="image", data="chart", mime_type="image/png"),
+                    ImageContent(type="image", data="chart", mimeType="image/png"),
                 ]
             )
 
@@ -472,7 +472,7 @@ class TestFullToolExecutionPipeline:
                         resource=BlobResourceContents(
                             uri="file:///tmp/archive.zip",
                             blob="zip_base64",
-                            mime_type="application/zip",
+                            mimeType="application/zip",
                         ),
                     )
                 ]
@@ -530,7 +530,7 @@ class TestProcessSessionToolsChain:
                         type="resource_link",
                         uri="https://cdn.example.com/doc.pdf",
                         name="doc",
-                        mime_type="application/pdf",
+                        mimeType="application/pdf",
                     )
                 ]
             )
@@ -558,7 +558,7 @@ class TestProcessSessionToolsChain:
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(
                 content=[
-                    ImageContent(type="image", data="screenshot_b64", mime_type="image/png")
+                    ImageContent(type="image", data="screenshot_b64", mimeType="image/png")
                 ]
             )
 

@@ -41,6 +41,21 @@ compact summary containing a retrieval pointer.  Return ``None`` to fall
 back to the default head-truncation."""
 
 
+def _mime_type(block: object) -> str:
+    """Read a MIME type from an MCP content block or its dict form.
+
+    MCP SDK 2.x typed blocks use the camelCase field ``mimeType``, while the
+    internal LangChain-style dicts produced by ``mcp_block_to_lc`` use
+    ``mime_type``.  Tolerate both shapes so image/resource handling works on
+    either input.
+    """
+    if isinstance(block, dict):
+        return str(block.get("mimeType") or block.get("mime_type") or "")
+    return str(
+        getattr(block, "mimeType", None) or getattr(block, "mime_type", None) or ""
+    )
+
+
 def coerce_content_block(block: dict[str, object]) -> dict[str, object]:
     """Coerce a LangChain content block to an LLM-safe type.
 
@@ -69,7 +84,7 @@ def coerce_content_block(block: dict[str, object]) -> dict[str, object]:
 
     if block_type == "file":
         url = block.get("url", "")
-        mime = block.get("mime_type", "")
+        mime = _mime_type(block)
         label = f"[file: {url}]" if url else f"[file {mime}]"
         logger.warning("Degrading file block to text: %s", label)
         return {"type": "text", "text": label}
@@ -101,14 +116,14 @@ def mcp_block_to_lc(block: object) -> dict[str, object]:
         return {
             "type": "image",
             "base64": getattr(block, "data", "") or "",
-            "mime_type": getattr(block, "mime_type", "") or "",
+            "mime_type": _mime_type(block),
         }
 
     if block_type == "resource_link":
         return {
             "type": "file",
             "url": getattr(block, "uri", "") or "",
-            "mime_type": getattr(block, "mime_type", "") or "",
+            "mime_type": _mime_type(block),
         }
 
     if block_type == "resource":
@@ -117,7 +132,7 @@ def mcp_block_to_lc(block: object) -> dict[str, object]:
         if res_text:
             return {"type": "text", "text": str(res_text)}
         res_blob = getattr(resource, "blob", None)
-        mime = getattr(resource, "mime_type", "") or ""
+        mime = _mime_type(resource)
         if res_blob:
             if mime.startswith("image/"):
                 return {"type": "image", "base64": res_blob, "mime_type": mime}

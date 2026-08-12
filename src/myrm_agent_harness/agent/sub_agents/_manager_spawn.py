@@ -186,8 +186,9 @@ class SubagentSpawnMixin:
         complexity_tier: str | None = None,
     ) -> SubAgentResult:
         """Execute subagent with retry logic and workspace isolation."""
+        completed_normally = False
         try:
-            return await self._executor.run_with_retry(  # type: ignore[union-attr]
+            result = await self._executor.run_with_retry(  # type: ignore[union-attr]
                 task_id=task_id,
                 agent_type=agent_type,
                 task_description=task_description,
@@ -208,12 +209,19 @@ class SubagentSpawnMixin:
                 on_running_token_usage=lambda usage: self.patch_child_running_token_usage(task_id, usage),
                 internal=bool(self._children_internal.get(task_id, False)),
             )
+            completed_normally = True
+            return result
         finally:
             self._cancel_flags.pop(task_id, None)
             child = self._children_agents.pop(task_id, None)
             if child is not None:
                 try:
-                    child.cancel_all_children()  # type: ignore[union-attr]
+                    # 正常完成时保留该子代理自己的 wait=false 后台孙代理（与
+                    # cleanup_run 的 include_detached 语义一致）；异常/取消路径
+                    # 级联取消所有后代。
+                    child.cancel_all_children(  # type: ignore[union-attr]
+                        include_detached=not completed_normally
+                    )
                 except Exception:
                     logger.debug(
                         "[subagent:%s] Cascade cancel in finally failed",

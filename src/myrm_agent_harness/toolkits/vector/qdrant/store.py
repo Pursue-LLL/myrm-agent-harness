@@ -173,6 +173,7 @@ class QdrantVectorStore(VectorStore):
             ("_updated_ts", PayloadSchemaType.FLOAT),
             ("importance", PayloadSchemaType.FLOAT),
             ("tags", PayloadSchemaType.KEYWORD),
+            ("namespaces", PayloadSchemaType.KEYWORD),
         ]
         for field, schema_type in index_specs:
             try:

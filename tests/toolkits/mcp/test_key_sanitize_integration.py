@@ -140,6 +140,44 @@ class TestRestoreWireNamesAtDispatch:
         assert seen == {"filters": {"op[is]": "eq"}}
 
     @pytest.mark.asyncio
+    async def test_cross_layer_collision_survives_flatten(self):
+        """A renamed top-level key and a same-named nested conforming key both
+        round-trip correctly through the flatten -> nest -> restore pipeline."""
+        seen: dict = {}
+
+        async def _capture(**kwargs):
+            seen.update(kwargs)
+            return "ok"
+
+        # Deep enough to trigger flattening, with the collision pair present.
+        tool = StructuredTool(
+            name="collide",
+            description="d",
+            args_schema={
+                "type": "object",
+                "properties": {
+                    "meta.<status>[eq]": {"type": "string"},
+                    "filters": {
+                        "type": "object",
+                        "properties": {"meta__status__eq": {"type": "string"}},
+                    },
+                },
+            },
+            coroutine=_capture,
+        )
+
+        sanitize_tools([tool])
+
+        assert tool.metadata["_key_restore_map"] == {
+            "meta__status__eq": "meta.<status>[eq]",
+        }
+        await tool.coroutine(meta__status__eq="open", filters={"meta__status__eq": "x"})
+        assert seen == {
+            "meta.<status>[eq]": "open",
+            "filters": {"meta__status__eq": "x"},
+        }
+
+    @pytest.mark.asyncio
     async def test_schema_remains_valid_json(self):
         """The renamed schema stays serializable (strict provider contract)."""
 

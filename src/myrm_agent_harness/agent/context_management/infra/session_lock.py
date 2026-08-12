@@ -6,12 +6,16 @@
 - asyncio::Lock (POS: Python async lock)
 - contextvars::contextvars (POS: Python context variables)
 - contextlib::asynccontextmanager (POS: async context manager decorator)
+- core.context_vars::chat_id_var (POS: session id SSOT shared with toolkits)
 
 [OUTPUT]
 - get_session_lock: returns a session lock.
 - acquire_context_lock: async context manager for context mutation locks.
 - is_context_lock_held: returns whether the current task holds a session lock.
 - cleanup_unused_locks: clears unused locks.
+- set_current_chat_id: sets the current chat id (delegates to chat_id_var).
+- get_current_chat_id: returns the current chat id (delegates to chat_id_var).
+- reset_current_chat_id: restores the previous chat id (delegates to chat_id_var).
 
 [POS]
 Session-level lock manager. Provides per-session async locks ensuring serialized context mutations within a session while allowing cross-session parallelism. Includes automatic cleanup.
@@ -24,6 +28,8 @@ import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from myrm_agent_harness.core.context_vars import chat_id_var
+
 # Session lock storage.
 _session_locks: dict[str, asyncio.Lock] = {}
 _lock_last_used: dict[str, float] = {}
@@ -32,15 +38,14 @@ _lock_last_used: dict[str, float] = {}
 _LOCK_CLEANUP_THRESHOLD_SECONDS = 3600
 _locks_mutex = asyncio.Lock()
 
-# Current session ID propagated through contextvars.
-_current_chat_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("current_chat_id", default=None)
+# Chat ids holding a context lock in the current task.
 _held_chat_ids: contextvars.ContextVar[frozenset[str]] = contextvars.ContextVar(
     "held_context_chat_ids",
     default=frozenset(),
 )
 
 
-def set_current_chat_id(chat_id: str) -> contextvars.Token[str | None]:
+def set_current_chat_id(chat_id: str) -> contextvars.Token[str]:
     """Set the current chat ID.
 
     Args:
@@ -49,7 +54,7 @@ def set_current_chat_id(chat_id: str) -> contextvars.Token[str | None]:
     Returns:
         Token for restoring the previous value.
     """
-    return _current_chat_id.set(chat_id)
+    return chat_id_var.set(chat_id)
 
 
 def get_current_chat_id() -> str | None:
@@ -58,16 +63,16 @@ def get_current_chat_id() -> str | None:
     Returns:
         Current chat ID, or None when unset.
     """
-    return _current_chat_id.get()
+    return chat_id_var.get().strip() or None
 
 
-def reset_current_chat_id(token: contextvars.Token[str | None]) -> None:
+def reset_current_chat_id(token: contextvars.Token[str]) -> None:
     """Reset the current chat ID.
 
     Args:
         token: Token returned by set_current_chat_id.
     """
-    _current_chat_id.reset(token)
+    chat_id_var.reset(token)
 
 
 def is_context_lock_held(chat_id: str | None = None) -> bool:

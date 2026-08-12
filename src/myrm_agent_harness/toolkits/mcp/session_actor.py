@@ -421,13 +421,9 @@ class MCPSessionActor:
 
                 return sse_client(url_str, headers=headers or None)
             if headers:
-                import httpx2
+                from .client import MCPClientManager
 
-                http_client = httpx2.AsyncClient(
-                    headers=headers,
-                    timeout=httpx2.Timeout(30.0, read=300.0),
-                    follow_redirects=True,
-                )
+                http_client = MCPClientManager.build_streamable_http_client(headers)
                 self._http_client = http_client
                 from mcp.client.streamable_http import streamable_http_client
 

@@ -8,8 +8,10 @@ and the outbound normalizer's missing-type inference crashes on it (a
 array-form ``type`` into the single-type form the rest of the normalization
 pipeline expects, before any composite-keyword logic runs:
 
-- ``["X", "null"]`` -> ``type: X`` plus ``nullable: true`` (the hint keeps
-  runtime argument coercion able to recognize nullability)
+- ``["X", "null"]`` -> ``type: X`` plus ``nullable: true`` (the marker
+  preserves nullability semantics in the intermediate representation;
+  runtime argument coercion reads the original inbound MCP schema, which
+  already carries the type-array form, so it does not depend on this hint)
 - ``["X", "Y"]`` (multiple non-null types) -> ``anyOf: [{type: X}, {type: Y}]``
   so no branch is dropped
 - ``["null"]`` -> ``type: "null"``

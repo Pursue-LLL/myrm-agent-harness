@@ -116,6 +116,7 @@ class MemoryWriter:
     async def store(self, memory: AnyMemory, *, bypass_approval: bool = False) -> AnyMemory:
         self._validate_supported_memory(memory)
         bound_memory = self._bind_scope(memory)
+        self._validate_write_scope(bound_memory)
         if self._config.security_scan_enabled:
             scan_and_clean_memory(bound_memory, block_threshold=self._config.injection_block_threshold)
 
@@ -144,6 +145,8 @@ class MemoryWriter:
         for memory in memories:
             self._validate_supported_memory(memory)
         bound_memories = [self._bind_scope(memory) for memory in memories]
+        for bound_memory in bound_memories:
+            self._validate_write_scope(bound_memory)
         safe_memories = self._scan_batch(bound_memories)
         if not safe_memories:
             return []
@@ -274,6 +277,23 @@ class MemoryWriter:
     def _validate_supported_memory(self, memory: AnyMemory) -> None:
         if not isinstance(memory, (SemanticMemory, EpisodicMemory, ProceduralMemory, ConversationMemory)):
             raise ValueError(f"Unknown memory type: {type(memory).__name__}")
+
+    def _validate_write_scope(self, memory: AnyMemory) -> None:
+        """Refuse writes whose namespaces fall outside this writer's grant.
+
+        Memory scope is normally derived from the writer itself; an explicit
+        out-of-scope namespace means the caller tries to write into another
+        agent/channel/task's space. Fail loud instead of silently persisting.
+        """
+        allowed = set(self._namespaces) | set(self._scope.namespaces)
+        if not allowed:
+            return
+        memory_namespaces = set(memory.scope.namespaces)
+        if not memory_namespaces.issubset(allowed):
+            raise MemoryError(
+                f"Memory write scope {sorted(memory_namespaces)} exceeds "
+                f"allowed scope {sorted(allowed)}"
+            )
 
     @staticmethod
     def _enforce_agent_self_priority_ceiling(memory: ProceduralMemory) -> None:

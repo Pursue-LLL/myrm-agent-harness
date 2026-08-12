@@ -236,6 +236,48 @@ class TestCancelChild:
 
 
 # ---------------------------------------------------------------------------
+# _run_subagent_core finally cascade semantics
+# ---------------------------------------------------------------------------
+
+
+class TestRunSubagentCoreFinally:
+    def _prepare(self) -> tuple[SubagentManager, MagicMock]:
+        mgr = _make_manager()
+        child = MagicMock()
+        mgr._children_agents["t1"] = child
+        mgr._executor = AsyncMock()
+        return mgr, child
+
+    async def _call(self, mgr: SubagentManager) -> SubAgentResult:
+        return await mgr._run_subagent_core(
+            task_id="t1",
+            agent_type="w",
+            task_description="d",
+            config=SubagentConfig(system_prompt="s"),
+            context={},
+            tool_registry_getter=lambda: [],
+        )
+
+    @pytest.mark.asyncio
+    async def test_normal_completion_preserves_detached_grandchildren(self):
+        """正常完成的子代理 finally 用 include_detached=False 清理，保留 wait=false 后台孙代理。"""
+        mgr, child = self._prepare()
+        mgr._executor.run_with_retry.return_value = _ok("t1")
+        result = await self._call(mgr)
+        assert result.success
+        child.cancel_all_children.assert_called_once_with(include_detached=False)
+
+    @pytest.mark.asyncio
+    async def test_failure_cancels_all_grandchildren(self):
+        """异常/取消路径 finally 用 include_detached=True 级联取消所有孙代理。"""
+        mgr, child = self._prepare()
+        mgr._executor.run_with_retry.side_effect = RuntimeError("boom")
+        with pytest.raises(RuntimeError):
+            await self._call(mgr)
+        child.cancel_all_children.assert_called_once_with(include_detached=True)
+
+
+# ---------------------------------------------------------------------------
 # Steer
 # ---------------------------------------------------------------------------
 
