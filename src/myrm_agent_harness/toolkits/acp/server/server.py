@@ -61,11 +61,7 @@ _AGENT_NAME = "myrm-agent"
 _AGENT_VERSION = "0.1.0"
 
 _ContentBlock = (
-    TextContentBlock
-    | ImageContentBlock
-    | AudioContentBlock
-    | ResourceContentBlock
-    | EmbeddedResourceContentBlock
+    TextContentBlock | ImageContentBlock | AudioContentBlock | ResourceContentBlock | EmbeddedResourceContentBlock
 )
 
 
@@ -147,10 +143,7 @@ class MyrmAcpServer:
         **kwargs: object,
     ) -> ListSessionsResponse:
         session_ids = self._bridge.list_sessions()
-        sessions = [
-            SessionInfo(session_id=sid, cwd=cwd or ".", title=f"Session {sid[:8]}")
-            for sid in session_ids
-        ]
+        sessions = [SessionInfo(session_id=sid, cwd=cwd or ".", title=f"Session {sid[:8]}") for sid in session_ids]
         return ListSessionsResponse(sessions=sessions)
 
     async def prompt(
@@ -173,9 +166,7 @@ class MyrmAcpServer:
     async def cancel(self, session_id: str, **kwargs: object) -> None:
         await self._bridge.cancel(session_id)
 
-    async def close_session(
-        self, session_id: str, **kwargs: object
-    ) -> CloseSessionResponse | None:
+    async def close_session(self, session_id: str, **kwargs: object) -> CloseSessionResponse | None:
         self._bridge.close_session(session_id)
         return CloseSessionResponse()
 
@@ -222,9 +213,7 @@ class MyrmAcpServer:
             await self._bridge.create_session(cwd)
         return ResumeSessionResponse()
 
-    async def ext_method(
-        self, method: str, params: dict[str, object]
-    ) -> dict[str, object]:
+    async def ext_method(self, method: str, params: dict[str, object]) -> dict[str, object]:
         return {}
 
     async def ext_notification(self, method: str, params: dict[str, object]) -> None:

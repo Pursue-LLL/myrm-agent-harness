@@ -35,9 +35,7 @@ from myrm_agent_harness.toolkits.acp.server.event_translator import (
     translate_agent_event,
 )
 
-_StopReason = Literal[
-    "end_turn", "max_tokens", "max_turn_requests", "refusal", "cancelled"
-]
+_StopReason = Literal["end_turn", "max_tokens", "max_turn_requests", "refusal", "cancelled"]
 
 if TYPE_CHECKING:
     from acp import Client
@@ -204,6 +202,4 @@ async def _send_notification(conn: Client, notification: SessionNotification) ->
 
 def _build_error_notification(session_id_val: str, message: str) -> SessionNotification:
     """Build an ACP notification with an error message visible to the user."""
-    return session_notification(
-        session_id_val, update_agent_message_text(f"\n\n {message}")
-    )
+    return session_notification(session_id_val, update_agent_message_text(f"\n\n {message}"))

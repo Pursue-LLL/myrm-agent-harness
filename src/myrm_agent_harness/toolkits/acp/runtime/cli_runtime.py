@@ -79,9 +79,7 @@ class CliRuntime(BaseRuntime):
 
     @property
     def capabilities(self) -> BackendCapabilities:
-        can_resume = self._config.command is not None and _supports_resume(
-            self._config.command
-        )
+        can_resume = self._config.command is not None and _supports_resume(self._config.command)
         return BackendCapabilities(
             supports_resume=can_resume,
             supports_mcp=False,
@@ -131,11 +129,7 @@ class CliRuntime(BaseRuntime):
 
         args = [command, *self._config.args]
 
-        if (
-            "--output-format" in args
-            and "stream-json" in args
-            and "--verbose" not in args
-        ):
+        if "--output-format" in args and "stream-json" in args and "--verbose" not in args:
             args.append("--verbose")
 
         resumed = False
@@ -208,9 +202,7 @@ class CliRuntime(BaseRuntime):
         self._alive = False
 
         if return_code != 0:
-            stderr_text = (
-                b"".join(stderr_chunks).decode("utf-8", errors="replace").strip()
-            )
+            stderr_text = b"".join(stderr_chunks).decode("utf-8", errors="replace").strip()
 
             if has_text:
                 logger.warning(
@@ -326,9 +318,7 @@ class CliRuntime(BaseRuntime):
         """
         data = parse_json_line(line)
         if data is None:
-            return create_event(
-                RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n"
-            )
+            return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n")
 
         data = unwrap_codex_envelope(data)
         event_type = data.get("type", "")
@@ -345,11 +335,7 @@ class CliRuntime(BaseRuntime):
 
         if event_type == "turn.failed":
             error_obj = data.get("error")
-            msg = (
-                error_obj.get("message", "Turn failed")
-                if isinstance(error_obj, dict)
-                else "Turn failed"
-            )
+            msg = error_obj.get("message", "Turn failed") if isinstance(error_obj, dict) else "Turn failed"
             return create_event(
                 RuntimeEventType.ERROR,
                 session_id,
@@ -360,17 +346,13 @@ class CliRuntime(BaseRuntime):
         if event_type in ("assistant", "text"):
             text = extract_text_from_event(data)
             if text:
-                return create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content=text
-                )
+                return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=text)
             return None
 
         if event_type == "agent_message":
             message = data.get("message")
             if isinstance(message, str) and message:
-                return create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content=message
-                )
+                return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=message)
             return None
 
         if event_type == "thinking":

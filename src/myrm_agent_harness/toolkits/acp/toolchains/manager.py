@@ -77,9 +77,7 @@ class IsolatedToolchainManager:
 
             try:
                 lock_file.touch()
-                await loop.run_in_executor(
-                    None, urllib.request.urlretrieve, url, tar_path
-                )
+                await loop.run_in_executor(None, urllib.request.urlretrieve, url, tar_path)
 
                 yield "Extracting Node.js..."
 
