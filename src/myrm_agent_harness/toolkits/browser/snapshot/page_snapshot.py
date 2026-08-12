@@ -38,22 +38,23 @@ logger = logging.getLogger(__name__)
 
 
 class FrameRegistry:
-    """多 Frame Register管理器
+    """Multi-frame registry manager.
 
-    协调multiple FrameState Instance,provides统一 多 Frame SnapshotInterface:
-    - lazy loading:只 in 首次访问时Create FrameState
-    - 失效检测:AutoClean up already Delete  Frame
-    - 生命周期管理:导航后AutoReset
-    - iframe refs Prefix:f1_e0, f2_e1 Format
-    - cursor-interactive 检测:传递 to All Frame
-    - Snapshot来源聚合:任一 Frame 全量Update则整体 is 全量
+    Coordinates multiple FrameState instances, providing a unified multi-frame
+    snapshot interface:
+    - Lazy loading: FrameState is created only on first access.
+    - Invalidity detection: auto-cleans up already-deleted frames.
+    - Lifecycle management: auto-resets after navigation.
+    - iframe refs prefix: f1_e0, f2_e1 format.
+    - Cursor-interactive detection: propagated to all frames.
+    - Snapshot source aggregation: if any frame did a full update, the whole result is full.
     """
 
     def __init__(self, page: Page):
-        """Initialize多 Frame Register管理器
+        """Initialize the multi-frame registry manager.
 
         Args:
-            page: Patchright Page Instance
+            page: Patchright Page instance.
         """
         self._page = page
         self._frame_states: dict[int, FrameState] = {}
@@ -70,21 +71,21 @@ class FrameRegistry:
         include_bbox: bool = False,
         max_tokens: int = 0,
     ) -> tuple[str, dict[str, RefInfo], str]:
-        """捕获completePageSnapshot(主框架 + iframe)
+        """Capture a complete page snapshot (main frame + iframes).
 
         Args:
-            include_iframes: WhetherContains iframe Content
-            force_full: 强制全量Update
-            cursor_interactive: 检测 cursor:pointer  etc.可交互Element
-            selector: CSS 选择器(限定SnapshotRange)
-            max_depth: Optional depth limit (None = Fast Path, int = Custom Path)
-            scope: SnapshotRange(interactive/content/full)
-            compact: 紧凑Format(节省 30% token)
-            include_bbox: 收集 bbox Data(Debug ModeAuto启用)
-            max_tokens: 最大 token 限制，0 表示不限制
+            include_iframes: Whether to include iframe content.
+            force_full: Force a full update.
+            cursor_interactive: Detect cursor:pointer and other interactive elements.
+            selector: CSS selector (scopes the snapshot range).
+            max_depth: Optional depth limit (None = Fast Path, int = Custom Path).
+            scope: Snapshot scope (interactive/content/full).
+            compact: Compact format (saves ~30% tokens).
+            include_bbox: Collect bbox data (auto-enabled in debug mode).
+            max_tokens: Maximum token limit, 0 means unlimited.
 
         Returns:
-            (aria_tree, refs, source) 元组,refs  in  iframe   key Format is  f{i}_{ref_id}
+            (aria_tree, refs, source) tuple; refs in iframes use the f{i}_{ref_id} key format.
         """
         main_snapshot = await self._get_frame_snapshot(
             frame_index=0,
@@ -150,21 +151,21 @@ class FrameRegistry:
         include_bbox: bool = False,
         max_tokens: int = 0,
     ) -> AriaSnapshot:
-        """Get指定 Frame  Snapshot(lazy loading)
+        """Get the snapshot for a specified frame (lazy loading).
 
         Args:
-            frame_index: Frame Index(0=主框架,1+=iframe)
-            force_full: 强制全量Update
-            cursor_interactive: 检测 cursor:pointer Element
-            selector: CSS 选择器(限定SnapshotRange)
-            scope: SnapshotRange(interactive/content/full)
-            compact: 紧凑Format(节省 30% token)
-            max_depth: Optional depth limit (None = Fast Path, int = Custom Path)
-            include_bbox: 收集 bbox Data(Debug ModeAuto启用)
-            max_tokens: 最大 token 限制，0 表示不限制
+            frame_index: Frame index (0 = main frame, 1+ = iframes).
+            force_full: Force a full update.
+            cursor_interactive: Detect cursor:pointer elements.
+            selector: CSS selector (scopes the snapshot range).
+            scope: Snapshot scope (interactive/content/full).
+            compact: Compact format (saves ~30% tokens).
+            max_depth: Optional depth limit (None = Fast Path, int = Custom Path).
+            include_bbox: Collect bbox data (auto-enabled in debug mode).
+            max_tokens: Maximum token limit, 0 means unlimited.
 
         Returns:
-            AriaSnapshot SnapshotResult
+            AriaSnapshot snapshot result.
         """
         if frame_index not in self._frame_states:
             frame_state = await self._create_frame_state(frame_index)
@@ -187,13 +188,13 @@ class FrameRegistry:
         return await self._frame_states[frame_index].capture(**capture_kwargs)
 
     async def _create_frame_state(self, frame_index: int) -> FrameState | None:
-        """Create Frame State管理器(lazy loading)
+        """Create a frame state manager (lazy loading).
 
         Args:
-            frame_index: Frame Index
+            frame_index: Frame index.
 
         Returns:
-            FrameState Instance,If Frame  not Exists则Return None
+            FrameState instance, or None if the frame does not exist.
         """
         try:
             if frame_index == 0:
@@ -213,7 +214,7 @@ class FrameRegistry:
             return None
 
     async def cleanup_stale_frames(self) -> None:
-        """Clean up失效  Frame 管理器"""
+        """Clean up stale frame managers."""
         current_frame_count = len(self._page.frames)
         stale_indices = [idx for idx in self._frame_states if idx >= current_frame_count]
 
@@ -223,7 +224,7 @@ class FrameRegistry:
             logger.info(f"Cleaned up stale frame {idx}")
 
     def reset(self) -> None:
-        """ResetAll Frame State(导航后Call)"""
+        """Reset all frame states (call after navigation)."""
         for state in self._frame_states.values():
             state.reset()
         self._frame_states.clear()
@@ -231,7 +232,7 @@ class FrameRegistry:
 
     @property
     def stats(self) -> dict[str, object]:
-        """GetStatisticsinformation"""
+        """Get statistics information."""
         return {
             "total_frames": len(self._frame_states),
             "frame_stats": {idx: state.stats for idx, state in self._frame_states.items()},

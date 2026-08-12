@@ -514,12 +514,12 @@ class BrowserSession(
         return await page.screenshot(type="png", full_page=False, mask=[password_locator])
 
     def mark_task_success(self) -> None:
-        """标记任务ExecuteSuccess"""
+        """Mark the task as succeeded."""
         if self._observability:
             self._observability.mark_task_status(success=True)
 
     def mark_task_failure(self) -> None:
-        """标记任务ExecuteFailure"""
+        """Mark the task as failed."""
         if self._observability:
             self._observability.mark_task_status(success=False)
 

@@ -216,8 +216,8 @@ async def _get_aria_tree_custom(locator: Locator, max_depth: int) -> str:
     """Custom Path: JavaScript DOM traversal with maxDepth support.
 
     Handles:
-    - maxDepthtruncation (early traversal termination)
-    - Visibility filtering(Skip隐藏Element)
+    - maxDepth truncation (early traversal termination)
+    - Visibility filtering (skips hidden elements)
     - Implicit roles(HTML semantic roles)
     - Accessible name calculation(simplified ARIA name computation)
 

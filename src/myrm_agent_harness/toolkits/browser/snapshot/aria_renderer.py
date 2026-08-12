@@ -9,7 +9,7 @@ Separates data from presentation (MVC principle).
 [OUTPUT]
 - text: YAML or compact formatted string
 - SnapshotMeta: ref count and token estimation
-- truncate_snapshot: 按 token 预算Truncate snapshottext
+- truncate_snapshot: truncate snapshot text to a token budget
 
 [POS]
 Layer 4 of the four-layer ARIA snapshot architecture.

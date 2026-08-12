@@ -31,37 +31,37 @@ _logger = logging.getLogger(__name__)
 
 
 class CircuitBreakerOpenError(Exception):
-    """熔断器打开Exception（Domain被熔断）."""
+    """Raised when a domain is blocked by an open circuit breaker."""
 
 
 class CircuitBreakerCallback(Protocol):
-    """熔断器回调Protocol.
+    """Circuit breaker callback protocol.
 
-    for 监听熔断器State变化，Support实时告警 and 监控。
+    Listens for circuit breaker state changes, enabling real-time alerting and monitoring.
     """
 
     def on_open(self, domain: str, failure_count: int) -> None:
-        """熔断器打开时回调.
+        """Callback when the breaker opens.
 
         Args:
-            domain: 被熔断 Domain
-            failure_count: Failure次数
+            domain: Domain that tripped the breaker.
+            failure_count: Number of consecutive failures.
 
         """
         ...
 
     def on_close(self, domain: str) -> None:
-        """熔断器Close时回调（TimeoutAutoRestore to CLOSED）.
+        """Callback when the breaker closes (auto-recovered after timeout).
 
         Args:
-            domain: Restore Domain
+            domain: Recovered domain.
 
         """
         ...
 
 
 class LoggingCallback:
-    """DefaultLog回调implements."""
+    """Default logging callback implementation."""
 
     def on_open(self, domain: str, failure_count: int) -> None:
         _logger.warning(f"Circuit breaker OPENED for domain '{domain}' after {failure_count} failures")
@@ -71,11 +71,11 @@ class LoggingCallback:
 
 
 class CircuitBreaker:
-    """熔断器 -  prevent 持续Failure Domain拖垮系统.
+    """Circuit breaker — prevents a persistently failing domain from dragging the system down.
 
-    State机：
-    - CLOSED（Close）：normal工作，RecordFailure次数
-    - OPEN（打开）：达 to Failure阈Value，拒绝Request；Timeout后Auto转 is CLOSED
+    State machine:
+    - CLOSED: normal operation, records failure counts.
+    - OPEN: failure threshold reached, requests rejected; auto-transitions to CLOSED after timeout.
     """
 
     def __init__(
@@ -84,32 +84,32 @@ class CircuitBreaker:
         timeout: float = 60.0,
         callback: CircuitBreakerCallback | None = None,
     ) -> None:
-        """Initialize熔断器.
+        """Initialize the circuit breaker.
 
         Args:
-            failure_threshold: 连续Failure次数阈Value
-            timeout: 熔断器打开后 Timeout时间（秒）
-            callback: State变化回调（optional，Default using LoggingCallback）
+            failure_threshold: Consecutive failure count threshold.
+            timeout: Time (seconds) the breaker stays open.
+            callback: State-change callback (optional, defaults to LoggingCallback).
 
         """
         self._failure_threshold = failure_threshold
         self._timeout = timeout
-        self.callback = callback or LoggingCallback()  # 公开Property， allow 替换
+        self.callback = callback or LoggingCallback()  # public property, allows replacement
 
         self._failure_counts: defaultdict[str, int] = defaultdict(int)
         self._open_until: dict[str, float] = {}
 
     def _extract_domain(self, url: str) -> str:
-        """ExtractURL Domain."""
+        """Extract the domain from a URL."""
         parsed = urlparse(url)
         return parsed.netloc or url
 
     def _is_open(self, domain: str) -> bool:
-        """Check熔断器Whether打开."""
+        """Check whether the breaker is open."""
         if domain not in self._open_until:
             return False
 
-        # CheckWhetherTimeout（Auto转 is CLOSED）
+        # Check for timeout (auto-transition to CLOSED)
         if time.time() >= self._open_until[domain]:
             del self._open_until[domain]
             self._failure_counts[domain] = 0
@@ -119,22 +119,22 @@ class CircuitBreaker:
         return True
 
     async def call(self, url: str, func: Callable[[], Awaitable[_T]]) -> _T:
-        """via 熔断器ExecuteFunction.
+        """Execute a function through the circuit breaker.
 
         Args:
-            url: 目标URL
-            func: AsyncFunction
+            url: Target URL.
+            func: Async function.
 
         Returns:
-            FunctionExecuteResult
+            Function execution result.
 
         Raises:
-            CircuitBreakerOpenError: 熔断器打开时拒绝Request
+            CircuitBreakerOpenError: request rejected while the breaker is open.
 
         """
         domain = self._extract_domain(url)
 
-        # Check熔断器State
+        # Check breaker state
         if self._is_open(domain):
             msg = f"Circuit breaker is OPEN for domain: {domain}"
             raise CircuitBreakerOpenError(msg)
@@ -148,18 +148,18 @@ class CircuitBreaker:
             raise
 
     def _on_success(self, domain: str) -> None:
-        """RecordSuccessCall，ResetFailure计数."""
+        """Record a successful call, resetting the failure count."""
         self._failure_counts[domain] = 0
 
     def _on_failure(self, domain: str) -> None:
-        """RecordFailureCall."""
+        """Record a failed call."""
         self._failure_counts[domain] += 1
 
-        # CheckWhether达 to Failure阈Value
+        # Check whether the failure threshold is reached
         if self._failure_counts[domain] >= self._failure_threshold:
             failure_count = self._failure_counts[domain]
 
-            # 打开熔断器（CLOSED → OPEN）
+            # Open the breaker (CLOSED → OPEN)
             self._open_until[domain] = time.time() + self._timeout
             self._failure_counts[domain] = 0
             self.callback.on_open(domain, failure_count)
@@ -176,7 +176,7 @@ class CircuitBreaker:
         self._on_failure(domain)
 
     def get_state(self, url: str) -> str:
-        """Get熔断器State.
+        """Get the circuit breaker state.
 
         Returns:
             "CLOSED" | "OPEN"
@@ -186,10 +186,10 @@ class CircuitBreaker:
         return "OPEN" if self._is_open(domain) else "CLOSED"
 
     def reset(self, url: str | None = None) -> None:
-        """Reset熔断器State.
+        """Reset the circuit breaker state.
 
         Args:
-            url: 目标URL，If is None则ResetAll
+            url: Target URL; when None, resets all domains.
 
         """
         if url is None:
@@ -202,7 +202,7 @@ class CircuitBreaker:
 
     @property
     def stats(self) -> dict[str, object]:
-        """Get熔断器Statisticsinformation."""
+        """Get circuit breaker statistics."""
         now = time.time()
         return {
             "open_circuits": len(self._open_until),

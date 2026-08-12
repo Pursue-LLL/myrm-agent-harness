@@ -12,7 +12,7 @@
 - extract_text_content(): 从字符串 / 多媒体列表 / JSON 中提取纯文本
 - extract_answer_text(): 从 LLM 响应提取用户可见答案文本（str / block list / think 剥离 / reasoning 模型回退）
 - extract_litellm_answer_text(): 从 litellm 原生响应提取用户可见答案文本（choices[0].message / reasoning_content / block list）
-- parse_llm_json_object() / parse_llm_json_list(): 从 LLM 回复中容错提取 JSON 对象 / 数组（fence / prose / 裸控制字符 / 尾逗号 / 多候选取末 / json_repair 兜底容错单引号·无引号 key·注释）；parse_llm_json_object 支持 require_key 过滤（仅取含指定键的对象）
+- parse_llm_json_object() / parse_llm_json_list(): 从 LLM 回复中容错提取 JSON 对象 / 数组（fence / prose / 裸控制字符 / 尾逗号 / 多候选取末 / json_repair 兜底容错单引号·无引号 key·注释，兜底带嵌套深度预算，超限输入优雅降级）；parse_llm_json_object 支持 require_key 过滤（仅取含指定键的对象）
 
 [POS]
 Chat utility functions. Provides business-config-independent chat history conversion (generic part).
@@ -29,11 +29,11 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from myrm_agent_harness.utils.text_sanitizer import extract_and_strip_think_blocks
 
-_json_repair_loads: Callable[[str], object] | None = None
+_json_repair_loads: Callable[..., object] | None = None
 try:
     from json_repair import loads as _loads
 
-    _json_repair_loads = cast(Callable[[str], object], _loads)
+    _json_repair_loads = cast(Callable[..., object], _loads)
 except ImportError:  # pragma: no cover - graceful degradation when dep absent
     pass
 
@@ -341,10 +341,16 @@ def _iter_repair_candidates(content: str) -> Iterable[str]:
 
 
 def _try_load(text: str) -> object | None:
-    """Return ``json.loads(text)`` or ``None`` when the text is malformed."""
+    """Return ``json.loads(text)`` or ``None`` when the text is malformed.
+
+    ``RecursionError`` is caught alongside ``JSONDecodeError``: deeply
+    nested (but syntactically valid) output exceeds the C parser's stack
+    budget and must degrade to the next tier instead of crashing the
+    extraction chain.
+    """
     try:
         return cast(object | None, json.loads(text))
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, RecursionError):
         return None
 
 
@@ -359,6 +365,42 @@ def _try_parse_structural(candidate: str) -> object | None:
     return parsed
 
 
+# json_repair's internal parser recursion budget; beyond this depth it
+# degrades to quadratic time and then fails, so skip the repair tier.
+_REPAIR_MAX_DEPTH = 512
+
+
+def _repair_nesting_depth(candidate: str) -> int:
+    """Return the maximum ``{``/``[`` nesting depth outside strings.
+
+    Mirrors json_repair's own parse model — it tolerates both single- and
+    double-quoted strings, so the budget check respects both quote kinds
+    and never penalizes legitimate quoted fragments.
+    """
+    depth = 0
+    max_depth = 0
+    quote: str | None = None
+    escape_next = False
+    for ch in candidate:
+        if quote is not None:
+            if escape_next:
+                escape_next = False
+            elif ch == "\\":
+                escape_next = True
+            elif ch == quote:
+                quote = None
+            continue
+        if ch in "\"'":
+            quote = ch
+        elif ch in "{[":
+            depth += 1
+            if depth > max_depth:
+                max_depth = depth
+        elif ch in "}]" and depth > 0:
+            depth -= 1
+    return max_depth
+
+
 def _try_load_repair(candidate: str) -> object | None:
     """Salvage a bounded candidate with the json_repair fallback tier.
 
@@ -369,9 +411,14 @@ def _try_load_repair(candidate: str) -> object | None:
     """
     if _json_repair_loads is None:
         return None
+    if _repair_nesting_depth(candidate) > _REPAIR_MAX_DEPTH:
+        return None
     try:
-        return _json_repair_loads(candidate)
-    except (ValueError, TypeError):
+        # skip_json_loads: the structural tier already failed with
+        # json.loads, so skip the identical doomed pre-validation inside
+        # json_repair and jump straight to repair.
+        return _json_repair_loads(candidate, skip_json_loads=True)
+    except (ValueError, TypeError, RecursionError):
         return None
 
 

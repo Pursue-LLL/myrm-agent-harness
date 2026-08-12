@@ -118,7 +118,7 @@ class BrowserObservability:
         """Send progress notification to user.
 
         Args:
-            message: Progress message (e.g., "正在第 2/5 步: 填写表单")
+            message: Progress message (e.g., "Step 2/5: filling in the form")
         """
         if self._progress_callback:
             try:

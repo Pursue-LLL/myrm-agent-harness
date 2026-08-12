@@ -35,19 +35,19 @@ _logger = logging.getLogger(__name__)
 
 
 class ThrottleStrategy(Protocol):
-    """限流StrategyProtocol."""
+    """Throttle strategy protocol."""
 
     async def before_navigate(self, url: str) -> None:
-        """导航前Wait（限流控制）."""
+        """Wait before navigation (throttle control)."""
         ...
 
     def record_response(self, url: str, success: bool) -> None:
-        """Record导航Result（供StrategyimplementsStatistics or extended；Current DomainThrottle  no Statedepends on）."""
+        """Record the navigation result (for strategies that track statistics; the current domain throttle is stateless)."""
         ...
 
 
 class NoThrottle:
-    """no 限流（LocalMode/开发Mode）."""
+    """No throttling (local/dev mode)."""
 
     async def before_navigate(self, url: str) -> None:
         pass
@@ -57,7 +57,7 @@ class NoThrottle:
 
 
 class DomainThrottle:
-    """按Domain限流（Token Bucket 算法 + 随机抖动）."""
+    """Per-domain throttling (token bucket algorithm + random jitter)."""
 
     def __init__(self, config: RateLimiterConfig) -> None:
         self._max_qps = config.domain_qps
@@ -98,7 +98,7 @@ class DomainThrottle:
 
 
 def create_throttle_strategy(config: RateLimiterConfig) -> ThrottleStrategy:
-    """工厂Function： based on ConfigureCreate限流Strategy."""
+    """Factory: create a throttle strategy from the given configuration."""
     if config.mode == ThrottleMode.NONE:
         return NoThrottle()
     if config.mode == ThrottleMode.DOMAIN:

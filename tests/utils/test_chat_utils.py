@@ -2,6 +2,7 @@
 
 import json
 
+import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from myrm_agent_harness.utils.chat_utils import (
@@ -375,3 +376,33 @@ class TestParseLlmJsonRepairTier:
     def test_structural_path_still_preferred(self) -> None:
         raw = '{"a": 1} then {"b": 2}'
         assert parse_llm_json_object(raw) == {"b": 2}
+
+    def test_deeply_nested_returns_none_instead_of_crashing(self) -> None:
+        depth = 50_000
+        raw = '{"a":' * depth + "1" + "}" * depth
+        assert parse_llm_json_object(raw) is None
+
+    def test_unclosed_brace_storm_skips_repair(self) -> None:
+        raw = "{" * 10_000
+        assert parse_llm_json_object(raw) is None
+        assert parse_llm_json_list(raw) is None
+
+    def test_unclosed_object_not_treated_as_candidate(self) -> None:
+        raw = "{a: 1"  # 无闭合括号 → 非平衡候选，repair 层不处理
+        assert parse_llm_json_object(raw) is None
+
+    def test_graceful_degradation_when_dependency_absent(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from myrm_agent_harness.utils import chat_utils as _cu
+
+        monkeypatch.setattr(_cu, "_json_repair_loads", None)
+        raw = "{'done': true}"
+        assert parse_llm_json_object(raw) is None  # 严格/结构修复均失败 → 降级 None
+
+    def test_single_quote_string_with_many_braces_not_miscounted(self) -> None:
+        from myrm_agent_harness.utils.chat_utils import _repair_nesting_depth
+
+        # 单引号字符串内嵌 600 个花括号不应计入嵌套深度
+        raw = "{'a': '" + "{" * 600 + "'}"
+        assert _repair_nesting_depth(raw) == 1

@@ -4,9 +4,9 @@
 [INPUT]
 
 [OUTPUT]
-- MUTATION_OBSERVER_SCRIPT: MutationObserver Initialize脚本
-- CURSOR_DETECT_SCRIPT: cursor-interactive Element检测脚本
-- BBOX_COLLECTOR_SCRIPT: BBox 批量收集脚本
+- MUTATION_OBSERVER_SCRIPT: MutationObserver initialization script
+- CURSOR_DETECT_SCRIPT: cursor-interactive element detection script
+- BBOX_COLLECTOR_SCRIPT: batch bounding-box collection script
 
 [POS]
 Browser-side JavaScript script constants. Single responsibility: defines DOM mutation

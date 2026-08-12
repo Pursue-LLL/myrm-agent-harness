@@ -477,7 +477,7 @@ class BrowserSessionNavigationMixin:
         return self._tab_controller.list_tabs_with_info()
 
     def get_active_tab_id(self) -> str:
-        """GetCurrent活跃 Tab ID"""
+        """Get the ID of the currently active tab."""
         return self._tab_controller.get_active_tab_id()
 
     async def close_tab(self, tab_id: str) -> str:

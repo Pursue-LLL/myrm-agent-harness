@@ -371,3 +371,68 @@ class TestNavigatorPrivateNetworks:
 
         _, _, status = await navigator.goto("http://172.16.0.1/service")
         assert status == 200
+
+
+class TestNavigatorTimeoutRescue:
+    """Timeout rescue behavior for _do_navigate."""
+
+    @pytest.mark.asyncio
+    async def test_builtin_timeout_triggers_rescue(self, monkeypatch):
+        """builtins.TimeoutError from SSRF-guarded goto is rescued (no raise, status 200)."""
+        mock_page = create_mock_page("https://example.com", 200, "Slow Page")
+        navigator = Navigator(mock_page)
+
+        async def raise_timeout(*args, **kwargs):
+            raise TimeoutError("navigation timed out")
+
+        monkeypatch.setattr(
+            "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard",
+            raise_timeout,
+        )
+
+        title, final_url, status = await navigator.goto("https://example.com")
+
+        assert title == "Slow Page"
+        assert final_url == "https://example.com"
+        assert status == 200
+        mock_page.evaluate.assert_awaited_with("window.stop()")
+
+    @pytest.mark.asyncio
+    async def test_patchright_timeout_triggers_rescue(self, monkeypatch):
+        """patchright TimeoutError from SSRF-guarded goto is rescued (no raise, status 200)."""
+        from patchright.async_api import TimeoutError as PlaywrightTimeoutError
+
+        mock_page = create_mock_page("https://example.com", 200, "Slow Page")
+        navigator = Navigator(mock_page)
+
+        async def raise_timeout(*args, **kwargs):
+            raise PlaywrightTimeoutError("page.goto: Timeout 30000ms exceeded")
+
+        monkeypatch.setattr(
+            "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard",
+            raise_timeout,
+        )
+
+        title, final_url, status = await navigator.goto("https://example.com")
+
+        assert title == "Slow Page"
+        assert final_url == "https://example.com"
+        assert status == 200
+        mock_page.evaluate.assert_awaited_with("window.stop()")
+
+    @pytest.mark.asyncio
+    async def test_non_timeout_error_still_raises(self, monkeypatch):
+        """Non-timeout errors are not swallowed by the rescue path."""
+        mock_page = create_mock_page("https://example.com", 200, "Test Page")
+        navigator = Navigator(mock_page)
+
+        async def raise_runtime(*args, **kwargs):
+            raise RuntimeError("unexpected failure")
+
+        monkeypatch.setattr(
+            "myrm_agent_harness.toolkits.browser.navigation.ssrf_guard.goto_with_ssrf_guard",
+            raise_runtime,
+        )
+
+        with pytest.raises(RuntimeError, match="unexpected failure"):
+            await navigator.goto("https://example.com")

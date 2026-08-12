@@ -69,13 +69,13 @@ class BrowserEngine(StrEnum):
 
 
 class LaunchMode(StrEnum):
-    """BrowserInstanceGet方式.
+    """How a browser instance is obtained.
 
-    - LAUNCH: 始终new启 Chromium（SaaS 沙箱Default）
-    - CONNECT:  via  CDP Connection用户 already 运行  Chrome
-    - AUTO: 先探测 CDP → Success则 connect → Failure则 fallback  to  launch（Local/Tauri Default）
-    - REMOTE: 连接到远程云端浏览器（如 Browserbase/Browser Use）通过 WebSocket
-    - EXTENSION: 通过官方浏览器扩展的 WebSocket CDP 代理获取用户日常浏览器控制权
+    - LAUNCH: always launch a new Chromium (SaaS sandbox default)
+    - CONNECT: connect via CDP to a user's already-running Chrome
+    - AUTO: probe CDP first → connect on success → fall back to launch (Local/Tauri default)
+    - REMOTE: connect to a remote cloud browser (e.g. Browserbase/Browser Use) via WebSocket
+    - EXTENSION: connect through the official browser extension's WebSocket CDP proxy
     """
 
     LAUNCH = "launch"
@@ -89,7 +89,7 @@ _DEFAULT_CDP_ENDPOINT = "http://127.0.0.1:9222"
 
 
 class ThrottleMode(StrEnum):
-    """限流Mode."""
+    """Throttle mode."""
 
     NONE = "none"
     DOMAIN = "domain"
@@ -97,7 +97,7 @@ class ThrottleMode(StrEnum):
 
 @dataclass(frozen=True)
 class RateLimiterConfig:
-    """限流Configure."""
+    """Throttle configuration."""
 
     mode: ThrottleMode = ThrottleMode.NONE
     domain_qps: float = 5.0
@@ -106,7 +106,7 @@ class RateLimiterConfig:
 
 @dataclass(frozen=True)
 class MemoryGuardConfig:
-    """内存监控Configure."""
+    """Memory monitoring configuration."""
 
     enabled: bool = False
     max_memory_percent: float = 85.0
@@ -123,7 +123,7 @@ class MemoryGuardConfig:
 
 @dataclass(frozen=True)
 class CircuitBreakerConfig:
-    """熔断器Configure."""
+    """Circuit breaker configuration."""
 
     enabled: bool = False
     failure_threshold: int = 3
@@ -140,7 +140,7 @@ class CircuitBreakerConfig:
 
 @dataclass(frozen=True)
 class ResourceBlockConfig:
-    """资源拦截Configure."""
+    """Resource interception configuration."""
 
     block_images: bool = False
     block_stylesheets: bool = False
@@ -152,26 +152,28 @@ class ResourceBlockConfig:
 
 @dataclass(frozen=True)
 class NavigationWaitConfig:
-    """导航WaitStrategyConfigure.
+    """Navigation wait strategy configuration.
 
-    Support多种WaitStrategy:
-    - smart: 自适应检测（推荐，fast+准确）- 先尝试fastnetworkidle，Failure则degradationhybrid
-    - hybrid: 混合检测（平衡Mode）- DOMstable+网络Empty闲双重保障
-    - dom_stable: OnlyDOMstable（适合StaticPage）
-    - networkidle: Only网络Empty闲（compatibleMode）
+    Supports multiple wait strategies:
+    - smart: adaptive detection (recommended, fast + accurate) — tries fast network
+      idle first, degrades to hybrid on failure
+    - hybrid: hybrid detection (balanced) — DOM stable + network idle dual guarantee
+    - dom_stable: DOM-only detection (suited to static pages)
+    - networkidle: network-only detection (compatibility mode)
 
-    TimeoutConfigure适配 not 同可靠性要求：
-    - MINIMAL: 1000ms（fastMode）
-    - STANDARD: 2000ms（standardMode）
-    - DEFENSIVE: 3000ms（防御Mode）
+    Timeout configurations adapt to reliability requirements:
+    - MINIMAL: 1000ms (fast mode)
+    - STANDARD: 2000ms (standard mode)
+    - DEFENSIVE: 3000ms (defensive mode)
 
-    grace_period_ms: 混合Strategy in ，第一个任务Complete后给第二个任务 额外Wait时间
+    grace_period_ms: in hybrid strategy, extra wait time given to the second task
+    after the first task completes.
     """
 
     wait_timeout_ms: int = 2000
-    strategy: str = "smart"  # "networkidle" | "dom_stable" | "hybrid" | "smart"（推荐）
-    quiet_ms: int = 500  # DOMstable静默期
-    grace_period_ms: int = 200  # 混合Strategygrace period
+    strategy: str = "smart"  # "networkidle" | "dom_stable" | "hybrid" | "smart" (recommended)
+    quiet_ms: int = 500  # DOM stable quiet period
+    grace_period_ms: int = 200  # hybrid strategy grace period
 
     def __post_init__(self) -> None:
         if not 100 <= self.wait_timeout_ms <= 10_000:
@@ -375,7 +377,7 @@ def _blueprint_for_mode(mode: BrowserMode) -> _ModeRobustnessBlueprint:
 
 @dataclass(frozen=True)
 class RobustnessPolicy:
-    """导航 and 池related 鲁棒性Strategy（显式Field，可由Mode工厂Generate）."""
+    """Navigation and pool robustness strategy (explicit fields, built by the mode factory)."""
 
     rate_limiter: RateLimiterConfig
     memory_guard: MemoryGuardConfig

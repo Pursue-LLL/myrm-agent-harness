@@ -372,6 +372,23 @@ class TestRevertService:
             os.remove(path)
 
     @pytest.mark.asyncio
+    async def test_revert_non_utf8_content_skips(self):
+        store = SnapshotStore.get()
+        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
+            f.write(b"\xff\xfe\x00\x01binary-bytes")
+            path = f.name
+
+        try:
+            store.record("s1", "m1", FileSnapshot(path, SnapshotOp.MODIFY, "original-text"))
+            result = await RevertService.revert_message("s1", "m1")
+            assert path in result.skipped_files
+            assert len(result.warnings) > 0
+            assert Path(path).read_bytes().startswith(b"\xff\xfe")
+        finally:
+            if os.path.exists(path):
+                os.remove(path)
+
+    @pytest.mark.asyncio
     async def test_revert_file_specific(self):
         store = SnapshotStore.get()
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:

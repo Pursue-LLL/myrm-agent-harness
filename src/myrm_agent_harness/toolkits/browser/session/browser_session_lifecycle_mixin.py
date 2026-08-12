@@ -169,7 +169,7 @@ class BrowserSessionLifecycleMixin:
         return f"Successfully restarted browser session with engine '{engine or 'default'}'."
 
     async def close(self) -> None:
-        """Close session(ReleaseAll资源)"""
+        """Close the session (releases all resources)."""
         if self._persistence is not None:
             await self._persistence.cleanup_expired()
 

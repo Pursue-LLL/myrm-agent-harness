@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 
 class SnapshotSource(StrEnum):
-    """Snapshot来源Type
+    """Snapshot source type.
 
     - FULL: Force full snapshot (first capture or after navigation)
     - FULL_WITH_CHANGES: Full re-capture after MutationObserver detected changes
@@ -38,7 +38,7 @@ class SnapshotSource(StrEnum):
 
 @dataclass(frozen=True)
 class SnapshotMetrics:
-    """SnapshotStatisticsMetrics"""
+    """Snapshot statistics metrics."""
 
     ref_count: int
     estimated_tokens: int
@@ -48,14 +48,14 @@ class SnapshotMetrics:
 
 @dataclass(frozen=True)
 class AriaSnapshot:
-    """immutable ARIA Snapshot
+    """Immutable ARIA snapshot.
 
-    Contains ARIA 树、Element引用 and 元information。frozen=True  guarantee immutable性。
+    Contains the ARIA tree, element references, and metadata. frozen=True guarantees immutability.
 
-    Data分层：
-    - coreData：tree, refs
-    - 元Data：source, timestamp
-    - Statisticsinformation：metrics（optional）
+    Data layers:
+    - Core data: tree, refs
+    - Metadata: source, timestamp
+    - Statistics: metrics (optional)
     """
 
     tree: str
@@ -66,7 +66,7 @@ class AriaSnapshot:
 
     @classmethod
     def create_empty(cls, source: str = SnapshotSource.FULL) -> AriaSnapshot:
-        """CreateEmptySnapshot"""
+        """Create an empty snapshot."""
         return cls(
             tree="",
             refs={},
@@ -77,7 +77,7 @@ class AriaSnapshot:
 
     @classmethod
     def create_error(cls, message: str) -> AriaSnapshot:
-        """CreateErrorSnapshot"""
+        """Create an error snapshot."""
         return cls(
             tree=message,
             refs={},
@@ -88,7 +88,7 @@ class AriaSnapshot:
 
     @classmethod
     def create_cross_origin(cls) -> AriaSnapshot:
-        """Create跨域iframeSnapshot"""
+        """Create a cross-origin iframe snapshot."""
         return cls(
             tree="[Cross-origin iframe - content not accessible]",
             refs={},

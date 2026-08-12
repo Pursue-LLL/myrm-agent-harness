@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class PageStructure:
-    """Page结构分析Result"""
+    """Page structure analysis result."""
 
     page_title: str
     page_url: str
@@ -39,17 +39,17 @@ class PageStructure:
 
 
 class PageAnalyzer:
-    """轻量级Page结构分析器
+    """Lightweight page structure analyzer.
 
-    职责:
-    1. 检测Pagemainly区域(main, article, form  etc.)
-    2. Statistics可交互ElementCount
-    3. Generate智能 selector 推荐
+    Responsibilities:
+    1. Detect primary page regions (main, article, form, etc.)
+    2. Count interactive elements
+    3. Generate smart selector recommendations
 
-    性能:~15ms
+    Performance: ~15ms
     """
 
-    # 优先检测 语义标签 and 常见容器
+    # Priority: semantic tags and common containers
     _SEMANTIC_TAGS: ClassVar[list[str]] = ["main", "article", "form", "nav"]
     _COMMON_IDS: ClassVar[list[str]] = ["app", "root", "main", "content", "container"]
     _COMMON_CLASSES: ClassVar[list[str]] = ["main", "content", "container", "app", "wrapper"]
@@ -71,16 +71,16 @@ class PageAnalyzer:
             result = await self._page.evaluate(
                 """
                 () => {
-                    // Statistics可交互Element总数
+                    // Count total interactive elements
                     const interactive = document.querySelectorAll(
                         'button, a, input, select, textarea, [role="button"], [role="link"], [onclick], [tabindex]'
                     );
                     const totalInteractive = interactive.length;
 
-                    // 检测mainly区域
+                    // Detect primary regions
                     const regions = [];
 
-                    // 检测语义标签
+                    // Detect semantic tags
                     ['main', 'article', 'form', 'nav'].forEach(tag => {
                         const elements = document.querySelectorAll(tag);
                         elements.forEach((el, idx) => {
@@ -96,7 +96,7 @@ class PageAnalyzer:
                         });
                     });
 
-                    // 检测常见 ID
+                    // Detect common IDs
                     ['app', 'root', 'main', 'content', 'container'].forEach(id => {
                         const el = document.getElementById(id);
                         if (el) {
@@ -109,7 +109,7 @@ class PageAnalyzer:
                         }
                     });
 
-                    // 检测常见 class(只取第一个Match)
+                    // Detect common classes (first match only)
                     ['main', 'content', 'container', 'app', 'wrapper'].forEach(cls => {
                         const elements = document.getElementsByClassName(cls);
                         if (elements.length > 0) {
@@ -133,13 +133,13 @@ class PageAnalyzer:
                 """
             )
 
-            # ParseResult
+            # Parse result
             title = result.get("title", "Unknown")
             url = result.get("url", "")
             total_interactive = result.get("totalInteractive", 0)
             regions_raw = result.get("regions", [])
 
-            # 去重并Sort(按交互ElementCount降序)
+            # Deduplicate and sort (by interactive element count, descending)
             seen_selectors = set()
             regions = []
             for selector, desc, count in regions_raw:
@@ -149,14 +149,14 @@ class PageAnalyzer:
 
             regions.sort(key=lambda x: x[2], reverse=True)
 
-            # Generate推荐
+            # Generate recommendation
             recommended, savings = self._compute_recommendation(total_interactive, regions)
 
             return PageStructure(
                 page_title=title,
                 page_url=url,
                 total_interactive_elements=total_interactive,
-                detected_regions=regions[:5],  # 只Return前 5 个
+                detected_regions=regions[:5],  # only return the top 5
                 recommended_selector=recommended,
                 estimated_savings=savings,
             )
@@ -173,11 +173,11 @@ class PageAnalyzer:
             )
 
     def _compute_recommendation(self, total_interactive: int, regions: list[tuple[str, str, int]]) -> tuple[str, str]:
-        """Compute推荐  selector  and 预估节省
+        """Compute the recommended selector and estimated savings.
 
         Args:
-            total_interactive: 总 可交互ElementCount
-            regions: 检测 to  mainly区域 [(selector, desc, count), ...]
+            total_interactive: Total interactive element count.
+            regions: Detected primary regions [(selector, desc, count), ...].
 
         Returns:
             (recommended_selector, estimated_savings_percentage)
@@ -196,13 +196,13 @@ class PageAnalyzer:
         return "", "0%"
 
     def format_report(self, structure: PageStructure) -> str:
-        """FormatPage结构分析报告
+        """Format the page structure analysis report.
 
         Args:
-            structure: PageStructure 分析Result
+            structure: Page structure analysis result.
 
         Returns:
-            Format  YAML 风格报告String
+            A YAML-style report string.
         """
         output = ["=== PAGE STRUCTURE ===\n"]
         output.append(f"Title: {structure.page_title}")

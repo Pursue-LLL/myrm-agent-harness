@@ -4,7 +4,7 @@
 - langchain_core.language_models::BaseChatModel (POS: LLM instance for structured extraction)
 - str (POS: raw page text to extract from)
 - dict (POS: JSON Schema defining desired output structure)
-- myrm_agent_harness.utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
+- myrm_agent_harness.utils.chat_utils::extract_answer_text (POS: LLM response answer extraction — falls back when reasoning models return empty content)
 - myrm_agent_harness.utils.chat_utils::parse_llm_json_object, parse_llm_json_list (POS: robust JSON extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
@@ -139,7 +139,7 @@ class StructuredExtractor:
                     {"role": "user", "content": user_content},
                 ]
             )
-            # 兼容 reasoning 模型 content 空回退（Qwen3/DeepSeek-R1 等）
+            # Compatible with reasoning models returning empty content (Qwen3/DeepSeek-R1 etc.)
             content = extract_answer_text(raw_response)
             parsed = _extract_json_from_text(content, expect_array=is_array_schema)
             if parsed is not None:

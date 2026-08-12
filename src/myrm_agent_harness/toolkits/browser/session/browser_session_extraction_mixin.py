@@ -3,7 +3,7 @@
 [INPUT]
 - session.extractor::Extractor (POS: content extraction manager)
 - session.structured_extractor::StructuredExtractor (POS: LLM-based structured data extraction)
-- utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
+- utils.chat_utils::extract_answer_text (POS: LLM response text extraction)
 
 [OUTPUT]
 - BrowserSessionExtractionMixin: extract_text, extract_structured, extract_media, screenshot compare/export helpers
@@ -150,7 +150,7 @@ class BrowserSessionExtractionMixin:
                 ]
             )
             response = await self._vision_llm.ainvoke([message])  # type: ignore[union-attr]
-            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            # Compatible with Anthropic content blocks / reasoning models returning empty content
             content = extract_answer_text(response).strip()
             if content:
                 logger.info("BrowserSession: Vision fallback extracted %d chars", len(content))
@@ -191,7 +191,7 @@ class BrowserSessionExtractionMixin:
                 ]
             )
             response = await self._vision_llm.ainvoke([message])  # type: ignore[union-attr]
-            # 兼容 Anthropic 块列表 / reasoning 模型 content 空回退
+            # Compatible with Anthropic content blocks / reasoning models returning empty content
             content = extract_answer_text(response).strip()
 
             if content.startswith("```"):
@@ -241,7 +241,7 @@ class BrowserSessionExtractionMixin:
         mismatch_threshold: float = 5.0,
         include_aa: bool = True,
     ) -> ComparisonResult:
-        """对比CurrentScreenshot and 基准Screenshot"""
+        """Compare the current screenshot against a baseline screenshot."""
         await self._ensure_components()
         extractor = self._require_extractor()
         return await extractor.compare_screenshots(
@@ -254,7 +254,7 @@ class BrowserSessionExtractionMixin:
         )
 
     async def compare_screenshot(self) -> str:
-        """对比Current and 上次Screenshot"""
+        """Compare the current screenshot with the previous one."""
         await self._ensure_components()
         extractor = self._require_extractor()
 

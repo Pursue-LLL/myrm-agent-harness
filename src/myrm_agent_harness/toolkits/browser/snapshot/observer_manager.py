@@ -27,26 +27,26 @@ logger = logging.getLogger(__name__)
 
 
 class ObserverManager:
-    """MutationObserver 管理器
+    """MutationObserver manager.
 
-    职责：
-    - 安装 and 卸载 MutationObserver
-    - 检测跨域 iframe
-    - Get DOM 变化Record
+    Responsibilities:
+    - Install and detach MutationObserver
+    - Detect cross-origin iframes
+    - Get DOM change records
     """
 
     def __init__(self, frame: Page | Frame):
-        """Initialize Observer 管理器
+        """Initialize the observer manager.
 
         Args:
-            frame: Page  or  Frame Instance
+            frame: Page or Frame instance.
         """
         self._frame = frame
         self._installed = False
         self._is_cross_origin = False
 
     async def install(self) -> None:
-        """安装 MutationObserver  to  Frame"""
+        """Install the MutationObserver on the frame."""
         try:
             await asyncio.wait_for(self._frame.evaluate(MUTATION_OBSERVER_SCRIPT), timeout=2.0)
             self._installed = True
@@ -61,10 +61,10 @@ class ObserverManager:
             self._installed = False
 
     async def get_changes(self) -> list[dict[str, str]]:
-        """Get DOM 变化Record
+        """Get DOM change records.
 
         Returns:
-            变化List，Format: [{type, target, ...}]
+            List of changes, format: [{type, target, ...}]
         """
         try:
             changes = await asyncio.wait_for(
@@ -77,22 +77,22 @@ class ObserverManager:
             return []
 
     async def disconnect(self) -> None:
-        """断开 MutationObserver"""
+        """Disconnect the MutationObserver."""
         if self._installed and not self._is_cross_origin:
             with contextlib.suppress(Exception):
                 await self._frame.evaluate("() => window.__ariaObserver && window.__ariaObserver.disconnect()")
 
     def reset(self) -> None:
-        """ResetState"""
+        """Reset state."""
         self._installed = False
         self._is_cross_origin = False
 
     @property
     def is_installed(self) -> bool:
-        """Check observer Whether already 安装"""
+        """Whether the observer is already installed."""
         return self._installed
 
     @property
     def is_cross_origin(self) -> bool:
-        """CheckWhether is 跨域 iframe"""
+        """Whether the frame is a cross-origin iframe."""
         return self._is_cross_origin

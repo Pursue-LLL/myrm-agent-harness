@@ -8,18 +8,18 @@ Four-layer architecture types:
 
 
 [OUTPUT]
-- BBox: Element边界框坐标(viewport-relative)
-- RefInfo: Element ref 元Data(role/name/nth/bbox/position)
-- SnapshotMeta: Snapshot元information(ref_count + token 估算)
-- AriaNode: ARIA 树节点(Layer 2 output)
-- EnhancedNode: 带 ref ID  and 语义Position 节点(Layer 3 output)
-- ViewportData: viewport 尺寸 exactType定义
-- BBoxData: bbox Data exactType定义
-- BBoxMapKey: bbox_map  TypeSecurity key (role, name) tuple
-- BBoxMap: complete bbox_map  Type定义
-- calculate_semantic_position: BBox 配套Tool，Compute语义PositionDescription
-- resolve_locator:  from  RefInfo 重建 Playwright Locator
-- CURSOR_ROLES: cursor-interactive Element 虚拟 role 集合
+- BBox: Element bounding box coordinates (viewport-relative)
+- RefInfo: Element ref metadata (role/name/nth/bbox/position)
+- SnapshotMeta: Snapshot metadata (ref_count + token estimate)
+- AriaNode: ARIA tree node (Layer 2 output)
+- EnhancedNode: Node with ref ID and semantic position (Layer 3 output)
+- ViewportData: exact viewport dimension type definition
+- BBoxData: exact bbox data type definition
+- BBoxMapKey: bbox_map type-safe key (role, name) tuple
+- BBoxMap: complete bbox_map type definition
+- calculate_semantic_position: BBox companion tool, computes semantic position descriptions
+- resolve_locator: rebuild a Playwright Locator from RefInfo
+- CURSOR_ROLES: virtual role set for cursor-interactive elements
 
 [POS]
 Core data types and utility functions for the ARIA Snapshot architecture.
@@ -150,7 +150,7 @@ CURSOR_ROLES = frozenset({"clickable", "focusable"})
 
 
 def calculate_semantic_position(bbox: BBox) -> str:
-    """Calculate semantic position descriptor from bounding box (配套ToolFunction).
+    """Calculate a semantic position descriptor from a bounding box (companion utility).
 
     Maps absolute coordinates to human-readable position like "at top-left".
     Uses 3x3 grid division: top/center/bottom x left/center/right.

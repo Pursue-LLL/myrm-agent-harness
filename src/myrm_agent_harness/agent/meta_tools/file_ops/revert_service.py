@@ -229,6 +229,9 @@ async def _revert_single(snap: FileSnapshot, executor: object | None) -> _Single
         logger.info("Reverted file: %s", snap.path)
         return _SingleRevertResult(success=True)
 
+    except UnicodeDecodeError:
+        logger.warning("Cannot read %s as UTF-8 text; skipping revert", snap.path)
+        return _SingleRevertResult(success=False, warning=f"Cannot revert {snap.path}: file is not UTF-8 text")
     except OSError as e:
         logger.error("I/O error reverting %s: %s", snap.path, e)
         return _SingleRevertResult(success=False, warning=f"I/O error reverting {snap.path}")

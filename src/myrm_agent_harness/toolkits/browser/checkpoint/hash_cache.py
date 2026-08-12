@@ -121,7 +121,7 @@ class LRUHashCache:
         return time.time() - entry.timestamp > self.ttl
 
     def _cleanup_expired(self) -> None:
-        """惰性Clean up过期条目（按时间间隔Trigger， avoid 每次set都O(n)扫描）"""
+        """Lazily clean up expired entries (interval-triggered, avoids O(n) scan per set)."""
         current_time = time.time()
 
         if current_time - self._last_cleanup_time < self._cleanup_interval:
@@ -215,14 +215,14 @@ class LRUHashCache:
         logger.info("LRUHashCache: cleared")
 
     def get_metrics(self) -> dict[str, int | float]:
-        """GetCacheMetrics（ for 监控）
+        """Get cache metrics (for monitoring).
 
-        Note:  is  avoid 锁开销，metrics读取 not 加锁。
-         in 极端Concurrent下可能出现轻微 not 一致（如hits+misses略 has 偏差），
-        但 not 影响监控告警 准确性。
+        Note: to avoid lock overhead, metrics reads are not locked. Under extreme
+        concurrency, slight inconsistency may appear (e.g. hits/misses diverging a
+        little), but this does not affect monitoring/alerting accuracy.
 
         Returns:
-            Contains命 in 率、驱逐数、过期数、利用率 etc.Metrics Dict
+            A metrics dict containing hit rate, evictions, expirations, utilization.
         """
         hits = self._hits
         misses = self._misses
@@ -246,5 +246,5 @@ class LRUHashCache:
         }
 
     def get_stats(self) -> dict[str, int | float]:
-        """别名Method，保持向后compatible"""
+        """Alias for get_metrics (kept for backward compatibility)."""
         return self.get_metrics()

@@ -18,20 +18,21 @@ def generate_snapshot_suggestion(
     current_compact: bool,
     current_selector: str,
 ) -> str:
-    """Generate智能optimized建议
+    """Generate a smart optimization suggestion.
 
     Args:
-        ref_count: Current ref Count
-        estimated_tokens: 预估 token 数
-        current_scope: Current scope Parameter
-        current_compact: Current compact Parameter
-        current_selector: Current selector Parameter
+        ref_count: Current ref count.
+        estimated_tokens: Estimated token count.
+        current_scope: Current scope parameter.
+        current_compact: Current compact parameter.
+        current_selector: Current selector parameter.
 
     Returns:
-        建议String, no 建议时ReturnEmptyString
+        Suggestion string, or empty string when no suggestion applies.
 
     Note:
-        启发式Rule；更细粒度Range可配合 `browser_inspect`  and  `selector`。
+        Heuristic-based rules; finer-grained scoping can be combined with
+        `browser_inspect` and `selector`.
     """
     if estimated_tokens > 2000 and not current_selector:
         saved_tokens = int(estimated_tokens * 0.7)

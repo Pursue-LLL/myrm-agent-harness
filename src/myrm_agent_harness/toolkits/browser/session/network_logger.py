@@ -68,12 +68,14 @@ class RequestInfo:
 
 
 class NetworkLogger:
-    """网络RequestFilter and Record，供 Agent 诊断。
+    """Network request filtering and recording for agent diagnostics.
 
-    按资源TypeFilter，FIFO 限制条数；回调 in  Patchright 派发Page事件时SyncExecute。
-     using  WeakKeyDictionary，以 Request  is KeyRecord待Match Start时间。
+    Filters by resource type, limits entries with FIFO; callbacks run synchronously
+    when Patchright dispatches page events. Uses WeakKeyDictionary with the Request
+    as the key to record start times of pending matches.
 
-     not yet  using  ``__slots__``，so that Patchright 向监听Function挂接InternalProperty。
+    Does not use ``__slots__`` so Patchright can attach internal properties to the
+    listener functions.
     """
 
     def __init__(self, max_requests: int = 50) -> None:
@@ -88,7 +90,7 @@ class NetworkLogger:
 
     @property
     def bound_page(self) -> Page | None:
-        """Current already Register监听  Page（ and 活跃 Tab 对齐，由 BrowserSession 驱动）。"""
+        """The page currently registered for listeners (aligned with the active tab, driven by BrowserSession)."""
         return self._bound_page
 
     def _cb_request(self, request: Request) -> None:
@@ -101,7 +103,7 @@ class NetworkLogger:
         self._on_request_failed(request)
 
     def detach_page(self, page: Page) -> None:
-        """from 指定 Page 移除监听；Only当该 Page  is Current绑定Object时生效。"""
+        """Remove listeners from the given page; effective only when that page is the currently bound object."""
         if self._bound_page is not page:
             return
         try:
@@ -136,7 +138,7 @@ class NetworkLogger:
         page.on("requestfailed", self._cb_request_failed)
 
     def stop_capture(self) -> None:
-        """卸下监听并清Empty pending；保留 already Complete队列 ``_requests``。"""
+        """Detach listeners and clear pending entries; keep the already-completed queue ``_requests``."""
         self.detach_current()
         self._pending.clear()
 

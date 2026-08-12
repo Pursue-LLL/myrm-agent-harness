@@ -89,7 +89,7 @@ class Extractor:
         self._comparator = ScreenshotComparator(page.context)
 
     async def extract_full_text(self, selector: str = "") -> str:
-        """ExtractPage全量text(Support Iframe 穿透 and  Markdown 语义Convert)。"""
+        """Extract all page text (supports iframe traversal and Markdown semantic conversion)."""
         js_script = f"""
             (selector) => {{
                 const PASSWORD_SELECTOR = `{PASSWORD_FIELD_SELECTOR}`;
@@ -196,13 +196,13 @@ class Extractor:
         return full_text
 
     async def extract_screenshot(self, retina: bool = False) -> str:
-        """ExtractPageScreenshot(base64 Encoding  JPEG)
+        """Extract a page screenshot (base64-encoded JPEG).
 
         Args:
-            retina: Whether using  2x DPR(Retina 高清)
+            retina: Whether to use 2x DPR (Retina high resolution).
 
         Returns:
-            Base64 Encoding  JPEG Image
+            Base64-encoded JPEG image.
         """
         if retina:
             await self._set_device_scale_factor(2.0)
@@ -235,25 +235,25 @@ class Extractor:
         mismatch_threshold: float = 5.0,
         include_aa: bool = True,
     ) -> FastComparisonResult | AccurateComparisonResult:
-        """对比CurrentScreenshot and 基准Screenshot
+        """Compare the current screenshot against a baseline screenshot.
 
         Args:
-            baseline: Base64 Encoding 基准Screenshot
-            strategy: 对比Strategy
-                - 'auto': Auto选择( based on ImageSize,<800x600 用 accurate,Otherwise用 fast)
-                - 'fast': dHash fast检测(~2ms),Return相似度
-                - 'accurate': Canvas API 像素级对比(~100ms),Return diff 图
-            similarity_threshold: Fast Strategy 相似度阈Value (0.0-1.0, Default 0.9)
-            color_tolerance: Accurate Strategy 颜色容忍度 (0.0-1.0, Default 0.1)
-            mismatch_threshold: Accurate Strategy  not Match阈Value (0-100, Default 5.0)
-            include_aa: Accurate StrategyWhether启用抗锯齿检测 (Default True)
+            baseline: Base64-encoded baseline screenshot.
+            strategy: Comparison strategy.
+                - 'auto': auto-select (based on image size, <800x600 uses accurate, otherwise fast)
+                - 'fast': dHash fast detection (~2ms), returns similarity
+                - 'accurate': Canvas API pixel-level comparison (~100ms), returns a diff image
+            similarity_threshold: Fast strategy similarity threshold (0.0-1.0, default 0.9).
+            color_tolerance: Accurate strategy color tolerance (0.0-1.0, default 0.1).
+            mismatch_threshold: Accurate strategy mismatch threshold (0-100, default 5.0).
+            include_aa: Whether accurate strategy enables anti-aliasing detection (default True).
 
         Returns:
-            FastComparisonResult: strategy='fast'  or  auto 选择 fast 时
-            AccurateComparisonResult: strategy='accurate'  or  auto 选择 accurate 时
+            FastComparisonResult: when strategy is 'fast' or auto picks fast.
+            AccurateComparisonResult: when strategy is 'accurate' or auto picks accurate.
 
         Raises:
-            ValueError: If strategy  not 是 'fast', 'accurate',  or  'auto'
+            ValueError: if strategy is not 'fast', 'accurate', or 'auto'.
         """
         current = await self.extract_screenshot()
 
@@ -268,13 +268,13 @@ class Extractor:
         )
 
     async def compare_screenshot(self) -> str:
-        """对比CurrentScreenshot and 上次Screenshot(便捷Method)
+        """Compare the current screenshot with the previous one (convenience method).
 
         Returns:
-            对比Result textDescription
+            Text description of the comparison result.
 
         Raises:
-            RuntimeError: If没 has 上次Screenshot
+            RuntimeError: if there is no previous screenshot.
         """
         if self._prev_screenshot is None:
             raise RuntimeError("No previous screenshot to compare with. Call extract_screenshot first.")
@@ -556,10 +556,10 @@ class Extractor:
         return result
 
     async def _set_device_scale_factor(self, scale: float) -> None:
-        """Set设备缩放因子(CDP)
+        """Set the device scale factor (CDP).
 
         Args:
-            scale: 缩放因子(1.0=normal,2.0=Retina)
+            scale: Scale factor (1.0 = normal, 2.0 = Retina).
         """
         try:
             cdp = await self._page.context.new_cdp_session(self._page)

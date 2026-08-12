@@ -45,21 +45,21 @@ logger = logging.getLogger(__name__)
 
 
 class FrameState:
-    """单 Frame State管理器
+    """Single-frame state manager.
 
-     is single Frame provides MutationObserver 变化检测 and  cursor-interactive 检测:
-    - independent  MutationObserver
-    - independent  ARIA 树Cache
-    - cursor-interactive 检测(两Stage:CSS 选择器 + getComputedStyle)
-    - 变化检测Strategy(0: CACHED, <5: FULL_WITH_CHANGES, >=5: FULL)
-    - 跨域 iframe degradationProcess
+    Provides MutationObserver change detection and cursor-interactive detection per frame:
+    - Independent MutationObserver
+    - Independent ARIA tree cache
+    - Cursor-interactive detection (two stages: CSS selector + getComputedStyle)
+    - Change detection strategy (0: CACHED, <5: FULL_WITH_CHANGES, >=5: FULL)
+    - Cross-origin iframe degradation flow
     """
 
     def __init__(self, frame: Page | Frame):
-        """Initialize Frame Snapshot管理器
+        """Initialize the frame snapshot manager.
 
         Args:
-            frame: Page  or  Frame Instance
+            frame: Page or Frame instance.
         """
         self._frame = frame
         self._observer = ObserverManager(frame)
@@ -82,20 +82,20 @@ class FrameState:
         include_bbox: bool = False,
         max_tokens: int = 0,
     ) -> AriaSnapshot:
-        """捕获 ARIA Snapshot(增量 or 全量)
+        """Capture an ARIA snapshot (incremental or full).
 
         Args:
-            force_full: 强制全量Update(导航后 or 首次Call)
-            cursor_interactive: 检测 cursor:pointer  etc.可交互Element
-            selector: CSS 选择器(限定SnapshotRange)
-            scope: SnapshotRange(interactive/content/full)
-            compact: 紧凑Format(节省 30% token)
-            max_depth: Optional depth limit (None = Fast Path, int = Custom Path with depth control)
-            include_bbox: Whether收集 bbox Data for 语义Position(Default False)
-            max_tokens: 最大 token 限制，0 表示不限制
+            force_full: Force a full update (after navigation or first call).
+            cursor_interactive: Detect cursor:pointer and other interactive elements.
+            selector: CSS selector (scopes the snapshot range).
+            scope: Snapshot scope (interactive/content/full).
+            compact: Compact format (saves ~30% tokens).
+            max_depth: Optional depth limit (None = Fast Path, int = Custom Path with depth control).
+            include_bbox: Whether to collect bbox data for semantic position (default False).
+            max_tokens: Maximum token limit, 0 means unlimited.
 
         Returns:
-            AriaSnapshot immutableSnapshotResult
+            AriaSnapshot immutable snapshot result.
         """
         self._total_updates += 1
 
@@ -132,11 +132,11 @@ class FrameState:
                 max_tokens=max_tokens,
             )
 
-        # Strategy选择： based on 变更Count决定Update方式
+        # Strategy selection: pick the update mode based on the change count
         total_changes = len(changes)
         self._incremental_updates += 1
 
-        # Execute全量捕获（UpdateCache）
+        # Execute a full capture (updates the cache)
         snapshot = await self._full_update(
             cursor_interactive=cursor_interactive,
             selector=selector,
@@ -147,7 +147,7 @@ class FrameState:
             max_tokens=max_tokens,
         )
 
-        #  based on 变更Count决定 source Type
+        # Pick the source type based on the change count
         if total_changes < 5:
             return self._incremental_snapshot(snapshot, total_changes)
         else:
@@ -164,16 +164,16 @@ class FrameState:
         include_bbox: bool = False,
         max_tokens: int = 0,
     ) -> AriaSnapshot:
-        """全量Update ARIA 树
+        """Perform a full update of the ARIA tree.
 
         Args:
-            cursor_interactive: Whether检测 cursor:pointer Element
-            selector: CSS 选择器(限定SnapshotRange,EmptyString using  :root)
-            scope: SnapshotRange(interactive/content/full)
-            compact: 紧凑Format(节省 30% token)
-            max_depth: Optional depth limit (None = Fast Path, int = Custom Path)
-            include_bbox: Whether收集 bbox Data(Default False, 启用时增加 ~20-30ms)
-            max_tokens: 最大 token 限制，0 表示不限制
+            cursor_interactive: Whether to detect cursor:pointer elements.
+            selector: CSS selector (scopes the snapshot range; empty string uses :root).
+            scope: Snapshot scope (interactive/content/full).
+            compact: Compact format (saves ~30% tokens).
+            max_depth: Optional depth limit (None = Fast Path, int = Custom Path).
+            include_bbox: Whether to collect bbox data (default False; adds ~20-30ms when enabled).
+            max_tokens: Maximum token limit, 0 means unlimited.
         """
         from .aria_acquisition import get_aria_tree
         from .aria_enhancer import enhance_aria_tree
@@ -316,14 +316,14 @@ class FrameState:
         )
 
     def _incremental_snapshot(self, base_snapshot: AriaSnapshot, total_changes: int) -> AriaSnapshot:
-        """Create增量Snapshot
+        """Create an incremental snapshot.
 
         Args:
-            base_snapshot: basicSnapshot
-            total_changes: 变更Count
+            base_snapshot: Base snapshot.
+            total_changes: Change count.
 
         Returns:
-            标记 is  FULL_WITH_CHANGES  Snapshot
+            A snapshot marked as FULL_WITH_CHANGES.
         """
         return AriaSnapshot(
             tree=base_snapshot.tree,
@@ -343,14 +343,14 @@ class FrameState:
         )
 
     def reset(self) -> None:
-        """ResetState(导航后Call)"""
+        """Reset state (call after navigation)."""
         self._cached_aria_tree = None
         self._cached_refs = None
         self._cached_cursor_elements = None
         self._observer.reset()
 
     async def cleanup(self) -> None:
-        """Clean up资源(Frame 被Delete时Call)"""
+        """Clean up resources (call when the frame is deleted)."""
         await self._observer.disconnect()
         self.reset()
 

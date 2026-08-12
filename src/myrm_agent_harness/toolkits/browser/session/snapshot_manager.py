@@ -44,22 +44,22 @@ _ESTIMATED_CHARS_PER_TOKEN = 4
 
 
 class SnapshotManager:
-    """SnapshotGenerate管理器 — 单一职责
+    """Snapshot generation manager — single responsibility.
 
-    职责:
-    1. ARIA SnapshotGenerate(委托 FrameRegistry)
-    2. Diff 基线维护(委托 SnapshotDiffEngine)
-    3. compact/selector/max_tokens  etc.output形态控制
-    4. Cursor-interactive 检测
+    Responsibilities:
+    1. ARIA snapshot generation (delegated to FrameRegistry)
+    2. Diff baseline maintenance (delegated to SnapshotDiffEngine)
+    3. compact/selector/max_tokens output shaping
+    4. Cursor-interactive detection
 
-     not 涉 and :导航、交互、Extract etc.业务逻辑。
+    Not involved: navigation, interaction, extraction business logic.
     """
 
     def __init__(self, page: Page):
-        """Initialize SnapshotManager
+        """Initialize SnapshotManager.
 
         Args:
-            page: Patchright Page Instance
+            page: Patchright Page instance.
         """
         self._page = page
         self._diff = SnapshotDiffEngine()
@@ -84,21 +84,21 @@ class SnapshotManager:
         max_depth: int | None = None,
         include_bbox: bool = False,
     ) -> SnapshotResult:
-        """Generate ARIA Snapshot(含 iframe 穿透)
+        """Generate an ARIA snapshot (including iframe traversal).
 
         Args:
-            scope: SnapshotRange(interactive/content/full)
-            compact: 紧凑Format(单行化output，usually短于Default YAML 形态)
-            selector: CSS 选择器(限定Range,Set时Skip iframe)
-            max_tokens: Token 预算(0= no 限)
-            diff: 启用语义感知 diff
-            cursor_interactive: 检测 cursor:pointer Element
-            include_iframes: Contains iframe Content(Auto遍历All iframe)
-            max_depth: Optional depth limit (None = Fast Path, int = Custom Path)
-            include_bbox: 收集 bbox Data(Debug ModeAuto启用)
+            scope: Snapshot scope (interactive/content/full).
+            compact: Compact format (single-line output, usually shorter than default YAML).
+            selector: CSS selector (scopes the range; skips iframes when set).
+            max_tokens: Token budget (0 = unlimited).
+            diff: Enable semantic-aware diff.
+            cursor_interactive: Detect cursor:pointer elements.
+            include_iframes: Include iframe content (auto-traverses all iframes).
+            max_depth: Optional depth limit (None = Fast Path, int = Custom Path).
+            include_bbox: Collect bbox data (auto-enabled in debug mode).
 
         Returns:
-            SnapshotResult Contains ARIA 树 and  refs(iframe refs Format:f1_e0, f2_e1)
+            SnapshotResult containing the ARIA tree and refs (iframe refs format: f1_e0, f2_e1).
         """
         # 1. Generate suggestion (skip diff check here, done after return)
         aria_tree, refs, _source = await self._frame_registry.capture(
@@ -144,7 +144,7 @@ class SnapshotManager:
         )
 
     def reset_diff_baseline(self) -> None:
-        """Reset diff 基线（导航后Call）"""
+        """Reset the diff baseline (call after navigation)."""
         self._diff.reset()
         self._frame_registry.reset()
 
@@ -170,7 +170,7 @@ class SnapshotManager:
 
     @property
     def stats(self) -> dict[str, object]:
-        """GetStatisticsinformation( for 监控)"""
+        """Get statistics information (for monitoring)."""
         return {
             "has_baseline": self._diff.has_baseline(),
             "frame_registry": self._frame_registry.stats,
