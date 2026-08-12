@@ -74,6 +74,7 @@ class SubagentSpawnMixin:
     _children_observability: dict[str, dict[str, object]]
     _children_agents: dict[str, object]
     _cancel_flags: dict[str, bool]
+    _children_internal: dict[str, bool]
 
     async def _run_subagent(
         self,

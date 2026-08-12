@@ -273,6 +273,12 @@ class SubAgentResult:
     """True when a wait timeout fired but the agent continues in background."""
     verification: VerificationSummary | None = None
     """Independent adversarial verification outcome, when the worker was verified."""
+    internal: bool = False
+    """True for framework-internal subagents (verification workers/verifiers).
+
+    Internal nodes are hidden from user-facing subagent trees (REST list,
+    SSE events) so business tasks stay the only visible delegation units.
+    """
 
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
@@ -283,6 +289,8 @@ class SubAgentResult:
             "status": self.status.value,
             "duration_seconds": round(self.duration_seconds, 3),
         }
+        if self.internal:
+            data["internal"] = True
         if not self.still_running:
             data["completed_at"] = self.completed_at
         if self.trace_id:
