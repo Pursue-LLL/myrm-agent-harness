@@ -279,7 +279,7 @@ class MCPAgent:
 
         return server_name, [], last_error
 
-    async def _close_http_clients(self, clients: list[object]) -> None:
+    async def _close_http_clients(self, clients: list[httpx2.AsyncClient]) -> None:
         """Close ``httpx2.AsyncClient`` instances created for enumeration targets.
 
         The MCP SDK never closes an injected client, so the owner must. Errors
@@ -287,7 +287,7 @@ class MCPAgent:
         """
         for http_client in clients:
             with contextlib.suppress(Exception):
-                await http_client.aclose()  # type: ignore[attr-defined]
+                await http_client.aclose()
 
     async def get_tools(
         self, mcp_config: Sequence[MCPServerConfigProtocol] | None = None
