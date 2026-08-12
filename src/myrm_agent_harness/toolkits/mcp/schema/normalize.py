@@ -71,6 +71,29 @@ def _is_scalar(value: object) -> bool:
     return value is None or isinstance(value, str | int | float | bool)
 
 
+def _degrade_unresolved_ref(node: dict[str, Any]) -> dict[str, Any]:
+    """Replace an unresolvable ``$ref`` node with a permissive schema.
+
+    Drops the ``$ref`` key and keeps sibling metadata plus a declared scalar
+    ``type`` when present; otherwise the node becomes a permissive object
+    (``additionalProperties: true``) so the LLM can still pass an arbitrary
+    value instead of the parameter silently disappearing.  Mirrors the
+    outbound ``_degrade_unresolved_ref`` in ``adapters/schema/normalizer.py``.
+    """
+    declared_type = node.get("type")
+    if isinstance(declared_type, str) and declared_type != "object":
+        return {key: value for key, value in node.items() if key != "$ref"}
+    degraded: dict[str, Any] = {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": True,
+    }
+    for key in ("description", "title", "default", "examples"):
+        if key in node and key not in degraded:
+            degraded[key] = node[key]
+    return degraded
+
+
 def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str, Any]:
     """Flattens a JSON schema by recursively resolving $ref tags inline.
 
@@ -91,8 +114,10 @@ def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str
 
     def resolve(node: Any, depth: int) -> Any:
         if depth > max_depth and isinstance(node, (dict, list)):
-            # Fallback to empty dict if we hit max depth to prevent infinite recursion
-            return {}
+            # Deeply nested beyond the safety bound — degrade to a permissive
+            # schema instead of dropping the node (a bare `{}` would silently
+            # lose every descendant parameter).
+            return {"type": "object", "additionalProperties": True}
 
         if isinstance(node, dict):
             if "$ref" in node:
@@ -114,6 +139,10 @@ def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str
                             if k != "$ref":
                                 merged[k] = resolve(v, depth + 1)
                         return merged
+                # Unresolvable ref (missing definition or external URL): degrade
+                # instead of leaking the raw pointer — strict providers reject
+                # a bare `$ref` with 400, disabling the whole tool.
+                return _degrade_unresolved_ref(node)
             return {k: resolve(v, depth + 1) for k, v in node.items()}
         elif isinstance(node, list):
             return [resolve(item, depth + 1) for item in node]

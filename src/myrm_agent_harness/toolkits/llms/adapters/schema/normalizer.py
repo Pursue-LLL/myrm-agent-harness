@@ -58,6 +58,7 @@ logger = logging.getLogger(__name__)
 
 _COMPOSITE_KEYWORDS = frozenset({"anyOf", "oneOf", "allOf"})
 _REF_PREFIXES = ("#/$defs/", "#/definitions/")
+_MAX_INLINE_REF_DEPTH = 20
 
 
 def normalize_tool_schema(
@@ -103,15 +104,17 @@ def normalize_tool_schema(
 
 
 def _resolve_defs(schema: dict[str, object]) -> dict[str, object]:
-    """Inline ``$ref`` references using ``$defs`` / ``definitions``."""
+    """Inline ``$ref`` references using ``$defs`` / ``definitions``.
+
+    Runs even when no local definitions exist so unresolvable pointers (e.g.
+    external URL ``$ref``) are degraded by ``_inline_refs`` instead of being
+    sent to a strict provider that would reject the bare ``$ref`` with 400.
+    """
     defs: dict[str, object] = {}
     for key in ("$defs", "definitions"):
         raw = schema.get(key)
         if isinstance(raw, dict):
             defs.update(raw)
-
-    if not defs:
-        return schema
 
     resolved = _inline_refs(schema, defs)
     if isinstance(resolved, dict):
@@ -129,9 +132,14 @@ def _inline_refs(
 
     Sibling keys next to ``$ref`` (e.g. an overriding ``description``) are
     merged onto the resolved definition so field guidance survives inlining —
-    matching the inbound ``flatten_json_schema`` behavior.
+    matching the inbound ``flatten_json_schema`` behavior.  A ``$ref`` that
+    cannot be resolved (missing definition, external URL, or depth limit) is
+    degraded to a permissive schema instead of leaking the raw pointer —
+    strict providers reject a bare ``$ref`` with 400, disabling the whole tool.
     """
-    if depth > 20:
+    if depth > _MAX_INLINE_REF_DEPTH:
+        if isinstance(node, dict) and "$ref" in node:
+            return _degrade_unresolved_ref(node)
         return node
 
     if isinstance(node, dict):
@@ -149,7 +157,10 @@ def _inline_refs(
                                     resolved[key] = _inline_refs(value, defs, depth + 1)
                             return resolved
                         return resolved
-                    break
+                    return _degrade_unresolved_ref(node)
+            # A non-local pointer (e.g. an external URL ref) can never be
+            # resolved here — degrade instead of sending it to the LLM.
+            return _degrade_unresolved_ref(node)
 
         return {k: _inline_refs(v, defs, depth + 1) for k, v in node.items()}
 
@@ -157,6 +168,28 @@ def _inline_refs(
         return [_inline_refs(item, defs, depth + 1) for item in node]
 
     return node
+
+
+def _degrade_unresolved_ref(node: dict[str, object]) -> dict[str, object]:
+    """Replace an unresolvable ``$ref`` node with a permissive schema.
+
+    Drops the ``$ref`` key and keeps sibling metadata plus a declared scalar
+    ``type`` when present; otherwise the node becomes a permissive object
+    (``additionalProperties: true``) so the LLM can still pass an arbitrary
+    value instead of losing the parameter entirely.
+    """
+    declared_type = node.get("type")
+    if isinstance(declared_type, str) and declared_type != "object":
+        return {key: value for key, value in node.items() if key != "$ref"}
+    degraded: dict[str, object] = {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": True,
+    }
+    for key in ("description", "title", "default", "examples"):
+        if key in node and key not in degraded:
+            degraded[key] = node[key]
+    return degraded
 
 
 def _ensure_object_type(schema: dict[str, object]) -> dict[str, object]:
