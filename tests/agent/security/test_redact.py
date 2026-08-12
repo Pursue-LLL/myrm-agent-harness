@@ -546,3 +546,141 @@ class TestRedactEngineHardening:
         text = "https://user@example.com"
         result = redact_sensitive_text(text)
         assert "user@example.com" in result
+
+
+class TestRedactYamlColon:
+    """#170 YAML/冒号式配置脱敏——`password: secret` 不再明文泄漏。"""
+
+    def test_yaml_indented_password(self) -> None:
+        text = "  password: mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+        assert "password:" in result
+
+    def test_yaml_line_start_password(self) -> None:
+        text = "password: mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+    def test_yaml_dotted_config_key(self) -> None:
+        text = "spring.datasource.password: hunter2"
+        result = redact_sensitive_text(text)
+        assert "hunter2" not in result
+        assert "spring.datasource.password:" in result
+
+    def test_yaml_keyword_in_value_not_redacted(self) -> None:
+        """关键词在 value（`note: secret meeting`）不得误伤。"""
+        text = "note: secret meeting"
+        assert redact_sensitive_text(text) == text
+
+    def test_yaml_author_prose_not_redacted(self) -> None:
+        """`author: John Smith` 是散文，不得被 YAML 正则误伤。"""
+        text = "author: John Smith"
+        assert redact_sensitive_text(text) == text
+
+    def test_yaml_secretary_prose_not_redacted(self) -> None:
+        """`Secretary: J.Smith` 内嵌 secret 关键词但非词边界，不得误伤。"""
+        text = "Secretary: J.Smith"
+        assert redact_sensitive_text(text) == text
+
+    def test_yaml_url_skipped(self) -> None:
+        """含 `://` 的 URL 文本不触发 YAML 正则（防 URL query 误伤）。"""
+        text = "https://example.com:8080/path?mode=prod"
+        assert redact_sensitive_text(text) == text
+
+    def test_yaml_env_lookup_value_preserved(self) -> None:
+        """`api_key: os.getenv('X')` 是变量名引用，不得掩码破坏代码示例。"""
+        text = "api_key: os.getenv('API_KEY')"
+        result = redact_sensitive_text(text)
+        assert "os.getenv('API_KEY')" in result
+
+
+class TestRedactLowerEnv:
+    """#170 小写/短名 env 脱敏——`db_pw=`/`openai_key=` 不再明文泄漏。"""
+
+    def test_short_env_name_db_pw(self) -> None:
+        text = "DB_PW=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+        assert "DB_PW=" in result
+
+    def test_lowercase_env_openai_key(self) -> None:
+        text = "openai_key=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+        assert "openai_key=" in result
+
+    def test_lowercase_env_fal_key(self) -> None:
+        text = "FAL_KEY=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+    def test_bare_password_eq_still_redacted(self) -> None:
+        """裸 `password=xxx`（无下划线）由大写 ENV 正则 IGNORECASE 覆盖。"""
+        text = "password=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+    def test_lower_env_skips_url(self) -> None:
+        """含 `://` 的文本跳过小写 env 正则（URL query 参数有意放行）。"""
+        text = "https://x.com/?openai_key=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+
+class TestRedactFormBody:
+    """#170 form-urlencoded body 逐对脱敏——杜绝 `\S+` 吞参与前缀泄漏。"""
+
+    def test_form_body_token_fully_redacted(self) -> None:
+        text = "token=abc&limit=50&page=2"
+        result = redact_sensitive_text(text)
+        assert result == "token=***&limit=50&page=2"
+
+    def test_form_body_middle_token(self) -> None:
+        text = "a=1&token=abc&limit=50"
+        result = redact_sensitive_text(text)
+        assert result == "a=1&token=***&limit=50"
+
+    def test_form_body_no_sensitive_key_unchanged(self) -> None:
+        text = "user=alice&limit=50&page=2"
+        assert redact_sensitive_text(text) == text
+
+    def test_form_body_short_env_not_swallowed(self) -> None:
+        """大写在 `&` 处截断，不吞后续参数。"""
+        text = "OPENAI_API_KEY=sk-proj-abc&other=1"
+        result = redact_sensitive_text(text)
+        assert result == "OPENAI_API_KEY=***&other=1"
+
+    def test_form_body_with_newline_not_triggered(self) -> None:
+        """含换行的文本不是纯 form body，放行给其他正则处理。"""
+        text = "token=abc\n&limit=50"
+        result = redact_sensitive_text(text)
+        assert "abc" not in result
+
+
+class TestRedactProseWordBoundary:
+    """#170 词边界校验——`author=`/`tokenizer=` 等散文词不再被 ENV 正则误伤。"""
+
+    def test_prose_author_not_redacted(self) -> None:
+        text = "author=John Smith"
+        assert redact_sensitive_text(text) == text
+
+    def test_prose_tokenizer_not_redacted(self) -> None:
+        text = "tokenizer=cl100k_base"
+        assert redact_sensitive_text(text) == text
+
+    def test_prose_secretary_not_redacted(self) -> None:
+        text = "secretary=John Smith"
+        assert redact_sensitive_text(text) == text
+
+    def test_all_caps_token_still_redacted(self) -> None:
+        """全大写 key（`MYTOKEN=`）保留旧嵌入匹配，仍然脱敏。"""
+        text = "MYTOKEN=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+    def test_underscore_boundary_keyword_still_redacted(self) -> None:
+        """下划线分隔的 key（`MY_ACCESS_TOKEN=`）词边界命中，仍然脱敏。"""
+        text = "MY_ACCESS_TOKEN=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result

@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 
 from myrm_agent_harness.agent.security.detection.deep_pii_prompt import build_deep_pii_prompt
 from myrm_agent_harness.agent.security.detection.pseudonym_store import PseudonymStore
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_list
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_list
 from myrm_agent_harness.utils.text_sanitizer import sanitize_text
 
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@
 [INPUT]
 - memory.types::{BaseMemory, SemanticMemory, EpisodicMemory, MemoryStatus} (POS: memory data models)
 - memory.strategies.forgetting::{ForgettableMemory} (POS: type alias)
-- utils.chat_utils::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - StalenessReviewConfig: Configuration for staleness review thresholds
@@ -30,7 +30,7 @@ from enum import StrEnum
 
 from myrm_agent_harness.toolkits.memory.strategies.forgetting import ForgettableMemory
 from myrm_agent_harness.toolkits.memory.types import MemoryStatus
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_list
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_list
 
 logger = logging.getLogger(__name__)
 

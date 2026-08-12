@@ -5,7 +5,7 @@
 - str (POS: raw page text to extract from)
 - dict (POS: JSON Schema defining desired output structure)
 - myrm_agent_harness.utils.chat_utils::extract_answer_text (POS: LLM response answer extraction — falls back when reasoning models return empty content)
-- myrm_agent_harness.utils.chat_utils::parse_llm_json_object, parse_llm_json_list (POS: robust JSON extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- myrm_agent_harness.utils.json_parsing::parse_llm_json_object, parse_llm_json_list (POS: robust JSON extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - StructuredExtractor: Component that extracts structured data from raw text using LLM.

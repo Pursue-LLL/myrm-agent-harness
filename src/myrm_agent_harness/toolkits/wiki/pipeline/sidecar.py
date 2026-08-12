@@ -7,7 +7,7 @@ langchain_core.messages::HumanMessage, SystemMessage (POS: prompt messages)
 ..core.config::WikiCompileConfig (POS: sidecar generation knobs)
 ..core.types::ConceptInfo (POS: touched concept hints from compiler)
 utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
-utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
+utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 SidecarBuildResult: sidecar build statistics

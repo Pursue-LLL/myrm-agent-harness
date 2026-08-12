@@ -4,7 +4,7 @@
 - agent.hooks.types (POS: Hook 类型定义)
 - core.security.http.secure_fetch::secure_request (POS: SSRF-protected outbound HTTP)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
-- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM hook output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM hook output — fences, prose, bare control chars, trailing commas)
 - utils.logger_utils (POS: 日志工具)
 
 [OUTPUT]

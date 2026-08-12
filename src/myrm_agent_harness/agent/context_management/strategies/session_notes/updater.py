@@ -7,7 +7,7 @@
 - langchain_core.language_models::BaseChatModel (POS: LLM 基类)
 - langchain_core.messages::BaseMessage, HumanMessage (POS: 消息类型)
 - utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
-- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - SessionNotesManager: 后台异步更新管理器
@@ -30,7 +30,8 @@ from myrm_agent_harness.observability.metrics.circuit_breaker_metrics import (
     circuit_breaker_failures_total,
     circuit_breaker_state,
 )
-from myrm_agent_harness.utils.chat_utils import extract_answer_text, parse_llm_json_object
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .prompts import build_full_refresh_prompt, build_incremental_prompt

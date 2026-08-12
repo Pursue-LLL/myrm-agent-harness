@@ -14,7 +14,7 @@ vs OpenSpace (lime):
 
 [INPUT]
 - utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
-- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - ConfirmationResult: Result of LLM confirmation for a single candidate.

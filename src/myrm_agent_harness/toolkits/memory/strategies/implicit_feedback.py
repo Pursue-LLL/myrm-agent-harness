@@ -3,7 +3,7 @@
 [INPUT]
 - memory.strategies.extractor::{FeedbackSignal, detect_feedback_signals} (POS: regex-based fast pre-filter)
 - memory.types::{AnyMemory, SemanticMemory, MemoryType} (POS: memory data models)
-- utils.chat_utils::parse_llm_json_object, parse_llm_json_list (POS: robust JSON object/list extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_object, parse_llm_json_list (POS: robust JSON object/list extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - ImplicitFeedbackResult: Detected signals with planned memory actions
@@ -30,7 +30,7 @@ from myrm_agent_harness.toolkits.memory.strategies.extractor import (
     detect_feedback_signals,
     detect_language,
 )
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_list, parse_llm_json_object
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_list, parse_llm_json_object
 
 logger = logging.getLogger(__name__)
 

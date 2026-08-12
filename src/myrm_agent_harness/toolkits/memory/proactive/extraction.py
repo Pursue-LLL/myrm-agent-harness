@@ -7,7 +7,7 @@ parsing, with confidence thresholds and deduplication.
 [INPUT]
 - commitment.types::{CommitmentCandidate, ExtractionBatchResult, CommitmentKind, CommitmentSensitivity} (POS: type definitions)
 - commitment.config::CommitmentConfig (POS: extraction thresholds)
-- utils.chat_utils::parse_llm_json_object (POS: LLM 回复容错 JSON 对象提取)
+- utils.json_parsing::parse_llm_json_object (POS: LLM 回复容错 JSON 对象提取)
 
 [OUTPUT]
 - CommitmentExtractor: Stateless extractor class

@@ -5,7 +5,7 @@ SecurityConfig-compatible dict.
 
 [INPUT]
 - Raw LLM response text (expected JSON)
-- utils.chat_utils::parse_llm_json_object (POS: LLM 回复容错 JSON 对象提取)
+- utils.json_parsing::parse_llm_json_object (POS: LLM 回复容错 JSON 对象提取)
 
 [OUTPUT]
 - parse_policy_response(): cleaned SecurityConfig dict
@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 import re
 
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 
 
 class PolicyParseError(ValueError):

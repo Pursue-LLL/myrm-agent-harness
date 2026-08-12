@@ -4,7 +4,7 @@
 - schemas::StructuredSummary (POS: structured summary dataclass)
 - langchain_core.messages::BaseMessage (POS: LangChain message base class)
 - security.detection.leak_detector::redact_leaks (POS: 输出侧凭证泄露检测器)
-- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas; requires the ``user_goal`` key for summary-message scan)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas; requires the ``user_goal`` key for summary-message scan)
 
 [OUTPUT]
 - extract_existing_summary: detect existing summary in message list
@@ -30,7 +30,7 @@ from langchain_core.messages import (
 )
 
 from myrm_agent_harness.agent.security.detection.leak_detector import redact_leaks
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import smart_truncate
 

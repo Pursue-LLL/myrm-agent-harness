@@ -1,7 +1,7 @@
 """[INPUT]
 - langchain_core.language_models::BaseChatModel (POS: LLM instance for structured skill extraction)
 - myrm_agent_harness.utils.chat_utils::extract_answer_text (POS: LLM 响应答案提取 — 兼容 reasoning 模型 content 空回退)
-- myrm_agent_harness.utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- myrm_agent_harness.utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - SkillCaptureResult: Structured output for skill extraction with form routing.

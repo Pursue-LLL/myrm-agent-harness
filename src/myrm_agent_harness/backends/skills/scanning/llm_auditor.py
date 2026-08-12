@@ -4,7 +4,7 @@
 - scanning.scanner::ScanResult, (POS: Skill content security scanner. Part of the framework's defense-in-depth. Trust attenuation is the hard limit (restricts tools), scanner is the soft detection layer (warns users and recommends trust levels). Detects 26 threat categories (108 patterns): prompt injection, command injection, credential exposure, data exfiltration, file system access, process operations, network access, screen/input capture, memory/config snooping, code injection, privilege escalation, environment manipulation, reflection/metaprogramming, deserialization attacks, log/audit tampering, scheduled task injection, container escape, memory manipulation, DNS tunneling, supply chain attacks, obfuscation, destructive operations, persistence mechanisms, path traversal, crypto mining, reverse shell, invisible unicode. Scan results influence SkillTrust level via SkillTrustRecommendation: Critical findings → REJECT High findings → UNTRUSTED Medium/Low findings → INSTALLED (normal install with attenuation) No findings → TRUSTED)
 - langchain_core.language_models::BaseChatModel (LLM interface)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
-- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - SkillLLMAuditor: LLM auditor that enhances static scan results

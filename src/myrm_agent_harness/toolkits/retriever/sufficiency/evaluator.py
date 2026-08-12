@@ -6,7 +6,7 @@
 - .types::SufficiencyVerdict, SufficiencyConfig (POS: result and config types)
 - .prompts::SUFFICIENCY_EVAL_SYSTEM, SUFFICIENCY_EVAL_USER_TEMPLATE, SUFFICIENCY_JSON_SCHEMA (POS: prompt templates)
 - utils.chat_utils::extract_answer_text (POS: LLM 响应文本提取)
-- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - evaluate_sufficiency(): async function that evaluates whether retrieved snippets
@@ -27,7 +27,8 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.utils.chat_utils import extract_answer_text, parse_llm_json_object
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 
 from .prompts import SUFFICIENCY_EVAL_SYSTEM, SUFFICIENCY_EVAL_USER_TEMPLATE, SUFFICIENCY_JSON_SCHEMA
 from .types import SufficiencyConfig, SufficiencyVerdict

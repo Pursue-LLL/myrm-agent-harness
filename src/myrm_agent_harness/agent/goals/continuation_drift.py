@@ -4,7 +4,7 @@
 - .protocols::GoalProvider (POS: Goal provider protocol)
 - .types::ContinuationDecision, GoalStatus, Goal (POS: Guard chain result)
 - langchain_core.messages::BaseMessage, HumanMessage (POS: Message types)
-- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from judge output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from judge output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - check_goal_drift: Evaluates trajectory drift, returns ContinuationDecision or None.

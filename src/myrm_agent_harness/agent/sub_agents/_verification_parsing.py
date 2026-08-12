@@ -3,7 +3,7 @@
 [INPUT]
 - core.events.types::AgentEventType (POS: VERIFICATION_VERDICT event type)
 - utils.runtime.progress_sink::get_tool_progress_sink (POS: SSE emission sink)
-- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas; requires the ``verdict`` key)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas; requires the ``verdict`` key)
 
 [OUTPUT]
 - VerificationVerdict: Parsed verdict from verifier output

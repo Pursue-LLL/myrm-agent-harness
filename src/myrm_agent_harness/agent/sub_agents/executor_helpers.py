@@ -5,7 +5,7 @@
 - .builder::truncate_result (POS: Subagent construction helpers — tool filtering via DelegationCapabilityManifest, model resolution, token merge.)
 - agent.artifacts.vault::ArtifactVault (POS: Shared Artifact Vault, vault:// pointer protocol)
 - agent.artifacts::infer_artifact_type_from_extension, push_inline_artifact (POS: Inline artifact SSE queue for frontend delivery)
-- utils.chat_utils::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_object (POS: robust JSON object extraction from LLM output — fences, prose, bare control chars, trailing commas)
 
 [OUTPUT]
 - _filter_fork_messages, _estimate_msg_tokens: fork context filtering
@@ -26,7 +26,7 @@ from myrm_agent_harness.agent.artifacts import (
     infer_artifact_type_from_extension,
     push_inline_artifact,
 )
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from .builder import truncate_result

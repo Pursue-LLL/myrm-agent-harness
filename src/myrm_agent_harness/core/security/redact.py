@@ -18,7 +18,9 @@ Agent output redaction layer. Complements sanitize_env (source-level dangerous e
 
 Coverage:
 - Token-prefix patterns (sk-/ghp_/AKIA/… 25+), PEM blocks, DB connection strings
-- Contextual: ENV assignments (query-parameter guarded), JSON fields, Authorization (any scheme)
+- Contextual: ENV assignments (uppercase + lowercase/short names, query-parameter guarded), JSON fields, Authorization (any scheme)
+- Config formats: unquoted YAML/colon (`password: secret`), form-urlencoded bodies (`token=abc&page=1` → pair-wise redaction)
+- Word-boundary key validation (``author=``/``tokenizer=`` prose not redacted)
 - URL: query params, userinfo (user:pass@), bare-token (TOKEN@), Telegram bot URLs
 - Headers: x-api-key style auth headers; structure: bare JWTs
 - Control/zero-width char split-token bypass guard (对齐 Hermes issue #77484)
@@ -172,12 +174,15 @@ _PRIVATE_KEY_RE = re.compile(r"-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END
 
 _SECRET_ENV_NAMES = r"(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)"
 # URL query 中的 `?token=` / `&token=` 是 URL 参数（由 _URL_QUERY_RE 处理），不是
-# ENV 赋值——负向后顾阻止 `\S+` 贪婪吞掉 `&` 分隔的后续参数
+# ENV 赋值——负向后顾阻止贪婪吞掉 `&` 分隔的后续参数
 # （`?token=x&limit=50&page=2` 保持为 `?token=***&limit=50&page=2` 而非 `?token=***`）。
+# value 用 `[^&\s]+` 而非 `\S+`：IGNORECASE 下 form body 的 `token=abc&page=1` 会被
+# `\S+` 吞掉 `&page=1` 导致参数破坏，`[^&\s]+` 在 `&` 处截断，配合 _redact_form_body
+# 逐对脱敏（对齐 Hermes 非 IGNORECASE 正则的天然行为）。
 # key 必须含 secret 关键词且关键词落在词边界（`author=`/`tokenizer=` 等散文词
 # 不误伤，见 _key_has_secret_keyword）。
 _ENV_ASSIGN_RE = re.compile(
-    rf"(?<![?&])([A-Z_]{{0,50}}{_SECRET_ENV_NAMES}[A-Z_]{{0,50}})\s*=\s*(['\"]?)(\S+)\2",
+    rf"(?<![?&])([A-Z_]{{0,50}}{_SECRET_ENV_NAMES}[A-Z_]{{0,50}})\s*=\s*(['\"]?)([^\s&]+)\2",
     re.IGNORECASE,
 )
 
@@ -185,7 +190,7 @@ _ENV_ASSIGN_RE = re.compile(
 # 裸 `password=`/`token=`/`secret=` 不匹配——它们出现在散文、URL query 与 form body
 # 中（对齐 Hermes issue #77484）。词边界落在下划线处，`author=` 不误伤。
 _ENV_ASSIGN_LOWER_RE = re.compile(
-    rf"([a-z0-9_]+(?:_|^)(?:key|pass|pw|token|secret|password|passwd|credential|auth)(?=[^a-z0-9_]|$))\s*=\s*(['\"]?)(\S+)\2",
+    rf"([a-z0-9_]+(?:_|^)(?:key|pass|pw|token|secret|password|passwd|credential|auth)(?=[^a-z0-9_]|$))\s*=\s*(['\"]?)([^\s&]+)\2",
     re.IGNORECASE,
 )
 
@@ -432,16 +437,46 @@ def _mask_control_split_tokens(text: str) -> str:
 
 
 def _redact_env_assignment(m: re.Match[str]) -> str:
-    """Replacement for _ENV_ASSIGN_RE — skip programmatic env lookups.
+    """Replacement for _ENV_ASSIGN_RE — skip programmatic env lookups and prose keys.
 
     ``OPENAI_API_KEY=os.getenv('OPENAI_API_KEY')`` references a variable by
     name, not a secret value; masking it corrupts code snippets in
-    prose/log contexts. Any other matched ``KEY=value`` is masked normally.
+    prose/log contexts. Keys whose secret keyword is not at a word boundary
+    (``author=Smith``, ``tokenizer=cl100k``) are prose, not credentials
+    (aligned with Hermes issue #6129). Any other matched ``KEY=value`` is
+    masked normally.
     """
-    value = m.group(3)
+    name, quote, value = m.group(1), m.group(2), m.group(3)
     if _ENV_LOOKUP_VALUE_RE.match(value):
         return m.group(0)
-    return f"{m.group(1)}={m.group(2)}{_mask_token(value)}{m.group(2)}"
+    if not _key_has_secret_keyword(name):
+        return m.group(0)
+    return f"{name}={quote}{_mask_token(value)}{quote}"
+
+
+def _redact_lower_env_assignment(m: re.Match[str]) -> str:
+    """Replacement for _ENV_ASSIGN_LOWER_RE — same guards as _redact_env_assignment."""
+    name, quote, value = m.group(1), m.group(2), m.group(3)
+    if _ENV_LOOKUP_VALUE_RE.match(value):
+        return m.group(0)
+    if not _key_has_secret_keyword(name):
+        return m.group(0)
+    return f"{name}={quote}{_mask_token(value)}{quote}"
+
+
+def _redact_yaml_assignment(m: re.Match[str]) -> str:
+    """Replacement for _YAML_ASSIGN_RE — skip programmatic lookups and prose keys.
+
+    ``api_key: os.getenv('X')`` references a variable name (issue #2852);
+    ``secretary: J.Smith`` / ``tokenizer: cl100k_base`` embed a keyword
+    mid-word (issue #6129). Both pass through unchanged.
+    """
+    key, sep, value = m.group(1), m.group(2), m.group(3)
+    if _ENV_LOOKUP_VALUE_RE.match(value):
+        return m.group(0)
+    if not _key_has_secret_keyword(key):
+        return m.group(0)
+    return f"{key}{sep}{_mask_token(value)}"
 
 
 def redact_sensitive_text(text: str) -> str:
@@ -464,12 +499,26 @@ def redact_sensitive_text(text: str) -> str:
     # 控制字符拆分的 token（`sk-abc\x1bdef…`）在连续 _PREFIX_RE 之前先掩码
     text = _mask_control_split_tokens(text)
 
+    # Form-urlencoded body（`token=abc&limit=50&page=2`）：整段 k=v&k=v 时逐对脱敏，
+    # 必须在 ENV 正则之前——否则 `\S+` 贪婪吞掉 `&` 分隔的后续参数并泄漏前缀
+    text = _redact_form_body(text)
+
     # Use bounded replace for all patterns to prevent ReDoS (OPT-1)
     text = _replace_pattern_bounded(text, _PREFIX_RE, lambda m: _mask_token(m.group(1)))
 
     text = _replace_pattern_bounded(text, _ENV_ASSIGN_RE, _redact_env_assignment)
 
+    # 小写/短名 env（`db_pw=`/`openai_key=`）。跳过 URL——query string 中的
+    # `token=`/`key=` 参数可能是有意放行的（_URL_QUERY_RE 处理凭据参数）。
+    if "://" not in text:
+        text = _replace_pattern_bounded(text, _ENV_ASSIGN_LOWER_RE, _redact_lower_env_assignment)
+
     text = _replace_pattern_bounded(text, _JSON_FIELD_RE, lambda m: f'{m.group(1)}: "{_mask_token(m.group(2))}"')
+
+    # Unquoted YAML / colon config（`password: secret`）。在 JSON 之后——quoted value
+    # 已由 _JSON_FIELD_RE 处理，lookahead 跳过引号。URL（含 `://`）不放行 YAML 误伤。
+    if "://" not in text:
+        text = _replace_pattern_bounded(text, _YAML_ASSIGN_RE, _redact_yaml_assignment)
 
     text = _replace_pattern_bounded(
         text,

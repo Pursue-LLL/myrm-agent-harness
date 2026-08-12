@@ -7,7 +7,7 @@
 - prompts::CONTENT_DESCRIPTION_PROMPT 等 (POS: LLM 提示词模板)
 - langchain_core.language_models::BaseChatModel (POS: LangChain LLM 基类)
 - utils.chat_utils::extract_answer_text (POS: 兼容 reasoning 模型 content 空回退的答案提取)
-- utils.chat_utils::parse_llm_json_object (POS: LLM 回复容错 JSON 对象提取)
+- utils.json_parsing::parse_llm_json_object (POS: LLM 回复容错 JSON 对象提取)
 - utils.text_utils::get_token_count (POS: Token 计数工具)
 
 [OUTPUT]
@@ -24,7 +24,8 @@ import re
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
-from myrm_agent_harness.utils.chat_utils import extract_answer_text, parse_llm_json_object
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
 

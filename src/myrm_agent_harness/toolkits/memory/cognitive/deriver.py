@@ -8,7 +8,7 @@ conflict resolution.
 Cognitive derivation module for implicit preference extraction using LLM and Claim Graph.
 
 [INPUT]
-- utils.chat_utils::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
 - memory.types::ClaimConflictState (POS: claim conflict state enum)
 """
 

@@ -1,7 +1,7 @@
 """LLM response parsers for concept extraction.
 
 [INPUT]
-- utils.chat_utils::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
+- utils.json_parsing::parse_llm_json_list (POS: robust JSON array extraction from LLM output — fences, prose, bare control chars, trailing commas)
 - re (POS: standard library regex for bullet-point fallback)
 - .core.types::ConceptInfo (POS: Wiki toolkit type definition)
 
@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import re
 
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_list
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_list
 
 from .types import ConceptInfo
 
