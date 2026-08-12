@@ -17,6 +17,8 @@ Lifecycle helpers (workspace setup, cleanup, post-processing) live in ``_interna
 Base Agent — lightweight agent with streaming, token tracking, and artifacts.
 """
 
+from __future__ import annotations
+
 import copy
 from collections.abc import AsyncGenerator, Awaitable, Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, cast
