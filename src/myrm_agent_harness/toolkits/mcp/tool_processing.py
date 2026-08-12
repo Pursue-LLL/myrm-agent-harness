@@ -56,6 +56,7 @@ from .schema import (
     nest_flat_arguments,
     prepare_mcp_call_arguments,
 )
+from .schema.key_sanitize import restore_property_keys, sanitize_property_keys
 
 logger = logging.getLogger(__name__)
 
@@ -113,26 +114,50 @@ def enforce_description_limits(tools: list[BaseTool]) -> None:
 
 
 def sanitize_tools(tools: list[BaseTool]) -> None:
-    """Sanitize tool schemas: $ref resolution -> canonicalize -> deep-flatten -> coerce -> nest.
+    """Sanitize tool schemas: $ref resolution -> canonicalize -> key sanitize -> deep-flatten -> coerce -> nest.
 
     Full error-tolerance chain for MCP tool parameters:
     1. Resolve $ref pointers inline
     2. Canonicalize key ordering for prompt prefix cache stability
-    3. Flatten deeply-nested schemas to dot-path notation (for LLM compatibility)
-    4. Wrap execution with type coercion + argument nesting restoration
+    3. Rename non-conforming property keys (provider key-pattern compat);
+       the reverse map rides on ``tool.metadata`` so dispatch can restore
+       the original wire names before the MCP call
+    4. Flatten deeply-nested schemas to dot-path notation (for LLM compatibility)
+    5. Wrap execution with type coercion + argument nesting restoration +
+       wire-name restoration
     """
     for tool in tools:
         flatten_meta = FlattenMeta(was_flattened=False)
+        # A tool may pass through ``sanitize_tools`` more than once (e.g. a
+        # cached object re-processed by a later session). Once keys are
+        # renamed the second pass finds nothing new, so fall back to the
+        # restore map already stored on ``metadata`` — otherwise the fresh
+        # wrapper would silently drop wire-name restoration.
+        meta = getattr(tool, "metadata", {}) or {}
+        restore_map = (
+            meta.get("_key_restore_map", {})
+            if isinstance(meta.get("_key_restore_map"), dict)
+            else {}
+        )
 
         if hasattr(tool, "args_schema") and isinstance(tool.args_schema, dict):
             # Step 1: Resolve $ref pointers
             tool.args_schema = flatten_json_schema(tool.args_schema)
             # Step 2: Canonicalize key ordering for prefix cache stability
             tool.args_schema = canonicalize_schema_for_cache(tool.args_schema)  # type: ignore[assignment]
-            # Step 3: Flatten deep nesting to dot-path notation
+            # Step 3: Rename non-conforming property keys (runs before
+            # flattening so the rename never interacts with the dot-path
+            # separator used by ``nest_flat_arguments``).
+            sanitized, new_renames = sanitize_property_keys(tool.args_schema)
+            if new_renames:
+                restore_map = {**restore_map, **new_renames}
+                meta = getattr(tool, "metadata", {}) or {}
+                tool.metadata = {**meta, "_key_restore_map": restore_map}
+            tool.args_schema = sanitized
+            # Step 4: Flatten deep nesting to dot-path notation
             tool.args_schema, flatten_meta = flatten_deep_schema(tool.args_schema)
 
-        # Step 4: Wrap execution with type coercion + argument nesting
+        # Step 5: Wrap execution with type coercion + argument nesting
         original_coroutine = getattr(tool, "coroutine", None)
         if original_coroutine:
             raw_schema = getattr(tool, "args_schema", None)
@@ -152,6 +177,7 @@ def sanitize_tools(tools: list[BaseTool]) -> None:
                 _orig=original_coroutine,
                 _schema=schema_for_coercion,
                 _meta=flatten_meta,
+                _restore=restore_map,
                 **kwargs,
             ):
                 coerced_kwargs = coerce_arguments_by_schema(_schema, kwargs)
@@ -159,6 +185,8 @@ def sanitize_tools(tools: list[BaseTool]) -> None:
                 if _meta.was_flattened and has_dot_keys(coerced_kwargs):
                     coerced_kwargs = nest_flat_arguments(coerced_kwargs)
                 coerced_kwargs = prepare_mcp_call_arguments(coerced_kwargs, _schema)
+                if _restore:
+                    coerced_kwargs = restore_property_keys(coerced_kwargs, _restore)
                 return await _orig(*args, **coerced_kwargs)
 
             tool.coroutine = _coercion_wrapper

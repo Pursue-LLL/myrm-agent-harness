@@ -287,6 +287,7 @@ class SubagentSpawnMixin:
         self._children_descriptions[task_id] = task_description
         self._children_configs[task_id] = config
         self._children_internal[task_id] = internal
+        self._children_detached[task_id] = not wait
         self._children_observability[task_id] = self._build_observability_metadata(config)  # type: ignore[attr-defined]
         task.add_done_callback(lambda t: self._cleanup_child(task_id, t))  # type: ignore[attr-defined]
 

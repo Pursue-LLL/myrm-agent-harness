@@ -1,12 +1,17 @@
 """Tests for privacy_tracker — per-turn sensitivity tracking and SSE events."""
 
+import contextvars
+
 from myrm_agent_harness.agent.security.guards.privacy_tracker import (
     PrivacyTracker,
     get_pending_privacy_event,
+    get_pending_route_event,
+    get_privacy_policy,
     get_privacy_tracker,
     reset_privacy_tracker,
+    set_privacy_policy,
 )
-from myrm_agent_harness.agent.security.types import SensitivityLevel
+from myrm_agent_harness.agent.security.types import PrivacyPolicy, SensitivityLevel
 
 
 class TestPrivacyTracker:
@@ -112,3 +117,57 @@ class TestModuleLevelDrain:
         event = get_pending_privacy_event()
         assert event is not None
         assert event["current_turn_level"] == "s2"
+
+
+class TestPrivacyPolicyContext:
+    def test_set_and_get_policy(self):
+        policy = PrivacyPolicy()
+        set_privacy_policy(policy)
+        assert get_privacy_policy() is policy
+
+    def test_default_policy_when_unset(self):
+        set_privacy_policy(None)
+        policy = get_privacy_policy()
+        assert policy is not None
+        assert isinstance(policy, PrivacyPolicy)
+
+
+class TestRouteEvents:
+    def test_route_event_flow(self):
+        t = PrivacyTracker()
+        t.record_route("s3-agent")
+        assert t.route_label == "s3-agent"
+        event = t.drain_pending_route_event()
+        assert event == {"route": "s3-agent", "level": "s1"}
+        assert t.drain_pending_route_event() is None  # consume-once
+
+    def test_route_event_unknown_when_no_label(self):
+        t = PrivacyTracker()
+        # _pending_route_event forced true only via record_route; drain twice path
+        assert t.drain_pending_route_event() is None
+
+    def test_reset_turn_clears_route(self):
+        t = PrivacyTracker()
+        t.record_route("s2-agent")
+        t.reset_turn()
+        assert t.route_label is None
+        assert t.drain_pending_route_event() is None
+
+
+class TestFreshContextLookupError:
+    def test_pending_event_survives_empty_context(self):
+        ctx = contextvars.Context()
+        assert ctx.run(get_pending_privacy_event) is None
+
+    def test_pending_route_event_survives_empty_context(self):
+        ctx = contextvars.Context()
+        assert ctx.run(get_pending_route_event) is None
+
+    def test_s3_event_includes_policy_action(self):
+        reset_privacy_tracker()
+        tracker = get_privacy_tracker()
+        tracker.record(SensitivityLevel.S3, "tool_params", ["password"])
+        event = tracker.drain_pending_event()
+        assert event is not None
+        assert event["current_turn_level"] == "s3"
+        assert "action" in event

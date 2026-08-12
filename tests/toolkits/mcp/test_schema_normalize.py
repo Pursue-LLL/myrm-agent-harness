@@ -663,3 +663,67 @@ def test_flatten_json_schema_valid_ref_still_resolves():
     flattened = flatten_json_schema(schema)
     assert "$ref" not in str(flattened)
     assert "street" in str(flattened)
+
+
+def test_flatten_json_schema_openapi_components_schemas():
+    """OpenAPI 3.x ``#/components/schemas/...`` refs resolve from components."""
+    schema = {
+        "type": "object",
+        "properties": {"user": {"$ref": "#/components/schemas/User"}},
+        "components": {
+            "schemas": {
+                "User": {"type": "object", "properties": {"name": {"type": "string"}}}
+            }
+        },
+    }
+    flattened = flatten_json_schema(schema)
+    assert "$ref" not in str(flattened)
+    assert "components" not in flattened
+    user = flattened["properties"]["user"]
+    assert user["type"] == "object"
+    assert user["properties"]["name"]["type"] == "string"
+
+
+def test_flatten_json_schema_nested_path_in_components_ref():
+    """``#/components/schemas/Foo/properties/bar`` walks nested segments."""
+    schema = {
+        "type": "object",
+        "properties": {"field": {"$ref": "#/components/schemas/Foo/properties/bar"}},
+        "components": {
+            "schemas": {
+                "Foo": {
+                    "type": "object",
+                    "properties": {"bar": {"type": "integer", "description": "b"}},
+                }
+            }
+        },
+    }
+    flattened = flatten_json_schema(schema)
+    assert "$ref" not in str(flattened)
+    assert flattened["properties"]["field"]["type"] == "integer"
+    assert flattened["properties"]["field"]["description"] == "b"
+
+
+def test_flatten_json_schema_nested_path_in_definitions():
+    """``#/definitions/Foo/properties/bar`` nested descent resolves."""
+    schema = {
+        "type": "object",
+        "properties": {"field": {"$ref": "#/definitions/Foo/properties/bar"}},
+        "definitions": {
+            "Foo": {"type": "object", "properties": {"bar": {"type": "string"}}}
+        },
+    }
+    flattened = flatten_json_schema(schema)
+    assert "$ref" not in str(flattened)
+    assert flattened["properties"]["field"]["type"] == "string"
+
+
+def test_flatten_json_schema_components_missing_definitions():
+    """A schema with only ``components`` and no $defs resolves without crash."""
+    schema = {
+        "type": "object",
+        "properties": {"id": {"$ref": "#/components/schemas/Id"}},
+        "components": {"schemas": {"Id": {"type": "string", "description": "i"}}},
+    }
+    flattened = flatten_json_schema(schema)
+    assert flattened["properties"]["id"]["type"] == "string"

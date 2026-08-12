@@ -279,7 +279,7 @@ async def test_run_doctor_runs_relay_and_launch_concurrently() -> None:
     started: list[str] = []
     relay_completed = asyncio.Event()
 
-    async def fake_relay() -> DoctorCheckResult:
+    async def fake_relay(_base_url: str = "") -> DoctorCheckResult:
         started.append("relay")
         await relay_completed.wait()
         return relay
@@ -384,18 +384,18 @@ def test_format_report_with_warnings_and_errors() -> None:
                 message="Low memory: 0.8 GB available",
                 details={"available_gb": 0.8, "used_percent": 92.0},
             ),
-            "browser_executable": DoctorCheckResult(
-                name="Browser Executable",
+            "disk": DoctorCheckResult(
+                name="Disk",
                 status=CheckStatus.ERROR,
-                message="Custom browser executable not found",
-                details={"path": "/nonexistent/chrome", "exists": False},
+                message="Low disk space: 0.2 GB available",
+                details={"available_gb": 0.2, "used_percent": 98.0},
             ),
         },
         summary="0/2 checks passed, 1 warning, 1 error",
         overall_healthy=False,
         recommendations=[
             "Free up system memory",
-            "Verify browser executable path",
+            "Clean up /tmp or increase disk space",
         ],
     )
 
@@ -500,3 +500,70 @@ async def test_check_extension_relay_non_dict_payload_graceful() -> None:
     assert result.status == CheckStatus.WARNING
     assert "unexpected response format" in result.message.lower()
     assert result.fix is not None
+
+
+@pytest.mark.asyncio
+async def test_check_extension_relay_uses_custom_base_url() -> None:
+    """An explicit base URL must drive the probe target, overriding defaults."""
+    import json
+
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        CheckStatus,
+        _check_extension_relay,
+    )
+
+    payload = json.dumps(
+        {
+            "relay_cdp_ready": True,
+            "access_policy_valid": True,
+            "auth_token_required": False,
+            "auth_token_configured": True,
+        }
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.text = payload
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.get.return_value = mock_response
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.doctor.checks.create_httpx_client",
+        return_value=mock_client,
+    ):
+        result = await _check_extension_relay(base_url="http://127.0.0.1:18080")
+
+    assert result.status == CheckStatus.OK
+    mock_client.get.assert_awaited_once_with(
+        "http://127.0.0.1:18080/api/v1/extension/setup-hints"
+    )
+
+
+@pytest.mark.asyncio
+async def test_run_doctor_forwards_extension_relay_base_url() -> None:
+    """run_doctor must forward the base URL into the relay probe."""
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        DoctorCheckResult,
+    )
+
+    async def fake_relay(base_url: str) -> DoctorCheckResult:
+        assert base_url == "http://127.0.0.1:18080"
+        return DoctorCheckResult(
+            name="extension_relay",
+            status=CheckStatus.WARNING,
+            message="relay mock",
+        )
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.doctor.checks._check_extension_relay",
+        side_effect=fake_relay,
+    ):
+        report = await run_doctor(
+            include_launch_test=False,
+            include_orphan_check=False,
+            extension_relay_base_url="http://127.0.0.1:18080",
+        )
+
+    assert report.checks["extension_relay"].message == "relay mock"
+

@@ -208,6 +208,32 @@ class TestCancelChild:
         t1.cancel.assert_called_once()
         t2.cancel.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_cancel_all_skips_detached_when_excluded(self):
+        """include_detached=False must leave wait=False background children alive."""
+        mgr = _make_manager()
+        detached, waiting = MagicMock(), MagicMock()
+        detached.done.return_value = False
+        waiting.done.return_value = False
+        mgr._children = {"bg": detached, "fg": waiting}
+        mgr._children_detached = {"bg": True, "fg": False}
+        count = mgr.cancel_all(include_detached=False)
+        assert count == 1
+        detached.cancel.assert_not_called()
+        waiting.cancel.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_cancel_all_includes_detached_by_default(self):
+        """Default cancel_all (user cancel-all / cascade) still cancels detached children."""
+        mgr = _make_manager()
+        detached = MagicMock()
+        detached.done.return_value = False
+        mgr._children = {"bg": detached}
+        mgr._children_detached = {"bg": True}
+        count = mgr.cancel_all()
+        assert count == 1
+        detached.cancel.assert_called_once()
+
 
 # ---------------------------------------------------------------------------
 # Steer

@@ -570,6 +570,7 @@ async def run_agent_loop(
                 steering_token,
                 agent_state.cancel_all_children,
                 merged_context=merged_context,
+                include_detached=True,
             )
             return
 
@@ -914,6 +915,7 @@ async def run_agent_loop(
             steering_token,
             agent_state.cancel_all_children,
             merged_context=merged_context,
+            include_detached=stats.was_cancelled,
         )
 
         if not stats.was_cancelled:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -307,3 +308,85 @@ class TestExtractYoutubeTranscript:
         mock_generic_proxy.assert_called_once_with(https_url="http://proxy:8080")
         assert result is not None
         assert "Proxy test" in result.page_content
+
+
+class TestOembedMetadata:
+    """Direct coverage of _fetch_oembed_metadata's urllib fetch body."""
+
+    @pytest.mark.asyncio
+    async def test_success_without_proxy(self) -> None:
+        import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
+
+        opener = MagicMock()
+        resp = MagicMock()
+        resp.read.return_value = b'{"title": "My Title", "author_name": "Alice", "unused": "x"}'
+        opener.open.return_value.__enter__.return_value = resp
+
+        with (
+            patch("asyncio.to_thread", side_effect=lambda fn, *a, **k: fn(*a, **k)),
+            patch.object(yt_mod.urllib.request, "build_opener", return_value=opener),
+        ):
+            meta = await yt_mod._fetch_oembed_metadata("dQw4w9WgXcQ")
+
+        assert meta == {"title": "My Title", "author_name": "Alice"}
+
+    @pytest.mark.asyncio
+    async def test_success_with_proxy(self) -> None:
+        import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
+
+        opener = MagicMock()
+        resp = MagicMock()
+        resp.read.return_value = b'{"thumbnail_url": "https://i.ytimg.com/x.jpg"}'
+        opener.open.return_value.__enter__.return_value = resp
+        proxy = SimpleNamespace(get_next=lambda: SimpleNamespace(to_url=lambda: "http://127.0.0.1:8888"))
+
+        with (
+            patch("asyncio.to_thread", side_effect=lambda fn, *a, **k: fn(*a, **k)),
+            patch.object(yt_mod.urllib.request, "build_opener", return_value=opener),
+        ):
+            meta = await yt_mod._fetch_oembed_metadata("dQw4w9WgXcQ", proxy_pool=proxy)  # type: ignore[arg-type]
+
+        assert meta == {"thumbnail_url": "https://i.ytimg.com/x.jpg"}
+
+    @pytest.mark.asyncio
+    async def test_failure_returns_empty_dict(self) -> None:
+        import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
+
+        with (
+            patch("asyncio.to_thread", side_effect=lambda fn, *a, **k: (_ for _ in ()).throw(OSError("network"))),
+            patch.object(yt_mod.urllib.request, "build_opener", side_effect=OSError("network")),
+        ):
+            meta = await yt_mod._fetch_oembed_metadata("dQw4w9WgXcQ")
+
+        assert meta == {}
+
+    @pytest.mark.asyncio
+    async def test_extract_merges_oembed_metadata(self) -> None:
+        """oembed result merges into Document metadata (line 186 branch)."""
+        mock_segment = MagicMock()
+        mock_segment.start = 0.0
+        mock_segment.duration = 5.0
+        mock_segment.text = "Hello world"
+
+        with patch.dict("sys.modules", {"youtube_transcript_api": MagicMock()}):
+            import importlib
+
+            import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
+
+            importlib.reload(yt_mod)
+
+            with (
+                patch("asyncio.to_thread", new_callable=AsyncMock, return_value=[mock_segment]),
+                patch.object(
+                    yt_mod,
+                    "_fetch_oembed_metadata",
+                    new_callable=AsyncMock,
+                    return_value={"title": "My Title", "author_name": "Alice", "thumbnail_url": "https://i.ytimg.com/x.jpg"},
+                ),
+            ):
+                result = await yt_mod.extract_youtube_transcript("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
+
+        assert result is not None
+        assert result.metadata["title"] == "My Title"
+        assert result.metadata["author_name"] == "Alice"
+        assert result.metadata["thumbnail_url"] == "https://i.ytimg.com/x.jpg"

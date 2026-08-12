@@ -2,7 +2,9 @@
 
 Aggregates the MCP inbound schema pipeline: ``$ref``/``$defs`` inlining and
 cache-stable canonicalization (``normalize``), composite-keyword flattening and
-const-union collapsing (``composite``), and runtime argument coercion
+const-union collapsing (``composite``), deterministic property-key
+sanitization with dispatch-time wire-name restoration (``key_sanitize``,
+consumed directly by ``tool_processing``), and runtime argument coercion
 (``coerce``).
 
 [INPUT]
@@ -11,6 +13,7 @@ const-union collapsing (``composite``), and runtime argument coercion
 [OUTPUT]
 - normalize: canonicalize_schema_for_cache, flatten_json_schema, flatten_deep_schema, nest_flat_arguments
 - composite: collapse_const_unions, flatten_top_level_composite
+- key_sanitize: sanitize_property_keys, restore_property_keys
 - coerce: coerce_arguments_by_schema, prepare_mcp_call_arguments, get_schema_coercion_stats
 
 [POS]

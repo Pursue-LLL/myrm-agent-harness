@@ -177,6 +177,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         "_children_configs",
         "_children_descriptions",
         "_children_internal",
+        "_children_detached",
         "_children_observability",
         "_children_results",
         "_children_steering",
@@ -207,6 +208,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         self._children_configs: dict[str, SubagentConfig] = {}
         self._children_observability: dict[str, dict[str, object]] = {}
         self._children_internal: dict[str, bool] = {}
+        self._children_detached: dict[str, bool] = {}
         self._cancel_flags: dict[str, bool] = {}
         self._graceful_cancel_timeouts: dict[str, asyncio.Task[None]] = {}
         self._background_tasks: set[asyncio.Task[object]] = set()
@@ -460,6 +462,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         # 以便把终态结果登记进强引用注册表供后续查询。
         session_id = ACTIVE_SUBAGENT_SESSIONS.get(task_id, "")
         self._children.pop(task_id, None)
+        self._children_detached.pop(task_id, None)
         self._children_steering.pop(task_id, None)
         ACTIVE_SUBAGENTS.pop(task_id, None)  # Remove from global registry
         ACTIVE_SUBAGENT_SESSIONS.pop(task_id, None)

@@ -32,7 +32,11 @@ logger = logging.getLogger(__name__)
 _permission_usage_callback: Callable[[str, str, str, str, bool, str], None] | None = None
 
 
-# Mapping from security permission types to SkillPermission
+# Mapping from security permission types to SkillPermission.
+# Keys cover both direct permission names and the abstract permission types
+# emitted by ``tool_registry.resolve_permission_type`` (the tool-name SSOT).
+# Drift here silently broadens/breaks the skill permission gate, so every
+# SSOT type in the skill-relevant domain must resolve to a SkillPermission.
 _PERMISSION_TYPE_TO_SKILL_PERMISSION: dict[str, SkillPermission] = {
     # File operations
     "file_read": SkillPermission.FILE_READ,
@@ -41,10 +45,22 @@ _PERMISSION_TYPE_TO_SKILL_PERMISSION: dict[str, SkillPermission] = {
     # Code execution
     "shell_exec": SkillPermission.SHELL_EXEC,
     "code_interpreter": SkillPermission.CODE_INTERPRETER,
-    # Network
+    # Network — direct names + tool_registry SSOT abstract types
     "network_access": SkillPermission.NETWORK_ACCESS,
-    "browser_navigate": SkillPermission.NETWORK_ACCESS,
     "web_fetch": SkillPermission.NETWORK_ACCESS,
+    "net_fetch": SkillPermission.NETWORK_ACCESS,
+    "web_search_tool": SkillPermission.NETWORK_ACCESS,
+    "browser_navigate": SkillPermission.NETWORK_ACCESS,
+    "browser_read": SkillPermission.NETWORK_ACCESS,
+    "browser_click": SkillPermission.NETWORK_ACCESS,
+    "browser_fill": SkillPermission.NETWORK_ACCESS,
+    "browser_scroll": SkillPermission.NETWORK_ACCESS,
+    "browser_upload": SkillPermission.NETWORK_ACCESS,
+    "browser_download": SkillPermission.NETWORK_ACCESS,
+    "browser_evaluate": SkillPermission.NETWORK_ACCESS,
+    "browser_session": SkillPermission.NETWORK_ACCESS,
+    "browser_manage": SkillPermission.NETWORK_ACCESS,
+    "browser_execute_script_tool": SkillPermission.NETWORK_ACCESS,
     # Environment
     "env_var_access": SkillPermission.ENV_VAR_ACCESS,
     "env_read": SkillPermission.ENV_VAR_ACCESS,

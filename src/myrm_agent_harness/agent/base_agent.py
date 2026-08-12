@@ -527,8 +527,8 @@ class BaseAgent(BaseAgentModesMixin):
     def cancel_child(self, task_id: str) -> bool:
         return self._subagent_manager.cancel_child(task_id)
 
-    def cancel_all_children(self) -> int:
-        return self._subagent_manager.cancel_all()
+    def cancel_all_children(self, include_detached: bool = True) -> int:
+        return self._subagent_manager.cancel_all(include_detached=include_detached)
 
     def steer_child(self, task_id: str, message: str) -> bool:
         return self._subagent_manager.steer_child(task_id, message)

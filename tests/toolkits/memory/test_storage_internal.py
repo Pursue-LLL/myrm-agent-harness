@@ -6,23 +6,37 @@ Covers critical paths:
 - Error handling utilities
 """
 
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import ANY, AsyncMock
 
 import pytest
 
 from myrm_agent_harness.toolkits.memory._internal.storage import (
+    _fit_text_for_embedding,
     _get_adaptive_threshold,
     _safe_float,
     _safe_int,
+    count_by_type,
+    delete_by_type,
     doc_to_semantic,
     embed_batch,
     embed_single,
+    get_from_vector,
+    list_by_type,
     semantic_to_doc,
     store_episodic,
     store_episodics_batch,
+    store_semantics_batch,
+    update_vector_memory,
 )
 from myrm_agent_harness.toolkits.memory.protocols.graph import GraphNode
-from myrm_agent_harness.toolkits.memory.types import EpisodicMemory, SemanticMemory
+from myrm_agent_harness.toolkits.memory.types import (
+    EpisodicMemory,
+    MemoryType,
+    ProceduralMemory,
+    SemanticMemory,
+)
+from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
 
 class TestEmbeddingCacheMiss:
@@ -386,3 +400,156 @@ class TestExpectedValidDaysRoundTrip:
         doc = semantic_to_doc(mem)
         restored = doc_to_semantic(doc)
         assert "expected_valid_days" not in restored.metadata
+
+
+class TestStorageCrudBranches:
+    """Cover remaining CRUD type branches in storage.py."""
+
+    def test_fit_text_for_embedding_empty_text_returns_source(self, mock_embedding):
+        """Empty/whitespace text has no chunks and is returned unchanged."""
+        result = _fit_text_for_embedding("   ", mock_embedding)
+
+        assert result == "   "
+
+    @pytest.mark.asyncio
+    async def test_store_semantics_batch_mixed_embedding(
+        self, mock_vector_store, mock_embedding, mock_cache, memory_config
+    ):
+        """Only un-embedded memories are embedded; embedded ones are reused."""
+        memories = [
+            SemanticMemory(id="mem-1", content="fact one", embedding=[0.1] * 768),
+            SemanticMemory(id="mem-2", content="fact two", embedding=None),
+        ]
+        mock_embedding.embed_batch.return_value = [[0.2] * 768]
+        mock_cache.get_batch.return_value = [None]
+
+        result = await store_semantics_batch(
+            memories, mock_vector_store, memory_config, mock_embedding, mock_cache
+        )
+
+        assert result[0].embedding == [0.1] * 768
+        assert result[1].embedding == [0.2] * 768
+        mock_embedding.embed_batch.assert_awaited_once_with(["fact two"])
+        mock_vector_store.upsert.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_get_from_vector_namespace_mismatch_skips_doc(self, mock_vector_store, memory_config):
+        """Docs whose namespaces do not intersect the requested ones are skipped."""
+        doc = VectorDocument(
+            id="mem-1", content="team secret", metadata={"namespaces": ["team-a"], "event_type": "conversation"}
+        )
+        mock_vector_store.get.return_value = [doc]
+
+        result = await get_from_vector("mem-1", mock_vector_store, memory_config, namespaces=["team-b"])
+
+        assert result is None
+        assert mock_vector_store.get.await_count == 2  # both collections scanned
+
+    @pytest.mark.asyncio
+    async def test_update_vector_memory_episodic_unchanged(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        """Episodic memory without content change upserts to episodic collection."""
+        memory = EpisodicMemory(id="mem-1", content="event", embedding=[0.1] * 768)
+
+        result = await update_vector_memory(
+            memory,
+            content_changed=False,
+            vector=mock_vector_store,
+            config=memory_config,
+            embedding=mock_embedding,
+            cache=None,
+        )
+
+        assert result == memory
+        mock_vector_store.upsert.assert_awaited_once_with(memory_config.episodic_collection, ANY)
+
+    @pytest.mark.asyncio
+    async def test_list_procedural_rules(self, mock_relational_store, memory_config):
+        """PROCEDURAL list delegates to relational list_rules."""
+        rules = [ProceduralMemory(id="rule-1", content="do not run tests at night", trigger="night", action="skip")]
+        mock_relational_store.list_rules.return_value = rules
+
+        result = await list_by_type(
+            MemoryType.PROCEDURAL,
+            limit=10,
+            offset=0,
+            relational=mock_relational_store,
+            vector=None,
+            config=memory_config,
+        )
+
+        assert result == rules
+        mock_relational_store.list_rules.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_list_task_digest(self, mock_vector_store, memory_config):
+        """TASK_DIGEST list reads episodic collection with event_type filter."""
+        doc = VectorDocument(id="dig-1", content="digest", metadata={"event_type": "task_digest"})
+        mock_vector_store.scroll.return_value = ([doc], None)
+
+        result = await list_by_type(
+            MemoryType.TASK_DIGEST,
+            limit=10,
+            offset=0,
+            relational=None,
+            vector=mock_vector_store,
+            config=memory_config,
+        )
+
+        assert len(result) == 1
+        assert result[0].id == "dig-1"
+
+    @pytest.mark.asyncio
+    async def test_count_procedural_rules(self, mock_relational_store, memory_config):
+        """PROCEDURAL count delegates to relational count_rules."""
+        mock_relational_store.count_rules.return_value = 5
+
+        result = await count_by_type(
+            MemoryType.PROCEDURAL, relational=mock_relational_store, vector=None, config=memory_config
+        )
+
+        assert result == 5
+
+    @pytest.mark.asyncio
+    async def test_count_task_digest(self, mock_vector_store, memory_config):
+        """TASK_DIGEST count filters episodic collection by event_type."""
+        mock_vector_store.count.return_value = 3
+
+        result = await count_by_type(
+            MemoryType.TASK_DIGEST, relational=None, vector=mock_vector_store, config=memory_config
+        )
+
+        assert result == 3
+        assert mock_vector_store.count.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_delete_profiles(self, mock_relational_store, memory_config):
+        """PROFILE delete iterates listed profiles and counts successful deletions."""
+        mock_relational_store.list_profiles.return_value = [SimpleNamespace(key="k1"), SimpleNamespace(key="k2")]
+        mock_relational_store.delete_profile.side_effect = [True, False]
+
+        result = await delete_by_type(
+            MemoryType.PROFILE, relational=mock_relational_store, vector=None, config=memory_config
+        )
+
+        assert result == 1
+        assert mock_relational_store.delete_profile.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_delete_procedural_rules(self, mock_relational_store, memory_config):
+        """PROCEDURAL delete delegates to relational delete_all."""
+        mock_relational_store.delete_all.return_value = 7
+
+        result = await delete_by_type(
+            MemoryType.PROCEDURAL, relational=mock_relational_store, vector=None, config=memory_config
+        )
+
+        assert result == 7
+
+    @pytest.mark.asyncio
+    async def test_delete_by_type_no_backend_returns_zero(self, memory_config):
+        """Without relational/vector backends the delete is a no-op."""
+        result = await delete_by_type(MemoryType.SEMANTIC, relational=None, vector=None, config=memory_config)
+
+        assert result == 0

@@ -299,9 +299,10 @@ def cleanup_run(
     start_time: float,
     cancel_token: object | None,
     steering_token: SteeringToken | None,
-    cancel_all_fn: Callable[[], int],
+    cancel_all_fn: Callable[..., int],
     *,
     merged_context: dict[str, object] | None = None,
+    include_detached: bool = True,
 ) -> None:
     """Run-end cleanup: cancel children, reset context vars, collect stats.
 
@@ -310,8 +311,14 @@ def cleanup_run(
         start_time: ``time.time()`` captured at run start.
         cancel_token: Active cancellation token (will be cleared).
         steering_token: Active steering token (will be cleared if set).
-        cancel_all_fn: Callable to cancel all child subagents.
+        cancel_all_fn: Callable to cancel all child subagents. Accepts
+            ``include_detached`` so a normally-finished parent run can keep
+            ``wait=False`` background children alive.
         merged_context: Run context carrying workspace bind token resets.
+        include_detached: Whether ``cancel_all_fn`` should also cancel children
+            spawned with ``wait=False`` (background/detached). A cancelled or
+            failed run passes ``True``; a normally-completed run passes
+            ``False`` so background subagents outlive the parent stream.
     """
     try:
         stashed = _take_workspace_bind_handle()
@@ -321,7 +328,7 @@ def cleanup_run(
         for t in (stashed, legacy):
             release_workspace_storage_bind_token(t)
 
-        cancelled_count = cancel_all_fn()
+        cancelled_count = cancel_all_fn(include_detached=include_detached)
         if cancelled_count > 0:
             logger.info(
                 f" Cancelled {cancelled_count} running subagents on parent cleanup"

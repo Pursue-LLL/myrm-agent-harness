@@ -436,6 +436,11 @@ config = SubagentConfig(
    - **第二层**（manager 安全网）：`manager.py:_run_subagent_core` 的 finally 块调用 `child.cancel_all_children()` — 覆盖 GRACEFUL/CHECKPOINT 主动退出及所有异常退出路径
    - 防止多层 orchestrator 场景（A→B→C）中取消 B 后孙级 C 继续运行消耗 token
    - 受 `max_spawn_depth` 硬性深度限制保护，不需要额外防环机制
+6. **父 run 结束清理 vs 后台子代理**：`run_lifecycle.py:cleanup_run` 在父 agent run 结束时调用 `cancel_all_children(include_detached=...)`：
+   - **正常完成**（`stats.was_cancelled=False`）→ `include_detached=False`：`wait=false` 异步 spawn 的**后台（detached）子代理不取消**，可继续运行直至完成（配合 §19 registry 观测/控制）；`wait=true` 子代理此时必然已 await 完成，不受影响
+   - **被取消 / 启动前取消**（`was_cancelled=True`）→ `include_detached=True`：级联取消所有子代理（含后台），与 §5 语义一致
+   - **用户显式 cancel**（cancel-all API / cancel-child / `cancel_active_children_for_session`）始终取消全部（含后台），不做区分
+   - 后台子代理由事件循环 + `manager._children` 强引用持有，父流结束后仍存活；`_cleanup_child` 在完成时写入 `COMPLETED_SUBAGENT_RESULTS` 供 REST/SSE 观测
 
 **优势**：
 - ✅ 灵活：支持三种取消策略，满足不同场景

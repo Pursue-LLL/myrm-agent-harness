@@ -94,6 +94,37 @@ def _degrade_unresolved_ref(node: dict[str, Any]) -> dict[str, Any]:
     return degraded
 
 
+def _lookup_ref_target(
+    parts: list[str],
+    definitions: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Resolve a ``#/...`` reference path against the definitions container.
+
+    Supports ``#/definitions/X`` / ``#/$defs/X`` and OpenAPI 3.x
+    ``#/components/schemas/X``, plus nested descent such as
+    ``#/definitions/Foo/properties/bar``.  Returns ``None`` when the path
+    cannot be walked.
+    """
+    if not parts or parts[0] != "#" or len(parts) < 3:
+        return None
+    start = 0
+    if parts[1] in ("definitions", "$defs"):
+        start = 2
+    elif parts[1] == "components" and len(parts) >= 4 and parts[2] == "schemas":
+        start = 3
+    else:
+        return None
+    node: Any = definitions.get(parts[start]) if start < len(parts) else None
+    if node is None:
+        return None
+    for seg in parts[start + 1 :]:
+        if isinstance(node, dict) and seg in node:
+            node = node[seg]
+        else:
+            return None
+    return node if isinstance(node, dict) else None
+
+
 def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str, Any]:
     """Flattens a JSON schema by recursively resolving $ref tags inline.
 
@@ -113,34 +144,36 @@ def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str
     if not isinstance(schema, dict):
         return schema
 
-    definitions = schema.get("definitions", {}) or schema.get("$defs", {})
+    definitions = schema.get("definitions") or schema.get("$defs") or {}
+    # OpenAPI 3.x gateway servers emit ``#/components/schemas/...`` refs whose
+    # definitions live in a ``components`` container on the same document.
+    components = schema.get("components")
+    if isinstance(components, dict):
+        comp_schemas = components.get("schemas")
+        if isinstance(comp_schemas, dict):
+            if not isinstance(definitions, dict):
+                definitions = {}
+            definitions = {**comp_schemas, **definitions}
 
     def resolve(node: Any, ref_depth: int) -> Any:
         if isinstance(node, dict):
             if "$ref" in node:
                 ref_path = node["$ref"]
-                # Parse local ref like #/definitions/MyType
-                parts = ref_path.split("/")
-                if (
-                    len(parts) >= 3
-                    and parts[0] == "#"
-                    and parts[1] in ("definitions", "$defs")
-                ):
-                    def_name = parts[2]
-                    if def_name in definitions:
-                        if ref_depth > max_depth:
-                            # Reference chain deeper than the safety bound
-                            # (likely a circular $ref) — degrade instead of
-                            # recursing forever.
-                            return _degrade_unresolved_ref(node)
-                        # Recursively resolve the definition
-                        resolved_node = resolve(definitions[def_name], ref_depth + 1)
-                        # Merge any other keys from the node (like description overrides)
-                        merged = {**resolved_node}
-                        for k, v in node.items():
-                            if k != "$ref":
-                                merged[k] = resolve(v, ref_depth + 1)
-                        return merged
+                target = _lookup_ref_target(ref_path.split("/"), definitions)
+                if target is not None:
+                    if ref_depth > max_depth:
+                        # Reference chain deeper than the safety bound
+                        # (likely a circular $ref) — degrade instead of
+                        # recursing forever.
+                        return _degrade_unresolved_ref(node)
+                    # Recursively resolve the definition
+                    resolved_node = resolve(target, ref_depth + 1)
+                    # Merge any other keys from the node (like description overrides)
+                    merged = {**resolved_node}
+                    for k, v in node.items():
+                        if k != "$ref":
+                            merged[k] = resolve(v, ref_depth + 1)
+                    return merged
                 # Unresolvable ref (missing definition or external URL): degrade
                 # instead of leaking the raw pointer — strict providers reject
                 # a bare `$ref` with 400, disabling the whole tool.
@@ -161,6 +194,7 @@ def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str
     if isinstance(flattened, dict):
         flattened.pop("definitions", None)
         flattened.pop("$defs", None)
+        flattened.pop("components", None)
 
     return cast(dict[str, Any], flattened)
 

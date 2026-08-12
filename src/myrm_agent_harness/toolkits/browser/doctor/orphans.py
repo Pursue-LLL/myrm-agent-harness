@@ -228,7 +228,7 @@ def _has_python_ancestor(proc: object, current_pid: int) -> bool:
 
 
 def cleanup_orphan_processes(orphan_pids: list[int] | None = None, *, force: bool = False) -> dict[str, object]:
-    """Clean up orphan chromium processes with safety checks.
+    """Clean up orphan automation processes with safety checks.
 
     Args:
         orphan_pids: Optional list of PIDs to kill. If None, auto-detect.
@@ -265,7 +265,7 @@ def cleanup_orphan_processes(orphan_pids: list[int] | None = None, *, force: boo
         try:
             os.kill(pid, signal.SIGTERM)
             killed += 1
-            logger.info(f"Killed orphan chromium process: {pid}")
+            logger.info(f"Killed orphan automation process: {pid}")
         except ProcessLookupError:
             logger.debug(f"Process {pid} already terminated")
         except PermissionError:
@@ -281,8 +281,8 @@ def cleanup_orphan_processes(orphan_pids: list[int] | None = None, *, force: boo
 
 
 def check_orphan_processes() -> DoctorCheckResult:
-    """Check for orphan automation browser processes."""
-    orphans = find_orphan_chromium_processes()
+    """Check for orphan automation browser processes (chromium + driver)."""
+    orphans = find_orphan_automation_processes()
 
     if not orphans:
         return DoctorCheckResult(

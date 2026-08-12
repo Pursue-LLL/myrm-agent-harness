@@ -319,13 +319,21 @@ def _check_proxy(proxy: str = "") -> DoctorCheckResult:
     )
 
 
-async def _check_extension_relay() -> DoctorCheckResult:
-    """Probe server extension setup hints for CDP relay readiness."""
+async def _check_extension_relay(base_url: str = "") -> DoctorCheckResult:
+    """Probe server extension setup hints for CDP relay readiness.
+
+    Args:
+        base_url: Server base URL to probe (e.g. ``http://127.0.0.1:8080``).
+            When empty, falls back to the ``MYRM_SERVER_URL`` env var, then to
+            the default local server address.
+    """
     import json
 
     import httpx
 
-    base = os.environ.get("MYRM_SERVER_URL", "http://127.0.0.1:8080").rstrip("/")
+    base = base_url.strip().rstrip("/") or os.environ.get(
+        "MYRM_SERVER_URL", "http://127.0.0.1:8080"
+    ).rstrip("/")
     url = f"{base}/api/v1/extension/setup-hints"
     if not url.startswith(("http://", "https://")):
         return DoctorCheckResult(
@@ -399,6 +407,7 @@ async def run_doctor(
     include_orphan_check: bool = True,
     launch_options: dict[str, object] | None = None,
     browser_proxy: str = "",
+    extension_relay_base_url: str = "",
 ) -> DoctorReport:
     """Run comprehensive browser diagnostics.
 
@@ -407,6 +416,8 @@ async def run_doctor(
         include_orphan_check: Whether to check for orphan processes
         launch_options: Optional custom launch options for launch test
         browser_proxy: Comma-separated proxy URLs to report in the proxy check
+        extension_relay_base_url: Server base URL for the extension relay probe;
+            empty falls back to ``MYRM_SERVER_URL`` env, then the default address
 
     Returns:
         DoctorReport with all check results and recommendations
@@ -424,7 +435,7 @@ async def run_doctor(
     pending: dict[str, Awaitable[DoctorCheckResult]] = {}
     if include_orphan_check:
         pending["orphan_processes"] = asyncio.to_thread(check_orphan_processes)
-    pending["extension_relay"] = _check_extension_relay()
+    pending["extension_relay"] = _check_extension_relay(extension_relay_base_url)
     if include_launch_test:
         pending["browser_launch"] = _check_browser_launch(launch_options)
 

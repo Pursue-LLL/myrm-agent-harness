@@ -55,11 +55,14 @@ from myrm_agent_harness.toolkits.llms.adapters.schema.property_merge import (
     merge_union_object_branches,
     preserve_metadata,
 )
+from myrm_agent_harness.toolkits.llms.adapters.schema.scalar_compat import (
+    normalize_type_arrays,
+)
 
 logger = logging.getLogger(__name__)
 
 _COMPOSITE_KEYWORDS = frozenset({"anyOf", "oneOf", "allOf"})
-_REF_PREFIXES = ("#/$defs/", "#/definitions/")
+_REF_PREFIXES = ("#/$defs/", "#/definitions/", "#/components/schemas/")
 _MAX_INLINE_REF_DEPTH = 20
 
 
@@ -95,6 +98,10 @@ def normalize_tool_schema(
         return tool
 
     params = _resolve_defs(params)
+    # Array-form ``type`` (``["string", "null"]``) crashes missing-type
+    # inference (list is unhashable) and is rejected by strict providers —
+    # normalize it before composite-keyword logic runs.
+    params = normalize_type_arrays(params)  # type: ignore[assignment]
     params = _ensure_object_type(params)
     _normalize_properties(params)
 
@@ -108,6 +115,8 @@ def normalize_tool_schema(
 def _resolve_defs(schema: dict[str, object]) -> dict[str, object]:
     """Inline ``$ref`` references using ``$defs`` / ``definitions``.
 
+    Also collects an OpenAPI 3.x ``components.schemas`` container so
+    ``#/components/schemas/...`` pointers resolve instead of degrading.
     Runs even when no local definitions exist so unresolvable pointers (e.g.
     external URL ``$ref``) are degraded by ``_inline_refs`` instead of being
     sent to a strict provider that would reject the bare ``$ref`` with 400.
@@ -117,11 +126,19 @@ def _resolve_defs(schema: dict[str, object]) -> dict[str, object]:
         raw = schema.get(key)
         if isinstance(raw, dict):
             defs.update(raw)
+    components = schema.get("components")
+    if isinstance(components, dict):
+        comp_schemas = components.get("schemas")
+        if isinstance(comp_schemas, dict):
+            defs = {**comp_schemas, **defs}
 
     resolved = _inline_refs(schema, defs)
     if isinstance(resolved, dict):
         resolved.pop("$defs", None)
         resolved.pop("definitions", None)
+        # OpenAPI 3.x ``components`` container is not part of the LLM-facing
+        # schema — its only job was hosting the resolved ``$defs``.
+        resolved.pop("components", None)
     return resolved  # type: ignore[return-value]
 
 
@@ -148,18 +165,20 @@ def _inline_refs(
         if isinstance(ref, str):
             for prefix in _REF_PREFIXES:
                 if ref.startswith(prefix):
-                    def_name = ref[len(prefix) :]
-                    if def_name in defs:
+                    target = _lookup_def_node(defs, ref[len(prefix) :])
+                    if target is not None:
                         if depth > _MAX_INLINE_REF_DEPTH:
                             # Reference chain deeper than the safety bound
                             # (likely a circular $ref) — degrade this node.
                             return _degrade_unresolved_ref(node)
-                        resolved = copy.deepcopy(defs[def_name])
+                        resolved = copy.deepcopy(target)
                         resolved = _inline_refs(resolved, defs, depth + 1)
                         if isinstance(resolved, dict):
                             for key, value in node.items():
                                 if key != "$ref":
-                                    resolved[key] = _inline_refs(value, defs, depth + 1)
+                                    resolved[key] = _inline_refs(
+                                        value, defs, depth + 1
+                                    )
                             return resolved
                         return resolved
                     return _degrade_unresolved_ref(node)
@@ -195,6 +214,26 @@ def _degrade_unresolved_ref(node: dict[str, object]) -> dict[str, object]:
         if key in node and key not in degraded:
             degraded[key] = node[key]
     return degraded
+
+
+def _lookup_def_node(
+    defs: dict[str, object],
+    def_name: str,
+) -> dict[str, object] | None:
+    """Walk a reference-chain suffix through the definitions container.
+
+    Handles simple names (``MyType``) and nested descent such as
+    ``Foo/properties/bar``.  Returns ``None`` when any segment is missing.
+    """
+    node: object = defs.get(def_name.split("/")[0])
+    if node is None:
+        return None
+    for seg in def_name.split("/")[1:]:
+        if isinstance(node, dict) and seg in node:
+            node = node[seg]
+        else:
+            return None
+    return node if isinstance(node, dict) else None
 
 
 def _ensure_object_type(schema: dict[str, object]) -> dict[str, object]:

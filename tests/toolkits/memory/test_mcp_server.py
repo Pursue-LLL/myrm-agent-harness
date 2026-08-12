@@ -119,9 +119,14 @@ class TestMemoryMCPServerInit:
     def test_get_streamable_http_app_stateless(self, mcp_server):
         from starlette.applications import Starlette
 
-        app = mcp_server.get_streamable_http_app(stateless=True)
+        stateless_server = MemoryMCPServer(
+            mcp_server._default_manager,
+            server_name="test-memory",
+            stateless_http=True,
+        )
+        app = stateless_server.get_streamable_http_app()
         assert isinstance(app, Starlette)
-        sm = mcp_server.mcp.session_manager
+        sm = stateless_server.mcp.session_manager
         assert sm is not None
         assert sm.stateless is True
 

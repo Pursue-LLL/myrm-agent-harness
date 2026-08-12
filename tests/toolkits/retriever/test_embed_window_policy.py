@@ -18,6 +18,7 @@ from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import split_fo
 from myrm_agent_harness.toolkits.wiki.retrieval.vector_chunks import (
     _validate_chunks_fit_window,
     collapse_vector_hits,
+    upsert_text_vectors,
 )
 from myrm_agent_harness.utils.text_utils import get_token_count
 
@@ -36,6 +37,25 @@ class TestEmbedWindowPolicy:
         service = CloudEmbedding(model="text-embedding-3-small", api_key="test")
         assert service.input_token_limit == 8191
         assert resolve_embed_window_policy(service).max_input_tokens == 8191
+
+    def test_unknown_embedding_object_falls_back_to_default_window(self) -> None:
+        # An embedding object exposing neither input_token_limit nor a _model must
+        # still yield a usable conservative policy (512-token default).
+        class _UnknownEmbedding:
+            pass
+
+        policy = resolve_embed_window_policy(_UnknownEmbedding())  # type: ignore[arg-type]
+        assert policy.max_input_tokens == 512
+
+    def test_model_only_embedding_uses_model_window(self) -> None:
+        # An embedding object exposing only _model (no input_token_limit) resolves
+        # its policy from the model name's known window.
+        class _ModelOnlyEmbedding:
+            _model = "BAAI/bge-large-zh-v1.5"
+
+        policy = resolve_embed_window_policy(_ModelOnlyEmbedding())  # type: ignore[arg-type]
+        assert policy.model == "BAAI/bge-large-zh-v1.5"
+        assert policy.max_input_tokens == 512
 
 
 class TestCjkWordpieceBudget:
@@ -239,6 +259,58 @@ class TestSplitForEmbedding:
         for chunk in chunks:
             assert get_token_count(chunk) <= policy.effective_chunk_budget
 
+    def test_empty_text_returns_no_chunks(self) -> None:
+        # Whitespace-only input strips to nothing and must produce no chunks.
+        policy = EmbedWindowPolicy.for_model("text-embedding-3-small")
+        assert split_for_embedding("", policy) == []
+        assert split_for_embedding("   \n\t ", policy) == []
+
+    def test_text_chunker_empty_result_falls_back_to_source(self, monkeypatch) -> None:
+        # If TextChunker yields no docs (e.g. an unparseable input), the chunker
+        # must fall back to the source text and still bound it to the budget, so
+        # content is never dropped and never exceeds the provider window.
+        from myrm_agent_harness.toolkits.retriever.splitter import embed_budget as _embed_budget
+
+        class _EmptyChunker:
+            def chunk_text(self, *args: object, **kwargs: object) -> list[object]:
+                return []
+
+        monkeypatch.setattr(
+            _embed_budget, "TextChunker", lambda *a, **k: _EmptyChunker()  # type: ignore[no-any-return]
+        )
+        policy = EmbedWindowPolicy.for_model("text-embedding-3-small")
+        text = "long" * 40000  # ~40000 o200k tokens — over budget, so the chunker runs
+        chunks = split_for_embedding(text, policy)
+        assert len(chunks) >= 2
+        for chunk in chunks:
+            assert get_token_count(chunk) <= policy.effective_chunk_budget
+
+    def test_enforce_chunk_budget_recursive_hard_cut_single_line(self) -> None:
+        # A single line without newlines that still exceeds the token budget (e.g.
+        # one huge word that the splitter keeps whole) must be bisected recursively
+        # until every part fits. This guards the BPE path when line-based splitting
+        # cannot make progress.
+        from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import _enforce_chunk_budget
+
+        budget = 7371
+        text = "x" * 70000  # ~8750 o200k tokens in one line
+        parts = _enforce_chunk_budget(text, budget)
+        assert len(parts) >= 2
+        for part in parts:
+            assert get_token_count(part) <= budget
+
+    def test_enforce_chunk_budget_multiline_recursive(self) -> None:
+        # When line-based splitting produces several lines that each still exceed
+        # the budget, every line must be bounded recursively as well.
+        from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import _enforce_chunk_budget
+
+        budget = 7371
+        text = "x" * 70000 + "\n" + "y" * 70000  # 两行，每行 ~8750 tokens
+        parts = _enforce_chunk_budget(text, budget)
+        assert len(parts) >= 4
+        for part in parts:
+            assert get_token_count(part) <= budget
+
 
 class TestMemoryTruncationExplicit:
     def test_fit_text_truncates_oversized_memory(self) -> None:
@@ -341,6 +413,112 @@ class TestValidateChunksFitWindow:
     def test_fit_chunks_pass(self) -> None:
         policy = EmbedWindowPolicy.for_model("BAAI/bge-large-zh-v1.5")
         _validate_chunks_fit_window(["简短中文记忆内容。"], policy, "Concept/A")
+
+
+class _FakeVectorStore:
+    def __init__(self) -> None:
+        self.upserted_docs: list[object] | None = None
+        self.delete_calls = 0
+
+    async def delete_by_filter(self, collection_name: str, filt: dict[str, str]) -> None:
+        self.delete_calls += 1
+
+    async def delete(self, collection_name: str, ids: list[str]) -> None:
+        self.delete_calls += 1
+
+    async def upsert(self, collection_name: str, docs: list[object]) -> None:
+        self.upserted_docs = docs
+
+
+class _FakeEmbedding:
+    _model = "BAAI/bge-large-zh-v1.5"  # wordpiece path exercises character chunking
+
+    def __init__(self) -> None:
+        self.last_chunks: list[str] | None = None
+
+    async def embed_batch(self, chunks: list[str]) -> list[list[float]]:
+        self.last_chunks = chunks
+        return [[0.1, 0.2] for _ in chunks]
+
+
+class TestUpsertTextVectors:
+    @pytest.mark.asyncio
+    async def test_empty_text_returns_zero(self) -> None:
+        result = await upsert_text_vectors(
+            embedding=_FakeEmbedding(),
+            vector=_FakeVectorStore(),
+            collection_name="wiki_vectors",
+            parent_key="Concept/A",
+            text="   \n  ",
+            base_metadata={"title": "A"},
+            metadata_key="parent_key",
+        )
+        assert result == 0
+
+    @pytest.mark.asyncio
+    async def test_upsert_single_chunk_with_metadata(self) -> None:
+        vec = _FakeVectorStore()
+        emb = _FakeEmbedding()
+        text = "简短的中文知识条目内容。"
+        result = await upsert_text_vectors(
+            embedding=emb,
+            vector=vec,
+            collection_name="wiki_vectors",
+            parent_key="Concept/A",
+            text=text,
+            base_metadata={"title": "A"},
+            metadata_key="parent_key",
+        )
+        assert result == 1
+        assert vec.upserted_docs is not None
+        doc = vec.upserted_docs[0]
+        assert doc.content == text
+        assert doc.metadata["parent_key"] == "Concept/A"  # type: ignore[index]
+        assert doc.metadata["chunk_index"] == 0  # type: ignore[index]
+        assert doc.metadata["chunk_count"] == 1  # type: ignore[index]
+
+    @pytest.mark.asyncio
+    async def test_wordpiece_long_text_multi_chunk_upsert(self) -> None:
+        # A long CJK text splits into several character-bounded chunks for the
+        # wordpiece model; every chunk must be embedded and upserted with a
+        # matching chunk_index/chunk_count so retrieval stays aligned.
+        vec = _FakeVectorStore()
+        emb = _FakeEmbedding()
+        text = "深度检索质量保障机制的动态窗口预算测试。" * 60
+        result = await upsert_text_vectors(
+            embedding=emb,
+            vector=vec,
+            collection_name="wiki_vectors",
+            parent_key="Concept/A",
+            text=text,
+            base_metadata={"title": "A"},
+            metadata_key="parent_key",
+        )
+        assert result >= 2
+        assert emb.last_chunks is not None
+        assert len(emb.last_chunks) == result
+        assert vec.upserted_docs is not None
+        assert len(vec.upserted_docs) == result
+        for index, doc in enumerate(vec.upserted_docs):
+            assert doc.metadata["chunk_index"] == index  # type: ignore[index]
+            assert doc.metadata["chunk_count"] == result  # type: ignore[index]
+
+    @pytest.mark.asyncio
+    async def test_batch_size_mismatch_fails_loud(self) -> None:
+        class _BadEmbedding:
+            async def embed_batch(self, chunks: list[str]) -> list[list[float]]:
+                return []  # wrong count: provider returned nothing
+
+        with pytest.raises(RuntimeError, match="batch size mismatch"):
+            await upsert_text_vectors(
+                embedding=_BadEmbedding(),  # type: ignore[arg-type]
+                vector=_FakeVectorStore(),
+                collection_name="wiki_vectors",
+                parent_key="Concept/A",
+                text="Short wiki truth section.",
+                base_metadata={"title": "A"},
+                metadata_key="parent_key",
+            )
 
 
 class TestCloudEmbeddingValidation:

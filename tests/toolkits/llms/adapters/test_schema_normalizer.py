@@ -2015,3 +2015,226 @@ class TestOrphanRequiredPruning:
         result = _params(normalize_tool_schema(schema))
         assert "$ref" not in str(result)
         assert "street" in str(result)
+
+
+class TestTypeArrayNormalization:
+    """Array-form ``type`` from Pydantic v1 Optional / old zod output."""
+
+    def test_nullable_single_type(self) -> None:
+        """``["string", "null"]`` becomes scalar type + nullable hint."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "name": {"type": ["string", "null"], "description": "d"}
+                },
+                "required": ["name"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        prop = result["properties"]["name"]
+        assert prop["type"] == "string"
+        assert prop["description"] == "d"
+        assert "anyOf" not in prop
+        assert "oneOf" not in prop
+
+    def test_multi_non_null_types_first_branch_survives(self) -> None:
+        """``["string", "integer"]`` collapses to the first branch (no crash,
+        no dropped ``required``)."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"value": {"type": ["string", "integer"]}},
+                "required": ["value"],
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        prop = result["properties"]["value"]
+        assert prop["type"] == "string"
+        assert result["required"] == ["value"]
+
+    def test_null_only_becomes_null_type(self) -> None:
+        """``["null"]`` collapses to a single ``null`` type."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"nothing": {"type": ["null"]}},
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert result["properties"]["nothing"]["type"] == "null"
+
+    def test_empty_array_type_dropped(self) -> None:
+        """An empty ``type`` array is dropped so inference fills a type."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"blob": {"type": [], "description": "d"}},
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        prop = result["properties"]["blob"]
+        # Empty array carries no information — type inference picks a concrete one.
+        assert prop["type"] == "string"
+
+    def test_nested_array_type_recursive(self) -> None:
+        """Array-form ``type`` is normalized at any nesting depth."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "wrapper": {
+                        "type": "object",
+                        "properties": {"inner": {"type": ["integer", "null"]}},
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        inner = result["properties"]["wrapper"]["properties"]["inner"]
+        assert inner["type"] == "integer"
+
+    def test_type_array_with_composite_keeps_const(self) -> None:
+        """When a composite keyword already exists, array-form type is dropped."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "mode": {
+                        "type": ["string", "null"],
+                        "anyOf": [{"const": "a"}, {"const": "b"}],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        prop = result["properties"]["mode"]
+        assert prop.get("const") == "a"
+        assert "anyOf" not in prop
+
+
+class TestNormalizeTypeArrays:
+    """Direct unit tests for scalar_compat.normalize_type_arrays (three forms)."""
+
+    def test_nullable_single_type_form(self) -> None:
+        from myrm_agent_harness.toolkits.llms.adapters.schema.scalar_compat import (
+            normalize_type_arrays,
+        )
+
+        result = normalize_type_arrays(
+            {"type": ["string", "null"], "description": "d"}
+        )
+        assert result == {"type": "string", "nullable": True, "description": "d"}
+
+    def test_multi_non_null_types_anyof_form(self) -> None:
+        from myrm_agent_harness.toolkits.llms.adapters.schema.scalar_compat import (
+            normalize_type_arrays,
+        )
+
+        result = normalize_type_arrays({"type": ["string", "integer"]})
+        assert result == {"anyOf": [{"type": "string"}, {"type": "integer"}]}
+
+    def test_null_only_form(self) -> None:
+        from myrm_agent_harness.toolkits.llms.adapters.schema.scalar_compat import (
+            normalize_type_arrays,
+        )
+
+        assert normalize_type_arrays({"type": ["null"]}) == {"type": "null"}
+
+    def test_empty_array_dropped_form(self) -> None:
+        from myrm_agent_harness.toolkits.llms.adapters.schema.scalar_compat import (
+            normalize_type_arrays,
+        )
+
+        assert normalize_type_arrays({"type": [], "description": "d"}) == {
+            "description": "d"
+        }
+
+    def test_idempotent(self) -> None:
+        from myrm_agent_harness.toolkits.llms.adapters.schema.scalar_compat import (
+            normalize_type_arrays,
+        )
+
+        schema = {"properties": {"x": {"type": ["string", "null"]}}}
+        once = normalize_type_arrays(schema)
+        assert normalize_type_arrays(once) == once
+
+    def test_plain_schema_passthrough(self) -> None:
+        from myrm_agent_harness.toolkits.llms.adapters.schema.scalar_compat import (
+            normalize_type_arrays,
+        )
+
+        schema = {"type": "object", "properties": {"x": {"type": "string"}}}
+        assert normalize_type_arrays(schema) == schema
+
+    def test_array_form_with_composite_keeps_composite(self) -> None:
+        from myrm_agent_harness.toolkits.llms.adapters.schema.scalar_compat import (
+            normalize_type_arrays,
+        )
+
+        result = normalize_type_arrays(
+            {"type": ["string", "null"], "anyOf": [{"const": "a"}]}
+        )
+        assert "anyOf" in result
+        assert result.get("type") == "string"
+        assert result.get("nullable") is True
+
+
+class TestOpenApiComponentsRefs:
+    """OpenAPI 3.x ``#/components/schemas/...`` pointer support (outbound)."""
+
+    def test_components_schemas_resolved(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"user": {"$ref": "#/components/schemas/User"}},
+                "components": {
+                    "schemas": {
+                        "User": {
+                            "type": "object",
+                            "properties": {"name": {"type": "string"}},
+                        }
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert "$ref" not in str(result)
+        user = result["properties"]["user"]
+        assert user["type"] == "object"
+        assert user["properties"]["name"]["type"] == "string"
+
+    def test_nested_path_in_components_ref(self) -> None:
+        """``#/components/schemas/Foo/properties/bar`` walks nested segments."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"field": {"$ref": "#/components/schemas/Foo/properties/bar"}},
+                "components": {
+                    "schemas": {
+                        "Foo": {
+                            "type": "object",
+                            "properties": {
+                                "bar": {"type": "integer", "description": "b"}
+                            },
+                        }
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert "$ref" not in str(result)
+        assert result["properties"]["field"]["type"] == "integer"
+
+    def test_components_container_removed(self) -> None:
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"id": {"$ref": "#/components/schemas/Id"}},
+                "components": {
+                    "schemas": {"Id": {"type": "string", "description": "i"}}
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert "components" not in str(result)

@@ -170,11 +170,21 @@ class SubagentControlMixin:
 
         return True
 
-    def cancel_all(self) -> int:
-        """Cancel all running children using each child's configured strategy."""
+    def cancel_all(self, include_detached: bool = True) -> int:
+        """Cancel running children using each child's configured strategy.
+
+        ``include_detached=False`` skips children spawned with ``wait=False``
+        (background/detached) so a parent run ending normally does not kill them.
+        Explicit user cancel (cancel-all / cancel-child / cascade) always passes
+        ``True`` and cancels every running child.
+        """
         cancelled = 0
         for task_id, task in list(self._children.items()):
-            if not task.done() and self.cancel_child(task_id):
+            if task.done():
+                continue
+            if not include_detached and self._children_detached.get(task_id, False):
+                continue
+            if self.cancel_child(task_id):
                 cancelled += 1
                 logger.info("[subagent:%s] Cancel requested (parent propagation)", task_id)
         return cancelled

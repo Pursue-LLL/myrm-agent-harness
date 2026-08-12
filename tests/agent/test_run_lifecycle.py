@@ -115,7 +115,7 @@ class TestCleanupRun:
             "start_time": time.time() - 5.0,
             "cancel_token": None,
             "steering_token": None,
-            "cancel_all_fn": lambda: 0,
+            "cancel_all_fn": lambda include_detached=True: 0,
         }
         defaults.update(overrides)
 
@@ -142,7 +142,14 @@ class TestCleanupRun:
     def test_cancels_children(self) -> None:
         cancel_fn = MagicMock(return_value=3)
         self._run_cleanup(cancel_all_fn=cancel_fn)
-        cancel_fn.assert_called_once()
+        cancel_fn.assert_called_once_with(include_detached=True)
+
+    def test_normal_completion_preserves_detached_children(self) -> None:
+        """A normally-finished parent run forwards include_detached=False so
+        ``wait=False`` background children are not cancelled."""
+        cancel_fn = MagicMock(return_value=0)
+        self._run_cleanup(cancel_all_fn=cancel_fn, include_detached=False)
+        cancel_fn.assert_called_once_with(include_detached=False)
 
     def test_clears_steering_token(self) -> None:
         mock_steering = MagicMock()
@@ -166,7 +173,7 @@ class TestCleanupRun:
                 start_time=time.time(),
                 cancel_token=None,
                 steering_token=mock_steering,
-                cancel_all_fn=lambda: 0,
+                cancel_all_fn=lambda include_detached=True: 0,
             )
         mock_set_st.assert_called_once_with(None)
 
@@ -191,7 +198,7 @@ class TestCleanupRun:
                 start_time=time.time(),
                 cancel_token=None,
                 steering_token=None,
-                cancel_all_fn=lambda: 0,
+                cancel_all_fn=lambda include_detached=True: 0,
                 merged_context={"session_id": "sess-exec-cleanup"},
             )
         mock_clear_exec.assert_called_once_with("sess-exec-cleanup")
@@ -204,7 +211,7 @@ class TestCleanupRun:
                 start_time=time.time(),
                 cancel_token=None,
                 steering_token=None,
-                cancel_all_fn=lambda: 0,
+                cancel_all_fn=lambda include_detached=True: 0,
             )
 
 

@@ -11,11 +11,15 @@ import pytest
 
 from myrm_agent_harness.agent.middlewares.guardrails.core import GuardrailRequest
 from myrm_agent_harness.agent.middlewares.guardrails.providers.skill_boundary import (
+    PermissionChecker,
     SkillBoundaryProvider,
 )
 from myrm_agent_harness.agent.skill_agent.context import (
     reset_loaded_skills,
     set_loaded_skills,
+)
+from myrm_agent_harness.backends.skills.permission_validator import (
+    map_permission_to_skill_permission,
 )
 from myrm_agent_harness.backends.skills.types_metadata import SkillMetadata
 
@@ -33,7 +37,7 @@ def _load_skill(name: str = "demo_skill") -> None:
     )
 
 
-def _request(tool_name: str = "file_write") -> GuardrailRequest:
+def _request(tool_name: str = "file_write_tool") -> GuardrailRequest:
     return GuardrailRequest(
         tool_name=tool_name,
         tool_input={"path": "/tmp/x.txt"},
@@ -62,7 +66,7 @@ async def test_aevaluate_denies_with_async_checker_when_not_granted() -> None:
         return False, "denied by policy"
 
     provider = SkillBoundaryProvider(permission_checker=checker)
-    decision = await provider.aevaluate(_request("shell_exec"))
+    decision = await provider.aevaluate(_request("bash_code_execute_tool"))
     assert decision.allow is False
     assert decision.reasons[0].code == "skill_boundary.violation"
 
@@ -74,7 +78,7 @@ async def test_aevaluate_allows_when_no_skills_loaded() -> None:
         pytest.fail("checker must not be called when no skills are loaded")
 
     provider = SkillBoundaryProvider(permission_checker=fail_checker)
-    decision = await provider.aevaluate(_request("shell_exec"))
+    decision = await provider.aevaluate(_request("bash_code_execute_tool"))
     assert decision.allow is True
 
 
@@ -119,20 +123,20 @@ def test_evaluate_denies_async_checker_when_not_granted() -> None:
         return False, "denied"
 
     provider = SkillBoundaryProvider(permission_checker=checker)
-    decision = provider.evaluate(_request("shell_exec"))
+    decision = provider.evaluate(_request("bash_code_execute_tool"))
     assert decision.allow is False
 
 
 def test_evaluate_allow_without_checker() -> None:
     """A provider without a permission checker must always allow."""
     provider = SkillBoundaryProvider()
-    assert provider.evaluate(_request("shell_exec")).allow is True
+    assert provider.evaluate(_request("bash_code_execute_tool")).allow is True
 
 
 @pytest.mark.asyncio
 async def test_aevaluate_allow_without_checker() -> None:
     provider = SkillBoundaryProvider()
-    assert (await provider.aevaluate(_request("shell_exec"))).allow is True
+    assert (await provider.aevaluate(_request("bash_code_execute_tool"))).allow is True
 
 
 @pytest.mark.asyncio
@@ -148,3 +152,119 @@ async def test_aevaluate_runs_inside_existing_event_loop() -> None:
     provider = SkillBoundaryProvider(permission_checker=checker)
     decision = await provider.aevaluate(_request())
     assert decision.allow is True
+
+
+def _granted_checker(granted: frozenset[str]) -> PermissionChecker:
+    """Checker that models the server-side DB grant lookup by permission type.
+
+    Mirrors ``permission_service``: the SSOT permission type is mapped to its
+    SkillPermission, then compared against the granted permission values.
+    """
+
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
+        mapped = map_permission_to_skill_permission(permission_type)
+        if mapped is not None and mapped.value in granted:
+            return True, ""
+        return False, f"denied: {permission_type} not granted"
+
+    return checker
+
+
+@pytest.mark.asyncio
+async def test_ssot_file_edit_maps_to_file_write_gate() -> None:
+    """file_edit_tool must resolve via SSOT to file_write (no heuristic drift).
+
+    Previously the boundary heuristic missed the tool name and silently allowed
+    edits without FILE_WRITE. Regression guard for the drift.
+    """
+    _load_skill()
+    provider = SkillBoundaryProvider(
+        permission_checker=_granted_checker(frozenset({"file_read"}))
+    )
+    decision = await provider.aevaluate(
+        GuardrailRequest(
+            tool_name="file_edit_tool",
+            tool_input={"path": "/workspace/x.py", "edits": [{"old": "a", "new": "b"}]},
+        )
+    )
+    assert decision.allow is False
+    assert "file_write" in decision.reasons[0].message
+
+
+@pytest.mark.asyncio
+async def test_ssot_grep_maps_to_file_read_gate() -> None:
+    """grep_tool must resolve via SSOT to file_read and be gated without grant."""
+    _load_skill()
+    provider = SkillBoundaryProvider(permission_checker=_granted_checker(frozenset()))
+    decision = await provider.aevaluate(
+        GuardrailRequest(
+            tool_name="grep_tool", tool_input={"pattern": "secret", "path": "/workspace"}
+        )
+    )
+    assert decision.allow is False
+    assert "file_read" in decision.reasons[0].message
+
+
+@pytest.mark.asyncio
+async def test_ssot_bash_code_execute_uses_code_interpreter_grant() -> None:
+    """bash_code_execute_tool must resolve via SSOT to code_interpreter.
+
+    Previously the heuristic attributed it to shell_exec, wrongly rejecting a
+    skill granted CODE_INTERPRETER (sandboxed code execution).
+    """
+    _load_skill()
+    provider = SkillBoundaryProvider(
+        permission_checker=_granted_checker(frozenset({"code_interpreter"}))
+    )
+    decision = await provider.aevaluate(
+        GuardrailRequest(tool_name="bash_code_execute_tool", tool_input={"command": "echo hi"})
+    )
+    assert decision.allow is True
+
+
+@pytest.mark.asyncio
+async def test_ssot_web_fetch_uses_network_access_grant() -> None:
+    """web_fetch_tool must resolve via SSOT to net_fetch → NETWORK_ACCESS grant."""
+    _load_skill()
+    provider = SkillBoundaryProvider(
+        permission_checker=_granted_checker(frozenset({"network_access"}))
+    )
+    decision = await provider.aevaluate(
+        GuardrailRequest(tool_name="web_fetch_tool", tool_input={"url": "https://example.com"})
+    )
+    assert decision.allow is True
+
+
+@pytest.mark.asyncio
+async def test_ssot_mcp_tool_not_applicable_to_skills() -> None:
+    """MCP tools resolve to mcp_invoke (own auth) and must not invoke the checker."""
+    _load_skill()
+    provider = SkillBoundaryProvider(permission_checker=MagicMock())
+    decision = await provider.aevaluate(
+        GuardrailRequest(tool_name="mcp__github__get_repo", tool_input={"repo": "x"})
+    )
+    assert decision.allow is True
+    provider._permission_checker.assert_not_called()
+
+
+def test_extract_critical_params_falls_back_to_full_input() -> None:
+    """Tools outside the file/shell/network branches must echo the whole input."""
+    provider = SkillBoundaryProvider()
+    result = provider._extract_critical_params("env_tool", {"key": "HOME"})
+    assert result == str({"key": "HOME"})
+
+
+def test_resolve_loaded_skills_swallows_context_failure() -> None:
+    """A failure reading loaded skills must degrade to an empty list (allow)."""
+    import myrm_agent_harness.agent.skill_agent.context as ctx
+
+    def _boom() -> list[object]:
+        raise RuntimeError("context unavailable")
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(ctx, "get_loaded_skills", _boom)
+    try:
+        provider = SkillBoundaryProvider()
+        assert provider._resolve_loaded_skills() == []
+    finally:
+        monkeypatch.undo()
