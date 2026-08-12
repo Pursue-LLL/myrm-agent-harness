@@ -4,6 +4,9 @@ Public symbols: :class:`BackgroundProcessInfo`, :class:`BackgroundProcessRegistr
 :class:`BackgroundQuotaError`, :class:`FinishListener`, :class:`ProgressListener`,
 :func:`get_background_registry`.
 See _ARCH.md for module index.
+
+[POS]
+Background bash process registry facade re-exporting registry + types.
 """
 
 from myrm_agent_harness.agent.meta_tools.bash._background.registry import (

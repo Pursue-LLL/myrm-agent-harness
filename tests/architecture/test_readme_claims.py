@@ -257,8 +257,8 @@ def test_feature_browser_automation_implemented() -> None:
     browser_path = HARNESS_ROOT / "src" / "myrm_agent_harness" / "toolkits" / "browser"
     assert browser_path.exists(), "browser toolkit not found"
 
-    doctor_file = browser_path / "doctor.py"
-    assert doctor_file.exists(), "browser/doctor.py not found"
+    doctor_dir = browser_path / "doctor"
+    assert doctor_dir.is_dir(), "browser/doctor package not found"
 
 
 def test_feature_multi_llm_support() -> None:

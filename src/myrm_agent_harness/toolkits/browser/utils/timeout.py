@@ -4,6 +4,9 @@ Patchright's ``TimeoutError`` is a distinct class that does not subclass the
 builtin ``TimeoutError``, so any code that touches patchright must recognize
 both. Centralizing that knowledge here prevents call sites from re-discovering
 it or writing fragile ``except TimeoutError`` clauses.
+
+[POS]
+Single source for unified timeout exception detection across browser toolkit.
 """
 
 from __future__ import annotations

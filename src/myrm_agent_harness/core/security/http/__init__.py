@@ -1,5 +1,8 @@
-"""SSRF-protected outbound HTTP helpers."""
+"""SSRF-protected outbound HTTP helpers.
 
+[POS]
+Facade for SSRF-shielded HTTP helpers (secure_get / secure_request / target resolution).
+"""
 from myrm_agent_harness.core.security.http.secure_fetch import (
     DEFAULT_MAX_CONTENT_LENGTH,
     DEFAULT_MAX_REDIRECTS,
