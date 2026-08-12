@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.acp.backend_detector import (
+from myrm_agent_harness.toolkits.acp.core.backend_detector import (
     BackendDetector,
     DetectedBackend,
     _is_executable,
@@ -179,8 +179,8 @@ class TestFindExecutable:
 import shutil
 shutil.which = lambda *a, **kw: None
 
-from myrm_agent_harness.toolkits.acp.backend_detector import BackendDetector, _COMMON_PATHS
-import myrm_agent_harness.toolkits.acp.backend_detector as _mod
+from myrm_agent_harness.toolkits.acp.core.backend_detector import BackendDetector, _COMMON_PATHS
+import myrm_agent_harness.toolkits.acp.core.backend_detector as _mod
 from pathlib import Path
 
 _mod._COMMON_PATHS = (Path("{tmp_path}"),)
@@ -200,7 +200,7 @@ print(result or "NONE")
         with (
             patch("shutil.which", side_effect=lambda n: "/usr/bin/npm" if n == "npm" else None),
             patch(
-                "myrm_agent_harness.toolkits.acp.backend_detector._COMMON_PATHS",
+                "myrm_agent_harness.toolkits.acp.core.backend_detector._COMMON_PATHS",
                 (),
             ),
             patch.object(detector, "_find_npm_global", return_value="/usr/lib/node/claude"),
@@ -213,7 +213,7 @@ print(result or "NONE")
         with (
             patch("shutil.which", return_value=None),
             patch(
-                "myrm_agent_harness.toolkits.acp.backend_detector._COMMON_PATHS",
+                "myrm_agent_harness.toolkits.acp.core.backend_detector._COMMON_PATHS",
                 (),
             ),
             patch.object(detector, "_find_npm_global", return_value=None),
@@ -266,8 +266,9 @@ class TestGetVersion:
                 awaitable.close()  # type: ignore[attr-defined]
             raise TimeoutError
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc), patch(
-            "asyncio.wait_for", side_effect=_raise_timeout
+        with (
+            patch("asyncio.create_subprocess_exec", return_value=mock_proc),
+            patch("asyncio.wait_for", side_effect=_raise_timeout),
         ):
             version = await detector._get_version("/usr/bin/claude")
         assert version is None

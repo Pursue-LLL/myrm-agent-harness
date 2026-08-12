@@ -64,6 +64,7 @@ class BackendDetector:
     Results are cached process-wide after the first detection, with a soft
     freshness TTL. Callers can force a fresh scan via ``refresh=True``.
     """
+
     _cache_with_version: ClassVar[list[DetectedBackend] | None] = None
     _cache_without_version: ClassVar[list[DetectedBackend] | None] = None
     _cache_with_version_at: ClassVar[float | None] = None

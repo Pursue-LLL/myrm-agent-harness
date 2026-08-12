@@ -312,15 +312,17 @@ auth/
 ```
 acp/
 ├── __init__.py             # 惰性导出 RuntimePool / RuntimeConfig / RuntimeBackend + Server
-├── ACP_SYSTEM.md           # 本设计文档
-├── ACP_REFERENCE.md        # 竞品与协议调研备忘
-├── ACP_SYSTEM.md           # 本文档
 ├── __main__.py             # CLI 入口
+├── acp_agent_tools.py      # delegate 工具门面（业务层委托入口）
 ├── types.py                # RuntimeEvent、Protocol、RuntimeConfig、错误码等
-├── permission.py           # DefaultPermissionManager
-├── event_bus.py            # EventBus
-├── backend_detector.py     # CLI 探测（detect + detect_with_auth 安装+登录态一次性视图）
-├── health_monitor.py       # 健康检查与退避（集成于 RuntimePool）
+├── ACP_SYSTEM.md           # 本设计文档
+├── _ARCH.md                # 模块索引
+├── core/                   # 共享基础设施
+│   ├── __init__.py
+│   ├── event_bus.py        # EventBus
+│   ├── permission.py       # DefaultPermissionManager
+│   ├── health_monitor.py   # 健康检查与退避（集成于 RuntimePool）
+│   └── backend_detector.py # CLI 探测（detect + detect_with_auth 安装+登录态一次性视图）
 ├── auth/                   # 订阅鉴权子系统（业务无关机制）
 │   ├── __init__.py         # 公共导出
 │   ├── _profiles.py        # AuthProfile：CLI 凭据路径/登录命令/策略
@@ -330,17 +332,20 @@ acp/
 │   ├── __init__.py
 │   ├── server.py           # ACP Server（acp.Agent）
 │   ├── bridge.py           # Session ↔ 宿主 Agent
-│   ├── event_translator.py # AgentEvent → SessionNotification
-│   └── _default_factory.py # 默认 AgentFactory
-└── runtime/                # Runtime 方向（Agent → 外部 Agent）
+│   └── event_translator.py # AgentEvent → SessionNotification
+├── runtime/                # Runtime 方向（Agent → 外部 Agent）
+│   ├── __init__.py
+│   ├── _base.py            # BaseRuntime
+│   ├── _parser.py          # 共享 NDJSON 事件解析器（CLI/SDK 复用）
+│   ├── _spawn_hints.py     # 裸 CLI 启动失败提示（错误消息生成）
+│   ├── acp_runtime.py      # ACP 子进程 + JSON-RPC
+│   ├── acp_callback.py     # ACP 回调处理器
+│   ├── sdk_runtime.py      # SDK bridge
+│   ├── cli_runtime.py      # CLI + NDJSON（Claude stream-json / Codex item.* 新格式 + legacy 兼容）+ --resume session 复用
+│   └── pool.py             # RuntimePool
+└── toolchains/             # 隔离工具链（Node/npm）
     ├── __init__.py
-    ├── _base.py            # BaseRuntime
-    ├── _parser.py          # 共享 NDJSON 事件解析器（CLI/SDK 复用）
-    ├── acp_runtime.py      # ACP 子进程 + JSON-RPC
-    ├── acp_callback.py     # ACP 回调处理器
-    ├── sdk_runtime.py      # SDK bridge
-    ├── cli_runtime.py      # CLI + NDJSON（Claude stream-json / Codex item.* 新格式 + legacy 兼容）+ --resume session 复用
-    └── pool.py             # RuntimePool
+    └── manager.py          # ToolchainManager
 ```
 
 `tools/acp_delegate/delegate_tool.py` 通过 `RuntimePool` 发起委托，汇总 `USAGE_UPDATE` 事件的 token 消耗并推送至前端。`runtime/_parser.py` 提供 `CliRuntime` 和 `SdkRuntime` 共享的 NDJSON 事件解析逻辑（tool_use / tool_result / usage / error / thinking）。`cli_runtime.py` 支持 Codex CLI 两种输出格式：新格式（`item.started/completed` + `turn.completed/failed`，含 `command_execution`、`file_change`、`reasoning` 工具事件映射）和 legacy 格式（`{"id","msg"}` envelope 解包）。
@@ -380,10 +385,10 @@ acp/
 | runtime/cli_runtime.py | 实现 | CLI spawn 后端 |
 | runtime/sdk_runtime.py | 实现（可选依赖） | SDK 集成后端 |
 | runtime/pool.py | 管理器 | 单实例内多后端管理 |
-| event_bus.py | 事件系统 | 类似生命周期钩子，业务层订阅 |
-| permission.py | Protocol + 默认实现 | DefaultPermissionManager（4 模式 + 白名单） |
-| backend_detector.py | 工具 | 后端自动检测 |
-| health_monitor.py | 自我保护 | 存活巡检 + 退避 + `close()` + 指标 |
+| core/event_bus.py | 事件系统 | 类似生命周期钩子，业务层订阅 |
+| core/permission.py | Protocol + 默认实现 | DefaultPermissionManager（4 模式 + 白名单） |
+| core/backend_detector.py | 工具 | 后端自动检测 |
+| core/health_monitor.py | 自我保护 | 存活巡检 + 退避 + `close()` + 指标 |
 
 ### 业务层自定义（通过 Protocol 注入）
 
@@ -461,12 +466,12 @@ acp/
 | P0 | runtime/_base.py（基类） | 低 | types.py |
 | P0 | runtime/acp_runtime.py（ACP 后端） | 中 | types.py, _base.py |
 | P0 | runtime/pool.py（RuntimePool） | 低 | types.py |
-| P1 | permission.py（权限增强） | 中 | types.py |
-| P1 | event_bus.py（事件总线） | 低 | types.py |
-| P1 | runtime/cli_runtime.py（CLI 后端） | 中 | types.py, _base.py, event_bus.py |
-| P2 | backend_detector.py（自动检测） | 低 | 无 |
-| P2 | health_monitor.py（健康监控） | 低 | event_bus.py |
-| P2 | runtime/sdk_runtime.py（SDK 后端） | 高 | types.py, _base.py, permission.py |
+| P1 | core/permission.py（权限增强） | 中 | types.py |
+| P1 | core/event_bus.py（事件总线） | 低 | types.py |
+| P1 | runtime/cli_runtime.py（CLI 后端） | 中 | types.py, _base.py, core/event_bus.py |
+| P2 | core/backend_detector.py（自动检测） | 低 | 无 |
+| P2 | core/health_monitor.py（健康监控） | 低 | core/event_bus.py |
+| P2 | runtime/sdk_runtime.py（SDK 后端） | 高 | types.py, _base.py, core/permission.py |
 ---
 
 ## 9. 方案完美性评估

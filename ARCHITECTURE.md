@@ -109,7 +109,7 @@ Myrm Agent Harness 是一个**GUI-first 通用 AI 工作助手运行时框架**�
 | Agent 生命周期 hook 事件 | `runtime.events` | `EventBus`（保留，已有 `runtime.` 前缀） |
 | Doctor / Prometheus / log trace_id | `observability` | metrics / diagnostics / tracing |
 | OTEL 分布式链路 | `infra.tracing` | `get_tracer()` |
-| ACP 会话事件 | `toolkits.acp.event_bus` | `EventBus`（ACP 域内） |
+| ACP 会话事件 | `toolkits.acp.core.event_bus` | `EventBus`（ACP 域内） |
 
 同名概念分布在不同层级，职责不同；**不要合并目录**。
 

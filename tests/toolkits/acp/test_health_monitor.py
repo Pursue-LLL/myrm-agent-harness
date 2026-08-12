@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.acp.event_bus import EventBus
-from myrm_agent_harness.toolkits.acp.health_monitor import HealthMetrics, HealthMonitor
+from myrm_agent_harness.toolkits.acp.core.event_bus import EventBus
+from myrm_agent_harness.toolkits.acp.core.health_monitor import HealthMetrics, HealthMonitor
 from myrm_agent_harness.toolkits.acp.types import RuntimeEvent, RuntimeEventType
 
 
@@ -141,7 +141,7 @@ class TestHealthMonitorCrashHandling:
         async def _fast_sleep(seconds: float) -> None:
             await _real_sleep(min(seconds, 0.01))
 
-        with patch("myrm_agent_harness.toolkits.acp.health_monitor.asyncio.sleep", side_effect=_fast_sleep):
+        with patch("myrm_agent_harness.toolkits.acp.core.health_monitor.asyncio.sleep", side_effect=_fast_sleep):
             await monitor.start()
             await _real_sleep(0.15)
             await monitor.stop()
@@ -166,7 +166,7 @@ class TestHealthMonitorCrashHandling:
         async def _fast_sleep(seconds: float) -> None:
             await _real_sleep(min(seconds, 0.01))
 
-        with patch("myrm_agent_harness.toolkits.acp.health_monitor.asyncio.sleep", side_effect=_fast_sleep):
+        with patch("myrm_agent_harness.toolkits.acp.core.health_monitor.asyncio.sleep", side_effect=_fast_sleep):
             await monitor.start()
             await _real_sleep(0.2)
             await monitor.stop()
@@ -190,7 +190,7 @@ class TestHealthMonitorCrashHandling:
         async def _fast_sleep(seconds: float) -> None:
             await _real_sleep(min(seconds, 0.01))
 
-        with patch("myrm_agent_harness.toolkits.acp.health_monitor.asyncio.sleep", side_effect=_fast_sleep):
+        with patch("myrm_agent_harness.toolkits.acp.core.health_monitor.asyncio.sleep", side_effect=_fast_sleep):
             await monitor.start()
             await _real_sleep(0.15)
             await monitor.stop()
@@ -206,7 +206,7 @@ class TestHealthMonitorCrashHandling:
         async def _fast_sleep(seconds: float) -> None:
             await _real_sleep(min(seconds, 0.01))
 
-        with patch("myrm_agent_harness.toolkits.acp.health_monitor.asyncio.sleep", side_effect=_fast_sleep):
+        with patch("myrm_agent_harness.toolkits.acp.core.health_monitor.asyncio.sleep", side_effect=_fast_sleep):
             await monitor.start()
             await _real_sleep(0.15)
             await monitor.stop()

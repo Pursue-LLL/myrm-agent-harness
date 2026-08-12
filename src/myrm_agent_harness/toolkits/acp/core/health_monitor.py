@@ -23,7 +23,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from myrm_agent_harness.toolkits.acp.event_bus import EventBus
+from myrm_agent_harness.toolkits.acp.core.event_bus import EventBus
 from myrm_agent_harness.toolkits.acp.types import (
     RuntimeBackend,
     RuntimeEventType,

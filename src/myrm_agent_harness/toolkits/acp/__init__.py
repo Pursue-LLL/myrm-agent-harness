@@ -4,12 +4,15 @@ Provides bidirectional ACP capabilities:
 - Server (server/): Bridges IDE clients (Cursor, Zed, VS Code) to the agent system.
 - Runtime (runtime/): Connects to external agents via ACP protocol, SDK, or CLI.
 
-Shared infrastructure (root):
+Facades and contracts (root):
 - types.py: Core type definitions (RuntimeBackend Protocol, RuntimeEvent, etc.)
-- event_bus.py: Unified event bus (publish-subscribe)
-- permission.py: Permission management (4 modes)
-- health_monitor.py: Backend health monitoring (backoff + restart budget)
-- backend_detector.py: CLI backend auto-detection
+- acp_agent_tools.py: Delegate-to-agent tool factory for the agent layer.
+
+Shared infrastructure (core/):
+- core/event_bus.py: Unified event bus (publish-subscribe)
+- core/permission.py: Permission management (4 modes)
+- core/health_monitor.py: Backend health monitoring (backoff + restart budget)
+- core/backend_detector.py: CLI backend auto-detection
 - auth/: subscription login, credential detection, and credential import for CLI backends
 
 

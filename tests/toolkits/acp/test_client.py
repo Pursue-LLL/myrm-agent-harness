@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.acp.event_bus import EventBus
-from myrm_agent_harness.toolkits.acp.permission import DefaultPermissionManager
+from myrm_agent_harness.toolkits.acp.core.event_bus import EventBus
+from myrm_agent_harness.toolkits.acp.core.permission import DefaultPermissionManager
 from myrm_agent_harness.toolkits.acp.runtime._base import BaseRuntime, build_safe_env, truncate_response
 from myrm_agent_harness.toolkits.acp.runtime.acp_callback import AcpCallbackHandler
 from myrm_agent_harness.toolkits.acp.runtime.pool import RuntimePool
@@ -114,9 +114,7 @@ class TestBuildSafeEnv:
         # api_key mode lets the host inject the provider key this backend bills against;
         # it is re-applied after the baseline strip removes the inherited one.
         base = {"OPENAI_API_KEY": "old-key"}
-        cfg = RuntimeConfig(
-            backend_type="acp", command="test", auth_mode="api_key", env={"OPENAI_API_KEY": "new-key"}
-        )
+        cfg = RuntimeConfig(backend_type="acp", command="test", auth_mode="api_key", env={"OPENAI_API_KEY": "new-key"})
         env = build_safe_env(cfg, base)
         assert env["OPENAI_API_KEY"] == "new-key"
 
@@ -986,7 +984,6 @@ class TestBaseRuntimeTimeout:
         error_event = next(e for e in events if e.type == RuntimeEventType.ERROR)
         assert error_event.data["error"].code == AcpErrorCode.UNKNOWN
         assert "kaboom" in error_event.data["error"].message
-
 
     @pytest.mark.asyncio
     async def test_timeout_cancels_process(self) -> None:
