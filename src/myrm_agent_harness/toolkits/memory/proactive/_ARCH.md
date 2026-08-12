@@ -28,5 +28,5 @@ Detailed design: [COMMITMENT_SYSTEM.md](COMMITMENT_SYSTEM.md)
 ## Key Dependencies
 
 - `pydantic` (structured extraction and records)
-- `utils.chat_utils` (`parse_llm_json_object` — 容错 LLM 回复 JSON 解析)
+- `utils.json_parsing` (`parse_llm_json_object` — 容错 LLM 回复 JSON 解析)
 - stdlib: `datetime`, `logging`

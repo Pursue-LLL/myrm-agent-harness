@@ -16,5 +16,5 @@ Retrieval Sufficiency Guard (RSG)：检索后 LLM 评估结果是否充分覆盖
 ## 模块依赖
 
 - `toolkits/llms/` — 轻量 LLM 实例
-- `utils/chat_utils/` — `parse_llm_json_object` 容错解析 LLM 判定输出（fence/prose/裸控制字符/尾逗号）
+- `utils/json_parsing/` — `parse_llm_json_object` 容错解析 LLM 判定输出（fence/prose/裸控制字符/尾逗号）
 - 调用方：`toolkits/retriever/` 混合检索管线（条件激活）
