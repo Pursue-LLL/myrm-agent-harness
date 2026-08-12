@@ -43,7 +43,7 @@ class TestSplitForEmbedding:
         paragraphs = [
             "## Section {}\n\n{}".format(
                 i,
-                "Detailed engineering notes about module {} with extra context.".format(i) * 20,
+                f"Detailed engineering notes about module {i} with extra context." * 20,
             )
             for i in range(20)
         ]

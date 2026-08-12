@@ -194,6 +194,15 @@ class TestProviderPolicyBlocked:
         exc = _FakeError("no endpoints found that support tool use", status_code=404)
         assert classify_failover_reason(exc) == FailoverReason.MODEL_NOT_FOUND
 
+    def test_cachellm_no_available_channel_classifies_as_model_not_found(self) -> None:
+        exc = _FakeError(
+            "ServiceUnavailableError: OpenAIException - No available channel for model "
+            "__e2e_nonexistent_model__ under group cachellm (distributor)",
+            status_code=503,
+        )
+        assert classify_failover_reason(exc) == FailoverReason.MODEL_NOT_FOUND
+        assert classify_error(exc) == ErrorKind.MODEL_NOT_FOUND
+
 
 # ============================================================================
 # Regression: existing patterns still work

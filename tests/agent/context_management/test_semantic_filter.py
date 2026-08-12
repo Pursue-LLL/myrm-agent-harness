@@ -7,10 +7,10 @@ from unittest.mock import AsyncMock
 import pytest
 from langchain_core.messages import AIMessage
 
+from myrm_agent_harness.agent.context_management.strategies.filters.base import FilterContext
 from myrm_agent_harness.agent.context_management.strategies.filters.semantic_filter import (
     SemanticFilter,
 )
-from myrm_agent_harness.agent.context_management.strategies.filters.base import FilterContext
 
 
 def _make_context(content: str = "<h1>Title</h1>\n<p>Body</p>") -> FilterContext:

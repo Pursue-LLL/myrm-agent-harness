@@ -875,8 +875,10 @@ class TestRunWithVerification:
         assert result.verification.passed is True
 
     @pytest.mark.asyncio
-    async def test_no_task_id_keeps_internal_worker_ids(self):
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_no_task_id_keeps_internal_worker_ids(self, mock_get_executor):
         """Without a business task_id, every spawned worker is internal."""
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
         mgr = MagicMock()
         spawned: list[tuple[str, bool]] = []
 

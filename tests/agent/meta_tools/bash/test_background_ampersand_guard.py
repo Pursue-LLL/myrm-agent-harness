@@ -12,11 +12,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import TOOL_DESCRIPTION
-from myrm_agent_harness.agent.meta_tools.bash._executor.executor import BashExecutor
 from myrm_agent_harness.agent.meta_tools.bash._executor.background_mixin import (
     strip_trailing_background_ampersand,
 )
+from myrm_agent_harness.agent.meta_tools.bash._executor.executor import BashExecutor
+from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import TOOL_DESCRIPTION
 
 
 def _mock_executor() -> MagicMock:

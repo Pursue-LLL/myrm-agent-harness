@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import get_os_hint
 from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
     TOOL_DESCRIPTION,
 )
@@ -11,7 +12,6 @@ from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
 from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
     create_bash_process_tool,
 )
-from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import get_os_hint
 
 
 def test_tool_description_module_exports() -> None:

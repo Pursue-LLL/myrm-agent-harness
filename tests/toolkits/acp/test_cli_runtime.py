@@ -68,7 +68,9 @@ class TestCliRuntimeNdjsonParsing:
 
     def test_text_event_content_list(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"type": "assistant", "content": [{"type": "text", "text": "hi"}]}),
+            json.dumps(
+                {"type": "assistant", "content": [{"type": "text", "text": "hi"}]}
+            ),
             "s1",
         )
         assert event is not None
@@ -77,7 +79,12 @@ class TestCliRuntimeNdjsonParsing:
 
     def test_nested_message_content(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "nested"}]}}),
+            json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {"content": [{"type": "text", "text": "nested"}]},
+                }
+            ),
             "s1",
         )
         assert event is not None
@@ -86,7 +93,14 @@ class TestCliRuntimeNdjsonParsing:
 
     def test_tool_use_event(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"type": "tool_use", "name": "bash", "input": {"cmd": "ls"}, "id": "tc1"}),
+            json.dumps(
+                {
+                    "type": "tool_use",
+                    "name": "bash",
+                    "input": {"cmd": "ls"},
+                    "id": "tc1",
+                }
+            ),
             "s1",
         )
         assert event is not None
@@ -95,7 +109,14 @@ class TestCliRuntimeNdjsonParsing:
 
     def test_tool_result_event(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"type": "tool_result", "tool_use_id": "tc1", "content": "ok", "is_error": False}),
+            json.dumps(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "tc1",
+                    "content": "ok",
+                    "is_error": False,
+                }
+            ),
             "s1",
         )
         assert event is not None
@@ -151,7 +172,12 @@ class TestCliRuntimeNdjsonParsing:
 
     def test_codex_agent_message(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"id": "0", "msg": {"type": "agent_message", "message": "hello from codex"}}),
+            json.dumps(
+                {
+                    "id": "0",
+                    "msg": {"type": "agent_message", "message": "hello from codex"},
+                }
+            ),
             "s1",
         )
         assert event is not None
@@ -160,14 +186,24 @@ class TestCliRuntimeNdjsonParsing:
 
     def test_codex_task_started_ignored(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"id": "0", "msg": {"type": "task_started", "model_context_window": None}}),
+            json.dumps(
+                {
+                    "id": "0",
+                    "msg": {"type": "task_started", "model_context_window": None},
+                }
+            ),
             "s1",
         )
         assert event is None
 
     def test_codex_token_count(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"id": "0", "msg": {"type": "token_count", "info": None, "rate_limits": None}}),
+            json.dumps(
+                {
+                    "id": "0",
+                    "msg": {"type": "token_count", "info": None, "rate_limits": None},
+                }
+            ),
             "s1",
         )
         assert event is not None
@@ -175,7 +211,9 @@ class TestCliRuntimeNdjsonParsing:
 
     def test_codex_stream_error(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"id": "0", "msg": {"type": "stream_error", "message": "rate limited"}}),
+            json.dumps(
+                {"id": "0", "msg": {"type": "stream_error", "message": "rate limited"}}
+            ),
             "s1",
         )
         assert event is not None
@@ -183,7 +221,9 @@ class TestCliRuntimeNdjsonParsing:
 
     def test_codex_error(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"id": "0", "msg": {"type": "error", "message": "model not supported"}}),
+            json.dumps(
+                {"id": "0", "msg": {"type": "error", "message": "model not supported"}}
+            ),
             "s1",
         )
         assert event is not None
@@ -191,7 +231,9 @@ class TestCliRuntimeNdjsonParsing:
 
     def test_codex_init_line_ignored(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"provider": "aliyun", "model": "MiniMax-M2.5", "sandbox": "read-only"}),
+            json.dumps(
+                {"provider": "aliyun", "model": "MiniMax-M2.5", "sandbox": "read-only"}
+            ),
             "s1",
         )
         assert event is None
@@ -226,7 +268,11 @@ class TestCodexNewFormatParsing:
             json.dumps(
                 {
                     "type": "item.completed",
-                    "item": {"id": "item_0", "type": "reasoning", "text": "Scanning docs..."},
+                    "item": {
+                        "id": "item_0",
+                        "type": "reasoning",
+                        "text": "Scanning docs...",
+                    },
                 }
             ),
             "s1",
@@ -330,7 +376,11 @@ class TestCodexNewFormatParsing:
             json.dumps(
                 {
                     "type": "item.completed",
-                    "item": {"id": "item_9", "type": "error", "message": "command output truncated"},
+                    "item": {
+                        "id": "item_9",
+                        "type": "error",
+                        "message": "command output truncated",
+                    },
                 }
             ),
             "s1",
@@ -343,7 +393,11 @@ class TestCodexNewFormatParsing:
             json.dumps(
                 {
                     "type": "turn.completed",
-                    "usage": {"input_tokens": 24763, "cached_input_tokens": 24448, "output_tokens": 122},
+                    "usage": {
+                        "input_tokens": 24763,
+                        "cached_input_tokens": 24448,
+                        "output_tokens": 122,
+                    },
                 }
             ),
             "s1",
@@ -412,7 +466,9 @@ class TestCliRuntimeRunTurn:
     @pytest.mark.asyncio
     async def test_successful_run(self) -> None:
         rt = CliRuntime("test", _make_config())
-        ndjson_lines = (json.dumps({"type": "assistant", "content": "response"}) + "\n").encode()
+        ndjson_lines = (
+            json.dumps({"type": "assistant", "content": "response"}) + "\n"
+        ).encode()
 
         mock_proc = MagicMock()
         mock_proc.returncode = None
@@ -501,7 +557,13 @@ class TestCliRuntimeCancel:
         mock_proc.wait = fake_wait
         rt._process = mock_proc
 
-        with patch("myrm_agent_harness.utils.os_compat.os.getpgid", side_effect=lambda x: 12345 if x == 12345 else 99999) as mock_getpgid, patch("myrm_agent_harness.utils.os_compat.os.killpg") as mock_killpg:
+        with (
+            patch(
+                "myrm_agent_harness.utils.os_compat.os.getpgid",
+                side_effect=lambda x: 12345 if x == 12345 else 99999,
+            ) as mock_getpgid,
+            patch("myrm_agent_harness.utils.os_compat.os.killpg") as mock_killpg,
+        ):
             await rt._do_cancel("s1")
             mock_getpgid.assert_any_call(12345)
             mock_killpg.assert_called_once()
@@ -520,7 +582,13 @@ class TestCliRuntimeCancel:
         mock_proc.wait = never_finish
         rt._process = mock_proc
 
-        with patch("myrm_agent_harness.utils.os_compat.os.getpgid", side_effect=lambda x: 12345 if x == 12345 else 99999), patch("myrm_agent_harness.utils.os_compat.os.killpg") as mock_killpg:
+        with (
+            patch(
+                "myrm_agent_harness.utils.os_compat.os.getpgid",
+                side_effect=lambda x: 12345 if x == 12345 else 99999,
+            ),
+            patch("myrm_agent_harness.utils.os_compat.os.killpg") as mock_killpg,
+        ):
             await rt._do_cancel("s1")
             assert mock_killpg.call_count == 2
 
@@ -670,23 +738,31 @@ class TestSupportsMaxTurns:
     """Tests for the _supports_max_turns helper function."""
 
     def test_claude_supported(self) -> None:
-        from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import _supports_max_turns
+        from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import (
+            _supports_max_turns,
+        )
 
         assert _supports_max_turns("claude") is True
         assert _supports_max_turns("/usr/local/bin/claude") is True
 
     def test_codex_not_supported(self) -> None:
-        from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import _supports_max_turns
+        from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import (
+            _supports_max_turns,
+        )
 
         assert _supports_max_turns("codex") is False
 
     def test_gemini_not_supported(self) -> None:
-        from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import _supports_max_turns
+        from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import (
+            _supports_max_turns,
+        )
 
         assert _supports_max_turns("gemini") is False
 
     def test_arbitrary_command_not_supported(self) -> None:
-        from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import _supports_max_turns
+        from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import (
+            _supports_max_turns,
+        )
 
         assert _supports_max_turns("/opt/custom/agent") is False
 
@@ -788,7 +864,9 @@ class TestCliRuntimeSessionResume:
         mock_proc.returncode = None
         mock_proc.stdout.__aiter__ = lambda self: aiter([])
         mock_proc.stderr = AsyncMock()
-        mock_proc.stderr.read = AsyncMock(return_value=b"Error: Session cli-sess-abc not found")
+        mock_proc.stderr.read = AsyncMock(
+            return_value=b"Error: Session cli-sess-abc not found"
+        )
         mock_proc.stdin = None
 
         async def fake_wait() -> int:
@@ -814,7 +892,9 @@ class TestCliRuntimeSessionResume:
         error_events = [e for e in events if e.type == RuntimeEventType.ERROR]
         assert len(error_events) == 1
         assert error_events[0].data["error"].retryable is True
-        assert "s1" not in rt._cli_session_ids, "stale CLI session id must be dropped on crash"
+        assert (
+            "s1" not in rt._cli_session_ids
+        ), "stale CLI session id must be dropped on crash"
 
     @pytest.mark.asyncio
     async def test_resume_kept_on_nonzero_exit_with_output(self) -> None:
@@ -826,7 +906,9 @@ class TestCliRuntimeSessionResume:
         rt = CliRuntime("test", _make_config())
         rt._cli_session_ids["s1"] = "cli-sess-abc"
 
-        ndjson_lines = (json.dumps({"type": "assistant", "content": "partial"}) + "\n").encode()
+        ndjson_lines = (
+            json.dumps({"type": "assistant", "content": "partial"}) + "\n"
+        ).encode()
         mock_proc = MagicMock()
         mock_proc.returncode = None
         mock_proc.stdout.__aiter__ = lambda self: aiter([ndjson_lines])
@@ -868,10 +950,14 @@ class TestCliRuntimeSessionResume:
 
         mock_proc.wait = fake_wait
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as exec_mock:
+        with patch(
+            "asyncio.create_subprocess_exec", return_value=mock_proc
+        ) as exec_mock:
             _ = [e async for e in rt._do_run_turn("hello", "s1")]
 
-        assert "--resume" not in exec_mock.call_args[0], "codex must not get --resume injected"
+        assert (
+            "--resume" not in exec_mock.call_args[0]
+        ), "codex must not get --resume injected"
         assert rt._cli_session_ids.get("s1") == "cli-sess-abc"
 
     @pytest.mark.asyncio
@@ -893,7 +979,9 @@ class TestCliRuntimeSessionResume:
         def fake_kill_process_group(pid: int, sig: int) -> None:
             killed.append((pid, sig))
 
-        with patch.object(os_compat, "kill_process_group", side_effect=fake_kill_process_group):
+        with patch.object(
+            os_compat, "kill_process_group", side_effect=fake_kill_process_group
+        ):
             await rt._do_cancel("s1")
 
         assert killed == [(4242, signal.SIGTERM), (4242, signal.SIGKILL)]
@@ -961,7 +1049,9 @@ class TestCliRuntimeVerboseAndPrompt:
     @pytest.mark.asyncio
     async def test_nonzero_exit_with_text_logs_warning(self) -> None:
         rt = CliRuntime("test", _make_config())
-        ndjson_lines = (json.dumps({"type": "assistant", "content": "partial"}) + "\n").encode()
+        ndjson_lines = (
+            json.dumps({"type": "assistant", "content": "partial"}) + "\n"
+        ).encode()
 
         mock_proc = MagicMock()
         mock_proc.returncode = None
@@ -1026,7 +1116,10 @@ class TestCliRuntimeCancelWindows:
         mock_proc.wait = fake_wait
         rt._process = mock_proc
 
-        with patch("myrm_agent_harness.utils.os_compat.IS_WIN", True), patch("myrm_agent_harness.utils.os_compat.subprocess.run") as mock_run:
+        with (
+            patch("myrm_agent_harness.utils.os_compat.IS_WIN", True),
+            patch("myrm_agent_harness.utils.os_compat.subprocess.run") as mock_run,
+        ):
             await rt._do_cancel("s1")
         mock_run.assert_called_once()
 
@@ -1044,7 +1137,10 @@ class TestCliRuntimeCancelWindows:
         mock_proc.wait = fake_wait
         rt._process = mock_proc
 
-        with patch("myrm_agent_harness.utils.os_compat.os.getpgid", side_effect=ProcessLookupError):
+        with patch(
+            "myrm_agent_harness.utils.os_compat.os.getpgid",
+            side_effect=ProcessLookupError,
+        ):
             await rt._do_cancel("s1")
 
     @pytest.mark.asyncio
@@ -1062,7 +1158,11 @@ class TestCliRuntimeEmptyLines:
     @pytest.mark.asyncio
     async def test_empty_lines_skipped(self) -> None:
         rt = CliRuntime("test", _make_config())
-        lines = [b"\n", b"  \n", json.dumps({"type": "assistant", "content": "ok"}).encode() + b"\n"]
+        lines = [
+            b"\n",
+            b"  \n",
+            json.dumps({"type": "assistant", "content": "ok"}).encode() + b"\n",
+        ]
 
         mock_proc = MagicMock()
         mock_proc.returncode = None
@@ -1090,7 +1190,9 @@ class TestCliRuntimeNdjsonEdgeCases:
 
     def test_usage_event_with_info_field(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"type": "usage", "info": {"input_tokens": 500, "output_tokens": 200}}),
+            json.dumps(
+                {"type": "usage", "info": {"input_tokens": 500, "output_tokens": 200}}
+            ),
             "s1",
         )
         assert event is not None
@@ -1115,7 +1217,12 @@ class TestCliRuntimeNdjsonEdgeCases:
 
     def test_result_event_with_usage(self) -> None:
         event = CliRuntime._parse_ndjson_line(
-            json.dumps({"type": "result", "usage": {"input_tokens": 1000, "output_tokens": 300}}),
+            json.dumps(
+                {
+                    "type": "result",
+                    "usage": {"input_tokens": 1000, "output_tokens": 300},
+                }
+            ),
             "s1",
         )
         assert event is not None
@@ -1163,7 +1270,9 @@ class TestCliRuntimeNdjsonEdgeCases:
 
     def test_capture_session_id_empty_session(self) -> None:
         rt = CliRuntime("test", _make_config())
-        rt._capture_cli_session_id(json.dumps({"type": "result", "session_id": ""}), "s1")
+        rt._capture_cli_session_id(
+            json.dumps({"type": "result", "session_id": ""}), "s1"
+        )
         assert "s1" not in rt._cli_session_ids
 
 
@@ -1192,16 +1301,22 @@ class TestRealProcessCleanup:
 
         proc = rt._process
         assert proc is not None, "process should exist before cleanup"
-        assert proc.returncode is not None, "timed-out process must have been terminated"
+        assert (
+            proc.returncode is not None
+        ), "timed-out process must have been terminated"
         await rt.close()
 
 
 class TestCliRuntimeMcpIgnored:
     @pytest.mark.asyncio
-    async def test_mcp_servers_log_warning_and_are_ignored(self, caplog: pytest.LogCaptureFixture) -> None:
+    async def test_mcp_servers_log_warning_and_are_ignored(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """CliRuntime ignores session-level MCP servers but warns instead of silently dropping."""
         rt = CliRuntime("test", _make_config())
-        ndjson_lines = (json.dumps({"type": "assistant", "content": "ok"}) + "\n").encode()
+        ndjson_lines = (
+            json.dumps({"type": "assistant", "content": "ok"}) + "\n"
+        ).encode()
 
         mock_proc = MagicMock()
         mock_proc.returncode = None
@@ -1220,20 +1335,32 @@ class TestCliRuntimeMcpIgnored:
             McpServerConfig(name="fs", command="mcp-fs", args=["--ro"]),
             McpServerConfig(name="git", command="mcp-git"),
         ]
-        with caplog.at_level("WARNING", logger="myrm_agent_harness.toolkits.acp.runtime.cli_runtime"), patch(
-            "asyncio.create_subprocess_exec", return_value=mock_proc
+        with (
+            caplog.at_level(
+                "WARNING", logger="myrm_agent_harness.toolkits.acp.runtime.cli_runtime"
+            ),
+            patch("asyncio.create_subprocess_exec", return_value=mock_proc),
         ):
             events = [e async for e in rt._do_run_turn("hello", "s1", mcp_servers=mcp)]
 
         assert any(e.type == RuntimeEventType.DONE for e in events)
-        warning_messages = [r.message for r in caplog.records if r.levelname == "WARNING"]
-        assert any("cli_runtime_mcp_ignored" in msg and "mcp_servers=2" in msg for msg in warning_messages)
+        warning_messages = [
+            r.message for r in caplog.records if r.levelname == "WARNING"
+        ]
+        assert any(
+            "cli_runtime_mcp_ignored" in msg and "mcp_servers=2" in msg
+            for msg in warning_messages
+        )
 
     @pytest.mark.asyncio
-    async def test_without_mcp_servers_no_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+    async def test_without_mcp_servers_no_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """A normal turn without mcp_servers must not emit the MCP-ignored warning."""
         rt = CliRuntime("test", _make_config())
-        ndjson_lines = (json.dumps({"type": "assistant", "content": "ok"}) + "\n").encode()
+        ndjson_lines = (
+            json.dumps({"type": "assistant", "content": "ok"}) + "\n"
+        ).encode()
 
         mock_proc = MagicMock()
         mock_proc.returncode = None
@@ -1248,11 +1375,16 @@ class TestCliRuntimeMcpIgnored:
 
         mock_proc.wait = fake_wait
 
-        with caplog.at_level("WARNING", logger="myrm_agent_harness.toolkits.acp.runtime.cli_runtime"), patch(
-            "asyncio.create_subprocess_exec", return_value=mock_proc
+        with (
+            caplog.at_level(
+                "WARNING", logger="myrm_agent_harness.toolkits.acp.runtime.cli_runtime"
+            ),
+            patch("asyncio.create_subprocess_exec", return_value=mock_proc),
         ):
             events = [e async for e in rt._do_run_turn("hello", "s1")]
 
         assert any(e.type == RuntimeEventType.DONE for e in events)
-        warning_messages = [r.message for r in caplog.records if r.levelname == "WARNING"]
+        warning_messages = [
+            r.message for r in caplog.records if r.levelname == "WARNING"
+        ]
         assert not any("cli_runtime_mcp_ignored" in msg for msg in warning_messages)

@@ -339,7 +339,7 @@ async def evaluate_semantic_assertions(
     assertions: list[SemanticAssertion],
     actual_output: str,
     *,
-    judge_override: "JudgeConfig | None" = None,
+    judge_override: JudgeConfig | None = None,
 ) -> tuple[bool | None, str | None]:
     """Evaluate semantic assertions using an LLM as a judge.
 

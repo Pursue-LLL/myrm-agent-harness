@@ -60,9 +60,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-from myrm_agent_harness.toolkits.code_execution.interceptor import (
+from myrm_agent_harness.toolkits.code_execution.interceptor import (  # noqa: E402 — deferred import to avoid circular dependency
     trigger_destructive_action_hook,
-)  # noqa: E402
+)
 from myrm_agent_harness.toolkits.code_execution.security.shell_command_analyzer import (  # noqa: E402
     is_destructive_command,
 )

@@ -268,7 +268,7 @@ async def test_query_single_success_and_empty_retry_exhaustion() -> None:
 
 @pytest.mark.asyncio
 async def test_query_single_timeout_and_exception() -> None:
-    from unittest.mock import AsyncMock, MagicMock, patch
+    from unittest.mock import MagicMock, patch
 
     from myrm_agent_harness.toolkits.llms.consensus.advisor_fanout import AdvisorFanoutRunner
 

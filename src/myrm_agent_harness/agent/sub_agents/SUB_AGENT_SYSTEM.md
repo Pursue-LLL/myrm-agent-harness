@@ -175,7 +175,7 @@ Level 4: parent LLM (继承父 agent 的 LLM，兜底)
 | 并行批量 | `delegate_task_tool(mode=batch)` | `asyncio.gather` 并行执行多个子任务（`max_concurrent` 可调并发度，race 模式 Speculative Execution first-winner）；多写者 batch 结束后 `batch_merge` 串行合并 ISOLATED_COPY workspace 并登记 SnapshotStore（Revert 可用）；merge 失败时 `WORKSPACE_MERGE_FAILED` SSE + `message_end.completion_status=warning`，前端 MessageBox 显示 amber 警告条与 `WorkspaceMergeWarning` 错误列表 |
 | 链式 | `run_chain(configs)` | A → B → C，`{previous}` 模板传递 |
 | 替代方案 | `run_alternatives(task, configs)` | 并行派发 N 个子 agent 执行相同任务（各自 ISOLATED_COPY 隔离工作区），收集全部结果供 LLM 文本比较；隔离目录在返回前丢弃，不合并进 parent workspace。要落盘文件请用 single/batch delegate |
-| 验证式 | `run_with_verification(worker, verifier, ...)` | Worker → Verifier 对抗验证，FAIL 则注入反馈重试，最多 max_rounds 轮。支持 `WorkspacePolicy.READ_ONLY_SANDBOX` 模式，通过 `ReadonlyExecutorProxy` 强制 Verifier 必须执行代码验证，防止 LLM 幻觉。 |
+| 验证式 | `run_with_verification(worker, verifier, task_id=..., ...)` | Worker → Verifier 对抗验证，FAIL 则注入反馈重试，最多 max_rounds 轮。支持 `WorkspacePolicy.READ_ONLY_SANDBOX` 模式，通过 `ReadonlyExecutorProxy` 强制 Verifier 必须执行代码验证，防止 LLM 幻觉。传入业务 `task_id` 时，首轮 worker 以该 id 作为可见业务节点上树（`internal=False`），重试 worker 与 verifier 均为框架内部节点（`internal=True`），不出现在子任务树 / SSE / 通知中；最终验证结果镜像回业务节点。 |
 
 ### 5.1 Worker / Coordinator 运行时角色
 

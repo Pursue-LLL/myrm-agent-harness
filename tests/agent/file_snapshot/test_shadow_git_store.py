@@ -247,13 +247,42 @@ async def test_diff_invalid_id(store: ShadowGitSnapshotStore):
 
 
 # ------------------------------------------------------------------
-# delete_snapshot (protocol compat — always True)
+# delete_snapshot (only the newest snapshot is deletable)
 # ------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_delete_snapshot_returns_true(store: ShadowGitSnapshotStore):
-    assert await store.delete_snapshot("anything") is True
+async def test_delete_snapshot_removes_newest(store: ShadowGitSnapshotStore, workspace: Path):
+    """Deleting the newest snapshot detaches the project ref to its parent."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "first")
+    (workspace / "hello.py").write_text("v2\n")
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "second")
+    snaps = await store.list_snapshots(str(workspace))
+    newest = snaps[0]
+
+    assert await store.delete_snapshot(newest.snapshot_id) is True
+
+    remaining = await store.list_snapshots(str(workspace))
+    assert len(remaining) == 1
+    assert remaining[0].snapshot_id != newest.snapshot_id
+
+
+@pytest.mark.asyncio
+async def test_delete_snapshot_intermediate_returns_false(store: ShadowGitSnapshotStore, workspace: Path):
+    """Intermediate snapshots in the linear commit chain cannot be deleted."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "first")
+    (workspace / "hello.py").write_text("v2\n")
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "second")
+    snaps = await store.list_snapshots(str(workspace))
+    oldest = snaps[-1]
+
+    assert await store.delete_snapshot(oldest.snapshot_id) is False
+
+
+@pytest.mark.asyncio
+async def test_delete_snapshot_unknown_id_returns_false(store: ShadowGitSnapshotStore):
+    """Deleting an unknown snapshot id is a no-op returning False."""
+    assert await store.delete_snapshot("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef") is False
 
 
 # ------------------------------------------------------------------

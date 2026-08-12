@@ -98,7 +98,9 @@ class SdkRuntime(BaseRuntime):
             message="Initializing SDK runtime",
         )
 
-        from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
+        from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
+            WorkspacePathResolver,
+        )
 
         safe_env = build_safe_env(self._config)
         cwd = self._config.cwd or str(WorkspacePathResolver.resolve_workspace_root())
@@ -111,7 +113,10 @@ class SdkRuntime(BaseRuntime):
         }
 
         if mcp_servers:
-            sdk_input["mcp_servers"] = [{"name": s.name, "command": s.command, "args": s.args} for s in mcp_servers]
+            sdk_input["mcp_servers"] = [
+                {"name": s.name, "command": s.command, "args": s.args}
+                for s in mcp_servers
+            ]
 
         command = self._config.command or "claude"
         args = [command, *self._config.args]
@@ -193,14 +198,18 @@ class SdkRuntime(BaseRuntime):
         """Parse a single NDJSON line from the SDK bridge output."""
         data = parse_json_line(line)
         if data is None:
-            return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n")
+            return create_event(
+                RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n"
+            )
 
         event_type = data.get("type", "")
 
         if event_type in ("text", "assistant", "content_block_delta"):
             content = data.get("text", data.get("content", ""))
             if isinstance(content, str) and content:
-                return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=content)
+                return create_event(
+                    RuntimeEventType.TEXT_DELTA, session_id, content=content
+                )
 
         if event_type == "thinking":
             return parse_thinking(data, session_id)

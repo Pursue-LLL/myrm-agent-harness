@@ -116,7 +116,9 @@ class RuntimePool:
             raise KeyError(msg)
 
         if name not in self._backends:
-            backend = _create_runtime(name, self._configs[name], event_bus=self._event_bus)
+            backend = _create_runtime(
+                name, self._configs[name], event_bus=self._event_bus
+            )
             self._backends[name] = backend
             if self._health_monitor is not None:
                 self._health_monitor.register(backend)
@@ -234,6 +236,8 @@ class RuntimePool:
                 logger.warning("pool_close_failed backend=%s", name, exc_info=True)
 
         if self._backends:
-            await asyncio.gather(*[_safe_close(n, b) for n, b in self._backends.items()])
+            await asyncio.gather(
+                *[_safe_close(n, b) for n, b in self._backends.items()]
+            )
         self._backends.clear()
         logger.info("runtime_pool_closed")

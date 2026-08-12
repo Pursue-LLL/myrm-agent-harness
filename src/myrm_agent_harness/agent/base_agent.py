@@ -78,17 +78,17 @@ class BaseAgent(BaseAgentModesMixin):
     def __init__(
         self,
         llm: BaseChatModel,
-        executor: "CodeExecutor | None" = None,
-        middlewares: "list[AgentMiddleware[Any, Any]] | None" = None,
+        executor: CodeExecutor | None = None,
+        middlewares: list[AgentMiddleware[Any, Any]] | None = None,
         system_prompt: str | None = None,
         tools: list[BaseTool] | None = None,
         context_schema: type | None = None,
         config: AgentRuntimeConfig | None = None,
-        on_artifacts_ready: "ArtifactReadyHandler | None" = None,
+        on_artifacts_ready: ArtifactReadyHandler | None = None,
         fallback_llm: BaseChatModel | None = None,
         safety_fallback_llm: BaseChatModel | None = None,
         escalation_target_llm: BaseChatModel | None = None,
-        checkpointer: "BaseCheckpointSaver | None" = None,
+        checkpointer: BaseCheckpointSaver | None = None,
         event_log_backend: EventLogBackend | None = None,
         model_resolver: object | None = None,
     ) -> None:
@@ -131,7 +131,7 @@ class BaseAgent(BaseAgentModesMixin):
 
         self._cache_keepalive: CacheKeepAliveManager | None = None
 
-    def register_extension(self, ext: "AgentExtension") -> None:
+    def register_extension(self, ext: AgentExtension) -> None:
         """Register an AgentExtension. Must be called before the first ``run()``.
 
         Raises ``ValueError`` if an extension with the same name is already registered,
@@ -393,11 +393,11 @@ class BaseAgent(BaseAgentModesMixin):
     async def run(
         self,
         query: str | list[dict[str, Any]] | Command[Any],
-        chat_history: ChatHistoryReq | list["BaseMessage"] | None = None,
+        chat_history: ChatHistoryReq | list[BaseMessage] | None = None,
         message_id: str | None = None,
         context: dict[str, Any] | None = None,
-        cancel_token: "CancellationToken | None" = None,
-        steering_token: "SteeringToken | None" = None,
+        cancel_token: CancellationToken | None = None,
+        steering_token: SteeringToken | None = None,
         timezone: str | None = None,
     ) -> AsyncGenerator[dict[str, object]]:
         """Stream agent events. Supports normal query and Command(resume=...) modes."""
@@ -448,11 +448,11 @@ class BaseAgent(BaseAgentModesMixin):
     async def _run_internal(
         self,
         query: str | list[dict[str, Any]] | Command[Any],
-        chat_history: ChatHistoryReq | list["BaseMessage"] | None = None,
+        chat_history: ChatHistoryReq | list[BaseMessage] | None = None,
         message_id: str | None = None,
         context: dict[str, Any] | None = None,
-        cancel_token: "CancellationToken | None" = None,
-        steering_token: "SteeringToken | None" = None,
+        cancel_token: CancellationToken | None = None,
+        steering_token: SteeringToken | None = None,
         timezone: str | None = None,
     ) -> AsyncGenerator[dict[str, object]]:
         """Core execution loop. Delegates to ``_internals.agent_runtime.run_agent_loop``."""
@@ -503,7 +503,7 @@ class BaseAgent(BaseAgentModesMixin):
         tool_registry_getter: Callable[[], list[BaseTool]],
         wait: bool,
         parent_type: str | None = None,
-        cancel_token: "CancellationToken | None" = None,
+        cancel_token: CancellationToken | None = None,
         resume_command: object | None = None,
         complexity_tier: str | None = None,
     ) -> SubAgentResult | dict[str, object]:

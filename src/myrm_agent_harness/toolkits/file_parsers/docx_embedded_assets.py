@@ -54,9 +54,9 @@ def extract_docx_embedded_images(file_path: str | Path) -> dict[str, DocxEmbedde
             rels_path = "word/_rels/document.xml.rels"
             if rels_path not in archive.namelist():
                 return {}
-            rel_root = ET.fromstring(
+            rel_root = ET.fromstring(  # noqa: S314 — expat blocks external entities by default
                 archive.read(rels_path)
-            )  # noqa: S314  # expat blocks external entities by default
+            )
             for rel in rel_root:
                 rel_id = rel.get("Id")
                 rel_type = rel.get("Type", "")

@@ -18,8 +18,8 @@ Agent output redaction layer. Complements sanitize_env (source-level dangerous e
 
 Coverage:
 - Token-prefix patterns (sk-/ghp_/AKIA/… 25+), PEM blocks, DB connection strings
-- Contextual: ENV assignments (uppercase + lowercase/short names, query-parameter guarded), JSON fields, Authorization (any scheme)
-- Config formats: unquoted YAML/colon (`password: secret`), form-urlencoded bodies (`token=abc&page=1` → pair-wise redaction)
+- Contextual: ENV assignments (uppercase + lowercase/short names, quoted values with spaces, query-parameter guarded), JSON fields, Authorization (any scheme)
+- Config formats: YAML/colon (`password: secret`, `password : secret`, quoted values), form-urlencoded bodies (`token=abc&page=1` → pair-wise redaction)
 - Word-boundary key validation (``author=``/``tokenizer=`` prose not redacted)
 - URL: query params, userinfo (user:pass@), bare-token (TOKEN@), Telegram bot URLs
 - Headers: x-api-key style auth headers; structure: bare JWTs
@@ -176,34 +176,39 @@ _SECRET_ENV_NAMES = r"(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH)"
 # URL query 中的 `?token=` / `&token=` 是 URL 参数（由 _URL_QUERY_RE 处理），不是
 # ENV 赋值——负向后顾阻止贪婪吞掉 `&` 分隔的后续参数
 # （`?token=x&limit=50&page=2` 保持为 `?token=***&limit=50&page=2` 而非 `?token=***`）。
-# value 用 `[^&\s]+` 而非 `\S+`：IGNORECASE 下 form body 的 `token=abc&page=1` 会被
-# `\S+` 吞掉 `&page=1` 导致参数破坏，`[^&\s]+` 在 `&` 处截断，配合 _redact_form_body
-# 逐对脱敏（对齐 Hermes 非 IGNORECASE 正则的天然行为）。
+# value 用 `[^\s&"']` 而非 `\S+`：IGNORECASE 下 form body 的 `token=abc&page=1` 会被
+# `\S+` 吞掉 `&page=1` 导致参数破坏，`[^\s&]+` 在 `&` 处截断，配合 _redact_form_body
+# 逐对脱敏（对齐 Hermes 非 IGNORECASE 正则的天然行为）。引号值整体捕获
+# （`KEY="my secret pass"` 含空格）——quote 分支吞到 closing quote，避免部分匹配
+# 把 `"my` 打码而泄漏尾部 ` secret pass"`；值内 `\"`/`\'` 反斜杠转义与 `''` 转义
+# 均完整消费不截断。
 # key 必须含 secret 关键词且关键词落在词边界（`author=`/`tokenizer=` 等散文词
 # 不误伤，见 _key_has_secret_keyword）。
 _ENV_ASSIGN_RE = re.compile(
-    rf"(?<![?&])([A-Z_]{{0,50}}{_SECRET_ENV_NAMES}[A-Z_]{{0,50}})\s*=\s*(['\"]?)([^\s&]+)\2",
+    rf"(?<![?&])([A-Z_]{{0,50}}{_SECRET_ENV_NAMES}[A-Z_]{{0,50}})\s*=\s*((?:(['\"])(?:[^'\"\\\\]|''|\\.)*\3)|(?:[^\s&\"']+))",
     re.IGNORECASE,
 )
 
-# 小写/短名 env 赋值（`db_pw=`/`openai_key=`/`FAL_KEY=`）：仅下划线分隔的短名形式。
+# 小写/短名 env 赋值（`db_pw=`/`openai_key=`/`FAL_KEY=`）：key 以下划线分隔短名形式。
 # 裸 `password=`/`token=`/`secret=` 不匹配——它们出现在散文、URL query 与 form body
 # 中（对齐 Hermes issue #77484）。词边界落在下划线处，`author=` 不误伤。
+# 前缀限长 `{1,64}`：无界 `[a-z0-9_]+_` 在无下划线长文本上逐位回溯 O(n²)（32KB
+# 纯文本 6s+），限长后恒 O(n·64)。
 _ENV_ASSIGN_LOWER_RE = re.compile(
-    rf"([a-z0-9_]+(?:_|^)(?:key|pass|pw|token|secret|password|passwd|credential|auth)(?=[^a-z0-9_]|$))\s*=\s*(['\"]?)([^\s&]+)\2",
+    rf"([a-z0-9_]{{1,64}}_(?:key|pass|pw|token|secret|password|passwd|credential|auth)(?=[^a-z0-9_]|$))\s*=\s*((?:(['\"])(?:[^'\"\\\\]|''|\\.)*\3)|(?:[^\s&\"']+))",
     re.IGNORECASE,
 )
 
 # YAML / 冒号式配置（`password: secret`、`spring.datasource.password: hunter2`、
-# `password: "hunter2!"`）。secret 关键词必须在 key 中（锚定行首/缩进），value
-# 为单个无空白 token——`note: secret meeting`（关键词在 value）与
-# `error: token expired` 不匹配。裸 `auth` 排除在 key 名单外，`Authorization:`/
-# `author:` 不误伤（前者由 _AUTH_HEADER_RE 处理）；`auth_token`/`auth-token` 经
-# `token` 关键词仍匹配。可选引号保留引号结构（quoted 值含空格的极罕见场景不匹配，
-# 与 JSON 的 `"password"` key 形式互斥）。
+# `password: "hunter2!"`、`password : secret`）。secret 关键词必须在 key 中
+# （锚定行首/缩进），value 为单个无空白 token——`note: secret meeting`
+# （关键词在 value）与 `error: token expired` 不匹配。裸 `auth` 排除在 key 名单外，
+# `Authorization:`/`author:` 不误伤（前者由 _AUTH_HEADER_RE 处理）；`auth_token`/
+# `auth-token` 经 `token` 关键词仍匹配。可选引号保留引号结构：双引号支持 `\"` 转义，
+# 单引号支持 YAML `''` 转义，quoted 值含空格时整体捕获不部分泄漏。
 _YAML_CFG_NAMES = r"(?:api[ _.\-]?key|token|secret|passwd|password|credential)"
 _YAML_ASSIGN_RE = re.compile(
-    rf"(^[ \t]*+[A-Za-z0-9_.\-]*{_YAML_CFG_NAMES}[A-Za-z0-9_.\-]*+)(:[ \t]*+)(['\"]?)([^\s&]+)\3",
+    rf"(^[ \t]*+[A-Za-z0-9_.\-]*{_YAML_CFG_NAMES}[A-Za-z0-9_.\-]*+)([ \t]*+:[ \t]*+)((?:(['\"])(?:[^'\"\\\\]|''|\\.)*\4)|(?:[^\s&\"']+))",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -211,7 +216,7 @@ _YAML_ASSIGN_RE = re.compile(
 # key 类允许关键词带任意字母数字前后缀（`client_secret`/`clientSecret`/`s3.secret-key`），
 # 副作用是 `secretary`/`tokenizer`/`authored` 等散文词也命中。keyword 只有落在词边界
 # （key 边缘、非字母旁、camelCase 转换、全大写缩写边界）才算凭据；内嵌于更长单词的
-# 不匹配。ALL-CAPS key 保留旧嵌入匹配（`MYTOKEN=` 几乎不可能是散文）。
+# 不匹配。ALL-CAPS key 同样要求词边界——`MYTOKEN` 不匹配而 `MY_TOKEN` 匹配。
 _KEY_KEYWORD_RE = re.compile(
     r"(?:api|auth|access|refresh|session|secret)[ _.\\-]?(?:key|token)"
     r"|token|secret|passwd|password|pass|pw|credential|auth|key",
@@ -236,7 +241,7 @@ def _is_word_start(s: str, i: int) -> bool:
 
 def _is_word_end(s: str, j: int, *, allow_plural: bool = True) -> bool:
     """位置 ``j``（exclusive）是否处于单词结尾。"""
-    if j >= len(s):
+    if j == 0 or j >= len(s):
         return True
     cur = s[j]
     if not cur.isalpha():
@@ -251,19 +256,13 @@ def _is_word_end(s: str, j: int, *, allow_plural: bool = True) -> bool:
 def _key_has_secret_keyword(key: str) -> bool:
     """key 是否在词边界处含 secret 关键词。
 
-    过滤 `secretary`/`tokenizer`/`authored` 等嵌词误伤。ALL-CAPS key 短路到旧嵌入
-    匹配：`KEYBOARD`/`PASSAGE` 这类关键词内嵌于更长全大写单词的仍拒绝。
+    过滤 `secretary`/`tokenizer`/`authored`/`KEYBOARD` 等嵌词误伤——关键词必须
+    落在词边界（key 边缘、非字母旁、camelCase/缩写转换处）才算凭据。
     """
-    letters = [c for c in key if c.isalpha()]
-    if letters and all(c.isupper() for c in letters):
-        for m in _KEY_KEYWORD_RE.finditer(key):
-            if _is_word_start(key, m.start()) and _is_word_end(key, m.end()):
-                return True
-        return False
-    for m in _KEY_KEYWORD_RE.finditer(key):
-        if _is_word_start(key, m.start()) and _is_word_end(key, m.end()):
-            return True
-    return False
+    return any(
+        _is_word_start(key, m.start()) and _is_word_end(key, m.end())
+        for m in _KEY_KEYWORD_RE.finditer(key)
+    )
 
 
 # ── Form-urlencoded body（`token=abc&limit=50&page=2`）──────────
@@ -294,24 +293,22 @@ def _redact_form_body(text: str) -> str:
     """脱敏 form-urlencoded body 中的敏感参数值。
 
     仅在整段文本呈纯 k=v&k=v 时触发；含换行或混排文本放行（URL query 已由
-    _URL_QUERY_RE 覆盖）。逐参数判定，非敏感 key 原样保留。
+    _URL_QUERY_RE 覆盖）。逐参数判定，非敏感 key 原样保留，首尾空白保持原样。
     """
     if not text or "\n" in text or "&" not in text:
         return text
     stripped = text.strip()
     if not _FORM_BODY_RE.match(stripped):
         return text
+    prefix, suffix = text[: len(text) - len(text.lstrip())], text[len(text.rstrip()) :]
     parts: list[str] = []
     for pair in stripped.split("&"):
-        if "=" not in pair:
-            parts.append(pair)
-            continue
-        key, _, value = pair.partition("=")
+        key, sep, value = pair.partition("=")
         if key.lower() in _SENSITIVE_BODY_KEYS:
-            parts.append(f"{key}=***")
+            parts.append(f"{key}{sep}{_mask_token(value)}")
         else:
             parts.append(pair)
-    return "&".join(parts)
+    return f"{prefix}{'&'.join(parts)}{suffix}"
 
 # 程序化 env 引用（`os.getenv('X')` / `os.environ[...]` / `process.env.X` / `$ENV{X}`）
 # 是变量名引用而非凭据值——掩码会破坏代码示例的可读性（对齐 Hermes 的 guard）。
@@ -323,7 +320,8 @@ _JSON_KEY_NAMES = (
     r"(?:api_?[Kk]ey|token|secret|password|access_token|"
     r"refresh_token|auth_token|bearer|secret_value|key_material)"
 )
-_JSON_FIELD_RE = re.compile(rf'("{_JSON_KEY_NAMES}")\s*:\s*"([^"]+)"', re.IGNORECASE)
+# JSON 字符串值支持 `\"` 转义引号（`{"password": "my\"secret"}` 整体捕获不截断）。
+_JSON_FIELD_RE = re.compile(rf'("{_JSON_KEY_NAMES}")\s*:\s*"((?:[^"\\\\]|\\.)*)"', re.IGNORECASE)
 
 _DB_CONNSTR_RE = re.compile(
     r"((?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://[^:]+:)([^@]+)(@)", re.IGNORECASE
@@ -335,15 +333,16 @@ _DB_CONNSTR_RE = re.compile(
 # key 名单必须 ⊇ _SECRET_ENV_NAMES（ENV 正则加负向后顾后不再兜底 URL 参数，
 # 若名单不一致，`?credential=`/`?auth=` 会双双落空而明文泄漏）。
 # 追加下划线边界短名（`?openai_key=`/`?db_pw=`/`?FAL_KEY=`）——URL 中同样存在
-# 小写短名凭据参数，与 _ENV_ASSIGN_LOWER_RE 的短名集合保持一致。
-_URL_QUERY_KEYS = rf"{_SECRET_ENV_NAMES}|access_token|api_?[Kk]ey|[a-z0-9_]+_(?:key|pass|pw|token|secret|password|passwd|credential|auth)"
+# 小写短名凭据参数，与 _ENV_ASSIGN_LOWER_RE 的短名集合保持一致；前缀限长 `{1,64}`
+# 与 _ENV_ASSIGN_LOWER_RE 一致，避免无界回溯。
+_URL_QUERY_KEYS = rf"{_SECRET_ENV_NAMES}|access_token|api_?[Kk]ey|[a-z0-9_]{{1,64}}_(?:key|pass|pw|token|secret|password|passwd|credential|auth)"
 _URL_QUERY_RE = re.compile(rf"([?&](?:{_URL_QUERY_KEYS})=)([^&\s]+)", re.IGNORECASE)
 
 # ── CLI flags (OPT-5) ───────────────────────────────────────────
 # flag 名、引号、value 分组捕获，替换仅作用于 value，避免短 value 误伤 flag 名
 # （`--secret s` 误伤为 `--***ecret ***`）。
 _CLI_FLAG_RE = re.compile(
-    r"(--(?:api[-_]?key|hook[-_]?token|token|secret|password|passwd)\s+)(['\"]?)([^\s'\"]+)\2",
+    r"(--(?:api[-_]?key|hook[-_]?token|token|secret|password|passwd)\s+)((?:(['\"])(?:[^'\"\\\\]|''|\\.)*\3)|(?:[^\s\"']+))",
     re.IGNORECASE,
 )
 
@@ -439,48 +438,43 @@ def _mask_control_split_tokens(text: str) -> str:
     return "".join(out)
 
 
-def _redact_env_assignment(m: re.Match[str]) -> str:
-    """Replacement for _ENV_ASSIGN_RE — skip programmatic env lookups and prose keys.
+def _redact_value(name: str, value: str) -> str | None:
+    """Mask a secret value under a secret ``name``, or return None to keep original.
 
-    ``OPENAI_API_KEY=os.getenv('OPENAI_API_KEY')`` references a variable by
-    name, not a secret value; masking it corrupts code snippets in
-    prose/log contexts. Keys whose secret keyword is not at a word boundary
-    (``author=Smith``, ``tokenizer=cl100k``) are prose, not credentials
-    (aligned with Hermes issue #6129). Any other matched ``KEY=value`` is
-    masked normally.
+    Programmatic lookups (``os.getenv('X')``) and prose keys (``author=Smith``)
+    are kept intact. Quoted values (``KEY="secret"``, including values with
+    spaces) preserve their quotes. Shared by ENV / YAML / CLI replacers.
     """
-    name, quote, value = m.group(1), m.group(2), m.group(3)
-    if _ENV_LOOKUP_VALUE_RE.match(value):
-        return m.group(0)
+    if value[:1] in "\"'" and value[-1:] == value[:1]:
+        inner, quote = value[1:-1], value[0]
+    else:
+        inner, quote = value, ""
+    if _ENV_LOOKUP_VALUE_RE.match(inner):
+        return None
     if not _key_has_secret_keyword(name):
-        return m.group(0)
-    return f"{name}={quote}{_mask_token(value)}{quote}"
+        return None
+    return f"{quote}{_mask_token(inner)}{quote}"
 
 
-def _redact_lower_env_assignment(m: re.Match[str]) -> str:
-    """Replacement for _ENV_ASSIGN_LOWER_RE — same guards as _redact_env_assignment."""
-    name, quote, value = m.group(1), m.group(2), m.group(3)
-    if _ENV_LOOKUP_VALUE_RE.match(value):
-        return m.group(0)
-    if not _key_has_secret_keyword(name):
-        return m.group(0)
-    return f"{name}={quote}{_mask_token(value)}{quote}"
+def _redact_env_assignment(m: re.Match[str]) -> str:
+    """Replacement for _ENV_ASSIGN_RE / _ENV_ASSIGN_LOWER_RE."""
+    name, value = m.group(1), m.group(2)
+    masked = _redact_value(name, value)
+    return f"{name}={masked}" if masked is not None else m.group(0)
 
 
 def _redact_yaml_assignment(m: re.Match[str]) -> str:
-    """Replacement for _YAML_ASSIGN_RE / _YAML_QUOTED_ASSIGN_RE.
+    """Replacement for _YAML_ASSIGN_RE (unquoted & quoted values)."""
+    key, sep, value = m.group(1), m.group(2), m.group(3)
+    masked = _redact_value(key, value)
+    return f"{key}{sep}{masked}" if masked is not None else m.group(0)
 
-    Skip programmatic lookups and prose keys. ``api_key: os.getenv('X')``
-    references a variable name (issue #2852); ``secretary: J.Smith`` /
-    ``tokenizer: cl100k_base`` embed a keyword mid-word (issue #6129). Both
-    pass through unchanged. Quoted values keep their quotes.
-    """
-    key, sep, quote, value = m.group(1), m.group(2), m.group(3), m.group(4)
-    if _ENV_LOOKUP_VALUE_RE.match(value):
-        return m.group(0)
-    if not _key_has_secret_keyword(key):
-        return m.group(0)
-    return f"{key}{sep}{quote}{_mask_token(value)}{quote}"
+
+def _redact_cli_flag(m: re.Match[str]) -> str:
+    """Replacement for _CLI_FLAG_RE (unquoted & quoted values)."""
+    flag, value = m.group(1), m.group(2)
+    masked = _redact_value(flag, value)
+    return f"{flag}{masked}" if masked is not None else m.group(0)
 
 
 def redact_sensitive_text(text: str) -> str:
@@ -491,6 +485,10 @@ def redact_sensitive_text(text: str) -> str:
 
     Key features:
     - Bounded regex replace to prevent ReDoS (OPT-1)
+    - Control/zero-width split-token masking before prefix matching
+    - Form-urlencoded body pair-wise redaction (no parameter swallowing)
+    - YAML/colon config redaction (unquoted + quoted values)
+    - ENV assignment redaction with word-boundary key validation
     - PEM block special handling to preserve header/footer (OPT-3)
     - URL query parameter redaction (OPT-2)
     - CLI flag redaction (OPT-5)
@@ -512,16 +510,17 @@ def redact_sensitive_text(text: str) -> str:
 
     text = _replace_pattern_bounded(text, _ENV_ASSIGN_RE, _redact_env_assignment)
 
-    # 小写/短名 env（`db_pw=`/`openai_key=`）。跳过 URL——query string 中的
-    # `token=`/`key=` 参数可能是有意放行的（_URL_QUERY_RE 处理凭据参数）。
-    if "://" not in text:
-        text = _replace_pattern_bounded(text, _ENV_ASSIGN_LOWER_RE, _redact_lower_env_assignment)
+    # 小写/短名 env（`db_pw=`/`openai_key=`）与 YAML/colon 配置只在无 URL 时启用——
+    # query string 中的 `token=`/`key=` 参数可能是有意放行的（_URL_QUERY_RE 处理
+    # 凭据参数），URL 场景放行会误伤。
+    has_url = "://" in text
+    if not has_url:
+        text = _replace_pattern_bounded(text, _ENV_ASSIGN_LOWER_RE, _redact_env_assignment)
 
     text = _replace_pattern_bounded(text, _JSON_FIELD_RE, lambda m: f'{m.group(1)}: "{_mask_token(m.group(2))}"')
 
     # Unquoted / quoted YAML-colon config（`password: secret`、`password: "hunter2!"`）。
-    # URL（含 `://`）不放行 YAML 误伤。
-    if "://" not in text:
+    if not has_url:
         text = _replace_pattern_bounded(text, _YAML_ASSIGN_RE, _redact_yaml_assignment)
 
     text = _replace_pattern_bounded(
@@ -549,9 +548,7 @@ def redact_sensitive_text(text: str) -> str:
     )
 
     # CLI flags (OPT-5)
-    text = _replace_pattern_bounded(
-        text, _CLI_FLAG_RE, lambda m: f"{m.group(1)}{m.group(2)}{_mask_token(m.group(3))}{m.group(2)}"
-    )
+    text = _replace_pattern_bounded(text, _CLI_FLAG_RE, _redact_cli_flag)
 
     # Telegram Bot URL (OPT-6)
     text = _replace_pattern_bounded(

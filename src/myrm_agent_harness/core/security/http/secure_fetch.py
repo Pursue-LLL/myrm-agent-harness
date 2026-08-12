@@ -317,8 +317,8 @@ async def secure_get(
 
 
 __all__ = [
-    "DEFAULT_MAX_REDIRECTS",
     "DEFAULT_MAX_CONTENT_LENGTH",
+    "DEFAULT_MAX_REDIRECTS",
     "ContentTooLargeError",
     "SecureHttpTarget",
     "is_ssrf_shield_enabled",

@@ -79,7 +79,9 @@ class CliRuntime(BaseRuntime):
 
     @property
     def capabilities(self) -> BackendCapabilities:
-        can_resume = self._config.command is not None and _supports_resume(self._config.command)
+        can_resume = self._config.command is not None and _supports_resume(
+            self._config.command
+        )
         return BackendCapabilities(
             supports_resume=can_resume,
             supports_mcp=False,
@@ -120,14 +122,20 @@ class CliRuntime(BaseRuntime):
             message=f"Spawning CLI process: {command}",
         )
 
-        from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
+        from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
+            WorkspacePathResolver,
+        )
 
         safe_env = build_safe_env(self._config)
         cwd = self._config.cwd or str(WorkspacePathResolver.resolve_workspace_root())
 
         args = [command, *self._config.args]
 
-        if "--output-format" in args and "stream-json" in args and "--verbose" not in args:
+        if (
+            "--output-format" in args
+            and "stream-json" in args
+            and "--verbose" not in args
+        ):
             args.append("--verbose")
 
         resumed = False
@@ -135,7 +143,12 @@ class CliRuntime(BaseRuntime):
         if cli_session and _supports_resume(command) and "--resume" not in args:
             args.extend(["--resume", cli_session])
             resumed = True
-            logger.info("cli_resume name=%s session=%s cli_session=%s", self._name, session_id, cli_session)
+            logger.info(
+                "cli_resume name=%s session=%s cli_session=%s",
+                self._name,
+                session_id,
+                cli_session,
+            )
 
         if self._config.max_turns > 0 and _supports_max_turns(command):
             args.extend(["--max-turns", str(self._config.max_turns)])
@@ -195,7 +208,9 @@ class CliRuntime(BaseRuntime):
         self._alive = False
 
         if return_code != 0:
-            stderr_text = b"".join(stderr_chunks).decode("utf-8", errors="replace").strip()
+            stderr_text = (
+                b"".join(stderr_chunks).decode("utf-8", errors="replace").strip()
+            )
 
             if has_text:
                 logger.warning(
@@ -217,7 +232,9 @@ class CliRuntime(BaseRuntime):
                         cli_session,
                     )
 
-                from myrm_agent_harness.toolkits.acp.runtime._spawn_hints import format_cli_spawn_failure_message
+                from myrm_agent_harness.toolkits.acp.runtime._spawn_hints import (
+                    format_cli_spawn_failure_message,
+                )
 
                 message = format_cli_spawn_failure_message(
                     command,
@@ -309,7 +326,9 @@ class CliRuntime(BaseRuntime):
         """
         data = parse_json_line(line)
         if data is None:
-            return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n")
+            return create_event(
+                RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n"
+            )
 
         data = unwrap_codex_envelope(data)
         event_type = data.get("type", "")
@@ -326,7 +345,11 @@ class CliRuntime(BaseRuntime):
 
         if event_type == "turn.failed":
             error_obj = data.get("error")
-            msg = error_obj.get("message", "Turn failed") if isinstance(error_obj, dict) else "Turn failed"
+            msg = (
+                error_obj.get("message", "Turn failed")
+                if isinstance(error_obj, dict)
+                else "Turn failed"
+            )
             return create_event(
                 RuntimeEventType.ERROR,
                 session_id,
@@ -337,13 +360,17 @@ class CliRuntime(BaseRuntime):
         if event_type in ("assistant", "text"):
             text = extract_text_from_event(data)
             if text:
-                return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=text)
+                return create_event(
+                    RuntimeEventType.TEXT_DELTA, session_id, content=text
+                )
             return None
 
         if event_type == "agent_message":
             message = data.get("message")
             if isinstance(message, str) and message:
-                return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=message)
+                return create_event(
+                    RuntimeEventType.TEXT_DELTA, session_id, content=message
+                )
             return None
 
         if event_type == "thinking":

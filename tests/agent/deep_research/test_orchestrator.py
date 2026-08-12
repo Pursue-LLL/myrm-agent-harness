@@ -1619,7 +1619,7 @@ class TestReasoningModelContentExtraction:
             parent_tools=[],
         )
 
-        events = [e async for e in orch.run("query", message_id="msg-reasoning")]
+        _ = [e async for e in orch.run("query", message_id="msg-reasoning")]
         assert orch._result.research_plan
         assert "Research topic A" in orch._result.research_plan
 
@@ -1631,11 +1631,6 @@ class TestReasoningModelContentExtraction:
             additional_kwargs={"reasoning_content": "Which aspect should I focus on?"},
         )
         clarify_response.usage_metadata = {"input_tokens": 30, "output_tokens": 10}
-
-        finalize_in_research = AIMessage(
-            content="",
-            tool_calls=[{"id": "tc_fin", "name": "finalize_report", "args": {}}],
-        )
 
         plan_response = AIMessage(content="1. Do research")
         plan_response.usage_metadata = {"input_tokens": 50, "output_tokens": 20}
@@ -1680,5 +1675,5 @@ class TestReasoningModelContentExtraction:
             on_clarify=on_clarify,
         )
 
-        events = [e async for e in orch.run("vague query", message_id="msg-clarify-reasoning")]
+        _ = [e async for e in orch.run("vague query", message_id="msg-clarify-reasoning")]
         assert callback_called is True

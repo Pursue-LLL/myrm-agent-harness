@@ -12,16 +12,16 @@ import pytest
 from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     get_background_registry,
 )
+from myrm_agent_harness.agent.meta_tools.bash._background.session_spawn_lifecycle import (
+    get_session_spawn_tool_names,
+    reset_spawn_lifecycle_for_tests,
+)
 from myrm_agent_harness.agent.meta_tools.bash.bash_code_execute_tool import (
     create_bash_code_execute_tool,
 )
 from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
     BASH_PROCESS_TOOL_NAME,
     create_bash_process_tool,
-)
-from myrm_agent_harness.agent.meta_tools.bash._background.session_spawn_lifecycle import (
-    get_session_spawn_tool_names,
-    reset_spawn_lifecycle_for_tests,
 )
 from myrm_agent_harness.toolkits.code_execution.config import ExecutionConfig
 from myrm_agent_harness.toolkits.code_execution.executors.base import set_executor

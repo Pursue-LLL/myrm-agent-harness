@@ -112,6 +112,18 @@ class TestContextualPatterns:
         result = redact_sensitive_text(text)
         assert "supersecretvalue12345678" not in result
 
+    def test_env_quoted_with_spaces_no_partial_leak(self) -> None:
+        """引号值含空格时整体脱敏，杜绝 `password="my` 部分匹配泄漏尾部。"""
+        text = 'password="my secret pass"'
+        result = redact_sensitive_text(text)
+        assert "my secret pass" not in result
+        assert 'password="***"' in result
+
+    def test_env_getenv_quoted_value_kept(self) -> None:
+        """引号包裹的 `os.getenv(...)` 仍是变量名引用，不得掩码。"""
+        text = "OPENAI_API_KEY=os.getenv(\"X\")"
+        assert redact_sensitive_text(text) == text
+
     def test_json_field(self) -> None:
         text = '{"apiKey": "sk-proj-abcdefghij1234567890"}'
         result = redact_sensitive_text(text)
@@ -122,6 +134,27 @@ class TestContextualPatterns:
         text = '{"password": "mysecretpassword1234"}'
         result = redact_sensitive_text(text)
         assert "mysecretpassword1234" not in result
+
+    def test_json_escaped_quote_no_partial_leak(self) -> None:
+        """JSON 单反斜杠转义引号（`\"`）不得截断泄漏尾部明文。"""
+        text = r'{"password": "my\"secret\"123"}'
+        result = redact_sensitive_text(text)
+        assert '"***"' in result
+        assert "secret" not in result
+
+    def test_env_escaped_quote_no_partial_leak(self) -> None:
+        """ENV 引号值含单反斜杠转义（`KEY="my\"secret"`）整体脱敏。"""
+        text = r'API_KEY="my\"secret\"123"'
+        result = redact_sensitive_text(text)
+        assert 'API_KEY="***"' in result
+        assert "secret" not in result
+
+    def test_env_single_quote_escaped_no_leak(self) -> None:
+        """ENV 单引号值含 `\'` 转义（`KEY='my\'secret'`）整体脱敏。"""
+        text = r"API_KEY='my\'secret\'123'"
+        result = redact_sensitive_text(text)
+        assert "API_KEY='***'" in result
+        assert "secret" not in result
 
     def test_db_connection_string(self) -> None:
         text = "postgresql://admin:s3cretP@ss@db.example.com:5432/mydb"
@@ -474,6 +507,18 @@ class TestRedactEngineHardening:
         result = redact_sensitive_text("curl --secret s https://x.com")
         assert "--secret ***" in result
 
+    def test_cli_quoted_with_spaces_no_partial_leak(self) -> None:
+        """`--password "my secret pass"` 引号值含空格整体脱敏。"""
+        result = redact_sensitive_text('--password "my secret pass"')
+        assert "my secret pass" not in result
+        assert '--password "***"' in result
+
+    def test_cli_escaped_quote_no_partial_leak(self) -> None:
+        """CLI 引号值含单反斜杠转义（`--password "my\\"secret"`）整体脱敏。"""
+        result = redact_sensitive_text(r'--password "my\"secret\"123"')
+        assert "secret" not in result
+        assert '--password "***"' in result
+
     def test_url_query_key_name_not_corrupted(self) -> None:
         """value 是 key 名子串时 key 名不得被连带破坏。"""
         result = redact_sensitive_text("https://api.example.com?api_key=a&limit=10")
@@ -575,6 +620,45 @@ class TestRedactYamlColon:
         assert "hunter2!" not in result
         assert 'password: "***"' in result
 
+    def test_yaml_space_before_colon(self) -> None:
+        """`password : secret`（冒号前空格）是合法 YAML，必须脱敏。"""
+        text = "password : hunter2"
+        result = redact_sensitive_text(text)
+        assert "hunter2" not in result
+        assert "password : ***" in result
+
+    def test_yaml_spaces_both_sides(self) -> None:
+        """`api_key  :  sk-test...` 冒号两侧多空格均脱敏。"""
+        text = "api_key  :  sk-test123456789012345"
+        result = redact_sensitive_text(text)
+        assert "sk-test123456789012345" not in result
+        assert "sk-test123456789012345"[:6] not in result
+
+    def test_yaml_quoted_with_spaces_no_partial_leak(self) -> None:
+        """`password: "my secret pass"` 引号值含空格整体脱敏。"""
+        text = 'password: "my secret pass"'
+        result = redact_sensitive_text(text)
+        assert "my secret pass" not in result
+        assert 'password: "***"' in result
+
+    def test_yaml_escaped_quote_no_partial_leak(self) -> None:
+        """YAML 引号值含单反斜杠转义（`password: "my\\"secret"`）整体脱敏。"""
+        result = redact_sensitive_text(r'password: "my\"secret\"123"')
+        assert "secret" not in result
+        assert 'password: "***"' in result
+
+    def test_yaml_single_quote_doubled_escape_no_leak(self) -> None:
+        """YAML 单引号字符串 `''` 转义（`password: 'it''s'`）整体脱敏。"""
+        result = redact_sensitive_text("password: 'it''s a secret'")
+        assert "secret" not in result
+        assert "password: '***'" in result
+
+    def test_yaml_single_quote_doubled_escape_multi(self) -> None:
+        """多段 `''` 转义单引号值（`token: 'x''y''z'`）整体脱敏。"""
+        result = redact_sensitive_text("token: 'x''y''z'")
+        assert "y" not in result
+        assert "token: '***'" in result
+
     def test_yaml_keyword_in_value_not_redacted(self) -> None:
         """关键词在 value（`note: secret meeting`）不得误伤。"""
         text = "note: secret meeting"
@@ -664,6 +748,12 @@ class TestRedactFormBody:
         text = "token=abc\n&limit=50"
         result = redact_sensitive_text(text)
         assert "abc" not in result
+
+    def test_form_body_preserves_leading_trailing_whitespace(self) -> None:
+        """首尾空白保持原样（重建仅作用于 strip 后的 body）。"""
+        text = "  token=abc&page=1  "
+        result = redact_sensitive_text(text)
+        assert result == "  token=***&page=1  "
 
 
 class TestRedactProseWordBoundary:

@@ -73,9 +73,9 @@ class OdfParser(FileParser):
                 return ""
             raw_xml = archive.read("content.xml")
 
-        root = ElementTree.fromstring(
+        root = ElementTree.fromstring(  # noqa: S314 — expat blocks external entities by default
             raw_xml
-        )  # noqa: S314  # expat blocks external entities by default
+        )
         texts = [
             node.text.strip() for node in root.iter() if node.text and node.text.strip()
         ]

@@ -296,7 +296,12 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
 
         pre_rollback_id: str | None = None
         try:
-            pre_rollback_id = await self.take_snapshot(working_dir, SnapshotTrigger.PRE_ROLLBACK, f"Pre-rollback before restoring {snapshot_id[:12]}")
+            pre_rollback_id = await self.take_snapshot(
+                working_dir,
+                SnapshotTrigger.PRE_ROLLBACK,
+                # Empty description: the PRE_ROLLBACK trigger label and timestamp are
+                # enough for users to identify the snapshot.
+            )
         except Exception as e:
             logger.warning("Failed to create pre-rollback snapshot: %s", e)
 
@@ -520,7 +525,41 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
         )
 
     async def delete_snapshot(self, snapshot_id: SnapshotId) -> bool:
-        """Snapshots are cleaned up via the pruning mechanism. Returns True for protocol compatibility."""
+        """Delete the newest snapshot of its project.
+
+        Snapshots form a linear commit chain where intermediate nodes are
+        immutable; they are managed via cleanup(). Only the ref head (the
+        newest snapshot) can be removed so the chain stays valid.
+        """
+        await self._ensure_initialized()
+
+        if not _validate_commit_hash(snapshot_id):
+            return False
+
+        proj_hash, working_dir = await self.find_project_for_commit(snapshot_id)
+        if not proj_hash or not working_dir:
+            return False
+
+        env = self._git_env(working_dir, proj_hash)
+        ref = self._project_ref(proj_hash)
+
+        try:
+            head = (await self._run_cmd("git", "rev-parse", "--verify", ref, env=env)).strip()
+        except RuntimeError:
+            return False
+        if head != snapshot_id:
+            return False
+
+        try:
+            parent = (await self._run_cmd("git", "rev-parse", f"{snapshot_id}^", env=env)).strip()
+        except RuntimeError:
+            parent = None
+
+        if parent:
+            await self._run_cmd("git", "update-ref", ref, parent, env=env)
+        else:
+            await self._run_cmd("git", "update-ref", "-d", ref, env=env)
+        logger.info("Deleted snapshot %s for %s", snapshot_id[:12], working_dir)
         return True
 
     async def cleanup(

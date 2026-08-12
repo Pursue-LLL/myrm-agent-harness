@@ -21,11 +21,11 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.meta_tools.bash._executor.error import (
-    BashExecutionError,
-)
 from myrm_agent_harness.agent.meta_tools.bash._executor.constants import (
     MCP_MIN_TIMEOUT,
+)
+from myrm_agent_harness.agent.meta_tools.bash._executor.error import (
+    BashExecutionError,
 )
 from myrm_agent_harness.agent.skills.runtime.command_paths import (
     detect_skill_script_command,

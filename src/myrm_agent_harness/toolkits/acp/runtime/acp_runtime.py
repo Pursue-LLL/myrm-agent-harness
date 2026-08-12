@@ -63,7 +63,9 @@ class AcpRuntime(BaseRuntime):
         self._conn: ClientSideConnection | None = None
         self._process: Process | None = None
         self._session_id: str | None = None
-        self._ctx_manager: AbstractAsyncContextManager[tuple[ClientSideConnection, Process]] | None = None
+        self._ctx_manager: (
+            AbstractAsyncContextManager[tuple[ClientSideConnection, Process]] | None
+        ) = None
         self._handler: AcpCallbackHandler | None = None
         self._event_bus = event_bus
 
@@ -91,7 +93,10 @@ class AcpRuntime(BaseRuntime):
     ) -> AsyncIterator[RuntimeEvent]:
         if not self.is_alive:
             yield create_event(
-                RuntimeEventType.STATUS_UPDATE, session_id, status="starting", message="Spawning ACP agent process"
+                RuntimeEventType.STATUS_UPDATE,
+                session_id,
+                status="starting",
+                message="Spawning ACP agent process",
             )
             await self._ensure_connection()
 
@@ -117,7 +122,9 @@ class AcpRuntime(BaseRuntime):
             except asyncio.CancelledError:
                 pass
             except Exception:
-                logger.error("acp_prompt_task_failed name=%s", self._name, exc_info=True)
+                logger.error(
+                    "acp_prompt_task_failed name=%s", self._name, exc_info=True
+                )
                 # Re-raise so the failure surfaces as an ERROR event and the
                 # BaseRuntime cleans up the process, matching CliRuntime and
                 # SdkRuntime behavior instead of degrading to a silent DONE.
@@ -160,7 +167,9 @@ class AcpRuntime(BaseRuntime):
             try:
                 await self._conn.close_session(session_id=self._session_id)
             except Exception:
-                logger.debug("acp_close_session_failed name=%s", self._name, exc_info=True)
+                logger.debug(
+                    "acp_close_session_failed name=%s", self._name, exc_info=True
+                )
 
         if self._ctx_manager is not None:
             try:
@@ -172,7 +181,9 @@ class AcpRuntime(BaseRuntime):
                 try:
                     await self._conn.close()
                 except Exception:
-                    logger.debug("acp_close_conn_failed name=%s", self._name, exc_info=True)
+                    logger.debug(
+                        "acp_close_conn_failed name=%s", self._name, exc_info=True
+                    )
             if self._process is not None:
                 with contextlib.suppress(ProcessLookupError):
                     self._process.terminate()
@@ -197,7 +208,11 @@ class AcpRuntime(BaseRuntime):
         await self._do_close()
 
         from acp import PROTOCOL_VERSION, spawn_agent_process
-        from acp.schema import ClientCapabilities, FileSystemCapabilities, Implementation
+        from acp.schema import (
+            ClientCapabilities,
+            FileSystemCapabilities,
+            Implementation,
+        )
 
         self._handler = AcpCallbackHandler(
             self._config,
@@ -205,7 +220,9 @@ class AcpRuntime(BaseRuntime):
             event_bus=self._event_bus,
         )
         safe_env = build_safe_env(self._config)
-        from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
+        from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
+            WorkspacePathResolver,
+        )
 
         cwd = self._config.cwd or str(WorkspacePathResolver.resolve_workspace_root())
 
@@ -240,13 +257,17 @@ class AcpRuntime(BaseRuntime):
         )
         logger.info("acp_runtime_connected name=%s pid=%s", self._name, process.pid)
 
-    async def _create_session(self, *, mcp_servers: list[McpServerConfig] | None = None) -> None:
+    async def _create_session(
+        self, *, mcp_servers: list[McpServerConfig] | None = None
+    ) -> None:
         """Create a new ACP session."""
         if self._conn is None:
             msg = "Cannot create session: connection not established"
             raise RuntimeError(msg)
 
-        from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
+        from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
+            WorkspacePathResolver,
+        )
 
         cwd = self._config.cwd or str(WorkspacePathResolver.resolve_workspace_root())
         acp_mcp = _mcp_configs_to_acp_stdio(mcp_servers)
@@ -257,7 +278,11 @@ class AcpRuntime(BaseRuntime):
         self._session_id = response.session_id
         if self._handler is not None:
             self._handler.session_id = self._session_id
-        logger.info("acp_runtime_session_created name=%s session_id=%s", self._name, self._session_id)
+        logger.info(
+            "acp_runtime_session_created name=%s session_id=%s",
+            self._name,
+            self._session_id,
+        )
 
 
 def _mcp_configs_to_acp_stdio(

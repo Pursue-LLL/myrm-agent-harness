@@ -223,7 +223,8 @@ _PROVIDER_FORMAT_400_RE = re.compile(
 _MODEL_NOT_FOUND_RE = re.compile(
     r"is not a valid model|invalid model|model not found|model_not_found"
     r"|does not exist|no such model|unknown model|unsupported model"
-    r"|no endpoints found that support tool use",
+    r"|no endpoints found that support tool use"
+    r"|no available channel(?: for model)?",
     re.IGNORECASE,
 )
 
@@ -426,15 +427,11 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
             return FailoverReason.RATE_LIMIT
         return FailoverReason.BILLING
 
-    # 3. Overloaded (prioritize over generic timeout)
-    if _OVERLOADED_RE.search(msg) or _OVERLOADED_503_RE.search(msg):
-        return FailoverReason.OVERLOADED
-
-    # 4. Authentication
+    # 3. Authentication
     if _AUTH_RE.search(msg):
         return FailoverReason.AUTH_PERMANENT
 
-    # 5. Model / Format / Safety (usually 400s or specific codes)
+    # 4. Model / Format / Safety (usually 400s or specific codes)
     if _PROVIDER_FORMAT_400_RE.search(msg):
         # API gateway validation error on LLM output (e.g., "must be in JSON format")
         # This is a model issue (weak model generated invalid JSON), not our bug
@@ -446,8 +443,14 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
     if _PROVIDER_POLICY_BLOCKED_RE.search(msg):
         return FailoverReason.PROVIDER_POLICY_BLOCKED
 
+    # Model-not-found before overloaded: ServiceUnavailableError wrappers often match
+    # service.?unavailable while the inner message is a missing-model distributor error.
     if _MODEL_NOT_FOUND_RE.search(msg):
         return FailoverReason.MODEL_NOT_FOUND
+
+    # 5. Overloaded (prioritize over generic timeout)
+    if _OVERLOADED_RE.search(msg) or _OVERLOADED_503_RE.search(msg):
+        return FailoverReason.OVERLOADED
 
     # 6. Context Overflow
     if _is_context_overflow(msg):

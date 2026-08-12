@@ -285,8 +285,8 @@ class TestRegisterLargeDocIngest:
     @pytest.mark.asyncio
     async def test_atomic_file_creation_dedup(self, wiki_dir: Path) -> None:
         """_ingest_large_doc uses atomic O_CREAT|O_EXCL — duplicate is a no-op."""
-        from myrm_agent_harness.agent.skill_agent.tools import SkillAgentToolsMixin
         from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
+        from myrm_agent_harness.agent.skill_agent.tools import SkillAgentToolsMixin
 
         mock_structure = MagicMock()
         mock_path = MagicMock()
@@ -309,8 +309,8 @@ class TestRegisterLargeDocIngest:
     @pytest.mark.asyncio
     async def test_successful_ingest_enqueues_file(self, wiki_dir: Path) -> None:
         """Successful ingest writes file and enqueues for compilation."""
-        from myrm_agent_harness.agent.skill_agent.tools import SkillAgentToolsMixin
         from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
+        from myrm_agent_harness.agent.skill_agent.tools import SkillAgentToolsMixin
 
         mock_structure = MagicMock()
         mock_path = MagicMock()
@@ -344,8 +344,8 @@ class TestRegisterLargeDocIngest:
         self, wiki_dir: Path
     ) -> None:
         """Large-doc ingest must not use ToolBroadcastBus (chat UI uses EventLogger path)."""
-        from myrm_agent_harness.agent.skill_agent.tools import SkillAgentToolsMixin
         from myrm_agent_harness.agent.meta_tools.file_ops.utils import pdf_reader
+        from myrm_agent_harness.agent.skill_agent.tools import SkillAgentToolsMixin
 
         mock_structure = MagicMock()
         mock_path = MagicMock()

@@ -40,21 +40,18 @@ from myrm_agent_harness.agent.meta_tools._context_recovery import (
 from myrm_agent_harness.agent.meta_tools.bash._background.registry import (
     get_background_registry,
 )
+from myrm_agent_harness.agent.meta_tools.bash._executor.auto_yield import (
+    build_auto_yield_return,
+    resolve_yield_seconds,
+    should_auto_yield,
+    wait_for_yield_window,
+)
 from myrm_agent_harness.agent.meta_tools.bash._security.preflight_checks import (
     check_command_url_exfiltration,
     check_install_packages,
     check_interactive_command,
     check_myrm_tools_import,
     check_sensitive_paths,
-)
-from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
-    TOOL_DESCRIPTION,
-)
-from myrm_agent_harness.agent.meta_tools.bash._executor.auto_yield import (
-    build_auto_yield_return,
-    resolve_yield_seconds,
-    should_auto_yield,
-    wait_for_yield_window,
 )
 from myrm_agent_harness.agent.meta_tools.bash._tool.background_listeners import (
     build_background_listeners,
@@ -76,6 +73,9 @@ from myrm_agent_harness.agent.meta_tools.bash._tool.helpers import (
 from myrm_agent_harness.agent.meta_tools.bash._tool.multimodal import (
     MAX_IMAGES_PER_RETURN,
     maybe_build_image_blocks,
+)
+from myrm_agent_harness.agent.meta_tools.bash._tool.tool_description import (
+    TOOL_DESCRIPTION,
 )
 
 if TYPE_CHECKING:
@@ -205,11 +205,11 @@ def create_bash_code_execute_tool(
                     finish_listener=finish_listener,
                     progress_listener=progress_listener,
                 )
-                from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
-                    BASH_PROCESS_TOOL_NAME,
-                )
                 from myrm_agent_harness.agent.meta_tools.bash._background.session_spawn_lifecycle import (
                     activate_session_spawn_tool,
+                )
+                from myrm_agent_harness.agent.meta_tools.bash.bash_process_tools import (
+                    BASH_PROCESS_TOOL_NAME,
                 )
 
                 activate_session_spawn_tool(session_id, BASH_PROCESS_TOOL_NAME)

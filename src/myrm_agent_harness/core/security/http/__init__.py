@@ -1,8 +1,8 @@
 """SSRF-protected outbound HTTP helpers."""
 
 from myrm_agent_harness.core.security.http.secure_fetch import (
-    DEFAULT_MAX_REDIRECTS,
     DEFAULT_MAX_CONTENT_LENGTH,
+    DEFAULT_MAX_REDIRECTS,
     ContentTooLargeError,
     SecureHttpTarget,
     is_ssrf_shield_enabled,
@@ -13,8 +13,8 @@ from myrm_agent_harness.core.security.http.secure_fetch import (
 )
 
 __all__ = [
-    "DEFAULT_MAX_REDIRECTS",
     "DEFAULT_MAX_CONTENT_LENGTH",
+    "DEFAULT_MAX_REDIRECTS",
     "ContentTooLargeError",
     "SecureHttpTarget",
     "is_ssrf_shield_enabled",

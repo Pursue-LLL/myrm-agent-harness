@@ -22,9 +22,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.agent.meta_tools.bash._executor.error import (
-    BashExecutionError,
-)
 from myrm_agent_harness.agent.meta_tools.bash._executor.background_mixin import (
     BashExecutorBackgroundMixin,
 )
@@ -34,14 +31,17 @@ from myrm_agent_harness.agent.meta_tools.bash._executor.constants import (
 from myrm_agent_harness.agent.meta_tools.bash._executor.context_mixin import (
     BashExecutorContextMixin,
 )
+from myrm_agent_harness.agent.meta_tools.bash._executor.error import (
+    BashExecutionError,
+)
 from myrm_agent_harness.agent.meta_tools.bash._executor.execute_mixin import (
     BashExecutorExecuteMixin,
 )
-from myrm_agent_harness.agent.meta_tools.bash._executor.prepare_mixin import (
-    BashExecutorPrepareMixin,
-)
 from myrm_agent_harness.agent.meta_tools.bash._executor.mcp_citation_handler import (
     MCPMetadataExtractor,
+)
+from myrm_agent_harness.agent.meta_tools.bash._executor.prepare_mixin import (
+    BashExecutorPrepareMixin,
 )
 from myrm_agent_harness.agent.meta_tools.bash._executor.skill_workspace_manager import (
     SkillWorkspaceManager,

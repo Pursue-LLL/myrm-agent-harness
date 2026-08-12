@@ -22,7 +22,12 @@ from acp import (
     update_agent_thought_text,
     update_tool_call,
 )
-from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart, ToolCallStatus
+from acp.schema import (
+    SessionNotification,
+    ToolCallProgress,
+    ToolCallStart,
+    ToolCallStatus,
+)
 
 _STATUS_MAP: dict[str, ToolCallStatus] = {
     "running": "in_progress",
@@ -82,14 +87,18 @@ def translate_agent_event(
     return None
 
 
-def _translate_text(session_id: str, event: dict[str, object]) -> SessionNotification | None:
+def _translate_text(
+    session_id: str, event: dict[str, object]
+) -> SessionNotification | None:
     data = event.get("data")
     if not data or not isinstance(data, str):
         return None
     return session_notification(session_id, update_agent_message_text(data))
 
 
-def _translate_thinking(session_id: str, event: dict[str, object]) -> SessionNotification | None:
+def _translate_thinking(
+    session_id: str, event: dict[str, object]
+) -> SessionNotification | None:
     data = event.get("data")
     if not data or not isinstance(data, str):
         return None

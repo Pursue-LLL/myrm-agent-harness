@@ -12,12 +12,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.agent.skill_agent.context import (
-    get_memory_runtime_budget,
-    get_memory_runtime_injection,
-    set_memory_runtime_budget,
-    set_memory_runtime_injection,
-)
 from myrm_agent_harness.agent.middlewares.memory_context_format import (
     _COLD_START_CONTEXT,
     MEMORY_CONTEXT_MARKER,
@@ -29,6 +23,12 @@ from myrm_agent_harness.agent.middlewares.memory_context_format import (
 )
 from myrm_agent_harness.agent.middlewares.memory_context_middleware import (
     memory_context_middleware,
+)
+from myrm_agent_harness.agent.skill_agent.context import (
+    get_memory_runtime_budget,
+    get_memory_runtime_injection,
+    set_memory_runtime_budget,
+    set_memory_runtime_injection,
 )
 from myrm_agent_harness.toolkits.memory.config import RecallMode
 

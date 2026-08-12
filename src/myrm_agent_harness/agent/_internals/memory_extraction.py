@@ -99,14 +99,14 @@ async def _notify_extraction_lifecycle(
         logger.debug("Extraction lifecycle observer failed: %s", exc)
 
 
-from myrm_agent_harness.toolkits.memory.types import (
+from myrm_agent_harness.toolkits.memory.types import (  # noqa: E402 — deferred import to avoid circular dependency
     AnyMemory,
     ConversationMemory,
-)  # noqa: E402
-from myrm_agent_harness.utils.chat_utils import (
+)
+from myrm_agent_harness.utils.chat_utils import (  # noqa: E402 — deferred import to avoid circular dependency
     ChatHistoryReq,
     extract_answer_text,
-)  # noqa: E402
+)
 
 logger = get_agent_logger(__name__)
 

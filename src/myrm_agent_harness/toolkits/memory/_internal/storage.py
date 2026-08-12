@@ -25,10 +25,6 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.retriever.embedding.window_policy import resolve_embed_window_policy
-from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import split_for_embedding
-from myrm_agent_harness.utils.text_utils import get_token_count
-
 from myrm_agent_harness.toolkits.memory._internal.storage_context import (
     WORKING_STATE_PROFILE_KEY,
     WORKING_STATE_TTL_DAYS,
@@ -68,6 +64,9 @@ from myrm_agent_harness.toolkits.memory.types import (
     ProceduralMemory,
     SemanticMemory,
 )
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import resolve_embed_window_policy
+from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import split_for_embedding
+from myrm_agent_harness.utils.text_utils import get_token_count
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig

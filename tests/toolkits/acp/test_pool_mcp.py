@@ -47,7 +47,10 @@ async def test_run_turn_forwards_config_mcp_servers_to_backend() -> None:
     backend.run_turn = fake_run_turn
     pool.get = MagicMock(return_value=backend)
 
-    events = [event async for event in pool.run_turn("codex", "hello", session_id="codex-default")]
+    events = [
+        event
+        async for event in pool.run_turn("codex", "hello", session_id="codex-default")
+    ]
     assert events[-1].type == RuntimeEventType.DONE
 
 
@@ -151,7 +154,9 @@ async def test_run_turn_allows_parallel_different_backends() -> None:
             active += 1
             peak_active = max(peak_active, active)
             await asyncio.sleep(0.02)
-            yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
+            yield create_event(
+                RuntimeEventType.DONE, session_id, stop_reason="end_turn"
+            )
             active -= 1
 
         return fake_run_turn

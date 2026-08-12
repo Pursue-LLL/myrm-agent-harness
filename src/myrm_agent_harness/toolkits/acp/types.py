@@ -247,7 +247,9 @@ def create_permission_request(
         A (event, future) tuple. The subscriber resolves the future with a
         PermissionDecision; the runtime awaits it.
     """
-    future: asyncio.Future[PermissionDecision] = asyncio.get_running_loop().create_future()
+    future: asyncio.Future[PermissionDecision] = (
+        asyncio.get_running_loop().create_future()
+    )
     event = RuntimeEvent(
         type=RuntimeEventType.PERMISSION_REQUEST,
         data={
