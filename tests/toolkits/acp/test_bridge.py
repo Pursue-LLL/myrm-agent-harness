@@ -115,9 +115,8 @@ class TestPromptExecution:
         await bridge.prompt(sid, "hello", conn)
         assert conn.session_update.call_count >= 1
 
-        # 回归保护：session_update 必须按 (session_id, update) 拆分传入，
-        # 而非把整个 SessionNotification 对象作为单一参数（曾因误用
-        # conn.session_notification(notification) 导致通知静默失败）。
+        # 断言通知按 (session_id, update) 拆参发送：session_id 必须为会话 ID，
+        # update 必须为 ACP AgentMessageChunk 消息块。
         first_call = conn.session_update.call_args
         assert first_call is not None
         call_sid, call_update = first_call.args
