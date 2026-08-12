@@ -281,11 +281,14 @@ class MemoryWriter:
     def _validate_write_scope(self, memory: AnyMemory) -> None:
         """Refuse writes whose namespaces fall outside this writer's grant.
 
-        Memory scope is normally derived from the writer itself; an explicit
-        out-of-scope namespace means the caller tries to write into another
-        agent/channel/task's space. Fail loud instead of silently persisting.
+        A memory may only target the writer's own write scope plus
+        shared-capable read namespaces (``global`` or ``shared:*``). Any other
+        read-only namespace (e.g. another agent's private space) must not be
+        written into; fail loud instead of silently persisting.
         """
-        allowed = set(self._namespaces) | set(self._scope.namespaces)
+        allowed = set(self._scope.namespaces) | {
+            ns for ns in self._namespaces if ns == "global" or ns.startswith("shared:")
+        }
         if not allowed:
             return
         memory_namespaces = set(memory.scope.namespaces)

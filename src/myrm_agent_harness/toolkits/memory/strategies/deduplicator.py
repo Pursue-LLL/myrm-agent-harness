@@ -33,6 +33,9 @@ Key features:
 - Graceful degradation: LLM failures default to NEW to prevent data loss
 - Performance metrics: Real-time observability for cache effectiveness
 - Concurrent safety: Early lock reserves target before LLM, preventing redundant calls
+- Scope fencing: Layer 2 candidates are filtered by the memory's own namespaces,
+  cross-scope merges downgrade to NEW, and the hash cache key binds namespaces —
+  memories in one agent/channel/task scope never suppress or mutate another's
 
 Performance optimizations:
 - Lazy embedding: Hash hits save 98% embedding cost (0.18ms vs 10ms, empirical)
@@ -613,6 +616,8 @@ class SmartDeduplicator:
 
             existing_ns = set(existing.scope.namespaces)
             new_ns = set(new_memory.scope.namespaces)
+            # Empty namespaces mean global scope (no boundary to enforce);
+            # only refuse when both sides declare disjoint explicit scopes.
             if existing_ns and new_ns and not existing_ns & new_ns:
                 logger.warning(
                     "Refusing cross-scope update on %s, creating NEW", target_id

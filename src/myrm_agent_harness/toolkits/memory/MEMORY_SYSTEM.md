@@ -162,7 +162,7 @@ myrm_agent_harness/
 >
 > **作用域约定**：所有 `BaseMemory` 均携带 `MemoryScope`。向量层会持久化 `primary_namespace/namespaces/channel_id/...` 元数据，检索时按当前 manager 的 `namespaces` 过滤，同时保留跨渠道可召回能力。`AgentMemoryPolicy` 允许把“读哪些 namespace”和“写入哪个 scope”正式配置化，例如只读 `global` 共享知识，同时把新记忆仅写入 `task` namespace。
 >
-> **写入 scope 栅栏**：`write_service` 在 `store`/`store_batch` 绑定 scope 后校验目标 namespaces 必须是当前 writer 允许集合（`self._namespaces ∪ self._scope.namespaces`）的子集，越界立即 `MemoryError` fail loud，杜绝跨 agent/channel/task 的越权写入。
+> **写入 scope 栅栏**：`write_service` 在 `store`/`store_batch` 绑定 scope 后校验目标 namespaces 必须是当前 writer 允许集合（写 scope `scope.namespaces` + 读范围内共享目标 `global`/`shared:*`）的子集，越界立即 `MemoryError` fail loud，杜绝跨 agent/channel/task 的越权写入。
 >
 > **去重与遗忘作用域安全**：三层去重 Layer 2 候选检索、`dedup_semantics` 兜底、以及 `run_forgetting` 向量遗忘均按内存自身 namespaces 过滤，保证同 scope 内去重/合并/删除，绝不跨 scope 抑制或清理他人记忆；Hash 缓存键绑定 namespaces 防串台；Qdrant 为 `namespaces` payload 建 KEYWORD 索引保证过滤性能。
 >

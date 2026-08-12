@@ -99,6 +99,44 @@ async def test_dedup_does_not_suppress_other_agents_memory() -> None:
     assert len(out) == 1  # NEW — created in agent A's own scope
 
 
+@pytest.mark.asyncio
+async def test_dedup_global_memory_does_not_restrict_candidates() -> None:
+    """A global (namespace-less) memory still dedups against the whole collection."""
+    dedup = _new_deduplicator()
+    vector = AsyncMock()
+    vector.search = AsyncMock(return_value=[])
+    mem = _semantic("Global fact", ns=[])
+
+    out = await dedup.deduplicate_batch([mem], vector, AsyncMock(), _config(), None)
+
+    assert len(out) == 1
+    _, kwargs = vector.search.call_args
+    assert kwargs["filters"] == _user_filter()
+    assert "namespaces" not in kwargs["filters"]
+
+
+@pytest.mark.asyncio
+async def test_dedup_episodic_filters_by_namespace() -> None:
+    """Episodic dedup candidates are scoped to the memory's namespaces too."""
+    from myrm_agent_harness.toolkits.memory.types import EpisodicMemory
+
+    dedup = _new_deduplicator()
+    vector = AsyncMock()
+    vector.search = AsyncMock(return_value=[])
+    mem = EpisodicMemory(
+        content="User clicked export",
+        event_type="action",
+        scope=MemoryScope(namespaces=["agent:A"]),
+        embedding=[0.5, 0.5],
+    )
+
+    out = await dedup.deduplicate_batch([mem], vector, AsyncMock(), _config(), None)
+
+    assert len(out) == 1
+    _, kwargs = vector.search.call_args
+    assert kwargs["filters"] == _user_filter(namespaces=["agent:A"])
+
+
 # ── R3: merge fence ───────────────────────────────────────────────────
 
 
@@ -193,7 +231,7 @@ def test_hash_cache_load_drops_legacy_unscooped_keys() -> None:
 # ── R1: write-path fence ──────────────────────────────────────────────
 
 
-def _writer(namespaces: list[str]) -> MemoryWriter:
+def _writer(namespaces: list[str], *, scope_namespaces: list[str] | None = None) -> MemoryWriter:
     async def _noop(memory):
         return memory
 
@@ -204,7 +242,7 @@ def _writer(namespaces: list[str]) -> MemoryWriter:
     config.security_scan_enabled = False
     return MemoryWriter(
         config=config,
-        scope=MemoryScope(namespaces=list(namespaces)),
+        scope=MemoryScope(namespaces=scope_namespaces if scope_namespaces is not None else list(namespaces)),
         namespaces=list(namespaces),
         approval_required=False,
         bind_scope_func=lambda m: m,
@@ -248,6 +286,39 @@ async def test_store_batch_rejects_out_of_scope_namespace() -> None:
     writer = _writer(namespaces=["agent:A"])
     with pytest.raises(MemoryError):
         await writer.store_batch([_semantic("fact", ns=["agent:B"])])
+
+
+@pytest.mark.asyncio
+async def test_store_rejects_read_only_non_shared_namespace() -> None:
+    """Read-only namespaces outside the narrowed write scope must be rejected."""
+    writer = _writer(
+        namespaces=["agent:A", "channel:c1", "task:t1"],
+        scope_namespaces=["task:t1"],
+    )
+    with pytest.raises(MemoryError):
+        await writer.store(_semantic("fact", ns=["agent:A"]))
+
+
+@pytest.mark.asyncio
+async def test_store_accepts_write_scope_target() -> None:
+    """The narrowed write-policy target remains writable."""
+    writer = _writer(
+        namespaces=["agent:A", "channel:c1", "task:t1"],
+        scope_namespaces=["task:t1"],
+    )
+    mem = _semantic("fact", ns=["task:t1"])
+    assert await writer.store(mem) is mem
+
+
+@pytest.mark.asyncio
+async def test_store_accepts_global_shared_write_under_narrowed_policy() -> None:
+    """write_target='shared' falling back to the global namespace stays writable."""
+    writer = _writer(
+        namespaces=["global", "task:t1"],
+        scope_namespaces=["task:t1"],
+    )
+    mem = _semantic("fact", ns=["global"])
+    assert await writer.store(mem) is mem
 
 
 # ── R5: fallback maintenance dedup ────────────────────────────────────
