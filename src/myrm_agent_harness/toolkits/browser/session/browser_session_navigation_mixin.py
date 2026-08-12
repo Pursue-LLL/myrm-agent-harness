@@ -20,6 +20,7 @@ import asyncio
 import logging
 from typing import NoReturn
 
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
 from myrm_agent_harness.toolkits.browser.captcha.protocols import CaptchaHandleResult
 from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
 
@@ -226,7 +227,7 @@ class BrowserSessionNavigationMixin:
                         "proceeding to CAPTCHA/stealth ladder with loaded page",
                         status_code,
                         max_attempts,
-                        url,
+                        redact_sensitive_text(url)[:80],
                     )
                     break
 
@@ -235,8 +236,12 @@ class BrowserSessionNavigationMixin:
             except Exception as e:
                 if (is_proxy_error(e) or "Blocked response" in str(e)) and attempt < max_attempts:
                     logger.warning(
-                        f"Proxy error or block detected during navigation to {url}: {e}. "
-                        f"Quarantining proxy and retrying (attempt {attempt}/{max_attempts})..."
+                        "Proxy error or block detected during navigation to %s: %s. "
+                        "Quarantining proxy and retrying (attempt %d/%d)...",
+                        redact_sensitive_text(url)[:80],
+                        e,
+                        attempt,
+                        max_attempts,
                     )
 
                     if self._context_key and self._browser_pool._proxy_pool:

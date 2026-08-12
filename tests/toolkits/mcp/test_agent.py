@@ -1379,6 +1379,22 @@ class TestTimeoutWrapperFaultTolerance:
         assert "UNTRUSTED_DATA" not in result
 
     @pytest.mark.asyncio
+    async def test_unsupported_content_error_redacts_credentials(self) -> None:
+        """Error messages carrying credentials must be redacted before surfacing."""
+
+        async def raise_with_secret(*_a, **_kw):
+            raise ValueError("token TOKEN=sk-proj-abcdefghijklmnop1234567890 leaked")
+
+        tool = _make_tool(coroutine=raise_with_secret)
+        wrap_tools_with_timeout([tool], timeout=5.0)
+
+        result = await tool.coroutine()
+        assert isinstance(result, str)
+        assert "unsupported content" in result
+        assert "sk-proj-abcdefghijklmnop1234567890" not in result
+        assert "sk-pro" in result
+
+    @pytest.mark.asyncio
     async def test_other_exceptions_still_propagate(self) -> None:
         """Exceptions not in the catch list must still propagate."""
 

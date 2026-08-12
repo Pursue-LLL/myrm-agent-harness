@@ -41,3 +41,21 @@ def test_wire_mcp_auth_expired_handler_registers_callback() -> None:
     auth_notify._handlers.clear()
     _wire_mcp_auth_expired_handler()
     assert len(auth_notify._handlers) == 1
+
+
+def test_notify_redacts_credentials_from_error_detail() -> None:
+    auth_notify._handlers.clear()
+    calls: list[tuple[str, str]] = []
+
+    def _handler(server_name: str, error_detail: str) -> None:
+        calls.append((server_name, error_detail))
+
+    auth_notify.register_mcp_auth_expired_handler(_handler)
+    auth_notify.notify_mcp_auth_expired(
+        "github-mcp",
+        "401 from https://api.github.com with TOKEN=sk-proj-abcdefghijklmnop1234567890",
+    )
+
+    assert calls[0][0] == "github-mcp"
+    assert "sk-proj-abcdefghijklmnop1234567890" not in calls[0][1]
+    assert "sk-pro" in calls[0][1]

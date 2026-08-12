@@ -12,6 +12,7 @@ from myrm_agent_harness.agent.security.redact import (
     _redact_pem_block,
     escape_invisible_unicode,
     redact_for_display,
+    redact_for_llm,
     redact_sensitive_text,
 )
 
@@ -121,7 +122,7 @@ class TestContextualPatterns:
 
     def test_env_getenv_quoted_value_kept(self) -> None:
         """引号包裹的 `os.getenv(...)` 仍是变量名引用，不得掩码。"""
-        text = "OPENAI_API_KEY=os.getenv(\"X\")"
+        text = 'OPENAI_API_KEY=os.getenv("X")'
         assert redact_sensitive_text(text) == text
 
     def test_json_field(self) -> None:
@@ -134,6 +135,18 @@ class TestContextualPatterns:
         text = '{"password": "mysecretpassword1234"}'
         result = redact_sensitive_text(text)
         assert "mysecretpassword1234" not in result
+
+    def test_json_raw_secret_fields(self) -> None:
+        """JSON 的 `raw_secret`/`secret_input` 字段（对齐 Hermes）必须脱敏。"""
+        for key in ("raw_secret", "secret_input"):
+            text = f'{{"{key}": "s3cr3t_value_12345678"}}'
+            result = redact_sensitive_text(text)
+            assert "s3cr3t_value_12345678" not in result, f"{key} 泄漏"
+
+    def test_json_auth_plain_value_kept(self) -> None:
+        """JSON 的 `"auth"` 普通状态值（`enabled`/`pending`）不得误伤。"""
+        text = '{"auth": "enabled"}'
+        assert redact_sensitive_text(text) == text
 
     def test_json_escaped_quote_no_partial_leak(self) -> None:
         """JSON 单反斜杠转义引号（`\"`）不得截断泄漏尾部明文。"""
@@ -243,11 +256,7 @@ class TestP12Optimizations:
 
     def test_opt1_chunk_boundary_pem_split(self) -> None:
         """PEM block spanning a chunk boundary must be redacted."""
-        pem = (
-            "-----BEGIN RSA PRIVATE KEY-----\n"
-            + "A" * 2000
-            + "\n-----END RSA PRIVATE KEY-----"
-        )
+        pem = "-----BEGIN RSA PRIVATE KEY-----\n" + "A" * 2000 + "\n-----END RSA PRIVATE KEY-----"
         pad = 16384 - 50
         large_text = " " * pad + pem + " " * (40000 - pad - len(pem))
         assert len(large_text) > 32768
@@ -502,10 +511,38 @@ class TestRedactEngineHardening:
             assert "mysecretvalue12345678" not in result, f"{key} 泄漏"
             assert "&page=2" in result, f"{key} 吞参"
 
+    def test_form_body_hyphen_keys_redacted(self) -> None:
+        """form-urlencoded body 的连字符凭据参数（`x-api-key=`/`api-key=`）必须脱敏。"""
+        for key in ("x-api-key", "api-key", "x-goog-api-key", "api_token"):
+            text = f"{key}=abc123def456ghi789&limit=50&page=2"
+            result = redact_sensitive_text(text)
+            assert "abc123def456ghi789" not in result, f"{key} 泄漏"
+            assert "&limit=50&page=2" in result, f"{key} 吞参"
+
     def test_cli_flag_name_not_corrupted(self) -> None:
         """短 value（`s`）不得误伤 flag 名（`--secret` → `--***ecret`）。"""
         result = redact_sensitive_text("curl --secret s https://x.com")
         assert "--secret ***" in result
+
+    def test_cli_flag_equals_separator_redacted(self) -> None:
+        """`--api-key=xxx` 等号分隔形式（CLI 高频）由 _CLI_FLAG_RE 脱敏。"""
+        result = redact_sensitive_text("deploy --api-key=abc123def456ghi789 --env prod")
+        assert "abc123def456ghi789" not in result
+        assert "--api-key=" in result
+        assert "--env prod" in result
+
+    def test_dotted_key_equals_redacted(self) -> None:
+        """点分配置等号形式（`app.api.key=`）对齐 Hermes _CFG_DOTTED_RE 脱敏。"""
+        result = redact_sensitive_text("app.api.key=mysecretvalue12345678")
+        assert "mysecretvalue12345678" not in result
+        assert "app.api.key=mysecr...5678" in result
+
+    def test_masked_value_not_remasked(self) -> None:
+        """双重匹配（`client_secret=` 同时命中 ENV 与 ENV_LOWER）不折叠为 `***`。"""
+        result = redact_sensitive_text("com.example.client_secret=mysecretvalue12345678")
+        assert "mysecretvalue12345678" not in result
+        assert "mysecr...5678" in result
+        assert "client_secret=***" not in result
 
     def test_cli_quoted_with_spaces_no_partial_leak(self) -> None:
         """`--password "my secret pass"` 引号值含空格整体脱敏。"""
@@ -524,6 +561,32 @@ class TestRedactEngineHardening:
         result = redact_sensitive_text("https://api.example.com?api_key=a&limit=10")
         assert "api_key=***" in result
         assert "&limit=10" in result
+
+    def test_url_query_x_api_key_redacted(self) -> None:
+        """URL query 连字符凭据参数（`?x-api-key=`/`?api-key=`）必须脱敏。"""
+        for key in ("x-api-key", "api-key", "x-goog-api-key", "x-auth-token", "x-access-token"):
+            text = f"https://api.example.com?{key}=abc123def456ghi789&limit=10"
+            result = redact_sensitive_text(text)
+            assert "abc123def456ghi789" not in result, f"{key} 泄漏"
+            assert "&limit=10" in result, f"{key} 吞参"
+
+    def test_oauth_code_redacted(self) -> None:
+        """OAuth 授权码 `code` 参数（URL callback + token form body，对齐 Hermes）必须脱敏。"""
+        url = "https://app.example.com/callback?code=abc123def456ghi789&state=x"
+        result = redact_sensitive_text(url)
+        assert "abc123def456ghi789" not in result
+        assert "&state=x" in result
+        body = "grant_type=authorization_code&code=abc123def456ghi789&redirect_uri=https://app"
+        result = redact_sensitive_text(body)
+        assert "abc123def456ghi789" not in result
+        assert "grant_type=authorization_code" in result
+
+    def test_control_char_split_env_value_redacted(self) -> None:
+        """控制字符拆分的 ENV 值（`password=abc\\x1bdef…`）必须整体脱敏。"""
+        text = "password=abc\x1bdefghijklmnopqrstuv"
+        result = redact_sensitive_text(text)
+        assert "abc\x1bdefghijklmnopqrstuv" not in result
+        assert "***" in result or "..." in result
 
     def test_control_char_split_token_redacted(self) -> None:
         """ESC 控制字符拆分的 token 必须被掩码（对齐 Hermes #77484）。"""
@@ -581,10 +644,37 @@ class TestRedactEngineHardening:
         assert "os.getenv('OPENAI_API_KEY')" in result
 
     def test_oauth_code_not_redacted(self) -> None:
-        """OAuth 授权码（`?code=`）不属于凭据名单，保持放行（对齐 Hermes 全局策略）。"""
+        """OAuth 授权码（`?code=`）为敏感参数（对齐 Hermes `_SENSITIVE_QUERY_PARAMS`），
+        明文即盗用，必须脱敏；`state`/`scope` 非凭据保持原样。"""
         text = "https://login.example.com/callback?code=abc123&state=xyz&scope=read"
         result = redact_sensitive_text(text)
-        assert "code=abc123" in result
+        assert "code=abc123" not in result
+        assert "state=xyz" in result
+        assert "scope=read" in result
+
+    def test_url_signature_params_redacted(self) -> None:
+        """预签名 URL 签名参数（`?signature=`/`?X-Amz-Signature=`/`?session=`）必须脱敏。"""
+        for key in ("signature", "X-Amz-Signature", "session"):
+            text = f"https://bucket.example.com/file?{key}=abc123def456ghi789&x=1"
+            result = redact_sensitive_text(text)
+            assert "abc123def456ghi789" not in result, f"{key} 泄漏"
+            assert "&x=1" in result, f"{key} 吞参"
+
+    def test_extended_prefixes_redacted(self) -> None:
+        """对齐 Hermes 的扩展服务商前缀（GitLab/xAI/Notion/Codex/ElevenLabs 等）脱敏。"""
+        for token in (
+            "xai-abcdefghijklmnopqrstuvwxyz123456",
+            "ntn_abcdefghijklmnopqrstuvwxyz123456",
+            "glpat-abcdefghijklmnopqrstuvwxyz123456",
+            "glrt-AbCdEfGh12345678.aBcDeFgH12345678",
+            "gAAAAABcdefghijklmnopqrstuvwxyz12345678",
+            "sk_abcdefghijklmnopqrstuvwxyz123456",
+            "fw-abcdefghijklmnopqrstuvwxyz123456",
+            "bb_live_abcdefghijklmnopqrstuvwxyz123456",
+            "syt_abcdefghijklmnopqrstuvwxyz123456",
+            "GR1348941abcdefghijklmnopqrstuvwxyz123456",
+        ):
+            assert token not in redact_sensitive_text(token), f"{token[:12]} 泄漏"
 
     def test_short_username_not_bare_token(self) -> None:
         """短用户名（<8 字符）不得被 bare-token 误伤。"""
@@ -628,11 +718,11 @@ class TestRedactYamlColon:
         assert "password : ***" in result
 
     def test_yaml_spaces_both_sides(self) -> None:
-        """`api_key  :  sk-test...` 冒号两侧多空格均脱敏。"""
+        """`api_key  :  sk-test...` 冒号两侧多空格均脱敏（掩码保留头尾可读片段）。"""
         text = "api_key  :  sk-test123456789012345"
         result = redact_sensitive_text(text)
         assert "sk-test123456789012345" not in result
-        assert "sk-test123456789012345"[:6] not in result
+        assert "sk-tes...2345" in result
 
     def test_yaml_quoted_with_spaces_no_partial_leak(self) -> None:
         """`password: "my secret pass"` 引号值含空格整体脱敏。"""
@@ -668,6 +758,16 @@ class TestRedactYamlColon:
         """`author: John Smith` 是散文，不得被 YAML 正则误伤。"""
         text = "author: John Smith"
         assert redact_sensitive_text(text) == text
+
+    def test_yaml_bare_auth_redacted(self) -> None:
+        """裸 `auth:` key（对齐 Hermes _YAML_CFG_NAMES）覆盖凭据值。"""
+        cases = {
+            "auth: abc123def456ghi789": "auth: abc123...i789",
+            "auth: dXNlcjpwYXNzd29yZA==": "auth: dXNlcj...ZA==",
+            'auth: "abc123def456ghi789"': 'auth: "abc123...i789"',
+        }
+        for text, expected in cases.items():
+            assert redact_sensitive_text(text) == expected, text
 
     def test_yaml_secretary_prose_not_redacted(self) -> None:
         """`Secretary: J.Smith` 内嵌 secret 关键词但非词边界，不得误伤。"""
@@ -718,6 +818,51 @@ class TestRedactLowerEnv:
         result = redact_sensitive_text(text)
         assert "mysecretvalue12345678" not in result
         assert "&page=2" in result
+
+    def test_lower_env_mixed_with_url_redacted(self) -> None:
+        """含 URL 的混合文本中 `db_pw=` 仍脱敏——不再因全局 URL 开关整体放行。"""
+        text = (
+            "host=db.internal\nurl: https://api.example.com/v1/auth\ndb_pw=hunter2\ncurl https://cdn.example.com/a.png"
+        )
+        result = redact_sensitive_text(text)
+        assert "hunter2" not in result
+        assert "url: https://api.example.com/v1/auth" in result
+
+    def test_lower_env_url_query_ampersand_key_redacted(self) -> None:
+        """`&` 分隔的 query 参数（`&db_pw=`）由 _URL_QUERY_RE 脱敏，负向后顾不误伤。"""
+        text = "https://x.com/?state=abc&db_pw=mysecretvalue12345678&x=1"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+        assert "state=abc" in result
+        assert "&x=1" in result
+
+    def test_yaml_mixed_with_url_redacted(self) -> None:
+        """含 URL 的文本中 YAML `password:` 仍脱敏——YAML 正则锚定行首天然跳过 URL 行。"""
+        text = 'deploy:\n  registry: https://registry.example.com\n  password: "s3cr3t-value"\n'
+        result = redact_sensitive_text(text)
+        assert "s3cr3t-value" not in result
+        assert "registry: https://registry.example.com" in result
+
+    def test_lower_env_underscore_suffix_redacted(self) -> None:
+        """下划线续接名（`openai_key_legacy=`）整体脱敏，不泄漏后缀值。"""
+        text = "openai_key_legacy=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+        assert "openai_key_legacy=" in result
+
+    def test_url_query_underscore_suffix_redacted(self) -> None:
+        """URL query 中带后缀的短名（`?openai_key_legacy=`）由 _URL_QUERY_RE 精确脱敏。"""
+        text = "https://x.com/?openai_key_legacy=mysecretvalue12345678&page=2"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+        assert "&page=2" in result
+
+    def test_url_query_upper_suffix_redacted(self) -> None:
+        """URL query 中带后缀的大写名（`?TOKEN_LEGACY=`）由 _URL_QUERY_RE 脱敏。"""
+        text = "https://x.com/?TOKEN_LEGACY=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+        assert "TOKEN_LEGACY=" in result
 
 
 class TestRedactFormBody:
@@ -787,3 +932,130 @@ class TestRedactProseWordBoundary:
         text = "MY_ACCESS_TOKEN=mysecretvalue12345678"
         result = redact_sensitive_text(text)
         assert "mysecretvalue12345678" not in result
+
+
+class TestRedactCoverageBranches:
+    """#170 覆盖率分支补测——词边界 camelCase/缩写/复数、PEM 单行、大文本分块
+    去重、控制字符跨行拒绝、redact_for_display 非 dict 防御。"""
+
+    def test_camelcase_secret_key_redacted(self) -> None:
+        """camelCase key（`clientSecret=`）词边界命中（patterns.py::_is_word_start），脱敏。"""
+        text = "clientSecret=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+        assert "mysecr...5678" in result
+
+    def test_acronym_boundary_key_redacted(self) -> None:
+        """全大写缩写 + 小写续（`APIToken=`）词边界命中（patterns.py::_is_word_start），脱敏。"""
+        text = "APIToken=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+    def test_camelcase_continuation_key_redacted(self) -> None:
+        """camelCase 续写（`secretKey=`）词边界命中（patterns.py::_is_word_end），脱敏。"""
+        text = "secretKey=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+    def test_plural_suffix_key_redacted(self) -> None:
+        """复数后缀（`secretKeys=`）词边界递归（patterns.py::_is_word_end），脱敏。"""
+        text = "secretKeys=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+    def test_pem_single_line_fully_masked(self) -> None:
+        """单行 PEM 块（`_redact_pem_block` len<2 分支）整体掩码。"""
+        assert _redact_pem_block("-----BEGIN RSA PRIVATE KEY-----") == "***"
+
+    def test_large_text_chunk_dedup_single_mask(self) -> None:
+        """>32KB 文本分块重叠去重（engine.py::_replace_pattern_bounded），token 只掩码一次。"""
+        prefix = "a" * 32768
+        text = f"{prefix}TOKEN=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+        assert result.count("mysecr...5678") == 1
+
+    def test_large_text_same_start_dedup(self) -> None:
+        """>32KB 文本同一 abs_start 被多 chunk 匹配时去重（engine.py::_replace_pattern_bounded）。"""
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sig1234567890123456789012345678901234567890123"
+        # JWT 落点须同时完整落在 chunk2(16384-36864) 与 chunk3(32768-53248)
+        text = "a" * 32800 + jwt
+        result = redact_sensitive_text(text)
+        assert jwt not in result
+        assert result.count("...") == 1
+
+    def test_acronym_word_end_key_redacted(self) -> None:
+        """`MYApiKey=`（缩写后接小写）命中 patterns.py::_is_word_start 缩写边界分支。"""
+        text = "MYApiKey=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+    def test_camelcase_word_end_key_redacted(self) -> None:
+        """`clientSecretKeyData=`（关键词在 key 中间后接 camelCase）命中 patterns.py::_is_word_end。"""
+        text = "clientSecretKeyData=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+    def test_set_redact_enabled_toggle(self) -> None:
+        """set_redact_enabled(False) 关闭脱敏，True 恢复（engine.py::set_redact_enabled 分支）。"""
+        from myrm_agent_harness.core.security.redact import set_redact_enabled
+
+        try:
+            set_redact_enabled(False)
+            assert redact_sensitive_text("TOKEN=mysecretvalue12345678") == "TOKEN=mysecretvalue12345678"
+        finally:
+            set_redact_enabled(True)
+        result = redact_sensitive_text("TOKEN=mysecretvalue12345678")
+        assert "mysecretvalue12345678" not in result
+
+    def test_control_split_crossline_eq_rejected(self) -> None:
+        """控制字符跨行拼接遇 `=` 拒绝（engine.py::_mask_control_split_tokens），不吞邻行。"""
+        text = "sk_abc123\x1bdef4567890123456\nTAVILY_API_KEY=mysecretvalue12345678"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+        assert "TAVILY_API_KEY=" in result
+
+    def test_redact_for_display_non_dict_returns_input(self) -> None:
+        """redact_for_display 非 dict 输入直接返回原值（engine.py::redact_for_display 防御分支）。"""
+        assert redact_for_display("raw-string") == "raw-string"
+
+
+class TestRedactForLLM:
+    """redact_for_llm — 嵌套诊断值递归脱敏并扁平化为 str（LLM 错误格式化）。"""
+
+    TOKEN = "sk-abcdefghijklmnopqrstuvwxyz0123"
+    MASKED = "sk-abc...0123"
+
+    def test_string_input_redacted(self) -> None:
+        result = redact_for_llm(f"auth failed: {self.TOKEN}")
+        assert isinstance(result, str)
+        assert self.TOKEN not in result
+        assert self.MASKED in result
+
+    def test_dict_input_recursively_redacted(self) -> None:
+        result = redact_for_llm({"key": "abc", "token": self.TOKEN})
+        assert result == f"{{'key': 'abc', 'token': '{self.MASKED}'}}"
+
+    def test_list_input_recursively_redacted(self) -> None:
+        result = redact_for_llm(["plain", self.TOKEN])
+        assert result == f"['plain', '{self.MASKED}']"
+
+    def test_tuple_input_flattened_with_list_style(self) -> None:
+        result = redact_for_llm(("plain", self.TOKEN))
+        assert result == f"['plain', '{self.MASKED}']"
+
+    def test_nested_mixed_containers_redacted(self) -> None:
+        result = redact_for_llm(
+            {
+                "headers": {"authorization": f"Bearer {self.TOKEN}"},
+                "items": [1, self.TOKEN],
+            }
+        )
+        assert self.TOKEN not in result
+        assert self.MASKED in result
+        assert result.count(self.MASKED) == 2
+
+    def test_non_container_returns_str(self) -> None:
+        assert redact_for_llm(42) == "42"
+        assert redact_for_llm(None) == "None"
+        assert redact_for_llm(3.14) == "3.14"

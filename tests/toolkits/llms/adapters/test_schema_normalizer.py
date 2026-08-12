@@ -188,6 +188,434 @@ class TestOneOf:
         assert "max" in filter_prop["properties"]
         assert "anyOf" not in filter_prop
 
+    def test_anyof_branch_metadata_merged_into_union(self) -> None:
+        """Branch-level descriptions survive discriminator union merging."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {
+                                        "const": "eq",
+                                        "description": "Equality match",
+                                        "title": "Equal",
+                                    }
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {
+                                        "const": "range",
+                                        "description": "Range match",
+                                        "title": "Range",
+                                    }
+                                },
+                            },
+                        ],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        op = result["properties"]["filter"]["properties"]["op"]
+        assert set(op["enum"]) == {"eq", "range"}
+        assert op["description"] == "Equality match Range match"
+        assert op["title"] == "Equal"
+
+    def test_anyof_branch_metadata_deduped_when_equal(self) -> None:
+        """Identical descriptions dedupe instead of concatenating."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {"const": "eq", "description": "Match op"}
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {
+                                        "const": "range",
+                                        "description": "Match op",
+                                    }
+                                },
+                            },
+                        ],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        op = result["properties"]["filter"]["properties"]["op"]
+        assert op["description"] == "Match op"
+
+    def test_anyof_closed_plus_open_keeps_closed_metadata(self) -> None:
+        """A closed const unioned with an open type keeps closed-side metadata."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "config": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "mode": {
+                                        "const": "auto",
+                                        "description": "Automatic",
+                                    }
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "mode": {"type": "string"},
+                                },
+                            },
+                        ],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        config = result["properties"]["config"]
+        mode = config["properties"]["mode"]
+        assert mode["type"] == "string"
+        assert "const" not in mode
+        assert "enum" not in mode
+        assert mode["description"] == "Automatic"
+
+    def test_anyof_branch_default_merged_first_wins(self) -> None:
+        """Union merging keeps the first branch's default, not the second's."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {
+                                        "const": "eq",
+                                        "description": "Equality match",
+                                        "default": "eq",
+                                    }
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {
+                                        "const": "range",
+                                        "description": "Range match",
+                                        "default": "range",
+                                    }
+                                },
+                            },
+                        ],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        op = result["properties"]["filter"]["properties"]["op"]
+        assert set(op["enum"]) == {"eq", "range"}
+        assert op["description"] == "Equality match Range match"
+        assert op["default"] == "eq"
+
+    def test_anyof_branch_metadata_single_side_kept(self) -> None:
+        """A description present on only one branch survives union merging."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {
+                                        "const": "eq",
+                                        "description": "Equality match",
+                                    }
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {"op": {"const": "range"}},
+                            },
+                        ],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        op = result["properties"]["filter"]["properties"]["op"]
+        assert set(op["enum"]) == {"eq", "range"}
+        assert op["description"] == "Equality match"
+
+    def test_allof_closed_plus_open_merges_both_metadata(self) -> None:
+        """Intersecting a closed enum with an open type keeps both descriptions."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "allOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "color": {
+                                        "type": "string",
+                                        "enum": ["red", "green"],
+                                        "description": "Primary colors",
+                                    }
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "color": {
+                                        "type": "string",
+                                        "description": "Any allowed color",
+                                    }
+                                },
+                            },
+                        ]
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        color = result["properties"]["item"]["properties"]["color"]
+        assert color["enum"] == ["red", "green"]
+        assert color["description"] == "Primary colors Any allowed color"
+
+    def test_union_keeps_shared_type_across_consts(self) -> None:
+        """Union merging carries a shared explicit type onto the merged enum."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {"type": "string", "const": "eq"}
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {"type": "string", "const": "range"}
+                                },
+                            },
+                        ],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        op = result["properties"]["filter"]["properties"]["op"]
+        assert op["type"] == "string"
+        assert set(op["enum"]) == {"eq", "range"}
+
+    def test_union_open_redefinition_keeps_first(self) -> None:
+        """Redefining an unconstrained property across branches keeps the first."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {"type": "string", "description": "First"}
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {"type": "string", "description": "Second"}
+                                },
+                            },
+                        ],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        op = result["properties"]["filter"]["properties"]["op"]
+        assert op["type"] == "string"
+        assert op["description"] == "First"
+
+    def test_intersect_empty_keeps_first(self) -> None:
+        """A disjoint allOf enum intersection keeps the first definition."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "allOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "color": {
+                                        "type": "string",
+                                        "enum": ["red"],
+                                        "description": "Red only",
+                                    }
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "color": {
+                                        "type": "string",
+                                        "enum": ["blue"],
+                                        "description": "Blue only",
+                                    }
+                                },
+                            },
+                        ]
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        color = result["properties"]["item"]["properties"]["color"]
+        assert color["enum"] == ["red"]
+        assert color["description"] == "Red only"
+
+    def test_intersect_open_redefinition_keeps_first(self) -> None:
+        """Redefining an unconstrained allOf property keeps the first."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "allOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "First name",
+                                    }
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Second name",
+                                    }
+                                },
+                            },
+                        ]
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        name = result["properties"]["item"]["properties"]["name"]
+        assert name["type"] == "string"
+        assert name["description"] == "First name"
+
+    def test_union_mixed_branch_types_skip_non_object(self) -> None:
+        """Non-object branches are ignored when merging object alternatives."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "target": {
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "properties": {"url": {"type": "string"}},
+                            },
+                            {"type": "string"},
+                            {"type": "integer"},
+                        ],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        target = result["properties"]["target"]
+        assert target["type"] == "object"
+        assert "url" in target["properties"]
+        assert "oneOf" not in target
+
+    def test_union_empty_object_branches_fallback(self) -> None:
+        """Object branches without properties produce a permissive schema."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "target": {
+                        "oneOf": [{"type": "object"}, {"type": "object"}],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        target = result["properties"]["target"]
+        assert target["type"] == "object"
+        assert target["additionalProperties"] is True
+
+    def test_allof_branch_metadata_merged_into_intersection(self) -> None:
+        """Intersecting allOf branches keep descriptions from both sides."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "allOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "color": {
+                                        "type": "string",
+                                        "enum": ["red", "green"],
+                                        "description": "Primary colors",
+                                    }
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "color": {
+                                        "type": "string",
+                                        "enum": ["green", "blue"],
+                                        "description": "Cool colors",
+                                    }
+                                },
+                            },
+                        ]
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        color = result["properties"]["item"]["properties"]["color"]
+        assert color["enum"] == ["green"]
+        assert color["description"] == "Primary colors Cool colors"
+
     def test_oneof_discriminator_required_promoted(self) -> None:
         """A discriminator required by every branch is promoted and excluded
         from the exclusivity hint."""
@@ -601,6 +1029,15 @@ class TestTopLevelComposite:
         assert result["type"] == "object"
         assert "a" in result["properties"]
 
+    def test_top_level_no_object_branch_falls_back(self) -> None:
+        """Non-object-only branches fall back to a permissive empty schema."""
+        schema = _wrap(
+            {"anyOf": [{"type": "string"}, {"type": "null"}]}
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert result["type"] == "object"
+        assert result["properties"] == {}
+
     def test_top_level_missing_type_with_properties(self) -> None:
         schema = _wrap(
             {
@@ -611,6 +1048,68 @@ class TestTopLevelComposite:
         result = _params(normalize_tool_schema(schema))
         assert result["type"] == "object"
         assert "query" in result["properties"]
+
+    def test_top_level_single_branch_preserves_outer_metadata(self) -> None:
+        """Outer title/examples survive single-object-branch extraction."""
+        schema = _wrap(
+            {
+                "title": "Target",
+                "examples": [{"kind": "url"}],
+                "description": "Pick a target",
+                "anyOf": [
+                    {"type": "object", "properties": {"url": {"type": "string"}}},
+                    {"type": "null"},
+                ],
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert result["type"] == "object"
+        assert result["title"] == "Target"
+        assert result["examples"] == [{"kind": "url"}]
+        assert result["description"] == "Pick a target"
+
+    def test_top_level_null_plus_object_preserves_outer_metadata(self) -> None:
+        """Outer title/description survive when a lone object branch follows null."""
+        schema = _wrap(
+            {
+                "title": "Target",
+                "description": "Pick a target",
+                "anyOf": [
+                    {"type": "null"},
+                    {"type": "object", "properties": {"url": {"type": "string"}}},
+                ],
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert result["type"] == "object"
+        assert result["title"] == "Target"
+        assert result["description"] == "Pick a target"
+
+    def test_top_level_allof_preserves_outer_metadata(self) -> None:
+        """Outer title/description survive allOf object-branch merging."""
+        schema = _wrap(
+            {
+                "title": "User",
+                "description": "User data",
+                "allOf": [
+                    {
+                        "type": "object",
+                        "properties": {"name": {"type": "string"}},
+                        "required": ["name"],
+                    },
+                    {
+                        "type": "object",
+                        "properties": {"age": {"type": "integer"}},
+                    },
+                ],
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert result["type"] == "object"
+        assert result["title"] == "User"
+        assert result["description"] == "User data"
+        assert "name" in result["properties"]
+        assert "age" in result["properties"]
 
     def test_top_level_oneof_multi_object_branches(self) -> None:
         schema = _wrap(

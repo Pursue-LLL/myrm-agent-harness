@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.documents import Document
 
-from .fetchers.protocols import FetcherType, FetchResult
+from ..fetchers.protocols import FetcherType, FetchResult
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
@@ -37,13 +37,13 @@ class FetchEngineEscalationMixin:
         self: FetchEngine, url: str, *, max_chars: int = 0
     ) -> tuple[Document | None, FetchResult | None]:
         """Try injected remote providers after local L1-L3 exhaustion."""
-        from .escalation.context import get_bound_escalation_providers
+        from ..escalation.context import get_bound_escalation_providers
 
         providers = get_bound_escalation_providers() or self._escalation_providers
         if not providers:
             return None, None
 
-        from .escalation.metrics import web_fetch_escalation_metrics
+        from ..escalation.metrics import web_fetch_escalation_metrics
 
         web_fetch_escalation_metrics.record_triggered()
         try:

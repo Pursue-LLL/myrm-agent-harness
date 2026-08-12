@@ -2,6 +2,7 @@
 
 import asyncio
 import time
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -17,6 +18,10 @@ def mock_page() -> MagicMock:
     """Create mock Page."""
     page = MagicMock()
     page.evaluate = AsyncMock()
+    page.viewport_size = {"width": 1280, "height": 720}
+    page.mouse = MagicMock()
+    page.mouse.move = AsyncMock()
+    page.mouse.wheel = AsyncMock()
     return page
 
 
@@ -45,7 +50,10 @@ async def test_performance_simple_actions(interactor: Interactor) -> None:
     mock_locator.check = AsyncMock()
     mock_locator.get_attribute.return_value = "text"
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         # Warm up
         await interactor.interact("click", "e0")
 
@@ -71,18 +79,45 @@ async def test_performance_simple_actions(interactor: Interactor) -> None:
         print(f"{'=' * 60}")
 
         # Assert performance target (1ms is reasonable for mock operations)
-        assert avg_per_call < 1.0, f"Performance regression: {avg_per_call:.4f}ms > 1.0ms"
+        assert (
+            avg_per_call < 1.0
+        ), f"Performance regression: {avg_per_call:.4f}ms > 1.0ms"
 
 
 @pytest.mark.asyncio
 async def test_performance_special_actions(interactor: Interactor) -> None:
     """Test performance of special actions (scroll/drag)."""
     mock_locator = AsyncMock()
-    mock_locator.scroll_into_view_if_needed = AsyncMock()
+    mock_locator.bounding_box.return_value = {
+        "x": 100,
+        "y": 100,
+        "width": 200,
+        "height": 100,
+    }
     mock_locator.drag_to = AsyncMock()
     mock_locator.get_attribute.return_value = "text"
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    # Scroll target container that always moves on wheel (moved path, no settle wait).
+    state = {"top": 0.0, "height": 100000.0, "client": 720.0}
+
+    async def mock_evaluate(expr: str, arg=None) -> Any:
+        if "elementFromPoint" in expr:
+            return dict(state)
+        return 0
+
+    async def mock_wheel(_dx: int, dy: int) -> None:
+        state["top"] = min(
+            state["top"] + dy, max(0.0, state["height"] - state["client"])
+        )
+
+    mock_page = interactor._page
+    mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
+    mock_page.mouse.wheel = AsyncMock(side_effect=mock_wheel)
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         # Benchmark: 500 iterations
         iterations = 500
         start = time.perf_counter()
@@ -102,7 +137,9 @@ async def test_performance_special_actions(interactor: Interactor) -> None:
         print(f"Average per call: {avg_per_call:.4f}ms")
         print(f"{'=' * 60}")
 
-        assert avg_per_call < 1.0, f"Performance regression: {avg_per_call:.4f}ms > 1.0ms"
+        assert (
+            avg_per_call < 1.0
+        ), f"Performance regression: {avg_per_call:.4f}ms > 1.0ms"
 
 
 @pytest.mark.asyncio
@@ -139,7 +176,10 @@ async def test_concurrent_interactions(interactor: Interactor) -> None:
     mock_locator.check = AsyncMock()
     mock_locator.get_attribute.return_value = "text"
 
-    with patch("myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator", return_value=mock_locator):
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=mock_locator,
+    ):
         # Simulate Agent performing 10 concurrent interactions
         start = time.perf_counter()
 

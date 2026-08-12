@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.documents import Document
 
-from .engine_types import BackgroundTask, CachedDocument
+from .types import BackgroundTask, CachedDocument
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine

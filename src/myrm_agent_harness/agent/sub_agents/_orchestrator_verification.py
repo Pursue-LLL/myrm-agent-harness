@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import json
 import time
+import uuid
 from collections.abc import Callable
+from dataclasses import fields
 from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool
@@ -57,6 +59,16 @@ __all__ = [
     "run_with_verification",
     "verify_worker_output",
 ]
+
+# Fields mirrored from an internal retry worker onto the visible business node.
+# Excludes the three identity/visibility fields managed by the caller
+# (business task_id, business agent_type, non-internal visibility flag).
+# Derived from the dataclass so future SubAgentResult fields are picked up
+# automatically instead of silently drifting out of sync.
+_SYNC_MANAGED_FIELDS = frozenset({"task_id", "agent_type", "internal"})
+_SYNC_FIELDS = tuple(
+    field.name for field in fields(SubAgentResult) if field.name not in _SYNC_MANAGED_FIELDS
+)
 
 
 def _format_worker_output_for_verifier(result: object) -> str:
@@ -173,7 +185,9 @@ async def run_with_verification(
             worker_task_id = task_id
             worker_internal = False
         else:
-            worker_task_id = f"verify-worker-{round_num}-{worker_type}"
+            # Internal retry workers get a unique id: parallel delegated tasks
+            # share this manager and must not collide on a fixed-format id.
+            worker_task_id = f"verify-worker-{round_num}-{worker_type}-{uuid.uuid4().hex[:8]}"
             worker_internal = True
 
         logger.info(
@@ -317,22 +331,7 @@ def _sync_business_result(
     """
     if business_result is None or business_result is source or not task_id:
         return
-    for field_name in (
-        "success",
-        "result",
-        "error",
-        "token_usage",
-        "duration_seconds",
-        "completed_at",
-        "status",
-        "trace_id",
-        "checkpoint_data",
-        "payload",
-        "handover_state",
-        "accumulated_duration_seconds",
-        "still_running",
-        "verification",
-    ):
+    for field_name in _SYNC_FIELDS:
         setattr(business_result, field_name, getattr(source, field_name))
     business_result.task_id = task_id
     business_result.internal = False

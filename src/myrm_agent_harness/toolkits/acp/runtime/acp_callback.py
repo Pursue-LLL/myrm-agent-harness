@@ -45,7 +45,9 @@ def _resolve_safe_path(path_str: str, cwd: str) -> Path | None:
             candidate = Path(cwd) / candidate
         resolved = candidate.resolve()
         cwd_resolved = Path(cwd).resolve()
-        if resolved == cwd_resolved or str(resolved).startswith(str(cwd_resolved) + os.sep):
+        if resolved == cwd_resolved or str(resolved).startswith(
+            str(cwd_resolved) + os.sep
+        ):
             return resolved
         return None
     except (ValueError, OSError):
@@ -55,7 +57,9 @@ def _resolve_safe_path(path_str: str, cwd: str) -> Path | None:
 def _get_attr(obj: object, *keys: str) -> object | None:
     """Extract an attribute from an object or dict by trying multiple keys."""
     for key in keys:
-        val: object | None = obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+        val: object | None = (
+            obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
+        )
         if val is not None:
             return val
     return None
@@ -75,7 +79,11 @@ def _extract_text_content(content: object) -> str | None:
 def _find_option(options: list[object], kinds: tuple[str, ...]) -> str | None:
     """Find the first option matching any of the given kinds."""
     for opt in options:
-        opt_dict = opt if isinstance(opt, dict) else (opt.model_dump() if hasattr(opt, "model_dump") else {})
+        opt_dict = (
+            opt
+            if isinstance(opt, dict)
+            else (opt.model_dump() if hasattr(opt, "model_dump") else {})
+        )
         if opt_dict.get("kind") in kinds:
             return str(opt_dict.get("optionId", ""))
     return None
@@ -157,7 +165,11 @@ class AcpCallbackHandler:
 
     def mark_done(self, stop_reason: str) -> None:
         """Signal that the prompt has completed. Pushes a DONE event + sentinel."""
-        self._event_queue.put_nowait(create_event(RuntimeEventType.DONE, self._session_id, stop_reason=stop_reason))
+        self._event_queue.put_nowait(
+            create_event(
+                RuntimeEventType.DONE, self._session_id, stop_reason=stop_reason
+            )
+        )
         self._event_queue.put_nowait(None)
 
     def on_connect(self, conn: object) -> None:
@@ -181,7 +193,11 @@ class AcpCallbackHandler:
             text = _extract_text_content(content)
             if text:
                 self._text_parts.append(text)
-                self._push_event(create_event(RuntimeEventType.TEXT_DELTA, self._session_id, content=text))
+                self._push_event(
+                    create_event(
+                        RuntimeEventType.TEXT_DELTA, self._session_id, content=text
+                    )
+                )
 
         elif update_type == "tool_call":
             title = str(_get_attr(update, "title") or "unknown")
@@ -217,7 +233,11 @@ class AcpCallbackHandler:
             text = _extract_text_content(content)
             if text:
                 self._text_parts.append(text)
-                self._push_event(create_event(RuntimeEventType.REASONING_DELTA, self._session_id, content=text))
+                self._push_event(
+                    create_event(
+                        RuntimeEventType.REASONING_DELTA, self._session_id, content=text
+                    )
+                )
 
     async def request_permission(
         self,
@@ -235,21 +255,29 @@ class AcpCallbackHandler:
         )
         tool_name = str(tool_dict.get("title") or tool_dict.get("name") or "unknown")
         tool_input = {
-            key: value for key, value in tool_dict.items() if key in ("command", "path", "input", "arguments", "files")
+            key: value
+            for key, value in tool_dict.items()
+            if key in ("command", "path", "input", "arguments", "files")
         }
 
         mode = self._config.permission_mode
         if mode == "safe":
             return self._handle_safe_mode(tool_name, option_list)
         if mode == "ask":
-            return await self._handle_ask_mode(session_id, tool_name, tool_input, option_list)
+            return await self._handle_ask_mode(
+                session_id, tool_name, tool_input, option_list
+            )
         if mode == "bypass":
             return _select_outcome("allow_always")
         return _auto_allow(option_list)
 
-    def _handle_safe_mode(self, tool_name: str, option_list: list[object]) -> dict[str, object]:
+    def _handle_safe_mode(
+        self, tool_name: str, option_list: list[object]
+    ) -> dict[str, object]:
         """Safe mode: allow read operations, reject everything else."""
-        is_read_op = any(kw in tool_name.lower() for kw in ("read", "search", "list", "glob"))
+        is_read_op = any(
+            kw in tool_name.lower() for kw in ("read", "search", "list", "glob")
+        )
         if is_read_op:
             allow = _find_option(option_list, ("allow_once", "allow_always"))
             if allow:

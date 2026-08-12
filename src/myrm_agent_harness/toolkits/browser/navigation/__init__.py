@@ -36,6 +36,8 @@ import logging
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
 from ..wait import WaitMetrics, WaitStrategy, wait_for_page_ready
 
 if TYPE_CHECKING:
@@ -174,7 +176,7 @@ class Navigator:
             title = await self._page.title()
             final_url = self._page.url
             logger.info(
-                "Navigator: trivial %s: navigation to %s", parsed.scheme, url[:80]
+                "Navigator: trivial %s: navigation to %s", parsed.scheme, redact_sensitive_text(url)[:80]
             )
             return title, final_url, 200
 
@@ -200,7 +202,8 @@ class Navigator:
 
             if is_timeout_error(e):
                 logger.warning(
-                    f"Navigator: timeout during navigation to {url}, attempting rescue via window.stop()"
+                    "Navigator: timeout during navigation to %s, attempting rescue via window.stop()",
+                    redact_sensitive_text(url)[:80],
                 )
                 try:
                     await self._page.evaluate("window.stop()")
@@ -231,7 +234,11 @@ class Navigator:
         final_url = self._page.url
         status_code = response.status if response else 200
 
-        logger.info(f"Navigator: navigated to {url} (status={status_code})")
+        logger.info(
+            "Navigator: navigated to %s (status=%s)",
+            redact_sensitive_text(url)[:80],
+            status_code,
+        )
         return title, final_url, status_code
 
     @staticmethod

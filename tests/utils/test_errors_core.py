@@ -36,6 +36,38 @@ class TestToolError:
     def test_error_category_missing_when_not_in_diagnostic_info(self) -> None:
         err = ToolError("blocked")
         assert err.error_category is None
+
+    def test_message_credential_redacted_at_construction(self) -> None:
+        err = ToolError("Navigation blocked: https://app.com/callback?code=4d3f9c2a1b")
+        assert "4d3f9c2a1b" not in str(err)
+        assert "code=***" in str(err)
+
+    def test_plain_message_unchanged(self) -> None:
+        err = ToolError("Container exited with code 255")
+        assert str(err) == "Container exited with code 255"
+
+    def test_format_for_llm_redacts_credentials(self) -> None:
+        err = ToolError(
+            "OAuth failed for https://app.com/login?token=sk-proj-abcdef123456",
+            user_hint="retry https://app.com/login?token=sk-proj-abcdef123456",
+            diagnostic_info={"url": "https://app.com/callback?code=9f8e7d6c5b4a"},
+            recovery_suggestions=[
+                "check token sk-proj-abcdef123456",
+                "plain suggestion",
+            ],
+        )
+        out = err.format_for_llm()
+        assert "sk-proj-abcdef123456" not in out
+        assert "9f8e7d6c5b4a" not in out
+        assert "retry" in out
+        assert "plain suggestion" in out
+
+    def test_format_for_llm_preserves_plain_content(self) -> None:
+        err = ToolError("fail", user_hint="try again")
+        out = err.format_for_llm()
+        assert "Error: fail" in out
+        assert "try again" in out
+
     def test_basic(self) -> None:
         msg = format_error_message(ValueError("bad value"))
         assert "ValueError" in msg

@@ -11,7 +11,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 |------|------|-------------|-------|
 | __init__.py | Package | Browser toolkit public entry point. Aggregates and exports the module's core API | ✅ |
 | __main__.py | Internal | CLI entry point for browser toolkit diagnostics. | ✅ |
-| exceptions.py | Core | Exception hierarchy definition. RefNotFoundError provides structured diagnostic info, including URL  | ✅ |
+| exceptions.py | Core | Exception hierarchy definition. RefNotFoundError provides structured diagnostic info, including URL change suggestions; message + format_for_llm output are redacted at construction to keep query-string credentials out of LLM tool errors. | ✅ |
 | observability.py | Core | Observability module for the browser toolkit. Provides video recording, progress notifications, and  | ✅ |
 | recording_manager.py | Core | Unified browser recording manager. Provides lifecycle management and file management | ✅ |
 | retry_policy.py | Core | Retry policy framework. Zero external dependencies. Async-first design. | ✅ |
@@ -23,7 +23,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | captcha/ | CAPTCHA detection and coordination subpackage. Provides Protocol-based pluggable solver architecture, HTML regex detector, asyncio.Event state machine coordinator, and default ManualSolver. Integrated into BrowserSession.navigate(). |
 | checkpoint/ | Task-level checkpoint/resume module for the browser toolkit. Fully reuses LangGraph Checkpointer's p |
 | diff/ | Screenshot diff utilities — unified comparison system. |
-| doctor/ | Pre-flight diagnostics and health checks. Facade + checks/orphans/report/auto_install submodules. |
+| doctor/ | Pre-flight diagnostics and health checks. Facade + checks/orphans/report submodules. |
 | domain_filter/ | Deep domain filtering, resource blocking, and ad/tracker domain blocking. Four-layer defense: CSP + route interception + JS hardening + CDP audit. `__init__.py` exposes DomainAllowlist/install_domain_filter; `ad_domains.py` lazily loads the bundled `assets/ad_domains.txt` (~3500 domains). |
 | domain_skills/ | Domain executable skills — manifest-based Python tool registry for repeated-domain acceleration. Complements SiteExperienceStore (prompt-layer) with an executable layer. Includes builtin skill packs (e.g. x-com). |
 | enhancers/ | DOM enhancers. Provides progressive enhancement (React/Vue/CDP) and SPA stabilization scripts. |

@@ -732,3 +732,27 @@ class TestExportRulesSafe:
         import json
         parsed = json.loads(str(results[0]["rendered"]))
         assert "content" in parsed
+
+    @pytest.mark.asyncio
+    async def test_share_export_redacts_credentials(self, mock_manager: AsyncMock) -> None:
+        from myrm_agent_harness.toolkits.memory._manager.import_export import (
+            MemoryManagerImportExportMixin,
+        )
+        secret_entry = {
+            "id": "rule_secret",
+            "content": "call api with app.api.key=mysecretvalue12345678",
+            "trigger": "deploy --api-key=sk-abcdefghijklmnop1234",
+            "action": "run",
+            "scope": {"namespaces": ["agent_work"]},
+        }
+        manager = AsyncMock()
+        manager.export_all = AsyncMock(return_value={"procedural": [secret_entry]})
+        mixin = MemoryManagerImportExportMixin()
+        mixin.export_all = manager.export_all  # type: ignore[assignment]
+
+        results = await mixin.export_rules_safe(output_format="json")
+        rendered = str(results[0]["rendered"])
+        assert "mysecretvalue12345678" not in rendered
+        assert "sk-abcdefghijklmnop1234" not in rendered
+        assert "mysecr" in rendered
+        assert "sk-abc" in rendered

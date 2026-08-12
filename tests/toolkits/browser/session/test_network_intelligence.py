@@ -51,6 +51,86 @@ class TestCdpRequestRecord:
             record.url = "https://other.com"  # type: ignore[misc]
 
 
+class TestNetworkIntelligenceRedaction:
+    """Credential redaction in CDP-tracked POST data display and response bodies.
+
+    Raw post_data is stored for replay; get_summary redacts it before display.
+    Response bodies are redacted before the 8000-char truncation so a credential
+    crossing the boundary stays masked.
+    """
+
+    def _on_post(self, ni: NetworkIntelligence, body: str) -> None:
+        ni._on_request_will_be_sent({
+            "requestId": "req-post",
+            "type": "Fetch",
+            "request": {
+                "url": "https://api.example.com/login",
+                "method": "POST",
+                "postData": body,
+            },
+        })
+
+    def test_post_data_raw_stored_for_replay(self):
+        """The raw body (not the redacted form) must be kept so network_replay
+        can re-send the real payload."""
+        ni = NetworkIntelligence()
+        raw = '{"op":"login","password":"mysecretvalue12345678"}'
+        self._on_post(ni, raw)
+
+        post_data = ni.get_api_requests()[0].post_data
+        assert post_data == raw
+
+    def test_get_summary_redacts_post_data(self):
+        ni = NetworkIntelligence()
+        self._on_post(ni, '{"op":"login","password":"mysecretvalue12345678"}')
+
+        summary = ni.get_summary()
+
+        assert "mysecretvalue12345678" not in summary
+        assert "POST:" in summary
+
+    def test_get_summary_crossing_preview_boundary_redacted(self):
+        """A credential split by the display cut in get_summary must not
+        surface as a plaintext fragment (raw window is redacted first)."""
+        ni = NetworkIntelligence()
+        body = '{"op":"login","payload":"' + "x" * 150 + '","password":"mysecretvalue12345678"}'
+        self._on_post(ni, body)
+
+        summary = ni.get_summary()
+
+        assert "mysecretval" not in summary
+
+    def test_get_summary_plain_body_unchanged(self):
+        ni = NetworkIntelligence()
+        self._on_post(ni, '{"operationName":"GetIssues"}')
+
+        summary = ni.get_summary()
+
+        assert '{"operationName":"GetIssues"}' in summary
+
+    @pytest.mark.asyncio
+    async def test_get_response_body_truncation_crossing_redacted(self):
+        """A credential in the truncated tail of a large response body must
+        not surface as a plaintext fragment."""
+        ni = NetworkIntelligence()
+        ni._on_request_will_be_sent({
+            "requestId": "req-1",
+            "type": "XHR",
+            "request": {"url": "https://api.example.com/data", "method": "GET"},
+        })
+        mock_cdp = AsyncMock()
+        head = "x" * 7990
+        tail = '"password":"mysecretvalue12345678"}'
+        large_body = head + tail
+        mock_cdp.send = AsyncMock(return_value={"body": large_body, "base64Encoded": False})
+        ni._cdp_session = mock_cdp
+
+        result = await ni.get_response_body(1)
+
+        assert "truncated" in result
+        assert "mysecretval" not in result
+
+
 class TestNetworkIntelligence:
     """Test NetworkIntelligence component."""
 
@@ -122,7 +202,7 @@ class TestNetworkIntelligence:
 
     def test_post_data_truncation(self):
         ni = NetworkIntelligence()
-        long_body = "x" * 500
+        long_body = "x" * 5000
         params = {
             "requestId": "req-1",
             "type": "Fetch",
@@ -133,7 +213,7 @@ class TestNetworkIntelligence:
             },
         }
         ni._on_request_will_be_sent(params)
-        assert len(ni.get_api_requests()[0].post_data) == 200  # type: ignore[arg-type]
+        assert len(ni.get_api_requests()[0].post_data) == 4096  # type: ignore[arg-type]
 
     def test_max_requests_limit(self):
         ni = NetworkIntelligence(max_requests=5)

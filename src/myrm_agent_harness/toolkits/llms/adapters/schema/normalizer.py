@@ -180,32 +180,18 @@ def _ensure_object_type(schema: dict[str, object]) -> dict[str, object]:
         ]
         if len(obj_branches) == 1:
             merged = obj_branches[0]
-            for preserve_key in ("description", "default"):
-                if preserve_key in schema and preserve_key not in merged:
-                    merged[preserve_key] = schema[preserve_key]
+            preserve_metadata(schema, merged)
             return merged
 
         if len(obj_branches) > 1:
             if kw == "allOf":
                 allof_merged = merge_allof_branches(obj_branches)
                 if allof_merged is not None:
-                    for preserve_key in ("description", "default"):
-                        if preserve_key in schema and preserve_key not in allof_merged:
-                            allof_merged[preserve_key] = schema[preserve_key]
+                    preserve_metadata(schema, allof_merged)
                     return allof_merged
             else:
                 union_merged = merge_union_object_branches(obj_branches, keyword=kw)
                 return apply_union_hint(union_merged, schema)
-
-        non_null = [
-            b for b in branches if not (isinstance(b, dict) and b.get("type") == "null")
-        ]
-        if (
-            len(non_null) == 1
-            and isinstance(non_null[0], dict)
-            and non_null[0].get("type") == "object"
-        ):
-            return non_null[0]
 
     if "properties" in schema:
         schema.setdefault("type", "object")

@@ -54,25 +54,31 @@ if TYPE_CHECKING:
 
 from myrm_agent_harness.utils.lru_cache import LRUCache
 
-from .bilibili_extractor import extract_bilibili_subtitle, is_bilibili_url
-from .engine_cache_mixin import FetchEngineCacheMixin
-from .engine_escalation_mixin import FetchEngineEscalationMixin
-from .engine_fetch_mixin import FetchEngineFetchMixin
-from .engine_types import (
+from ..extractors.bilibili_extractor import extract_bilibili_subtitle, is_bilibili_url
+from ..extractors.weixin_extractor import (
+    extract_weixin_article as extract_weixin_article,
+    is_weixin_article_url,
+)
+from ..extractors.youtube_extractor import (
+    extract_youtube_transcript as extract_youtube_transcript,
+    is_youtube_url,
+)
+from ..fetchers.browser_fetcher import BrowserFetcher
+from ..fetchers.http_fetcher import HttpFetcher
+from ..fetchers.stealth_fetcher import StealthFetcher
+from ..http3_probe import get_http3_retry_metrics
+from ..pipeline import ContentPipeline
+from ..router.adaptive_router import AdaptiveRouter, RouterStats
+from .cache_mixin import FetchEngineCacheMixin
+from .escalation_mixin import FetchEngineEscalationMixin
+from .fetch_mixin import FetchEngineFetchMixin
+from .types import (
     AccessStats,
     BackgroundTask,
     CachedDocument,
     FailedResult,
     SuccessResult,
 )
-from .fetchers.browser_fetcher import BrowserFetcher
-from .fetchers.http_fetcher import HttpFetcher
-from .fetchers.stealth_fetcher import StealthFetcher
-from .http3_probe import get_http3_retry_metrics
-from .pipeline import ContentPipeline
-from .router.adaptive_router import AdaptiveRouter, RouterStats
-from .weixin_extractor import extract_weixin_article, is_weixin_article_url
-from .youtube_extractor import extract_youtube_transcript, is_youtube_url
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.browser.pool.config import LaunchMode
@@ -87,6 +93,8 @@ __all__ = [
     "FailedResult",
     "FetchEngine",
     "SuccessResult",
+    "extract_weixin_article",
+    "extract_youtube_transcript",
 ]
 
 
@@ -186,7 +194,7 @@ class FetchEngine(
         """Crawl a single URL, return Document or None."""
         self._ensure_workers_started()
 
-        from .url_normalizer import normalize_url
+        from ..url_normalizer import normalize_url
 
         if not self._allow_private_networks:
             from myrm_agent_harness.core.security.guards.ssrf import validate_url_for_ssrf
@@ -445,7 +453,7 @@ class FetchEngine(
         await self._browser_fetcher.shutdown()
         await self._stealth_fetcher.shutdown()
 
-        from .router.site_experience import get_global_site_experience_store
+        from ..router.site_experience import get_global_site_experience_store
 
         get_global_site_experience_store().shutdown()
 

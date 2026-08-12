@@ -3,7 +3,10 @@
 import time
 from unittest.mock import Mock
 
-from myrm_agent_harness.toolkits.browser.session.network_logger import NetworkLogger, RequestInfo
+from myrm_agent_harness.toolkits.browser.session.network_logger import (
+    NetworkLogger,
+    RequestInfo,
+)
 
 
 class TestRequestInfo:
@@ -125,13 +128,28 @@ class TestNetworkLogger:
         logger = NetworkLogger()
 
         logger._requests.append(
-            RequestInfo(method="GET", url="https://example.com", resource_type="document", timestamp=0.0)
+            RequestInfo(
+                method="GET",
+                url="https://example.com",
+                resource_type="document",
+                timestamp=0.0,
+            )
         )
         logger._requests.append(
-            RequestInfo(method="GET", url="https://api.example.com/data", resource_type="xhr", timestamp=1.0)
+            RequestInfo(
+                method="GET",
+                url="https://api.example.com/data",
+                resource_type="xhr",
+                timestamp=1.0,
+            )
         )
         logger._requests.append(
-            RequestInfo(method="POST", url="https://api.example.com/submit", resource_type="fetch", timestamp=2.0)
+            RequestInfo(
+                method="POST",
+                url="https://api.example.com/submit",
+                resource_type="fetch",
+                timestamp=2.0,
+            )
         )
 
         filtered = logger._filter_requests("api")
@@ -179,10 +197,20 @@ class TestNetworkLogger:
         logger = NetworkLogger()
 
         logger._requests.append(
-            RequestInfo(method="GET", url="https://example.com/1", resource_type="document", timestamp=0.0)
+            RequestInfo(
+                method="GET",
+                url="https://example.com/1",
+                resource_type="document",
+                timestamp=0.0,
+            )
         )
         logger._requests.append(
-            RequestInfo(method="GET", url="https://example.com/2", resource_type="xhr", timestamp=1.0)
+            RequestInfo(
+                method="GET",
+                url="https://example.com/2",
+                resource_type="xhr",
+                timestamp=1.0,
+            )
         )
 
         filtered = logger._filter_requests("all")
@@ -263,7 +291,12 @@ class TestNetworkLogger:
         logger = NetworkLogger()
 
         logger._requests.append(
-            RequestInfo(method="GET", url="https://example.com", resource_type="xhr", timestamp=0.0)
+            RequestInfo(
+                method="GET",
+                url="https://example.com",
+                resource_type="xhr",
+                timestamp=0.0,
+            )
         )
 
         mock_request = Mock()
@@ -489,6 +522,94 @@ class TestNetworkLoggerIntegration:
         assert req.status_text == "Request Failed"
 
 
+class TestNetworkLoggerRedaction:
+    """POST body preview credential redaction.
+
+    post_data_preview is credential-redacted before the 200-char preview cut,
+    covering both intact JSON bodies and bodies whose sensitive value crosses
+    the preview boundary.
+    """
+
+    def _run(self, raw: str) -> str:
+        logger = NetworkLogger()
+        req = Mock()
+        req.method = "POST"
+        req.resource_type = "fetch"
+        req.post_data = raw
+        resp = Mock()
+        resp.request = req
+        resp.status = 200
+        resp.status_text = "OK"
+        logger._on_request(req)
+        logger._on_response(resp)
+        assert logger._requests[0].post_data_preview is not None
+        return logger._requests[0].post_data_preview
+
+    def test_intact_json_password_redacted(self):
+        preview = self._run('{"op":"login","password":"mysecretvalue12345678"}')
+
+        assert "mysecretvalue12345678" not in preview
+
+    def test_intact_json_api_key_redacted(self):
+        preview = self._run('{"token":"sk-proj-abcdefghijklmnop12345678"}')
+
+        assert "sk-proj-abcdefghijklmnop12345678" not in preview
+        assert "***" in preview
+
+    def test_credential_crossing_preview_boundary_redacted(self):
+        """The leak: a JSON value split by the 200-char preview cut previously
+        surfaced as a plaintext fragment (JSON structure broken by the cut)."""
+        body = (
+            '{"op":"login","payload":"'
+            + "x" * 150
+            + '","password":"mysecretvalue12345678"}'
+        )
+        preview = self._run(body)
+
+        assert "mysecretval" not in preview
+        assert "mysecretvalue" not in preview
+
+    def test_form_urlencoded_password_redacted(self):
+        preview = self._run(
+            "grant_type=password&username=u&password=supersecretvalue123"
+        )
+
+        assert "supersecretvalue123" not in preview
+
+    def test_get_method_no_post_preview(self):
+        logger = NetworkLogger()
+        req = Mock()
+        req.method = "GET"
+        req.resource_type = "fetch"
+        req.post_data = None
+        resp = Mock()
+        resp.request = req
+        resp.status = 200
+        resp.status_text = "OK"
+        logger._on_request(req)
+        logger._on_response(resp)
+
+        assert logger._requests[0].post_data_preview is None
+
+    def test_get_summary_redacts_post_body(self):
+        logger = NetworkLogger()
+        req = Mock()
+        req.method = "POST"
+        req.resource_type = "fetch"
+        req.post_data = '{"password":"mysecretvalue12345678"}'
+        resp = Mock()
+        resp.request = req
+        resp.status = 200
+        resp.status_text = "OK"
+        logger._on_request(req)
+        logger._on_response(resp)
+
+        summary = logger.get_summary("all")
+
+        assert "mysecretvalue12345678" not in summary
+        assert "POST body:" in summary
+
+
 class TestNetworkLoggerEdgeCases:
     """Test edge cases and error handling."""
 
@@ -497,7 +618,9 @@ class TestNetworkLoggerEdgeCases:
         logger = NetworkLogger()
 
         mock_request = Mock()
-        type(mock_request).resource_type = property(lambda self: (_ for _ in ()).throw(Exception("Test error")))
+        type(mock_request).resource_type = property(
+            lambda self: (_ for _ in ()).throw(Exception("Test error"))
+        )
 
         logger._on_request(mock_request)
 

@@ -45,33 +45,44 @@ class TestSdkRuntimeEventParsing:
     """Test _parse_sdk_event directly for all event types."""
 
     def test_text_event(self) -> None:
-        event = SdkRuntime._parse_sdk_event(json.dumps({"type": "text", "text": "hello"}), "s1")
+        event = SdkRuntime._parse_sdk_event(
+            json.dumps({"type": "text", "text": "hello"}), "s1"
+        )
         assert event is not None
         assert event.type == RuntimeEventType.TEXT_DELTA
         assert event.data["content"] == "hello"
 
     def test_assistant_event(self) -> None:
-        event = SdkRuntime._parse_sdk_event(json.dumps({"type": "assistant", "content": "hi"}), "s1")
+        event = SdkRuntime._parse_sdk_event(
+            json.dumps({"type": "assistant", "content": "hi"}), "s1"
+        )
         assert event is not None
         assert event.type == RuntimeEventType.TEXT_DELTA
 
     def test_content_block_delta(self) -> None:
-        event = SdkRuntime._parse_sdk_event(json.dumps({"type": "content_block_delta", "text": "chunk"}), "s1")
+        event = SdkRuntime._parse_sdk_event(
+            json.dumps({"type": "content_block_delta", "text": "chunk"}), "s1"
+        )
         assert event is not None
         assert event.type == RuntimeEventType.TEXT_DELTA
 
     def test_thinking_event(self) -> None:
-        event = SdkRuntime._parse_sdk_event(json.dumps({"type": "thinking", "text": "reasoning..."}), "s1")
+        event = SdkRuntime._parse_sdk_event(
+            json.dumps({"type": "thinking", "text": "reasoning..."}), "s1"
+        )
         assert event is not None
         assert event.type == RuntimeEventType.REASONING_DELTA
 
     def test_thinking_empty_returns_none(self) -> None:
-        event = SdkRuntime._parse_sdk_event(json.dumps({"type": "thinking", "text": ""}), "s1")
+        event = SdkRuntime._parse_sdk_event(
+            json.dumps({"type": "thinking", "text": ""}), "s1"
+        )
         assert event is None
 
     def test_tool_use_event(self) -> None:
         event = SdkRuntime._parse_sdk_event(
-            json.dumps({"type": "tool_use", "name": "bash", "input": {}, "id": "tc1"}), "s1"
+            json.dumps({"type": "tool_use", "name": "bash", "input": {}, "id": "tc1"}),
+            "s1",
         )
         assert event is not None
         assert event.type == RuntimeEventType.TOOL_START
@@ -79,7 +90,8 @@ class TestSdkRuntimeEventParsing:
 
     def test_tool_result_event(self) -> None:
         event = SdkRuntime._parse_sdk_event(
-            json.dumps({"type": "tool_result", "tool_use_id": "tc1", "content": "ok"}), "s1"
+            json.dumps({"type": "tool_result", "tool_use_id": "tc1", "content": "ok"}),
+            "s1",
         )
         assert event is not None
         assert event.type == RuntimeEventType.TOOL_RESULT
@@ -102,12 +114,16 @@ class TestSdkRuntimeEventParsing:
         assert event.data["input_tokens"] == 100
 
     def test_error_event_dict(self) -> None:
-        event = SdkRuntime._parse_sdk_event(json.dumps({"type": "error", "error": {"message": "bad request"}}), "s1")
+        event = SdkRuntime._parse_sdk_event(
+            json.dumps({"type": "error", "error": {"message": "bad request"}}), "s1"
+        )
         assert event is not None
         assert event.type == RuntimeEventType.ERROR
 
     def test_error_event_string(self) -> None:
-        event = SdkRuntime._parse_sdk_event(json.dumps({"type": "error", "error": "something broke"}), "s1")
+        event = SdkRuntime._parse_sdk_event(
+            json.dumps({"type": "error", "error": "something broke"}), "s1"
+        )
         assert event is not None
         assert event.type == RuntimeEventType.ERROR
 
@@ -188,7 +204,9 @@ class TestSdkRuntimeRunTurn:
         with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
             [e async for e in rt._do_run_turn("hello", "s1", mcp_servers=mcp)]
 
-        written = b"".join(call.args[0] for call in mock_proc.stdin.write.call_args_list)
+        written = b"".join(
+            call.args[0] for call in mock_proc.stdin.write.call_args_list
+        )
         payload = json.loads(written.split(b"\n")[0])
         assert payload["mcp_servers"] == [
             {
@@ -246,7 +264,9 @@ class TestSdkRuntimeRunTurn:
 
         mock_proc.wait = fake_wait
 
-        with patch("asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+        with patch(
+            "asyncio.create_subprocess_exec", return_value=mock_proc
+        ) as mock_exec:
             [e async for e in rt._do_run_turn("hello", "s1")]
 
         assert mock_exec.call_args[0][0] == "claude"

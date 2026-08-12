@@ -17,6 +17,13 @@ from __future__ import annotations
 
 import json
 
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
+# Replay response bounds: the JS side returns a wider window so a credential
+# crossing the final output cut stays structurally intact for redaction.
+_REPLAY_RAW_WINDOW = 16000
+_REPLAY_OUTPUT_MAX = 8000
+
 
 class BrowserSessionNetworkMixin:
     def get_console_log(self) -> str:
@@ -75,12 +82,15 @@ class BrowserSessionNetworkMixin:
             async () => {{
                 const resp = await fetch({url_js}, {fetch_opts});
                 const text = await resp.text();
-                return text.substring(0, 8000);
+                return text.substring(0, {_REPLAY_RAW_WINDOW});
             }}
         """
 
         try:
             result = await page.evaluate(js_code)
-            return str(result) if result else "Empty response"
+            raw = str(result) if result else ""
+            if not raw:
+                return "Empty response"
+            return redact_sensitive_text(raw)[:_REPLAY_OUTPUT_MAX]
         except Exception:
             return "Error replaying request"

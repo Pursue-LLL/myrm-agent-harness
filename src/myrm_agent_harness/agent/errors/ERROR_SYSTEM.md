@@ -19,7 +19,7 @@
 | **硬错误** | `raise ToolError/BrowserError/WebSearchError` | 红色错误提示 + `status="error"` | 操作失败、不可恢复 |
 | **软错误** | 自行 catch 返回错误字符串 | 无红色提示，LLM 自行判断 | 可降级、不影响主流程 |
 
-**硬错误**经过中间件统一处理（`_format_tool_error` → `format_for_llm()` 协议），LLM 收到结构化诊断信息。
+**硬错误**经过中间件统一处理（`format_tool_error` → `format_for_llm()` 协议），LLM 收到结构化诊断信息。
 
 **软错误**由工具自行处理，返回 `"Error: ..."` 或 `"Failed to ..."` 字符串。这些错误不触发前端红色提示，LLM 自行决定是否重试。这是有意为之的设计——memory、cron、skill 等辅助工具的失败不应中断主流程。
 
@@ -34,7 +34,7 @@ tool_interceptor_middleware  ← 统一 catch 点（含超时和重试保护）
     │ Timeout 保护（asyncio.timeout）：bash/browser 120s, file 30s, 默认 60s
     │ 智能重试（max_retries=1）：仅对瞬态错误，bash 不重试（不幂等）
     │ 错误历史记录：每次尝试的 attempt/error/elapsed_ms
-    │ _format_tool_error(): 调用 format_for_llm() 协议
+    │ format_tool_error(): 调用 format_for_llm() 协议
     │ 构建 ToolMessage(status="error", content=格式化后的错误文本)
     ↓
 event_handlers._handle_tool_result()  ← 事件转换层
@@ -59,7 +59,7 @@ ProgressSteps.tsx  ← UI 渲染
 中间件通过 duck typing 调用异常的 `format_for_llm()` 方法。任何异常只要实现该方法，其结构化诊断信息就会自动传递给 LLM。
 
 ```python
-# tool_interceptor_middleware._format_tool_error() 的核心逻辑：
+# _tool_helpers.format_tool_error() 的核心逻辑（tool_interceptor_middleware 的 execute_with_retry 捕获后调用）：
 format_fn = getattr(e, "format_for_llm", None)
 if callable(format_fn):
     return format_fn()           # 优先使用结构化格式
@@ -176,9 +176,9 @@ WebSearchError
 
 ## 中间件拦截逻辑
 
-**文件**：`agent/middlewares/tool_interceptor_middleware.py`
+**文件**：`agent/middlewares/_tool_helpers.py`（`format_tool_error`，由 `tool_interceptor_middleware` 的 `execute_with_retry` 捕获异常后调用）
 
-`_format_tool_error()` 函数处理三种情况（按优先级）：
+`format_tool_error()` 函数处理三种情况（按优先级），输出统一经 `redact_sensitive_text` + `sanitize` 脱敏：
 
 1. **异常实现了 `format_for_llm()`** → 调用获取结构化输出（ToolError、BrowserError、WebSearchError 等）
 2. **异常有 `user_hint` 属性** → 拼接到错误消息后（兼容 fallback）
@@ -490,7 +490,7 @@ error_msg = custom_provider.get_message(error_kind.value, user_locale)
 | `utils/errors.py` | ToolError 定义、format_error_message、ModelOutputValidator |
 | `toolkits/browser/exceptions.py` | BrowserError 异常树（含智能诊断） |
 | `toolkits/web_search/exceptions.py` | WebSearchError 异常树（含 retryable 信息） |
-| `agent/middlewares/tool_interceptor_middleware.py` | 统一异常拦截中间件（`_format_tool_error`） |
+| `agent/middlewares/_tool_helpers.py` | 工具异常格式化（`format_tool_error`：format_for_llm 协议 + 脱敏兜底） |
 | `agent/streaming/event_handlers.py` | 错误事件转换（ToolMessage → SSE 事件） |
 | `toolkits/execution/executors/common/error_handler.py` | Sandbox 错误处理装饰器 |
 

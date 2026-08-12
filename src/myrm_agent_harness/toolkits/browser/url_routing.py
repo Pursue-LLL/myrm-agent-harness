@@ -22,6 +22,8 @@ import logging
 import socket
 from urllib.parse import urlparse
 
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
 logger = logging.getLogger(__name__)
 
 _PRIVATE_HOSTNAME_EXACT: frozenset[str] = frozenset({"localhost"})
@@ -81,7 +83,11 @@ def is_private_url(url: str) -> bool:
         return _resolve_is_private(hostname)
 
     except Exception as exc:
-        logger.debug("URL privacy check failed for %s: %s", url, exc)
+        logger.debug(
+            "URL privacy check failed for %s: %s",
+            redact_sensitive_text(url)[:80],
+            exc,
+        )
         return False
 
 

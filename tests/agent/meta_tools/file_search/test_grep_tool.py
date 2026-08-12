@@ -340,6 +340,40 @@ class TestCreateGrepTool:
                 config=runnable_config,
             )
             assert isinstance(result, str)
+            assert "sk-abc123def456" not in result
+            assert "***" in result
+
+    async def test_redact_cli_flag_equals_output(
+        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
+    ) -> None:
+        (workspace / "cli.sh").write_text("run --api-key=sk-abcdefghijklmnop1234\n")
+        tool_fn = create_grep_tool()
+        with patch(
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
+            return_value=mock_executor,
+        ):
+            result = await tool_fn.ainvoke(
+                {"pattern": "api-key"},
+                config=runnable_config,
+            )
+            assert "sk-abcdefghijklmnop1234" not in result
+            assert "sk-abc" in result
+
+    async def test_redact_dotted_key_output(
+        self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig
+    ) -> None:
+        (workspace / "app.conf").write_text("app.api.key=sk-abcdefghijklmnop1234\n")
+        tool_fn = create_grep_tool()
+        with patch(
+            "myrm_agent_harness.agent.meta_tools.file_search.grep_tool.ensure_executor",
+            return_value=mock_executor,
+        ):
+            result = await tool_fn.ainvoke(
+                {"pattern": "app.api.key"},
+                config=runnable_config,
+            )
+            assert "sk-abcdefghijklmnop1234" not in result
+            assert "sk-abc" in result
 
     async def test_redos_protection(
         self, workspace: Path, mock_executor: MagicMock, runnable_config: RunnableConfig

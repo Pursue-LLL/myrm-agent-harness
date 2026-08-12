@@ -379,8 +379,8 @@ def classify_failover_reason(exc: Exception) -> FailoverReason:
 
     Priority (specific → broad):
       thinking_signature → duplicate_tool_use_id → image_too_large → long_context_tier → billing →
-      rate_limit → overloaded → auth → provider_format → safety_block →
-      provider_policy_blocked → model_not_found → context_overflow → timeout → UNKNOWN
+      rate_limit → auth → provider_format → safety_block → provider_policy_blocked →
+      model_not_found → overloaded → context_overflow → timeout → UNKNOWN
     """
     if isinstance(exc, TypeError) and _LITELLM_INIT_BUG_RE.search(str(exc)):
         return FailoverReason.TIMEOUT

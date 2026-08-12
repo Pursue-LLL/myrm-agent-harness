@@ -9,11 +9,7 @@ Layered single-page web fetch engine with L1 HTTP / L2 Browser / L3 Stealth fall
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Entry point. Re-exports FetchEngine, result types, and global instance. | ✅ |
-| engine.py | Core | FetchEngine — tiered fetcher pool entry (mixins: cache / fetch / escalation); WeChat URLs log fast-path vs browser degradation outcomes | ✅ |
-| engine_types.py | Core | CachedDocument, AccessStats, BackgroundTask, result aliases | ✅ |
-| engine_cache_mixin.py | Core | Cache, coalescing, SWR background revalidation mixin | ✅ |
-| engine_fetch_mixin.py | Core | L1/L2/L3 fetch, degradation, router feedback mixin | ✅ |
-| engine_escalation_mixin.py | Core | L4 remote escalation + bilibili cookie loader mixin | ✅ |
+| engine/ | Core | FetchEngine sub-package — tiered fetcher pool (base + cache/fetch/escalation mixins + shared types). See `engine/_ARCH.md`. | ✅ |
 | pipeline.py | Core | ContentPipeline — HTML to clean Markdown conversion. | ✅ |
 | web_fetch_agent_tools.py | Core | LangChain @tool factory for fetch_full_content / fetch_and_extract. | ✅ |
 | spill.py | Util | UECD wrapper — head/tail preview + evicted persist for fetch_full_content. | ✅ |
@@ -31,6 +27,7 @@ Layered single-page web fetch engine with L1 HTTP / L2 Browser / L3 Stealth fall
 
 | Submodule | Description |
 |-----------|-------------|
+| engine/ | FetchEngine 执行引擎子包（base + cache/fetch/escalation mixin + types）。 |
 | fetchers/ | L1/L2/L3 fetcher implementations (HTTP, Browser, Stealth). |
 | router/ | AdaptiveRouter — self-learning fetcher selection with cost/latency optimization. |
 | escalation/ | L4 remote fetch hook — Protocol, ContextVar binding, metrics; vendors in server layer. |

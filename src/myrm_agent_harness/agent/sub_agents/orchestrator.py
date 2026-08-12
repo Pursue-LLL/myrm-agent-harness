@@ -461,6 +461,7 @@ async def run_chain(
         Final SubAgentResult from the last step.
     """
     previous_result = ""
+    batch_id = uuid.uuid4().hex[:8]
     last_result = SubAgentResult(
         success=False,
         task_id="chain",
@@ -474,7 +475,7 @@ async def run_chain(
         if cancel_token and cancel_token.is_cancelled:
             last_result = SubAgentResult(
                 success=False,
-                task_id=f"chain-{idx}-{agent_type}",
+                task_id=f"chain-{batch_id}-{idx}-{agent_type}",
                 agent_type=agent_type,
                 error="Chain cancelled by user",
                 completed_at=time.time(),
@@ -482,7 +483,9 @@ async def run_chain(
             )
             return last_result
 
-        task_id = f"chain-{idx}-{agent_type}"
+        # Batch-scoped id keeps repeated/parallel chain delegations unique on the
+        # same manager (completed business nodes persist in _children_results).
+        task_id = f"chain-{batch_id}-{idx}-{agent_type}"
         task_desc = task_template.replace("{previous}", previous_result)
 
         last_result = await manager.spawn_child(

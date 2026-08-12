@@ -32,7 +32,7 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar, copy_context
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Literal, Protocol, runtime_checkable
+from typing import Literal, ParamSpec, Protocol, TypeVar, overload, runtime_checkable
 
 
 @dataclass(frozen=True, slots=True)
@@ -549,7 +549,21 @@ async def with_user_credentials(
         user_credentials_ctx.reset(token_ctx)
 
 
-def propagate_user_credentials[P, R](fn: Callable[P, R]) -> Callable[P, R]:
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+@overload
+def propagate_user_credentials(  # noqa: UP047
+    fn: Callable[_P, Awaitable[_R]],
+) -> Callable[_P, Awaitable[_R]]: ...
+
+
+@overload
+def propagate_user_credentials(fn: Callable[_P, _R]) -> Callable[_P, _R]: ...  # noqa: UP047
+
+
+def propagate_user_credentials(fn: Callable[_P, _R]) -> Callable[_P, _R]:  # noqa: UP047
     """Capture the current context (including user_credentials_ctx) and return a wrapped function.
 
     When called from any other thread, background worker, or pool, the wrapped function
@@ -562,18 +576,18 @@ def propagate_user_credentials[P, R](fn: Callable[P, R]) -> Callable[P, R]:
 
     if inspect.iscoroutinefunction(fn):
 
-        async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        async def async_wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
             token_ctx = user_credentials_ctx.set(credentials)
             try:
-                return await fn(*args, **kwargs)
+                return await fn(*args, **kwargs)  # type: ignore[no-any-return]
             finally:
                 user_credentials_ctx.reset(token_ctx)
 
-        return async_wrapper  # type: ignore
+        return async_wrapper  # type: ignore[return-value]
 
     ctx = copy_context()
 
-    def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+    def sync_wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
         return ctx.run(fn, *args, **kwargs)
 
     return sync_wrapper

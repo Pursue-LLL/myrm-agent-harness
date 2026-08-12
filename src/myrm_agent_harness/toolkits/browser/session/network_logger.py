@@ -24,12 +24,19 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from weakref import WeakKeyDictionary
 
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
 if TYPE_CHECKING:
     from patchright.async_api import Page, Request, Response
 
 logger = logging.getLogger(__name__)
 
 _STATIC_RESOURCE_TYPES = frozenset({"image", "stylesheet", "font", "media"})
+# Bounded window over the POST body passed to redaction. Redaction runs before
+# the 200-char preview cut so a credential split by that cut stays masked; the
+# window keeps event-callback latency bounded on large upload bodies while
+# always covering the preview and its enclosing JSON structure.
+_RAW_PREVIEW_WINDOW = 4096
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,7 +51,7 @@ class RequestInfo:
         status: HTTP status code (None if request failed)
         status_text: HTTP status text (e.g., "OK", "Not Found")
         duration_ms: Request duration in milliseconds
-        post_data_preview: First 200 chars of POST body (for GraphQL/API identification)
+        post_data_preview: First 200 chars of the POST body (credential-redacted before the preview cut)
     """
 
     method: str
@@ -169,7 +176,12 @@ class NetworkLogger:
             if request.method in ("POST", "PUT", "PATCH"):
                 raw = request.post_data
                 if raw:
-                    post_data_preview = raw[:200]
+                    # Redact before truncating: the preview cut could otherwise
+                    # leave a credential fragment shorter than the redaction
+                    # patterns' minimum length.
+                    post_data_preview = redact_sensitive_text(
+                        raw[:_RAW_PREVIEW_WINDOW]
+                    )[:200]
 
             info = RequestInfo(
                 method=request.method,
@@ -248,7 +260,9 @@ class NetworkLogger:
 
         if req.status is not None:
             status_marker = "OK" if req.status < 400 else "FAIL"
-            parts.append(f"   [{status_marker}] Status: {req.status} {req.status_text or ''}")
+            parts.append(
+                f"   [{status_marker}] Status: {req.status} {req.status_text or ''}"
+            )
         elif req.status_text:
             parts.append(f"   [FAIL] {req.status_text}")
 
@@ -277,7 +291,9 @@ class NetworkLogger:
             case "all":
                 return list(self._requests)
             case _:
-                logger.warning("Unknown filter mode: %s, defaulting to 'api'", filter_mode)
+                logger.warning(
+                    "Unknown filter mode: %s, defaulting to 'api'", filter_mode
+                )
                 return [r for r in self._requests if r.is_api_request]
 
     def clear(self) -> None:

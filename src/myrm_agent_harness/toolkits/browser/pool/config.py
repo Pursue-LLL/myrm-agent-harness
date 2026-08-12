@@ -114,7 +114,9 @@ class MemoryGuardConfig:
 
     def __post_init__(self) -> None:
         if not 50.0 <= self.max_memory_percent <= 99.0:
-            msg = f"max_memory_percent must be in [50, 99], got {self.max_memory_percent}"
+            msg = (
+                f"max_memory_percent must be in [50, 99], got {self.max_memory_percent}"
+            )
             raise ValueError(msg)
         if self.check_interval <= 0:
             msg = f"check_interval must be > 0, got {self.check_interval}"
@@ -171,7 +173,9 @@ class NavigationWaitConfig:
     """
 
     wait_timeout_ms: int = 2000
-    strategy: str = "smart"  # "networkidle" | "dom_stable" | "hybrid" | "smart" (recommended)
+    strategy: str = (
+        "smart"  # "networkidle" | "dom_stable" | "hybrid" | "smart" (recommended)
+    )
     quiet_ms: int = 500  # DOM stable quiet period
     grace_period_ms: int = 200  # hybrid strategy grace period
 
@@ -247,9 +251,11 @@ class HumanizeMode(StrEnum):
 class HumanizeConfig:
     """Interaction humanization parameters.
 
-    Controls click/type delay distributions and optional Bézier mouse movement.
-    Three presets via ``from_mode()``: FAST (no-op), DEFAULT (Gaussian delays),
-    CAREFUL (Gaussian + Bézier trajectory for reCAPTCHA v3 stealth).
+    Controls click/type delay distributions, optional Bézier mouse movement, and
+    wheel-burst scroll humanization. Three presets via ``from_mode()``: FAST
+    (single wheel event per scroll, no bursts), DEFAULT (Gaussian delays + wheel
+    bursts), CAREFUL (Gaussian + Bézier trajectory + accel/cruise/decel scroll
+    rhythm + overshoot correction for reCAPTCHA v3 stealth).
     """
 
     mode: HumanizeMode = HumanizeMode.FAST
@@ -272,6 +278,25 @@ class HumanizeConfig:
     overshoot_px_min: float = 3.0
     overshoot_px_max: float = 6.0
 
+    # Wheel-burst scroll humanization (FAST sends a single wheel event; DEFAULT/CAREFUL burst).
+    scroll_step_min: int = 20
+    scroll_step_max: int = 40
+    scroll_gap_min: int = 8
+    scroll_gap_max: int = 20
+    scroll_delta_base: tuple[int, int] = (80, 130)
+    scroll_delta_variance: float = 0.2
+    scroll_accel_delta: tuple[int, int] = (80, 100)
+    scroll_decel_delta: tuple[int, int] = (60, 90)
+    scroll_pause_fast: tuple[int, int] = (30, 80)
+    scroll_pause_slow: tuple[int, int] = (80, 200)
+    scroll_accel_steps: tuple[int, int] = (2, 3)
+    scroll_decel_steps: tuple[int, int] = (2, 3)
+    scroll_overshoot_chance: float = 0.1
+    scroll_overshoot_px: tuple[int, int] = (50, 150)
+    scroll_settle_delay: tuple[int, int] = (300, 600)
+    scroll_pre_move_delay: tuple[int, int] = (100, 300)
+    scroll_reading_pause_chance: float = 0.15
+
     def __post_init__(self) -> None:
         if self.click_delay_min > self.click_delay_max:
             msg = f"click_delay_min ({self.click_delay_min}) > click_delay_max ({self.click_delay_max})"
@@ -285,6 +310,37 @@ class HumanizeConfig:
         if self.bezier_min_steps > self.bezier_max_steps:
             msg = f"bezier_min_steps ({self.bezier_min_steps}) > bezier_max_steps ({self.bezier_max_steps})"
             raise ValueError(msg)
+        if self.scroll_step_min > self.scroll_step_max:
+            msg = f"scroll_step_min ({self.scroll_step_min}) > scroll_step_max ({self.scroll_step_max})"
+            raise ValueError(msg)
+        if self.scroll_gap_min > self.scroll_gap_max:
+            msg = f"scroll_gap_min ({self.scroll_gap_min}) > scroll_gap_max ({self.scroll_gap_max})"
+            raise ValueError(msg)
+        if not 0.0 <= self.scroll_delta_variance <= 1.0:
+            msg = f"scroll_delta_variance must be in [0, 1], got {self.scroll_delta_variance}"
+            raise ValueError(msg)
+        if not 0.0 <= self.scroll_overshoot_chance <= 1.0:
+            msg = f"scroll_overshoot_chance must be in [0, 1], got {self.scroll_overshoot_chance}"
+            raise ValueError(msg)
+        if not 0.0 <= self.scroll_reading_pause_chance <= 1.0:
+            msg = f"scroll_reading_pause_chance must be in [0, 1], got {self.scroll_reading_pause_chance}"
+            raise ValueError(msg)
+        for name in (
+            "scroll_delta_base",
+            "scroll_accel_delta",
+            "scroll_decel_delta",
+            "scroll_pause_fast",
+            "scroll_pause_slow",
+            "scroll_accel_steps",
+            "scroll_decel_steps",
+            "scroll_overshoot_px",
+            "scroll_settle_delay",
+            "scroll_pre_move_delay",
+        ):
+            lo, hi = getattr(self, name)
+            if lo > hi:
+                msg = f"{name} range ({lo}, {hi}) is invalid: min > max"
+                raise ValueError(msg)
 
     @classmethod
     def from_mode(cls, mode: HumanizeMode) -> HumanizeConfig:
@@ -301,15 +357,21 @@ class HumanizeConfig:
                 type_delay_mean=80.0,
                 type_delay_sigma=25.0,
                 enable_bezier_mouse=True,
+                scroll_pause_fast=(100, 200),
+                scroll_pause_slow=(250, 600),
+                scroll_settle_delay=(400, 800),
+                scroll_pre_move_delay=(150, 400),
             )
 
 
-_BROWSER_MODE_TO_HUMANIZE: MappingProxyType[BrowserMode, HumanizeMode] = MappingProxyType(
-    {
-        BrowserMode.MINIMAL: HumanizeMode.FAST,
-        BrowserMode.STANDARD: HumanizeMode.DEFAULT,
-        BrowserMode.DEFENSIVE: HumanizeMode.CAREFUL,
-    },
+_BROWSER_MODE_TO_HUMANIZE: MappingProxyType[BrowserMode, HumanizeMode] = (
+    MappingProxyType(
+        {
+            BrowserMode.MINIMAL: HumanizeMode.FAST,
+            BrowserMode.STANDARD: HumanizeMode.DEFAULT,
+            BrowserMode.DEFENSIVE: HumanizeMode.CAREFUL,
+        },
+    )
 )
 
 
@@ -328,24 +390,26 @@ def _navigation_wait_for_mode(mode: BrowserMode) -> NavigationWaitConfig:
         return NavigationWaitConfig(wait_timeout_ms=3000)
 
 
-_MODE_BLUEPRINTS: MappingProxyType[BrowserMode, _ModeRobustnessBlueprint] = MappingProxyType(
-    {
-        BrowserMode.MINIMAL: _ModeRobustnessBlueprint(
-            throttle=ThrottleMode.NONE,
-            memory_guard_enabled=False,
-            circuit_breaker_enabled=False,
-        ),
-        BrowserMode.STANDARD: _ModeRobustnessBlueprint(
-            throttle=ThrottleMode.DOMAIN,
-            memory_guard_enabled=False,
-            circuit_breaker_enabled=False,
-        ),
-        BrowserMode.DEFENSIVE: _ModeRobustnessBlueprint(
-            throttle=ThrottleMode.DOMAIN,
-            memory_guard_enabled=True,
-            circuit_breaker_enabled=True,
-        ),
-    },
+_MODE_BLUEPRINTS: MappingProxyType[BrowserMode, _ModeRobustnessBlueprint] = (
+    MappingProxyType(
+        {
+            BrowserMode.MINIMAL: _ModeRobustnessBlueprint(
+                throttle=ThrottleMode.NONE,
+                memory_guard_enabled=False,
+                circuit_breaker_enabled=False,
+            ),
+            BrowserMode.STANDARD: _ModeRobustnessBlueprint(
+                throttle=ThrottleMode.DOMAIN,
+                memory_guard_enabled=False,
+                circuit_breaker_enabled=False,
+            ),
+            BrowserMode.DEFENSIVE: _ModeRobustnessBlueprint(
+                throttle=ThrottleMode.DOMAIN,
+                memory_guard_enabled=True,
+                circuit_breaker_enabled=True,
+            ),
+        },
+    )
 )
 
 
@@ -357,7 +421,9 @@ def _default_rate_limiter(throttle: ThrottleMode) -> RateLimiterConfig:
 
 def _default_memory_guard(enabled: bool) -> MemoryGuardConfig:
     if enabled:
-        return MemoryGuardConfig(enabled=True, max_memory_percent=85.0, check_interval=5)
+        return MemoryGuardConfig(
+            enabled=True, max_memory_percent=85.0, check_interval=5
+        )
     return MemoryGuardConfig(enabled=False)
 
 
@@ -398,7 +464,9 @@ def _policy_from_blueprint(bp: _ModeRobustnessBlueprint) -> RobustnessPolicy:
     )
 
 
-def _robustness_structurally_matches_mode(policy: RobustnessPolicy, mode: BrowserMode) -> bool:
+def _robustness_structurally_matches_mode(
+    policy: RobustnessPolicy, mode: BrowserMode
+) -> bool:
     bp = _blueprint_for_mode(mode)
     return (
         policy.rate_limiter.mode == bp.throttle
@@ -436,7 +504,9 @@ class BrowserConfig:
     extension_auth_token: str | None = None
     max_concurrent_pages: int = 30
     idle_timeout_seconds: int = 300
-    resource_block: ResourceBlockConfig = field(default_factory=_resource_block_standard)
+    resource_block: ResourceBlockConfig = field(
+        default_factory=_resource_block_standard
+    )
     default_emulation: EmulationConfig | None = None
     navigation_wait: NavigationWaitConfig | None = None
     robustness: RobustnessPolicy | None = None
@@ -451,13 +521,19 @@ class BrowserConfig:
             msg = f"idle_timeout_seconds must be >= 0 (0 disables idle eviction), got {self.idle_timeout_seconds}"
             raise ValueError(msg)
         if self.default_emulation is None:
-            object.__setattr__(self, "default_emulation", _default_emulation_for_mode(self.mode))
+            object.__setattr__(
+                self, "default_emulation", _default_emulation_for_mode(self.mode)
+            )
         if self.navigation_wait is None:
-            object.__setattr__(self, "navigation_wait", _navigation_wait_for_mode(self.mode))
+            object.__setattr__(
+                self, "navigation_wait", _navigation_wait_for_mode(self.mode)
+            )
         if self.humanize is None:
             object.__setattr__(self, "humanize", _humanize_for_mode(self.mode))
         if self.robustness is None:
-            object.__setattr__(self, "robustness", RobustnessPolicy.from_mode(self.mode))
+            object.__setattr__(
+                self, "robustness", RobustnessPolicy.from_mode(self.mode)
+            )
         elif not _robustness_structurally_matches_mode(self.robustness, self.mode):
             msg = (
                 "robustness is not structurally compatible with mode "

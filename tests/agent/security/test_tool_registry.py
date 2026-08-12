@@ -331,17 +331,20 @@ class TestCheckSafetyCoverage:
         import io
         import logging
 
-        from myrm_agent_harness.core.security.tool_registry import BUILTIN_TOOL_NAMES, _check_safety_coverage
+        from myrm_agent_harness.core.security.tool_registry import (
+            _check_safety_coverage,
+            registry,
+        )
 
         fake_tool = "__test_fake_builtin_tool__"
         monkeypatch.setattr(
-            "myrm_agent_harness.core.security.tool_registry.BUILTIN_TOOL_NAMES", BUILTIN_TOOL_NAMES | {fake_tool}
+            registry, "BUILTIN_TOOL_NAMES", registry.BUILTIN_TOOL_NAMES | {fake_tool}
         )
 
         log_capture = io.StringIO()
         handler = logging.StreamHandler(log_capture)
         handler.setLevel(logging.WARNING)
-        logger = logging.getLogger("myrm_agent_harness.core.security.tool_registry_safety")
+        logger = logging.getLogger("myrm_agent_harness.core.security.tool_registry.safety")
         logger.addHandler(handler)
         try:
             _check_safety_coverage()
@@ -360,7 +363,7 @@ class TestCheckSafetyCoverage:
         log_capture = io.StringIO()
         handler = logging.StreamHandler(log_capture)
         handler.setLevel(logging.WARNING)
-        logger = logging.getLogger("myrm_agent_harness.core.security.tool_registry_safety")
+        logger = logging.getLogger("myrm_agent_harness.core.security.tool_registry.safety")
         logger.addHandler(handler)
         try:
             _check_safety_coverage()

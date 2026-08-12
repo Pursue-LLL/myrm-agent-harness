@@ -4,11 +4,11 @@ Scans and redacts sensitive information (API keys, tokens, absolute paths,
 credentials, PEM keys, DB connection strings) from skill files before export.
 Two-stage design: scan → return structured Diff → user confirms → apply.
 
-Reuses proven patterns from core/security/redact.py (runtime redactor) to
+Reuses proven patterns from core/security/redact/patterns.py (runtime redactor) to
 ensure export-time detection parity with runtime masking.
 
 [INPUT]
-- core.security.redact (POS: Compiled regex patterns for token prefix and context-based detection)
+- core.security.redact.patterns (POS: Compiled regex patterns for token prefix and context-based detection)
 
 [OUTPUT]
 - Redaction: TypedDict — single redaction finding
@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass
 from typing import TypedDict
 
-from myrm_agent_harness.core.security.redact import (
+from myrm_agent_harness.core.security.redact.patterns import (
     _AUTH_HEADER_RE,
     _CLI_FLAG_RE,
     _DB_CONNSTR_RE,
@@ -64,6 +64,13 @@ _WINDOWS_PATH_RE = re.compile(
 )
 
 
+class _ScanMatch(TypedDict):
+    start: int
+    end: int
+    replacement: str
+    reason: str
+
+
 class Redaction(TypedDict):
     line_number: int
     original: str
@@ -81,9 +88,9 @@ class SanitizationResult:
 class ContentSanitizer:
     """Skill content sanitizer for export-time privacy protection."""
 
-    def _scan_line(self, line: str) -> list[dict]:
+    def _scan_line(self, line: str) -> list[_ScanMatch]:
         """Scan a single line for all sensitive patterns. Returns match info list."""
-        matches: list[dict] = []
+        matches: list[_ScanMatch] = []
 
         # 1. Token prefix patterns (28 formats: ghp_, AKIA, sk_live_, etc.)
         for m in _PREFIX_RE.finditer(line):
@@ -238,7 +245,7 @@ class ContentSanitizer:
                     line_matches.sort(key=lambda x: x["start"], reverse=True)
 
                     # Deduplicate overlapping matches (keep the longest)
-                    filtered: list[dict] = []
+                    filtered: list[_ScanMatch] = []
                     for match_info in line_matches:
                         overlaps = False
                         for existing in filtered:
@@ -281,7 +288,9 @@ class ContentSanitizer:
             try:
                 text_content = content.decode("utf-8")
             except UnicodeDecodeError:
-                return SanitizationResult(is_safe=True, redactions=[], sanitized_content=content)
+                # Binary content cannot be treated as text — return an empty string
+                # so the result keeps its ``str`` contract.
+                return SanitizationResult(is_safe=True, redactions=[], sanitized_content="")
         else:
             text_content = content
 

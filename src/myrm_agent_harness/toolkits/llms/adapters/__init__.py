@@ -1,4 +1,4 @@
-"""LLM layer: LangChain , messageconverts, handles, toolcallsparse, Schema normalize"""
+"""LLM adapter layer: LangChain LiteLLM chat model, message converters, tool-call parsing, and schema normalization."""
 
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM, clean_model_kwargs
 from myrm_agent_harness.toolkits.llms.adapters.converters import (

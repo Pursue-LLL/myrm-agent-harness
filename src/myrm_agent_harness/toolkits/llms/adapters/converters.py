@@ -57,20 +57,20 @@ logger = logging.getLogger(__name__)
 
 
 def lc_tool_call_to_openai_tool_call(tool_call: ToolCall) -> dict[str, Any]:
-    """将 LangChain   ToolCall Convert is  OpenAI Format"""
+    """Convert a LangChain ToolCall to the OpenAI tool_call format."""
     return {
         "type": "function",
         "id": tool_call["id"],
         "function": {
             "name": tool_call["name"],
-            # sort_keys=True  ensure  JSON Keysequential确定性， avoid 破坏 KV Cache
+            # sort_keys=True ensures deterministic JSON key order, preserving KV cache hits
             "arguments": json.dumps(tool_call["args"], sort_keys=True),
         },
     }
 
 
 def ensure_arguments_json_string(tool_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """ensure  tool_calls  in   arguments 是Valid  JSON string。
+    """Ensure tool_calls arguments are valid JSON strings.
 
     Handles dict→JSON conversion, None→"{}", and validates existing strings.
     Some providers (MiniMax code model) reject non-JSON arguments with 400.
@@ -102,7 +102,7 @@ def ensure_arguments_json_string(tool_calls: list[dict[str, Any]]) -> list[dict[
 
 
 def convert_message_to_dict(message: BaseMessage) -> dict[str, Any]:
-    """将 LangChain 消息Convert is  LiteLLM DictFormat"""
+    """Convert a LangChain message to the LiteLLM dict format."""
     message_dict: dict[str, Any] = {"content": message.content}
     if isinstance(message, ChatMessage):
         message_dict["role"] = message.role
@@ -110,17 +110,17 @@ def convert_message_to_dict(message: BaseMessage) -> dict[str, Any]:
         message_dict["role"] = "user"
     elif isinstance(message, AIMessage):
         message_dict["role"] = "assistant"
-        # ThinkingBlockCleaner 已按 tool_calls 选择性清理历史 reasoning_content
+        # ThinkingBlockCleaner has already selectively removed stale reasoning_content by tool_calls
         if "reasoning_content" in message.additional_kwargs:
             message_dict["reasoning_content"] = message.additional_kwargs["reasoning_content"]
-        # Process function_call（OpenAI deprecated Format）
+        # Process function_call (OpenAI deprecated format)
         if "function_call" in message.additional_kwargs:
             message_dict["function_call"] = message.additional_kwargs["function_call"]
-        # Process tool_calls（优先 using  message.tool_calls，其次 using  additional_kwargs）
+        # Process tool_calls (prefer message.tool_calls, fall back to additional_kwargs)
         if message.tool_calls:
             message_dict["tool_calls"] = [lc_tool_call_to_openai_tool_call(tc) for tc in message.tool_calls]
         elif "tool_calls" in message.additional_kwargs:
-            #  ensure  arguments 是 JSON string
+            # ensure arguments are JSON strings
             message_dict["tool_calls"] = ensure_arguments_json_string(message.additional_kwargs["tool_calls"])
     elif isinstance(message, SystemMessage):
         message_dict["role"] = "system"
@@ -183,18 +183,18 @@ def _convert_raw_tool_call_to_langchain(
     tc: ToolCallDict,
     tool_schemas: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> tuple[ToolCall | None, dict[str, Any] | None]:
-    """将originalToolCallConvert is  LangChain ToolCall Object
+    """Convert an OpenAI-format tool call to a LangChain ToolCall object.
 
     Args:
-        tc: OpenAI-format tool callDict
+        tc: OpenAI-format tool call dict
 
     Returns:
-        LangChain ToolCall Object，Parsing failedReturn None
+        LangChain ToolCall object; returns None on parsing failure
     """
     try:
         args = tc["function"]["arguments"]
 
-        #  ensure  args 是 JSON string
+        # ensure args are a JSON string
         if isinstance(args, dict):
             args = json.dumps(args, sort_keys=True)
 
@@ -204,12 +204,12 @@ def _convert_raw_tool_call_to_langchain(
             tool_call_id = f"call_{uuid4().hex[:24]}"
             logger.warning(f" Generate tool_call_id: {tc['function']['name']} -> {tool_call_id}")
 
-        # ProcessTool名称（移除NamespacePrefix）
+        # Process tool name (strip namespace prefixes)
         raw_tool_name = tc["function"]["name"]
         tool_name = raw_tool_name
         if ":" in tool_name:
             tool_name = tool_name.split(":")[-1]
-            logger.warning(f" 修正Tool名称: {raw_tool_name} -> {tool_name}")
+            logger.warning(f" Corrected tool name: {raw_tool_name} -> {tool_name}")
 
         # ParseParameter JSON
         parsed_args, recovery = _parse_tool_call_args_result(
@@ -255,18 +255,18 @@ def _parse_tool_call_args(
     tool_name: str,
     tool_schema: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """ParseToolCallParameter
+    """Parse tool call parameters.
 
     xAI/Grok models encode HTML entities in tool call argument values
     (e.g. ``&&`` → ``&amp;&amp;``). After JSON parsing, all string values are
     recursively decoded to restore the original content.
 
     Args:
-        args: ParameterString or Dict
-        tool_name: Tool名称（ for Log）
+        args: Parameter string or dict
+        tool_name: Tool name (for logging)
 
     Returns:
-        Parse后 ParameterDict（HTML entities  already Decode）
+        Parsed parameter dict (HTML entities already decoded)
     """
     parsed, recovery = _parse_tool_call_args_result(args, tool_name, tool_schema)
 
@@ -314,7 +314,7 @@ def convert_dict_to_message(
     available_tools: list[str] | None = None,
     tool_schemas: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> BaseMessage:
-    """将DictFormat 消息Convert is  LangChain BaseMessage"""
+    """Convert a dict-format message to a LangChain BaseMessage."""
     role = _dict["role"]
     if role == "user":
         return HumanMessage(content=_dict["content"], name=_dict.get("name"))

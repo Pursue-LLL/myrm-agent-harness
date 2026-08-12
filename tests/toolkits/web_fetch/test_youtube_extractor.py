@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch.youtube_extractor import (
+from myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor import (
     _extract_video_id,
     _format_timestamp,
     extract_youtube_transcript,
@@ -150,7 +150,7 @@ class TestExtractYoutubeTranscript:
         with patch.dict("sys.modules", {"youtube_transcript_api": MagicMock()}):
             import importlib
 
-            import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
+            import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
 
             importlib.reload(yt_mod)
 
@@ -190,7 +190,7 @@ class TestExtractYoutubeTranscript:
         with patch.dict("sys.modules", {"youtube_transcript_api": mock_module}):
             import importlib
 
-            import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
+            import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
 
             importlib.reload(yt_mod)
 
@@ -222,7 +222,7 @@ class TestExtractYoutubeTranscript:
         with patch.dict("sys.modules", {"youtube_transcript_api": mock_module}):
             import importlib
 
-            import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
+            import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
 
             importlib.reload(yt_mod)
 
@@ -239,7 +239,7 @@ class TestExtractYoutubeTranscript:
         ):
             import importlib
 
-            import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
+            import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
 
             importlib.reload(yt_mod)
             result = await yt_mod.extract_youtube_transcript(
@@ -255,7 +255,7 @@ class TestExtractYoutubeTranscript:
         ):
             import importlib
 
-            import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
+            import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
 
             importlib.reload(yt_mod)
             result = await yt_mod.extract_youtube_transcript(
@@ -289,7 +289,7 @@ class TestExtractYoutubeTranscript:
         }):
             import importlib
 
-            import myrm_agent_harness.toolkits.web_fetch.youtube_extractor as yt_mod
+            import myrm_agent_harness.toolkits.web_fetch.extractors.youtube_extractor as yt_mod
 
             importlib.reload(yt_mod)
 

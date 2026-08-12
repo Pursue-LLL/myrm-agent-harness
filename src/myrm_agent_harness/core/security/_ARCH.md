@@ -11,15 +11,16 @@ Foundational security primitives used across all layers. Zero dependency on agen
 | audit.py | Core | Audit log writer — records security events to structured log. | ✅ |
 | execution_policy.py | Core | Execution policy enums and interception contracts. | ✅ |
 | path_security.py | Core | Path security — dangerous path sets, boundary checks, safe path joining. | ✅ |
-| redact.py | Core | Output redaction layer — token prefixes, ENV/JSON/Auth/header/URL userinfo/query/bare-token/JWT, YAML/colon + form-urlencoded configs, word-boundary key validation + control-split bypass guard. | ✅ |
+| redact/ | Core | Output redaction domain — regex SSOT (`patterns.py`) + bounded-replace engine & public APIs (`engine.py`) + facade (`__init__.py`): token prefixes, ENV/JSON/Auth/header/URL userinfo/query/bare-token/JWT, YAML/colon + form-urlencoded configs, word-boundary key validation, dotted-short-name keys (app.api.key=), CLI `=` flags, control-split bypass guard + double-match collapse guard; `redact_for_llm` (nested diagnostic value → str) + `redact_for_display` (args → dict). See `redact/_ARCH.md`. | ✅ |
 | safe_exec.py | Core | Safe execution primitives — sandboxed code evaluation with resource limits. | ✅ |
-| tool_registry.py | Core | Tool metadata registry — permission mapping, canonical params, safety metadata, canonical tool group mapping (TOOL_GROUP_MAP/TOOL_TO_GROUP for skill conditional activation). | ✅ |
-| tool_registry_safety.py | Internal | Module-load built-in tool safety metadata coverage check. | ✅ |
+| tool_registry/ | Core | Tool metadata registry domain — permission mapping, canonical params, safety metadata, canonical tool group mapping (TOOL_GROUP_MAP/TOOL_TO_GROUP for skill conditional activation) + module-load safety coverage gate. See `tool_registry/_ARCH.md`. | ✅ |
 | types.py | Core | Foundation security type hierarchy — SecurityConfig, PathPolicy, enums. | ✅ |
 | credential_vault.py | Core | In-memory credential vault — label→password/TOTP resolution for browser/desktop injection (secrets never in LLM context). | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
+| redact/ | Secret redaction domain — `patterns.py` (compiled regex SSOT + shared replacers), `engine.py` (bounded-replace pipeline + public APIs), `__init__.py` (aggregation facade). |
+| tool_registry/ | Tool registry domain — `registry.py` (tool safety SSOT: permission mapping, canonical params, safety metadata, tool groups) + `safety.py` (module-load coverage gate), `__init__.py` (aggregation facade). |
 | detection/ | PII classification, content boundary marking, leak detection, prompt injection guard, pseudonymization. |
 | persistence/ | Pre-write content scan SSOT — profiles for Memory / Wiki raw / Wiki publish ([persistence/_ARCH.md](persistence/_ARCH.md)). |
 | guards/ | Session-level security guards — privacy tracker, unified SSRF (`ssrf.py`), skill DLP allowlist (`url_allowlist.py`). |

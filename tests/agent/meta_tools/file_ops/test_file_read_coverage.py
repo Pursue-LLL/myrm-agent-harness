@@ -348,6 +348,57 @@ async def test_file_read_tool_text_preserve_in_context(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_file_read_tool_redacts_secrets(tmp_path: Path) -> None:
+    f = tmp_path / "config.txt"
+    f.write_text("config", encoding="utf-8")
+    mock_executor = MagicMock()
+    mock_executor.workspace_path = str(tmp_path)
+
+    async def _file_exists(p: str) -> bool:
+        return Path(p).exists()
+
+    async def _is_dir(p: str) -> bool:
+        return Path(p).is_dir()
+
+    async def _get_text(p: str, encoding: str = "utf-8") -> str:
+        return Path(p).read_text(encoding=encoding)
+
+    async def _read_file(p: str) -> str:
+        return Path(p).read_text(encoding="utf-8")
+
+    async def _read_file_bytes(p: str) -> bytes:
+        return Path(p).read_bytes()
+
+    mock_executor.file_exists = _file_exists
+    mock_executor.is_dir = _is_dir
+    mock_executor.get_text = _get_text
+    mock_executor.read_file = _read_file
+    mock_executor.read_file_bytes = _read_file_bytes
+
+    tool = create_file_read_tool()
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+        return_value=mock_executor,
+    ), patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+        new_callable=AsyncMock,
+        return_value=[
+            "app.api.key=mysecretvalue12345678",
+            "deploy --api-key=sk-abcdefghijklmnop1234",
+        ],
+    ):
+        result = await tool.ainvoke(
+            {"paths": [str(f)]},
+            config=_DUMMY_CONFIG,
+        )
+    assert isinstance(result, str)
+    assert "mysecretvalue12345678" not in result
+    assert "sk-abcdefghijklmnop1234" not in result
+    assert "mysecr" in result
+    assert "sk-abc" in result
+
+
+@pytest.mark.asyncio
 async def test_build_multimodal_image_list_blocks() -> None:
     with patch(
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_image_as_content_blocks",

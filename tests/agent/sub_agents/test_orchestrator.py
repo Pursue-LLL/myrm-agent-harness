@@ -875,6 +875,247 @@ class TestExecuteDagPlan:
         assert all(s.status == "skipped" for s in plan.steps)
         assert sorted(result["partial_failures"]) == ["s1", "s2"]
 
+    @pytest.mark.asyncio
+    async def test_execute_dag_plan_progress_sink_called(self):
+        mgr = MagicMock()
+        mgr.spawn_child = AsyncMock(return_value=_ok(result="out"))
+
+        class MockStep:
+            def __init__(self, step_id):
+                self.step_id = step_id
+                self.description = "desc"
+                self.expected_output = "exp"
+                self.status = "pending"
+                self.dependencies = []
+
+        class MockPlan:
+            def __init__(self):
+                self.steps = [MockStep("s1")]
+                self.completed = False
+
+            def get_ready_steps(self):
+                if self.completed:
+                    return []
+                return [s for s in self.steps if s.status == "pending"]
+
+            def mark_step_completed(self, step_id):
+                self.completed = True
+                for s in self.steps:
+                    if s.step_id == step_id:
+                        s.status = "completed"
+
+            def add_error(self, err_type, msg, step_id):
+                pass
+
+        plan = MockPlan()
+        sink_calls: list[tuple[str, str, str]] = []
+
+        def _sink(step_id: str, status: str, message: str) -> None:
+            sink_calls.append((step_id, status, message))
+
+        with patch("asyncio.TaskGroup") as mock_tg:
+            mock_tg_instance = MagicMock()
+            mock_tg.return_value.__aenter__.return_value = mock_tg_instance
+            mock_tg_instance.create_task.side_effect = (
+                lambda coro: asyncio.create_task(coro)
+            )
+
+            result = await execute_dag_plan(
+                plan, mgr, {}, lambda: [], progress_sink=_sink
+            )
+
+        assert result["success"] is True
+        assert ("s1", "in_progress", "Starting: desc") in sink_calls
+        assert any(call[1] == "success" for call in sink_calls)
+
+    @pytest.mark.asyncio
+    async def test_execute_dag_plan_cancel_skips_steps(self):
+        mgr = MagicMock()
+        mgr.spawn_child = AsyncMock(return_value=_ok(result="out"))
+
+        class MockStep:
+            def __init__(self, step_id):
+                self.step_id = step_id
+                self.description = "desc"
+                self.expected_output = "exp"
+                self.status = "pending"
+                self.dependencies = []
+
+        class MockPlan:
+            def __init__(self):
+                self.steps = [MockStep("s1")]
+
+            def get_ready_steps(self):
+                return [s for s in self.steps if s.status == "pending"]
+
+            def mark_step_completed(self, step_id):
+                for s in self.steps:
+                    if s.step_id == step_id:
+                        s.status = "completed"
+
+            def add_error(self, err_type, msg, step_id):
+                pass
+
+        plan = MockPlan()
+        cancel_token = MagicMock()
+        cancel_token.is_cancelled = True
+
+        with patch("asyncio.TaskGroup") as mock_tg:
+            mock_tg_instance = MagicMock()
+            mock_tg.return_value.__aenter__.return_value = mock_tg_instance
+            mock_tg_instance.create_task.side_effect = (
+                lambda coro: asyncio.create_task(coro)
+            )
+
+            result = await execute_dag_plan(
+                plan, mgr, {}, lambda: [], cancel_token=cancel_token
+            )
+
+        assert mgr.spawn_child.await_count == 0
+        assert result["success"] is False  # cancelled before any step resolved
+
+    @pytest.mark.asyncio
+    async def test_execute_dag_plan_progress_sink_warning_and_error(self):
+        mgr = MagicMock()
+        mgr.spawn_child = AsyncMock(return_value=_fail("x", "general", "fail"))
+
+        class MockStep:
+            def __init__(self, step_id, allow_failure=False):
+                self.step_id = step_id
+                self.description = "desc"
+                self.expected_output = "exp"
+                self.status = "pending"
+                self.dependencies = []
+                self.allow_failure = allow_failure
+
+        class MockPlan:
+            def __init__(self):
+                self.steps = [MockStep("s1"), MockStep("s2", allow_failure=True)]
+
+            def get_ready_steps(self):
+                return [s for s in self.steps if s.status == "pending"]
+
+            def mark_step_completed(self, step_id):
+                for s in self.steps:
+                    if s.step_id == step_id:
+                        s.status = "completed"
+
+            def add_error(self, err_type, msg, step_id):
+                pass
+
+        plan = MockPlan()
+        sink_calls: list[tuple[str, str, str]] = []
+
+        def _sink(step_id: str, status: str, message: str) -> None:
+            sink_calls.append((step_id, status, message))
+
+        with patch("asyncio.TaskGroup") as mock_tg:
+            mock_tg_instance = MagicMock()
+            mock_tg.return_value.__aenter__.return_value = mock_tg_instance
+            mock_tg_instance.create_task.side_effect = (
+                lambda coro: asyncio.create_task(coro)
+            )
+
+            result = await execute_dag_plan(plan, mgr, {}, lambda: [], progress_sink=_sink)
+
+        assert result["success"] is False
+        assert any(call[1] == "error" and call[0] == "s1" for call in sink_calls)
+        assert any(call[1] == "warning" and call[0] == "s2" for call in sink_calls)
+
+    @pytest.mark.asyncio
+    async def test_execute_dag_plan_fallback_bg_task(self):
+        """When TaskGroup mock lacks create_task, fall back to raw asyncio.create_task."""
+        mgr = MagicMock()
+        mgr.spawn_child = AsyncMock(return_value=_ok(result="out"))
+
+        class MockStep:
+            def __init__(self, step_id):
+                self.step_id = step_id
+                self.description = "d"
+                self.expected_output = "e"
+                self.status = "pending"
+                self.dependencies = []
+
+        class MockPlan:
+            def __init__(self):
+                self.steps = [MockStep("s1")]
+                self.completed = False
+
+            def get_ready_steps(self):
+                if self.completed:
+                    return []
+                return [s for s in self.steps if s.status == "pending"]
+
+            def mark_step_completed(self, step_id):
+                self.completed = True
+                for s in self.steps:
+                    if s.step_id == step_id:
+                        s.status = "completed"
+
+            def add_error(self, err_type, msg, step_id):
+                pass
+
+        plan = MockPlan()
+
+        class FakeTG:
+            pass  # no create_task / _bg_tasks -> fallback branches run
+
+        with patch("asyncio.TaskGroup") as mock_tg:
+            fake_tg = FakeTG()
+            mock_tg.return_value.__aenter__.return_value = fake_tg
+
+            result = await asyncio.wait_for(
+                asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: [])),
+                timeout=2.0,
+            )
+
+        assert result["success"] is True
+        assert len(fake_tg._bg_tasks) == 0  # bg task completed and discarded
+
+    @pytest.mark.asyncio
+    async def test_execute_dag_plan_create_task_exception_records_error(self):
+        mgr = MagicMock()
+        mgr.spawn_child = AsyncMock(return_value=_ok(result="out"))
+
+        class MockStep:
+            def __init__(self, step_id):
+                self.step_id = step_id
+                self.description = "d"
+                self.expected_output = "e"
+                self.status = "pending"
+                self.dependencies = []
+
+        class MockPlan:
+            def __init__(self):
+                self.steps = [MockStep("s1")]
+
+            def get_ready_steps(self):
+                return [s for s in self.steps if s.status == "pending"]
+
+            def mark_step_completed(self, step_id):
+                for s in self.steps:
+                    if s.step_id == step_id:
+                        s.status = "completed"
+
+            def add_error(self, err_type, msg, step_id):
+                pass
+
+        errors: list[tuple[str, str]] = []
+
+        class RecordingPlan(MockPlan):
+            def add_error(self, err_type, msg, step_id=None):
+                errors.append((err_type, msg))
+
+        with patch("asyncio.TaskGroup") as mock_tg:
+            mock_tg_instance = MagicMock()
+            mock_tg.return_value.__aenter__.return_value = mock_tg_instance
+            mock_tg_instance.create_task.side_effect = ValueError("task create failed")
+
+            result = await execute_dag_plan(RecordingPlan(), mgr, {}, lambda: [])
+
+        assert result["success"] is False
+        assert errors and errors[0][0] == "DAGExecutionError"
+
 
 class TestRunChain:
     @pytest.mark.asyncio
@@ -953,6 +1194,48 @@ class TestRunChain:
         ]
         result = await run_chain(mgr, cfgs, {}, lambda: [])
         assert not result.success
+
+    @pytest.mark.asyncio
+    async def test_repeated_chains_generate_unique_task_ids(self):
+        """Completed business nodes persist in _children_results, so chain ids
+        must be batch-scoped to avoid 'Task id already exists' on repeat calls."""
+        mgr = MagicMock()
+        spawned: list[str] = []
+
+        async def _spawn(**kwargs):
+            spawned.append(kwargs["task_id"])
+            return _ok(kwargs["task_id"], kwargs["agent_type"], "out")
+
+        mgr.spawn_child = _spawn
+        cfg = SubagentConfig(system_prompt="s")
+        for _ in range(2):
+            result = await run_chain(mgr, [("w", cfg, "t")], {}, lambda: [])
+            assert result.success
+
+        assert len(spawned) == 2
+        assert len(set(spawned)) == 2
+        assert all(tid.startswith("chain-") and tid.endswith("-0-w") for tid in spawned)
+
+    @pytest.mark.asyncio
+    async def test_chain_cancel_returns_cancelled(self):
+        mgr = MagicMock()
+        mgr.spawn_child = AsyncMock()
+        cancel_token = MagicMock()
+        cancel_token.is_cancelled = True
+        cfg = SubagentConfig(system_prompt="s")
+
+        result = await run_chain(
+            mgr,
+            [("w", cfg, "step1"), ("v", cfg, "step2")],
+            {},
+            lambda: [],
+            cancel_token=cancel_token,
+        )
+
+        assert not result.success
+        assert result.status == SubAgentStatus.CANCELLED
+        assert result.error == "Chain cancelled by user"
+        mgr.spawn_child.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

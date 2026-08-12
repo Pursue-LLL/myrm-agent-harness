@@ -6,12 +6,16 @@ before actual operations, providing clear fix suggestions for each failure.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import Any
+
+from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 from ..utils import is_timeout_error
-from .auto_install import _try_auto_install_chromium
 from .orphans import check_orphan_processes
 from .report import CheckStatus, DoctorCheckResult, DoctorReport
 
@@ -231,10 +235,49 @@ def _check_disk() -> DoctorCheckResult:
         )
 
 
+_LAUNCH_TIMEOUT_S = 20.0
+
+
+async def _probe_browser_launch(
+    launch_opts: dict[str, object],
+    async_playwright: Callable[..., Any],
+) -> DoctorCheckResult:
+    """Launch a headless browser and probe basic page functionality.
+
+    Releases the playwright connection on every exit path so a cancelled probe
+    (e.g. the enclosing timeout) never leaks browser processes.
+    """
+    playwright = await async_playwright().start()
+    try:
+        browser = await playwright.chromium.launch(**launch_opts)  # type: ignore[arg-type]
+        try:
+            context = await browser.new_context()
+            try:
+                page = await context.new_page()
+                await page.goto("about:blank", timeout=5000)
+                title = await page.title()
+
+                return DoctorCheckResult(
+                    name="browser_launch",
+                    status=CheckStatus.OK,
+                    message="Browser launch test successful",
+                    details={
+                        "headless": launch_opts.get("headless"),
+                        "title": title,
+                    },
+                )
+            finally:
+                await context.close()
+        finally:
+            await browser.close()
+    finally:
+        await playwright.stop()
+
+
 async def _check_browser_launch(
     launch_options: dict[str, object] | None = None,
 ) -> DoctorCheckResult:
-    """Test browser launch and basic functionality."""
+    """Test browser launch and basic functionality within a bounded timeout."""
     try:
         from patchright.async_api import async_playwright
     except (ImportError, TypeError):
@@ -251,32 +294,10 @@ async def _check_browser_launch(
     }
 
     try:
-        playwright = await async_playwright().start()
-        try:
-            browser = await playwright.chromium.launch(**launch_opts)  # type: ignore[arg-type]
-            try:
-                context = await browser.new_context()
-                try:
-                    page = await context.new_page()
-                    await page.goto("about:blank", timeout=5000)
-                    title = await page.title()
-
-                    return DoctorCheckResult(
-                        name="browser_launch",
-                        status=CheckStatus.OK,
-                        message="Browser launch test successful",
-                        details={
-                            "headless": launch_opts.get("headless"),
-                            "title": title,
-                        },
-                    )
-                finally:
-                    await context.close()
-            finally:
-                await browser.close()
-        finally:
-            await playwright.stop()
-
+        return await asyncio.wait_for(
+            _probe_browser_launch(launch_opts, async_playwright),
+            timeout=_LAUNCH_TIMEOUT_S,
+        )
     except Exception as exc:
         if is_timeout_error(exc):
             return DoctorCheckResult(
@@ -332,11 +353,11 @@ def _check_proxy(proxy: str = "") -> DoctorCheckResult:
     )
 
 
-def _check_extension_relay() -> DoctorCheckResult:
+async def _check_extension_relay() -> DoctorCheckResult:
     """Probe server extension setup hints for CDP relay readiness."""
     import json
-    import urllib.error
-    import urllib.request
+
+    import httpx
 
     base = os.environ.get("MYRM_SERVER_URL", "http://127.0.0.1:8080").rstrip("/")
     url = f"{base}/api/v1/extension/setup-hints"
@@ -348,9 +369,11 @@ def _check_extension_relay() -> DoctorCheckResult:
             fix="Set MYRM_SERVER_URL to an http(s) endpoint",
         )
     try:
-        with urllib.request.urlopen(url, timeout=2.0) as response:  # noqa: S310 — http(s) scheme enforced above
-            payload = json.loads(response.read().decode("utf-8"))
-    except urllib.error.URLError:
+        async with create_httpx_client(timeout=2.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            payload = json.loads(response.text)
+    except (httpx.HTTPError, OSError):
         return DoctorCheckResult(
             name="extension_relay",
             status=CheckStatus.WARNING,
@@ -365,27 +388,19 @@ def _check_extension_relay() -> DoctorCheckResult:
             fix="Check server logs and extension connection settings",
         )
 
-    if (
-        payload.get("relay_cdp_ready") is True
-        and payload.get("access_policy_valid") is True
-    ):
+    if payload.get("relay_cdp_ready") is True and payload.get("access_policy_valid") is True:
         return DoctorCheckResult(
             name="extension_relay",
             status=CheckStatus.OK,
             message="Extension CDP relay is ready for login-state automation",
         )
 
-    if payload.get("relay_cdp_ready") is True and not payload.get(
-        "access_policy_valid"
-    ):
+    if payload.get("relay_cdp_ready") is True and not payload.get("access_policy_valid"):
         return DoctorCheckResult(
             name="extension_relay",
             status=CheckStatus.WARNING,
             message="Extension relay is up but access policy is not configured",
-            fix=(
-                "Add authorized domains or enable allow-all in "
-                "Settings → Browser Extension"
-            ),
+            fix=("Add authorized domains or enable allow-all in Settings → Browser Extension"),
         )
 
     if payload.get("auth_token_required") and not payload.get("auth_token_configured"):
@@ -408,7 +423,6 @@ async def run_doctor(
     *,
     include_launch_test: bool = True,
     include_orphan_check: bool = True,
-    auto_fix: bool = False,
     launch_options: dict[str, object] | None = None,
     browser_executable_path: str = "",
     browser_proxy: str = "",
@@ -418,8 +432,6 @@ async def run_doctor(
     Args:
         include_launch_test: Whether to test actual browser launch
         include_orphan_check: Whether to check for orphan processes
-        auto_fix: When True and browser launch fails due to missing executable,
-            automatically install Chromium via patchright and re-test.
         launch_options: Optional custom launch options for launch test
         browser_executable_path: Custom browser executable path to check
         browser_proxy: Proxy URL to validate
@@ -436,28 +448,17 @@ async def run_doctor(
     checks["disk"] = _check_disk()
     checks["proxy"] = _check_proxy(browser_proxy)
 
+    # I/O-bound checks run concurrently; the orphan scan is offloaded to a worker
+    # thread so the psutil walk never blocks the event loop.
+    pending: dict[str, Awaitable[DoctorCheckResult]] = {}
     if include_orphan_check:
-        checks["orphan_processes"] = check_orphan_processes()
-
-    checks["extension_relay"] = _check_extension_relay()
-
+        pending["orphan_processes"] = asyncio.to_thread(check_orphan_processes)
+    pending["extension_relay"] = _check_extension_relay()
     if include_launch_test:
-        launch_result = await _check_browser_launch(launch_options)
-        checks["browser_launch"] = launch_result
+        pending["browser_launch"] = _check_browser_launch(launch_options)
 
-        if (
-            auto_fix
-            and launch_result.status == CheckStatus.ERROR
-            and launch_result.fix
-            and "patchright install chromium" in launch_result.fix
-        ):
-            install_result = await _try_auto_install_chromium()
-            if install_result:
-                checks["auto_install"] = install_result
-                if install_result.status == CheckStatus.OK:
-                    checks["browser_launch"] = await _check_browser_launch(
-                        launch_options
-                    )
+    results = await asyncio.gather(*pending.values())
+    checks.update(zip(pending, results, strict=True))
 
     ok_count = sum(1 for c in checks.values() if c.status == CheckStatus.OK)
     warning_count = sum(1 for c in checks.values() if c.status == CheckStatus.WARNING)

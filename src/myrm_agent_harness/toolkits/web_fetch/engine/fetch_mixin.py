@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING
 
 from langchain_core.documents import Document
 
-from .antibot_detector import is_blocked as detect_antibot
-from .engine_types import DEGRADABLE_4XX
-from .fetchers.protocols import FetcherType, FetchResult
+from ..antibot_detector import is_blocked as detect_antibot
+from ..fetchers.protocols import FetcherType, FetchResult
+from .types import DEGRADABLE_4XX
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
@@ -49,7 +49,7 @@ class FetchEngineFetchMixin:
         fetcher = fetcher_map[fetcher_type]
 
         if fetcher_type == FetcherType.BROWSER:
-            from .escalation.context import get_bound_browser_launch_mode
+            from ..escalation.context import get_bound_browser_launch_mode
 
             launch_mode = get_bound_browser_launch_mode()
             if launch_mode is None:
@@ -103,12 +103,12 @@ class FetchEngineFetchMixin:
             return None, True, latency_ms, cpu_percent, memory_mb, None
 
         if fetch_result.raw_body is not None:
-            from .binary_router import route_binary_content
+            from ..binary_router import route_binary_content
 
             doc = await route_binary_content(fetch_result.raw_body, fetch_result.headers, url)
             return doc, False, latency_ms, cpu_percent, memory_mb, fetch_result
 
-        from .weixin_extractor import has_weixin_js_content, is_weixin_article_url, parse_weixin_article_html
+        from ..extractors.weixin_extractor import has_weixin_js_content, is_weixin_article_url, parse_weixin_article_html
 
         if is_weixin_article_url(url):
             weixin_doc = parse_weixin_article_html(fetch_result.html, url=url)

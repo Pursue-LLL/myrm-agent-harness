@@ -25,6 +25,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, TypedDict
 
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
 if TYPE_CHECKING:
     from ..session import BrowserSession
     from ..session_vault import SessionVault
@@ -149,7 +151,9 @@ async def restore_browser_state(
         if metadata.get("current_url"):
             url = metadata["current_url"]
             await session.new_tab(url)
-            logger.info("Recovery: navigated to %s", url)
+            logger.info(
+                "Recovery: navigated to %s", redact_sensitive_text(url)[:80]
+            )
 
         # 3. Take snapshot to refresh ref mappings
         await session.snapshot()

@@ -6,16 +6,12 @@ Includes precise orphan process detection (matches patchright/playwright cache
 paths) with safety mechanisms (dry-run default, force flag required for cleanup).
 
 This package is the public facade for the doctor subdomain; it re-exports every
-symbol from the internal ``checks``, ``orphans``, ``report``, and ``auto_install``
-modules so that ``myrm_agent_harness.toolkits.browser.doctor`` remains a single
-import point.
+symbol from the internal ``checks``, ``orphans``, and ``report`` modules so that
+``myrm_agent_harness.toolkits.browser.doctor`` remains a single import point.
 """
 
 from __future__ import annotations
 
-from .auto_install import (
-    _try_auto_install_chromium,  # noqa: F401
-)
 from .checks import (
     _check_browser_executable,  # noqa: F401 — re-exported for backward-compatible imports
     _check_browser_launch,  # noqa: F401

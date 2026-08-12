@@ -6,6 +6,8 @@ usage normalization fallbacks, and parser skip/guard branches.
 
 from __future__ import annotations
 
+import json
+
 from myrm_agent_harness.toolkits.llms.adapters.streaming import (
     aggregate_tool_call_chunk,
     build_tool_call_chunks,
@@ -152,6 +154,16 @@ class TestAnthropicXmlGuards:
             available_tools=["f"],
         )
         assert result and result[0]["function"]["name"] == "f"
+
+    def test_null_parameter_value_parsed_as_none(self) -> None:
+        result = _parse_anthropic_xml_format(
+            '<invoke name="f"><parameter name="a">null</parameter></invoke>',
+            available_tools=["f"],
+        )
+        assert result
+        arguments = result[0]["function"]["arguments"]
+        parsed = json.loads(arguments)
+        assert parsed == {"a": None}
 
 
 class TestQwenXmlGuards:

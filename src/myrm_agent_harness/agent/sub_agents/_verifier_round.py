@@ -19,6 +19,7 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import time
+import uuid
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -104,7 +105,9 @@ async def _execute_verifier_round(
         ReadonlyExecutorProxy,
     )
 
-    verifier_task_id = f"verify-check-{round_num}-{verifier_type}"
+    # Unique verifier id: parallel delegated tasks on the same manager must not
+    # collide on a fixed-format id (they all run as framework-internal nodes).
+    verifier_task_id = f"verify-check-{round_num}-{verifier_type}-{uuid.uuid4().hex[:8]}"
     workspace_path = context.get("workspace_path")
     workspace_diff = ""
     if pre_snapshot and workspace_path and isinstance(workspace_path, str):

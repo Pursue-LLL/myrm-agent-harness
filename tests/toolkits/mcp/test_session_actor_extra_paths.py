@@ -19,7 +19,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from mcp.shared.exceptions import MCPError
+from mcp.shared.exceptions import McpError
 
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 from myrm_agent_harness.toolkits.mcp.connection_manager import MCPConnectionManager
@@ -110,7 +110,7 @@ async def test_read_resource_missing_uri_does_not_reconnect(
         actor = conn._resolve_actor("resprobe")
         assert actor is not None
         healthy_before = actor.is_healthy()
-        with pytest.raises(MCPError):
+        with pytest.raises(McpError):
             await conn.read_resource("resprobe", "nope://not-a-resource")
         # Non-transport failure: the session must still be healthy and serving.
         assert actor.is_healthy() is healthy_before

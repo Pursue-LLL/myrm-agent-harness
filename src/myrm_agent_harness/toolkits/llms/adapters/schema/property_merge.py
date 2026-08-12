@@ -16,7 +16,7 @@ discriminator field exposes every branch.
 - merge_allof_branches: Conjunctive merge of allOf object branches (required union, same-name properties intersect).
 - merge_union_object_branches: Alternative merge of anyOf/oneOf object branches (required dropped except common-required promotion, same-name const/enum union, keyword-aware exclusivity hint — oneOf "exactly one group", anyOf "at least one").
 - apply_union_hint: Fold the exclusivity hint with the outer schema's description (outer description prefixed, never dropped).
-- merge_union_property / intersect_property: Per-property union / intersection of const/enum value sets.
+- merge_union_property / intersect_property: Per-property union / intersection of const/enum value sets, with branch metadata (title/description/default) merged symmetrically so no branch's guidance is dropped.
 - preserve_metadata: Copy description/default/title/examples from source to target when absent.
 
 [POS]
@@ -212,6 +212,42 @@ def _dedupe_values(values: list[object]) -> list[object]:
     return unique
 
 
+def _merge_metadata(
+    existing: dict[str, object],
+    incoming: dict[str, object],
+) -> dict[str, object]:
+    """Merge ``title``/``description``/``default`` from both property sides.
+
+    ``title`` and ``default`` prefer the first definition; ``description``
+    dedupes equal text and concatenates differing text so a discriminator
+    field redefined across branches keeps every branch's guidance instead of
+    silently dropping the second definition. Mirrors the inbound union /
+    intersection merge semantics.
+    """
+    merged: dict[str, object] = {}
+
+    existing_title = existing.get("title")
+    incoming_title = incoming.get("title")
+    if existing_title or incoming_title:
+        merged["title"] = existing_title or incoming_title
+
+    existing_desc = existing.get("description")
+    incoming_desc = incoming.get("description")
+    if existing_desc and incoming_desc:
+        if existing_desc == incoming_desc:
+            merged["description"] = existing_desc
+        else:
+            merged["description"] = f"{existing_desc} {incoming_desc}"
+    elif existing_desc or incoming_desc:
+        merged["description"] = existing_desc or incoming_desc
+
+    if "default" in existing or "default" in incoming:
+        merged["default"] = (
+            existing["default"] if "default" in existing else incoming["default"]
+        )
+    return merged
+
+
 def merge_union_property(
     existing: dict[str, object],
     incoming: dict[str, object],
@@ -220,7 +256,9 @@ def merge_union_property(
 
     Keeps the union of closed ``const``/``enum`` values so a discriminator
     field exposes every branch; a closed set unioned with an open type widens
-    to the open type (its domain already covers the closed set).
+    to the open type (its domain already covers the closed set). Metadata from
+    both sides is merged (``_merge_metadata``) so no branch's description is
+    dropped.
     """
     existing_values = _collect_const_enum(existing)
     incoming_values = _collect_const_enum(incoming)
@@ -230,10 +268,16 @@ def merge_union_property(
         existing_type = existing.get("type")
         if existing_type is not None and existing_type == incoming.get("type"):
             merged["type"] = existing_type
+        merged.update(_merge_metadata(existing, incoming))
         return merged
     if existing_values or incoming_values:
+        const_side = existing if existing_values else incoming
         open_side = incoming if existing_values else existing
-        return {k: v for k, v in open_side.items() if k not in ("const", "enum")}
+        merged = {k: v for k, v in open_side.items() if k not in ("const", "enum")}
+        for meta_key in ("title", "description", "default"):
+            if meta_key in const_side and meta_key not in merged:
+                merged[meta_key] = const_side[meta_key]
+        return merged
     return dict(existing)
 
 
@@ -245,7 +289,9 @@ def intersect_property(
 
     A valid value must satisfy both: closed sets intersect; a closed set
     conjoined with an open type keeps the closed set; an empty intersection
-    keeps the first definition rather than an unusable empty enum.
+    keeps the first definition rather than an unusable empty enum. Metadata
+    from both sides is merged (``_merge_metadata``) so no branch's
+    description is dropped.
     """
     existing_values = _collect_const_enum(existing)
     incoming_values = _collect_const_enum(incoming)
@@ -262,9 +308,12 @@ def intersect_property(
             existing_type = existing.get("type")
             if existing_type is not None and existing_type == incoming.get("type"):
                 merged["type"] = existing_type
+            merged.update(_merge_metadata(existing, incoming))
             return merged
         return dict(existing)
     if existing_values or incoming_values:
         closed = existing if existing_values else incoming
-        return dict(closed)
+        merged = dict(closed)
+        merged.update(_merge_metadata(existing, incoming))
+        return merged
     return dict(existing)

@@ -555,10 +555,15 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
         except RuntimeError:
             parent = None
 
-        if parent:
-            await self._run_cmd("git", "update-ref", ref, parent, env=env)
-        else:
-            await self._run_cmd("git", "update-ref", "-d", ref, env=env)
+        # CAS: pass the current head as old value so a concurrent take_snapshot
+        # that moved the ref cannot be silently rolled back.
+        try:
+            if parent:
+                await self._run_cmd("git", "update-ref", ref, parent, snapshot_id, env=env)
+            else:
+                await self._run_cmd("git", "update-ref", "-d", ref, snapshot_id, env=env)
+        except RuntimeError:
+            return False
         logger.info("Deleted snapshot %s for %s", snapshot_id[:12], working_dir)
         return True
 
@@ -575,12 +580,14 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
             return 0
 
         proj_hash = _project_hash(working_dir)
-        ref = self._project_ref(proj_hash)
         env = self._git_env(working_dir, proj_hash)
 
+        # The Nth-newest snapshot becomes a graft root: the newest
+        # ``max_snapshots`` commits stay reachable, older ones are severed
+        # from the chain and become unreachable.
         keep = snapshots[max_snapshots - 1]
         try:
-            await self._run_cmd("git", "update-ref", ref, keep.snapshot_id, env=env)
+            await self._run_cmd("git", "replace", "--graft", keep.snapshot_id, env=env)
             deleted = len(snapshots) - max_snapshots
             logger.info("Pruned %d old snapshots for %s", deleted, working_dir)
             return deleted

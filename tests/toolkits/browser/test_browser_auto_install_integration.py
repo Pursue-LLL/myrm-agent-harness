@@ -11,7 +11,6 @@ import time
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, run_doctor
 from myrm_agent_harness.toolkits.browser.pool.browser_launcher import (
     _auto_install_chromium,
     _is_executable_missing,
@@ -57,37 +56,6 @@ class TestAutoInstallIntegration:
             _auto_install_chromium(),
         )
         assert all(r is True for r in results)
-
-
-class TestDoctorAutoFixIntegration:
-    """Real integration tests for doctor auto_fix mode."""
-
-    async def test_doctor_auto_fix_with_existing_browser(self) -> None:
-        """When browser is already installed, auto_fix should not trigger install.
-
-        doctor should report browser_launch=OK and no auto_install key.
-        """
-        report = await run_doctor(
-            include_launch_test=True,
-            include_orphan_check=False,
-            auto_fix=True,
-        )
-
-        assert "browser_launch" in report.checks
-        assert report.checks["browser_launch"].status == CheckStatus.OK
-        assert "auto_install" not in report.checks
-
-    async def test_doctor_without_auto_fix(self) -> None:
-        """Standard doctor run should not have auto_install."""
-        report = await run_doctor(
-            include_launch_test=True,
-            include_orphan_check=False,
-            auto_fix=False,
-        )
-
-        assert "browser_launch" in report.checks
-        assert report.checks["browser_launch"].status == CheckStatus.OK
-        assert "auto_install" not in report.checks
 
 
 class TestErrorDetectionIntegration:

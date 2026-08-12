@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import contextvars
 import logging
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,7 @@ class URLAllowlistGuard:
 
     @staticmethod
     @contextmanager
-    def apply(allowed_domains: list[str] | None):
+    def apply(allowed_domains: list[str] | None) -> Iterator[None]:
         """Apply allowlist to current async context."""
         token = _allowed_domains_var.set(allowed_domains)
         try:

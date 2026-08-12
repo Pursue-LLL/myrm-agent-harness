@@ -36,6 +36,7 @@ import logging
 import math
 import re
 from collections import Counter
+from functools import partial
 
 logger = logging.getLogger(__name__)
 
@@ -359,7 +360,7 @@ def redact_leaks(content: str) -> str:
     result = _PEM_BLOCK_RE.sub(_redact_pem_block, result)
 
     for name, pat in _ALL_PREFIX_STRUCTURAL:
-        result = pat.sub(lambda m, n=name: _smart_redact_match(n, m), result)
+        result = pat.sub(partial(_smart_redact_match, name), result)
 
     result = _ENV_PATTERN.sub(_redact_env_match, result)
     result = _JSON_PATTERN.sub(_redact_json_match, result)

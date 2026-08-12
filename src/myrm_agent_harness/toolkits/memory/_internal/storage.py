@@ -64,9 +64,11 @@ from myrm_agent_harness.toolkits.memory.types import (
     ProceduralMemory,
     SemanticMemory,
 )
-from myrm_agent_harness.toolkits.retriever.embedding.window_policy import resolve_embed_window_policy
+from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
+    resolve_embed_window_policy,
+    token_counter_for_model,
+)
 from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import split_for_embedding
-from myrm_agent_harness.utils.text_utils import get_token_count
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
@@ -153,10 +155,13 @@ def _fit_text_for_embedding(text: str, embedding: EmbeddingProtocol) -> str:
     if not chunks:
         return text
     if len(chunks) > 1:
+        # Count in the model's own budget unit: o200k tokens for BPE models,
+        # conservative wordpiece tokens (character count) for CJK wordpiece models.
+        counter = token_counter_for_model(policy.model)
         logger.warning(
             "Memory embed input truncated to first chunk (%d -> %d tokens)",
-            get_token_count(text),
-            get_token_count(chunks[0]),
+            counter(text),
+            counter(chunks[0]),
         )
     return chunks[0]
 

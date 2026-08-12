@@ -76,7 +76,7 @@ def parse_tool_calls(
 ) -> list[ToolCallDict]:
     """Unified tool call parsing entry point
 
-    Tries parsing tool calls in priority order, returns OpenAI-format tool_calls list。
+    Tries parsing tool calls in priority order, returns OpenAI-format tool_calls list.
 
     Args:
         response_dict: LLM response dict, containing content, tool_calls, reasoning_content, etc.
@@ -359,7 +359,7 @@ def _parse_anthropic_xml_format(
 
 def _parse_xml_parameter_value(
     value_str: str, is_string: bool
-) -> str | int | float | bool | list[Any] | dict[str, Any]:
+) -> str | int | float | bool | list[Any] | dict[str, Any] | None:
     """Parse XML parameter value"""
     value_str = value_str.strip()
 
@@ -367,14 +367,14 @@ def _parse_xml_parameter_value(
     if is_string:
         return value_str
 
-    # Try parsing as JSON (arrays, objects, booleans, numbers, etc.)
+    # Try parsing as JSON (arrays, objects, booleans, numbers, null, etc.)
     try:
         return cast(
-            "str | int | float | bool | list[Any] | dict[str, Any]",
+            "str | int | float | bool | list[Any] | dict[str, Any] | None",
             json.loads(value_str),
         )
     except (json.JSONDecodeError, TypeError):
-        # Parsing failed，Return as plain string
+        # Parsing failed; return as plain string
         return value_str
 
 

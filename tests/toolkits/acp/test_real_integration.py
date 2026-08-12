@@ -18,7 +18,9 @@ import shutil
 
 import pytest
 
-from myrm_agent_harness.toolkits.acp.acp_agent_tools import create_delegate_to_agent_tool
+from myrm_agent_harness.toolkits.acp.acp_agent_tools import (
+    create_delegate_to_agent_tool,
+)
 from myrm_agent_harness.toolkits.acp.core.backend_detector import BackendDetector
 from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import CliRuntime
 from myrm_agent_harness.toolkits.acp.runtime.pool import RuntimePool
@@ -123,13 +125,16 @@ class TestClaudeCliReal:
             events.append(event)
 
         types = [e.type for e in events]
-        assert RuntimeEventType.TEXT_DELTA in types, f"Expected TEXT_DELTA, got: {types}"
+        assert (
+            RuntimeEventType.TEXT_DELTA in types
+        ), f"Expected TEXT_DELTA, got: {types}"
         assert RuntimeEventType.DONE in types, f"Expected DONE, got: {types}"
 
         text = "".join(
             e.data["content"]
             for e in events
-            if e.type == RuntimeEventType.TEXT_DELTA and isinstance(e.data.get("content"), str)
+            if e.type == RuntimeEventType.TEXT_DELTA
+            and isinstance(e.data.get("content"), str)
         )
         assert len(text) > 0, "Should receive non-empty text response"
 
@@ -189,12 +194,16 @@ class TestCodexCliReal:
 
         types = [e.type for e in events]
         assert len(types) > 0, "Codex should produce at least one event"
-        assert RuntimeEventType.STATUS_UPDATE in types, "Should emit STATUS_UPDATE at start"
+        assert (
+            RuntimeEventType.STATUS_UPDATE in types
+        ), "Should emit STATUS_UPDATE at start"
 
         has_text = RuntimeEventType.TEXT_DELTA in types
         has_error = RuntimeEventType.ERROR in types
         has_done = RuntimeEventType.DONE in types
-        assert has_text or has_error or has_done, f"Expected TEXT_DELTA, ERROR, or DONE, got: {types}"
+        assert (
+            has_text or has_error or has_done
+        ), f"Expected TEXT_DELTA, ERROR, or DONE, got: {types}"
 
     @pytest.mark.asyncio
     async def test_codex_ndjson_parsing(self) -> None:
@@ -250,12 +259,16 @@ class TestGeminiCliReal:
 
         types = [e.type for e in events]
         assert len(types) > 0, "Gemini should produce at least one event"
-        assert RuntimeEventType.STATUS_UPDATE in types, "Should emit STATUS_UPDATE at start"
+        assert (
+            RuntimeEventType.STATUS_UPDATE in types
+        ), "Should emit STATUS_UPDATE at start"
 
         has_text = RuntimeEventType.TEXT_DELTA in types
         has_error = RuntimeEventType.ERROR in types
         has_done = RuntimeEventType.DONE in types
-        assert has_text or has_error or has_done, f"Expected TEXT_DELTA, ERROR, or DONE, got: {types}"
+        assert (
+            has_text or has_error or has_done
+        ), f"Expected TEXT_DELTA, ERROR, or DONE, got: {types}"
 
     @pytest.mark.asyncio
     async def test_gemini_event_validation(self) -> None:
@@ -331,7 +344,9 @@ class TestRuntimePoolReal:
         try:
             backend_name = pool.available_backends[0]
             response = await pool.prompt(backend_name, SIMPLE_PROMPT, mode="oneshot")
-            assert isinstance(response, str), f"Pool.prompt to {backend_name} should return str"
+            assert isinstance(
+                response, str
+            ), f"Pool.prompt to {backend_name} should return str"
         finally:
             await pool.close_all()
 
@@ -346,7 +361,10 @@ class TestRuntimePoolReal:
             backend_name = pool.available_backends[0]
             session_id = f"{backend_name}-pool-stream"
             events = [
-                e async for e in pool.run_turn(backend_name, SIMPLE_PROMPT, session_id=session_id, mode="oneshot")
+                e
+                async for e in pool.run_turn(
+                    backend_name, SIMPLE_PROMPT, session_id=session_id, mode="oneshot"
+                )
             ]
             types = {e.type for e in events}
             assert len(types) > 0, "Pool should produce at least one event"
@@ -354,7 +372,9 @@ class TestRuntimePoolReal:
             has_text = RuntimeEventType.TEXT_DELTA in types
             has_done = RuntimeEventType.DONE in types
             has_error = RuntimeEventType.ERROR in types
-            assert has_text or has_done or has_error, f"Expected TEXT_DELTA, DONE, or ERROR, got: {types}"
+            assert (
+                has_text or has_done or has_error
+            ), f"Expected TEXT_DELTA, DONE, or ERROR, got: {types}"
         finally:
             await pool.close_all()
 
@@ -377,7 +397,9 @@ class TestRuntimePoolReal:
             r2 = await pool.prompt("gemini", SIMPLE_PROMPT, mode="oneshot")
             assert len(r1) > 0, "Claude should return non-empty response"
             # Gemini may return empty due to network/auth — verify no exception raised
-            assert isinstance(r2, str), "Gemini should return a string (may be empty on network error)"
+            assert isinstance(
+                r2, str
+            ), "Gemini should return a string (may be empty on network error)"
         finally:
             await pool.close_all()
 
@@ -419,7 +441,9 @@ class TestDelegateToolReal:
 
         tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
         try:
-            result = await tool_func.ainvoke({"agent_name": "claude", "task": SIMPLE_PROMPT, "mode": "oneshot"})
+            result = await tool_func.ainvoke(
+                {"agent_name": "claude", "task": SIMPLE_PROMPT, "mode": "oneshot"}
+            )
             assert isinstance(result, str)
             assert len(result) > 0
             # Claude may return delegation result or error (e.g. timeout, rate limit)
@@ -445,7 +469,9 @@ class TestDelegateToolReal:
 
         tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
         try:
-            result = await tool_func.ainvoke({"agent_name": "gemini", "task": SIMPLE_PROMPT, "mode": "oneshot"})
+            result = await tool_func.ainvoke(
+                {"agent_name": "gemini", "task": SIMPLE_PROMPT, "mode": "oneshot"}
+            )
             assert isinstance(result, str)
             assert len(result) > 0
             # Gemini may return delegation result or error (e.g. network/auth issues)
@@ -471,7 +497,9 @@ class TestDelegateToolReal:
 
         tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
         try:
-            result = await tool_func.ainvoke({"agent_name": "codex", "task": SIMPLE_PROMPT, "mode": "oneshot"})
+            result = await tool_func.ainvoke(
+                {"agent_name": "codex", "task": SIMPLE_PROMPT, "mode": "oneshot"}
+            )
             assert isinstance(result, str)
             assert len(result) > 0
             # Codex may return delegation result or error (e.g. quota exhausted)
@@ -483,7 +511,9 @@ class TestDelegateToolReal:
     async def test_delegate_to_unknown_agent(self) -> None:
         pool = RuntimePool(max_concurrent=2)
         tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
-        result = await tool_func.ainvoke({"agent_name": "nonexistent", "task": "hello", "mode": "oneshot"})
+        result = await tool_func.ainvoke(
+            {"agent_name": "nonexistent", "task": "hello", "mode": "oneshot"}
+        )
         assert "Unknown backend" in result
 
     @pytest.mark.asyncio
@@ -494,7 +524,9 @@ class TestDelegateToolReal:
             RuntimeConfig(backend_type="cli", command="echo"),
         )
         tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
-        result = await tool_func.ainvoke({"agent_name": "dummy", "task": "hello", "mode": "bad_mode"})
+        result = await tool_func.ainvoke(
+            {"agent_name": "dummy", "task": "hello", "mode": "bad_mode"}
+        )
         assert "[error]" in result
         assert "Invalid mode" in result
 
@@ -507,7 +539,9 @@ class TestDelegateToolReal:
         )
         tool_func = create_delegate_to_agent_tool(pool, cwd=os.getcwd())
         huge_task = "x" * (3 * 1024 * 1024)
-        result = await tool_func.ainvoke({"agent_name": "dummy", "task": huge_task, "mode": "oneshot"})
+        result = await tool_func.ainvoke(
+            {"agent_name": "dummy", "task": huge_task, "mode": "oneshot"}
+        )
         assert "[error]" in result
         assert "too large" in result.lower()
 
@@ -638,4 +672,6 @@ class TestEdgeCases:
 
         has_text = any(e.type == RuntimeEventType.TEXT_DELTA for e in events)
         if has_text:
-            assert session_key in rt._cli_session_ids, "Claude should capture session_id from result events"
+            assert (
+                session_key in rt._cli_session_ids
+            ), "Claude should capture session_id from result events"

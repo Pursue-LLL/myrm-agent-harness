@@ -108,7 +108,7 @@ def resolve_and_check(hostname: str, *, allowed_internal_hosts: frozenset[str] =
         return SSRFVerdict(allowed=False, reason=f"DNS resolution failed for: {hostname}")
 
     for _family, _type, _proto, _canonname, sockaddr in results:
-        addr = sockaddr[0]
+        addr = str(sockaddr[0])
         if is_blocked_ip(addr):
             return SSRFVerdict(
                 allowed=False,
@@ -133,7 +133,7 @@ def _resolve_and_check_sync(hostname: str) -> SSRFResult:
 
     ips: list[str] = []
     for _, _, _, _, sockaddr in resolved:
-        ip_str = sockaddr[0]
+        ip_str = str(sockaddr[0])
         if is_blocked_ip(ip_str):
             return SSRFResult(
                 safe=False,
@@ -163,7 +163,7 @@ async def _resolve_and_check_async(hostname: str) -> SSRFResult:
 
     ips: list[str] = []
     for _, _, _, _, sockaddr in resolved:
-        ip_str = sockaddr[0]
+        ip_str = str(sockaddr[0])
         if is_blocked_ip(ip_str):
             return SSRFResult(
                 safe=False,

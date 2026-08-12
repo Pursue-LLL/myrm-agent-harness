@@ -21,11 +21,12 @@ from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
     EmbedInputTooLargeError,
+    EmbedWindowPolicy,
     resolve_embed_window_policy,
+    token_counter_for_model,
 )
 from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import split_for_embedding
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
-from myrm_agent_harness.utils.text_utils import get_token_count
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.embedding import EmbeddingProtocol
@@ -57,6 +58,27 @@ async def delete_text_vectors(
             await vector.delete(collection_name, ids)
 
 
+def _validate_chunks_fit_window(
+    chunks: list[str], policy: EmbedWindowPolicy, parent_key: str
+) -> None:
+    """Fail loud if a chunk still exceeds the provider window after splitting.
+
+    Counts in the model's own budget unit (o200k tokens for BPE, wordpiece estimate
+    for bge/bce/nomic) so the guard never undercounts CJK input and silently passes
+    an oversized chunk to the provider.
+    """
+    counter = token_counter_for_model(policy.model)
+    for chunk in chunks:
+        tokens = counter(chunk)
+        if tokens > policy.max_input_tokens:
+            raise EmbedInputTooLargeError(
+                token_count=tokens,
+                limit=policy.max_input_tokens,
+                model=policy.model,
+                parent_key=parent_key,
+            )
+
+
 async def upsert_text_vectors(
     *,
     embedding: EmbeddingProtocol,
@@ -73,15 +95,7 @@ async def upsert_text_vectors(
     if not chunks:
         return 0
 
-    for chunk in chunks:
-        tokens = get_token_count(chunk)
-        if tokens > policy.max_input_tokens:
-            raise EmbedInputTooLargeError(
-                token_count=tokens,
-                limit=policy.max_input_tokens,
-                model=policy.model,
-                parent_key=parent_key,
-            )
+    _validate_chunks_fit_window(chunks, policy, parent_key)
 
     vectors = await embedding.embed_batch(chunks)
     if len(vectors) != len(chunks):

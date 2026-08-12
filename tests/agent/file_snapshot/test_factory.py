@@ -13,6 +13,7 @@ import pytest
 
 from myrm_agent_harness.agent.file_snapshot.factory import (
     _default_store_base,
+    _detect_git,
     create_file_snapshot_store,
     get_cached_store,
 )
@@ -77,6 +78,22 @@ async def test_creates_local_store_when_git_absent():
     ):
         store = await create_file_snapshot_store()
     assert isinstance(store, LocalFileSnapshotStore)
+
+
+# ------------------------------------------------------------------
+# _detect_git — binary missing
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_detect_git_handles_missing_binary(monkeypatch):
+    """create_subprocess_exec raising FileNotFoundError → git detected as absent."""
+
+    async def raise_not_found(*args, **kwargs):
+        raise FileNotFoundError("git not found")
+
+    monkeypatch.setattr("asyncio.create_subprocess_exec", raise_not_found)
+    assert await _detect_git() is False
 
 
 # ------------------------------------------------------------------

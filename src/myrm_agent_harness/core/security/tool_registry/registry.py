@@ -276,7 +276,7 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
 }
 
 
-def compute_canonical_args_hash(tool_name: str, tool_args: dict | None) -> str | None:
+def compute_canonical_args_hash(tool_name: str, tool_args: dict[str, object] | None) -> str | None:
     """Compute hash of canonical parameters, ignoring LLM-generated auxiliary fields.
 
     Only core functional parameters are hashed (e.g., 'command' for bash tools),
@@ -369,7 +369,7 @@ class SafetyMetadata:
     is_open_world: bool = False
     is_idempotent: bool = False
     taint_label: str | None = None
-    taint_extractor: Callable[[dict], str | None] | str | None = None
+    taint_extractor: Callable[[dict[str, object]], str | None] | str | None = None
 
 
 class MCPAnnotations(TypedDict, total=False):
@@ -426,6 +426,12 @@ def _sanitize_url_for_taint(url: str | None) -> str | None:
         return "invalid_or_redacted_url"
 
 
+def _taint_url_from_args(args: dict[str, object]) -> str | None:
+    """Extract and sanitize the ``url`` arg for taint labeling (non-str values dropped)."""
+    url = args.get("url")
+    return _sanitize_url_for_taint(url if isinstance(url, str) else None)
+
+
 _FAIL_CLOSED_DEFAULTS = SafetyMetadata()
 
 TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
@@ -447,14 +453,14 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=lambda args: _sanitize_url_for_taint(args.get("url")),
+        taint_extractor=_taint_url_from_args,
     ),
     "browser_extract_tool": SafetyMetadata(
         is_read_only=True,
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=lambda args: _sanitize_url_for_taint(args.get("url")),
+        taint_extractor=_taint_url_from_args,
     ),
     "web_search_tool": SafetyMetadata(
         is_read_only=True,
@@ -470,7 +476,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
         is_concurrent_safe=True,
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=lambda args: _sanitize_url_for_taint(args.get("url")),
+        taint_extractor=_taint_url_from_args,
     ),
     "memory_search_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=True, is_idempotent=True
@@ -512,7 +518,7 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "browser_navigate_tool": SafetyMetadata(
         is_idempotent=True,
         taint_label="external_network",
-        taint_extractor=lambda args: _sanitize_url_for_taint(args.get("url")),
+        taint_extractor=_taint_url_from_args,
     ),
     "browser_interact_tool": SafetyMetadata(),
     "browser_manage_tool": SafetyMetadata(),
@@ -552,7 +558,7 @@ def resolve_safety_metadata(tool_name: str) -> SafetyMetadata:
     return _FAIL_CLOSED_DEFAULTS
 
 
-from myrm_agent_harness.core.security.tool_registry_safety import check_safety_coverage  # noqa: E402
+from .safety import check_safety_coverage  # noqa: E402
 
 _check_safety_coverage = check_safety_coverage
 check_safety_coverage()

@@ -37,6 +37,8 @@ from myrm_agent_harness.toolkits.retriever.embedding.base import EmbeddingServic
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
     EmbedInputTooLargeError,
     EmbedWindowPolicy,
+    estimate_wordpiece_tokens,
+    is_cjk_wordpiece_model,
 )
 from myrm_agent_harness.utils.text_utils import get_token_count
 
@@ -130,7 +132,7 @@ class CloudEmbedding(EmbeddingService):
             if variant in KNOWN_MODEL_DIMENSIONS:
                 self._dimension = KNOWN_MODEL_DIMENSIONS[variant]
                 cache_status = "enabled" if cache is not None else "disabled"
-                logger.warning(
+                logger.info(
                     f" Cloud embedding initialized: {model} | dim={self._dimension} | "
                     f"cache={cache_status} | retries={max_retries}"
                 )
@@ -138,7 +140,7 @@ class CloudEmbedding(EmbeddingService):
 
         if self._dimension is None:
             cache_status = "enabled" if cache is not None else "disabled"
-            logger.warning(
+            logger.info(
                 f" Cloud embedding initialized: {model} | dimension=auto-detect | "
                 f"cache={cache_status} | retries={max_retries}"
             )
@@ -158,8 +160,12 @@ class CloudEmbedding(EmbeddingService):
 
     def _validate_input_sizes(self, texts: list[str]) -> None:
         limit = self.input_token_limit
+        counter = token_counter_for_model(self._model)
         for text in texts:
-            token_count = get_token_count(text)
+            # o200k BPE undercounts CJK vs. BERT/XLM wordpiece (1 char == 1 token);
+            # use the conservative upper-bound estimate for those models so oversized
+            # inputs fail loud instead of silently truncating at the provider.
+            token_count = counter(text)
             if token_count > limit:
                 raise EmbedInputTooLargeError(
                     token_count=token_count,

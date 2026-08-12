@@ -190,3 +190,32 @@ print("done")
         assert "get_tickets" in result.extracted_code
         assert "embedded python" in result.detection_reason
         assert "cat >" not in result.extracted_code
+
+    def test_cat_heredoc_yaml_not_misclassified_as_python(self):
+        cmd = (
+            "mkdir -p .myrm\n"
+            "cat > .myrm/filters.yaml << 'EOF'\n"
+            "filters:\n"
+            "  - name: e2e-filter-run\n"
+            "    match_command: 'run\\\\.sh'\n"
+            "    replace:\n"
+            "      - pattern: 'E2E_MASK_TOKEN=\\\\w+'\n"
+            "        replacement: 'E2E_MASKED_VAL'\n"
+            "    strip_lines_matching:\n"
+            "      - '^E2E_DEBUG:'\n"
+            "EOF"
+        )
+        result = code_detector.detect(cmd)
+        assert result.code_type == CodeType.BASH, result.detection_reason
+
+    def test_cat_heredoc_shell_script_not_misclassified_as_python(self):
+        cmd = (
+            "cat > run.sh << 'EOF'\n"
+            "#!/bin/bash\n"
+            "echo 'E2E_BEGIN_LINE ok'\n"
+            "echo 'E2E_DEBUG: loading config'\n"
+            "echo 'E2E_FINISH_LINE ok'\n"
+            "EOF"
+        )
+        result = code_detector.detect(cmd)
+        assert result.code_type == CodeType.BASH, result.detection_reason

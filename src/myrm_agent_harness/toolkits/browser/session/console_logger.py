@@ -24,12 +24,20 @@ from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
 if TYPE_CHECKING:
     from patchright.async_api import ConsoleMessage, Error, Page
 
 logger = logging.getLogger(__name__)
 
 _ERROR_TYPES = frozenset({"error", "warning"})
+# Per-entry raw capture cap (memory bound). Kept far larger than the display
+# cap so credentials remain structurally intact and get redacted in
+# get_summary *before* the display truncation cuts them. A credential
+# straddling this raw boundary itself is a theoretical residue, not the
+# original display-cut leak.
+_MAX_RAW_TEXT_LENGTH = 16384
 _MAX_TEXT_LENGTH = 500
 
 
@@ -60,9 +68,13 @@ class ConsoleLogger:
 
     def _cb_console(self, msg: ConsoleMessage) -> None:
         try:
-            text = msg.text[:_MAX_TEXT_LENGTH]
+            text = msg.text[:_MAX_RAW_TEXT_LENGTH]
             location = msg.location
-            url = f"{location.get('url', '')}:{location.get('lineNumber', '')}" if location else ""
+            url = (
+                f"{location.get('url', '')}:{location.get('lineNumber', '')}"
+                if location
+                else ""
+            )
             self._entries.append(
                 ConsoleEntry(
                     level=msg.type,
@@ -76,7 +88,7 @@ class ConsoleLogger:
 
     def _cb_pageerror(self, error: Error) -> None:
         try:
-            text = str(error)[:_MAX_TEXT_LENGTH]
+            text = str(error)[:_MAX_RAW_TEXT_LENGTH]
             self._entries.append(
                 ConsoleEntry(
                     level="error",
@@ -131,13 +143,21 @@ class ConsoleLogger:
         """
         entries = [e for e in self._entries if not errors_only or e.is_error]
         if not entries:
-            return "No console messages captured." if not errors_only else "No console errors."
+            return (
+                "No console messages captured."
+                if not errors_only
+                else "No console errors."
+            )
 
         lines: list[str] = []
         for entry in entries[-30:]:
             prefix = f"[{entry.level.upper()}]"
             loc = f" ({entry.url})" if entry.url else ""
-            lines.append(f"{prefix} {entry.text}{loc}")
+            # Redact before truncating: a credential split by the display cut
+            # (shorter than the minimum pattern length) would otherwise bypass
+            # the redaction performed at the tool-output boundary.
+            safe_text = redact_sensitive_text(entry.text)[:_MAX_TEXT_LENGTH]
+            lines.append(f"{prefix} {safe_text}{loc}")
 
         total = len(entries)
         shown = min(total, 30)

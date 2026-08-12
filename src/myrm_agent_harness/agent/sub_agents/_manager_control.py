@@ -59,12 +59,20 @@ class SubagentControlMixin:
             if self._children_internal.get(task_id, False):
                 continue
             metadata = self._child_observability_metadata(task_id)  # type: ignore[attr-defined]
+            # Cancel 请求已发出（IMMEDIATE task.cancel / GRACEFUL+CHECKPOINT flag）
+            # 但 task 尚未 done 时仍留在 _children；此时应如实报告 cancelled，
+            # 否则 SSE/REST 会持续向客户端广播 running，覆盖已取消的前端状态。
+            cancelled_requested = self._cancel_flags.get(task_id, False) or task.cancelled()
             children.append(
                 {
                     "task_id": task_id,
                     "agent_type": self._children_types.get(task_id, "unknown"),
                     "description": self._children_descriptions.get(task_id, ""),
-                    "status": SubAgentStatus.RUNNING.value,
+                    "status": (
+                        SubAgentStatus.CANCELLED.value
+                        if cancelled_requested
+                        else SubAgentStatus.RUNNING.value
+                    ),
                     "done": task.done(),
                     "cancelled": task.cancelled(),
                     **metadata,
@@ -124,6 +132,7 @@ class SubagentControlMixin:
 
         if strategy == CancellationStrategy.IMMEDIATE:
             task.cancel()
+            self._cancel_flags[task_id] = True
             logger.info("[subagent:%s] Cancelled (IMMEDIATE)", task_id)
         elif strategy == CancellationStrategy.GRACEFUL:
             self._cancel_flags[task_id] = True
@@ -265,7 +274,14 @@ class SubagentControlMixin:
         cancel_token: CancellationToken | None = None,
         task_id: str | None = None,
     ) -> SubAgentResult:
-        """Execute a worker then verify via an adversarial verifier, retrying on failure."""
+        """Execute a worker then verify via an adversarial verifier, retrying on failure.
+
+        When ``task_id`` is provided it becomes the visible business node: the
+        first worker runs under that id (``internal=False``) so it appears in
+        user-facing subagent trees, while retry workers and verifiers spawn as
+        framework-internal nodes (``internal=True``) that stay hidden; the final
+        outcome is mirrored onto the business node.
+        """
         from .orchestrator import run_with_verification
 
         return await run_with_verification(

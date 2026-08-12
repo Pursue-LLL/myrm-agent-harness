@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
 if TYPE_CHECKING:
     from patchright.async_api import Download, Page
 
@@ -177,7 +179,7 @@ class DownloadManager:
                 download = await download_info.value
                 return await self._process_download(download, auto=False)
         except Exception as e:
-            logger.warning("Failed to download URL %s: %s", url[:80], e)
+            logger.warning("Failed to download URL %s: %s", redact_sensitive_text(url)[:80], e)
             return None
 
     async def check_and_download_pdf(self, page: Page) -> DownloadResult | None:
@@ -267,11 +269,11 @@ class DownloadManager:
                 timeout=self._config.download_timeout_s,
             )
         except TimeoutError:
-            logger.warning("Download timed out: %s", url[:80])
+            logger.warning("Download timed out: %s", redact_sensitive_text(url)[:80])
             return None
         except Exception as e:
             failure = await download.failure()
-            logger.warning("Download failed for %s: %s (failure=%s)", url[:80], e, failure)
+            logger.warning("Download failed for %s: %s (failure=%s)", redact_sensitive_text(url)[:80], e, failure)
             return None
 
         if not target_path.exists():
@@ -357,7 +359,7 @@ class DownloadManager:
             logger.info("PDF fetched: %s (%d bytes)", unique_name, file_size)
             return result
         except Exception as e:
-            logger.warning("PDF fetch fallback failed for %s: %s", url[:80], e)
+            logger.warning("PDF fetch fallback failed for %s: %s", redact_sensitive_text(url)[:80], e)
             return None
 
     @staticmethod

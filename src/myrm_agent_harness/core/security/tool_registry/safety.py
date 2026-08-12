@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 def check_safety_coverage() -> None:
     """Verify all built-in tools have explicit safety declarations."""
-    from myrm_agent_harness.core.security.tool_registry import (
+    from .registry import (
         BUILTIN_TOOL_NAMES,
         TOOL_SAFETY_METADATA,
     )

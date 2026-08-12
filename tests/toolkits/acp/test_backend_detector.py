@@ -89,7 +89,9 @@ class TestBackendDetectorDetect:
     async def test_detect_cache_shared_across_instances(self) -> None:
         d1 = BackendDetector()
         d2 = BackendDetector()
-        with patch.object(BackendDetector, "_find_executable", return_value=None) as mock_find:
+        with patch.object(
+            BackendDetector, "_find_executable", return_value=None
+        ) as mock_find:
             first = await d1.detect(include_version=False)
             second = await d2.detect(include_version=False)
         assert first is second
@@ -106,7 +108,9 @@ class TestBackendDetectorDetect:
             call_count += 1
             return None
 
-        with patch.object(BackendDetector, "_find_executable", side_effect=counting_find):
+        with patch.object(
+            BackendDetector, "_find_executable", side_effect=counting_find
+        ):
             await detector1.detect()
             first_count = call_count
             detector2.invalidate_cache()
@@ -123,7 +127,9 @@ class TestBackendDetectorDetect:
             call_count += 1
             return None
 
-        with patch.object(BackendDetector, "_find_executable", side_effect=counting_find):
+        with patch.object(
+            BackendDetector, "_find_executable", side_effect=counting_find
+        ):
             first = await detector.detect(include_version=False)
             first_count = call_count
             second = await detector.detect(include_version=False, refresh=True)
@@ -142,7 +148,9 @@ class TestBackendDetectorDetect:
             call_count += 1
             return None
 
-        with patch.object(BackendDetector, "_find_executable", side_effect=counting_find):
+        with patch.object(
+            BackendDetector, "_find_executable", side_effect=counting_find
+        ):
             first = await detector.detect(include_version=False)
             first_count = call_count
             second = await detector.detect(include_version=False)
@@ -198,12 +206,17 @@ print(result or "NONE")
     def test_falls_back_to_npm_global(self) -> None:
         detector = BackendDetector()
         with (
-            patch("shutil.which", side_effect=lambda n: "/usr/bin/npm" if n == "npm" else None),
+            patch(
+                "shutil.which",
+                side_effect=lambda n: "/usr/bin/npm" if n == "npm" else None,
+            ),
             patch(
                 "myrm_agent_harness.toolkits.acp.core.backend_detector._COMMON_PATHS",
                 (),
             ),
-            patch.object(detector, "_find_npm_global", return_value="/usr/lib/node/claude"),
+            patch.object(
+                detector, "_find_npm_global", return_value="/usr/lib/node/claude"
+            ),
         ):
             result = detector._find_executable("claude")
         assert result == "/usr/lib/node/claude"
@@ -261,7 +274,9 @@ class TestGetVersion:
         mock_proc = AsyncMock()
         mock_proc.communicate = AsyncMock(return_value=(b"", b""))
 
-        async def _raise_timeout(awaitable: object, timeout: float) -> tuple[bytes, bytes]:
+        async def _raise_timeout(
+            awaitable: object, timeout: float
+        ) -> tuple[bytes, bytes]:
             if hasattr(awaitable, "close"):
                 awaitable.close()  # type: ignore[attr-defined]
             raise TimeoutError

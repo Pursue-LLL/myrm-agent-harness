@@ -20,6 +20,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.session.console_logger import (
     _ERROR_TYPES,
+    _MAX_RAW_TEXT_LENGTH,
     _MAX_TEXT_LENGTH,
     ConsoleEntry,
     ConsoleLogger,
@@ -30,7 +31,9 @@ class TestConsoleEntry:
     """ConsoleEntry dataclass behavior."""
 
     def test_basic_fields(self) -> None:
-        entry = ConsoleEntry(level="log", text="Hello", url="http://x.com:10", timestamp=1.0)
+        entry = ConsoleEntry(
+            level="log", text="Hello", url="http://x.com:10", timestamp=1.0
+        )
         assert entry.level == "log"
         assert entry.text == "Hello"
         assert entry.url == "http://x.com:10"
@@ -82,13 +85,13 @@ class TestConsoleLoggerCbConsole:
     def test_truncates_long_text(self) -> None:
         logger = ConsoleLogger()
         msg = MagicMock()
-        msg.text = "x" * 1000
+        msg.text = "x" * (_MAX_RAW_TEXT_LENGTH + 500)
         msg.type = "error"
         msg.location = None
 
         logger._cb_console(msg)
 
-        assert len(logger._entries[0].text) == _MAX_TEXT_LENGTH
+        assert len(logger._entries[0].text) == _MAX_RAW_TEXT_LENGTH
 
     def test_handles_none_location(self) -> None:
         logger = ConsoleLogger()
@@ -120,7 +123,9 @@ class TestConsoleLoggerCbConsole:
         msg.type = "log"
 
         broken_msg = MagicMock()
-        type(broken_msg).text = property(lambda self: (_ for _ in ()).throw(RuntimeError("boom")))
+        type(broken_msg).text = property(
+            lambda self: (_ for _ in ()).throw(RuntimeError("boom"))
+        )
 
         logger._cb_console(broken_msg)
         assert len(logger._entries) == 0
@@ -156,12 +161,12 @@ class TestConsoleLoggerCbPageerror:
 
     def test_truncates_long_error(self) -> None:
         logger = ConsoleLogger()
-        error = RuntimeError("x" * 1000)
+        error = RuntimeError("x" * (_MAX_RAW_TEXT_LENGTH + 500))
 
         logger._cb_pageerror(error)
 
         text = logger._entries[0].text
-        assert len(text) <= _MAX_TEXT_LENGTH + len("[PageError] ")
+        assert len(text) <= _MAX_RAW_TEXT_LENGTH + len("[PageError] ")
 
     def test_exception_in_callback_does_not_raise(self) -> None:
         logger = ConsoleLogger()
@@ -303,7 +308,12 @@ class TestConsoleLoggerGetSummary:
     def test_single_entry_formatting(self) -> None:
         logger = ConsoleLogger()
         logger._entries.append(
-            ConsoleEntry(level="error", text="ReferenceError: x", url="app.js:10", timestamp=time.time())
+            ConsoleEntry(
+                level="error",
+                text="ReferenceError: x",
+                url="app.js:10",
+                timestamp=time.time(),
+            )
         )
 
         result = logger.get_summary()
@@ -315,9 +325,17 @@ class TestConsoleLoggerGetSummary:
 
     def test_multiple_levels(self) -> None:
         logger = ConsoleLogger()
-        logger._entries.append(ConsoleEntry(level="log", text="info msg", url="", timestamp=time.time()))
-        logger._entries.append(ConsoleEntry(level="warning", text="warn msg", url="", timestamp=time.time()))
-        logger._entries.append(ConsoleEntry(level="error", text="err msg", url="", timestamp=time.time()))
+        logger._entries.append(
+            ConsoleEntry(level="log", text="info msg", url="", timestamp=time.time())
+        )
+        logger._entries.append(
+            ConsoleEntry(
+                level="warning", text="warn msg", url="", timestamp=time.time()
+            )
+        )
+        logger._entries.append(
+            ConsoleEntry(level="error", text="err msg", url="", timestamp=time.time())
+        )
 
         result = logger.get_summary()
 
@@ -328,9 +346,15 @@ class TestConsoleLoggerGetSummary:
 
     def test_errors_only_filters(self) -> None:
         logger = ConsoleLogger()
-        logger._entries.append(ConsoleEntry(level="log", text="info", url="", timestamp=time.time()))
-        logger._entries.append(ConsoleEntry(level="error", text="err", url="", timestamp=time.time()))
-        logger._entries.append(ConsoleEntry(level="warning", text="warn", url="", timestamp=time.time()))
+        logger._entries.append(
+            ConsoleEntry(level="log", text="info", url="", timestamp=time.time())
+        )
+        logger._entries.append(
+            ConsoleEntry(level="error", text="err", url="", timestamp=time.time())
+        )
+        logger._entries.append(
+            ConsoleEntry(level="warning", text="warn", url="", timestamp=time.time())
+        )
 
         result = logger.get_summary(errors_only=True)
 
@@ -343,7 +367,9 @@ class TestConsoleLoggerGetSummary:
         logger = ConsoleLogger(max_entries=200)
         for i in range(50):
             logger._entries.append(
-                ConsoleEntry(level="error", text=f"err-{i}", url="", timestamp=time.time())
+                ConsoleEntry(
+                    level="error", text=f"err-{i}", url="", timestamp=time.time()
+                )
             )
 
         result = logger.get_summary()
@@ -355,7 +381,9 @@ class TestConsoleLoggerGetSummary:
 
     def test_url_omitted_when_empty(self) -> None:
         logger = ConsoleLogger()
-        logger._entries.append(ConsoleEntry(level="log", text="no url", url="", timestamp=time.time()))
+        logger._entries.append(
+            ConsoleEntry(level="log", text="no url", url="", timestamp=time.time())
+        )
 
         result = logger.get_summary()
 
@@ -364,11 +392,83 @@ class TestConsoleLoggerGetSummary:
 
     def test_header_format(self) -> None:
         logger = ConsoleLogger()
-        logger._entries.append(ConsoleEntry(level="log", text="x", url="", timestamp=time.time()))
+        logger._entries.append(
+            ConsoleEntry(level="log", text="x", url="", timestamp=time.time())
+        )
 
         result = logger.get_summary()
 
         assert result.startswith("Console log (")
+
+
+class TestConsoleLoggerRedaction:
+    """Credential redaction in get_summary output.
+
+    Captured text is stored at the larger raw cap and redacted *before* the
+    display truncation, so a credential split by the display cut (fragment
+    shorter than the redaction patterns' minimum length) is still masked.
+    """
+
+    def _entry(self, text: str, level: str = "log") -> ConsoleEntry:
+        return ConsoleEntry(level=level, text=text, url="", timestamp=time.time())
+
+    def test_get_summary_redacts_env_credential(self) -> None:
+        logger = ConsoleLogger()
+        logger._entries.append(
+            self._entry('Login failed for OPENAI_API_KEY="sk-proj-abcdefghijklmnop"')
+        )
+
+        result = logger.get_summary()
+
+        assert "sk-proj-abcdefghijklmnop" not in result
+        # masked prefix keeps the first 6 chars for format recognition
+        assert "sk-pro..." in result
+
+    def test_get_summary_redacts_password_in_json(self) -> None:
+        logger = ConsoleLogger()
+        logger._entries.append(
+            self._entry('{"op":"login","password":"mysecretvalue12345678"}')
+        )
+
+        result = logger.get_summary()
+
+        assert "mysecretvalue12345678" not in result
+
+    def test_get_summary_redacts_fragment_crossing_truncation_boundary(self) -> None:
+        """The exact leak: a credential whose tail crosses the display boundary
+        would previously be cut at capture time and bypass redaction as a
+        too-short fragment. Now the full entry is stored raw and redacted
+        before the display cut."""
+        logger = ConsoleLogger()
+        head = " " * (_MAX_TEXT_LENGTH - 10)
+        tail = "sk-proj-abcdefghijklmnop1234567890"
+        logger._entries.append(self._entry(head + tail))
+
+        result = logger.get_summary()
+
+        assert "sk-proj-abcdefghijklmnop1234567890" not in result
+        assert "sk-pro..." in result
+
+    def test_page_error_redacts_credential(self) -> None:
+        logger = ConsoleLogger()
+        error = RuntimeError('Network request failed token="sk-proj-abcdefghijklmnop"')
+        logger._cb_pageerror(error)
+
+        result = logger.get_summary()
+
+        assert "sk-proj-abcdefghijklmnop" not in result
+        assert "sk-pro..." in result
+
+    def test_display_truncation_still_applies_after_redaction(self) -> None:
+        logger = ConsoleLogger()
+        logger._entries.append(self._entry("y" * (_MAX_RAW_TEXT_LENGTH + 100)))
+
+        result = logger.get_summary()
+
+        entry_line = next(
+            line for line in result.splitlines() if line.startswith("[LOG]")
+        )
+        assert len(entry_line) <= len("[LOG] ") + _MAX_TEXT_LENGTH
 
 
 class TestConsoleLoggerConstants:

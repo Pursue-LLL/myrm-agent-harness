@@ -113,7 +113,7 @@ class PseudonymStore:
                 (original_text,),
             ).fetchone()
             if row:
-                return row["pseudonym"]
+                return str(row["pseudonym"])
 
             pseudonym = self._next_pseudonym(privacy_type)
             self._conn.execute(

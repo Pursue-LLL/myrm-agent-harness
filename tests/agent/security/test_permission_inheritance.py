@@ -4,7 +4,6 @@ import asyncio
 import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
 import pytest
 
 from myrm_agent_harness.agent.security import (
@@ -82,19 +81,21 @@ async def test_openapi_executor_credential_injection() -> None:
         base_url="https://api.jira.com", auth_config=auth_cfg, service_name="jira"
     )
 
-    # Mock the httpx client request method
-    with patch.object(httpx.AsyncClient, "request") as mock_request:
+    # `execute` 走 secure_request（SSRF shield 封装），patch 该封装而非 httpx 内部方法
+    with patch(
+        "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request"
+    ) as mock_sr:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.text = '{"status": "ok"}'
         mock_resp.headers = {"content-type": "application/json"}
-        mock_request.return_value = mock_resp
+        mock_sr.return_value = mock_resp
 
         res = await executor.execute("GET", "/issues/123")
 
         assert "ok" in res
-        assert mock_request.call_count == 1
-        kwargs = mock_request.call_args[1]
+        assert mock_sr.call_count == 1
+        kwargs = mock_sr.call_args[1]
         headers = kwargs.get("headers")
 
         assert headers is not None
@@ -123,18 +124,20 @@ async def test_openapi_executor_preemptive_refresh() -> None:
         base_url="https://api.github.com", auth_config=auth_cfg, service_name="github"
     )
 
-    with patch.object(httpx.AsyncClient, "request") as mock_request:
+    with patch(
+        "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request"
+    ) as mock_sr:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.text = '{"status": "ok"}'
         mock_resp.headers = {"content-type": "application/json"}
-        mock_request.return_value = mock_resp
+        mock_sr.return_value = mock_resp
 
         await executor.execute("GET", "/user")
 
         assert mock_refresh_callback.call_count == 1
-        assert mock_request.call_count == 1
-        headers = mock_request.call_args[1].get("headers")
+        assert mock_sr.call_count == 1
+        headers = mock_sr.call_args[1].get("headers")
         assert headers is not None
         assert headers["Authorization"] == "Bearer gh_fresh_token"
 
@@ -158,7 +161,9 @@ async def test_openapi_executor_reactive_401_refresh() -> None:
         base_url="https://api.feishu.cn", auth_config=auth_cfg, service_name="feishu"
     )
 
-    with patch.object(httpx.AsyncClient, "request") as mock_request:
+    with patch(
+        "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request"
+    ) as mock_sr:
         # First call returns 401, second returns 200
         mock_resp_401 = MagicMock()
         mock_resp_401.status_code = 401
@@ -173,19 +178,19 @@ async def test_openapi_executor_reactive_401_refresh() -> None:
         # Intercept call_args to capture copies of headers because they are mutated in-place
         headers_history = []
 
-        async def mock_request_side_effect(*args, **kwargs):
+        async def mock_sr_side_effect(*args, **kwargs):
             headers_history.append(dict(kwargs.get("headers", {})))
             if len(headers_history) == 1:
                 return mock_resp_401
             return mock_resp_200
 
-        mock_request.side_effect = mock_request_side_effect
+        mock_sr.side_effect = mock_sr_side_effect
 
         res = await executor.execute("GET", "/bitable/v1")
 
         assert "Success" in res
         assert mock_refresh_callback.call_count == 1
-        assert mock_request.call_count == 2
+        assert mock_sr.call_count == 2
 
         # Assert correct header histories
         assert headers_history[0]["Authorization"] == "Bearer fs_stale_token"

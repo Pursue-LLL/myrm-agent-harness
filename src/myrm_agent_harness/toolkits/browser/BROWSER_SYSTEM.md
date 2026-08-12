@@ -528,6 +528,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 **实现机制**：
 - **打字延迟**：在 `type` 动作中引入随机的按键延迟（30-100ms/char），模拟人类输入节奏。
 - **点击延迟**：在 `click` 和 `dblclick` 动作中引入随机的按下/抬起延迟（50-150ms），模拟真实鼠标点击。
+- **滚轮惯性滚动**：`scroll`/`scroll_to_bottom`/坐标 `scroll` 统一改为 `mouse.wheel` 小步滚轮突发（20-40px/步、8-20ms 间隔，模拟物理滚轮惯性）；CAREFUL 档叠加 加速-巡航-减速 notch 节奏、滚动前停顿、突发组间隙停顿（2-4 格连发 + 相位切换/偶发阅读停顿）、偶发过冲+回正微调。光标先定位到目标滚动容器（元素中心，钳制在视口内），嵌套滚动容器通过 `elementFromPoint` 逐层解析（仅认真实可滚动的盒子：`overflow: auto/scroll` 或文档级滚动，跳过 `overflow: visible` 的非滚动盒），保证滚轮落在正确容器上；所有间隔用 `asyncio.sleep`（不产生 CDP wait 痕迹）。`scroll` 动作会诚实上报结果（已到底/已到顶/无滚动溢出/无可见位移），`scroll_to_bottom` 对无可滚动内容提前退出。
 - **动态超时自适应**：根据文本长度和随机延迟动态计算 `timeout`，防止因拟人化延迟导致 Playwright 内部超时崩溃。
 
 **反检测验证**（内部基准，非全站保证；高强度站点可能仍需自动升级到 Camoufox）：
@@ -590,7 +591,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `browser_navigate_tool` | 导航 | _(单一职责，无 action)_ |
 | `browser_inspect_tool` | **轻量级页面结构分析** | _(单一职责，无 action)_ |
 | `browser_snapshot_tool` | ARIA 快照 + iframe + Token 优化 + cursor-interactive | `scope`, `compact`, `selector`, `max_tokens`, `diff`, `cursor_interactive` |
-| `browser_interact_tool` | 13 种交互 + 可选 `steps[]` 批量 | click, dblclick, type, fill, press, hover, focus, select, scroll, upload_file, drag, check, uncheck；或 `steps[]` 一次调用多步 |
+| `browser_interact_tool` | 15 种交互 + 可选 `steps[]` 批量 | click, dblclick, type, fill, fill_credential, press, hover, focus, select, scroll, scroll_to_bottom, upload_file, drag, check, uncheck；或 `steps[]` 一次调用多步 |
 | `browser_extract_tool` | 文本 + 截图 + 媒体URL + 结构化提取 + diff | text / screenshot / media / diff_fast / diff_accurate + extraction_schema |
 | `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network | 20 种 action（含 network_detail/network_replay + save/restore/list/delete_session；HITL 用 browser_ask_human_tool，无 wait_for_user） |
 | `browser_execute_script_tool` | **Code-as-Action 批量执行** + AST 特权API门禁 | _(执行 Python 脚本，AST 扫描 page.request/evaluate/context 等特权API → HITL 审批)_ |
@@ -614,7 +615,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 **参数**：`x`/`y`（必填，viewport 坐标）、`target_x`/`target_y`（drag 时必填）、`text`（type/press/scroll 时必填）
 **互斥**：`ref` 和 `x`/`y` 互斥，不能同时提供
 
-坐标模式复用 `humanize.py` 的 Bézier 鼠标轨迹和 `vision_verifier.py` 的视觉验证，与 ref 模式保持一致的反检测和验证能力。
+坐标模式复用 `humanize.py` 的 Bézier 鼠标轨迹、滚轮惯性滚动（wheel-burst）和 `vision_verifier.py` 的视觉验证，与 ref 模式保持一致的反检测和验证能力。
 
 #### browser_navigate_tool — 导航后 compact refs 摘要
 
@@ -663,9 +664,9 @@ Loop Guard 与 Completion Guard 为兜底；正常路径由 Turn1 工具描述�
 基于 CDP（Chrome DevTools Protocol）的懒加载网络响应体检索，赋予 Agent "API-First" 数据提取策略：
 
 **核心能力**：
-- **自动发现 API**：通过 `network_log` action 查看 XHR/Fetch 请求列表，含 POST body 预览（前 200 字符，便于区分 GraphQL operationName）
-- **懒加载响应体**：通过 `network_detail` action 按需获取指定请求的完整响应体（最大 8000 字符），无内存浪费
-- **请求重放**：通过 `network_replay` action 在页面上下文中重放 API 请求获取最新数据
+- **自动发现 API**：通过 `network_log` action 查看 XHR/Fetch 请求列表，含 POST body 预览（前 200 字符，便于区分 GraphQL operationName；展示前先经 `redact_sensitive_text` 凭据脱敏，避免截断残片绕过脱敏）
+- **懒加载响应体**：通过 `network_detail` action 按需获取指定请求的完整响应体（最大 8000 字符；超过时先脱敏后截断，跨边界凭据不留明文残片），无内存浪费
+- **请求重放**：通过 `network_replay` action 在页面上下文中重放 API 请求获取最新数据（使用原始 POST body 重放保证认证有效；JS 侧返回加宽窗口，Python 侧先脱敏再截 8000）
 
 **典型场景**：
 - GraphQL 应用：通过 POST body 区分不同 operation，直接获取结构化 JSON
@@ -757,7 +758,7 @@ navigate(url="localhost:3000")       → DENY (Sandbox) / ALLOW (Local)
 
 ### 信任边界标记
 
-浏览器工具返回的所有外部内容（snapshot / extract / inspect / navigate / interact / evaluate / execute_script / console / network）经统一出口 `mark_untrusted`（`tools/common.py`）：**先 `redact_sensitive_text` 凭据脱敏，再 `wrap_untrusted` 包装**，提供 5 层安全防护：
+浏览器工具返回的所有外部内容（snapshot / extract / inspect / navigate / interact / evaluate / execute_script / console / network / ask_human 接管结果）经统一出口 `mark_untrusted`（`tools/common.py`）：**先 `redact_sensitive_text` 凭据脱敏，再 `wrap_untrusted` 包装**，提供 5 层安全防护：
 
 ```
 [SECURITY NOTICE: UNTRUSTED external content below...]

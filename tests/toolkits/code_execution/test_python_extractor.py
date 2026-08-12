@@ -55,6 +55,36 @@ class TestExtractPythonFromBash:
         cmd = "cat broken\nfrom skills.daily_briefing_skill import run"
         assert extract_python_from_bash(cmd) is None
 
+    def test_cat_heredoc_yaml_content_returns_none(self):
+        cmd = (
+            "cat > .myrm/filters.yaml << 'EOF'\n"
+            "filters:\n"
+            "  - name: e2e-filter-run\n"
+            "    match_command: 'run\\\\.sh'\n"
+            "EOF"
+        )
+        assert extract_python_from_bash(cmd) is None
+
+    def test_cat_heredoc_shell_script_returns_none(self):
+        cmd = (
+            "cat > run.sh << 'EOF'\n"
+            "#!/bin/bash\n"
+            "echo 'E2E_BEGIN_LINE ok'\n"
+            "EOF"
+        )
+        assert extract_python_from_bash(cmd) is None
+
+    def test_cat_heredoc_python_file_still_extracted(self):
+        cmd = (
+            "cat > /tmp/run.py << 'EOF'\n"
+            "import os\n"
+            "print(os.getcwd())\n"
+            "EOF"
+        )
+        result = extract_python_from_bash(cmd)
+        assert result is not None
+        assert "import os" in result
+
     def test_skill_import_raw_python(self):
         cmd = "from skills.daily_briefing_skill import run"
         assert extract_python_from_bash(cmd) == cmd

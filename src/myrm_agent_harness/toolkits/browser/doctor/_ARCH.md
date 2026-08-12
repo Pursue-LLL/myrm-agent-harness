@@ -11,15 +11,14 @@ with clear fix suggestions per failure. Includes precise orphan process detectio
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Public facade. Re-exports all symbols from `checks`/`orphans`/`report`/`auto_install` so `toolkits.browser.doctor` remains a single import point (incl. private symbols for backward-compatible imports) | ✅ |
+| `__init__.py` | Package | Public facade. Re-exports all symbols from `checks`/`orphans`/`report` so `toolkits.browser.doctor` remains a single import point (incl. private symbols for backward-compatible imports) | ✅ |
 | `checks.py` | Core | Environment and dependency checks: patchright/camoufox/browser executable/memory/disk/proxy/launch/extension relay + `run_doctor` orchestrator | ✅ |
 | `orphans.py` | Core | Orphan automation process detection (chromium/driver), cleanup with safety dry-run, and `check_orphan_processes` | ✅ |
 | `report.py` | Core | Report data model (`CheckStatus`/`DoctorCheckResult`/`DoctorReport`) and colored CLI rendering (`format_report`) | ✅ |
-| `auto_install.py` | Core | Chromium auto-install via patchright CLI (`_try_auto_install_chromium`), triggered when launch check fails with a missing executable | ✅ |
 
 ## Key Dependencies
 
 - `patchright` (browser automation library, optional extra `[browser]`)
 - `psutil` (system monitoring, optional)
-- `toolkits/browser/pool/browser_launcher::_get_install_env` (auto-install environment)
 - `toolkits/browser/utils::is_timeout_error` (builtin/patchright timeout detection)
+- `infra/tls_compat::create_httpx_client` (unified async HTTP client with enterprise TLS auto-injection, used by the extension relay probe)

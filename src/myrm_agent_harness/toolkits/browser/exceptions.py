@@ -52,6 +52,8 @@ from __future__ import annotations
 from typing import Any, Literal
 from urllib.parse import urlparse
 
+from myrm_agent_harness.core.security.redact import redact_for_llm, redact_sensitive_text
+
 
 class BrowserError(Exception):
     """Root exception for all browser toolkit operations (enhanced with diagnostics).
@@ -79,13 +81,17 @@ class BrowserError(Exception):
         """Initialize browser error with message and optional context.
 
         Args:
-            message: Human-readable error description
+            message: Human-readable error description (credentials are redacted)
             context: Optional context data (URL, timeout, etc.)
             cause: Optional underlying exception
             diagnostic_info: Diagnostic information for debugging
             recovery_suggestions: Prioritized list of recovery actions
             error_code: Error classification code
         """
+        # Redact at construction: tool errors reach the LLM as str(e) via
+        # LangGraph's default tool-error propagation, so the message itself is the
+        # last line of defense against credential leakage (OAuth codes, API keys).
+        message = redact_sensitive_text(message)
         super().__init__(message)
         self.message = message
         self.context = context or {}
@@ -95,8 +101,12 @@ class BrowserError(Exception):
         self.error_code = error_code
 
     def format_for_llm(self) -> str:
-        """Format error for LLM consumption with full diagnostic context."""
-        parts = [f"Error: {self.message}"]
+        """Format error for LLM consumption with full diagnostic context.
+
+        Credentials embedded in the message or context (OAuth codes in URLs,
+        API keys, token fragments) are redacted before the text reaches the LLM.
+        """
+        parts = [f"Error: {redact_sensitive_text(self.message)}"]
 
         if self.error_code:
             parts.append(f"Error Code: {self.error_code}")
@@ -104,17 +114,17 @@ class BrowserError(Exception):
         if self.context:
             parts.append("\nContext:")
             for key, value in self.context.items():
-                parts.append(f"  - {key}: {value}")
+                parts.append(f"  - {key}: {redact_for_llm(value)}")
 
         if self.diagnostic_info:
             parts.append("\nDiagnostic Info:")
             for key, value in self.diagnostic_info.items():
-                parts.append(f"  - {key}: {value}")
+                parts.append(f"  - {key}: {redact_for_llm(value)}")
 
         if self.recovery_suggestions:
             parts.append("\nRecovery Suggestions:")
             for i, suggestion in enumerate(self.recovery_suggestions, 1):
-                parts.append(f"  {i}. {suggestion}")
+                parts.append(f"  {i}. {redact_sensitive_text(suggestion)}")
 
         return "\n".join(parts)
 
@@ -189,7 +199,7 @@ class BrowserNavigationError(BrowserSessionError):
             context: Additional context
             cause: Underlying exception
         """
-        diagnostic_info = {}
+        diagnostic_info: dict[str, object] = {}
         if url:
             diagnostic_info["url"] = url
         if status_code:
@@ -313,7 +323,7 @@ class BrowserTimeoutError(BrowserSessionError):
             context: Additional context
             cause: Underlying exception
         """
-        diagnostic_info = {}
+        diagnostic_info: dict[str, object] = {}
         if timeout_seconds:
             diagnostic_info["timeout_seconds"] = timeout_seconds
         if operation:
@@ -561,6 +571,10 @@ class RefNotFoundError(BrowserToolError):
             )
 
         change_type, last_norm, curr_norm = RefNotFoundError._classify_url_change(last_snapshot_url, current_url)
+        # Redact before surfacing URLs to the LLM: query-string credentials (OAuth
+        # code, signed params) must not leak through the tool error message.
+        last_norm = redact_sensitive_text(last_norm)
+        curr_norm = redact_sensitive_text(curr_norm)
 
         messages = {
             "path": (

@@ -37,6 +37,8 @@ import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypedDict
 
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
 from .types import AccurateComparisonResult, validate_screenshot_input
 
 if TYPE_CHECKING:
@@ -210,7 +212,11 @@ class AccurateComparator:
                 try:
                     await diff_page.unroute(url)
                 except Exception as exc:
-                    logger.warning(f"AccurateComparator: failed to unroute {url}: {exc}")
+                    logger.warning(
+                        "AccurateComparator: failed to unroute %s: %s",
+                        redact_sensitive_text(url)[:80],
+                        exc,
+                    )
             try:
                 await diff_page.close()
             except Exception as exc:

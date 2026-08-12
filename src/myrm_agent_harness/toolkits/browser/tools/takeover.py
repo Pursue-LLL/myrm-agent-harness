@@ -13,6 +13,7 @@ in-chat banner guiding the user to complete the step in Chrome.
 - langgraph.types::interrupt (POS: LangGraph HITL interrupt mechanism)
 - utils.event_utils::dispatch_custom_event (POS: SSE event dispatch)
 - ..session::BrowserSession (POS: active browser session)
+- .common::mark_untrusted (POS: unified browser output security boundary; page/user-sourced URL, title, and user message are credential-redacted before reaching the LLM)
 
 [OUTPUT]
 - create_takeover_tool: Create browser_ask_human tool bound to session.
@@ -32,6 +33,10 @@ from typing import TYPE_CHECKING
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
+
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
+from .common import mark_untrusted
 
 if TYPE_CHECKING:
     from ..session import BrowserSession
@@ -109,7 +114,7 @@ def create_takeover_tool(session: BrowserSession):
         logger.info(
             "browser_ask_human: requesting user takeover — reason=%r url=%s",
             reason,
-            current_url,
+            redact_sensitive_text(current_url),
         )
 
         start = time.monotonic()
@@ -127,10 +132,13 @@ def create_takeover_tool(session: BrowserSession):
 
         elapsed_ms = (time.monotonic() - start) * 1000
 
-        await dispatch_custom_event("browser_takeover_completed", {
-            "elapsed_ms": elapsed_ms,
-            "url": current_url,
-        })
+        await dispatch_custom_event(
+            "browser_takeover_completed",
+            {
+                "elapsed_ms": elapsed_ms,
+                "url": current_url,
+            },
+        )
 
         post_url = ""
         with contextlib.suppress(Exception):
@@ -152,8 +160,8 @@ def create_takeover_tool(session: BrowserSession):
         logger.info(
             "browser_ask_human: user completed takeover (elapsed=%.0fms, url=%s -> %s)",
             elapsed_ms,
-            current_url,
-            post_url,
+            redact_sensitive_text(current_url),
+            redact_sensitive_text(post_url),
         )
 
         result_parts = [
@@ -165,11 +173,13 @@ def create_takeover_tool(session: BrowserSession):
             result_parts.append(f"Page navigated to: {post_url}")
         if post_screenshot_desc:
             result_parts.append(post_screenshot_desc)
-        result_parts.append(
-            "Please respond to the user with the outcome now."
-        )
+        result_parts.append("Please respond to the user with the outcome now.")
 
-        return "\n".join(result_parts)
+        # post_url / post_title / user_message are page-or-user-sourced and may
+        # carry credentials (e.g. an OAuth callback URL with ?code=...). Route
+        # through the unified browser output boundary so nothing reaches the LLM
+        # context or persistent memory in plaintext.
+        return mark_untrusted("\n".join(result_parts))
 
     from myrm_agent_harness.utils.tool_dynamic_hints import with_dynamic_hints
 

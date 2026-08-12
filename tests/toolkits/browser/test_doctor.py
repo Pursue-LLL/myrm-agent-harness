@@ -1,8 +1,9 @@
 """Unit tests for browser doctor diagnostics."""
 
+import asyncio
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -100,6 +101,28 @@ def test_format_report_includes_camoufox() -> None:
     )
     rendered = format_report(report)
     assert "camoufox 0.4.11 installed" in rendered
+
+
+def test_format_report_includes_extension_relay() -> None:
+    """Extension Relay section in CLI report must render when checked."""
+    from myrm_agent_harness.toolkits.browser.doctor import DoctorCheckResult, DoctorReport
+
+    report = DoctorReport(
+        checks={
+            "extension_relay": DoctorCheckResult(
+                name="extension_relay",
+                status=CheckStatus.WARNING,
+                message="Server unreachable; cannot verify browser extension CDP relay",
+                fix="Start myrm-agent-server and connect the browser extension from WebUI",
+            ),
+        },
+        summary="0/1 checks passed",
+        overall_healthy=False,
+    )
+    rendered = format_report(report)
+    assert "Extension Relay" in rendered
+    assert "cannot verify browser extension CDP relay" in rendered
+    assert "Start myrm-agent-server" in rendered
 
 
 def test_check_browser_executable_default() -> None:
@@ -283,6 +306,104 @@ async def test_run_doctor_with_launch() -> None:
         assert report.overall_healthy or report.checks["browser_launch"].status == CheckStatus.WARNING
 
 
+@pytest.mark.asyncio
+async def test_run_doctor_runs_relay_and_launch_concurrently() -> None:
+    """Relay, orphan and launch checks must run concurrently and preserve order."""
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        DoctorCheckResult,
+    )
+
+    relay = DoctorCheckResult(
+        name="extension_relay",
+        status=CheckStatus.WARNING,
+        message="relay mock",
+    )
+    orphan = DoctorCheckResult(
+        name="orphan_processes",
+        status=CheckStatus.OK,
+        message="orphan mock",
+    )
+    launch = DoctorCheckResult(
+        name="browser_launch",
+        status=CheckStatus.OK,
+        message="launch mock",
+    )
+
+    started: list[str] = []
+    relay_completed = asyncio.Event()
+
+    async def fake_relay() -> DoctorCheckResult:
+        started.append("relay")
+        await relay_completed.wait()
+        return relay
+
+    def fake_orphan() -> DoctorCheckResult:
+        started.append("orphan")
+        return orphan
+
+    async def fake_launch(_launch_options: dict[str, object] | None) -> DoctorCheckResult:
+        started.append("launch")
+        await asyncio.sleep(0)
+        relay_completed.set()
+        return launch
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.checks._check_extension_relay",
+            side_effect=fake_relay,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.checks.check_orphan_processes",
+            side_effect=fake_orphan,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.checks._check_browser_launch",
+            side_effect=fake_launch,
+        ),
+    ):
+        report = await run_doctor(include_launch_test=True, include_orphan_check=True)
+
+    # relay 阻塞等待时 launch 已启动（否则测试会死锁）；orphan 亦在并发批次中执行
+    assert "relay" in started
+    assert "launch" in started
+    assert "orphan" in started
+    assert report.checks["extension_relay"] is relay
+    assert report.checks["browser_launch"] is launch
+    assert report.checks["orphan_processes"] is orphan
+
+
+@pytest.mark.asyncio
+async def test_check_browser_launch_timeout_graceful() -> None:
+    """A hung launch probe must degrade to a graceful ERROR within the timeout."""
+    from myrm_agent_harness.toolkits.browser.doctor import DoctorCheckResult
+    from myrm_agent_harness.toolkits.browser.doctor.checks import (
+        _check_browser_launch,
+    )
+
+    async def never_finishes(
+        _launch_opts: dict[str, object],
+        _async_playwright: object,
+    ) -> DoctorCheckResult:
+        await asyncio.sleep(60)
+        raise AssertionError("probe should have been cancelled by the timeout")
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.checks._LAUNCH_TIMEOUT_S",
+            0.05,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.checks._probe_browser_launch",
+            side_effect=never_finishes,
+        ),
+    ):
+        result = await _check_browser_launch()
+
+    assert result.status == CheckStatus.ERROR
+    assert "patchright not available" not in result.message
+    assert "timeout" in result.message.lower()
+
+
 def test_format_report() -> None:
     """Test report formatting."""
     from myrm_agent_harness.toolkits.browser.doctor import DoctorReport
@@ -338,10 +459,9 @@ def test_format_report_with_warnings_and_errors() -> None:
     assert isinstance(output, str)
 
 
-def test_check_extension_relay_requires_access_policy() -> None:
+async def test_check_extension_relay_requires_access_policy() -> None:
     """Relay ready without domains must not report OK."""
     import json
-    from unittest.mock import patch
 
     from myrm_agent_harness.toolkits.browser.doctor import (
         CheckStatus,
@@ -355,25 +475,29 @@ def test_check_extension_relay_requires_access_policy() -> None:
             "auth_token_required": False,
             "auth_token_configured": True,
         }
-    ).encode("utf-8")
+    )
 
     mock_response = MagicMock()
-    mock_response.read.return_value = payload
-    mock_response.__enter__ = MagicMock(return_value=mock_response)
-    mock_response.__exit__ = MagicMock(return_value=False)
+    mock_response.status_code = 200
+    mock_response.text = payload
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.get.return_value = mock_response
 
-    with patch("urllib.request.urlopen", return_value=mock_response):
-        result = _check_extension_relay()
+    with patch(
+        "myrm_agent_harness.toolkits.browser.doctor.checks.create_httpx_client",
+        return_value=mock_client,
+    ):
+        result = await _check_extension_relay()
 
     assert result.status == CheckStatus.WARNING
     assert "access policy" in result.message.lower()
     assert result.fix is not None
 
 
-def test_check_extension_relay_ok_when_policy_valid() -> None:
+async def test_check_extension_relay_ok_when_policy_valid() -> None:
     """Relay and access policy both ready should report OK."""
     import json
-    from unittest.mock import patch
 
     from myrm_agent_harness.toolkits.browser.doctor import (
         CheckStatus,
@@ -387,14 +511,19 @@ def test_check_extension_relay_ok_when_policy_valid() -> None:
             "auth_token_required": False,
             "auth_token_configured": True,
         }
-    ).encode("utf-8")
+    )
 
     mock_response = MagicMock()
-    mock_response.read.return_value = payload
-    mock_response.__enter__ = MagicMock(return_value=mock_response)
-    mock_response.__exit__ = MagicMock(return_value=False)
+    mock_response.status_code = 200
+    mock_response.text = payload
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.get.return_value = mock_response
 
-    with patch("urllib.request.urlopen", return_value=mock_response):
-        result = _check_extension_relay()
+    with patch(
+        "myrm_agent_harness.toolkits.browser.doctor.checks.create_httpx_client",
+        return_value=mock_client,
+    ):
+        result = await _check_extension_relay()
 
     assert result.status == CheckStatus.OK

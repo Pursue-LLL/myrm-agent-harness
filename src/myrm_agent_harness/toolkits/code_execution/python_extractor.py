@@ -191,12 +191,21 @@ def _extract_heredoc(command: str) -> str | None:
 
 
 def _extract_cat_heredoc(command: str) -> str | None:
-    """Extract Python body from ``cat > path << EOF ... EOF`` shell wrappers."""
+    """Extract Python body from ``cat > path << EOF ... EOF`` shell wrappers.
+
+    Returns the body only when it parses as valid Python.  Non-Python heredocs
+    (e.g. writing YAML or shell config files) fall back to bash execution so the
+    file is written verbatim instead of being rejected by Python syntax checks.
+    """
     match = _CAT_HEREDOC_RE.search(command)
     if match is None:
         return None
     body = match.group(2).strip()
-    return body or None
+    if not body:
+        return None
+    if validate_python_syntax(body) is not None:
+        return None
+    return body
 
 
 def _looks_like_shell_wrapper(command: str) -> bool:

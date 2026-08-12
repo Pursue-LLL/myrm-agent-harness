@@ -285,14 +285,30 @@ async def test_delete_snapshot_unknown_id_returns_false(store: ShadowGitSnapshot
     assert await store.delete_snapshot("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef") is False
 
 
+@pytest.mark.asyncio
+async def test_delete_snapshot_cas_rejects_stale_ref(store: ShadowGitSnapshotStore, workspace: Path):
+    """CAS ensures a concurrent take_snapshot (ref moved) cannot be rolled back."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "first")
+    snaps = await store.list_snapshots(str(workspace))
+    old_id = snaps[-1].snapshot_id
+
+    (workspace / "hello.py").write_text("v2\n")
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "second")
+
+    # Ref head is now the second snapshot; deleting the stale first one must fail.
+    assert await store.delete_snapshot(old_id) is False
+    remaining = await store.list_snapshots(str(workspace))
+    assert len(remaining) == 2
+
+
 # ------------------------------------------------------------------
 # cleanup
 # ------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_cleanup_truncates_ref(store: ShadowGitSnapshotStore, workspace: Path):
-    """Cleanup truncates ref to the Nth commit. Ancestors still reachable via git log."""
+async def test_cleanup_keeps_most_recent(store: ShadowGitSnapshotStore, workspace: Path):
+    """Cleanup keeps the newest snapshots and severs older ones from the chain."""
     for i in range(6):
         (workspace / "hello.py").write_text(f"v{i}\n")
         await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, f"iter-{i}")
@@ -302,6 +318,44 @@ async def test_cleanup_truncates_ref(store: ShadowGitSnapshotStore, workspace: P
 
     deleted = await store.cleanup(str(workspace), max_snapshots=3)
     assert deleted == 3
+
+    after = await store.list_snapshots(str(workspace), limit=100)
+    assert len(after) == 3
+    assert [s.snapshot_id for s in after] == [s.snapshot_id for s in before[:3]]
+    # Removed snapshots are no longer resolvable.
+    for removed in before[3:]:
+        assert await store.find_project_for_commit(removed.snapshot_id) == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_cleanup_under_limit_noop(store: ShadowGitSnapshotStore, workspace: Path):
+    """Cleanup is a no-op when snapshot count is within the limit."""
+    for i in range(3):
+        (workspace / "hello.py").write_text(f"v{i}\n")
+        await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, f"iter-{i}")
+
+    deleted = await store.cleanup(str(workspace), max_snapshots=5)
+    assert deleted == 0
+    assert len(await store.list_snapshots(str(workspace), limit=100)) == 3
+
+
+@pytest.mark.asyncio
+async def test_cleanup_graft_failure_returns_zero(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+    """A failed git replace during cleanup reports 0 deletions instead of raising."""
+    for i in range(6):
+        (workspace / "hello.py").write_text(f"v{i}\n")
+        await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, f"iter-{i}")
+
+    real_run = store._run_cmd
+
+    async def selective_fail(*args, **kwargs):
+        if args[:2] == ("git", "replace"):
+            raise RuntimeError("replace failed")
+        return await real_run(*args, **kwargs)
+
+    monkeypatch.setattr(store, "_run_cmd", selective_fail)
+    deleted = await store.cleanup(str(workspace), max_snapshots=3)
+    assert deleted == 0
 
 
 # ------------------------------------------------------------------
@@ -507,3 +561,338 @@ async def test_multiple_projects_isolated(store: ShadowGitSnapshotStore, tmp_pat
     assert len(snaps_a) == 1
     assert len(snaps_b) == 1
     assert snaps_a[0].snapshot_id != snaps_b[0].snapshot_id
+
+
+# ------------------------------------------------------------------
+# get_snapshot_info: metadata / description parsing and error paths
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_snapshot_info_parses_metadata_and_description(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
+    """get_snapshot_info returns full metadata with stripped description prefix."""
+    await store.take_snapshot(
+        str(workspace),
+        SnapshotTrigger.MANUAL,
+        "my info desc",
+        metadata={"external_effects": ("database",), "agent_id": "agent-x"},
+    )
+    sid = (await store.list_snapshots(str(workspace)))[0].snapshot_id
+
+    info = await store.get_snapshot_info(sid)
+    assert info is not None
+    assert info.snapshot_id == sid
+    assert info.description == "my info desc"
+    assert info.trigger == SnapshotTrigger.MANUAL
+    assert info.metadata.get("external_effects") == ["database"]
+    assert info.metadata.get("agent_id") == "agent-x"
+
+
+@pytest.mark.asyncio
+async def test_get_snapshot_info_invalid_hash_returns_none(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
+    """Invalid commit hashes are rejected without raising."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+    assert await store.get_snapshot_info("not-a-commit") is None
+
+
+@pytest.mark.asyncio
+async def test_get_snapshot_info_unknown_commit_returns_none(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
+    """Unknown but well-formed commit hashes return None."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+    bogus = "f" * 40
+    assert await store.get_snapshot_info(bogus) is None
+
+
+@pytest.mark.asyncio
+async def test_get_snapshot_info_empty_description_no_prefix(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
+    """Empty description must not leak the internal snapshot prefix."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.EXECUTE_TERMINAL, "")
+    sid = (await store.list_snapshots(str(workspace)))[0].snapshot_id
+    info = await store.get_snapshot_info(sid)
+    assert info is not None
+    assert info.description == ""
+
+
+# ------------------------------------------------------------------
+# diff: numstat binary handling and failure branch
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_diff_with_binary_file_reports_null_stats(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
+    """Binary files in diff numstat use '-' and must not crash parsing."""
+    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "baseline")
+    (workspace / "bin.dat").write_bytes(b"\x00\x01\x02")
+    diff = await store.diff(sid)
+    assert diff.total_changes >= 1
+    assert all(c.path for c in diff.changes)
+
+
+@pytest.mark.asyncio
+async def test_diff_unknown_snapshot_returns_empty(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
+    """Diff against an unknown snapshot returns an empty diff instead of raising."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+    diff = await store.diff("b" * 40)
+    assert diff.total_changes == 0
+
+
+# ------------------------------------------------------------------
+# restore: unknown commit / missing workspace
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_restore_unknown_commit_fails(store: ShadowGitSnapshotStore, workspace: Path):
+    """Restoring an unknown snapshot returns a failure result."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+    result = await store.restore("a" * 40)
+    assert result.success is False
+    assert result.files_restored == 0
+
+
+@pytest.mark.asyncio
+async def test_restore_missing_workspace_fails(store: ShadowGitSnapshotStore, workspace: Path):
+    """Restore reports failure when the workspace no longer exists."""
+    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+    (workspace / "hello.py").write_text("v2\n")
+    import shutil
+
+    shutil.rmtree(workspace)
+    result = await store.restore(sid)
+    assert result.success is False
+    assert result.error is not None
+
+
+# ------------------------------------------------------------------
+# edge coverage: default path / corrupt metadata / oversized rejection
+# ------------------------------------------------------------------
+
+
+def test_default_store_path_uses_myrm_data_dir(monkeypatch):
+    import myrm_agent_harness.agent.file_snapshot.shadow_git_store as sgs
+
+    monkeypatch.setenv("MYRM_DATA_DIR", "/data/myrm")
+    assert sgs._default_store_path() == Path("/data/myrm/file_snapshots")
+
+
+def test_default_store_path_fallback(monkeypatch):
+    import myrm_agent_harness.agent.file_snapshot.shadow_git_store as sgs
+
+    monkeypatch.delenv("MYRM_DATA_DIR", raising=False)
+    assert sgs._default_store_path() == Path.home() / ".myrm" / "file_snapshots"
+
+
+@pytest.mark.asyncio
+async def test_touch_project_recovers_corrupt_meta(store: ShadowGitSnapshotStore, workspace: Path):
+    """Corrupt project metadata is rebuilt on the next snapshot."""
+    import json
+
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "first")
+    meta_path = store._project_meta_path(_project_hash(str(workspace.resolve())))
+    meta_path.write_text("{corrupt")
+
+    (workspace / "hello.py").write_text("v2\n")
+    await store.take_snapshot(str(workspace), SnapshotTrigger.WRITE_FILE, "second")
+    meta = json.loads(meta_path.read_text())
+    assert meta["workdir"] == str(workspace.resolve())
+
+
+@pytest.mark.asyncio
+async def test_take_snapshot_rejects_oversized_workspace(
+    store: ShadowGitSnapshotStore, workspace: Path, monkeypatch
+):
+    """A workspace exceeding the file-count limit is rejected."""
+    import myrm_agent_harness.agent.file_snapshot.shadow_git_maintenance as maint
+
+    monkeypatch.setattr(maint, "_MAX_FILE_COUNT", 1)
+    with pytest.raises(ValueError, match="exceeds file count"):
+        await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL)
+
+
+# ------------------------------------------------------------------
+# edge coverage: restore pre-rollback failure / diff git failure
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_restore_pre_rollback_failure_continues(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+    """A failed pre-rollback snapshot must not abort the restore itself."""
+    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "baseline")
+    (workspace / "hello.py").write_text("changed\n")
+
+    async def fail_take(*args, **kwargs):
+        raise RuntimeError("pre-rollback failed")
+
+    monkeypatch.setattr(store, "take_snapshot", fail_take)
+    result = await store.restore(sid)
+    assert result.success is True
+    assert result.pre_rollback_snapshot_id is None
+
+
+@pytest.mark.asyncio
+async def test_diff_handles_git_failure(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+    """A git failure during diff returns an empty diff instead of raising."""
+    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "baseline")
+    (workspace / "hello.py").write_text("changed\n")
+
+    real_run = store._run_cmd
+
+    async def selective_fail(*args, **kwargs):
+        if args[:2] == ("git", "add"):
+            raise RuntimeError("git add failed")
+        return await real_run(*args, **kwargs)
+
+    monkeypatch.setattr(store, "_run_cmd", selective_fail)
+    diff = await store.diff(sid)
+    assert diff.total_changes == 0
+
+
+@pytest.mark.asyncio
+async def test_diff_ignores_malformed_lines(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+    """Blank and malformed numstat/name-status lines are skipped."""
+    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "baseline")
+    (workspace / "hello.py").write_text("changed\n")
+
+    real_run = store._run_cmd
+
+    async def fake_run_cmd(*args, **kwargs):
+        if args[0] == "git" and args[1] == "diff-tree":
+            if "--numstat" in args:
+                return "\nbad-line\twithout-tabs\n"
+            return "\nmalformed-line\n"
+        return await real_run(*args, **kwargs)
+
+    monkeypatch.setattr(store, "_run_cmd", fake_run_cmd)
+    diff = await store.diff(sid)
+    assert diff.total_changes == 0
+
+
+# ------------------------------------------------------------------
+# edge coverage: list_snapshots / get_snapshot_info parsing failures
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_snapshots_bad_created_at(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+    """A non-numeric created_at falls back to 0.0 instead of raising."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+
+    async def fake_run_cmd(*args, **kwargs):
+        if args[0] == "git" and args[1] == "log":
+            return f"{'a' * 40}\nnot-a-number\nsnapshot manual: test\n\n---END---"
+        return ""
+
+    monkeypatch.setattr(store, "_run_cmd", fake_run_cmd)
+    snaps = await store.list_snapshots(str(workspace))
+    assert len(snaps) == 1
+    assert snaps[0].created_at == 0.0
+
+
+@pytest.mark.asyncio
+async def test_get_snapshot_info_git_failure(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+    sid = (await store.list_snapshots(str(workspace)))[0].snapshot_id
+
+    real_run = store._run_cmd
+
+    async def selective_fail(*args, **kwargs):
+        if args[0] == "git" and args[1] == "log":
+            raise RuntimeError("git log failed")
+        return await real_run(*args, **kwargs)
+
+    monkeypatch.setattr(store, "_run_cmd", selective_fail)
+    assert await store.get_snapshot_info(sid) is None
+
+
+@pytest.mark.asyncio
+async def test_get_snapshot_info_short_log(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+    sid = (await store.list_snapshots(str(workspace)))[0].snapshot_id
+
+    async def fake_run_cmd(*args, **kwargs):
+        if args[0] == "git" and args[1] == "log":
+            return "only-one-line"
+        return ""
+
+    monkeypatch.setattr(store, "_run_cmd", fake_run_cmd)
+    assert await store.get_snapshot_info(sid) is None
+
+
+@pytest.mark.asyncio
+async def test_get_snapshot_info_bad_created_at(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+    sid = (await store.list_snapshots(str(workspace)))[0].snapshot_id
+
+    async def fake_run_cmd(*args, **kwargs):
+        if args[0] == "git" and args[1] == "log":
+            return f"{sid}\nnot-a-number\nsnapshot manual: x\n\n"
+        return ""
+
+    monkeypatch.setattr(store, "_run_cmd", fake_run_cmd)
+    info = await store.get_snapshot_info(sid)
+    assert info is not None
+    assert info.created_at == 0.0
+
+
+# ------------------------------------------------------------------
+# edge coverage: delete_snapshot failure branches
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_delete_snapshot_invalid_format_returns_false(store: ShadowGitSnapshotStore, workspace: Path):
+    """A malformed snapshot id is rejected before any git lookup."""
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+    assert await store.delete_snapshot("not-a-hash") is False
+
+
+@pytest.mark.asyncio
+async def test_delete_snapshot_rev_parse_failure(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "x")
+
+    real_run = store._run_cmd
+
+    async def selective_fail(*args, **kwargs):
+        if args[0] == "git" and args[1] == "rev-parse" and "--verify" in args:
+            raise RuntimeError("rev-parse failed")
+        return await real_run(*args, **kwargs)
+
+    monkeypatch.setattr(store, "_run_cmd", selective_fail)
+    assert await store.delete_snapshot(sid) is False
+
+
+@pytest.mark.asyncio
+async def test_delete_snapshot_only_commit_detaches_ref(store: ShadowGitSnapshotStore, workspace: Path):
+    """Deleting the only snapshot detaches the project ref entirely."""
+    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "only")
+    assert await store.delete_snapshot(sid) is True
+    assert await store.list_snapshots(str(workspace)) == []
+
+
+@pytest.mark.asyncio
+async def test_delete_snapshot_update_ref_failure(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+    await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "first")
+    (workspace / "hello.py").write_text("v2\n")
+    sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "second")
+
+    real_run = store._run_cmd
+
+    async def fail_update_ref(*args, **kwargs):
+        if "update-ref" in args:
+            raise RuntimeError("update-ref failed")
+        return await real_run(*args, **kwargs)
+
+    monkeypatch.setattr(store, "_run_cmd", fail_update_ref)
+    assert await store.delete_snapshot(sid) is False

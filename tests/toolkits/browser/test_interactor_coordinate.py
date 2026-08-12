@@ -39,6 +39,13 @@ def interactor(mock_page: Any) -> Interactor:
     return Interactor(mock_page, {})
 
 
+@pytest.fixture(autouse=True)
+def _instant_sleep() -> None:
+    """Make every unit test instant — no real asyncio.sleep waits."""
+    with patch("asyncio.sleep", new=AsyncMock()):
+        yield
+
+
 # =============================================================================
 # Action: click at coordinates
 # =============================================================================
@@ -135,9 +142,30 @@ async def test_interact_at_hover(interactor: Interactor, mock_page: Any) -> None
 # =============================================================================
 
 
+def _scroll_feed(mock_page: Any, *, movable: bool = True) -> None:
+    """Wire evaluate/mouse.wheel so the scroll target container moves (or not)."""
+    state = {"top": 0.0, "height": 2000.0, "client": 720.0}
+
+    async def mock_evaluate(expr: str, arg: Any = None) -> Any:
+        if "elementFromPoint" in expr:
+            return dict(state)
+        return 0
+
+    async def mock_wheel(_dx: int, dy: int) -> None:
+        if movable:
+            state["top"] = min(
+                state["top"] + dy, max(0.0, state["height"] - state["client"])
+            )
+
+    mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
+    mock_page.mouse.wheel = AsyncMock(side_effect=mock_wheel)
+
+
 @pytest.mark.asyncio
 async def test_interact_at_scroll(interactor: Interactor, mock_page: Any) -> None:
     """Scroll at viewport coordinates."""
+    _scroll_feed(mock_page)
+
     result = await interactor.interact_at("scroll", 640, 360, text="300")
 
     assert "Scrolled 300px at (640, 360)" in result
@@ -149,10 +177,24 @@ async def test_interact_at_scroll_negative(
     interactor: Interactor, mock_page: Any
 ) -> None:
     """Scroll up (negative delta) at coordinates."""
+    _scroll_feed(mock_page, movable=False)
+
     result = await interactor.interact_at("scroll", 640, 360, text="-200")
 
     assert "Scrolled -200px" in result
     mock_page.mouse.wheel.assert_awaited_once_with(0, -200)
+
+
+@pytest.mark.asyncio
+async def test_interact_at_scroll_no_move_reports_edge(
+    interactor: Interactor, mock_page: Any
+) -> None:
+    """Scroll that cannot move (stuck container) is reported honestly."""
+    _scroll_feed(mock_page, movable=False)
+
+    result = await interactor.interact_at("scroll", 640, 360, text="300")
+
+    assert "(no visible movement" in result
 
 
 @pytest.mark.asyncio

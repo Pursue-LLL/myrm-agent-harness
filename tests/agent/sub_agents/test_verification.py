@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import time
 from dataclasses import FrozenInstanceError
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from myrm_agent_harness.agent.sub_agents._orchestrator_verification import (
     VerificationVerdict,
     _append_verification_block,
+    _format_worker_output_for_verifier,
     _parse_verdict,
+    _spawn_dict_to_subagent_result,
     run_with_verification,
 )
 from myrm_agent_harness.agent.sub_agents.types import (
@@ -970,3 +972,331 @@ class TestSubAgentResultInternal:
         assert r.internal is False  # conversion itself is neutral
         r.internal = True  # set by callers after conversion
         assert r.to_dict()["internal"] is True
+
+
+class TestSyncBusinessResultFields:
+    """Guards the dynamic field mirroring in _sync_business_result.
+
+    The sync field set is derived from the SubAgentResult dataclass so future
+    fields are mirrored automatically. These tests pin the contract: exactly
+    the non-managed dataclass fields are copied, identity fields are not.
+    """
+
+    def test_sync_fields_cover_all_non_managed_dataclass_fields(self):
+        from dataclasses import fields as dc_fields
+
+        from myrm_agent_harness.agent.sub_agents._orchestrator_verification import (
+            _SYNC_FIELDS,
+        )
+
+        managed = {"task_id", "agent_type", "internal"}
+        all_fields = {f.name for f in dc_fields(SubAgentResult)}
+        assert set(_SYNC_FIELDS) == all_fields - managed
+
+    def test_sync_business_result_mirrors_only_sync_fields(self):
+        from myrm_agent_harness.agent.sub_agents._orchestrator_verification import (
+            _sync_business_result,
+        )
+
+        source = SubAgentResult(
+            success=True,
+            task_id="verify-worker-2-w",
+            agent_type="w",
+            result="final result",
+            error="",
+            completed_at=200.0,
+            status=SubAgentStatus.COMPLETED,
+            internal=True,
+            verification=VerificationSummary(
+                passed=True,
+                rounds=2,
+                max_rounds=2,
+                confidence="HIGH",
+                summary="verified",
+            ),
+        )
+        business = SubAgentResult(
+            success=False,
+            task_id="biz-id",
+            agent_type="original-agent",
+            result="stale",
+            completed_at=0.0,
+            status=SubAgentStatus.FAILED,
+        )
+
+        _sync_business_result(business, source, "biz-id")
+
+        assert business.success is True
+        assert business.result == "final result"
+        assert business.status is SubAgentStatus.COMPLETED
+        assert business.completed_at == 200.0
+        assert business.verification is not None
+        assert business.verification.passed is True
+        # Identity fields are pinned by the caller, not copied from the source.
+        assert business.task_id == "biz-id"
+        assert business.agent_type == "original-agent"
+        assert business.internal is False
+
+    def test_sync_business_result_noop_when_source_is_business(self):
+        from myrm_agent_harness.agent.sub_agents._orchestrator_verification import (
+            _sync_business_result,
+        )
+
+        business = _ok("biz-id")
+        _sync_business_result(business, business, "biz-id")
+        assert business.result == "done"
+
+
+class TestInternalIdUniqueness:
+    """Guards the uniqueness of framework-generated internal task ids.
+
+    Parallel delegated tasks share the same SubagentManager: fixed-format
+    internal ids (``verify-worker-N-*`` / ``verify-check-N-*``) would collide in
+    ``_task_id_exists`` and the second delegate's verification would fail.
+    """
+
+    @pytest.mark.asyncio
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_parallel_invokes_spawn_unique_internal_ids(self, mock_get_executor):
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
+        mgr = MagicMock()
+        spawned: list[str] = []
+
+        async def _spawn(**kwargs):
+            spawned.append(kwargs["task_id"])
+            if kwargs["agent_type"] == "w":
+                return _ok(kwargs["task_id"], "w", "work output")
+            return _ok(kwargs["task_id"], "v", _verdict_json("PASS", "ok STDOUT", "HIGH"))
+
+        mgr.spawn_child = _spawn
+        w_cfg = SubagentConfig(system_prompt="worker")
+        v_cfg = SubagentConfig(system_prompt="verifier")
+
+        for i in range(2):
+            result = await run_with_verification(
+                mgr,
+                worker_type="w",
+                worker_config=w_cfg,
+                worker_task="do work",
+                verifier_type="v",
+                verifier_config=v_cfg,
+                context={},
+                tool_registry_getter=lambda: [],
+                max_rounds=2,
+                task_id=f"biz-{i}",
+            )
+            assert result.success
+
+        internal_ids = [
+            tid for tid in spawned if tid.startswith(("verify-worker-", "verify-check-"))
+        ]
+        assert len(internal_ids) == 2  # one verifier per invocation
+        assert len(internal_ids) == len(set(internal_ids)), internal_ids
+
+
+# ---------------------------------------------------------------------------
+# Rendering / dict helpers
+# ---------------------------------------------------------------------------
+
+
+class TestFormatWorkerOutput:
+    def test_dict_with_text_returns_text(self):
+        assert _format_worker_output_for_verifier({"text": "hello", "other": 1}) == "hello"
+
+    def test_dict_without_text_returns_filtered_json(self):
+        result = _format_worker_output_for_verifier(
+            {"a": 1, "_workspace_sync_back": "x", "_isolated_child_workspace": "y"}
+        )
+        assert '"a": 1' in result
+        assert "_workspace_sync_back" not in result
+        assert "_isolated_child_workspace" not in result
+
+    def test_dict_all_filtered_falls_back_to_str(self):
+        result = _format_worker_output_for_verifier({"_verification_summary": "s"})
+        assert "s" in result
+
+    def test_non_dict_returns_str(self):
+        assert _format_worker_output_for_verifier("plain") == "plain"
+
+
+class TestAppendVerificationBlock:
+    def test_dict_with_prior_summary_appends(self):
+        updated = _append_verification_block(
+            {"result": "r", "_verification_summary": "old"}, "block"
+        )
+        assert updated["_verification_summary"] == "old\n\nblock"
+
+    def test_dict_without_prior_sets_summary_and_append_text(self):
+        updated = _append_verification_block({"result": "r", "text": "t"}, "block")
+        assert updated["_verification_summary"] == "block"
+        assert updated["text"] == "t\n\nblock"
+
+    def test_non_dict_appends_as_string(self):
+        assert _append_verification_block("plain", "block") == "plain\n\nblock"
+
+
+class TestSpawnDictToSubagentResult:
+    def test_non_text_result_coerced_to_str(self):
+        result = _spawn_dict_to_subagent_result(
+            {"result": 123, "success": True},
+            task_id="t1",
+            agent_type="worker",
+        )
+        assert result.result == "123"
+        assert result.success
+        assert result.task_id == "t1"
+        assert result.agent_type == "worker"
+
+
+# ---------------------------------------------------------------------------
+# Verifier tool registry filtering
+# ---------------------------------------------------------------------------
+
+
+class TestBuildVerifierToolRegistryGetter:
+    def test_filters_non_readonly_mcp_tools_and_appends_verdict_tool(self):
+        from myrm_agent_harness.agent.sub_agents._verifier_round import (
+            _build_verifier_tool_registry_getter,
+        )
+
+        ro = MagicMock()
+        ro.readonly = True
+        plain = MagicMock()
+        plain.readonly = None
+        plain.metadata = {}
+        plain.is_mcp = False
+        mcp_ro = MagicMock()
+        mcp_ro.readonly = None
+        mcp_ro.metadata = {"readonly": True, "is_mcp": True}
+        mcp_rw = MagicMock()
+        mcp_rw.readonly = None
+        mcp_rw.metadata = {"readonly": False, "is_mcp": True}
+
+        getter = _build_verifier_tool_registry_getter(
+            lambda: [ro, plain, mcp_ro, mcp_rw], {}
+        )
+        tools = getter()
+        assert ro in tools
+        assert plain in tools
+        assert mcp_ro in tools
+        assert mcp_rw not in tools
+        assert any(getattr(t, "name", "") == "submit_verdict" for t in tools)
+
+
+# ---------------------------------------------------------------------------
+# Early cancellation
+# ---------------------------------------------------------------------------
+
+
+class TestRunWithVerificationCancelled:
+    @pytest.mark.asyncio
+    async def test_cancel_before_first_round(self):
+        cancel_token = MagicMock()
+        cancel_token.is_cancelled = True
+        mgr = MagicMock()
+        mgr.spawn_child = AsyncMock()
+        w_cfg = SubagentConfig(system_prompt="worker")
+        v_cfg = SubagentConfig(system_prompt="verifier")
+
+        result = await run_with_verification(
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            cancel_token=cancel_token,
+        )
+        assert result.error == "Cancelled"
+        assert not result.success
+        mgr.spawn_child.assert_not_awaited()
+
+
+class TestExecuteVerifierRoundWorkspaceDiff:
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.diff_snapshots")
+    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot")
+    @patch("myrm_agent_harness.toolkits.code_execution.executors.base.get_executor")
+    async def test_diff_injected_and_verdict_returned(
+        self, mock_get_executor, mock_snapshot, mock_diff
+    ):
+        from myrm_agent_harness.agent.sub_agents._verifier_round import (
+            _execute_verifier_round,
+        )
+
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
+        mock_snapshot.return_value = {"file.py": (10.0, 5)}
+        mock_diff.return_value = "--- /dev/null\n+++ b/file.py\n"
+
+        mgr = MagicMock()
+
+        async def _spawn(**kwargs):
+            assert kwargs["internal"] is True
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("PASS", "ok STDOUT", "HIGH"),
+            )
+
+        mgr.spawn_child = _spawn
+        cfg = SubagentConfig(system_prompt="verifier")
+
+        verdict = await _execute_verifier_round(
+            mgr,
+            worker_output="work output",
+            worker_type="w",
+            verifier_type="v",
+            verifier_config=cfg,
+            context={"workspace_path": "/tmp/w"},
+            tool_registry_getter=lambda: [],
+            round_num=1,
+            max_rounds=2,
+            verifier_task_template="Check the file list.",
+            pre_snapshot={"file.py": (0.0, 0)},
+        )
+
+        assert verdict is not None
+        assert verdict.passed
+        assert mock_snapshot.called
+        assert mock_diff.called
+
+
+class TestRunWithVerificationSnapshotFailure:
+    @pytest.mark.asyncio
+    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @patch(_GET_EXECUTOR_PATH)
+    async def test_pre_snapshot_failure_does_not_abort(
+        self, mock_get_executor, mock_snapshot
+    ):
+        mock_get_executor.return_value = _mock_executor(has_executed=True)
+        mock_snapshot.side_effect = OSError("snapshot failed")
+        mgr = MagicMock()
+
+        async def _spawn(**kwargs):
+            if "worker" in kwargs["task_id"]:
+                return _ok(kwargs["task_id"], kwargs["agent_type"], "work")
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("PASS", "All good STDOUT", "HIGH"),
+            )
+
+        mgr.spawn_child = _spawn
+        w_cfg = SubagentConfig(system_prompt="worker")
+        v_cfg = SubagentConfig(system_prompt="verifier")
+
+        result = await run_with_verification(
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={"workspace_path": "/tmp/nonexistent-dir"},
+            tool_registry_getter=lambda: [],
+            max_rounds=2,
+        )
+        assert result.success
+

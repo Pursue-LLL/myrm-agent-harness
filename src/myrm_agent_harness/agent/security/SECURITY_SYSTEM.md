@@ -92,7 +92,7 @@
 | `middlewares/approval/middleware.py` | 工具审批中间件主入口 | Layer 1-4 集成 |
 | `middlewares/approval/batch_processor.py` | 批量审批处理器（评估/构建/应用） | Layer 1-4 实现 |
 | `middlewares/approval/helpers.py` | 审批辅助函数（拒绝计数/allowlist） | Layer 4 |
-| `redact.py` | 工具输出脱敏（`bash_code_execute_tool` / `file_read_tool` / `grep_tool` / browser `mark_untrusted` 统一出口，API key/token/PEM/DB 连接串/Authorization 全 scheme/URL userinfo/bare-token/x-api-key 认证头/JWT/YAML/colon 配置与 form-urlencoded body 脱敏/词边界 key 校验/控制字符拆分 token 防护） | Layer 2 输出脱敏 |
+| `redact/` | 工具输出脱敏（`bash_code_execute_tool` / `file_read_tool` / `grep_tool` / browser `mark_untrusted` 统一出口，API key/token/PEM/DB 连接串/Authorization 全 scheme/URL userinfo/bare-token/x-api-key 认证头/JWT/YAML/colon 配置（含裸 `auth` key，词边界校验防 `author:` 误伤）与 form-urlencoded body 脱敏/词边界 key 校验/点分隔短名 key（`app.api.key=`）/CLI `=` 分隔 flag/控制字符拆分 token 防护/双重匹配防折叠） | Layer 2 输出脱敏 |
 | `middlewares/security_guardrail_middleware.py` | 安全护栏中间件 | 输入/输出侧集成 |
 | `security/guards/loop_guard/` | 统一循环检测子系统（LoopGuard、types、detectors、stats、suggestions） | Layer 5 |
 | `security/guards/frequency_guard.py` | 工具调用频率异常检测（FrequencyGuard）| Layer 5 |

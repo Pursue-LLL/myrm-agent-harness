@@ -403,7 +403,7 @@ Hook 异常不影响主流程（catch + warning 日志）。
 1. **Cancel Flag**：
    - `SubagentManager._cancel_flags: dict[str, bool]` 存储每个子 agent 的取消标志
    - `cancel_child()` 根据 `cancellation_strategy` 决定行为：
-     - `IMMEDIATE`：直接调用 `task.cancel()`
+     - `IMMEDIATE`：直接调用 `task.cancel()`，同时设置 `_cancel_flags[task_id] = True`（供 list/SSE 立即向客户端报告 cancelled，避免取消请求发出到 cleanup 完成的窗口内仍广播 running）
      - `GRACEFUL/CHECKPOINT`：设置 `_cancel_flags[task_id] = True`
 
 2. **优雅退出**：

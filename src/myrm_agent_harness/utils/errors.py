@@ -23,6 +23,8 @@ import traceback
 
 from langchain_core.messages import BaseMessage
 
+from myrm_agent_harness.core.security.redact import redact_for_llm, redact_sensitive_text
+
 logger = logging.getLogger(__name__)
 
 # ============================================================================
@@ -71,6 +73,10 @@ class ToolError(Exception):
         recovery_suggestions: list[str] | None = None,
         error_code: str | None = None,
     ):
+        # Redact at construction: tool errors reach the LLM as str(e) via
+        # LangGraph's default tool-error propagation, so the message itself is the
+        # last line of defense against credential leakage (OAuth codes, API keys).
+        message = redact_sensitive_text(message)
         super().__init__(message)
         self.user_hint = user_hint
         self.diagnostic_info = diagnostic_info or {}
@@ -84,24 +90,28 @@ class ToolError(Exception):
         return raw if isinstance(raw, str) and raw else None
 
     def format_for_llm(self) -> str:
-        """Format error for LLM consumption with full diagnostic context."""
-        parts = [f"Error: {self.args[0]}"]
+        """Format error for LLM consumption with full diagnostic context.
+
+        Credentials embedded in the message or diagnostics (OAuth codes in URLs,
+        API keys, token fragments) are redacted before the text reaches the LLM.
+        """
+        parts = [f"Error: {redact_sensitive_text(self.args[0])}"]
 
         if self.error_code:
             parts.append(f"Error Code: {self.error_code}")
 
         if self.user_hint:
-            parts.append(f"\nHint: {self.user_hint}")
+            parts.append(f"\nHint: {redact_sensitive_text(self.user_hint)}")
 
         if self.diagnostic_info:
             parts.append("\nDiagnostic Info:")
             for key, value in self.diagnostic_info.items():
-                parts.append(f" - {key}: {value}")
+                parts.append(f" - {key}: {redact_for_llm(value)}")
 
         if self.recovery_suggestions:
             parts.append("\nRecovery Suggestions:")
-            for i, suggestion in enumerate(self.recovery_suggestions, 1):
-                parts.append(f" {i}. {suggestion}")
+            for suggestion in self.recovery_suggestions:
+                parts.append(f" {_redact_suggestion(suggestion)}")
 
         return "\n".join(parts)
 
@@ -109,6 +119,11 @@ class ToolError(Exception):
 # ============================================================================
 # 错误格式化工具
 # ============================================================================
+
+
+def _redact_suggestion(suggestion: str) -> str:
+    """Redact credentials from a recovery suggestion before it reaches the LLM."""
+    return redact_sensitive_text(suggestion)
 
 
 def format_error_message(exception: Exception, context: str = "", include_traceback: bool = False) -> str:

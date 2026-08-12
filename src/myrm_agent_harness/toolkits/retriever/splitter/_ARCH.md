@@ -20,7 +20,7 @@ Detailed design: [RETRIEVER_SYSTEM.md](../RETRIEVER_SYSTEM.md)
 | `special_block_detector.py` | Core | Detects code/table/list blocks needing special handling | ✅ |
 | `special_block_splitter.py` | Core | Splits oversized special blocks | ✅ |
 | `splitter.py` | Core | High-level splitter strategy selector | ✅ |
-| `embed_budget.py` | Core | `split_for_embedding()` embed-window force-split wrapper over TextChunker | ✅ |
+    | `embed_budget.py` | Core | `split_for_embedding()` embed-window force-split：wordpiece 字符数分块（Markdown header 行对齐）/ BPE tiktoken 分块 | ✅ |
 
 ## Key Dependencies
 

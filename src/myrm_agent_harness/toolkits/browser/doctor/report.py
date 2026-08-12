@@ -98,6 +98,15 @@ def format_report(report: DoctorReport) -> str:
         if check.fix:
             lines.append(f"    {blue}Fix: {check.fix}{reset}")
 
+    if "extension_relay" in report.checks:
+        lines.append("")
+        lines.append(f"{bold}Extension Relay{reset}")
+        check = report.checks["extension_relay"]
+        icon = _status_icon(check.status, green, yellow, red)
+        lines.append(f"  {icon} {check.message}")
+        if check.fix:
+            lines.append(f"    {blue}Fix: {check.fix}{reset}")
+
     if "browser_launch" in report.checks:
         lines.append("")
         lines.append(f"{bold}Launch Test{reset}")

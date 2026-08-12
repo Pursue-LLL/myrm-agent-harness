@@ -6,10 +6,10 @@ import json
 
 import pytest
 
-from myrm_agent_harness.toolkits.web_fetch import (
+from myrm_agent_harness.toolkits.web_fetch.extractors import (
     weixin_extractor as weixin_extractor_module,
 )
-from myrm_agent_harness.toolkits.web_fetch.weixin_extractor import (
+from myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor import (
     extract_weixin_article,
     get_weixin_request_headers,
     has_weixin_js_content,

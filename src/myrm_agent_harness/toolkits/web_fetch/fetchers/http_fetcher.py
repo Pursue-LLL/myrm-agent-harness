@@ -83,7 +83,7 @@ class HttpFetcher:
 
         headers: dict[str, str] = {}
         domain = self._extract_domain(url)
-        from ..weixin_extractor import get_weixin_request_headers
+        from ..extractors.weixin_extractor import get_weixin_request_headers
 
         headers.update(get_weixin_request_headers(domain))
         if etag:

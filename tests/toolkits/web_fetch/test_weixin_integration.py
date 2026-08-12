@@ -22,7 +22,7 @@ async def test_weixin_url_routes_to_extractor() -> None:
         engine = FetchEngine(adaptive_router_rules_file=Path(tmpdir) / "rules.pkl")
 
         with patch(
-            "myrm_agent_harness.toolkits.web_fetch.engine.extract_weixin_article",
+            "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_weixin_article",
             new_callable=AsyncMock,
         ) as mock_extract:
             mock_extract.return_value = MagicMock(
@@ -45,7 +45,7 @@ async def test_non_weixin_url_skips_extractor() -> None:
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.web_fetch.engine.extract_weixin_article",
+                "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_weixin_article",
                 new_callable=AsyncMock,
             ) as mock_extract,
             patch.object(
@@ -83,7 +83,7 @@ async def test_weixin_invalid_article_returns_none_live() -> None:
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_weixin_blocked_html_parse_returns_none() -> None:
-    from myrm_agent_harness.toolkits.web_fetch.weixin_extractor import (
+    from myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor import (
         parse_weixin_article_html,
     )
 

@@ -23,6 +23,8 @@ from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.core.security.redact import redact_sensitive_text
+
 if TYPE_CHECKING:
     from patchright.async_api import CDPSession, Page
 
@@ -30,6 +32,11 @@ logger = logging.getLogger(__name__)
 
 _MAX_TRACKED_REQUESTS = 100
 _BODY_PREVIEW_MAX_CHARS = 8000
+# Redaction window before truncation: keeps a credential crossing a truncation
+# boundary structurally intact long enough to be masked (aligned with
+# NetworkLogger's preview-window design).
+_RAW_PREVIEW_WINDOW = 4096
+_BODY_RAW_WINDOW = 16384
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +50,7 @@ class CdpRequestRecord:
         resource_type: Network resource type (XHR, Fetch, Document, etc.)
         status: HTTP response status code
         mime_type: Response MIME type
-        post_data: First 200 chars of POST body (for GraphQL identification)
+        post_data: Raw POST body window (for replay and GraphQL identification; display-time redaction in get_summary)
         timestamp: Request time (monotonic)
     """
 
@@ -128,14 +135,19 @@ class NetworkIntelligence:
                 return
 
             post_data_raw = request.get("postData", "")
-            post_data_preview = post_data_raw[:200] if post_data_raw else None
+            # Keep the raw window for replay: network_replay re-sends the real
+            # body, so it must not be redacted here. Display-time redaction
+            # happens in get_summary.
+            post_data_original = (
+                post_data_raw[:_RAW_PREVIEW_WINDOW] if post_data_raw else None
+            )
 
             record = CdpRequestRecord(
                 request_id=request_id,
                 url=request.get("url", ""),
                 method=request.get("method", "GET"),
                 resource_type=resource_type,
-                post_data=post_data_preview,
+                post_data=post_data_original,
                 timestamp=time.time(),
             )
             self._requests.append(record)
@@ -205,7 +217,7 @@ class NetworkIntelligence:
 
             if len(body) > _BODY_PREVIEW_MAX_CHARS:
                 return (
-                    f"{body[:_BODY_PREVIEW_MAX_CHARS]}\n\n"
+                    f"{redact_sensitive_text(body[: _BODY_RAW_WINDOW])[:_BODY_PREVIEW_MAX_CHARS]}\n\n"
                     f"... [truncated, total {len(body)} chars] "
                     f"MIME: {record.mime_type or 'unknown'}"
                 )
@@ -233,7 +245,10 @@ class NetworkIntelligence:
             status_str = str(req.status) if req.status else "pending"
             line = f"  {i}. {req.method} {req.url} [{status_str}]"
             if req.post_data:
-                line += f"\n     POST: {req.post_data}"
+                # Redact the raw stored body before display so credentials never
+                # reach the Agent via network_log.
+                safe_post = redact_sensitive_text(req.post_data)[:200]
+                line += f"\n     POST: {safe_post}"
             lines.append(line)
 
         return "\n".join(lines)

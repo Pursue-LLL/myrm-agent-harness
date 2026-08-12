@@ -229,16 +229,16 @@ async def secure_request(
 
         hop_headers = {**request_headers, **pin_headers}
         pin_extensions = _https_pin_extensions(request_url, pin_headers)
-        build_kwargs: dict[str, object] = {
-            "headers": hop_headers,
-            "params": params if redirect_count == 0 else None,
-            "json": json if redirect_count == 0 else None,
-            "content": content if redirect_count == 0 else None,
-            "extensions": pin_extensions,
-        }
-        if timeout is not None:
-            build_kwargs["timeout"] = timeout
-        request = client.build_request(current_method, request_url, **build_kwargs)
+        request = client.build_request(
+            current_method,
+            request_url,
+            headers=hop_headers,
+            params=params if redirect_count == 0 else None,
+            json=json if redirect_count == 0 else None,
+            content=content if redirect_count == 0 else None,
+            extensions=pin_extensions,
+            timeout=timeout if timeout is not None else httpx.USE_CLIENT_DEFAULT,
+        )
         response = await client.send(request, stream=True)
 
         redirected = _next_redirect(
