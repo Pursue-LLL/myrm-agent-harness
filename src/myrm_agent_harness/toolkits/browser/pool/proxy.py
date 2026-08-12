@@ -133,13 +133,13 @@ class RoundRobinProxyPool:
 
     @property
     def urls(self) -> list[str]:
-        """Configured proxy server URLs (credentials stripped).
+        """Configured proxy server URLs, guaranteed credential-free.
 
-        The ``server`` field holds the credential-free scheme://host form for
-        proxies parsed via ``from_url``/``from_csv``, so these values are safe
-        to expose to diagnostics and health reports.
+        Re-routes each server through ``from_url`` so any userinfo embedded in
+        a directly constructed ProxyConfig is stripped before the value reaches
+        diagnostics and health reports.
         """
-        return [c.server for c in self._proxies]
+        return [ProxyConfig.from_url(c.server).server for c in self._proxies]
 
     def get_next(self) -> ProxyConfig:
         """Get next proxy in round-robin order, skipping quarantined ones.

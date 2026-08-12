@@ -8,9 +8,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from myrm_agent_harness.core.security.guards.ssrf import (
+    SSRFResult,
     SSRFSecurityError,
     async_pin_url,
+    async_validate_url_for_ssrf,
     is_internal_ip,
+    validate_url_for_ssrf,
 )
 from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGuard
 
@@ -142,3 +145,122 @@ class TestURLAllowlistGuard:
         with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(None):
             safe_url, _headers = await async_pin_url("https://random.com/users")
             assert safe_url == "https://8.8.8.8/users"
+
+
+class TestValidateUrlForSSRF:
+    """validate_url_for_ssrf / async_validate_url_for_ssrf — full sync/async validation."""
+
+    def test_validate_public_ip_literal_safe(self) -> None:
+        result = validate_url_for_ssrf("https://8.8.8.8/x")
+
+        assert result.safe is True
+        assert result.resolved_ips == ("8.8.8.8",)
+
+    def test_validate_blocked_ip_literal(self) -> None:
+        result = validate_url_for_ssrf("http://192.168.1.1/x")
+
+        assert result.safe is False
+        assert "Blocked IP" in result.error
+
+    def test_validate_invalid_scheme(self) -> None:
+        result = validate_url_for_ssrf("not-a-url")
+
+        assert result.safe is False
+        assert "Blocked URL scheme" in result.error
+
+    def test_validate_dns_resolved_public(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "socket.getaddrinfo",
+            lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0))],
+        )
+
+        result = validate_url_for_ssrf("http://good.example/x")
+
+        assert result.safe is True
+        assert result.resolved_ips == ("8.8.8.8",)
+
+    def test_validate_dns_resolved_blocked(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            "socket.getaddrinfo",
+            lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0))],
+        )
+
+        result = validate_url_for_ssrf("http://evil.example/x")
+
+        assert result.safe is False
+        assert "Blocked resolved IP" in result.error
+
+    def test_validate_dns_failure(self, monkeypatch) -> None:
+        def raise_gaierror(*_a, **_k):
+            raise socket.gaierror("no such host")
+
+        monkeypatch.setattr("socket.getaddrinfo", raise_gaierror)
+
+        result = validate_url_for_ssrf("http://badhost.example/x")
+
+        assert result.safe is False
+        assert "DNS resolution failed" in result.error
+
+    def test_validate_allowlist_blocks_unauthorized(self) -> None:
+        with URLAllowlistGuard.apply(["api.github.com"]):
+            result = validate_url_for_ssrf("https://evil.com/log")
+
+            assert result.safe is False
+            assert "evil.com" in result.error
+
+    @pytest.mark.asyncio
+    async def test_async_validate_public_ip_literal_safe(self) -> None:
+        result = await async_validate_url_for_ssrf("https://8.8.8.8/x")
+
+        assert result.safe is True
+        assert result.resolved_ips == ("8.8.8.8",)
+
+    @pytest.mark.asyncio
+    async def test_async_validate_blocked_ip_literal(self) -> None:
+        result = await async_validate_url_for_ssrf("http://10.0.0.1/x")
+
+        assert result.safe is False
+        assert "Blocked IP" in result.error
+
+    @pytest.mark.asyncio
+    async def test_async_validate_dns_public(self) -> None:
+        with mock_getaddrinfo("8.8.8.8"):
+            result = await async_validate_url_for_ssrf("http://good.example/x")
+
+            assert result.safe is True
+            assert result.resolved_ips == ("8.8.8.8",)
+
+    @pytest.mark.asyncio
+    async def test_async_validate_dns_blocked(self) -> None:
+        with mock_getaddrinfo("192.168.1.10"):
+            result = await async_validate_url_for_ssrf("http://evil.example/x")
+
+            assert result.safe is False
+            assert "Blocked resolved IP" in result.error
+
+    @pytest.mark.asyncio
+    async def test_async_validate_dns_failure(self) -> None:
+        mock_loop = AsyncMock()
+        mock_loop.getaddrinfo.side_effect = socket.gaierror("no such host")
+
+        with patch("asyncio.get_running_loop", return_value=mock_loop):
+            result = await async_validate_url_for_ssrf("http://badhost.example/x")
+
+            assert result.safe is False
+            assert "DNS resolution failed" in result.error
+
+    @pytest.mark.asyncio
+    async def test_async_pin_url_invalid_scheme(self) -> None:
+        with pytest.raises(SSRFSecurityError, match="Blocked URL scheme"):
+            await async_pin_url("not-a-url")
+
+    @pytest.mark.asyncio
+    async def test_async_pin_url_empty_resolved_ips(self) -> None:
+        async def fake_resolve(hostname: str) -> SSRFResult:
+            return SSRFResult(safe=True, hostname=hostname, resolved_ips=())
+
+        with patch(
+            "myrm_agent_harness.core.security.guards.ssrf._resolve_and_check_async",
+            fake_resolve,
+        ), pytest.raises(SSRFSecurityError, match="DNS resolution failed"):
+            await async_pin_url("http://nohost.example/x")

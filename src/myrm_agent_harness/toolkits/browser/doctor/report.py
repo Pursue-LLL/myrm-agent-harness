@@ -90,7 +90,6 @@ def format_report(report: DoctorReport) -> str:
     for name in [
         "patchright",
         "camoufox",
-        "browser_executable",
         "memory",
         "disk",
         "proxy",

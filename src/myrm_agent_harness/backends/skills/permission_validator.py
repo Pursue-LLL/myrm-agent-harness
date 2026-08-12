@@ -42,9 +42,11 @@ _PERMISSION_TYPE_TO_SKILL_PERMISSION: dict[str, SkillPermission] = {
     "shell_exec": SkillPermission.SHELL_EXEC,
     "code_interpreter": SkillPermission.CODE_INTERPRETER,
     # Network
+    "network_access": SkillPermission.NETWORK_ACCESS,
     "browser_navigate": SkillPermission.NETWORK_ACCESS,
     "web_fetch": SkillPermission.NETWORK_ACCESS,
     # Environment
+    "env_var_access": SkillPermission.ENV_VAR_ACCESS,
     "env_read": SkillPermission.ENV_VAR_ACCESS,
     "env_write": SkillPermission.ENV_VAR_ACCESS,
 }

@@ -21,7 +21,7 @@ myrm_agent_harness/agent/skill_agent/skill_agent.py	556
 myrm_agent_harness/agent/skills/market/service.py	558
 myrm_agent_harness/agent/streaming/stream_executor.py	597
 myrm_agent_harness/agent/streaming/stream_recovery_oneshot.py	613
-myrm_agent_harness/agent/sub_agents/manager.py	525
+myrm_agent_harness/agent/sub_agents/manager.py	571
 myrm_agent_harness/agent/sub_agents/types.py	572
 myrm_agent_harness/observability/diagnostics/probes.py	574
 myrm_agent_harness/toolkits/browser/session/browser_session.py	567

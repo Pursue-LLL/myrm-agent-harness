@@ -139,3 +139,7 @@ def test_round_robin_proxy_pool_urls_strip_credentials():
     pool = RoundRobinProxyPool.from_urls(urls)
 
     assert pool.urls == ["http://proxy1.com", "http://proxy2.com:8080"]
+
+    # Direct construction with embedded userinfo must also be stripped
+    direct = RoundRobinProxyPool([ProxyConfig(server="http://user:pwd@proxy3.com:3128")])
+    assert direct.urls == ["http://proxy3.com:3128"]

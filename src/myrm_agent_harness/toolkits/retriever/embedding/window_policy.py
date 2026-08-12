@@ -75,6 +75,13 @@ KNOWN_MODEL_MAX_INPUT_TOKENS: dict[str, int] = {
     "multilingual-e5-small": 512,
     "multilingual-e5-base": 512,
     "multilingual-e5-large": 512,
+    "e5-small": 512,
+    "e5-base": 512,
+    "e5-large": 512,
+    "gte-small": 512,
+    "gte-base": 512,
+    "gte-large": 512,
+    "gte-large-zh": 512,
     "jina-embeddings-v2-base-zh": 8192,
 }
 
@@ -150,25 +157,41 @@ def _is_cjk_wordpiece_char(ch: str) -> bool:
     return any(lo <= cp <= hi for lo, hi in _CJK_WORDPIECE_RANGES)
 
 
+# BERT/XLM-style tokenizers count one in-vocabulary CJK char as one token while
+# o200k BPE spans ~2 CJK chars. A model is wordpiece if its base name carries a
+# BERT/XLM architecture marker; missing a wordpiece model routes it to the o200k
+# budget and silently truncates CJK input, while a false positive only wastes
+# window (never truncates), so matching is deliberately broad.
+_WORDPIECE_MODEL_MARKERS: tuple[str, ...] = (
+    "bge",
+    "bce",
+    "nomic",
+    "minilm",
+    "e5",
+    "gte",
+    "jina",
+    "paraphrase",
+    "bert",
+    "roberta",
+    "xlm",
+    "mpnet",
+    "distil",
+    "camembert",
+)
+
+
 def is_cjk_wordpiece_model(model: str | None) -> bool:
     """Whether the model tokenizes CJK as wordpieces (BERT/XLM family).
 
-    bge/bce/nomic/minilm/e5/paraphrase/jina-embeddings-v2/v3 are built on
-    BERT/XLM wordpiece vocabularies where one CJK char maps to one token, while
-    get_token_count uses o200k BPE where one token spans ~2 CJK chars. Without a
-    conservative margin the o200k budget undercounts the real provider input and
-    text silently truncates.
+    Wordpiece vocabularies (bge/bce/nomic/MiniLM/e5/gte/jina/BERT/RoBERTa/XLM/mpnet)
+    map one CJK char to one token while get_token_count's o200k spans ~2 CJK chars;
+    without a conservative margin the o200k budget undercounts the real provider
+    input and text silently truncates.
     """
     if not model:
         return False
     base = model.rsplit("/", 1)[-1].lower()
-    return (
-        base.startswith(("bge", "bce", "nomic"))
-        or "minilm" in base
-        or base.startswith("multilingual-e5")
-        or base.startswith("paraphrase-")
-        or base.startswith(("jina-embeddings-v2", "jina-embeddings-v3"))
-    )
+    return any(marker in base for marker in _WORDPIECE_MODEL_MARKERS)
 
 
 def estimate_wordpiece_tokens(text: str) -> int:

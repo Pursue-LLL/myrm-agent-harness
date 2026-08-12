@@ -119,7 +119,14 @@ class TestCjkWordpieceBudget:
         assert is_cjk_wordpiece_model("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
         assert is_cjk_wordpiece_model("intfloat/multilingual-e5-large")
         assert is_cjk_wordpiece_model("jina-embeddings-v2-base-zh")
+        assert is_cjk_wordpiece_model("gte-large-zh")
+        assert is_cjk_wordpiece_model("e5-base-v2")
+        assert is_cjk_wordpiece_model("sentence-transformers/all-mpnet-base-v2")
+        assert is_cjk_wordpiece_model("xlm-roberta-base")
+        assert is_cjk_wordpiece_model("sentence-transformers/all-distilroberta-v1")
         assert not is_cjk_wordpiece_model("text-embedding-3-small")
+        assert not is_cjk_wordpiece_model("Qwen/Qwen3-Embedding-8B")
+        assert not is_cjk_wordpiece_model(None)
 
     def test_minilm_window_budget(self) -> None:
         # all-MiniLM-L6-v2 is a BERT wordpiece model with a 256-token window -> 0.5
