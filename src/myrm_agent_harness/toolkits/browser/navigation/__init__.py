@@ -56,15 +56,15 @@ _ALLOWED_SCHEMES = frozenset(["http", "https", "about"])
 
 
 class Navigator:
-    """Page导航管理器 — 集成限流、熔断 and 智能Wait
+    """Page navigation manager — throttle, circuit breaker, and smart wait.
 
-    职责:
-    1. Page跳转(goto) + 限流控制 + 熔断保护
-    2. 历史导航(back/forward/reload)
-    3. 智能Wait（混合检测：DOM + 网络双重保障）
-    4. Domain级学习（SMART Strategy基于历史Data调整）
+    Responsibilities:
+    1. Page navigation (goto) + throttle control + circuit breaker protection
+    2. History navigation (back/forward/reload)
+    3. Smart wait (hybrid detection: DOM + network dual guarantee)
+    4. Domain-level learning (SMART strategy tuned by historical data)
 
-     not 涉 and :Tab 管理、SnapshotGenerate、Element交互 etc.。
+    Not involved: tab management, snapshot generation, element interaction.
     """
 
     def __init__(
@@ -79,15 +79,15 @@ class Navigator:
         allow_private_networks: bool = False,
         auto_dismiss_popups: bool = True,
     ):
-        """Initialize Navigator
+        """Initialize the Navigator.
 
         Args:
-            page: Patchright Page Instance
-            throttle: 限流Strategy（None =  no 限流）
-            circuit_breaker: 熔断器（None =  no 熔断）
-            wait_config: WaitConfigure（None =  using DefaultSTANDARDConfigure）
-            mode: BrowserMode（ for 确定WaitStrategy，wait_config优先）
-            domain_metrics_manager: DomainMetricsManager Instance（ for Domain级学习）
+            page: Patchright Page instance.
+            throttle: Throttle strategy (None = no throttling).
+            circuit_breaker: Circuit breaker (None = no protection).
+            wait_config: Wait configuration (None = default STANDARD config).
+            mode: Browser mode used to pick the wait strategy (ignored when wait_config is set).
+            domain_metrics_manager: Domain metrics manager for SMART learning.
             allow_private_networks: True in local mode — skips SSRF private-IP
                 blocking while preserving URL scheme validation.
             auto_dismiss_popups: auto-dismiss cookie consent banners and overlay
@@ -115,25 +115,25 @@ class Navigator:
             self._wait_config = wait_config
 
     async def goto(self, url: str) -> tuple[str, str, int]:
-        """导航 to 指定 URL（带限流控制 and 熔断保护）
+        """Navigate to the given URL (with throttle and circuit breaker).
 
-        WaitStrategy:
-        1. Wait domcontentloaded（core资源LoadComplete）
-        2. 智能Wait（混合检测：DOMstable + 网络Empty闲）
+        Wait strategy:
+        1. Wait for domcontentloaded (core resources loaded).
+        2. Smart wait (hybrid detection: DOM stable + network idle).
 
         Args:
-            url: 目标 URL
+            url: Target URL.
 
         Returns:
             (title, final_url, status_code)
 
         Raises:
-            ValueError: URL scheme  not  in Whitelist in
-            CircuitBreakerOpenError: Domain熔断器打开
+            ValueError: URL scheme not in the whitelist.
+            CircuitBreakerOpenError: Domain circuit breaker is open.
         """
         self._validate_url_scheme(url)
 
-        # 熔断器Check
+        # Circuit breaker check
         if self._circuit_breaker:
             state = self._circuit_breaker.get_state(url)
             if state == "OPEN":
@@ -147,7 +147,7 @@ class Navigator:
         success = False
         try:
             if self._circuit_breaker:
-                #  via 熔断器Call
+                # Invoke through the circuit breaker
                 async def navigate_func() -> tuple[str, str, int]:
                     return await self._do_navigate(url)
 
@@ -155,7 +155,7 @@ class Navigator:
                 success = True
                 return result
             else:
-                #  directly Call
+                # Invoke directly
                 result = await self._do_navigate(url)
                 success = True
                 return result
@@ -165,7 +165,7 @@ class Navigator:
                 self._throttle.record_response(url, success)
 
     async def _do_navigate(self, url: str) -> tuple[str, str, int]:
-        """Execute实际 导航操作"""
+        """Execute the actual navigation operation."""
         self._current_domain = self._extract_domain(url)
 
         parsed = urlparse(url)
@@ -194,14 +194,11 @@ class Navigator:
             if self._consent_dismisser:
                 await self._consent_dismisser.dismiss(self._page)
         except Exception as e:
-            # Catch TimeoutError (Playwright throws playwright.async_api.TimeoutError, which inherits from Exception)
+            # Recognize timeouts from both builtins and patchright; string matching is
+            # fragile because timeout text differs across pages and library versions.
             from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
-            if (
-                isinstance(e, PlaywrightTimeoutError)
-                or "Timeout" in str(e)
-                or "timeout" in str(e).lower()
-            ):
+            if isinstance(e, (TimeoutError, PlaywrightTimeoutError)):
                 logger.warning(
                     f"Navigator: timeout during navigation to {url}, attempting rescue via window.stop()"
                 )
@@ -217,7 +214,7 @@ class Navigator:
                             "event": "tool_fallback",
                             "tool": "browser_navigate_tool",
                             "fallback_type": "timeout_rescue",
-                            "message": "页面部分资源加载超时，正在强制终止并提取现有可见内容...",
+                            "message": "Page resource load timed out; forcing stop and extracting visible content...",
                         },
                     )
                 except Exception as stop_e:
@@ -239,7 +236,7 @@ class Navigator:
 
     @staticmethod
     def _extract_domain(url: str) -> str:
-        """ExtractDomain"""
+        """Extract the domain from a URL."""
         try:
             parsed = urlparse(url)
             return parsed.netloc.lower() or url.lower()
@@ -247,15 +244,15 @@ class Navigator:
             return url.lower()
 
     async def _wait_for_page_ready(self) -> WaitMetrics:
-        """WaitPage准备就绪（智能混合检测）
+        """Wait for the page to be ready (smart hybrid detection).
 
-        Strategy选择（按Configure）：
-        - smart（推荐）：自适应检测，fast+准确，基于Domain历史Data
-        - hybrid：DOMstable + 网络Empty闲，双重保障
-        - dom_stable：OnlyDOM检测，fastMode
-        - networkidle：Only网络检测，compatibleMode
+        Strategy selection (per configuration):
+        - smart: adaptive detection, fast + accurate, tuned by domain history.
+        - hybrid: DOM stable + network idle, dual guarantee.
+        - dom_stable: DOM-only detection, fast mode.
+        - networkidle: network-only detection, compatibility mode.
 
-        Returncomplete metrics 便于可观测性。
+        Returns complete metrics for observability.
         """
         strategy_str = self._wait_config.strategy
         strategy_map = {
@@ -277,7 +274,7 @@ class Navigator:
         )
 
     def _log_wait_metrics(self, metrics: WaitMetrics) -> None:
-        """RecordWaitMetrics（complete可观测性）"""
+        """Record wait metrics for full observability."""
         log_dict = metrics.to_log_dict()
         logger.debug(f"Wait metrics: {log_dict}")
 
@@ -307,39 +304,39 @@ class Navigator:
         logger.info("Navigator: navigated forward")
 
     async def reload(self) -> None:
-        """RefreshCurrent页"""
+        """Reload the current page."""
         await self._page.reload(timeout=_NAVIGATION_TIMEOUT_MS)
         logger.info("Navigator: reloaded page")
 
     def get_url(self) -> str:
-        """GetCurrent URL"""
+        """Get the current URL."""
         return self._page.url
 
     async def get_title(self) -> str:
-        """GetCurrentPageHeading"""
+        """Get the current page title."""
         return await self._page.title()
 
     @staticmethod
     def _validate_url_scheme(url: str) -> None:
-        """Validate URL scheme Whether in Whitelist in
+        """Validate that the URL scheme is in the whitelist.
 
         Args:
-            url: To validate  URL
+            url: URL to validate.
 
         Raises:
-            ValueError: scheme  not  in Whitelist in (非 http/https/about)
+            ValueError: scheme not in the whitelist (non http/https/about).
 
         Note:
-            WhitelistMechanism,只 allow Security  scheme:
-            - http/https: standard Web Protocol
-            - about: Browserbuilt-inPage(如 about:blank)
+            Whitelist mechanism, only allows secure schemes:
+            - http/https: standard web protocols
+            - about: browser built-in pages (e.g. about:blank)
 
-            拒绝危险 scheme:
-            - javascript: XSS 风险
-            - file: LocalFile访问
-            - data: 内联Data注入
-            - blob: Blob URL 注入
-            - ftp: 非 HTTP Protocol
+            Rejects dangerous schemes:
+            - javascript: XSS risk
+            - file: local file access
+            - data: inline data injection
+            - blob: blob URL injection
+            - ftp: non-HTTP protocol
         """
         parsed = urlparse(url)
         scheme = parsed.scheme.lower() if parsed.scheme else ""

@@ -11,11 +11,16 @@ MCP tools use full JSON Schema, but OpenAI-compatible providers reject:
 - ``required`` entries referencing fields absent from ``properties``
   (Gemini/Vertex AI and OpenAI strict mode reject these with 400)
 
-Additionally, Anthropic's Tool Use API supports only a subset of JSON Schema.
-Keywords like ``minimum``, ``maxItems``, ``pattern``, ``format``, ``title``,
-and ``default`` cause 400 errors.  When the target model is Anthropic/Claude,
-this module strips unsupported keywords and folds validation constraints into
-the ``description`` field so the LLM still understands the intent.
+Top-level anyOf/oneOf/allOf object branches are merged into a flat properties
+set (allOf conjunctively, anyOf/oneOf as alternatives with exclusivity hints).
+Nested property-level anyOf/oneOf unions of multiple object branches are merged
+the same way so no branch's parameters are hidden from the LLM; redefined
+properties keep the union (anyOf/oneOf) or intersection (allOf) of their
+const/enum values.  Branch/const-union merging lives in ``schema_property_merge``.
+
+When the target model is Anthropic/Claude, unsupported JSON Schema keywords are
+stripped and constraints are folded into ``description`` — see
+``anthropic_schema_strip``.
 
 [INPUT]
 - (none)
@@ -23,7 +28,10 @@ the ``description`` field so the LLM still understands the intent.
 [OUTPUT]
 - normalize_tool_schema: Normalize an OpenAI-format tool schema for provider compatibility.
   Top-level anyOf/oneOf/allOf object branches are merged into a flat properties set
-  (allOf conjunctively, anyOf/oneOf as alternatives with exclusivity hints).
+  (allOf conjunctively, anyOf/oneOf as alternatives with exclusivity hints).  Nested
+  property-level anyOf/oneOf unions of multiple object branches are merged the same
+  way so no branch's parameters are hidden from the LLM; redefined properties keep
+  the union (anyOf/oneOf) or intersection (allOf) of their const/enum values.
 
 [POS]
 Tool Schema Normalizer for OpenAI-compatible Providers
@@ -34,18 +42,18 @@ from __future__ import annotations
 import copy
 import logging
 
+from .anthropic_schema_strip import is_anthropic_model, strip_anthropic_unsupported
+from .schema_property_merge import (
+    apply_union_hint,
+    merge_allof_branches,
+    merge_union_object_branches,
+    preserve_metadata,
+)
+
 logger = logging.getLogger(__name__)
 
 _COMPOSITE_KEYWORDS = frozenset({"anyOf", "oneOf", "allOf"})
 _REF_PREFIXES = ("#/$defs/", "#/definitions/")
-
-_ANTHROPIC_SUPPORTED_KEYS = frozenset({
-    "type", "properties", "required", "items", "additionalProperties",
-    "anyOf", "oneOf", "allOf", "not",
-    "$ref", "$defs", "definitions",
-    "description", "enum",
-    "prefixItems",
-})
 
 
 def normalize_tool_schema(
@@ -83,8 +91,8 @@ def normalize_tool_schema(
     params = _ensure_object_type(params)
     _normalize_properties(params)
 
-    if _is_anthropic_model(model_name):
-        params = _strip_anthropic_unsupported(params)
+    if is_anthropic_model(model_name):
+        params = strip_anthropic_unsupported(params)
 
     func["parameters"] = params
     return tool
@@ -152,7 +160,9 @@ def _ensure_object_type(schema: dict[str, object]) -> dict[str, object]:
         if not isinstance(branches, list):
             continue
 
-        obj_branches = [b for b in branches if isinstance(b, dict) and b.get("type") == "object"]
+        obj_branches = [
+            b for b in branches if isinstance(b, dict) and b.get("type") == "object"
+        ]
         if len(obj_branches) == 1:
             merged = obj_branches[0]
             for preserve_key in ("description", "default"):
@@ -161,18 +171,25 @@ def _ensure_object_type(schema: dict[str, object]) -> dict[str, object]:
             return merged
 
         if len(obj_branches) > 1:
-            merged = (
-                _merge_allof_branches(obj_branches)
-                if kw == "allOf"
-                else _merge_union_object_branches(obj_branches)
-            )
-            for preserve_key in ("description", "default"):
-                if preserve_key in schema and preserve_key not in merged:
-                    merged[preserve_key] = schema[preserve_key]
-            return merged
+            if kw == "allOf":
+                allof_merged = merge_allof_branches(obj_branches)
+                if allof_merged is not None:
+                    for preserve_key in ("description", "default"):
+                        if preserve_key in schema and preserve_key not in allof_merged:
+                            allof_merged[preserve_key] = schema[preserve_key]
+                    return allof_merged
+            else:
+                union_merged = merge_union_object_branches(obj_branches)
+                return apply_union_hint(union_merged, schema)
 
-        non_null = [b for b in branches if not (isinstance(b, dict) and b.get("type") == "null")]
-        if len(non_null) == 1 and isinstance(non_null[0], dict) and non_null[0].get("type") == "object":
+        non_null = [
+            b for b in branches if not (isinstance(b, dict) and b.get("type") == "null")
+        ]
+        if (
+            len(non_null) == 1
+            and isinstance(non_null[0], dict)
+            and non_null[0].get("type") == "object"
+        ):
             return non_null[0]
 
     if "properties" in schema:
@@ -212,18 +229,34 @@ def _normalize_property(prop: dict[str, object]) -> dict[str, object]:
         if not isinstance(branches, list):
             continue
 
-        non_null = [b for b in branches if not (isinstance(b, dict) and b.get("type") == "null")]
+        non_null = [
+            b for b in branches if not (isinstance(b, dict) and b.get("type") == "null")
+        ]
 
         if kw == "allOf" and len(non_null) > 1:
-            merged = _merge_allof_branches(non_null)
+            merged = merge_allof_branches(non_null)
             if merged is not None:
-                _preserve_metadata(prop, merged)
+                preserve_metadata(prop, merged)
+                _normalize_nested(merged)
+                return _finalize_property(merged)
+
+        # Multiple object branches under anyOf/oneOf (e.g. a zod union of
+        # objects) — merge *all* of them so no branch's parameters stay
+        # hidden from the LLM.  A single object branch and mixed primitive
+        # unions fall through to the branch-selection logic below.
+        if kw in ("anyOf", "oneOf") and len(non_null) > 1:
+            object_branches = [
+                b for b in non_null if isinstance(b, dict) and b.get("type") == "object"
+            ]
+            if len(object_branches) > 1:
+                merged = merge_union_object_branches(object_branches)
+                merged = apply_union_hint(merged, prop)
                 _normalize_nested(merged)
                 return _finalize_property(merged)
 
         if len(non_null) == 1 and isinstance(non_null[0], dict):
             result = dict(non_null[0])
-            _preserve_metadata(prop, result)
+            preserve_metadata(prop, result)
             _normalize_nested(result)
             return _finalize_property(result)
 
@@ -231,81 +264,12 @@ def _normalize_property(prop: dict[str, object]) -> dict[str, object]:
             first = non_null[0]
             if isinstance(first, dict):
                 result = dict(first)
-                _preserve_metadata(prop, result)
+                preserve_metadata(prop, result)
                 _normalize_nested(result)
                 return _finalize_property(result)
 
     _normalize_nested(prop)
     return _finalize_property(prop)
-
-
-_METADATA_KEYS = ("description", "default", "title", "examples")
-
-
-def _preserve_metadata(source: dict[str, object], target: dict[str, object]) -> None:
-    """Copy metadata keys from source to target if not already present."""
-    for key in _METADATA_KEYS:
-        if key in source and key not in target:
-            target[key] = source[key]
-
-
-def _merge_allof_branches(branches: list[object]) -> dict[str, object] | None:
-    """Merge multiple allOf object branches into a single schema.
-
-    Only merges when all branches are ``{type: "object"}``.
-    Combines ``properties`` and ``required`` fields.
-    """
-    merged_props: dict[str, object] = {}
-    merged_required: list[str] = []
-
-    for branch in branches:
-        if not isinstance(branch, dict) or branch.get("type") != "object":
-            return None
-        props = branch.get("properties")
-        if isinstance(props, dict):
-            merged_props.update(props)
-        req = branch.get("required")
-        if isinstance(req, list):
-            merged_required.extend(req)
-
-    result: dict[str, object] = {"type": "object", "properties": merged_props}
-    if merged_required:
-        result["required"] = list(dict.fromkeys(merged_required))
-    return result
-
-
-def _merge_union_object_branches(branches: list[object]) -> dict[str, object]:
-    """Merge multiple oneOf/anyOf object branches into a single flat schema.
-
-    Union branches are alternatives: every branch's ``properties`` are merged,
-    but ``required`` is dropped — merging it would force mutually-exclusive
-    parameters to be supplied together.  The alternative constraint is folded
-    into ``description`` so the LLM still picks one valid combination.
-    """
-    merged_props: dict[str, object] = {}
-    alternatives: list[list[str]] = []
-
-    for branch in branches:
-        if not isinstance(branch, dict) or branch.get("type") != "object":
-            continue
-        props = branch.get("properties")
-        if isinstance(props, dict):
-            merged_props.update(props)
-            alternatives.append(sorted(props))
-        else:
-            alternatives.append([])
-
-    if not merged_props:
-        return {"type": "object", "properties": {}, "additionalProperties": True}
-
-    result: dict[str, object] = {"type": "object", "properties": merged_props}
-    non_empty = [alt for alt in alternatives if alt]
-    if len(non_empty) >= 2:
-        groups = "; ".join(f"({', '.join(alt)})" for alt in non_empty)
-        result["description"] = (
-            f"Parameters are mutually exclusive alternatives — provide exactly one group: {groups}."
-        )
-    return result
 
 
 def _normalize_nested(schema: dict[str, object]) -> None:
@@ -336,7 +300,11 @@ def _infer_missing_type(schema: dict[str, object]) -> None:
     if "type" in schema and schema["type"] not in {None, ""}:
         return
 
-    if "properties" in schema or "required" in schema or "additionalProperties" in schema:
+    if (
+        "properties" in schema
+        or "required" in schema
+        or "additionalProperties" in schema
+    ):
         schema["type"] = "object"
         _normalize_properties(schema)
     elif "items" in schema or "prefixItems" in schema:
@@ -370,113 +338,3 @@ def _clean_enum(schema: dict[str, object]) -> None:
         schema["enum"] = cleaned
     else:
         schema.pop("enum", None)
-
-
-# ---------------------------------------------------------------------------
-# Anthropic-specific: strip unsupported JSON Schema keywords
-# ---------------------------------------------------------------------------
-
-
-def _is_anthropic_model(model_name: str | None) -> bool:
-    """Return True if *model_name* targets an Anthropic/Claude provider."""
-    if not model_name:
-        return False
-    lowered = model_name.lower()
-    return "claude" in lowered or "anthropic" in lowered
-
-
-def _build_constraint_hint(unsupported: dict[str, object]) -> str:
-    """Build a compact human-readable hint from stripped constraint keywords.
-
-    Returns an empty string when no meaningful constraints were removed.
-    """
-    parts: list[str] = []
-
-    lo = unsupported.get("minimum", unsupported.get("exclusiveMinimum"))
-    hi = unsupported.get("maximum", unsupported.get("exclusiveMaximum"))
-    if lo is not None and hi is not None:
-        parts.append(f"range: {lo}–{hi}")
-    elif lo is not None:
-        parts.append(f"min: {lo}")
-    elif hi is not None:
-        parts.append(f"max: {hi}")
-
-    min_len = unsupported.get("minLength")
-    max_len = unsupported.get("maxLength")
-    if min_len is not None or max_len is not None:
-        parts.append(f"length: {min_len or 0}–{max_len or '∞'}")
-
-    min_items = unsupported.get("minItems")
-    max_items = unsupported.get("maxItems")
-    if min_items is not None or max_items is not None:
-        parts.append(f"items: {min_items or 0}–{max_items or '∞'}")
-
-    if unsupported.get("uniqueItems"):
-        parts.append("unique items")
-
-    pat = unsupported.get("pattern")
-    if pat is not None:
-        parts.append(f"pattern: {pat}")
-
-    fmt = unsupported.get("format")
-    if fmt is not None:
-        parts.append(f"format: {fmt}")
-
-    default = unsupported.get("default")
-    if default is not None:
-        parts.append(f"default: {default}")
-
-    return ", ".join(parts)
-
-
-def _strip_anthropic_unsupported(schema: dict[str, object]) -> dict[str, object]:
-    """Recursively strip JSON Schema keywords unsupported by Anthropic.
-
-    Removed validation constraints are folded into ``description`` so the
-    LLM retains semantic awareness of the original intent.
-    """
-    cleaned: dict[str, object] = {}
-    unsupported: dict[str, object] = {}
-
-    for key, value in schema.items():
-        if key in _ANTHROPIC_SUPPORTED_KEYS:
-            cleaned[key] = value
-        else:
-            unsupported[key] = value
-
-    hint = _build_constraint_hint(unsupported)
-    if hint:
-        desc = str(cleaned.get("description", ""))
-        cleaned["description"] = f"{desc} ({hint})".lstrip() if desc else f"({hint})"
-
-    props = cleaned.get("properties")
-    if isinstance(props, dict):
-        cleaned["properties"] = {
-            k: _strip_anthropic_unsupported(v) if isinstance(v, dict) else v
-            for k, v in props.items()
-        }
-
-    items = cleaned.get("items")
-    if isinstance(items, dict):
-        cleaned["items"] = _strip_anthropic_unsupported(items)
-
-    for kw in ("anyOf", "oneOf", "allOf"):
-        branches = cleaned.get(kw)
-        if isinstance(branches, list):
-            cleaned[kw] = [
-                _strip_anthropic_unsupported(b) if isinstance(b, dict) else b
-                for b in branches
-            ]
-
-    not_schema = cleaned.get("not")
-    if isinstance(not_schema, dict):
-        cleaned["not"] = _strip_anthropic_unsupported(not_schema)
-
-    prefix_items = cleaned.get("prefixItems")
-    if isinstance(prefix_items, list):
-        cleaned["prefixItems"] = [
-            _strip_anthropic_unsupported(item) if isinstance(item, dict) else item
-            for item in prefix_items
-        ]
-
-    return cleaned

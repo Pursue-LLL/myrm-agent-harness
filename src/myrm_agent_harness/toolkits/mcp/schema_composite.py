@@ -12,7 +12,9 @@ kimi-cu ``click``: ``index`` *or* ``x``/``y``) remain fully usable.
 
 [OUTPUT]
 - collapse_const_unions: Collapses property-level anyOf/oneOf unions of same-typed consts into enum (lone null branch → nullable, outer metadata preserved).
-- flatten_top_level_composite: Merges top-level anyOf/oneOf/allOf object branches into a flat properties set (cross-branch const/enum union, common-required promotion, exclusivity hints).
+- flatten_top_level_composite: Merges top-level anyOf/oneOf/allOf object branches into a flat properties set (cross-branch const/enum union, common-required promotion, exclusivity hints; allOf same-name properties intersect).
+- _merge_branch_property: Merges a property redefined across branches — union for anyOf/oneOf (closed const/enum sets widen to the open type), intersection for allOf.
+- _build_alternative_constraint: Builds the exclusivity hint (exactly one group for oneOf, at least one for anyOf).
 
 [POS]
 MCP Schema Utilities. Property-level const-union collapsing and
@@ -210,7 +212,9 @@ def _flatten_top_level_composite(
                 continue
             if keyword == "allOf":
                 for name in props:
-                    _merge_branch_property(merged_props, name, props[name])
+                    _merge_branch_property(
+                        merged_props, name, props[name], conjunctive=True
+                    )
                 req = resolved.get("required")
                 if isinstance(req, list):
                     merged_required.extend(req)
@@ -253,7 +257,9 @@ def _flatten_top_level_composite(
         [name for name in group if name not in common_required]
         for group in alternative_groups
     ]
-    constraint = _build_alternative_constraint(exclusive_groups)
+    constraint = _build_alternative_constraint(
+        exclusive_groups, keyword="oneOf" if "oneOf" in composite else "anyOf"
+    )
     if constraint:
         existing = result.get("description")
         result["description"] = (
@@ -278,13 +284,28 @@ def _resolve_composite_branch(branch: dict[str, Any], depth: int) -> dict[str, A
     return branch
 
 
-def _build_alternative_constraint(alternatives: list[list[str]]) -> str | None:
-    """Build a mutual-exclusivity hint when several non-empty groups exist."""
+def _build_alternative_constraint(
+    alternatives: list[list[str]], *, keyword: str
+) -> str | None:
+    """Build a mutual-exclusivity hint when several non-empty groups exist.
+
+    The wording matches the real JSON Schema semantics: ``oneOf`` admits
+    exactly one branch, ``anyOf`` admits at least one — over-constraining the
+    LLM to a single group on an ``anyOf`` tool would hide legal combinations.
+    """
     non_empty = [alt for alt in alternatives if alt]
     if len(non_empty) < 2:
         return None
     groups = "; ".join(f"({', '.join(alt)})" for alt in non_empty)
-    return f"Parameters are mutually exclusive alternatives — provide exactly one group: {groups}."
+    if keyword == "oneOf":
+        return (
+            "Parameters are mutually exclusive alternatives — provide exactly "
+            f"one group: {groups}."
+        )
+    return (
+        "Parameters are alternatives — provide at least one of these groups: "
+        f"{groups}."
+    )
 
 
 def _collect_enum_values(prop_schema: dict[str, Any]) -> list[Any]:
@@ -297,15 +318,20 @@ def _collect_enum_values(prop_schema: dict[str, Any]) -> list[Any]:
     return []
 
 
+def _json_key(value: object) -> str:
+    """Stable string key for a JSON value, used for set membership."""
+    try:
+        return json.dumps(value, sort_keys=True)
+    except (TypeError, ValueError):
+        return repr(value)
+
+
 def _dedupe_preserving_order(values: list[Any]) -> list[Any]:
     """Dedupe arbitrary JSON values while preserving first-seen order."""
     seen: set[str] = set()
     unique: list[Any] = []
     for value in values:
-        try:
-            key = json.dumps(value, sort_keys=True)
-        except (TypeError, ValueError):
-            key = repr(value)
+        key = _json_key(value)
         if key not in seen:
             seen.add(key)
             unique.append(value)
@@ -362,9 +388,7 @@ def _merge_open_schema(
     side, preferring ``const_side`` values already present in ``open_side``.
     """
     merged: dict[str, Any] = {
-        key: value
-        for key, value in open_side.items()
-        if key not in ("const", "enum")
+        key: value for key, value in open_side.items() if key not in ("const", "enum")
     }
     for meta_key in ("title", "description", "default"):
         if meta_key in const_side and meta_key not in merged:
@@ -372,19 +396,73 @@ def _merge_open_schema(
     return merged
 
 
+def _intersect_enum_schemas(
+    first: dict[str, Any],
+    second: dict[str, Any],
+) -> dict[str, Any]:
+    """Merge two property definitions under conjunctive (``allOf``) semantics.
+
+    A valid value must satisfy *both* definitions: closed ``const``/``enum``
+    sets intersect, and a closed set conjoined with an open type keeps the
+    closed set (its values are exactly those the open type admits that the
+    closed set allows). When the intersection is empty or the types disagree
+    the first definition is kept — an empty ``enum`` would hide every legal
+    value, and dropping one side would over-constrain the other.
+    """
+    first_values = _collect_enum_values(first)
+    second_values = _collect_enum_values(second)
+    merged: dict[str, Any] = {}
+    if first_values and second_values:
+        second_keys = {_json_key(value) for value in second_values}
+        common = [value for value in first_values if _json_key(value) in second_keys]
+        if not common:
+            return dict(first)
+        merged["enum"] = _dedupe_preserving_order(common)
+    elif first_values or second_values:
+        closed = first if first_values else second
+        merged["enum"] = list(dict.fromkeys(_collect_enum_values(closed)))
+        if closed.get("type"):
+            merged["type"] = closed["type"]
+    if "type" in first and first.get("type") == second.get("type"):
+        merged["type"] = first["type"]
+    first_title = first.get("title")
+    if first_title or second.get("title"):
+        merged["title"] = first_title or second.get("title")
+    first_description = first.get("description")
+    second_description = second.get("description")
+    if first_description and second_description:
+        merged["description"] = (
+            first_description
+            if first_description == second_description
+            else f"{first_description} {second_description}"
+        )
+    elif first_description or second_description:
+        merged["description"] = first_description or second_description
+    if "default" in first:
+        merged["default"] = first["default"]
+    elif "default" in second:
+        merged["default"] = second["default"]
+    return merged
+
+
 def _merge_branch_property(
-    merged_props: dict[str, Any], name: str, prop_schema: object
+    merged_props: dict[str, Any],
+    name: str,
+    prop_schema: object,
+    *,
+    conjunctive: bool = False,
 ) -> None:
     """Merge one branch property into the flat properties set.
 
-    A property redefined across ``anyOf``/``oneOf`` branches keeps the union
-    of its allowed ``const``/``enum`` values — otherwise a discriminator field
-    like ``type`` would silently retain only the last branch's value and hide
-    every other operational mode from the LLM. When one branch constrains a
-    closed set and the other is an open type, the union is the open type
-    (every closed value already belongs to it), so ``const``/``enum`` is
-    dropped rather than narrowed. Non-enumerable redefinitions keep the first
-    occurrence for determinism.
+    For ``anyOf``/``oneOf`` branches a property redefined across branches
+    keeps the union of its allowed ``const``/``enum`` values — otherwise a
+    discriminator field like ``type`` would silently retain only the last
+    branch's value and hide every other operational mode from the LLM. When
+    one branch constrains a closed set and the other is an open type, the
+    union is the open type (every closed value already belongs to it), so
+    ``const``/``enum`` is dropped rather than narrowed. ``allOf`` branches
+    are conjunctive — the same merge runs as an intersection. Non-enumerable
+    redefinitions keep the first occurrence for determinism.
     """
     existing = merged_props.get(name)
     if not isinstance(prop_schema, dict):
@@ -400,6 +478,9 @@ def _merge_branch_property(
         "Top-level composite flatten: property '%s' redefined across branches",
         name,
     )
+    if conjunctive:
+        merged_props[name] = _intersect_enum_schemas(existing, prop_schema)
+        return
     first_values = _collect_enum_values(existing)
     second_values = _collect_enum_values(prop_schema)
     if first_values and second_values:

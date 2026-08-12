@@ -20,15 +20,15 @@ from functools import lru_cache
 
 @lru_cache(maxsize=32)
 def generate_dom_stable_js(max_ms: int, quiet_ms: int) -> str:
-    """GenerateDOMstable性检测JavaScript（Cache）.
+    """Generate the DOM stability detection JavaScript (cached).
 
-    关Key特性：
-    1. Filter动画Property（style, class, aria-*）减少假阳性
-    2. 监听childList + subtree（结构变化）
-    3. 选择性监听attributes（Excludes动画related）
-    4. Shadow DOMSupport：recursive监听AllshadowRoot
-    5. 竞态防护：observe()后才Start计时器
-    6. Cacheoptimized：sameParameter复用Generate JavaScript
+    Key features:
+    1. Filters animation attributes (style, class, aria-*) to reduce false positives
+    2. Observes childList + subtree (structural changes)
+    3. Selectively observes attributes (excludes animation-related ones)
+    4. Shadow DOM support: recursively observes all shadow roots
+    5. Race protection: the timer starts only after observe() has been called
+    6. Cache optimized: identical parameters reuse the generated JavaScript
     """
     return f"""
     (function() {{

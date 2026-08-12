@@ -334,3 +334,44 @@ class TestParseLlmJsonList:
     def test_trailing_comma_nested_and_double(self) -> None:
         raw = '[[1, 2,], [3,,],]'
         assert parse_llm_json_list(raw) == [[1, 2], [3]]
+
+
+class TestParseLlmJsonRepairTier:
+    """json_repair fallback tier: single quotes, unquoted keys, comments."""
+
+    def test_single_quoted_object(self) -> None:
+        raw = "{'done': true, 'reason': 'ok'}"
+        assert parse_llm_json_object(raw) == {"done": True, "reason": "ok"}
+
+    def test_single_quoted_python_booleans(self) -> None:
+        raw = "{'done': True, 'reason': 'ok'}"
+        assert parse_llm_json_object(raw) == {"done": True, "reason": "ok"}
+
+    def test_unquoted_keys(self) -> None:
+        raw = '{done: true, reason: "ok"}'
+        assert parse_llm_json_object(raw) == {"done": True, "reason": "ok"}
+
+    def test_inline_comments(self) -> None:
+        raw = '{"done": true, // verdict\n "reason": "ok"}'
+        assert parse_llm_json_object(raw) == {"done": True, "reason": "ok"}
+
+    def test_single_quoted_array(self) -> None:
+        raw = "['a', 'b']"
+        assert parse_llm_json_list(raw) == ["a", "b"]
+
+    def test_mixed_artifacts_prose_framed(self) -> None:
+        raw = "好的，结果为：{'done': true, // 评估\n reason: 'ok'}"
+        assert parse_llm_json_object(raw) == {"done": True, "reason": "ok"}
+
+    def test_last_repaired_object_wins(self) -> None:
+        raw = "{a: 1} 最终答案：{'done': true}"
+        assert parse_llm_json_object(raw) == {"done": True}
+
+    def test_repair_respects_require_key(self) -> None:
+        raw = "{a: 1} {'done': true}"
+        assert parse_llm_json_object(raw, require_key="done") == {"done": True}
+        assert parse_llm_json_object(raw, require_key="missing") is None
+
+    def test_structural_path_still_preferred(self) -> None:
+        raw = '{"a": 1} then {"b": 2}'
+        assert parse_llm_json_object(raw) == {"b": 2}

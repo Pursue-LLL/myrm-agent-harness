@@ -28,14 +28,14 @@ from enum import StrEnum
 from threading import Lock
 from typing import Literal, TypedDict
 
-# Type别名
+# Reason type alias
 ReasonType = Literal[
     "quiet", "capped", "network_only", "dom_only", "both", "first_completed"
 ]
 
 
 class DOMStableResult(TypedDict):
-    """DOMstable检测JavaScriptReturnResult."""
+    """Result returned by the DOM stability detection JavaScript."""
 
     reason: str
     elapsed_ms: int
@@ -45,34 +45,34 @@ class DOMStableResult(TypedDict):
 
 
 class WaitStrategy(StrEnum):
-    """WaitStrategyType."""
+    """Available wait strategy types."""
 
-    NETWORKIDLE = "networkidle"  # Only网络Empty闲
-    DOM_STABLE = "dom_stable"  # OnlyDOMstable
-    HYBRID = "hybrid"  # 混合检测（DOM + 网络）
-    SMART = "smart"  # 自适应检测（优先networkidlefastPath，Timeout则 using hybrid）
-    SPA_STABLE = "spa_stable"  # SPA稳态检测（智能网络噪音过滤+MutationObserver）
+    NETWORKIDLE = "networkidle"  # Network idle only
+    DOM_STABLE = "dom_stable"  # DOM stability only
+    HYBRID = "hybrid"  # DOM + network combined
+    SMART = "smart"  # Adaptive (networkidle fast path, hybrid fallback)
+    SPA_STABLE = "spa_stable"  # SPA stability (network noise filter + MutationObserver)
 
 
 @dataclass(frozen=True, slots=True)
 class WaitMetrics:
-    """WaitMetrics（complete可观测性）.
+    """Wait metrics (full observability).
 
     Attributes:
-        strategy:  using  WaitStrategy
-        reason: Completeoriginal因
-            - quiet: DOMnormalstable
-            - capped: Timeout
-            - network_only: Only网络Empty闲Complete
-            - dom_only: OnlyDOMstableComplete
-            - both: DOM and 网络都Complete
-            - first_completed: 任一Completei.e.Return
-        elapsed_ms: 实际Wait时长（毫秒）
-        network_idle_ms: 网络Empty闲耗时（None表示 not yet Complete or  not yet  using ）
-        dom_stable_ms: DOMstable耗时（None表示 not yet Complete or  not yet  using ）
-        dom_mutation_count: DOM变更总数
-        dom_reset_count: 静默期Reset次数
-        shadow_dom_count: 监听 Shadow DOMCount
+        strategy: Wait strategy used
+        reason: Completion reason
+            - quiet: DOM became stable normally
+            - capped: Timed out
+            - network_only: Only network idle completed
+            - dom_only: Only DOM stability completed
+            - both: Both DOM and network completed
+            - first_completed: Returned as soon as either completed
+        elapsed_ms: Actual wait duration (ms)
+        network_idle_ms: Network idle duration (None if not completed or not used)
+        dom_stable_ms: DOM stability duration (None if not completed or not used)
+        dom_mutation_count: Total DOM mutations
+        dom_reset_count: Number of quiet-window resets
+        shadow_dom_count: Number of observed Shadow DOM roots
     """
 
     strategy: WaitStrategy
@@ -85,7 +85,7 @@ class WaitMetrics:
     shadow_dom_count: int = 0
 
     def to_log_dict(self) -> dict[str, object]:
-        """Convert is LogDict."""
+        """Convert to a JSON-friendly logging dict."""
         return {
             "strategy": self.strategy,
             "reason": self.reason,
@@ -100,7 +100,7 @@ class WaitMetrics:
 
 @dataclass
 class _HybridTaskResult:
-    """混合检测 in 间Result（Internal using ）."""
+    """Intermediate result for hybrid detection (internal use)."""
 
     dom_result: dict[str, object] | None = None
     dom_elapsed_ms: int | None = None
@@ -110,23 +110,23 @@ class _HybridTaskResult:
 
 @dataclass
 class WaitStrategyStats:
-    """WaitStrategy运行时Statistics（thread-safe）.
+    """Runtime statistics for wait strategies (thread-safe).
 
-    provides生产环境可观测性， for Data驱动optimized。
+    Provides production observability to drive data-based optimization.
     """
 
-    # Strategy using 次数
+    # Strategy usage counts
     strategy_counts: dict[str, int] = field(default_factory=dict)
 
-    # SMARTStrategyStatistics
-    smart_fast_path_hits: int = 0  # fastPathSuccess（networkidle）
-    smart_fast_path_misses: int = 0  # fastPath not yet Success， using hybrid
+    # SMART strategy statistics
+    smart_fast_path_hits: int = 0  # Fast path succeeded (networkidle)
+    smart_fast_path_misses: int = 0  # Fast path failed, fell back to hybrid
 
-    # HYBRIDStrategyStatistics
-    hybrid_both_completed: int = 0  # 双检测都Complete
-    hybrid_first_completed: int = 0  # Only一个Complete
+    # HYBRID strategy statistics
+    hybrid_both_completed: int = 0  # Both detections completed
+    hybrid_first_completed: int = 0  # Only one completed
 
-    # 总体Statistics
+    # Overall statistics
     total_calls: int = 0
     total_elapsed_ms: float = 0.0
 
@@ -138,7 +138,7 @@ class WaitStrategyStats:
         reason: ReasonType,
         elapsed_ms: int,
     ) -> None:
-        """Record一次Call."""
+        """Record a single wait call."""
         with self._lock:
             self.total_calls += 1
             self.total_elapsed_ms += elapsed_ms
@@ -161,7 +161,7 @@ class WaitStrategyStats:
                     self.hybrid_first_completed += 1
 
     def get_stats(self) -> dict[str, object]:
-        """GetStatisticsData（thread-safe）."""
+        """Get statistics data (thread-safe)."""
         with self._lock:
             stats: dict[str, object] = {
                 "total_calls": self.total_calls,
@@ -190,7 +190,7 @@ class WaitStrategyStats:
             return stats
 
     def reset(self) -> None:
-        """ResetStatistics（thread-safe）."""
+        """Reset statistics (thread-safe)."""
         with self._lock:
             self.strategy_counts.clear()
             self.smart_fast_path_hits = 0
@@ -201,20 +201,20 @@ class WaitStrategyStats:
             self.total_elapsed_ms = 0
 
 
-# GlobalStatisticsInstance
+# Global statistics instance
 _global_stats = WaitStrategyStats()
 
 
 def get_wait_strategy_stats() -> dict[str, object]:
-    """GetGlobalWaitStrategyStatistics.
+    """Get global wait strategy statistics.
 
     Returns:
-        StatisticsDataDict，Contains：
-        - total_calls: 总Call次数
-        - avg_elapsed_ms: 平均Wait时长
-        - strategy_usage: 各Strategy using 次数
-        - smart_fast_path_hit_rate: SMARTStrategyfastPath命 in 率
-        - hybrid_both_rate: HYBRIDStrategy双Complete率
+        Statistics dict containing:
+        - total_calls: Total call count
+        - avg_elapsed_ms: Average wait duration
+        - strategy_usage: Per-strategy usage count
+        - smart_fast_path_hit_rate: SMART strategy fast path hit rate
+        - hybrid_both_rate: HYBRID strategy both-completed rate
 
     Examples:
         >>> stats = get_wait_strategy_stats()
@@ -224,5 +224,5 @@ def get_wait_strategy_stats() -> dict[str, object]:
 
 
 def reset_wait_strategy_stats() -> None:
-    """ResetGlobalWaitStrategyStatistics（ for 测试）."""
+    """Reset global wait strategy statistics (for testing)."""
     _global_stats.reset()

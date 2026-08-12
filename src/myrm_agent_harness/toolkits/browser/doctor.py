@@ -266,6 +266,7 @@ async def _check_browser_launch(
 ) -> DoctorCheckResult:
     """Test browser launch and basic functionality."""
     try:
+        from patchright.async_api import TimeoutError as PlaywrightTimeoutError
         from patchright.async_api import async_playwright
     except (ImportError, TypeError):
         return DoctorCheckResult(
@@ -307,14 +308,15 @@ async def _check_browser_launch(
         finally:
             await playwright.stop()
 
-    except TimeoutError as exc:
-        return DoctorCheckResult(
-            name="browser_launch",
-            status=CheckStatus.ERROR,
-            message=f"Browser launch timeout: {exc}",
-            fix="Check system resources or network connectivity",
-        )
     except Exception as exc:
+        if isinstance(exc, (TimeoutError, PlaywrightTimeoutError)):
+            return DoctorCheckResult(
+                name="browser_launch",
+                status=CheckStatus.ERROR,
+                message=f"Browser launch timeout: {exc}",
+                fix="Check system resources or network connectivity",
+            )
+
         error_msg = str(exc).lower()
 
         if "executable doesn't exist" in error_msg or "not found" in error_msg:
@@ -440,10 +442,15 @@ def _check_extension_relay() -> DoctorCheckResult:
 
     base = os.environ.get("MYRM_SERVER_URL", "http://127.0.0.1:8080").rstrip("/")
     url = f"{base}/api/v1/extension/setup-hints"
+    if not url.startswith(("http://", "https://")):
+        return DoctorCheckResult(
+            name="extension_relay",
+            status=CheckStatus.WARNING,
+            message="MYRM_SERVER_URL must use http(s) scheme",
+            fix="Set MYRM_SERVER_URL to an http(s) endpoint",
+        )
     try:
-        with urllib.request.urlopen(
-            url, timeout=2.0
-        ) as response:  # noqa: S310 — local diagnostics endpoint, scheme controlled by MYRM_SERVER_URL
+        with urllib.request.urlopen(url, timeout=2.0) as response:  # noqa: S310 — http(s) scheme enforced above
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.URLError:
         return DoctorCheckResult(

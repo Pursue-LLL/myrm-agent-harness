@@ -34,6 +34,23 @@ async def test_check_browser_launch_timeout():
     assert result.fix is not None
 
 
+async def test_check_browser_launch_patchright_timeout():
+    """Should handle patchright's TimeoutError (distinct from builtins.TimeoutError)."""
+    from patchright.async_api import TimeoutError as PlaywrightTimeoutError
+
+    mock_async_playwright = AsyncMock()
+    mock_async_playwright.return_value.start = AsyncMock(
+        side_effect=PlaywrightTimeoutError("Launch timeout")
+    )
+
+    with patch("patchright.async_api.async_playwright", return_value=mock_async_playwright.return_value):
+        result = await _check_browser_launch(launch_options=None)
+
+    assert result.status == CheckStatus.ERROR
+    assert "timeout" in result.message.lower()
+    assert result.fix is not None
+
+
 async def test_check_browser_launch_executable_not_found():
     """Should handle missing browser executable."""
     mock_async_playwright = AsyncMock()

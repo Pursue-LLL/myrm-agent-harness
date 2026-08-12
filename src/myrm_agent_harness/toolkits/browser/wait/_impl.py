@@ -25,6 +25,8 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
+from patchright.async_api import TimeoutError as PlaywrightTimeoutError
+
 from ._dom_stable_js import generate_dom_stable_js
 from ._types import ReasonType, WaitMetrics, WaitStrategy, _HybridTaskResult
 
@@ -37,16 +39,20 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Patchright raises its own TimeoutError (a subclass of Error, NOT builtins.TimeoutError),
+# so both exception types must be caught wherever a wait may time out.
+_TIMEOUT_ERRORS: tuple[type[BaseException], ...] = (TimeoutError, PlaywrightTimeoutError)
+
 
 def _elapsed_ms_since(start_time: float) -> int:
-    """Compute from start_time to 现 in  毫秒数."""
+    """Return milliseconds elapsed since start_time (perf_counter based)."""
     return int((time.perf_counter() - start_time) * 1000)
 
 
 async def wait_networkidle_only(
     page: Page, max_ms: int, start_time: float
 ) -> WaitMetrics:
-    """Only网络Empty闲检测."""
+    """Network idle detection only."""
     try:
         await page.wait_for_load_state("networkidle", timeout=max_ms)
         elapsed_ms = _elapsed_ms_since(start_time)
@@ -57,7 +63,7 @@ async def wait_networkidle_only(
             elapsed_ms=elapsed_ms,
             network_idle_ms=elapsed_ms,
         )
-    except (TimeoutError, RuntimeError, OSError):
+    except (*_TIMEOUT_ERRORS, RuntimeError, OSError):
         elapsed_ms = _elapsed_ms_since(start_time)
         logger.debug(f"Wait: networkidle timeout or error after {elapsed_ms}ms")
         return WaitMetrics(
@@ -70,8 +76,17 @@ async def wait_networkidle_only(
 async def wait_dom_stable_only(
     page: Page, max_ms: int, quiet_ms: int, start_time: float
 ) -> WaitMetrics:
-    """OnlyDOMstable性检测."""
-    result = await page.evaluate(generate_dom_stable_js(max_ms, quiet_ms))
+    """DOM stability detection only."""
+    try:
+        result = await page.evaluate(generate_dom_stable_js(max_ms, quiet_ms))
+    except (*_TIMEOUT_ERRORS, RuntimeError, OSError):
+        elapsed_ms = _elapsed_ms_since(start_time)
+        logger.debug(f"Wait: DOM stable evaluate error after {elapsed_ms}ms")
+        return WaitMetrics(
+            strategy=WaitStrategy.DOM_STABLE,
+            reason="capped",
+            elapsed_ms=elapsed_ms,
+        )
 
     elapsed_ms = _elapsed_ms_since(start_time)
 
@@ -101,7 +116,7 @@ async def wait_dom_stable_only(
 
 
 async def wait_spa_stable(page: Page, max_ms: int, start_time: float) -> WaitMetrics:
-    """SPA 稳态检测."""
+    """SPA stability detection."""
     js_wait = """() => new Promise((resolve) => {
         if (!window.__myrm_spa_state) {
             // Not a supported environment or script not injected yet
@@ -116,7 +131,9 @@ async def wait_spa_stable(page: Page, max_ms: int, start_time: float) -> WaitMet
     })"""
 
     try:
-        await page.evaluate(js_wait, timeout=max_ms)
+        # page.evaluate() has no timeout kwarg; bound it via asyncio.wait_for so a
+        # never-resolving SPA promise is capped at max_ms instead of hanging forever.
+        await asyncio.wait_for(page.evaluate(js_wait), timeout=max_ms / 1000)
         elapsed_ms = _elapsed_ms_since(start_time)
         logger.debug(f"Wait: SPA stable after {elapsed_ms}ms")
         return WaitMetrics(
@@ -126,7 +143,7 @@ async def wait_spa_stable(page: Page, max_ms: int, start_time: float) -> WaitMet
             dom_stable_ms=elapsed_ms,
             network_idle_ms=elapsed_ms,
         )
-    except (TimeoutError, RuntimeError, OSError):
+    except (*_TIMEOUT_ERRORS, RuntimeError, OSError):
         elapsed_ms = _elapsed_ms_since(start_time)
         logger.debug(f"Wait: SPA stable timeout or error after {elapsed_ms}ms")
         return WaitMetrics(
@@ -145,17 +162,17 @@ async def wait_smart(
     domain: str | None = None,
     domain_metrics_manager: DomainMetricsManager | None = None,
 ) -> WaitMetrics:
-    """自适应检测（fast优先，准确性保障）.
+    """Adaptive detection (fast path first, accuracy guaranteed).
 
     Strategy:
-    1. fast尝试：networkidle 检测（DynamicTimeout）
-    2. Success → 立i.e.Return
-    3. Timeout →  using  hybrid（剩余时间）
+    1. Fast path: SPA stable + networkidle detection (DynamicTimeout)
+    2. Success → return immediately
+    3. Timeout → fall back to hybrid with remaining time
 
-    fastPathTimeout调整：
-    -  has 历史Data： using  P95 延迟 × 1.2（上限 max_ms）
-    - networkidle Success率 < 50%：SkipfastPath
-    -  no 历史Data：max_ms × 0.3（上限 500ms）
+    Fast path timeout tuning:
+    - Has history data: use P95 latency × 1.2 (capped at max_ms)
+    - networkidle success rate < 50%: skip fast path
+    - No history data: max_ms × 0.3 (capped at 500ms)
     """
     fast_timeout_ms = min(int(max_ms * 0.3), 500)
     skip_fast_path = False
@@ -221,7 +238,7 @@ async def wait_smart(
             network_idle_ms=elapsed_ms,
         )
 
-    except TimeoutError:
+    except _TIMEOUT_ERRORS:
         elapsed_fast = _elapsed_ms_since(start_time)
         remaining_ms = max(0, max_ms - elapsed_fast)
 
@@ -258,7 +275,7 @@ def _handle_first_completed(
     done: set[asyncio.Task[object]],
     first_elapsed_ms: int,
 ) -> _HybridTaskResult:
-    """Process第一个Complete 任务."""
+    """Collect results from whichever hybrid task completed first."""
     result = _HybridTaskResult()
 
     if dom_task in done:
@@ -267,14 +284,14 @@ def _handle_first_completed(
             if isinstance(task_result, dict):
                 result.dom_result = task_result
                 result.dom_elapsed_ms = first_elapsed_ms
-        except (TimeoutError, RuntimeError) as e:
+        except (*_TIMEOUT_ERRORS, RuntimeError) as e:
             logger.warning(f"Wait: DOM detection failed: {e}")
 
     if network_task in done:
         try:
             network_task.result()
             result.network_elapsed_ms = first_elapsed_ms
-        except (TimeoutError, RuntimeError) as e:
+        except (*_TIMEOUT_ERRORS, RuntimeError) as e:
             logger.warning(f"Wait: Network idle detection failed: {e}")
 
     return result
@@ -288,7 +305,7 @@ async def _apply_grace_period(
     grace_ms: int,
     start_time: float,
 ) -> _HybridTaskResult:
-    """应用grace periodWait第二个任务."""
+    """Wait a grace period for the second hybrid task to complete."""
     if not pending:
         result.reason = "both"
         return result
@@ -317,7 +334,7 @@ async def _apply_grace_period(
 
         result.reason = "both"
 
-    except TimeoutError:
+    except _TIMEOUT_ERRORS:
         remaining_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await remaining_task
@@ -334,7 +351,7 @@ async def _cleanup_hybrid_tasks(
     dom_task: asyncio.Task[object],
     network_task: asyncio.Task[None],
 ) -> None:
-    """Clean up混合检测任务."""
+    """Cancel and await both hybrid tasks, suppressing CancelledError."""
     dom_task.cancel()
     network_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
@@ -345,7 +362,7 @@ def _build_hybrid_metrics(
     result: _HybridTaskResult,
     start_time: float,
 ) -> WaitMetrics:
-    """Build混合检测metrics."""
+    """Build WaitMetrics from the hybrid task result."""
     elapsed_ms = _elapsed_ms_since(start_time)
 
     mutation_count = 0
@@ -371,14 +388,14 @@ def _build_hybrid_metrics(
 async def wait_hybrid(
     page: Page, max_ms: int, quiet_ms: int, grace_period_ms: int, start_time: float
 ) -> WaitMetrics:
-    """混合检测（先 to 先得+grace periodValidate）.
+    """Hybrid detection (first-to-finish + grace period validation).
 
     Strategy:
-    1. parallelExecuteDOM检测 and 网络检测
-    2. Wait任一Complete（FIRST_COMPLETED）
-    3. 给第二个任务grace period
-    4. Grace period内Complete → reason="both"
-    5. Otherwise立i.e.Return → reason="first_completed"
+    1. Run DOM detection and network detection in parallel
+    2. Wait for either task (FIRST_COMPLETED)
+    3. Give the second task a grace period
+    4. Second task finishes within grace → reason="both"
+    5. Otherwise return immediately → reason="first_completed"
     """
     dom_task = asyncio.create_task(
         page.evaluate(generate_dom_stable_js(max_ms, quiet_ms))
@@ -402,7 +419,7 @@ async def wait_hybrid(
             result, dom_task, network_task, pending, grace_ms, start_time
         )
 
-    except TimeoutError:
+    except _TIMEOUT_ERRORS:
         await _cleanup_hybrid_tasks(dom_task, network_task)
         result = _HybridTaskResult(reason="capped")
     except (RuntimeError, OSError) as e:

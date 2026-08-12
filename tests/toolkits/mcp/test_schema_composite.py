@@ -35,7 +35,11 @@ def test_flatten_top_level_composite_allof_merges_required():
     """allOf branches are conjunctive — properties and required merge."""
     schema = {
         "allOf": [
-            {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]},
+            {
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+            },
             {
                 "type": "object",
                 "properties": {"tags": {"type": "array", "items": {"type": "string"}}},
@@ -48,6 +52,83 @@ def test_flatten_top_level_composite_allof_merges_required():
     assert set(result["properties"]) == {"id", "tags"}
     assert set(result["required"]) == {"id", "tags"}
     assert "allOf" not in result
+
+
+def test_flatten_top_level_composite_allof_same_property_intersects():
+    """allOf redefined properties intersect, not union."""
+    schema = {
+        "allOf": [
+            {
+                "type": "object",
+                "properties": {
+                    "color": {"type": "string", "enum": ["red", "green"]},
+                    "bright": {"type": "boolean"},
+                },
+            },
+            {
+                "type": "object",
+                "properties": {"color": {"type": "string", "enum": ["green", "blue"]}},
+            },
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["properties"]["color"]["enum"] == ["green"]
+    assert result["properties"]["bright"]["type"] == "boolean"
+
+
+def test_flatten_top_level_composite_allof_closed_plus_open_keeps_closed():
+    """A closed enum conjoined with an open type keeps the closed set."""
+    schema = {
+        "allOf": [
+            {
+                "type": "object",
+                "properties": {"mode": {"type": "string", "enum": ["auto", "manual"]}},
+                "required": ["mode"],
+            },
+            {"type": "object", "properties": {"mode": {"type": "string"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["properties"]["mode"]["enum"] == ["auto", "manual"]
+
+
+def test_flatten_top_level_composite_allof_disjoint_enums_keep_first():
+    """An empty allOf intersection keeps the first definition (no empty enum)."""
+    schema = {
+        "allOf": [
+            {"type": "object", "properties": {"mode": {"const": "on"}}},
+            {"type": "object", "properties": {"mode": {"const": "off"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert result["properties"]["mode"] == {"const": "on"}
+
+
+def test_flatten_top_level_composite_anyof_constraint_wording():
+    """anyOf alternatives admit at least one group (real anyOf semantics)."""
+    schema = {
+        "anyOf": [
+            {"type": "object", "properties": {"a": {"type": "string"}}},
+            {"type": "object", "properties": {"b": {"type": "string"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert "at least one" in result["description"]
+    assert "(a)" in result["description"]
+    assert "(b)" in result["description"]
+
+
+def test_flatten_top_level_composite_oneof_constraint_wording():
+    """oneOf alternatives admit exactly one group."""
+    schema = {
+        "oneOf": [
+            {"type": "object", "properties": {"a": {"type": "string"}}},
+            {"type": "object", "properties": {"b": {"type": "string"}}},
+        ],
+    }
+    result = flatten_top_level_composite(schema)
+    assert "mutually exclusive" in result["description"]
+    assert "exactly one" in result["description"]
 
 
 def test_flatten_top_level_composite_single_branch_no_constraint():
@@ -121,7 +202,11 @@ def test_flatten_top_level_composite_keeps_top_level_required_with_allof():
         "type": "object",
         "required": ["tenant"],
         "allOf": [
-            {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]},
+            {
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+            },
             {"type": "object", "properties": {"tags": {"type": "array"}}},
         ],
     }
@@ -214,9 +299,7 @@ def test_flatten_top_level_composite_conflicting_types_keep_first_definition():
         "anyOf": [
             {
                 "type": "object",
-                "properties": {
-                    "opts": {"type": "array", "items": {"type": "string"}}
-                },
+                "properties": {"opts": {"type": "array", "items": {"type": "string"}}},
             },
             {"type": "object", "properties": {"opts": {"type": "string"}}},
         ],
@@ -534,7 +617,10 @@ def test_collapse_const_unions_chain_with_flatten():
         "oneOf": [
             {
                 "type": "object",
-                "properties": {"action": {"const": "click"}, "idx": {"type": "integer"}},
+                "properties": {
+                    "action": {"const": "click"},
+                    "idx": {"type": "integer"},
+                },
                 "required": ["action"],
             },
             {

@@ -372,6 +372,9 @@ class BrowserLauncher:
         """
         last_exc: Exception | None = None
         auto_installed = False
+        # Patchright's TimeoutError is distinct from builtins.TimeoutError; both
+        # must be recognized so launch timeouts get the retry-with-backoff path.
+        from patchright.async_api import TimeoutError as PlaywrightTimeoutError
 
         for attempt in range(3):
             try:
@@ -455,19 +458,21 @@ class BrowserLauncher:
                 self._total_browsers += 1
                 return BrowserInstance(browser=browser, engine=self._engine.value, is_managed=True, _pid=pid)
 
-            except TimeoutError as exc:
-                last_exc = exc
-                logger.warning(f"Browser launch timeout (attempt {attempt + 1}/3): {exc}")
-                if attempt < 2:
-                    await asyncio.sleep(2**attempt)
-
-            except ConnectionError as exc:
-                last_exc = exc
-                logger.warning(f"Browser launch connection error (attempt {attempt + 1}/3): {exc}")
-                if attempt < 2:
-                    await asyncio.sleep(2**attempt)
-
             except Exception as exc:
+                if isinstance(exc, (TimeoutError, PlaywrightTimeoutError)):
+                    last_exc = exc
+                    logger.warning(f"Browser launch timeout (attempt {attempt + 1}/3): {exc}")
+                    if attempt < 2:
+                        await asyncio.sleep(2**attempt)
+                    continue
+
+                if isinstance(exc, ConnectionError):
+                    last_exc = exc
+                    logger.warning(f"Browser launch connection error (attempt {attempt + 1}/3): {exc}")
+                    if attempt < 2:
+                        await asyncio.sleep(2**attempt)
+                    continue
+
                 last_exc = exc
                 logger.warning(f"Browser launch failed (attempt {attempt + 1}/3): {exc}")
 

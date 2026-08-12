@@ -1213,9 +1213,17 @@ wheels = [
 ]
 
 [[package]]
-name = "jsonpatch"
-version = "1.33"
+name = "json-repair"
+version = "0.63.0"
 source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple/" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/7d/88/600f1b41f3a0e383a2e95014c25fa9fdc5fb0d6d77323e7b8e9d517271e3/json_repair-0.63.0.tar.gz", hash = "sha256:27ce6724ede2eff84c39c7d142dbfcd07c3635ebb79e4fa8e81d1b57367a1cbe", size = 52085, upload-time = "2026-08-11T09:28:29" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/ed/84/1f5ee13057a3f6eec537664e95dfd71b94ac9e1bbf0a3ba8fc7f0c13b6f1/json_repair-0.63.0-py3-none-any.whl", hash = "sha256:e086519c8aba422a08f3b1c0882dcf5a0d2a47e65b450e3f23b224cdc12c545d", size = 50648, upload-time = "2026-08-11T09:28:28" },
+]
+
+[[package]]
+name = "jsonpatch"
+version = "1.33"source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple/" }
 dependencies = [
     { name = "jsonpointer", marker = "python_full_version < '3.14'" },
 ]
@@ -1847,6 +1855,7 @@ dependencies = [
     { name = "dill", marker = "python_full_version < '3.14'" },
     { name = "filelock", marker = "python_full_version < '3.14'" },
     { name = "httpx", marker = "python_full_version < '3.14'" },
+    { name = "json-repair", marker = "python_full_version < '3.14'" },
     { name = "langchain", marker = "python_full_version < '3.14'" },
     { name = "langchain-core", marker = "python_full_version < '3.14'" },
     { name = "langchain-mcp-adapters", marker = "python_full_version < '3.14'" },

@@ -261,7 +261,7 @@ class TestNavigator:
         """测试networkidle超时仍继续"""
         import asyncio
 
-        mock_page = create_mock_page("https://slow.example.com", 200, "Slow Page")
+        mock_page = create_mock_page("https://example.com", 200, "Slow Page")
 
         async def slow_wait_for_load_state(*args, **kwargs):
             await asyncio.sleep(10)
@@ -269,7 +269,7 @@ class TestNavigator:
         mock_page.wait_for_load_state = slow_wait_for_load_state
 
         navigator = Navigator(mock_page)
-        title, _final_url, status = await navigator.goto("https://slow.example.com")
+        title, _final_url, status = await navigator.goto("https://example.com")
 
         assert title == "Slow Page"
         assert status == 200

@@ -12,7 +12,10 @@ from myrm_agent_harness.toolkits.llms.adapters.schema_normalizer import (
 
 def _wrap(params: dict) -> dict:
     """Wrap a parameters dict into OpenAI tool format."""
-    return {"type": "function", "function": {"name": "t", "description": "d", "parameters": params}}
+    return {
+        "type": "function",
+        "function": {"name": "t", "description": "d", "parameters": params},
+    }
 
 
 def _params(tool: dict) -> dict:
@@ -47,7 +50,9 @@ class TestNullableAnyOf:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {"name": {"anyOf": [{"type": "string"}, {"type": "null"}]}},
+                "properties": {
+                    "name": {"anyOf": [{"type": "string"}, {"type": "null"}]}
+                },
             }
         )
         result = _params(normalize_tool_schema(schema))
@@ -61,7 +66,10 @@ class TestNullableAnyOf:
                 "properties": {
                     "config": {
                         "anyOf": [
-                            {"type": "object", "properties": {"key": {"type": "string"}}},
+                            {
+                                "type": "object",
+                                "properties": {"key": {"type": "string"}},
+                            },
                             {"type": "null"},
                         ]
                     }
@@ -111,6 +119,100 @@ class TestOneOf:
         result = _params(normalize_tool_schema(schema))
         assert result["properties"]["data"]["type"] == "string"
 
+    def test_oneof_multiple_object_branches_merged(self) -> None:
+        """Nested union of objects keeps every branch's parameters visible."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "target": {
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "properties": {"url": {"type": "string"}},
+                                "required": ["url"],
+                            },
+                            {
+                                "type": "object",
+                                "properties": {"path": {"type": "string"}},
+                                "required": ["path"],
+                            },
+                        ],
+                        "description": "pick a target",
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        target = result["properties"]["target"]
+        assert target["type"] == "object"
+        assert "url" in target["properties"]
+        assert "path" in target["properties"]
+        assert "oneOf" not in target
+        assert target["description"].startswith("pick a target")
+        assert "(url)" in target["description"]
+        assert "(path)" in target["description"]
+
+    def test_anyof_object_branches_merge_discriminator_const_union(self) -> None:
+        """Discriminator const values survive across anyOf object branches."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {"const": "eq"},
+                                    "field": {"type": "string"},
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {"const": "range"},
+                                    "min": {"type": "number"},
+                                    "max": {"type": "number"},
+                                },
+                            },
+                        ],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        filter_prop = result["properties"]["filter"]
+        assert filter_prop["type"] == "object"
+        assert set(filter_prop["properties"]["op"]["enum"]) == {"eq", "range"}
+        assert "field" in filter_prop["properties"]
+        assert "min" in filter_prop["properties"]
+        assert "max" in filter_prop["properties"]
+        assert "anyOf" not in filter_prop
+
+    def test_oneof_single_object_branch_kept(self) -> None:
+        """A lone object branch next to a null branch is still selected."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "properties": {"id": {"type": "string"}},
+                            },
+                            {"type": "null"},
+                        ]
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        item = result["properties"]["item"]
+        assert item["type"] == "object"
+        assert "id" in item["properties"]
+
 
 class TestAllOf:
     """allOf normalization."""
@@ -121,7 +223,9 @@ class TestAllOf:
                 "type": "object",
                 "properties": {
                     "item": {
-                        "allOf": [{"type": "object", "properties": {"id": {"type": "string"}}}],
+                        "allOf": [
+                            {"type": "object", "properties": {"id": {"type": "string"}}}
+                        ],
                         "description": "An item",
                     }
                 },
@@ -140,12 +244,18 @@ class TestAllOf:
                         "allOf": [
                             {
                                 "type": "object",
-                                "properties": {"name": {"type": "string"}, "email": {"type": "string"}},
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    "email": {"type": "string"},
+                                },
                                 "required": ["name", "email"],
                             },
                             {
                                 "type": "object",
-                                "properties": {"age": {"type": "integer"}, "role": {"type": "string"}},
+                                "properties": {
+                                    "age": {"type": "integer"},
+                                    "role": {"type": "string"},
+                                },
                             },
                         ],
                         "description": "User data",
@@ -171,8 +281,16 @@ class TestAllOf:
                 "properties": {
                     "item": {
                         "allOf": [
-                            {"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a"]},
-                            {"type": "object", "properties": {"b": {"type": "string"}}, "required": ["a", "b"]},
+                            {
+                                "type": "object",
+                                "properties": {"a": {"type": "string"}},
+                                "required": ["a"],
+                            },
+                            {
+                                "type": "object",
+                                "properties": {"b": {"type": "string"}},
+                                "required": ["a", "b"],
+                            },
                         ]
                     }
                 },
@@ -197,6 +315,71 @@ class TestAllOf:
         )
         result = _params(normalize_tool_schema(schema))
         assert result["properties"]["data"]["type"] == "object"
+
+    def test_allof_same_property_enum_intersection(self) -> None:
+        """Redefined allOf properties intersect instead of overriding."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "allOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "color": {
+                                        "type": "string",
+                                        "enum": ["red", "green"],
+                                    }
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "color": {
+                                        "type": "string",
+                                        "enum": ["green", "blue"],
+                                    }
+                                },
+                            },
+                        ]
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        color = result["properties"]["item"]["properties"]["color"]
+        assert color["enum"] == ["green"]
+
+    def test_allof_same_property_closed_plus_open_keeps_closed(self) -> None:
+        """A closed enum conjoined with an open type keeps the closed set."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "item": {
+                        "allOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "mode": {
+                                        "type": "string",
+                                        "enum": ["auto", "manual"],
+                                    }
+                                },
+                            },
+                            {
+                                "type": "object",
+                                "properties": {"mode": {"type": "string"}},
+                            },
+                        ]
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        mode = result["properties"]["item"]["properties"]["mode"]
+        assert mode["enum"] == ["auto", "manual"]
 
 
 class TestRefResolution:
@@ -229,7 +412,9 @@ class TestRefResolution:
             {
                 "type": "object",
                 "properties": {"item": {"$ref": "#/definitions/Item"}},
-                "definitions": {"Item": {"type": "string", "description": "An item ID"}},
+                "definitions": {
+                    "Item": {"type": "string", "description": "An item ID"}
+                },
             }
         )
         result = _params(normalize_tool_schema(schema))
@@ -301,7 +486,10 @@ class TestTopLevelComposite:
                     },
                     {
                         "type": "object",
-                        "properties": {"x": {"type": "number"}, "y": {"type": "number"}},
+                        "properties": {
+                            "x": {"type": "number"},
+                            "y": {"type": "number"},
+                        },
                         "required": ["x", "y"],
                     },
                 ]
@@ -327,7 +515,9 @@ class TestTopLevelComposite:
                     },
                     {
                         "type": "object",
-                        "properties": {"tags": {"type": "array", "items": {"type": "string"}}},
+                        "properties": {
+                            "tags": {"type": "array", "items": {"type": "string"}}
+                        },
                         "required": ["tags"],
                     },
                 ]
@@ -350,7 +540,9 @@ class TestNestedSchemas:
                 "properties": {
                     "outer": {
                         "type": "object",
-                        "properties": {"inner": {"anyOf": [{"type": "string"}, {"type": "null"}]}},
+                        "properties": {
+                            "inner": {"anyOf": [{"type": "string"}, {"type": "null"}]}
+                        },
                     }
                 },
             }
@@ -472,7 +664,9 @@ class TestEdgeCases:
                 "$defs": {
                     "Child": {
                         "type": "object",
-                        "properties": {"value": {"anyOf": [{"type": "number"}, {"type": "null"}]}},
+                        "properties": {
+                            "value": {"anyOf": [{"type": "number"}, {"type": "null"}]}
+                        },
                     }
                 },
             }
@@ -503,9 +697,7 @@ class TestStrictProviderCompat:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {
-                    "config": {"properties": {"key": {"type": "string"}}}
-                },
+                "properties": {"config": {"properties": {"key": {"type": "string"}}}},
             }
         )
         result = _params(normalize_tool_schema(schema))
@@ -698,7 +890,9 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        result = _params(
+            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
+        )
         prop = result["properties"]["count"]
         assert "minimum" not in prop
         assert "maximum" not in prop
@@ -746,7 +940,9 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        result = _params(
+            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
+        )
         prop = result["properties"]["path"]
         assert "title" not in prop
         assert "default" not in prop
@@ -766,7 +962,11 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(normalize_tool_schema(schema, model_name="anthropic/claude-sonnet-4-20250514"))
+        result = _params(
+            normalize_tool_schema(
+                schema, model_name="anthropic/claude-sonnet-4-20250514"
+            )
+        )
         prop = result["properties"]["urls"]
         assert "maxItems" not in prop
         assert "items: 0\u201320" in prop["description"]
@@ -785,7 +985,9 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        result = _params(
+            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
+        )
         prop = result["properties"]["email"]
         assert "format" not in prop
         assert "pattern" not in prop
@@ -812,7 +1014,9 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        result = _params(
+            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
+        )
         timeout = result["properties"]["config"]["properties"]["timeout"]
         assert "minimum" not in timeout
         assert "maximum" not in timeout
@@ -831,7 +1035,9 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        result = _params(
+            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
+        )
         items = result["properties"]["urls"]["items"]
         assert "format" not in items
 
@@ -844,7 +1050,9 @@ class TestAnthropicStrip:
                 },
             }
         )
-        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        result = _params(
+            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
+        )
         prop = result["properties"]["val"]
         assert prop["description"] == "(range: 0\u2013100)"
 
@@ -854,9 +1062,7 @@ class TestAnthropicStrip:
         original = _wrap(
             {
                 "type": "object",
-                "properties": {
-                    "x": {"type": "integer", "minimum": 0, "maximum": 10}
-                },
+                "properties": {"x": {"type": "integer", "minimum": 0, "maximum": 10}},
             }
         )
         frozen = copy.deepcopy(original)
@@ -867,12 +1073,14 @@ class TestAnthropicStrip:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {
-                    "n": {"type": "integer", "minimum": 1, "title": "N"}
-                },
+                "properties": {"n": {"type": "integer", "minimum": 1, "title": "N"}},
             }
         )
-        result = _params(normalize_tool_schema(schema, model_name="anthropic/claude-sonnet-4-20250514"))
+        result = _params(
+            normalize_tool_schema(
+                schema, model_name="anthropic/claude-sonnet-4-20250514"
+            )
+        )
         prop = result["properties"]["n"]
         assert "minimum" not in prop
         assert "title" not in prop
@@ -1067,5 +1275,7 @@ class TestOrphanRequiredPruning:
                 "required": ["name", "absent"],
             }
         )
-        result = _params(normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514"))
+        result = _params(
+            normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
+        )
         assert result["required"] == ["name"]

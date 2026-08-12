@@ -42,6 +42,31 @@ def _current_session_id() -> str | None:
         return None
 
 
+async def _trigger_snapshot_hook(
+    *,
+    workspace_path: str,
+    action_type: str,
+    path: str,
+    size: int | None = None,
+) -> None:
+    """Fire the destructive-action snapshot hook for a native file mutation.
+
+    The hook is a no-op outside an agent turn (session_id is None) and never
+    blocks the mutation (interceptor enforces its own timeout).
+    """
+    payload: dict[str, object] = {
+        "path": path,
+        "session_id": _current_session_id(),
+    }
+    if size is not None:
+        payload["size"] = size
+    await trigger_destructive_action_hook(
+        workspace_path=workspace_path,
+        action_type=action_type,
+        payload=payload,
+    )
+
+
 @runtime_checkable
 class _ExecutorProtocol(Protocol):
     """Minimal interface required from the host executor."""
@@ -101,10 +126,11 @@ class LocalFileOpsMixin:
         self._guard_write(safe)
 
         # Trigger auto-snapshot hook
-        await trigger_destructive_action_hook(
+        await _trigger_snapshot_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content), "session_id": _current_session_id()},
+            path=safe,
+            size=len(content),
         )
 
         p = Path(safe)
@@ -115,10 +141,11 @@ class LocalFileOpsMixin:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
 
-        await trigger_destructive_action_hook(
+        await _trigger_snapshot_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content), "session_id": _current_session_id()},
+            path=safe,
+            size=len(content),
         )
 
         p = Path(safe)
@@ -129,10 +156,11 @@ class LocalFileOpsMixin:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
 
-        await trigger_destructive_action_hook(
+        await _trigger_snapshot_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content), "session_id": _current_session_id()},
+            path=safe,
+            size=len(content),
         )
 
         await async_atomic_write(safe, content)
@@ -141,10 +169,11 @@ class LocalFileOpsMixin:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
 
-        await trigger_destructive_action_hook(
+        await _trigger_snapshot_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_write",
-            payload={"path": safe, "size": len(content), "session_id": _current_session_id()},
+            path=safe,
+            size=len(content),
         )
 
         await async_atomic_write(safe, content)
@@ -153,10 +182,11 @@ class LocalFileOpsMixin:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
 
-        await trigger_destructive_action_hook(
+        await _trigger_snapshot_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_append",
-            payload={"path": safe, "size": len(content), "session_id": _current_session_id()},
+            path=safe,
+            size=len(content),
         )
 
         with open(safe, "a", encoding="utf-8") as f:
@@ -166,10 +196,10 @@ class LocalFileOpsMixin:
         safe = await self.resolve_path(path)  # type: ignore[attr-defined]
         self._guard_write(safe)
 
-        await trigger_destructive_action_hook(
+        await _trigger_snapshot_hook(
             workspace_path=self.workspace_path,  # type: ignore[attr-defined]
             action_type="file_delete",
-            payload={"path": safe, "session_id": _current_session_id()},
+            path=safe,
         )
 
         Path(safe).unlink(missing_ok=True)

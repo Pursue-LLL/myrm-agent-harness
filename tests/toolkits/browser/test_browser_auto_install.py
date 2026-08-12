@@ -411,6 +411,28 @@ class TestLaunchNewBrowserAutoInstall:
         ):
             await launcher._launch_new_browser()
 
+    @pytest.mark.asyncio
+    async def test_patchright_timeout_retries_and_raises(self) -> None:
+        """Patchright's TimeoutError (distinct from builtins) should be treated as a launch timeout."""
+        from patchright.async_api import TimeoutError as PlaywrightTimeoutError
+
+        launcher = BrowserLauncher(
+            launch_options={"headless": True},
+            launch_mode=LaunchMode.LAUNCH,
+        )
+
+        mock_pw = MagicMock()
+        mock_pw.chromium.launch = AsyncMock(
+            side_effect=PlaywrightTimeoutError("browser launch timeout")
+        )
+
+        with patch.object(launcher, "_ensure_playwright", return_value=mock_pw), pytest.raises(
+            BrowserLaunchError, match="Failed to create Browser"
+        ):
+            await launcher._launch_new_browser()
+
+        assert mock_pw.chromium.launch.await_count == 3
+
 
 # ---------------------------------------------------------------------------
 # Doctor auto_fix

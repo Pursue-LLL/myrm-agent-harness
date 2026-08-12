@@ -12,7 +12,7 @@
 - extract_text_content(): 从字符串 / 多媒体列表 / JSON 中提取纯文本
 - extract_answer_text(): 从 LLM 响应提取用户可见答案文本（str / block list / think 剥离 / reasoning 模型回退）
 - extract_litellm_answer_text(): 从 litellm 原生响应提取用户可见答案文本（choices[0].message / reasoning_content / block list）
-- parse_llm_json_object() / parse_llm_json_list(): 从 LLM 回复中容错提取 JSON 对象 / 数组（fence / prose / 裸控制字符 / 尾逗号 / 多候选取末）；parse_llm_json_object 支持 require_key 过滤（仅取含指定键的对象）
+- parse_llm_json_object() / parse_llm_json_list(): 从 LLM 回复中容错提取 JSON 对象 / 数组（fence / prose / 裸控制字符 / 尾逗号 / 多候选取末 / json_repair 兜底容错单引号·无引号 key·注释）；parse_llm_json_object 支持 require_key 过滤（仅取含指定键的对象）
 
 [POS]
 Chat utility functions. Provides business-config-independent chat history conversion (generic part).
@@ -22,12 +22,20 @@ Chat utility functions. Provides business-config-independent chat history conver
 import json
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Literal, cast
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 from myrm_agent_harness.utils.text_sanitizer import extract_and_strip_think_blocks
+
+_json_repair_loads: Callable[[str], object] | None = None
+try:
+    from json_repair import loads as _loads
+
+    _json_repair_loads = cast(Callable[[str], object], _loads)
+except ImportError:  # pragma: no cover - graceful degradation when dep absent
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -314,9 +322,13 @@ def _iter_json_arrays(text: str) -> Iterable[str]:
     yield from _iter_json_blocks(text, "[", "]")
 
 
-def _iter_json_candidates(content: str) -> Iterable[str]:
-    """Yield candidate JSON texts: every fence body, every balanced object,
-    every balanced array, and finally the stripped raw text."""
+def _iter_repair_candidates(content: str) -> Iterable[str]:
+    """Yield structurally bounded JSON candidates for the repair pass.
+
+    Every fence body plus every balanced object/array block — never the
+    raw prose, so the repair pass only ever sees bounded structures and
+    cannot fabricate objects out of surrounding narration.
+    """
     stripped = content.strip()
     if not stripped:
         return
@@ -326,7 +338,6 @@ def _iter_json_candidates(content: str) -> Iterable[str]:
             yield body
     yield from _iter_json_objects(stripped)
     yield from _iter_json_arrays(stripped)
-    yield stripped
 
 
 def _try_load(text: str) -> object | None:
@@ -337,26 +348,59 @@ def _try_load(text: str) -> object | None:
         return None
 
 
+def _try_parse_structural(candidate: str) -> object | None:
+    """Try strict JSON, then two structural repairs (control chars, commas)."""
+    parsed = _try_load(candidate)
+    if parsed is None:
+        escaped = _escape_control_chars_in_strings(candidate)
+        parsed = _try_load(escaped)
+        if parsed is None:
+            parsed = _try_load(_strip_trailing_commas(escaped))
+    return parsed
+
+
+def _try_load_repair(candidate: str) -> object | None:
+    """Salvage a bounded candidate with the json_repair fallback tier.
+
+    json_repair is the de-facto community standard for malformed LLM
+    output: it tolerates single-quoted strings, unquoted keys, inline
+    comments and Python-style booleans. Returns ``None`` when the text is
+    hopeless or the dependency is unavailable (graceful degradation).
+    """
+    if _json_repair_loads is None:
+        return None
+    try:
+        return _json_repair_loads(candidate)
+    except (ValueError, TypeError):
+        return None
+
+
 def _iter_parsed_containers(
     content: str,
 ) -> Iterable[dict[str, object] | list[object]]:
     """Yield every dict or list recoverable from ``content``.
 
-    Each candidate (fence body, balanced object/array, stripped raw text)
-    is tried raw first and then, only on failure, with two structural
-    repairs: unescaped control characters inside string literals escaped
-    (bare newlines/tabs) and trailing commas removed — matching the
-    artifacts reasoning providers emit.
+    Each structurally bounded candidate (fence body, balanced object/array)
+    is tried strict-first, then with two structural repairs (unescaped
+    control characters inside string literals, trailing commas), then with
+    a third-party repair pass (json_repair) covering artifacts like
+    single-quoted strings, unquoted keys and inline comments — matching
+    what reasoning and local models actually emit. The stripped raw text
+    is tried with the strict and structural paths only, never the repair
+    pass, so surrounding prose is never "repaired" into a phantom object.
     """
-    for candidate in _iter_json_candidates(content):
-        parsed = _try_load(candidate)
+    stripped = content.strip()
+    if not stripped:
+        return
+    for candidate in _iter_repair_candidates(content):
+        parsed = _try_parse_structural(candidate)
         if parsed is None:
-            escaped = _escape_control_chars_in_strings(candidate)
-            parsed = _try_load(escaped)
-            if parsed is None:
-                parsed = _try_load(_strip_trailing_commas(escaped))
+            parsed = _try_load_repair(candidate)
         if isinstance(parsed, (dict, list)):
             yield parsed
+    parsed = _try_parse_structural(stripped)
+    if isinstance(parsed, (dict, list)):
+        yield parsed
 
 
 def parse_llm_json_object(
@@ -368,11 +412,13 @@ def parse_llm_json_object(
 
     Tolerates the artifacts reasoning providers actually emit: markdown
     fences, prose framing around the object, unescaped control characters
-    inside string literals (e.g. bare newlines or tabs), and multiple
-    objects/fences where the last one is the real result (format examples
-    preceding the actual result). When several objects are recoverable,
-    the *last* parseable dict wins, matching how reasoning providers tend
-    to end with the final verdict. Returns ``None`` when no object can be
+    inside string literals (e.g. bare newlines or tabs), trailing commas,
+    and multiple objects/fences where the last one is the real result
+    (format examples preceding the actual result). When structural parsing
+    fails, a json_repair fallback salvages single-quoted strings, unquoted
+    keys and inline comments. When several objects are recoverable, the
+    *last* parseable dict wins, matching how reasoning providers tend to
+    end with the final verdict. Returns ``None`` when no object can be
     recovered.
 
     When ``require_key`` is given, only objects carrying that key are
@@ -392,8 +438,9 @@ def parse_llm_json_list(content: str) -> list[object] | None:
 
     Mirrors :func:`parse_llm_json_object` for arrays: tolerates fences,
     prose framing, unescaped control characters inside string literals,
-    and multiple arrays where the last one is the real result. Returns
-    ``None`` when no array can be recovered.
+    trailing commas, json_repair-salvageable artifacts, and multiple
+    arrays where the last one is the real result. Returns ``None`` when
+    no array can be recovered.
     """
     parsed_last: list[object] | None = None
     for parsed in _iter_parsed_containers(content):

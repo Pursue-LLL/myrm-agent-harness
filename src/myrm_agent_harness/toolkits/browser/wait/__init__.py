@@ -74,7 +74,7 @@ logger = logging.getLogger(__name__)
 def _record_to_domain_metrics(
     metrics: WaitMetrics, domain: str, domain_metrics_manager: DomainMetricsManager
 ) -> None:
-    """RecordWaitMetrics to  DomainMetrics."""
+    """Record wait metrics into the domain metrics store."""
 
     try:
         domain_metrics = domain_metrics_manager.get_or_create(domain)
@@ -114,29 +114,29 @@ async def wait_for_page_ready(
     domain: str | None = None,
     domain_metrics_manager: DomainMetricsManager | None = None,
 ) -> WaitMetrics:
-    """WaitPage准备就绪.
+    """Wait until the page is considered ready.
 
     Args:
-        page: Patchright PageInstance
-        strategy: WaitStrategy（DefaultSMART最优，自适应fast+准确）
-        max_ms: MaximumWait时长（硬Timeout， must >0）
-        quiet_ms: 静默期时长（ no 变化时视 is stable， must >=0）
-        grace_period_ms: 混合Strategy in ，第一个任务Complete后给第二个任务 额外Wait时间（ must >=0）
-        domain: Domain（ for Domain级学习，SMART Strategyoptimized）
-        domain_metrics_manager: DomainMetricsManager Instance（ for 读取历史Data）
+        page: Patchright page instance
+        strategy: Wait strategy to use (default SMART: adaptive fast + accurate)
+        max_ms: Hard timeout for the whole wait (must be > 0)
+        quiet_ms: Quiet window; no DOM changes within this window counts as stable
+        grace_period_ms: Extra time granted to the second task in hybrid strategy
+        domain: Domain used for per-domain learning (SMART strategy)
+        domain_metrics_manager: Manager to read/write historical metrics
 
     Returns:
-        WaitMetrics: completeWaitMetrics
+        WaitMetrics: complete wait metrics
 
     Raises:
-        ValueError: Parameter not 合法（负数、零Value etc.）
+        ValueError: Parameter validation failed (negative/zero values)
 
     Examples:
-        # 自适应检测（最优性能+准确性平衡）
+        # Adaptive detection (balanced performance + accuracy)
         metrics = await wait_for_page_ready(page, strategy=WaitStrategy.SMART)
         logger.info(f"Page ready: {metrics.reason}, elapsed={metrics.elapsed_ms}ms")
 
-        # Domain级optimized（基于历史Data）
+        # Domain-level optimization based on historical data
         metrics = await wait_for_page_ready(
             page,
             strategy=WaitStrategy.SMART,
@@ -144,10 +144,10 @@ async def wait_for_page_ready(
             domain_metrics_manager=manager
         )
 
-        # 混合检测（准确性优先）
+        # Hybrid detection (accuracy first)
         metrics = await wait_for_page_ready(page, strategy=WaitStrategy.HYBRID)
 
-        # OnlyDOM检测（fastMode）
+        # DOM-only detection (fast mode)
         metrics = await wait_for_page_ready(
             page,
             strategy=WaitStrategy.DOM_STABLE,

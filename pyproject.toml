@@ -30,6 +30,7 @@ dependencies = [
   # --- 数据验证与序列化 ---
   "pydantic>=2.13.4", # 数据模型验证
   "PyYAML>=6.0.3",    # YAML 配置解析
+  "json_repair>=0.63.0", # LLM 脏 JSON 修复兜底 (chat_utils 解析链末层)
   # --- HTTP 与异步 I/O ---
   "httpx>=0.28.1",        # 异步 HTTP 客户端（统一网络栈；SOCKS 由 server/渠道层按需安装）
   "httpx2>=2.9.1",        # MCP SDK v2 传输层 HTTP 客户端（TLS/mTLS、auth headers）
