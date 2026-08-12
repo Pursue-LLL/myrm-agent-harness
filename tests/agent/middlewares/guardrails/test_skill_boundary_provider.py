@@ -70,11 +70,10 @@ async def test_aevaluate_denies_with_async_checker_when_not_granted() -> None:
 @pytest.mark.asyncio
 async def test_aevaluate_allows_when_no_skills_loaded() -> None:
     """No loaded skills must short-circuit to allow."""
-    provider = SkillBoundaryProvider(
-        permission_checker=lambda *_: (_ for _ in ()).throw(
-            AssertionError("checker must not be called")
-        )
-    )
+    def fail_checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
+        pytest.fail("checker must not be called when no skills are loaded")
+
+    provider = SkillBoundaryProvider(permission_checker=fail_checker)
     decision = await provider.aevaluate(_request("shell_exec"))
     assert decision.allow is True
 

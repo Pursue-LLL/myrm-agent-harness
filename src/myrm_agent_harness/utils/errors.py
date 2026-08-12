@@ -110,8 +110,8 @@ class ToolError(Exception):
 
         if self.recovery_suggestions:
             parts.append("\nRecovery Suggestions:")
-            for suggestion in self.recovery_suggestions:
-                parts.append(f" {_redact_suggestion(suggestion)}")
+            for index, suggestion in enumerate(self.recovery_suggestions, 1):
+                parts.append(f"  {index}. {_redact_suggestion(suggestion)}")
 
         return "\n".join(parts)
 

@@ -110,6 +110,37 @@ class TestCjkWordpieceBudget:
         assert policy.effective_chunk_budget == 1024
         assert is_cjk_wordpiece_model("nomic-embed-text")
 
+    def test_minilm_and_e5_wordpiece_detection(self) -> None:
+        # MiniLM/e5/paraphrase/jina-v2 are BERT/XLM wordpiece families; treating
+        # them as BPE would budget on o200k tokens, which undercounts their real
+        # wordpiece input and silently truncates at the provider.
+        assert is_cjk_wordpiece_model("sentence-transformers/all-MiniLM-L6-v2")
+        assert is_cjk_wordpiece_model("all-MiniLM-L12-v2")
+        assert is_cjk_wordpiece_model("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+        assert is_cjk_wordpiece_model("intfloat/multilingual-e5-large")
+        assert is_cjk_wordpiece_model("jina-embeddings-v2-base-zh")
+        assert not is_cjk_wordpiece_model("text-embedding-3-small")
+
+    def test_minilm_window_budget(self) -> None:
+        # all-MiniLM-L6-v2 is a BERT wordpiece model with a 256-token window -> 0.5
+        # margin yields a 128-character budget (one CJK char == one token).
+        policy = EmbedWindowPolicy.for_model("sentence-transformers/all-MiniLM-L6-v2")
+        assert policy.max_input_tokens == 256
+        assert policy.effective_chunk_budget == 128
+        assert is_cjk_wordpiece_model("sentence-transformers/all-MiniLM-L6-v2")
+
+    def test_minilm_cjk_chunk_never_exceeds_window(self) -> None:
+        # A CJK text split for all-MiniLM-L6-v2 must never exceed its 256-token
+        # provider window; the 128-character budget keeps every chunk at or below
+        # 128 wordpiece tokens.
+        policy = EmbedWindowPolicy.for_model("sentence-transformers/all-MiniLM-L6-v2")
+        text = "深度检索质量保障机制的动态窗口预算测试。" * 60
+        chunks = split_for_embedding(text, policy)
+        assert len(chunks) >= 2
+        for chunk in chunks:
+            assert len(chunk) <= policy.effective_chunk_budget
+            assert estimate_wordpiece_tokens(chunk) <= policy.max_input_tokens
+
     def test_cjk_long_text_never_exceeds_small_window(self) -> None:
         # A long CJK text split for bge-large-zh-v1.5 must produce chunks whose
         # wordpiece estimate never exceeds the 512-token provider window.

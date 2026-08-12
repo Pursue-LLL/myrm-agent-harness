@@ -67,6 +67,15 @@ KNOWN_MODEL_MAX_INPUT_TOKENS: dict[str, int] = {
     "Qwen/Qwen3-Embedding-8B": 8192,
     "Qwen/Qwen3-Embedding-4B": 8192,
     "nomic-embed-text": 2048,
+    # sentence-transformers / HF wordpiece models commonly self-hosted
+    "all-MiniLM-L6-v2": 256,
+    "all-MiniLM-L12-v2": 256,
+    "paraphrase-MiniLM-L6-v2": 256,
+    "paraphrase-multilingual-MiniLM-L12-v2": 128,
+    "multilingual-e5-small": 512,
+    "multilingual-e5-base": 512,
+    "multilingual-e5-large": 512,
+    "jina-embeddings-v2-base-zh": 8192,
 }
 
 
@@ -144,15 +153,22 @@ def _is_cjk_wordpiece_char(ch: str) -> bool:
 def is_cjk_wordpiece_model(model: str | None) -> bool:
     """Whether the model tokenizes CJK as wordpieces (BERT/XLM family).
 
-    bge/bce/nomic are built on BERT/XLM wordpiece vocabularies where one CJK char
-    maps to one token, while get_token_count uses o200k BPE where one token spans
-    ~2 CJK chars. Without a conservative margin the o200k budget undercounts the
-    real provider input and text silently truncates.
+    bge/bce/nomic/minilm/e5/paraphrase/jina-embeddings-v2/v3 are built on
+    BERT/XLM wordpiece vocabularies where one CJK char maps to one token, while
+    get_token_count uses o200k BPE where one token spans ~2 CJK chars. Without a
+    conservative margin the o200k budget undercounts the real provider input and
+    text silently truncates.
     """
     if not model:
         return False
     base = model.rsplit("/", 1)[-1].lower()
-    return base.startswith("bge") or base.startswith("bce") or base.startswith("nomic")
+    return (
+        base.startswith(("bge", "bce", "nomic"))
+        or "minilm" in base
+        or base.startswith("multilingual-e5")
+        or base.startswith("paraphrase-")
+        or base.startswith(("jina-embeddings-v2", "jina-embeddings-v3"))
+    )
 
 
 def estimate_wordpiece_tokens(text: str) -> int:
