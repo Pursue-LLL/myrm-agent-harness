@@ -1,7 +1,7 @@
 """browser_extract tool for content extraction.
 
 [INPUT]
-- (none)
+- common::mark_untrusted (POS: unified browser output security boundary; credential redaction + untrusted-content wrapping)
 
 [OUTPUT]
 - create_extract_tool: Create browser_extract tool bound to session.

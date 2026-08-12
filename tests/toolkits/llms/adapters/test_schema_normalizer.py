@@ -5,9 +5,7 @@ nested objects/arrays, passthrough of already-valid schemas, edge cases,
 and Anthropic-specific unsupported keyword stripping.
 """
 
-from myrm_agent_harness.toolkits.llms.adapters.schema_normalizer import (
-    normalize_tool_schema,
-)
+from myrm_agent_harness.toolkits.llms.adapters.schema import normalize_tool_schema
 
 
 def _wrap(params: dict) -> dict:
@@ -189,6 +187,115 @@ class TestOneOf:
         assert "min" in filter_prop["properties"]
         assert "max" in filter_prop["properties"]
         assert "anyOf" not in filter_prop
+
+    def test_oneof_discriminator_required_promoted(self) -> None:
+        """A discriminator required by every branch is promoted and excluded
+        from the exclusivity hint."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "target": {
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "kind": {"const": "url"},
+                                    "url": {"type": "string"},
+                                },
+                                "required": ["kind", "url"],
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "kind": {"const": "path"},
+                                    "path": {"type": "string"},
+                                },
+                                "required": ["kind", "path"],
+                            },
+                        ],
+                        "description": "pick a target",
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        target = result["properties"]["target"]
+        assert target["type"] == "object"
+        assert set(target["properties"]["kind"]["enum"]) == {"url", "path"}
+        assert target["required"] == ["kind"]
+        assert "kind" not in target["description"]
+        assert "(url)" in target["description"]
+        assert "(path)" in target["description"]
+
+    def test_anyof_non_shared_required_not_promoted(self) -> None:
+        """Branch-specific required fields stay dropped — forcing them together
+        would require mutually-exclusive parameters simultaneously."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {"const": "eq"},
+                                    "field": {"type": "string"},
+                                },
+                                "required": ["op", "field"],
+                            },
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "op": {"const": "range"},
+                                    "min": {"type": "number"},
+                                },
+                                "required": ["op", "min"],
+                            },
+                        ],
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        filter_prop = result["properties"]["filter"]
+        assert filter_prop["type"] == "object"
+        assert filter_prop["required"] == ["op"]
+        assert "field" not in filter_prop["required"]
+        assert "min" not in filter_prop["required"]
+
+    def test_oneof_all_shared_required_skips_empty_hint(self) -> None:
+        """When common-required exclusion leaves no distinguishing group, the
+        exclusivity hint is dropped instead of emitting meaningless groups."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "target": {
+                        "oneOf": [
+                            {
+                                "type": "object",
+                                "properties": {"kind": {"const": "url"}},
+                                "required": ["kind"],
+                            },
+                            {
+                                "type": "object",
+                                "properties": {"kind": {"const": "path"}},
+                                "required": ["kind"],
+                            },
+                        ],
+                        "description": "pick a target",
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        target = result["properties"]["target"]
+        assert target["type"] == "object"
+        assert target["required"] == ["kind"]
+        assert target["description"] == "pick a target"
+        assert "group" not in target["description"]
 
     def test_oneof_single_object_branch_kept(self) -> None:
         """A lone object branch next to a null branch is still selected."""
@@ -421,6 +528,36 @@ class TestRefResolution:
         assert result["properties"]["item"]["type"] == "string"
         assert "definitions" not in result
 
+    def test_ref_sibling_metadata_preserved(self) -> None:
+        """Sibling keys next to ``$ref`` (e.g. an overriding description) must
+        survive inlining — matching the inbound ``flatten_json_schema``
+        behavior; dropping them hides field guidance from the LLM."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "$ref": "#/$defs/User",
+                        "description": "The target user",
+                    }
+                },
+                "$defs": {
+                    "User": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string"},
+                            "age": {"type": "integer"},
+                        },
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        user_prop = result["properties"]["user"]
+        assert user_prop["type"] == "object"
+        assert "name" in user_prop["properties"]
+        assert user_prop["description"] == "The target user"
+
     def test_nullable_ref(self) -> None:
         schema = _wrap(
             {
@@ -501,8 +638,31 @@ class TestTopLevelComposite:
         # Union alternatives must not be forced together.
         assert "required" not in result
         assert "oneOf" not in result
-        assert "mutually exclusive" in result["description"]
+        assert "exactly one group" in result["description"]
         assert "(x, y)" in result["description"]
+
+    def test_top_level_anyof_multi_object_branches_wording(self) -> None:
+        """anyOf admits at least one group — the hint wording must say so."""
+        schema = _wrap(
+            {
+                "anyOf": [
+                    {
+                        "type": "object",
+                        "properties": {"index": {"type": "integer"}},
+                        "required": ["index"],
+                    },
+                    {
+                        "type": "object",
+                        "properties": {"x": {"type": "number"}},
+                        "required": ["x"],
+                    },
+                ]
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert result["type"] == "object"
+        assert "at least one of these groups" in result["description"]
+        assert "exactly one" not in result["description"]
 
     def test_top_level_allof_multi_object_branches(self) -> None:
         schema = _wrap(

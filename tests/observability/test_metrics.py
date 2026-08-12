@@ -59,3 +59,10 @@ def test_create_histogram_no_warn_with_ratio_suffix():
     """Test create_histogram accepts _ratio suffix without warning"""
     hist = create_histogram("p1_5_hit_ratio", "Test", ())
     assert isinstance(hist, Histogram)
+
+
+def test_create_counter_idempotent_on_repeat_registration():
+    """Repeated registration of the same metric name reuses the existing collector."""
+    first = create_counter("p1_5_repeat_total", "Test", ())
+    second = create_counter("p1_5_repeat_total", "Test", ())
+    assert first is second

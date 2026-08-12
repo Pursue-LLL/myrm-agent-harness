@@ -1,8 +1,8 @@
-from myrm_agent_harness.toolkits.mcp.schema_composite import (
+from myrm_agent_harness.toolkits.mcp.schema import (
     collapse_const_unions,
+    flatten_json_schema,
     flatten_top_level_composite,
 )
-from myrm_agent_harness.toolkits.mcp.schema_normalize import flatten_json_schema
 
 # ---------------------------------------------------------------------------
 # Top-level composite flattening tests

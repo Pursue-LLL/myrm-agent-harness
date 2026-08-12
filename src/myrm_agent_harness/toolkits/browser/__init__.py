@@ -37,6 +37,10 @@ Reuses the existing ``ManagedBrowser`` (Patchright) infrastructure.
 - ActionType: capturable action types (re-export)
 - CaptureSession: recording session state (re-export)
 - CaptureCallback: real-time step notification protocol (re-export)
+- run_doctor: 浏览器环境诊断编排器（re-export, doctor 子包）
+- format_report: 诊断报告 CLI 渲染（re-export, doctor 子包）
+- find_orphan_chromium_processes / find_orphan_driver_processes / find_orphan_automation_processes: 孤儿进程检测（re-export, doctor 子包）
+- cleanup_orphan_processes: 孤儿进程安全清理（re-export, doctor 子包）
 
 Note: create_browser_tools lives in the myrm_agent_harness.toolkits module
 
@@ -199,16 +203,20 @@ _LAZY_MODULES = {
         "restore_browser_state",
         "create_browser_context_updater",
     ],
-    "doctor": [
-        "CheckStatus",
-        "DoctorCheckResult",
-        "DoctorReport",
+    "doctor.checks": [
         "run_doctor",
-        "format_report",
+    ],
+    "doctor.orphans": [
+        "cleanup_orphan_processes",
         "find_orphan_automation_processes",
         "find_orphan_chromium_processes",
         "find_orphan_driver_processes",
-        "cleanup_orphan_processes",
+    ],
+    "doctor.report": [
+        "CheckStatus",
+        "DoctorCheckResult",
+        "DoctorReport",
+        "format_report",
     ],
     "session_vault": [
         "SessionVault",

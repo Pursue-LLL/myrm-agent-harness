@@ -191,7 +191,7 @@ class RuntimeBackend(Protocol):
     @property
     def is_alive(self) -> bool: ...
 
-    async def run_turn(
+    def run_turn(
         self,
         prompt: str,
         session_id: str,

@@ -15,16 +15,12 @@ import sys
 from collections.abc import Awaitable, Callable
 from functools import lru_cache
 from types import ModuleType
-from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.browser.doctor import (
     CheckStatus,
     DoctorCheckResult,
     DoctorReport,
 )
-
-if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.browser.doctor import CheckStatus
 
 logger = logging.getLogger(__name__)
 

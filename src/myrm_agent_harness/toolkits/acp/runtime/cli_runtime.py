@@ -100,6 +100,14 @@ class CliRuntime(BaseRuntime):
         *,
         mcp_servers: list[McpServerConfig] | None = None,
     ) -> AsyncIterator[RuntimeEvent]:
+        if mcp_servers:
+            # CliRuntime 不支持 session-level MCP 注入；pool.run_turn 已拦截，
+            # 此处兜底直接调用路径（绕过 pool 时），避免静默失效。
+            logger.warning(
+                "cli_runtime_mcp_ignored backend=%s mcp_servers=%d reason=unsupported",
+                self._name,
+                len(mcp_servers),
+            )
         command = self._config.command
         if command is None:
             msg = "CliRuntime requires 'command' in RuntimeConfig"
@@ -333,9 +341,9 @@ class CliRuntime(BaseRuntime):
             return None
 
         if event_type == "agent_message":
-            text = data.get("message", "")
-            if isinstance(text, str) and text:
-                return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=text)
+            message = data.get("message")
+            if isinstance(message, str) and message:
+                return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=message)
             return None
 
         if event_type == "thinking":

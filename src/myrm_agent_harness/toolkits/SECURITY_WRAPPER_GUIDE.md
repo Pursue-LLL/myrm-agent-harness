@@ -43,7 +43,7 @@
 |---------|------|------|---------|
 | **Web 搜索** | `web_search` | 搜索结果来自不可控的外部网站 | `wrap_with_external_sources_tag(results, source="web_search")` |
 | **Web 抓取** | `web_fetch` | 网页内容可能包含恶意指令 | `wrap_with_external_sources_tag(html_content, source="web_fetch")` |
-| **浏览器工具** | `browser_snapshot_tool`, `browser_extract_tool` | 网页内容不可信 | `wrap_with_external_sources_tag(page_content, source="browser")` |
+| **浏览器工具** | `browser_snapshot_tool`, `browser_extract_tool`, `browser_inspect_tool`, `browser_navigate_tool`, `browser_interact_tool`, `browser_manage_tool`（evaluate / execute_script / console / network） | 网页内容不可信 | 统一出口 `mark_untrusted(content)`：先 `redact_sensitive_text` 凭据脱敏，再 `wrap_untrusted(..., source="browser")` |
 | **知识库查询** | `wiki_query_tool` | 知识库内容可能来自外部摄取 | `wrap_with_external_sources_tag(wiki_content, source="wiki")` |
 | **MCP 远程数据** | MCP 工具（如 `github_api`, `slack_api`） | 第三方 API 返回的数据不可信 | 框架层已统一处理（`tool_processing.wrap_tools_with_timeout` 自动调用 `wrap_untrusted`） |
 

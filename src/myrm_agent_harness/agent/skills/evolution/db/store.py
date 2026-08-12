@@ -40,6 +40,10 @@ from myrm_agent_harness.agent.skills.evolution.core.types import (
     SkillMetrics,
     SkillRecord,
 )
+from myrm_agent_harness.agent.skills.evolution.db._store_dependencies import (
+    _DEPENDENCY_TABLE_DDL,
+    SkillDependencyMixin,
+)
 from myrm_agent_harness.agent.skills.evolution.db._store_evolution_tracking import (
     SkillEvolutionTrackingMixin,
 )
@@ -178,7 +182,7 @@ CREATE INDEX IF NOT EXISTS idx_constraints_time ON evolution_constraints(created
 """
 
 
-class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQueries):
+class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillDependencyMixin, SkillStoreQueries):
     """Simplified SQLite persistence for skill evolution.
 
     Architecture:
@@ -281,6 +285,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
         """Create tables (idempotent via IF NOT EXISTS) and run migrations."""
         with self._mu:
             self._conn.executescript(_DDL)
+            self._conn.executescript(_DEPENDENCY_TABLE_DDL)
             self._migrate_add_traps_columns()
             self._conn.commit()
 
@@ -324,6 +329,11 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
     def db_path(self) -> Path:
         return self._db_path
 
+    @property
+    def closed(self) -> bool:
+        """Whether the store was closed and can no longer be used."""
+        return self._closed
+
     def _ensure_open(self) -> None:
         if self._closed:
             raise RuntimeError("SkillStore is closed")
@@ -333,10 +343,11 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
     def _delete_skill_sync(self, skill_id: str) -> None:
         """Synchronous delete - called via asyncio.to_thread()."""
         with self._mu:
-            self._conn.execute("DELETE FROM skills WHERE skill_id = ?", (skill_id,))
+            self._conn.execute("DELETE FROM skills WHERE skill_id = ?", (skill_id,)            )
             self._conn.execute("DELETE FROM execution_analyses WHERE skill_id = ?", (skill_id,))
             self._conn.execute("DELETE FROM evolution_rejections WHERE skill_id = ?", (skill_id,))
             self._conn.execute("DELETE FROM evolution_constraints WHERE skill_id = ?", (skill_id,))
+            self._delete_skill_dependencies_locked(skill_id)
             self._conn.commit()
 
     async def delete_skill(self, skill_id: str) -> None:
@@ -448,6 +459,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                     int(record.evolution_locked),
                 ),
             )
+            self._sync_skill_dependencies_locked(record)
             self._conn.commit()
 
     @_db_retry()
@@ -500,6 +512,7 @@ class SkillStore(SkillVectorSyncMixin, SkillEvolutionTrackingMixin, SkillStoreQu
                     for record in records
                 ],
             )
+            self._sync_skills_dependencies_locked(records)
             self._conn.commit()
 
     async def save_skills_batch(self, records: list[SkillRecord]) -> None:

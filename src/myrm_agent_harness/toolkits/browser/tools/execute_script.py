@@ -1,6 +1,7 @@
 """browser_execute_script tool for Code-as-Action batch execution.
 
 [INPUT]
+- common::mark_untrusted (POS: unified browser output security boundary; credential redaction + untrusted-content wrapping)
 - patchright.async_api::Page (POS: Patchright page instance)
 - session.browser_session::BrowserSession (POS: browser session)
 

@@ -33,7 +33,6 @@ class TestSessionManagement:
     async def test_new_session(self, server: MyrmAcpServer) -> None:
         result = await server.new_session(cwd="/tmp")
         assert result.session_id
-
     @pytest.mark.asyncio
     async def test_list_sessions_empty(self, server: MyrmAcpServer) -> None:
         result = await server.list_sessions()
@@ -83,6 +82,64 @@ class TestSessionManagement:
         assert result is not None
         sessions_after = (await server.list_sessions()).sessions
         assert len(sessions_after) == len(sessions_before) + 1
+
+
+class TestHostMcpIgnored:
+    """Host-supplied session-level MCP servers must log a WARNING and be ignored."""
+
+    @pytest.mark.asyncio
+    async def test_new_session_warns_on_host_mcp(self, server: MyrmAcpServer, caplog: pytest.LogCaptureFixture) -> None:
+        result = await server.new_session(cwd="/tmp", mcp_servers=[_fake_mcp()])
+        assert result.session_id
+        assert _has_acp_host_mcp_warning(caplog, "new_session")
+
+    @pytest.mark.asyncio
+    async def test_load_session_warns_on_host_mcp(
+        self, server: MyrmAcpServer, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        resp = await server.new_session(cwd="/tmp")
+        await server.load_session(cwd="/tmp", session_id=resp.session_id, mcp_servers=[_fake_mcp()])
+        assert _has_acp_host_mcp_warning(caplog, "load_session")
+
+    @pytest.mark.asyncio
+    async def test_fork_session_warns_on_host_mcp(
+        self, server: MyrmAcpServer, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        resp = await server.new_session(cwd="/tmp")
+        fork_resp = await server.fork_session(cwd="/tmp2", session_id=resp.session_id, mcp_servers=[_fake_mcp()])
+        assert fork_resp.session_id != resp.session_id
+        assert _has_acp_host_mcp_warning(caplog, "fork_session")
+
+    @pytest.mark.asyncio
+    async def test_resume_session_warns_on_host_mcp(
+        self, server: MyrmAcpServer, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        resp = await server.new_session(cwd="/tmp")
+        await server.resume_session(cwd="/tmp", session_id=resp.session_id, mcp_servers=[_fake_mcp()])
+        assert _has_acp_host_mcp_warning(caplog, "resume_session")
+
+    @pytest.mark.asyncio
+    async def test_new_session_without_host_mcp_no_warning(
+        self, server: MyrmAcpServer, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        await server.new_session(cwd="/tmp")
+        assert not _has_acp_host_mcp_warning(caplog, "new_session")
+
+
+def _fake_mcp() -> object:
+    return MagicMock(name="mcp-server")
+
+
+def _has_acp_host_mcp_warning(caplog: pytest.LogCaptureFixture, method: str) -> bool:
+    for record in caplog.records:
+        if (
+            record.levelname == "WARNING"
+            and "acp_host_mcp_ignored" in record.message
+            and f"method={method}" in record.message
+            and "count=1" in record.message
+        ):
+            return True
+    return False
 
 
 class TestPrompt:

@@ -1,6 +1,7 @@
 """browser_snapshot tool for ARIA tree capture.
 
 [INPUT]
+- common::mark_untrusted (POS: unified browser output security boundary; credential redaction + untrusted-content wrapping)
 - session.browser_session::BrowserSession (POS: browser session aggregate root; snapshot + extractor visual content detection)
 
 [OUTPUT]

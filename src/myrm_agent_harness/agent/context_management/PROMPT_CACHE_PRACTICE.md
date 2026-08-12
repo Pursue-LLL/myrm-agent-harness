@@ -973,7 +973,7 @@ Turn 12 (会话结束):
 
 #### 层次 5：缓存断裂预防+诊断（Always-on）
 
-**预防层**：``toolkits/mcp/schema_normalize.canonicalize_schema_for_cache()`` 在 MCP 工具注册时对 ``inputSchema`` 做确定性 key 排序 + ``required``/``dependentRequired`` 集合排序，消除 MCP server 重连/重启后 schema 字段顺序抖动导致的前缀失配。
+**预防层**：``toolkits/mcp/schema.normalize.canonicalize_schema_for_cache()`` 在 MCP 工具注册时对 ``inputSchema`` 做确定性 key 排序 + ``required``/``dependentRequired`` 集合排序，消除 MCP server 重连/重启后 schema 字段顺序抖动导致的前缀失配。
 
 **诊断层**：``cache_break_detector.py`` 提供自动的缓存断裂检测和归因，独立于 NDJSON 持久化（always-on）。
 

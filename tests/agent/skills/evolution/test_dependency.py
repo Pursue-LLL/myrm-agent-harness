@@ -1,8 +1,10 @@
 import pytest
 
 from myrm_agent_harness.agent.skills.evolution.execution.dependency import (
+    SkillDependencies,
     SkillDependencyTracker,
     get_dependency_tracker,
+    parse_skill_dependencies,
 )
 
 
@@ -104,3 +106,67 @@ def test_get_dependency_tracker():
         assert t1 is t2
     finally:
         pass
+
+
+def test_parse_skill_dependencies_frontmatter_only():
+    content = """---
+name: web-scraper
+description: Scrape pages
+dependencies:
+  - http-client
+  - html-parser
+version: 2
+---
+
+Body text without tool references.
+"""
+    deps = parse_skill_dependencies(content)
+    assert deps.skill_deps == ("http-client", "html-parser")
+    assert deps.tool_deps == ()
+
+
+def test_parse_skill_dependencies_body_markers():
+    content = """---
+name: web-scraper
+description: Scrape pages
+---
+
+Uses @tool_use("browser_navigate") to visit pages.
+Fallback: uses: http_fetch.
+"""
+    deps = parse_skill_dependencies(content)
+    assert deps.skill_deps == ()
+    assert set(deps.tool_deps) == {"browser_navigate", "http_fetch"}
+
+
+def test_parse_skill_dependencies_dedupes_and_orders():
+    content = """---
+name: s
+description: d
+dependencies: [b, a, b]
+---
+
+@tool_use("http_tool") then @tool_use("http_tool")
+"""
+    deps = parse_skill_dependencies(content)
+    assert deps.skill_deps == ("b", "a")
+    assert deps.tool_deps == ("http_tool",)
+
+
+def test_parse_skill_dependencies_no_frontmatter():
+    content = "plain skill with no markers"
+    deps = parse_skill_dependencies(content)
+    assert deps == SkillDependencies()
+
+
+def test_parse_skill_dependencies_invalid_yaml_is_safe():
+    content = """---
+name: s
+description: [unclosed
+---
+
+@tool_use("x_tool")
+"""
+    deps = parse_skill_dependencies(content)
+    assert deps.skill_deps == ()
+    assert "x_tool" in deps.tool_deps

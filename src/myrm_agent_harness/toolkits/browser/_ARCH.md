@@ -11,7 +11,6 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 |------|------|-------------|-------|
 | __init__.py | Package | Browser toolkit public entry point. Aggregates and exports the module's core API | ✅ |
 | __main__.py | Internal | CLI entry point for browser toolkit diagnostics. | ✅ |
-| doctor.py | Core | Browser diagnostics: patchright + camoufox dependency checks, launchability probes, orphan automation process detection, extension relay + access-policy readiness via setup-hints, safe cleanup, and auto-fix Chromium install with CDN mirror fallback. | ✅ |
 | exceptions.py | Core | Exception hierarchy definition. RefNotFoundError provides structured diagnostic info, including URL  | ✅ |
 | observability.py | Core | Observability module for the browser toolkit. Provides video recording, progress notifications, and  | ✅ |
 | recording_manager.py | Core | Unified browser recording manager. Provides lifecycle management and file management | ✅ |
@@ -24,6 +23,7 @@ Detailed design: [BROWSER_SYSTEM.md](BROWSER_SYSTEM.md)
 | captcha/ | CAPTCHA detection and coordination subpackage. Provides Protocol-based pluggable solver architecture, HTML regex detector, asyncio.Event state machine coordinator, and default ManualSolver. Integrated into BrowserSession.navigate(). |
 | checkpoint/ | Task-level checkpoint/resume module for the browser toolkit. Fully reuses LangGraph Checkpointer's p |
 | diff/ | Screenshot diff utilities — unified comparison system. |
+| doctor/ | Pre-flight diagnostics and health checks. Facade + checks/orphans/report/auto_install submodules. |
 | domain_filter/ | Deep domain filtering, resource blocking, and ad/tracker domain blocking. Four-layer defense: CSP + route interception + JS hardening + CDP audit. `__init__.py` exposes DomainAllowlist/install_domain_filter; `ad_domains.py` lazily loads the bundled `assets/ad_domains.txt` (~3500 domains). |
 | domain_skills/ | Domain executable skills — manifest-based Python tool registry for repeated-domain acceleration. Complements SiteExperienceStore (prompt-layer) with an executable layer. Includes builtin skill packs (e.g. x-com). |
 | enhancers/ | DOM enhancers. Provides progressive enhancement (React/Vue/CDP) and SPA stabilization scripts. |

@@ -1,6 +1,7 @@
 """browser_interact tool for element interactions.
 
 [INPUT]
+- common::mark_untrusted (POS: unified browser output security boundary; credential redaction + untrusted-content wrapping)
 - session.browser_session::BrowserSession (POS: browser session aggregate root; semantic guard in interact)
 
 [OUTPUT]
@@ -20,6 +21,8 @@ from typing import TYPE_CHECKING
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
+
+from .common import mark_untrusted
 
 if TYPE_CHECKING:
     from ..session import BrowserSession
@@ -151,10 +154,12 @@ def create_interact_tool(session: BrowserSession):
                 return "Error: ref and x/y are mutually exclusive. Use ref OR coordinates, not both."
             if not action.strip():
                 return "Error: action is required for coordinate mode"
-            return await session.interact_at(
-                action=action, x=x, y=y, text=text,
-                target_x=target_x, target_y=target_y,
-                verify_goal=verify_goal,
+            return mark_untrusted(
+                await session.interact_at(
+                    action=action, x=x, y=y, text=text,
+                    target_x=target_x, target_y=target_y,
+                    verify_goal=verify_goal,
+                )
             )
         if (x is not None) != (y is not None):
             return "Error: both x and y must be provided together for coordinate mode"
@@ -167,7 +172,7 @@ def create_interact_tool(session: BrowserSession):
             for index, step in enumerate(steps, start=1):
                 step_result = await _run_single(step.action, step.ref, step.text, step.verify_goal)
                 lines.append(f"Step {index} ({step.action} {step.ref}): {step_result}")
-            return "\n".join(lines)
+            return mark_untrusted("\n".join(lines))
 
         # Ref mode
         if not action.strip():
@@ -175,6 +180,6 @@ def create_interact_tool(session: BrowserSession):
         if not ref.strip():
             return "Error: ref is required when steps is omitted (or use x/y for coordinate mode)"
 
-        return await _run_single(action, ref, text, verify_goal)
+        return mark_untrusted(await _run_single(action, ref, text, verify_goal))
 
     return browser_interact

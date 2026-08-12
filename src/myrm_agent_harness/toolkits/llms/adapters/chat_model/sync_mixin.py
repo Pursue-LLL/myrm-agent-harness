@@ -1,7 +1,7 @@
 """ChatLiteLLM synchronous generation and streaming mixin.
 
 [INPUT]
-- adapters.chat_model_exceptions (POS: EmptyChoicesError / EmptyStreamError)
+- adapters.chat_model.exceptions (POS: EmptyChoicesError / EmptyStreamError)
 - adapters.stream_aggregator / adapters.streaming (POS: stream aggregation)
 - utils.token_economics (POS: usage recording for streaming + non-streaming — lazy import)
 
@@ -32,7 +32,7 @@ from langchain_core.messages import (
 )
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
     EmptyChoicesError,
     EmptyStreamError,
 )

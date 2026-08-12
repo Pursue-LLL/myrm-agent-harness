@@ -16,8 +16,8 @@
 
 [OUTPUT]
 - ChatLiteLLM: LangChain-compatible LiteLLM chat model aggregate root (config, bind_tools, structured_output)
-- chat_model_message_mixin / chat_model_sync_mixin / chat_model_async_mixin: generation and message assembly mixins
-- chat_model_exceptions: EmptyChoicesError, EmptyStreamError, adapter constants
+- chat_model.message_mixin / chat_model.sync_mixin / chat_model.async_mixin: generation and message assembly mixins
+- chat_model.exceptions: EmptyChoicesError, EmptyStreamError, adapter constants
 - clean_model_kwargs(): utility function to clean model parameters
 
 [POS]
@@ -63,26 +63,24 @@ from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_core.utils.pydantic import is_basemodel_subclass
 from pydantic import BaseModel, Field, PrivateAttr, model_validator
 
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin import (
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin import (
     ChatLiteLLMAsyncMixin,
 )
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
     _DEVELOPER_ROLE_PATTERN,
     _FRAMEWORK_REQUIRED_OPENAI_PARAMS,
     EmptyChoicesError,
     EmptyStreamError,
     StreamStallTimeoutError,
 )
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_message_mixin import (
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.message_mixin import (
     ChatLiteLLMMessageMixin,
 )
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_sync_mixin import (
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.sync_mixin import (
     ChatLiteLLMSyncMixin,
 )
 from myrm_agent_harness.toolkits.llms.adapters.metrics import EmptyRetryMetrics
-from myrm_agent_harness.toolkits.llms.adapters.schema_normalizer import (
-    normalize_tool_schema,
-)
+from myrm_agent_harness.toolkits.llms.adapters.schema import normalize_tool_schema
 from myrm_agent_harness.toolkits.llms.utils.litellm_utils import (
     clean_model_kwargs as utils_clean_model_kwargs,
 )

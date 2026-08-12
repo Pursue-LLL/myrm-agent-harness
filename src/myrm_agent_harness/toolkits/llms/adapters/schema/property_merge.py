@@ -14,7 +14,7 @@ discriminator field exposes every branch.
 
 [OUTPUT]
 - merge_allof_branches: Conjunctive merge of allOf object branches (required union, same-name properties intersect).
-- merge_union_object_branches: Alternative merge of anyOf/oneOf object branches (required dropped, same-name const/enum union, exclusivity hint).
+- merge_union_object_branches: Alternative merge of anyOf/oneOf object branches (required dropped except common-required promotion, same-name const/enum union, keyword-aware exclusivity hint — oneOf "exactly one group", anyOf "at least one").
 - apply_union_hint: Fold the exclusivity hint with the outer schema's description (outer description prefixed, never dropped).
 - merge_union_property / intersect_property: Per-property union / intersection of const/enum value sets.
 - preserve_metadata: Copy description/default/title/examples from source to target when absent.
@@ -77,6 +77,8 @@ def merge_allof_branches(
 
 def merge_union_object_branches(
     branches: Sequence[dict[str, object]],
+    *,
+    keyword: str,
 ) -> dict[str, object]:
     """Merge multiple oneOf/anyOf object branches into a single flat schema.
 
@@ -84,17 +86,25 @@ def merge_union_object_branches(
     but ``required`` is dropped — merging it would force mutually-exclusive
     parameters to be supplied together. A property redefined across branches
     keeps the union of its ``const``/``enum`` values so a discriminator field
-    exposes every branch. The alternative constraint is folded into
-    ``description`` so the LLM still picks one valid combination.
+    exposes every branch. A property required by *every* branch (e.g. the
+    ``type`` discriminator of a oneOf union) is promoted to the top-level
+    ``required`` — it is mandatory no matter which branch is chosen — and
+    excluded from the exclusivity hint. The alternative constraint is folded
+    into ``description`` so the LLM still picks one valid combination. The
+    wording matches the real JSON Schema semantics: ``oneOf`` admits exactly
+    one branch, ``anyOf`` admits at least one.
     """
     merged_props: dict[str, object] = {}
     alternatives: list[list[str]] = []
+    required_counts: dict[str, int] = {}
+    branch_count = 0
 
     for branch in branches:
         if branch.get("type") != "object":
             continue
         props = branch.get("properties")
         if isinstance(props, dict):
+            branch_count += 1
             for name, prop_schema in props.items():
                 existing = merged_props.get(name)
                 if (
@@ -108,17 +118,48 @@ def merge_union_object_branches(
             alternatives.append(sorted(props))
         else:
             alternatives.append([])
+            continue
+        req = branch.get("required")
+        if isinstance(req, list):
+            for name in req:
+                if isinstance(name, str) and name in props:
+                    required_counts[name] = required_counts.get(name, 0) + 1
 
     if not merged_props:
         return {"type": "object", "properties": {}, "additionalProperties": True}
 
+    # A property required by every alternative branch (e.g. the ``type``
+    # discriminator of a oneOf union) is mandatory no matter which branch is
+    # chosen — promote it so the LLM sees it as required instead of optional.
+    common_required = {
+        name
+        for name, count in required_counts.items()
+        if branch_count > 1 and count == branch_count
+    }
+
     result: dict[str, object] = {"type": "object", "properties": merged_props}
+    if common_required:
+        result["required"] = sorted(common_required)
+
     non_empty = [alt for alt in alternatives if alt]
     if len(non_empty) >= 2:
-        groups = "; ".join(f"({', '.join(alt)})" for alt in non_empty)
-        result["description"] = (
-            f"Parameters are mutually exclusive alternatives — provide exactly one group: {groups}."
-        )
+        exclusive_groups = [
+            [name for name in group if name not in common_required]
+            for group in non_empty
+        ]
+        meaningful = [group for group in exclusive_groups if group]
+        if len(meaningful) >= 2:
+            groups = "; ".join(f"({', '.join(alt)})" for alt in meaningful)
+            if keyword == "oneOf":
+                result["description"] = (
+                    "Parameters are mutually exclusive alternatives — provide exactly "
+                    f"one group: {groups}."
+                )
+            else:
+                result["description"] = (
+                    "Parameters are alternatives — provide at least one of these groups: "
+                    f"{groups}."
+                )
     return result
 
 

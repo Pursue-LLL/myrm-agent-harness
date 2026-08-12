@@ -53,7 +53,6 @@ class TestDrainRestoreNotifications:
         result = drain_restore_notifications()
         assert result is not None
         assert "Entire workspace (5 files) restored" in result
-        assert "abcdef12" in result
         assert "Re-read any files" in result
         assert len(_pending) == 0
 
@@ -101,17 +100,40 @@ class TestDrainRestoreNotifications:
         push_restore_notification(snapshot_id="fresh_snap_1234", files_restored=2)
         result = drain_restore_notifications()
         assert result is not None
-        assert "fresh_sn" in result
-        assert "old_snap" not in result
+        assert "Entire workspace (2 files) restored" in result
+        assert "Entire workspace (1 files)" not in result
 
     def test_drain_multiple(self):
         push_restore_notification(snapshot_id="snap1111111111", files_restored=1)
         push_restore_notification(snapshot_id="snap2222222222", files_restored=3)
         result = drain_restore_notifications()
         assert result is not None
-        assert "snap1111" in result
-        assert "snap2222" in result
+        assert "Entire workspace (1 files) restored" in result
+        assert "Entire workspace (3 files) restored" in result
         assert len(_pending) == 0
+
+    def test_drain_external_effects_uses_plain_language(self):
+        push_restore_notification(
+            snapshot_id="snap_external_1234",
+            files_restored=1,
+            restored_files=None,
+            external_effects=("database", "container_cloud"),
+        )
+        result = drain_restore_notifications()
+        assert result is not None
+        assert "database changes, container or cloud operations" in result
+        assert "container_cloud" not in result
+
+    def test_drain_unknown_effect_falls_back(self):
+        push_restore_notification(
+            snapshot_id="snap_external_5678",
+            files_restored=1,
+            restored_files=None,
+            external_effects=("custom_effect",),
+        )
+        result = drain_restore_notifications()
+        assert result is not None
+        assert "custom_effect" in result
 
     def test_drain_clears_queue(self):
         push_restore_notification(snapshot_id="test_snap_1234", files_restored=1)

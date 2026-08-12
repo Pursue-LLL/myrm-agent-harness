@@ -22,7 +22,7 @@ from acp import (
     update_agent_thought_text,
     update_tool_call,
 )
-from acp.schema import SessionNotification, ToolCallStatus
+from acp.schema import SessionNotification, ToolCallProgress, ToolCallStart, ToolCallStatus
 
 _STATUS_MAP: dict[str, ToolCallStatus] = {
     "running": "in_progress",
@@ -111,6 +111,7 @@ def _translate_tool_call(
     status_str = str(event.get("status", "running"))
     acp_status = _STATUS_MAP.get(status_str, "in_progress")
 
+    update: ToolCallStart | ToolCallProgress
     if tool_call_id not in active_tool_calls:
         active_tool_calls.add(tool_call_id)
         update = start_tool_call(

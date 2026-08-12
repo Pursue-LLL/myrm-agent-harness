@@ -151,8 +151,10 @@ class TestDiscoverChromeEndpoint:
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._read_devtools_active_port")
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
     def test_http_probe_success(
-        self, mock_dirs: MagicMock, mock_read: MagicMock, mock_probe: MagicMock
+        self, mock_dirs: MagicMock, mock_read: MagicMock, mock_probe: MagicMock, monkeypatch
     ) -> None:
+        # Enable the E2E branch so the first probe call (port 9333) is consumed there.
+        monkeypatch.setenv("MYRM_CHROME_E2E", "1")
         mock_dirs.return_value = iter([Path("/fake/chrome")])
         mock_read.return_value = (54321, "/devtools/browser/abc")
         mock_probe.side_effect = [None, "ws://127.0.0.1:54321/devtools/browser/abc"]
@@ -162,7 +164,8 @@ class TestDiscoverChromeEndpoint:
         assert mock_probe.call_args_list[-1] == ((54321,),)
 
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
-    def test_myrm_e2e_port_priority(self, mock_probe: MagicMock) -> None:
+    def test_myrm_e2e_port_priority(self, mock_probe: MagicMock, monkeypatch) -> None:
+        monkeypatch.setenv("MYRM_CHROME_E2E", "1")
         mock_probe.return_value = "ws://127.0.0.1:9333/devtools/browser/abc"
 
         result = discover_chrome_cdp_endpoint()
@@ -187,7 +190,10 @@ class TestDiscoverChromeEndpoint:
 
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._probe_http_version")
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
-    def test_fallback_to_9222(self, mock_dirs: MagicMock, mock_probe: MagicMock) -> None:
+    def test_fallback_to_9222(
+        self, mock_dirs: MagicMock, mock_probe: MagicMock, monkeypatch
+    ) -> None:
+        monkeypatch.setenv("MYRM_CHROME_E2E", "1")
         mock_dirs.return_value = iter([])
         mock_probe.side_effect = [None, "ws://127.0.0.1:9222/devtools/browser"]
 
@@ -222,8 +228,9 @@ class TestDiscoverChromeEndpoint:
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery._read_devtools_active_port")
     @patch("myrm_agent_harness.toolkits.browser.pool.chrome_discovery.get_chromium_data_dirs")
     def test_tries_multiple_browsers_in_order(
-        self, mock_dirs: MagicMock, mock_read: MagicMock, mock_probe: MagicMock
+        self, mock_dirs: MagicMock, mock_read: MagicMock, mock_probe: MagicMock, monkeypatch
     ) -> None:
+        monkeypatch.setenv("MYRM_CHROME_E2E", "1")
         chrome_dir = Path("/fake/chrome")
         edge_dir = Path("/fake/edge")
         mock_dirs.return_value = iter([chrome_dir, edge_dir])

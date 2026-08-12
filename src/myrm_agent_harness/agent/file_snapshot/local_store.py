@@ -219,11 +219,12 @@ class LocalFileSnapshotStore:
         working_dir = manifest["working_dir"]
         files_dir = snap_dir / "files"
 
-        # Take pre-rollback snapshot
+        # Take pre-rollback snapshot (empty description: the PRE_ROLLBACK
+        # trigger already conveys its meaning in the UI; no internal IDs here)
         pre_rollback_id = await self.take_snapshot(
             working_dir,
             SnapshotTrigger.PRE_ROLLBACK,
-            description=f"Pre-rollback snapshot before restoring {snapshot_id}",
+            description="",
         )
 
         # Restore files

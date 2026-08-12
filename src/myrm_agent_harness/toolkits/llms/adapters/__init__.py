@@ -7,7 +7,7 @@ from myrm_agent_harness.toolkits.llms.adapters.converters import (
     create_usage_metadata,
 )
 from myrm_agent_harness.toolkits.llms.adapters.model_capability import ModelCapabilityDetector
-from myrm_agent_harness.toolkits.llms.adapters.schema_normalizer import normalize_tool_schema
+from myrm_agent_harness.toolkits.llms.adapters.schema import normalize_tool_schema
 from myrm_agent_harness.toolkits.llms.adapters.tool_call_parsers import (
     HTML_ENTITY_RE,
     FunctionCallDict,

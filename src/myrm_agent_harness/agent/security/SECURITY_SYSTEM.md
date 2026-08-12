@@ -55,7 +55,7 @@
   ▼
 ┌────────────────────┐   bash_code_execute_tool output / file_read_tool / grep_tool
 │ Tool Output Redact │ ← 工具输出脱敏：30+模式（API key/token/PEM/DB连接串）→ redact_sensitive_text
-└────────────────────┘
+└────────────────────┘   （含 browser snapshot/extract/evaluate/console/network 输出经 mark_untrusted 统一出口）
   │
   ▼
 ┌───────────────┐   SecurityGuardrailMiddleware.after_model
@@ -92,7 +92,7 @@
 | `middlewares/approval/middleware.py` | 工具审批中间件主入口 | Layer 1-4 集成 |
 | `middlewares/approval/batch_processor.py` | 批量审批处理器（评估/构建/应用） | Layer 1-4 实现 |
 | `middlewares/approval/helpers.py` | 审批辅助函数（拒绝计数/allowlist） | Layer 4 |
-| `redact.py` | 工具输出脱敏（`bash_code_execute_tool` / `file_read_tool` / `grep_tool`，API key/token/PEM/DB 连接串） | Layer 2 输出脱敏 |
+| `redact.py` | 工具输出脱敏（`bash_code_execute_tool` / `file_read_tool` / `grep_tool` / browser `mark_untrusted` 统一出口，API key/token/PEM/DB 连接串/Authorization 全 scheme/URL userinfo/bare-token/x-api-key 认证头/JWT/控制字符拆分 token 防护） | Layer 2 输出脱敏 |
 | `middlewares/security_guardrail_middleware.py` | 安全护栏中间件 | 输入/输出侧集成 |
 | `security/guards/loop_guard/` | 统一循环检测子系统（LoopGuard、types、detectors、stats、suggestions） | Layer 5 |
 | `security/guards/frequency_guard.py` | 工具调用频率异常检测（FrequencyGuard）| Layer 5 |

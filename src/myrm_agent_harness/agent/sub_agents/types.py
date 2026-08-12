@@ -9,6 +9,7 @@ Self-update note: when this file changes, update its INPUT/OUTPUT/POS comments.
 [OUTPUT]
 - CouncilOpinion: Single expert opinion from one council round.
 - CouncilResult: Structured result from a council orchestration session.
+- VerificationSummary: Structured adversarial verification outcome for a subagent.
 - SubAgentStatus: Subagent lifecycle status enum.
 - SubagentBudgetExceededError: Subagent budget overrun exception.
 - CancellationStrategy: Cancellation strategy enum.
@@ -169,6 +170,34 @@ class CouncilResult:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class VerificationSummary:
+    """Structured adversarial verification result for a subagent.
+
+    Attached to a ``SubAgentResult`` when the worker output was independently
+    verified by an adversarial verifier. Distinct from execution status: a
+    completed subagent may still fail verification, and a failed worker never
+    produces a summary.
+    """
+
+    passed: bool
+    rounds: int
+    max_rounds: int
+    confidence: str
+    summary: str = ""
+    findings: tuple[dict[str, str], ...] = ()
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "passed": self.passed,
+            "rounds": self.rounds,
+            "max_rounds": self.max_rounds,
+            "confidence": self.confidence,
+            "summary": self.summary,
+            "findings": [dict(f) for f in self.findings],
+        }
+
+
 class SubagentBudgetExceededError(Exception):
     """Raised when a subagent exceeds its configured budget (tokens or USD)."""
 
@@ -242,6 +271,8 @@ class SubAgentResult:
     """Total runtime across interruptions (previous + current duration)."""
     still_running: bool = False
     """True when a wait timeout fired but the agent continues in background."""
+    verification: VerificationSummary | None = None
+    """Independent adversarial verification outcome, when the worker was verified."""
 
     def to_dict(self) -> dict[str, object]:
         data: dict[str, object] = {
@@ -272,6 +303,8 @@ class SubAgentResult:
             )
         if self.still_running:
             data["still_running"] = True
+        if self.verification:
+            data["verification"] = self.verification.to_dict()
         return data
 
 
@@ -494,7 +527,9 @@ class SubagentConfig:
             if ts <= 0:
                 object.__setattr__(self, "timeout_seconds", None)
             else:
-                object.__setattr__(self, "timeout_seconds", max(self._MIN_TIMEOUT_SECONDS, ts))
+                object.__setattr__(
+                    self, "timeout_seconds", max(self._MIN_TIMEOUT_SECONDS, ts)
+                )
 
 
 class SubagentCatalog(Protocol):

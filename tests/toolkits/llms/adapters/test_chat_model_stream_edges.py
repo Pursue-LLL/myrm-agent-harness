@@ -25,7 +25,7 @@ from langchain_core.messages import (
 )
 
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
     EmptyStreamError,
     StreamStallTimeoutError,
 )
@@ -79,7 +79,7 @@ def test_dump_payload_pairing(monkeypatch: pytest.MonkeyPatch, caplog: pytest.Lo
     """Debug payload dump logs pending/paired tool call ids per message."""
     import logging
 
-    from myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin import (
+    from myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin import (
         _dump_payload_pairing,
     )
 

@@ -72,7 +72,7 @@
 | **SubagentConfig** | "是什么" — 声明式配置 | tools, disallowed_tools, model, llm, budget_tokens, max_spawn_depth, max_children_per_agent, max_descendants_per_run, max_batch_size, agent_factory, model_resolver, display_name, memory_isolation_policy, control_scope, delegation_role, workspace_policy |
 | **AgentFactory** | "谁来构建" — 业务层注入的 Agent 构建协议 | build(config, tools, task_description, parent_agent, current_depth, complexity_tier) → BaseAgent |
 | **ModelResolver** | "用什么模型" — 业务层注入的 model→LLM 解析协议 | resolve(model_name, complexity_tier, task_description) → BaseChatModel |
-| **SubAgentResult** | "结果是什么" — 结构化输出 | success, result, token_usage, duration, completed_at, status, accumulated_duration_seconds |
+| **SubAgentResult** | "结果是什么" — 结构化输出 | success, result, token_usage, duration, completed_at, status, accumulated_duration_seconds, verification（独立对抗验证结果 VerificationSummary，仅当 worker 被验证时填充） |
 | **SubagentManager** | "怎么做" — 执行器 + 编排 | spawn_child, execute_batch_delegation, run_alternatives, run_chain, run_with_verification, cancel_all, wait_children(timeout) |
 | **SubAgentStatus** | "做到哪了" — 状态枚举 | PENDING, RUNNING, VERIFYING, COMPLETED, FAILED, TIMED_OUT, CANCELLED, CANCELLED_BY_BUDGET, PENDING_APPROVAL, YIELDED, INTERRUPTED |
 | **DelegationCapabilityManifest** | "能注入/能剥离什么" — 委派工具能力清单 | leaf_blocked_tools, orchestrator_child_tools, privileged_skill_tools |

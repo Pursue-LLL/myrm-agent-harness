@@ -16,9 +16,9 @@ Logic paths that do not cross the wire (the wire itself is covered by
 from __future__ import annotations
 
 import sys
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 from myrm_agent_harness.toolkits.mcp.connection_manager import MCPConnectionManager

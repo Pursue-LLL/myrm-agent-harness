@@ -235,6 +235,7 @@ RuntimePool(*, max_concurrent: int = 4, enable_health_monitor: bool = False)
 - `max_concurrent` 限制同时执行的委托任务数，避免进程与文件句柄耗尽
 - `prompt()` 委托给 `run_turn()`，并发控制统一在 `run_turn()` 层
 - `enable_health_monitor=True` 时自动创建 HealthMonitor，后端创建时自动注册
+- **MCP 注入能力守卫**：`run_turn()` 在转发 `mcp_servers` 前检查 `backend.capabilities.supports_mcp`，不支持的 backends（如 `CliRuntime`）收到空列表而非原始配置，杜绝向不支持 MCP 注入的后端传递配置引发会话崩溃；跳过时记录 `pool_mcp_skipped` WARNING 便于观测
 
 ### 3.9 RuntimeConfig（统一配置）
 
@@ -416,7 +417,8 @@ acp/
 - **Max Turns 双层安全护栏**：Layer 1 传递 CLI `--max-turns` 参数（Claude Code 原生优雅停止），Layer 2 在 delegate_tool 事件循环中统计 TOOL_START 计数并在超限时 pool.cancel()（所有后端通用兜底）
 - **稳定 Tool Schema**：`delegate_to_agent_tool` 使用固定 tool description（不含动态 agent 列表），保护 Turn1 Prompt Cache；`agent_name` 无效时错误响应列出 `available_backends`
 - **Deploy 门控（Server）**：`external_cli_deploy.is_external_cli_deploy_supported()` + profile `strip_deploy_incompatible_builtin_tools`；沙箱自动剔除 `external_cli`；BuiltinToolsPanel sandbox 硬禁用 toggle
-- **MCP 会话注入**：`RuntimePool.run_turn` → `AcpRuntime.new_session(mcp_servers=…)`（Server 默认传空 list；`RuntimeConfig.mcp_servers` 为配置源）
+- **MCP 会话注入**：`RuntimePool.run_turn` → `AcpRuntime.new_session(mcp_servers=…)`（Server 默认传空 list；`RuntimeConfig.mcp_servers` 为配置源；注入前经 `capabilities.supports_mcp` 能力守卫，跳过不支持的 backends 并记录 `pool_mcp_skipped`）
+- **Host 会话级 MCP 忽略诊断**：ACP Server 侧（`new_session` / `load_session` / `fork_session` / `resume_session`）若收到 host 传入的 `mcp_servers`，记录 `acp_host_mcp_ignored` WARNING —— Myrm 内部 agent 管线自行管理 MCP，host 提供的会话级 MCP 注入不被透传，显式告警避免静默丢失
 - **Spawn 误配提示**：`runtime/_spawn_hints.format_cli_spawn_failure_message` 在 bare CLI 进程失败时返回 adapter 配置指引
 - **跨平台进程组清理**：`CliRuntime` 创建进程组，cancel 时级联终止子进程，确保跨平台（Unix/Windows）无孤儿进程遗留
 - **委派取消传播**：通过 ContextVar 传递 `CancellationToken`，用户取消主 Agent 时 `delegate_to_agent_tool` 的事件消费循环检测取消信号，调用 `pool.cancel()` → `backend.cancel()` 级联终止外部进程，避免"幽灵进程"继续消耗资源
@@ -489,6 +491,7 @@ acp/
 14. **超时零孤儿**：run_turn 超时/异常分支自动 cancel 存活进程，外部 CLI 无后台残留
 15. **双层 Max Turns 安全护栏**：Layer 1（CLI 参数）让支持的 CLI 优雅停止，Layer 2（delegate_tool 事件计数）对所有后端通用兜底——业界唯一的双层方案
 16. **Agent 能力描述**：description 注入 tool description，帮助 LLM 在多 Agent 场景下做出正确的委派决策
+17. **MCP 注入能力守卫**：`supports_mcp` 在 `RuntimePool` 层统一校验，杜绝竞品（qwen-audio）「向不支持的 ACP 后端注入 MCP 导致 session 崩溃」同类缺陷；直接调用 `CliRuntime` 与 ACP Server 侧 host MCP 均显式告警，防御路径零静默降级
 
 **已知局限**：
 - SdkRuntime 依赖外部 SDK 版本兼容性（不可避免的外部风险，不影响评分）

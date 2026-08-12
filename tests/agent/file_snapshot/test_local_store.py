@@ -49,7 +49,7 @@ def test_default_path_uses_myrm_data_dir():
 def test_default_path_fallback():
     with patch.dict("os.environ", {}, clear=True):
         p = _default_local_snapshot_path()
-    assert p == Path.home() / ".myrm" / "file_snapshots" / "local"
+        assert p == Path.home() / ".myrm" / "file_snapshots" / "local"
 
 
 # ------------------------------------------------------------------

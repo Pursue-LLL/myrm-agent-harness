@@ -1,6 +1,7 @@
 """browser_navigate tool for URL navigation.
 
 [INPUT]
+- common::mark_untrusted (POS: unified browser output security boundary; credential redaction + untrusted-content wrapping)
 - utils.errors::ToolError (POS: Storage quota related errors.)
 
 [OUTPUT]
@@ -16,6 +17,8 @@ from typing import TYPE_CHECKING
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
+
+from .common import mark_untrusted
 
 if TYPE_CHECKING:
     from ..session import BrowserSession
@@ -54,7 +57,7 @@ def create_navigate_tool(session: BrowserSession):
                 user_hint="The URL contains sensitive data (API keys, file paths, or credentials). Remove sensitive data from the URL.",
             )
 
-        return await session.navigate(url, verify_goal=verify_goal)
+        return mark_untrusted(await session.navigate(url, verify_goal=verify_goal))
 
     return with_dynamic_hints(
         browser_navigate,

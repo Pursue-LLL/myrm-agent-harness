@@ -163,7 +163,7 @@ class RuntimePool:
             raise ValueError(msg)
 
         config = self._configs.get(name)
-        effective_mcp = (
+        effective_mcp: list[McpServerConfig] | None = (
             mcp_servers
             if mcp_servers is not None
             else (list(config.mcp_servers) if config is not None else [])
@@ -171,6 +171,16 @@ class RuntimePool:
 
         async with self._semaphore:
             backend = self.get(name)
+            # MCP 注入前能力断言：仅向声明支持的后端注入。静默忽略会让调用方
+            # 误以为 MCP 已生效，必须显式告警。
+            if effective_mcp and not backend.capabilities.supports_mcp:
+                logger.warning(
+                    "pool_mcp_skipped backend=%s type=%s mcp_servers=%d reason=unsupported",
+                    name,
+                    type(backend).__name__,
+                    len(effective_mcp),
+                )
+                effective_mcp = None
             # Serialize turns per backend: a backend instance (e.g. CliRuntime)
             # holds mutable per-turn state (active process handle) that cannot
             # be safely shared across concurrent turns.

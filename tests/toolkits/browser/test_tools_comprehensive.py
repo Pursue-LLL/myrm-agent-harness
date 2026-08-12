@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.tools import _mark_untrusted, create_browser_tools
+from myrm_agent_harness.toolkits.browser.tools import create_browser_tools, mark_untrusted
 
 
 @pytest.fixture
@@ -61,9 +61,9 @@ def mock_session() -> Any:
 
 
 def test_mark_untrusted() -> None:
-    """Test _mark_untrusted wraps content with 4-layer security boundary."""
+    """Test mark_untrusted wraps content with 4-layer security boundary."""
     content = "untrusted content"
-    result = _mark_untrusted(content)
+    result = mark_untrusted(content)
 
     assert "SECURITY NOTICE" in result
     assert "UNTRUSTED" in result

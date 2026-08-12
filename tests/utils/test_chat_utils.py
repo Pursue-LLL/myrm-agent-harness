@@ -394,15 +394,136 @@ class TestParseLlmJsonRepairTier:
     def test_graceful_degradation_when_dependency_absent(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from myrm_agent_harness.utils import chat_utils as _cu
+        from myrm_agent_harness.utils import json_parsing as _jp
 
-        monkeypatch.setattr(_cu, "_json_repair_loads", None)
+        monkeypatch.setattr(_jp, "_json_repair_loads", None)
         raw = "{'done': true}"
         assert parse_llm_json_object(raw) is None  # 严格/结构修复均失败 → 降级 None
 
     def test_single_quote_string_with_many_braces_not_miscounted(self) -> None:
-        from myrm_agent_harness.utils.chat_utils import _repair_nesting_depth
+        from myrm_agent_harness.utils.json_parsing import _repair_nesting_depth
 
         # 单引号字符串内嵌 600 个花括号不应计入嵌套深度
         raw = "{'a': '" + "{" * 600 + "'}"
         assert _repair_nesting_depth(raw) == 1
+
+    def test_single_quoted_brace_inside_string_not_truncated(self) -> None:
+        # 单引号字符串内的 } 会被平衡扫描误判为结构闭合，导致候选被截断；
+        # 修复后 repair 层必须拿到完整输入，避免静默丢数据。
+        raw = "{'a': 'x}y'}"
+        assert parse_llm_json_object(raw) == {"a": "x}y"}
+
+    def test_single_quoted_brace_in_leading_value_not_truncated(self) -> None:
+        raw = "{'a': 'x}', 'b': 1}"
+        assert parse_llm_json_object(raw) == {"a": "x}", "b": 1}
+
+    def test_single_quoted_braces_both_ways_not_truncated(self) -> None:
+        raw = "{'a': 'v}1', 'b': 'v{2'}"
+        assert parse_llm_json_object(raw) == {"a": "v}1", "b": "v{2"}
+
+    def test_single_quoted_full_prose_not_treated_as_container(self) -> None:
+        # 单容器判定必须排除 prose 撇号：整段不是单容器时不得走 repair
+        raw = "it's a test {a: 1}"
+        assert parse_llm_json_object(raw) == {"a": 1}
+        raw2 = "don't worry {'a': 1}"
+        assert parse_llm_json_object(raw2) == {"a": 1}
+
+    def test_multi_container_with_single_quotes_still_last_wins(self) -> None:
+        raw = "{'a': 1} then {'b': 2}"
+        assert parse_llm_json_object(raw) == {"b": 2}
+        raw2 = "{'a': 1} and {b: 2}"
+        assert parse_llm_json_object(raw2) == {"b": 2}
+
+    def test_fenced_single_quoted_brace_not_truncated(self) -> None:
+        # fence 内单引号字符串含 } 同样不能被截断（先前会丢数据）
+        raw = "```json\n{'a': 'x}y'}\n```"
+        assert parse_llm_json_object(raw) == {"a": "x}y"}
+
+    def test_prose_prefix_single_quoted_brace_not_truncated(self) -> None:
+        # prose 前缀 + 单引号字符串含 }：撇号在前言（结构外）不得误开字符串
+        raw = "结果是：{'a': 'x}y'}"
+        assert parse_llm_json_object(raw) == {"a": "x}y"}
+        raw2 = "Here's the result: {'a': 'x}y'}"
+        assert parse_llm_json_object(raw2) == {"a": "x}y"}
+
+    def test_apostrophe_outside_container_does_not_swallow_object(self) -> None:
+        # 结构外的撇号是 prose，不是字符串开引号，不得吞掉后续对象
+        raw = "it's a test {a: 1}"
+        assert parse_llm_json_object(raw) == {"a": 1}
+        raw2 = "don't worry {'a': 1}"
+        assert parse_llm_json_object(raw2) == {"a": 1}
+        raw3 = "We're done, {b: 2} see you"
+        assert parse_llm_json_object(raw3) == {"b": 2}
+
+    def test_single_quoted_array_with_closing_bracket_in_string(self) -> None:
+        # 数组内单引号字符串含 ] 不得截断
+        raw = "['a', 'b]x']"
+        assert parse_llm_json_list(raw) == ["a", "b]x"]
+
+    def test_nested_single_quoted_braces(self) -> None:
+        raw = "{'a': {'b': 'x}y'}}"
+        assert parse_llm_json_object(raw) == {"a": {"b": "x}y"}}
+        raw2 = "{'a': ['x}y', 'z']}"
+        assert parse_llm_json_object(raw2) == {"a": ["x}y", "z"]}
+
+
+class TestJsonBalanceScanner:
+    """平衡扫描器（_iter_json_blocks）的单引号感知语义。
+
+    这些测试锁定扫描器的核心契约：容器内单引号开启字符串（花括号不截断）、
+    结构外撇号是 prose（不得吞掉后续对象）、转义与双引号嵌套。
+    """
+
+    def test_scan_full_object_single_quoted_braces(self) -> None:
+        from myrm_agent_harness.utils import json_parsing as _jp
+
+        assert list(_jp._iter_json_objects("{'a': 'x}y'}")) == ["{'a': 'x}y'}"]
+
+    def test_scan_prose_apostrophe_not_swallow(self) -> None:
+        from myrm_agent_harness.utils import json_parsing as _jp
+
+        assert list(_jp._iter_json_objects("it's a test {a: 1}")) == ["{a: 1}"]
+
+    def test_scan_prose_prefix_single_quoted(self) -> None:
+        from myrm_agent_harness.utils import json_parsing as _jp
+
+        assert list(_jp._iter_json_objects("结果是：{'a': 'x}y'}")) == ["{'a': 'x}y'}"]
+
+    def test_scan_fenced_single_quoted(self) -> None:
+        from myrm_agent_harness.utils import json_parsing as _jp
+
+        assert list(_jp._iter_json_objects("```json\n{'a': 'x}y'}\n```")) == [
+            "{'a': 'x}y'}"
+        ]
+
+    def test_scan_array_single_quoted_brace(self) -> None:
+        from myrm_agent_harness.utils import json_parsing as _jp
+
+        assert list(_jp._iter_json_arrays("['a', 'b]x']")) == ["['a', 'b]x']"]
+
+    def test_scan_escaped_single_quote_in_string(self) -> None:
+        from myrm_agent_harness.utils import json_parsing as _jp
+
+        assert list(_jp._iter_json_objects("{'a': 'x\\'y'}")) == ["{'a': 'x\\'y'}"]
+
+    def test_scan_nested_single_quoted(self) -> None:
+        from myrm_agent_harness.utils import json_parsing as _jp
+
+        assert list(_jp._iter_json_objects("{'a': {'b': 'x}y'}}")) == [
+            "{'a': {'b': 'x}y'}}"
+        ]
+
+    def test_scan_double_quote_string_containing_single_quote(self) -> None:
+        from myrm_agent_harness.utils import json_parsing as _jp
+
+        assert list(_jp._iter_json_objects('{"a": "it\'s ok", "b": 1}')) == [
+            '{"a": "it\'s ok", "b": 1}'
+        ]
+
+    def test_scan_multi_container_single_quotes(self) -> None:
+        from myrm_agent_harness.utils import json_parsing as _jp
+
+        assert list(_jp._iter_json_objects("{'a': 1} then {'b': 2}")) == [
+            "{'a': 1}",
+            "{'b': 2}",
+        ]

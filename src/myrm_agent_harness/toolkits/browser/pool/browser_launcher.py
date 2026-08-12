@@ -374,7 +374,7 @@ class BrowserLauncher:
         auto_installed = False
         # Patchright's TimeoutError is distinct from builtins.TimeoutError; both
         # must be recognized so launch timeouts get the retry-with-backoff path.
-        from patchright.async_api import TimeoutError as PlaywrightTimeoutError
+        from ..utils import is_timeout_error
 
         for attempt in range(3):
             try:
@@ -459,7 +459,7 @@ class BrowserLauncher:
                 return BrowserInstance(browser=browser, engine=self._engine.value, is_managed=True, _pid=pid)
 
             except Exception as exc:
-                if isinstance(exc, (TimeoutError, PlaywrightTimeoutError)):
+                if is_timeout_error(exc):
                     last_exc = exc
                     logger.warning(f"Browser launch timeout (attempt {attempt + 1}/3): {exc}")
                     if attempt < 2:

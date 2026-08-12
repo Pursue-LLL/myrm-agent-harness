@@ -16,14 +16,15 @@ set (allOf conjunctively, anyOf/oneOf as alternatives with exclusivity hints).
 Nested property-level anyOf/oneOf unions of multiple object branches are merged
 the same way so no branch's parameters are hidden from the LLM; redefined
 properties keep the union (anyOf/oneOf) or intersection (allOf) of their
-const/enum values.  Branch/const-union merging lives in ``schema_property_merge``.
+const/enum values.  Branch/const-union merging lives in ``property_merge``.
 
 When the target model is Anthropic/Claude, unsupported JSON Schema keywords are
 stripped and constraints are folded into ``description`` — see
-``anthropic_schema_strip``.
+``anthropic_strip``.
 
 [INPUT]
-- (none)
+- adapters.schema.property_merge (POS: Tool schema property-merge helpers for OpenAI-compatible provider normalization)
+- adapters.schema.anthropic_strip (POS: Anthropic-specific tool schema sanitization for OpenAI-compatible provider normalization)
 
 [OUTPUT]
 - normalize_tool_schema: Normalize an OpenAI-format tool schema for provider compatibility.
@@ -42,8 +43,11 @@ from __future__ import annotations
 import copy
 import logging
 
-from .anthropic_schema_strip import is_anthropic_model, strip_anthropic_unsupported
-from .schema_property_merge import (
+from myrm_agent_harness.toolkits.llms.adapters.schema.anthropic_strip import (
+    is_anthropic_model,
+    strip_anthropic_unsupported,
+)
+from myrm_agent_harness.toolkits.llms.adapters.schema.property_merge import (
     apply_union_hint,
     merge_allof_branches,
     merge_union_object_branches,
@@ -121,7 +125,12 @@ def _inline_refs(
     defs: dict[str, object],
     depth: int = 0,
 ) -> object:
-    """Recursively replace ``$ref`` pointers with their definitions."""
+    """Recursively replace ``$ref`` pointers with their definitions.
+
+    Sibling keys next to ``$ref`` (e.g. an overriding ``description``) are
+    merged onto the resolved definition so field guidance survives inlining —
+    matching the inbound ``flatten_json_schema`` behavior.
+    """
     if depth > 20:
         return node
 
@@ -133,7 +142,13 @@ def _inline_refs(
                     def_name = ref[len(prefix) :]
                     if def_name in defs:
                         resolved = copy.deepcopy(defs[def_name])
-                        return _inline_refs(resolved, defs, depth + 1)
+                        resolved = _inline_refs(resolved, defs, depth + 1)
+                        if isinstance(resolved, dict):
+                            for key, value in node.items():
+                                if key != "$ref":
+                                    resolved[key] = _inline_refs(value, defs, depth + 1)
+                            return resolved
+                        return resolved
                     break
 
         return {k: _inline_refs(v, defs, depth + 1) for k, v in node.items()}
@@ -179,7 +194,7 @@ def _ensure_object_type(schema: dict[str, object]) -> dict[str, object]:
                             allof_merged[preserve_key] = schema[preserve_key]
                     return allof_merged
             else:
-                union_merged = merge_union_object_branches(obj_branches)
+                union_merged = merge_union_object_branches(obj_branches, keyword=kw)
                 return apply_union_hint(union_merged, schema)
 
         non_null = [
@@ -249,7 +264,7 @@ def _normalize_property(prop: dict[str, object]) -> dict[str, object]:
                 b for b in non_null if isinstance(b, dict) and b.get("type") == "object"
             ]
             if len(object_branches) > 1:
-                merged = merge_union_object_branches(object_branches)
+                merged = merge_union_object_branches(object_branches, keyword=kw)
                 merged = apply_union_hint(merged, prop)
                 _normalize_nested(merged)
                 return _finalize_property(merged)

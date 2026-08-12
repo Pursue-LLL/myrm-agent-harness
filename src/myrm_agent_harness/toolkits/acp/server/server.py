@@ -20,6 +20,7 @@ into agent execution calls and delegating to AgentBridge for session management.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sized
 from typing import TYPE_CHECKING
 
 from acp import PROTOCOL_VERSION, Client, run_agent
@@ -64,6 +65,21 @@ _ContentBlock = (
 )
 
 
+def _warn_host_mcp_ignored(method: str, mcp_servers: Sized | None) -> None:
+    """Log when a host supplies session-level MCP servers that Myrm does not bind.
+
+    Myrm manages MCP servers through its own agent pipeline; host-provided
+    session-level MCP servers are intentionally ignored. Logging keeps this
+    deliberate behavior observable instead of silently dropping the host's input.
+    """
+    if mcp_servers:
+        logger.warning(
+            "acp_host_mcp_ignored method=%s count=%d reason=myrm_manages_mcp",
+            method,
+            len(mcp_servers),
+        )
+
+
 class MyrmAcpServer:
     """ACP-compliant agent server backed by myrm-agent-harness.
 
@@ -100,6 +116,7 @@ class MyrmAcpServer:
         mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: object,
     ) -> NewSessionResponse:
+        _warn_host_mcp_ignored("new_session", mcp_servers)
         session_id = await self._bridge.create_session(cwd)
         return NewSessionResponse(session_id=session_id)
 
@@ -110,6 +127,7 @@ class MyrmAcpServer:
         mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: object,
     ) -> LoadSessionResponse | None:
+        _warn_host_mcp_ignored("load_session", mcp_servers)
         if self._bridge.has_session(session_id):
             return LoadSessionResponse()
         return None
@@ -175,6 +193,7 @@ class MyrmAcpServer:
         mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: object,
     ) -> ForkSessionResponse:
+        _warn_host_mcp_ignored("fork_session", mcp_servers)
         new_session_id = await self._bridge.create_session(cwd)
         return ForkSessionResponse(session_id=new_session_id)
 
@@ -185,6 +204,7 @@ class MyrmAcpServer:
         mcp_servers: list[HttpMcpServer | SseMcpServer | McpServerStdio] | None = None,
         **kwargs: object,
     ) -> ResumeSessionResponse:
+        _warn_host_mcp_ignored("resume_session", mcp_servers)
         if not self._bridge.has_session(session_id):
             await self._bridge.create_session(cwd)
         return ResumeSessionResponse()

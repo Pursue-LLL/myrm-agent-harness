@@ -15,6 +15,8 @@ Dual tracking approach:
 - SkillDependency: Skill dependency record.
 - SkillDependencyTracker: Track skill and tool dependencies for safe evolution.
 - get_dependency_tracker: Get or create global dependency tracker instance.
+- SkillDependencies: Parsed static dependency declarations (skill + tool edges).
+- parse_skill_dependencies: Parse skill/tool dependencies from skill content.
 
 [POS]
 Skill dependency management for evolution safety.
@@ -278,3 +280,69 @@ def get_dependency_tracker() -> SkillDependencyTracker:
         _global_tracker = SkillDependencyTracker()
 
     return _global_tracker
+
+
+@dataclass(frozen=True)
+class SkillDependencies:
+    """Static dependency declarations parsed from a skill.
+
+    Attributes:
+        skill_deps: Skills referenced by name in the YAML frontmatter
+            ``dependencies`` field (cross-skill graph edges).
+        tool_deps: Tools referenced via ``@tool_use`` / ``uses:`` markers
+            or documented ``*_tool`` / ``*_api`` / ``*_client`` names.
+    """
+
+    skill_deps: tuple[str, ...] = ()
+    tool_deps: tuple[str, ...] = ()
+
+
+def parse_skill_dependencies(skill_content: str) -> SkillDependencies:
+    """Parse dependency declarations from skill content (both sources).
+
+    Source 1 — YAML frontmatter ``dependencies``: an explicit cross-skill
+    declaration (Hermes-compatible, preserved by batch imports).
+    Source 2 — body markers: ``@tool_use("name")``, ``uses: name`` and
+    documented ``*_tool`` / ``*_api`` / ``*_client`` tool references.
+
+    The frontmatter block is stripped before body scanning so tool-like
+    keywords inside frontmatter never leak into tool dependency edges.
+
+    Args:
+        skill_content: Full skill markdown content (may include frontmatter).
+
+    Returns:
+        Parsed skill and tool dependency tuples (deduplicated, order stable).
+    """
+    body = skill_content
+    skill_deps: list[str] = []
+    tool_deps: list[str] = []
+
+    frontmatter_match = re.match(r"^---\s*\n(.*?)\n---\s*\n", skill_content, re.DOTALL)
+    if frontmatter_match:
+        body = skill_content[frontmatter_match.end() :]
+        try:
+            import yaml
+
+            meta = yaml.safe_load(frontmatter_match.group(1))
+            raw = meta.get("dependencies") if isinstance(meta, dict) else None
+            if raw:
+                if isinstance(raw, str):
+                    raw = [raw]
+                for item in raw:
+                    if isinstance(item, str) and item.strip():
+                        skill_deps.append(item.strip())
+        except Exception:
+            logger.debug("Failed to parse frontmatter dependencies (non-fatal)", exc_info=True)
+
+    # Body markers: @tool_use("tool_name")
+    tool_deps.extend(re.findall(r'@tool_use\(["\']([^"\']+)["\']\)', body))
+    # Body markers: "uses: tool_name"
+    tool_deps.extend(re.findall(r"uses:\s*([a-z_][a-z0-9_]*)", body))
+    # Body markers: documented tool-style names
+    tool_deps.extend(re.findall(r"\b([a-z_][a-z0-9_]*_(?:api|tool|client))\b", body.lower()))
+
+    return SkillDependencies(
+        skill_deps=tuple(dict.fromkeys(skill_deps)),
+        tool_deps=tuple(dict.fromkeys(tool_deps)),
+    )

@@ -4,7 +4,7 @@
 - adapters.converters (POS: message and tool call converters)
 - adapters.model_capability (POS: reasoning_content echo requirements)
 - adapters.safety_termination_detector (POS: safety termination on truncated tool_calls)
-- adapters.chat_model_exceptions (POS: role patterns and EmptyChoicesError)
+- adapters.chat_model.exceptions (POS: role patterns and EmptyChoicesError)
 
 [OUTPUT]
 - ChatLiteLLMMessageMixin: _create_message_dicts, normalize, stamp, ChatResult assembly
@@ -23,7 +23,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
     _DEVELOPER_ROLE_PATTERN,
     _SYSTEM_MESSAGE_DENYLIST_HINTS,
     EmptyChoicesError,

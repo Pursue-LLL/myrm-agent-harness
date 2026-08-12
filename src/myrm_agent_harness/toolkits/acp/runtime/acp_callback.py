@@ -55,10 +55,7 @@ def _resolve_safe_path(path_str: str, cwd: str) -> Path | None:
 def _get_attr(obj: object, *keys: str) -> object | None:
     """Extract an attribute from an object or dict by trying multiple keys."""
     for key in keys:
-        if isinstance(obj, dict):
-            val = obj.get(key)
-        else:
-            val = getattr(obj, key, None)
+        val: object | None = obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
         if val is not None:
             return val
     return None

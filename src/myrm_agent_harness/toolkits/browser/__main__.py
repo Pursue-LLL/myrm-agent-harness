@@ -8,13 +8,16 @@ Usage:
     python -m myrm_agent_harness.toolkits.browser --cleanup-orphans --force
 
 [INPUT]
-- (none)
+- doctor::run_doctor (POS: 浏览器环境诊断编排器)
+- doctor::format_report (POS: 诊断报告 CLI 渲染)
+- doctor::find_orphan_automation_processes (POS: 孤儿自动化进程检测)
+- doctor::cleanup_orphan_processes (POS: 孤儿自动化进程安全清理)
 
 [OUTPUT]
-- main: Parse execution output from the wrapper script.
+- main: 浏览器诊断 CLI 入口（JSON/彩色文本输出，孤儿进程检测/清理）
 
 [POS]
-CLI entry point for browser toolkit diagnostics.
+浏览器诊断命令行入口。运行环境与依赖检查、孤儿进程检测/清理，支持 JSON 输出。
 """
 
 import argparse

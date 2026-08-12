@@ -12,6 +12,7 @@ import pytest
 from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import CliRuntime
 from myrm_agent_harness.toolkits.acp.types import (
     AcpErrorCode,
+    McpServerConfig,
     RuntimeConfig,
     RuntimeEventType,
 )
@@ -1193,3 +1194,65 @@ class TestRealProcessCleanup:
         assert proc is not None, "process should exist before cleanup"
         assert proc.returncode is not None, "timed-out process must have been terminated"
         await rt.close()
+
+
+class TestCliRuntimeMcpIgnored:
+    @pytest.mark.asyncio
+    async def test_mcp_servers_log_warning_and_are_ignored(self, caplog: pytest.LogCaptureFixture) -> None:
+        """CliRuntime ignores session-level MCP servers but warns instead of silently dropping."""
+        rt = CliRuntime("test", _make_config())
+        ndjson_lines = (json.dumps({"type": "assistant", "content": "ok"}) + "\n").encode()
+
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.stdout.__aiter__ = lambda self: aiter([ndjson_lines])
+        mock_proc.stderr = AsyncMock()
+        mock_proc.stderr.read = AsyncMock(return_value=b"")
+        mock_proc.stdin = None
+
+        async def fake_wait() -> int:
+            mock_proc.returncode = 0
+            return 0
+
+        mock_proc.wait = fake_wait
+
+        mcp = [
+            McpServerConfig(name="fs", command="mcp-fs", args=["--ro"]),
+            McpServerConfig(name="git", command="mcp-git"),
+        ]
+        with caplog.at_level("WARNING", logger="myrm_agent_harness.toolkits.acp.runtime.cli_runtime"), patch(
+            "asyncio.create_subprocess_exec", return_value=mock_proc
+        ):
+            events = [e async for e in rt._do_run_turn("hello", "s1", mcp_servers=mcp)]
+
+        assert any(e.type == RuntimeEventType.DONE for e in events)
+        warning_messages = [r.message for r in caplog.records if r.levelname == "WARNING"]
+        assert any("cli_runtime_mcp_ignored" in msg and "mcp_servers=2" in msg for msg in warning_messages)
+
+    @pytest.mark.asyncio
+    async def test_without_mcp_servers_no_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A normal turn without mcp_servers must not emit the MCP-ignored warning."""
+        rt = CliRuntime("test", _make_config())
+        ndjson_lines = (json.dumps({"type": "assistant", "content": "ok"}) + "\n").encode()
+
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.stdout.__aiter__ = lambda self: aiter([ndjson_lines])
+        mock_proc.stderr = AsyncMock()
+        mock_proc.stderr.read = AsyncMock(return_value=b"")
+        mock_proc.stdin = None
+
+        async def fake_wait() -> int:
+            mock_proc.returncode = 0
+            return 0
+
+        mock_proc.wait = fake_wait
+
+        with caplog.at_level("WARNING", logger="myrm_agent_harness.toolkits.acp.runtime.cli_runtime"), patch(
+            "asyncio.create_subprocess_exec", return_value=mock_proc
+        ):
+            events = [e async for e in rt._do_run_turn("hello", "s1")]
+
+        assert any(e.type == RuntimeEventType.DONE for e in events)
+        warning_messages = [r.message for r in caplog.records if r.levelname == "WARNING"]
+        assert not any("cli_runtime_mcp_ignored" in msg for msg in warning_messages)

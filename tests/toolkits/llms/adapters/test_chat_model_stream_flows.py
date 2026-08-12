@@ -287,7 +287,7 @@ class TestAsyncAgenerateStreaming:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """agenerate_from_stream NoneType bug falls back to non-streaming."""
-        import myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin as mod
+        import myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin as mod
 
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
@@ -316,7 +316,7 @@ class TestAsyncAgenerateStreaming:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Non-TypeError streaming failures propagate unchanged."""
-        import myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin as mod
+        import myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin as mod
 
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()
@@ -433,7 +433,7 @@ class TestAsyncAgenerateStreaming:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """TypeError without the NoneType marker is not treated as fallback."""
-        import myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin as mod
+        import myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin as mod
 
         model = ChatLiteLLM(model="openai/test-model")
         model.client = MagicMock()

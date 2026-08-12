@@ -63,9 +63,6 @@ class BrowserSessionPersistenceMixin:
     _tab_controller: TabController
     _session_hash_cache: dict[str, str]
 
-    async def _ensure_components(self) -> None:
-        ...
-
     def set_session_lifecycle_hook(self, hook: SessionLifecycleHookProtocol) -> None:
         """Inject an optional lifecycle observer (e.g. SessionMemoryBridge)."""
         self._session_lifecycle_hook = hook

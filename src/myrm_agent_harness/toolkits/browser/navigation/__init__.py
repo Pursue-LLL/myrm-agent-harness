@@ -196,9 +196,9 @@ class Navigator:
         except Exception as e:
             # Recognize timeouts from both builtins and patchright; string matching is
             # fragile because timeout text differs across pages and library versions.
-            from patchright.async_api import TimeoutError as PlaywrightTimeoutError
+            from ..utils import is_timeout_error
 
-            if isinstance(e, (TimeoutError, PlaywrightTimeoutError)):
+            if is_timeout_error(e):
                 logger.warning(
                     f"Navigator: timeout during navigation to {url}, attempting rescue via window.stop()"
                 )

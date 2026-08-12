@@ -10,10 +10,10 @@ from __future__ import annotations
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from myrm_agent_harness.agent.meta_tools.bash._executor.executor import BashExecutor
 from myrm_agent_harness.agent.meta_tools.bash._executor.background_mixin import BashExecutorBackgroundMixin
 from myrm_agent_harness.agent.meta_tools.bash._executor.context_mixin import BashExecutorContextMixin
 from myrm_agent_harness.agent.meta_tools.bash._executor.execute_mixin import BashExecutorExecuteMixin
+from myrm_agent_harness.agent.meta_tools.bash._executor.executor import BashExecutor
 from myrm_agent_harness.agent.meta_tools.bash._executor.prepare_mixin import BashExecutorPrepareMixin
 from myrm_agent_harness.agent.skills.optimization.scheduler import OptimizationScheduler
 from myrm_agent_harness.agent.skills.optimization.scheduler_batch_mixin import (
@@ -55,9 +55,9 @@ from myrm_agent_harness.toolkits.browser.session.browser_session_recording_mixin
     BrowserSessionRecordingMixin,
 )
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_async_mixin import ChatLiteLLMAsyncMixin
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_message_mixin import ChatLiteLLMMessageMixin
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_sync_mixin import ChatLiteLLMSyncMixin
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin import ChatLiteLLMAsyncMixin
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.message_mixin import ChatLiteLLMMessageMixin
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.sync_mixin import ChatLiteLLMSyncMixin
 
 _EXPECTED_BROWSER_SESSION_MIXIN_MRO: tuple[type[object], ...] = (
     BrowserSession,

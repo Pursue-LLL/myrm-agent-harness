@@ -34,10 +34,10 @@ class _Colors:
 
     def status_icon(self, status: CheckStatus) -> str:
         if status == CheckStatus.OK:
-            return f"{self.green}"
+            return self.green
         if status == CheckStatus.WARNING:
             return f"{self.yellow}·"
-        return f"{self.red}"
+        return self.red
 
 
 def format_styled_report(report: DoctorReport) -> str:

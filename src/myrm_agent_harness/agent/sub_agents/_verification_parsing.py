@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 logger = get_agent_logger(__name__)

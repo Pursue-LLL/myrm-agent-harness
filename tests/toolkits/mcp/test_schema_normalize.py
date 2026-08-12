@@ -1,6 +1,6 @@
 import json
 
-from myrm_agent_harness.toolkits.mcp.schema_normalize import (
+from myrm_agent_harness.toolkits.mcp.schema import (
     analyze_schema_complexity,
     canonicalize_schema_for_cache,
     flatten_deep_schema,

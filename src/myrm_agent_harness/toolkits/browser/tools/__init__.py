@@ -47,10 +47,7 @@ from .takeover import create_takeover_tool
 if TYPE_CHECKING:
     from ..session import BrowserSession
 
-# Backward compatibility alias for tests
-_mark_untrusted = mark_untrusted
-
-__all__ = ["_mark_untrusted", "create_browser_tools"]
+__all__ = ["create_browser_tools", "mark_untrusted"]
 
 
 def create_browser_tools(session: BrowserSession) -> list:

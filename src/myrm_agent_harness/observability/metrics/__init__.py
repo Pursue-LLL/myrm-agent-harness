@@ -1,6 +1,7 @@
 """Metrics utilities for Myrm Agent Harness.
 
-Provides通用metrics工具函数和预定义监控指标，自动添加myrm_前缀，验证命名规范。
+Provides generic metric factories and predefined monitoring metrics; the create_* factories
+prefix names with myrm_ and validate naming conventions.
 
 [INPUT]
 - (none — pure utility module)
@@ -62,6 +63,18 @@ def _require_prometheus(name: str) -> None:
         raise RuntimeError(f"prometheus_client is required for {name}. Install with: uv add prometheus_client")
 
 
+def _existing_metric(name: str) -> object | None:
+    """Return a previously registered collector with the same name, if any.
+
+    Module-level metric factories can run more than once in long-lived
+    processes (reloads, repeated imports). Reusing the existing collector keeps
+    registration idempotent instead of raising on duplicate timeseries.
+    """
+    from prometheus_client import REGISTRY
+
+    return REGISTRY._names_to_collectors.get(name)
+
+
 def create_counter(
     name: str,
     description: str,
@@ -96,6 +109,9 @@ def create_counter(
         raise ValueError(f"Counter name must end with '_total', got: {name}. Did you mean '{name}_total'?")
 
     full_name = f"myrm_{name}"
+    existing = _existing_metric(full_name)
+    if existing is not None:
+        return existing  # type: ignore[return-value]
     return Counter(full_name, description, labelnames)
 
 
@@ -127,6 +143,9 @@ def create_gauge(
         return None  # type: ignore[return-value]
 
     full_name = f"myrm_{name}"
+    existing = _existing_metric(full_name)
+    if existing is not None:
+        return existing  # type: ignore[return-value]
     return Gauge(full_name, description, labelnames)
 
 
@@ -173,6 +192,9 @@ def create_histogram(
         )
 
     full_name = f"myrm_{name}"
+    existing = _existing_metric(full_name)
+    if existing is not None:
+        return existing  # type: ignore[return-value]
     if buckets:
         return Histogram(full_name, description, labelnames, buckets=buckets)
     return Histogram(full_name, description, labelnames)
@@ -205,9 +227,7 @@ def get_or_create_counter(
     """Return an existing Prometheus counter or create one (idempotent by name)."""
     if not PROMETHEUS_AVAILABLE:
         return _NoOpMetric()
-    from prometheus_client import REGISTRY
-
-    existing = REGISTRY._names_to_collectors.get(name)
+    existing = _existing_metric(name)
     if existing is not None:
         return existing  # type: ignore[return-value]
     return Counter(name, documentation, labelnames)
@@ -223,9 +243,7 @@ def get_or_create_histogram(
     """Return an existing Prometheus histogram or create one (idempotent by name)."""
     if not PROMETHEUS_AVAILABLE:
         return _NoOpMetric()
-    from prometheus_client import REGISTRY
-
-    existing = REGISTRY._names_to_collectors.get(name)
+    existing = _existing_metric(name)
     if existing is not None:
         return existing  # type: ignore[return-value]
     if buckets is not None:

@@ -457,7 +457,7 @@ class TestDoctorAutoFix:
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+                "myrm_agent_harness.toolkits.browser.doctor.checks._check_browser_launch",
                 side_effect=[
                     MagicMock(
                         name="browser_launch",
@@ -493,7 +493,7 @@ class TestDoctorAutoFix:
         from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, run_doctor
 
         with patch(
-            "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+            "myrm_agent_harness.toolkits.browser.doctor.checks._check_browser_launch",
             return_value=MagicMock(
                 name="browser_launch",
                 status=CheckStatus.ERROR,
@@ -522,7 +522,7 @@ class TestDoctorAutoFix:
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+                "myrm_agent_harness.toolkits.browser.doctor.checks._check_browser_launch",
                 return_value=MagicMock(
                     name="browser_launch",
                     status=CheckStatus.ERROR,
@@ -550,7 +550,7 @@ class TestDoctorAutoFix:
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+                "myrm_agent_harness.toolkits.browser.doctor.checks._check_browser_launch",
                 return_value=MagicMock(
                     name="browser_launch",
                     status=CheckStatus.ERROR,
@@ -578,7 +578,7 @@ class TestDoctorAutoFix:
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+                "myrm_agent_harness.toolkits.browser.doctor.checks._check_browser_launch",
                 return_value=MagicMock(
                     name="browser_launch",
                     status=CheckStatus.ERROR,
@@ -607,7 +607,7 @@ class TestDoctorAutoFix:
 
         with (
             patch(
-                "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+                "myrm_agent_harness.toolkits.browser.doctor.checks._check_browser_launch",
                 return_value=MagicMock(
                     name="browser_launch",
                     status=CheckStatus.ERROR,
@@ -634,7 +634,7 @@ class TestDoctorAutoFix:
         from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, run_doctor
 
         with patch(
-            "myrm_agent_harness.toolkits.browser.doctor._check_browser_launch",
+            "myrm_agent_harness.toolkits.browser.doctor.checks._check_browser_launch",
             return_value=MagicMock(
                 name="browser_launch",
                 status=CheckStatus.ERROR,

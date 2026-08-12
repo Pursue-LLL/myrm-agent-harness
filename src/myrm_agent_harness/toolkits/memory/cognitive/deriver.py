@@ -23,7 +23,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from myrm_agent_harness.toolkits.memory.types import ClaimConflictState
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_list
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_list
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager

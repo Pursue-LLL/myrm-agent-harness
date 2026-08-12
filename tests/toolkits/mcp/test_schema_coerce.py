@@ -1,5 +1,5 @@
-import myrm_agent_harness.toolkits.mcp.schema_coerce as schema_coerce_module
-from myrm_agent_harness.toolkits.mcp.schema_coerce import (
+import myrm_agent_harness.toolkits.mcp.schema.coerce as schema_coerce_module
+from myrm_agent_harness.toolkits.mcp.schema import (
     coerce_arguments_by_schema,
     coerce_value,
     get_schema_coercion_stats,

@@ -81,7 +81,7 @@ class IsolatedToolchainManager:
 
                 yield "Extracting Node.js..."
 
-                def extract():
+                def extract() -> None:
                     with tarfile.open(tar_path, "r:gz") as tar:
                         tar.extractall(path=self.base_dir, filter="data")
                         # Rename extracted folder to standard node_dir

@@ -103,7 +103,7 @@ class SdkRuntime(BaseRuntime):
         safe_env = build_safe_env(self._config)
         cwd = self._config.cwd or str(WorkspacePathResolver.resolve_workspace_root())
 
-        sdk_input = {
+        sdk_input: dict[str, object] = {
             "prompt": prompt,
             "session_id": session_id,
             "cwd": cwd,

@@ -25,13 +25,15 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Literal, Protocol, runtime_checkable
 from uuid import uuid4
 
 from acp import session_notification, update_agent_message_text
 from acp.schema import PromptResponse, SessionNotification
 
 from myrm_agent_harness.toolkits.acp.server.event_translator import translate_agent_event
+
+_StopReason = Literal["end_turn", "max_tokens", "max_turn_requests", "refusal", "cancelled"]
 
 if TYPE_CHECKING:
     from acp import Client
@@ -131,7 +133,7 @@ class AgentBridge:
         state.cancel_token = CancellationToken()
         state.active_tool_calls.clear()
 
-        stop_reason: str = "end_turn"
+        stop_reason: _StopReason = "end_turn"
 
         try:
             async for event in state.agent.run(
@@ -191,7 +193,7 @@ class AgentBridge:
 async def _send_notification(conn: Client, notification: SessionNotification) -> None:
     """Send an ACP session notification to the IDE client."""
     try:
-        await conn.session_notification(notification)
+        await conn.session_update(notification.session_id, notification.update)
     except Exception:
         logger.debug("acp_notification_send_failed", exc_info=True)
 

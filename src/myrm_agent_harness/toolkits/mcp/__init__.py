@@ -14,6 +14,7 @@ Provides MCP client integration with:
 - config::MCPConfig (POS: MCP user-facing configuration)
 - connection_manager::MCPConnectionManager, get_mcp_connection, get_mcp_connection_manager (POS: MCP connection pool layer)
 - security (POS: MCP security — URL SSRF protection and response validation)
+- schema (POS: MCP inbound tool schema normalization — canonicalization, $ref inlining, composite flattening, argument coercion)
 
 [OUTPUT]
 - MCPAgent, MCPClientManager, MCPConfig, MCPConnectionManager, MCPServerConfigProtocol: core MCP types
@@ -44,7 +45,7 @@ from .oauth import (
     generate_pkce_pair,
 )
 from .result_processing import OversizedResultHandler
-from .schema_coerce import get_schema_coercion_stats, reset_schema_coercion_stats
+from .schema import get_schema_coercion_stats, reset_schema_coercion_stats
 from .security import (
     MCPResponseError,
     MCPResponseValidator,

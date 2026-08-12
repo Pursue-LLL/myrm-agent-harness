@@ -15,7 +15,7 @@ import pytest
 from langchain_core.messages import HumanMessage
 
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM
-from myrm_agent_harness.toolkits.llms.adapters.chat_model_exceptions import (
+from myrm_agent_harness.toolkits.llms.adapters.chat_model.exceptions import (
     EmptyChoicesError,
 )
 from myrm_agent_harness.utils.token_economics.tracker import (

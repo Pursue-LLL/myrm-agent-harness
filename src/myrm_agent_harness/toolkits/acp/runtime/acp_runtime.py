@@ -21,6 +21,7 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import AsyncIterator
+from contextlib import AbstractAsyncContextManager
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.acp.event_bus import EventBus
@@ -37,8 +38,9 @@ from myrm_agent_harness.toolkits.acp.types import (
 )
 
 if TYPE_CHECKING:
+    from asyncio.subprocess import Process
+
     from acp import ClientSideConnection
-    from acp.aio_subprocess import Process
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +63,7 @@ class AcpRuntime(BaseRuntime):
         self._conn: ClientSideConnection | None = None
         self._process: Process | None = None
         self._session_id: str | None = None
-        self._ctx_manager: object | None = None
+        self._ctx_manager: AbstractAsyncContextManager[tuple[ClientSideConnection, Process]] | None = None
         self._handler: AcpCallbackHandler | None = None
         self._event_bus = event_bus
 
@@ -128,7 +130,7 @@ class AcpRuntime(BaseRuntime):
         try:
             response = await self._conn.prompt(  # type: ignore[union-attr]
                 prompt=[TextContentBlock(type="text", text=prompt)],
-                session_id=self._session_id,  # type: ignore[arg-type]
+                session_id=self._session_id,
             )
             handler.mark_done(response.stop_reason)
         except Exception as exc:
@@ -212,8 +214,11 @@ class AcpRuntime(BaseRuntime):
             msg = "AcpRuntime requires 'command' in RuntimeConfig"
             raise ValueError(msg)
 
+        # AcpCallbackHandler implements the acp.Client callbacks used here
+        # (permission/session/file); terminal & elicitation callbacks are never
+        # invoked because the connection declares terminal=False.
         ctx = spawn_agent_process(
-            self._handler,
+            self._handler,  # type: ignore[arg-type]
             command,
             *self._config.args,
             env=safe_env,

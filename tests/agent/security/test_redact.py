@@ -67,6 +67,28 @@ class TestStructuralPatterns:
         result = redact_sensitive_text(text)
         assert "sk-ant-api03-longtoken12345678" not in result
 
+    def test_authorization_basic_header(self) -> None:
+        """Basic 头（base64 user:pass）凭据必须被掩码，scheme 词保留。"""
+        base64_cred = "QWxhZGRpbjpvcGVuc2VzYW1l"  # "Aladdin:open sesame"
+        text = f"Authorization: Basic {base64_cred}"
+        result = redact_sensitive_text(text)
+        assert base64_cred not in result
+        assert "Authorization: Basic" in result
+
+    def test_authorization_digest_header(self) -> None:
+        text = "Authorization: Digest username=Mufasa, realm=test, nonce=abc123"
+        result = redact_sensitive_text(text)
+        # scheme 词保留，credential 段（首个 key=value）被掩码（与 Hermes 行为一致）
+        assert "Authorization: Digest" in result
+        assert "Mufasa" not in result
+
+    def test_authorization_header_quote_not_absorbed(self) -> None:
+        """credential 紧贴闭引号时，引号不能被吸入匹配导致语法破坏。"""
+        text = 'curl -H "Authorization: Bearer sk-ant-api03-longtoken12345678"'
+        result = redact_sensitive_text(text)
+        assert "sk-ant-api03-longtoken12345678" not in result
+        assert result.count('"') == 2
+
     def test_private_key_block_preserves_header_footer(self) -> None:
         """OPT-3: PEM块特殊处理 — 保留header/footer for debugging."""
         text = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQ...\n-----END RSA PRIVATE KEY-----"
@@ -426,3 +448,101 @@ class TestRedactForDisplay:
         result = redact_for_display(args)
         assert "s3cretP@ss" not in str(result)
         assert "db.example.com" in str(result)
+
+
+class TestRedactEngineHardening:
+    """#170 引擎加固：URL 吞参 / key 名误伤 / 控制字符 / userinfo / header / JWT / lookup."""
+
+    def test_url_query_preserves_following_params(self) -> None:
+        """ENV 正则不得吞掉 URL query 中 `&` 分隔的后续参数。"""
+        text = "https://api.example.com/v1/data?token=sk-live-abcdefghijklmnopqrst&limit=50&page=2"
+        result = redact_sensitive_text(text)
+        assert "sk-live-abcdefghijklmnopqrst" not in result
+        assert "&limit=50&page=2" in result
+
+    def test_url_query_env_names_fully_covered(self) -> None:
+        """URL 参数 key 名单必须覆盖全部 ENV key——`?credential=`/`?auth=`/`?passwd=`
+        不得因 ENV 正则的负向后顾而双双落空明文泄漏。"""
+        for key in ("credential", "auth", "passwd"):
+            text = f"https://x.com/?{key}=mysecretvalue12345678&page=2"
+            result = redact_sensitive_text(text)
+            assert "mysecretvalue12345678" not in result, f"{key} 泄漏"
+            assert "&page=2" in result, f"{key} 吞参"
+
+    def test_cli_flag_name_not_corrupted(self) -> None:
+        """短 value（`s`）不得误伤 flag 名（`--secret` → `--***ecret`）。"""
+        result = redact_sensitive_text("curl --secret s https://x.com")
+        assert "--secret ***" in result
+
+    def test_url_query_key_name_not_corrupted(self) -> None:
+        """value 是 key 名子串时 key 名不得被连带破坏。"""
+        result = redact_sensitive_text("https://api.example.com?api_key=a&limit=10")
+        assert "api_key=***" in result
+        assert "&limit=10" in result
+
+    def test_control_char_split_token_redacted(self) -> None:
+        """ESC 控制字符拆分的 token 必须被掩码（对齐 Hermes #77484）。"""
+        token = "sk-abc\x1bdefghijklmnopqrstuvwxyz123"
+        result = redact_sensitive_text(f"Token: {token}")
+        assert token not in result
+        assert "***" in result or "..." in result
+
+    def test_zero_width_split_token_redacted(self) -> None:
+        """零宽空格拆分的 token 必须被掩码。"""
+        token = "ghp_\u200babcdefghijklmnop"
+        result = redact_sensitive_text(token)
+        assert "abcdefghijklmnop" not in result
+
+    def test_control_split_does_not_cross_line(self) -> None:
+        """跨行场景不得把下一行普通文本一起掩码（`ghp_<token>\\nbutton`）。"""
+        text = "ghp_abcdefghijklmnop\nbutton [ref=e3]"
+        result = redact_sensitive_text(text)
+        assert "button [ref=e3]" in result
+
+    def test_url_userinfo_password_redacted(self) -> None:
+        """`scheme://user:pass@host` 的密码段掩码、用户名保留。"""
+        text = "https://user:token123@api.example.com/v1/foo"
+        result = redact_sensitive_text(text)
+        assert "token123" not in result
+        assert "user:***@" in result
+
+    def test_url_bare_token_redacted(self) -> None:
+        """`scheme://TOKEN@host` 无冒号 bare-token 掩码（git 私有仓库 URL）。"""
+        text = "git clone https://mysecretvalue12345678@github.com/org/repo.git"
+        result = redact_sensitive_text(text)
+        assert "mysecretvalue12345678" not in result
+
+    def test_secret_header_redacted(self) -> None:
+        """x-api-key 等认证头值必须掩码。"""
+        text = "x-api-key: my-custom-secret-value-12345"
+        result = redact_sensitive_text(text)
+        assert "my-custom-secret-value-12345" not in result
+        assert "x-api-key:" in result
+
+    def test_bare_jwt_redacted(self) -> None:
+        """无 key 上下文的裸 JWT 必须掩码（对齐 Hermes _JWT_RE）。"""
+        jwt = (
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+            "eyJzdWIiOiIxMjM0NTY3ODkwIn0."
+            "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        )
+        result = redact_sensitive_text(f"id token: {jwt}")
+        assert jwt not in result
+
+    def test_env_lookup_value_preserved(self) -> None:
+        """`os.getenv('X')` 是变量名引用，不得掩码破坏代码示例。"""
+        text = "OPENAI_API_KEY=os.getenv('OPENAI_API_KEY')"
+        result = redact_sensitive_text(text)
+        assert "os.getenv('OPENAI_API_KEY')" in result
+
+    def test_oauth_code_not_redacted(self) -> None:
+        """OAuth 授权码（`?code=`）不属于凭据名单，保持放行（对齐 Hermes 全局策略）。"""
+        text = "https://login.example.com/callback?code=abc123&state=xyz&scope=read"
+        result = redact_sensitive_text(text)
+        assert "code=abc123" in result
+
+    def test_short_username_not_bare_token(self) -> None:
+        """短用户名（<8 字符）不得被 bare-token 误伤。"""
+        text = "https://user@example.com"
+        result = redact_sensitive_text(text)
+        assert "user@example.com" in result

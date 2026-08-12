@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING
 
 from langchain_core.messages import BaseMessage, HumanMessage
 
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 
 from .types import ContinuationDecision, GoalStatus
 

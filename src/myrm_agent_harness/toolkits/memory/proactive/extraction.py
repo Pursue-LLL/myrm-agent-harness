@@ -35,7 +35,7 @@ from myrm_agent_harness.toolkits.memory.proactive.types import (
     CommitmentSensitivity,
     ExtractionBatchResult,
 )
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_object
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 
 logger = logging.getLogger(__name__)
 

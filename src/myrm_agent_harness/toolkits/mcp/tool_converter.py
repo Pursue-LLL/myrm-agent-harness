@@ -29,9 +29,7 @@ owned by ``result_processing.normalize_mcp_result`` /
 [INPUT]
 - mcp.types::Tool (POS: MCP tool schema type)
 - mcp.client.client::Client (POS: MCP SDK 2.x high-level client)
-- schema_composite::collapse_const_unions, flatten_top_level_composite (POS: MCP schema composite normalization)
-- schema_normalize::flatten_json_schema (POS: MCP schema normalization)
-- schema_coerce::prepare_mcp_call_arguments (POS: MCP schema-driven argument coercion)
+- schema::collapse_const_unions, flatten_top_level_composite, flatten_json_schema, prepare_mcp_call_arguments (POS: MCP inbound tool schema normalization)
 
 [OUTPUT]
 - convert_mcp_tools: MCP Tool list → LangChain StructuredTool list
@@ -49,12 +47,12 @@ from typing import Any
 
 from langchain_core.tools import StructuredTool
 
-from myrm_agent_harness.toolkits.mcp.schema_coerce import prepare_mcp_call_arguments
-from myrm_agent_harness.toolkits.mcp.schema_composite import (
+from myrm_agent_harness.toolkits.mcp.schema import (
     collapse_const_unions,
+    flatten_json_schema,
     flatten_top_level_composite,
+    prepare_mcp_call_arguments,
 )
-from myrm_agent_harness.toolkits.mcp.schema_normalize import flatten_json_schema
 
 logger = logging.getLogger(__name__)
 

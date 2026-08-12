@@ -30,7 +30,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from myrm_agent_harness.utils.chat_utils import parse_llm_json_list
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_list
 
 from myrm_agent_harness.toolkits.memory.types import (
     EpisodicMemory,

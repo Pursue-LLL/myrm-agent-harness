@@ -8,7 +8,7 @@ Background bash process registry and durable job ledger for ``bash_code_execute_
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Public re-exports: registry singleton + snapshot types. | ✅ |
+| __init__.py | Package | 域聚合出口：导出 registry 单例 + 快照类型（6 个公共符号）。 | ✅ |
 | types.py | Core | Shared dataclasses (`BackgroundProcessInfo`, `BackgroundQuotaError`, listener aliases). | ✅ |
 | registry.py | Core | Process-wide singleton registry with per-session buckets, SIGTERM→SIGKILL kill, reap, ``kill_session_jobs``. | ✅ |
 | consume.py | Core | Per-entry stdout/stderr reader loop, spill hooks, finish listener dispatch. | ✅ |

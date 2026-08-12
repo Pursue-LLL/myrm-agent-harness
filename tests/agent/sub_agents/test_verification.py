@@ -14,9 +14,16 @@ from myrm_agent_harness.agent.sub_agents._orchestrator_verification import (
     _parse_verdict,
     run_with_verification,
 )
-from myrm_agent_harness.agent.sub_agents.types import SubagentConfig, SubAgentResult, SubAgentStatus
+from myrm_agent_harness.agent.sub_agents.types import (
+    SubagentConfig,
+    SubAgentResult,
+    SubAgentStatus,
+    VerificationSummary,
+)
 
-_GET_EXECUTOR_PATH = "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor"
+_GET_EXECUTOR_PATH = (
+    "myrm_agent_harness.toolkits.code_execution.executors.base.get_executor"
+)
 
 
 def _mock_executor(*, has_executed: bool = True) -> MagicMock:
@@ -25,26 +32,44 @@ def _mock_executor(*, has_executed: bool = True) -> MagicMock:
     executor.has_executed_code = has_executed
     return executor
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _ok(task_id: str = "t1", agent_type: str = "worker", result: str = "done") -> SubAgentResult:
+
+def _ok(
+    task_id: str = "t1", agent_type: str = "worker", result: str = "done"
+) -> SubAgentResult:
     return SubAgentResult(
-        success=True, task_id=task_id, agent_type=agent_type,
-        result=result, completed_at=time.time(), status=SubAgentStatus.COMPLETED,
+        success=True,
+        task_id=task_id,
+        agent_type=agent_type,
+        result=result,
+        completed_at=time.time(),
+        status=SubAgentStatus.COMPLETED,
     )
 
 
-def _fail(task_id: str = "t1", agent_type: str = "worker", error: str = "boom") -> SubAgentResult:
+def _fail(
+    task_id: str = "t1", agent_type: str = "worker", error: str = "boom"
+) -> SubAgentResult:
     return SubAgentResult(
-        success=False, task_id=task_id, agent_type=agent_type,
-        error=error, completed_at=time.time(), status=SubAgentStatus.FAILED,
+        success=False,
+        task_id=task_id,
+        agent_type=agent_type,
+        error=error,
+        completed_at=time.time(),
+        status=SubAgentStatus.FAILED,
     )
 
 
-def _verdict_json(verdict: str = "PASS", summary: str = "ok STDOUT", confidence: str = "HIGH",
-                   findings: str = "[]") -> str:
+def _verdict_json(
+    verdict: str = "PASS",
+    summary: str = "ok STDOUT",
+    confidence: str = "HIGH",
+    findings: str = "[]",
+) -> str:
     return f'{{"verdict": "{verdict}", "summary": "{summary}", "confidence": "{confidence}", "findings": {findings}}}'
 
 
@@ -55,22 +80,77 @@ def _verdict_json(verdict: str = "PASS", summary: str = "ok STDOUT", confidence:
 
 class TestVerificationVerdict:
     def test_frozen_immutability(self):
-        v = VerificationVerdict(passed=True, summary="ok", confidence="HIGH", findings=[], raw="")
+        v = VerificationVerdict(
+            passed=True, summary="ok", confidence="HIGH", findings=[], raw=""
+        )
         with pytest.raises(FrozenInstanceError):
             v.passed = False  # type: ignore[misc]
 
     def test_slots(self):
-        v = VerificationVerdict(passed=True, summary="ok", confidence="HIGH", findings=[], raw="x")
+        v = VerificationVerdict(
+            passed=True, summary="ok", confidence="HIGH", findings=[], raw="x"
+        )
         assert not hasattr(v, "__dict__")
 
     def test_fields(self):
         findings = [{"severity": "CRITICAL", "description": "NPE"}]
-        v = VerificationVerdict(passed=False, summary="bad", confidence="LOW", findings=findings, raw="raw")
+        v = VerificationVerdict(
+            passed=False, summary="bad", confidence="LOW", findings=findings, raw="raw"
+        )
         assert v.passed is False
         assert v.summary == "bad"
         assert v.confidence == "LOW"
         assert len(v.findings) == 1
         assert v.raw == "raw"
+
+
+# ---------------------------------------------------------------------------
+# VerificationSummary
+# ---------------------------------------------------------------------------
+
+
+class TestVerificationSummary:
+    def test_frozen_immutability(self):
+        s = VerificationSummary(passed=True, rounds=1, max_rounds=2, confidence="HIGH")
+        with pytest.raises(FrozenInstanceError):
+            s.passed = False  # type: ignore[misc]
+
+    def test_slots(self):
+        s = VerificationSummary(passed=True, rounds=1, max_rounds=2, confidence="HIGH")
+        assert not hasattr(s, "__dict__")
+
+    def test_to_dict(self):
+        s = VerificationSummary(
+            passed=True,
+            rounds=1,
+            max_rounds=2,
+            confidence="HIGH",
+            summary="All checks passed",
+            findings=({"severity": "MINOR", "description": "style"},),
+        )
+        d = s.to_dict()
+        assert d == {
+            "passed": True,
+            "rounds": 1,
+            "max_rounds": 2,
+            "confidence": "HIGH",
+            "summary": "All checks passed",
+            "findings": [{"severity": "MINOR", "description": "style"}],
+        }
+
+    def test_subagent_result_round_trip(self):
+        summary = VerificationSummary(
+            passed=True, rounds=1, max_rounds=2, confidence="HIGH"
+        )
+        result = _ok()
+        result.verification = summary
+        data = result.to_dict()
+        assert data["verification"] == summary.to_dict()
+        assert data["verification"]["passed"] is True
+
+    def test_subagent_result_without_verification_omits_key(self):
+        result = _ok()
+        assert "verification" not in result.to_dict()
 
 
 # ---------------------------------------------------------------------------
@@ -105,17 +185,25 @@ class TestParseVerdict:
         assert len(v.findings) == 2
 
     def test_markdown_fenced_json(self):
-        raw = 'Here is my verdict:\n```json\n' + _verdict_json("PASS", "ok STDOUT") + '\n```\nEnd.'
+        raw = (
+            "Here is my verdict:\n```json\n"
+            + _verdict_json("PASS", "ok STDOUT")
+            + "\n```\nEnd."
+        )
         v = _parse_verdict(raw)
         assert v.passed is True
 
     def test_markdown_fenced_without_json_tag(self):
-        raw = '```\n' + _verdict_json("FAIL") + '\n```'
+        raw = "```\n" + _verdict_json("FAIL") + "\n```"
         v = _parse_verdict(raw)
         assert v.passed is False
 
     def test_json_embedded_in_text(self):
-        raw = 'Based on my analysis, ' + _verdict_json("PASS", "Looks good STDOUT") + ' that is my verdict.'
+        raw = (
+            "Based on my analysis, "
+            + _verdict_json("PASS", "Looks good STDOUT")
+            + " that is my verdict."
+        )
         v = _parse_verdict(raw)
         assert v.passed is True
         assert v.summary == "Looks good STDOUT"
@@ -151,7 +239,9 @@ class TestParseVerdict:
         assert v.passed is False
 
     def test_verdict_case_insensitive_json(self):
-        v = _parse_verdict('{"verdict": "pass", "summary": "ok STDOUT", "confidence": "HIGH", "findings": []}')
+        v = _parse_verdict(
+            '{"verdict": "pass", "summary": "ok STDOUT", "confidence": "HIGH", "findings": []}'
+        )
         assert v.passed is True
 
     def test_verdict_with_extra_fields_ignored(self):
@@ -176,7 +266,9 @@ class TestParseVerdict:
         assert len(v.findings) == 1
 
     def test_whitespace_around_verdict(self):
-        v = _parse_verdict('  {"verdict": " PASS ", "summary": "ok STDOUT", "confidence": "HIGH", "findings": []}  ')
+        v = _parse_verdict(
+            '  {"verdict": " PASS ", "summary": "ok STDOUT", "confidence": "HIGH", "findings": []}  '
+        )
         assert v.passed is True
 
     def test_missing_confidence_defaults_to_unknown(self):
@@ -184,12 +276,14 @@ class TestParseVerdict:
         assert v.confidence == "UNKNOWN"
 
     def test_missing_summary_defaults_to_empty(self):
-        v = _parse_verdict('{"verdict": "PASS", "confidence": "HIGH", "findings": [], "STDOUT": "here"}')
+        v = _parse_verdict(
+            '{"verdict": "PASS", "confidence": "HIGH", "findings": [], "STDOUT": "here"}'
+        )
         assert v.summary == ""
 
     def test_prose_with_trailing_comma_and_bare_newline(self):
         raw = (
-            'Verdict after review:\n'
+            "Verdict after review:\n"
             '{"verdict": "PASS", "summary": "Ran the tool, output matches STDOUT",'
             ' "confidence": "HIGH", "findings": [],}'
         )
@@ -216,6 +310,7 @@ class TestVerificationResultShape:
         assert updated["_isolated_parent_workspace"] == "/tmp/parent"
         assert "[Verification: PASS]" in updated["_verification_summary"]
 
+
 # ---------------------------------------------------------------------------
 # run_with_verification
 # ---------------------------------------------------------------------------
@@ -233,16 +328,26 @@ class TestRunWithVerification:
             calls.append(kwargs["task_id"])
             if "worker" in kwargs["task_id"]:
                 return _ok(kwargs["task_id"], kwargs["agent_type"], "work output")
-            return _ok(kwargs["task_id"], kwargs["agent_type"], _verdict_json("PASS", "All good STDOUT", "HIGH"))
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("PASS", "All good STDOUT", "HIGH"),
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
-            tool_registry_getter=lambda: [], max_rounds=2,
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=2,
         )
         assert result.success
         assert "PASS" in result.result
@@ -258,23 +363,39 @@ class TestRunWithVerification:
         async def _spawn(**kwargs):
             if "worker" in kwargs["task_id"]:
                 round_counter["worker"] += 1
-                return _ok(kwargs["task_id"], kwargs["agent_type"], f"work-r{round_counter['worker']}")
+                return _ok(
+                    kwargs["task_id"],
+                    kwargs["agent_type"],
+                    f"work-r{round_counter['worker']}",
+                )
             round_counter["verifier"] += 1
             if round_counter["verifier"] == 1:
                 findings = '[{"severity": "MAJOR", "description": "Missing edge case"}]'
-                return _ok(kwargs["task_id"], kwargs["agent_type"],
-                           _verdict_json("FAIL", "Issues found", "HIGH", findings))
-            return _ok(kwargs["task_id"], kwargs["agent_type"],
-                       _verdict_json("PASS", "Fixed STDOUT", "HIGH"))
+                return _ok(
+                    kwargs["task_id"],
+                    kwargs["agent_type"],
+                    _verdict_json("FAIL", "Issues found", "HIGH", findings),
+                )
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("PASS", "Fixed STDOUT", "HIGH"),
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
-            tool_registry_getter=lambda: [], max_rounds=3,
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=3,
         )
         assert result.success
         assert "PASS" in result.result
@@ -288,20 +409,36 @@ class TestRunWithVerification:
         async def _spawn(**kwargs):
             if "worker" in kwargs["task_id"]:
                 return _ok(kwargs["task_id"], kwargs["agent_type"], "work output")
-            return _ok(kwargs["task_id"], kwargs["agent_type"],
-                       _verdict_json("FAIL", "Still broken", "HIGH"))
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("FAIL", "Still broken", "HIGH"),
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
-            tool_registry_getter=lambda: [], max_rounds=2,
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=2,
         )
         assert "FAIL after 2 round(s)" in result.result
-        assert result.success is False, "Verification failure must propagate success=False"
+        assert (
+            result.success is False
+        ), "Verification failure must propagate success=False"
+        assert result.verification is not None
+        assert result.verification.passed is False
+        assert result.verification.max_rounds == 2
+        assert result.verification.confidence == "HIGH"
+        assert result.verification.summary == "Still broken"
 
     @pytest.mark.asyncio
     async def test_worker_failure_aborts(self):
@@ -315,12 +452,20 @@ class TestRunWithVerification:
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
             tool_registry_getter=lambda: [],
         )
         assert not result.success
         assert "worker crashed" in result.error
+        assert (
+            result.verification is None
+        ), "Worker failure must not fabricate a verification outcome"
 
     @pytest.mark.asyncio
     async def test_verifier_failure_aborts(self):
@@ -339,8 +484,13 @@ class TestRunWithVerification:
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
             tool_registry_getter=lambda: [],
         )
         assert "FAIL after" in result.result
@@ -352,17 +502,26 @@ class TestRunWithVerification:
         async def _spawn(**kwargs):
             if "worker" in kwargs["task_id"]:
                 return _ok(kwargs["task_id"], kwargs["agent_type"], "work")
-            return _ok(kwargs["task_id"], kwargs["agent_type"],
-                       _verdict_json("FAIL", "fail", "HIGH"))
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("FAIL", "fail", "HIGH"),
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
-            tool_registry_getter=lambda: [], max_rounds=0,
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=0,
         )
         assert "FAIL after 1 round(s)" in result.result
 
@@ -377,16 +536,20 @@ class TestRunWithVerification:
             captured_desc.append(kwargs["task_description"])
             if "worker" in kwargs["task_id"]:
                 return _ok(kwargs["task_id"], kwargs["agent_type"], "my-output")
-            return _ok(kwargs["task_id"], kwargs["agent_type"],
-                       _verdict_json("PASS"))
+            return _ok(kwargs["task_id"], kwargs["agent_type"], _verdict_json("PASS"))
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
             tool_registry_getter=lambda: [],
             verifier_task_template="CHECK THIS: {worker_result}",
         )
@@ -404,9 +567,16 @@ class TestRunWithVerification:
                 worker_tasks.append(kwargs["task_description"])
                 return _ok(kwargs["task_id"], kwargs["agent_type"], "work")
             if len(worker_tasks) == 1:
-                return _ok(kwargs["task_id"], kwargs["agent_type"],
-                           _verdict_json("FAIL", "bug", "HIGH",
-                                         '[{"severity": "CRITICAL", "description": "null check missing"}]'))
+                return _ok(
+                    kwargs["task_id"],
+                    kwargs["agent_type"],
+                    _verdict_json(
+                        "FAIL",
+                        "bug",
+                        "HIGH",
+                        '[{"severity": "CRITICAL", "description": "null check missing"}]',
+                    ),
+                )
             return _ok(kwargs["task_id"], kwargs["agent_type"], _verdict_json("PASS"))
 
         mgr.spawn_child = _spawn
@@ -414,9 +584,15 @@ class TestRunWithVerification:
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="original task",
-            verifier_type="v", verifier_config=v_cfg, context={},
-            tool_registry_getter=lambda: [], max_rounds=3,
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="original task",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=3,
         )
         assert len(worker_tasks) >= 2
         assert "null check missing" in worker_tasks[1]
@@ -438,8 +614,13 @@ class TestRunWithVerification:
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
             tool_registry_getter=lambda: [],
         )
         assert result.success
@@ -457,8 +638,13 @@ class TestRunWithVerification:
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
             tool_registry_getter=lambda: [],
         )
         assert not result.success
@@ -472,21 +658,35 @@ class TestRunWithVerification:
         async def _spawn(**kwargs):
             if "worker" in kwargs["task_id"]:
                 return _ok(kwargs["task_id"], kwargs["agent_type"], "done")
-            return _ok(kwargs["task_id"], kwargs["agent_type"],
-                       _verdict_json("PASS", "ok STDOUT", "MEDIUM"))
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("PASS", "ok STDOUT", "MEDIUM"),
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
             tool_registry_getter=lambda: [],
         )
         assert "Verification: PASS" in result.result
         assert "round 1/2" in result.result
         assert "confidence=MEDIUM" in result.result
+        assert result.verification is not None
+        assert result.verification.passed is True
+        assert result.verification.rounds == 1
+        assert result.verification.max_rounds == 2
+        assert result.verification.confidence == "MEDIUM"
+        assert result.verification.summary == "ok STDOUT"
 
     @pytest.mark.asyncio
     @patch(_GET_EXECUTOR_PATH)
@@ -513,9 +713,15 @@ class TestRunWithVerification:
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
-            tool_registry_getter=lambda: [], max_rounds=2,
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=2,
         )
         assert result.success
         assert "PASS" in result.result
@@ -530,17 +736,26 @@ class TestRunWithVerification:
         async def _spawn(**kwargs):
             if "worker" in kwargs["task_id"]:
                 return _ok(kwargs["task_id"], kwargs["agent_type"], "work done")
-            return _ok(kwargs["task_id"], kwargs["agent_type"],
-                       _verdict_json("PASS", "Looks good STDOUT", "HIGH"))
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("PASS", "Looks good STDOUT", "HIGH"),
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
-            tool_registry_getter=lambda: [], max_rounds=1,
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=1,
         )
         assert not result.success
         assert "did not execute any code" in result.result
@@ -552,17 +767,26 @@ class TestRunWithVerification:
         async def _spawn(**kwargs):
             if "worker" in kwargs["task_id"]:
                 return _ok(kwargs["task_id"], kwargs["agent_type"], "work")
-            return _ok(kwargs["task_id"], kwargs["agent_type"],
-                       _verdict_json("FAIL", "bad", "HIGH"))
+            return _ok(
+                kwargs["task_id"],
+                kwargs["agent_type"],
+                _verdict_json("FAIL", "bad", "HIGH"),
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
         v_cfg = SubagentConfig(system_prompt="verifier")
 
         result = await run_with_verification(
-            mgr, worker_type="w", worker_config=w_cfg, worker_task="do work",
-            verifier_type="v", verifier_config=v_cfg, context={},
-            tool_registry_getter=lambda: [], max_rounds=1,
+            mgr,
+            worker_type="w",
+            worker_config=w_cfg,
+            worker_task="do work",
+            verifier_type="v",
+            verifier_config=v_cfg,
+            context={},
+            tool_registry_getter=lambda: [],
+            max_rounds=1,
         )
         assert "Verification: FAIL after 1 round(s)" in result.result
         assert result.success is False, "Verification failure must set success=False"
@@ -571,7 +795,9 @@ class TestRunWithVerification:
 class TestVerifyWorkerOutput:
     @pytest.mark.asyncio
     async def test_returns_fail_when_verifier_subagent_fails(self):
-        from myrm_agent_harness.agent.sub_agents._verifier_round import verify_worker_output
+        from myrm_agent_harness.agent.sub_agents._verifier_round import (
+            verify_worker_output,
+        )
 
         mgr = MagicMock()
 

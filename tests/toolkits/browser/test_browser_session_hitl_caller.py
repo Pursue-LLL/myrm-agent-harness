@@ -14,18 +14,26 @@ def _ref(name: str = "Delete Repository") -> RefInfo:
     return RefInfo(role="button", name=name, nth=None)
 
 
-@pytest.mark.asyncio
-async def test_interact_uses_hitl_caller_tool_when_set() -> None:
+def _make_session() -> BrowserSession:
+    """Build a BrowserSession instance bypassing __init__ (unit-test seam)."""
     session = object.__new__(BrowserSession)
-    session._hitl_caller_tool = "browser_execute_script_tool"
+    session._hitl_caller_tool = None
     session._captcha_coordinator = None
     session._ensure_components = AsyncMock()
-    session._require_interactor = MagicMock(
-        return_value=MagicMock(interact=AsyncMock(return_value="ok"))
-    )
     session._tab_controller = MagicMock()
     session._tab_controller.clear_text_snapshot = MagicMock()
     session.get_ref_info = MagicMock(return_value=_ref())
+    session._view_emit_last_monotonic = 0.0
+    return session
+
+
+@pytest.mark.asyncio
+async def test_interact_uses_hitl_caller_tool_when_set() -> None:
+    session = _make_session()
+    session._hitl_caller_tool = "browser_execute_script_tool"
+    session._require_interactor = MagicMock(
+        return_value=MagicMock(interact=AsyncMock(return_value="ok"))
+    )
 
     with patch(
         "myrm_agent_harness.toolkits.browser.tools.semantic_dom_hitl.enforce_semantic_interaction_guard",
@@ -40,16 +48,10 @@ async def test_interact_uses_hitl_caller_tool_when_set() -> None:
 
 @pytest.mark.asyncio
 async def test_interact_defaults_to_browser_interact_tool() -> None:
-    session = object.__new__(BrowserSession)
-    session._hitl_caller_tool = None
-    session._captcha_coordinator = None
-    session._ensure_components = AsyncMock()
+    session = _make_session()
     session._require_interactor = MagicMock(
         return_value=MagicMock(interact=AsyncMock(return_value="ok"))
     )
-    session._tab_controller = MagicMock()
-    session._tab_controller.clear_text_snapshot = MagicMock()
-    session.get_ref_info = MagicMock(return_value=_ref())
 
     with patch(
         "myrm_agent_harness.toolkits.browser.tools.semantic_dom_hitl.enforce_semantic_interaction_guard",
@@ -63,15 +65,9 @@ async def test_interact_defaults_to_browser_interact_tool() -> None:
 
 @pytest.mark.asyncio
 async def test_interact_returns_guard_block_without_interactor() -> None:
-    session = object.__new__(BrowserSession)
-    session._hitl_caller_tool = None
-    session._captcha_coordinator = None
-    session._ensure_components = AsyncMock()
+    session = _make_session()
     interactor = MagicMock(interact=AsyncMock(return_value="should not run"))
     session._require_interactor = MagicMock(return_value=interactor)
-    session._tab_controller = MagicMock()
-    session._tab_controller.clear_text_snapshot = MagicMock()
-    session.get_ref_info = MagicMock(return_value=_ref())
 
     with patch(
         "myrm_agent_harness.toolkits.browser.tools.semantic_dom_hitl.enforce_semantic_interaction_guard",

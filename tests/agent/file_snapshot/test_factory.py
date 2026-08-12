@@ -44,7 +44,7 @@ def test_default_store_base_uses_myrm_data_dir():
 def test_default_store_base_fallback():
     with patch.dict("os.environ", {}, clear=True):
         base = _default_store_base()
-    assert base == Path.home() / ".myrm" / "file_snapshots"
+        assert base == Path.home() / ".myrm" / "file_snapshots"
 
 
 # ------------------------------------------------------------------

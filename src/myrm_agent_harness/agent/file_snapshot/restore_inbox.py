@@ -19,6 +19,15 @@ from dataclasses import dataclass
 
 _NOTIFICATION_TTL_SECONDS = 600.0
 
+# Model-facing labels for external effect categories detected by
+# external_effect_detector. The stored categories are internal identifiers;
+# this mapping converts them into plain-language terms the model can act on.
+_EXTERNAL_EFFECT_LABELS: dict[str, str] = {
+    "database": "database changes",
+    "container_cloud": "container or cloud operations",
+    "network_mutation": "network requests",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class RestoreNotification:
@@ -69,17 +78,19 @@ def drain_restore_notifications() -> str | None:
         msg = "[System: File rollback detected] "
         if notif.restored_files:
             file_list = ", ".join(notif.restored_files[:10])
-            msg += f"{notif.files_restored} file(s) restored to snapshot {notif.snapshot_id[:8]}. Affected: {file_list}"
+            msg += f"{notif.files_restored} file(s) restored. Affected: {file_list}"
             if len(notif.restored_files) > 10:
                 msg += f" (+{len(notif.restored_files) - 10} more)"
         else:
-            msg += f"Entire workspace ({notif.files_restored} files) restored to snapshot {notif.snapshot_id[:8]}."
+            msg += f"Entire workspace ({notif.files_restored} files) restored."
         msg += (
             " The workspace files have changed externally. "
             "Re-read any files you previously modified before making further changes."
         )
         if notif.external_effects:
-            effects_str = ", ".join(notif.external_effects)
+            effects_str = ", ".join(
+                _EXTERNAL_EFFECT_LABELS.get(effect, effect) for effect in notif.external_effects
+            )
             msg += (
                 f" WARNING: This snapshot involved external operations ({effects_str}) "
                 "that file-rollback cannot undo. The user may need to manually revert those changes."

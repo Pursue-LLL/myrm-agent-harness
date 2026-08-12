@@ -1,7 +1,7 @@
 """browser_inspect tool for quick page structure analysis.
 
 [INPUT]
-- (none)
+- common::mark_untrusted (POS: unified browser output security boundary; credential redaction + untrusted-content wrapping)
 
 [OUTPUT]
 - create_inspect_tool: Create browser_inspect tool bound to session.
@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING
 
 from langchain.tools import tool
 from pydantic import BaseModel
+
+from .common import mark_untrusted
 
 if TYPE_CHECKING:
     from ..session import BrowserSession
@@ -58,6 +60,6 @@ def create_inspect_tool(session: BrowserSession):
         Use this BEFORE browser_snapshot to make informed decisions about
         which parameters to use. Much faster and cheaper than full snapshot.
         """
-        return await session.inspect()
+        return mark_untrusted(await session.inspect())
 
     return browser_inspect

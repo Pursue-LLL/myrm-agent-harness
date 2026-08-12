@@ -91,7 +91,7 @@ class TestPromptExecution:
         sid = await bridge.create_session("/tmp")
 
         conn = MagicMock()
-        conn.session_notification = AsyncMock()
+        conn.session_update = AsyncMock()
 
         result = await bridge.prompt(sid, "hello", conn)
         assert isinstance(result, PromptResponse)
@@ -110,10 +110,10 @@ class TestPromptExecution:
         sid = await bridge.create_session("/tmp")
 
         conn = MagicMock()
-        conn.session_notification = AsyncMock()
+        conn.session_update = AsyncMock()
 
         await bridge.prompt(sid, "hello", conn)
-        assert conn.session_notification.call_count >= 1
+        assert conn.session_update.call_count >= 1
 
     @pytest.mark.asyncio
     async def test_prompt_error_returns_end_turn(self) -> None:
@@ -121,7 +121,7 @@ class TestPromptExecution:
         sid = await bridge.create_session("/tmp")
 
         conn = MagicMock()
-        conn.session_notification = AsyncMock()
+        conn.session_update = AsyncMock()
 
         result = await bridge.prompt(sid, "hello", conn)
         assert result.stop_reason == "end_turn"
@@ -132,7 +132,7 @@ class TestPromptExecution:
         sid = await bridge.create_session("/tmp")
 
         conn = MagicMock()
-        conn.session_notification = AsyncMock()
+        conn.session_update = AsyncMock()
 
         result = await bridge.prompt(sid, "hello", conn)
         assert result.stop_reason == "cancelled"
@@ -152,7 +152,7 @@ class TestPromptExecution:
         sid = await bridge.create_session("/tmp")
 
         conn = MagicMock()
-        conn.session_notification = AsyncMock(side_effect=ConnectionError("broken"))
+        conn.session_update = AsyncMock(side_effect=ConnectionError("broken"))
 
         result = await bridge.prompt(sid, "hello", conn)
         assert result.stop_reason == "end_turn"

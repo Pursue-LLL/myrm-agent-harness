@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import signal
+import time
+from collections.abc import Callable
 from typing import cast
 from unittest.mock import MagicMock, patch
 
@@ -64,6 +66,22 @@ class _FakeProc:
         self._exit_event.set()
 
 
+async def _wait_until(
+    predicate: Callable[[], bool], *, timeout_seconds: float = 2.0, what: str = "condition"
+) -> None:
+    """Poll until ``predicate`` holds, replacing blind ``asyncio.sleep`` waits.
+
+    Reader tasks flip registry state asynchronously; a fixed sleep is flaky
+    under high load. Polling makes tests deterministic while yielding control.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"Timed out waiting for {what}")
+
+
 @pytest.mark.asyncio
 async def test_register_captures_output_and_status_transitions() -> None:
     registry = BackgroundProcessRegistry()
@@ -83,8 +101,12 @@ async def test_register_captures_output_and_status_transitions() -> None:
     assert listed[0].pid == 11111
 
     proc.finish(0)
-    # Allow reader task to drain pipes and finalize status before snapshot.
-    await asyncio.sleep(0.05)
+    # Deterministically wait for the reader task to flip status instead of
+    # guessing a sleep duration (flaky under high load).
+    await _wait_until(
+        lambda: registry.get(11111) is not None and registry.get(11111).status == "exited",  # type: ignore[union-attr]
+        what="status transition to exited",
+    )
 
     final = registry.get(11111)
     assert final is not None
@@ -133,7 +155,10 @@ async def test_kill_terminates_and_marks_status() -> None:
     assert ok is True
     assert sent == [(22222, signal.SIGTERM)]
 
-    await asyncio.sleep(0.02)
+    await _wait_until(
+        lambda: registry.get(22222) is not None and registry.get(22222).status == "killed",  # type: ignore[union-attr]
+        what="status transition to killed",
+    )
     snap = registry.get(22222)
     assert snap is not None
     assert snap.status == "killed"
@@ -167,7 +192,10 @@ async def test_per_session_quota_blocks_new_jobs() -> None:
 
     # Releasing one slot must allow the next register.
     procs[0].finish(0)
-    await asyncio.sleep(0.02)
+    await _wait_until(
+        lambda: registry.get(30000) is not None and registry.get(30000).status != "running",  # type: ignore[union-attr]
+        what="slot release for pid 30000",
+    )
     await registry.register(cast(AsyncProcessProtocol, third), command="sleep 10", session_id="quota-s")
 
 
@@ -192,7 +220,7 @@ async def test_progress_listener_fires_for_explicit_marker() -> None:
         progress_listener=_listener,
     )
     proc.finish(0)
-    await asyncio.sleep(0.05)
+    await _wait_until(lambda: len(events) >= 1, what="progress listener dispatch")
 
     assert len(events) == 1
     assert events[0]["progress"] == 42
@@ -218,7 +246,10 @@ async def test_since_cursor_respects_cross_stream_interleave() -> None:
         command="echo",
         session_id="cur-s",
     )
-    await asyncio.sleep(0.02)
+    await _wait_until(
+        lambda: cast(list[str], registry.get_output(66666, max_lines=10)["stdout"]) == ["out-1", "out-2", "out-3"],
+        what="stdout lines ingested",
+    )
     first = registry.get_output(66666, max_lines=10)
     assert {"out-1", "out-2", "out-3"}.issubset(set(cast(list[str], first["stdout"])))
     assert {"err-1", "err-2"}.issubset(set(cast(list[str], first["stderr"])))
@@ -251,7 +282,7 @@ async def test_finish_listener_invoked_on_exit() -> None:
         finish_listener=_on_finish,
     )
     proc.finish(0)
-    await asyncio.sleep(0.05)
+    await _wait_until(lambda: len(seen) >= 1, what="finish listener dispatch")
 
     assert len(seen) == 1
     assert seen[0].pid == 55555
@@ -287,7 +318,10 @@ async def test_kill_escalates_to_sigkill_when_sigterm_ignored() -> None:
     assert ok is True
     assert sent == [(70000, signal.SIGTERM), (70000, signal.SIGKILL)]
 
-    await asyncio.sleep(0.02)
+    await _wait_until(
+        lambda: registry.get(70000) is not None and registry.get(70000).status == "killed",  # type: ignore[union-attr]
+        what="SIGKILL status transition",
+    )
     snap = registry.get(70000)
     assert snap is not None
     assert snap.status == "killed"
@@ -304,9 +338,16 @@ async def test_reap_drops_exited_entries_after_window() -> None:
         session_id="reap-s",
     )
     proc.finish(0)
-    await asyncio.sleep(0.02)
+    await _wait_until(
+        lambda: registry.get(80000) is not None and registry.get(80000).status != "running",  # type: ignore[union-attr]
+        what="reap entry to become exited",
+    )
     assert registry.get(80000) is not None
-    await asyncio.sleep(0.1)
+    await _wait_until(
+        lambda: registry.get(80000) is None,
+        timeout_seconds=2.0,
+        what="reap window to drop entry",
+    )
     assert registry.get(80000) is None
     assert registry.list_processes(session_id="reap-s") == []
 
@@ -323,7 +364,10 @@ async def test_long_line_is_truncated_in_buffer() -> None:
         session_id="trunc-s",
     )
     proc.finish(0)
-    await asyncio.sleep(0.02)
+    await _wait_until(
+        lambda: bool(registry.get_output(90000, max_lines=5)["stdout"]),
+        what="truncated line ingestion",
+    )
 
     out = registry.get_output(90000, max_lines=5)
     stdout_lines = cast(list[str], out["stdout"])
@@ -355,7 +399,13 @@ async def test_last_progress_captured_for_list_processes() -> None:
         session_id="L-s",
     )
     # Drive both progress markers through the reader task.
-    await asyncio.sleep(0.05)
+    def _progress_80() -> bool:
+        items = registry.list_processes(session_id="L-s")
+        if not items or items[0].last_progress is None:
+            return False
+        return cast(dict[str, object], items[0].last_progress)["progress"] == 80
+
+    await _wait_until(_progress_80, what="both progress markers processed")
 
     listed = registry.list_processes(session_id="L-s")
     assert len(listed) == 1
@@ -390,7 +440,11 @@ async def test_list_processes_omits_last_progress_when_unseen() -> None:
         command="echo plain",
         session_id="np-s",
     )
-    await asyncio.sleep(0.02)
+    await _wait_until(
+        lambda: bool(registry.list_processes(session_id="np-s"))
+        and registry.list_processes(session_id="np-s")[0].last_progress is None,
+        what="plain output ingested without progress",
+    )
     payload = registry.list_processes(session_id="np-s")[0].to_dict()
     assert "last_progress" not in payload
     proc.finish(0)
@@ -507,8 +561,12 @@ async def test_shutdown_uses_process_group_kill_for_living_children() -> None:
         cast(AsyncProcessProtocol, proc_exited), command="echo done", session_id="s1"
     )
     proc_exited.finish(0)
-    # Let the consumer loop transition proc_exited → exited before shutdown runs.
-    await asyncio.sleep(0.05)
+    # Deterministically let the consumer loop transition proc_exited → exited
+    # before shutdown runs (a fixed sleep is flaky under load).
+    await _wait_until(
+        lambda: registry.get(16002) is not None and registry.get(16002).status != "running",  # type: ignore[union-attr]
+        what="proc_exited transition before shutdown",
+    )
 
     killed_pids: list[tuple[int, int]] = []
 
@@ -560,7 +618,10 @@ async def test_kill_non_running_pid_is_noop_success() -> None:
     proc = _FakeProc(pid=18001, stdout=[], stderr=[])
     await registry.register(cast(AsyncProcessProtocol, proc), command="echo done", session_id="done-s")
     proc.finish(0)
-    await asyncio.sleep(0.05)
+    await _wait_until(
+        lambda: registry.get(18001) is not None and registry.get(18001).status != "running",  # type: ignore[union-attr]
+        what="pid 18001 to exit",
+    )
 
     ok = await registry.kill(18001)
     assert ok is True

@@ -1,6 +1,7 @@
 """browser_manage tool for session management.
 
 [INPUT]
+- common::mark_untrusted (POS: unified browser output security boundary; credential redaction + untrusted-content wrapping)
 - domain_skills::DomainSkillStore (POS: executable-layer domain skill registry)
 
 [OUTPUT]
@@ -18,6 +19,8 @@ from typing import TYPE_CHECKING
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
+
+from .common import mark_untrusted
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +81,7 @@ def create_manage_tool(session: BrowserSession):
             case "evaluate":
                 if not value:
                     return "Error: 'value' is required for action='evaluate'"
-                return await session.evaluate(value)
+                return mark_untrusted(await session.evaluate(value))
             case "new_tab":
                 tabs_before = set(session.list_tabs())
                 tab_id = await session.new_tab(value or None)
@@ -118,9 +121,9 @@ def create_manage_tool(session: BrowserSession):
             case "wait_for_load":
                 return await session.wait_for_load()
             case "console_log":
-                return session.get_console_log()
+                return mark_untrusted(session.get_console_log())
             case "network_log":
-                return session.get_network_log()
+                return mark_untrusted(session.get_network_log())
             case "network_detail":
                 if not value.strip():
                     return "Error: 'value' must be the request index number (from network_log output)"
@@ -128,7 +131,7 @@ def create_manage_tool(session: BrowserSession):
                     index = int(value.strip())
                 except ValueError:
                     return "Error: 'value' must be an integer (request index from network_log)"
-                return await session.get_network_detail(index)
+                return mark_untrusted(await session.get_network_detail(index))
             case "network_replay":
                 if not value.strip():
                     return "Error: 'value' must be the request index number to replay"
@@ -136,7 +139,7 @@ def create_manage_tool(session: BrowserSession):
                     index = int(value.strip())
                 except ValueError:
                     return "Error: 'value' must be an integer (request index from network_log)"
-                return await session.replay_network_request(index)
+                return mark_untrusted(await session.replay_network_request(index))
             case "dialog_response":
                 parts = value.split(":", 1)
                 accept = parts[0].strip().lower() != "dismiss"
@@ -353,7 +356,7 @@ def create_manage_tool(session: BrowserSession):
             result = await asyncio.wait_for(
                 func(browser_session, tool_args), timeout=30.0
             )
-            return str(result)
+            return mark_untrusted(str(result))
         except TimeoutError:
             return f"Error: domain tool '{skill_id}:{tool_name}' timed out after 30s"
         except Exception as exc:
