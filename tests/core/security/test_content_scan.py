@@ -147,3 +147,10 @@ def test_sanitize_display_secrets_truncates_long() -> None:
     assert len(out) <= 240
     assert out.endswith("...")
     assert "sk-abcdefghijklmnopqrstuvwxyz1234567890" not in out
+
+
+def test_sanitize_display_secrets_keeps_short() -> None:
+    from myrm_agent_harness.core.security.persistence.content_scan import sanitize_display_secrets
+
+    out = sanitize_display_secrets("disk nearly full on /dev/sda1", max_length=240)
+    assert out == "disk nearly full on /dev/sda1"

@@ -268,3 +268,51 @@ def test_resolve_loaded_skills_swallows_context_failure() -> None:
         assert provider._resolve_loaded_skills() == []
     finally:
         monkeypatch.undo()
+
+
+@pytest.mark.asyncio
+async def test_aevaluate_allows_when_any_loaded_skill_has_permission() -> None:
+    """One granted skill must authorize the call even if others lack it."""
+    set_loaded_skills(
+        [
+            SkillMetadata(name="skill-a", description="d", version="1.0.0"),
+            SkillMetadata(name="skill-b", description="d", version="1.0.0"),
+        ]
+    )
+    granted = frozenset({"code_interpreter"})
+
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
+        if skill_id == "skill-b":
+            mapped = map_permission_to_skill_permission(permission_type)
+            return mapped is not None and mapped.value in granted, ""
+        return False, "denied"
+
+    provider = SkillBoundaryProvider(permission_checker=checker)
+    decision = await provider.aevaluate(
+        GuardrailRequest(tool_name="bash_code_execute_tool", tool_input={"command": "echo hi"})
+    )
+    assert decision.allow is True
+
+
+@pytest.mark.asyncio
+async def test_aevaluate_uses_storage_skill_id_over_name() -> None:
+    """A skill with a storage id must be checked under that id, not its name."""
+    set_loaded_skills(
+        [
+            SkillMetadata(
+                name="display-name",
+                description="d",
+                version="1.0.0",
+                storage_skill_id="stored-id",
+            )
+        ]
+    )
+
+    async def checker(skill_id: str, permission_type: str, operation: str) -> tuple[bool, str]:
+        return skill_id == "stored-id", ""
+
+    provider = SkillBoundaryProvider(permission_checker=checker)
+    decision = await provider.aevaluate(
+        GuardrailRequest(tool_name="file_write_tool", tool_input={"path": "/tmp/x"})
+    )
+    assert decision.allow is True

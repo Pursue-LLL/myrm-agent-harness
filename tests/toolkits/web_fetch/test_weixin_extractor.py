@@ -244,3 +244,137 @@ def test_build_opener_blocks_redirects() -> None:
     req = urllib.request.Request(_ARTICLE_URL)  # noqa: S310
     with pytest.raises(urllib.error.HTTPError):
         handler.redirect_request(req, None, 302, "Found", {}, "https://evil.example/")
+
+
+def _html_with_images(n: int) -> str:
+    imgs = "\n".join(
+        f'<img data-src="https://img.example.com/{i}.png" />' for i in range(n)
+    )
+    return f'<html><body><div id="js_content"><h1>标题</h1><p>{"正文内容" * 40}</p>{imgs}</div></body></html>'
+
+
+def test_normalize_lazy_images_handles_list_attr() -> None:
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup("<div id='js_content'><img data-src='https://a.com/x.png' /></div>", "html.parser")
+    img = soup.find("img")
+    assert img is not None
+    img.attrs["data-src"] = ["https://a.com/x.png"]
+    div = soup.find("div")
+    assert div is not None
+    weixin_extractor_module._normalize_lazy_images(div)
+    assert img.get("src") == "https://a.com/x.png"
+
+
+def test_collect_image_urls_caps_at_max_images() -> None:
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(_html_with_images(35), "html.parser")
+    div = soup.find(id="js_content")
+    assert div is not None
+    urls = weixin_extractor_module._collect_image_urls(div)
+    assert len(urls) == weixin_extractor_module._MAX_IMAGES
+
+
+def test_collect_image_urls_handles_list_src() -> None:
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(_html_with_images(1), "html.parser")
+    img = soup.find("img")
+    assert img is not None
+    img.attrs["data-src"] = ["https://img.example.com/1.png"]
+    div = soup.find(id="js_content")
+    assert div is not None
+    urls = weixin_extractor_module._collect_image_urls(div)
+    assert urls == ["https://img.example.com/1.png"]
+
+
+def test_parse_rejects_js_content_only_inside_script() -> None:
+    html = (
+        "<html><body><script>const tpl = '<div id=\"js_content\"></div>';</script>"
+        "<p>正文内容" * 60 + "</p></body></html>"
+    )
+    assert parse_weixin_article_html(html, url=_ARTICLE_URL) is None
+
+
+def test_build_opener_with_proxy_pool() -> None:
+    class _Proxy:
+        def to_url(self) -> str:
+            return "http://proxy.example:8080"
+
+    class _Pool:
+        def get_next(self) -> _Proxy:
+            return _Proxy()
+
+    opener = weixin_extractor_module._build_opener(_Pool())
+    assert opener is not None
+
+
+def test_fetch_html_caps_oversized_response() -> None:
+    class _Headers:
+        def get_content_charset(self, default: str = "utf-8") -> str:
+            return default
+
+    cap = weixin_extractor_module._MAX_RESPONSE_BYTES
+
+    class _FakeResponse:
+        headers = _Headers()
+
+        def read(self, max_bytes: int) -> bytes:
+            return b"x" * (cap + 100)
+
+        def __enter__(self) -> _FakeResponse:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    class _FakeOpener:
+        def open(self, req: object, timeout: float) -> _FakeResponse:
+            return _FakeResponse()
+
+    result = weixin_extractor_module._fetch_html(_ARTICLE_URL, _FakeOpener())
+    assert len(result) == cap
+
+
+@pytest.mark.asyncio
+async def test_extract_rejects_non_http_scheme() -> None:
+    assert await extract_weixin_article("ftp://mp.weixin.qq.com/s/abc123") is None
+
+
+@pytest.mark.asyncio
+async def test_extract_scheme_guard_defense_in_depth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Even when the URL classifier is bypassed, non-http(s) schemes are refused."""
+
+    monkeypatch.setattr(
+        weixin_extractor_module, "is_weixin_article_url", lambda url: True
+    )
+    assert await extract_weixin_article("ftp://mp.weixin.qq.com/s/abc123") is None
+
+
+@pytest.mark.asyncio
+async def test_extract_all_attempts_fail_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        weixin_extractor_module,
+        "_fetch_html",
+        lambda url, opener: None,
+    )
+    doc = await extract_weixin_article(_ARTICLE_URL, max_attempts=2)
+    assert doc is None
+
+
+@pytest.mark.asyncio
+async def test_extract_all_attempts_raise_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def failing_fetch(url: str, opener: object) -> str:
+        raise ConnectionError("all attempts dead")
+
+    monkeypatch.setattr(weixin_extractor_module, "_fetch_html", failing_fetch)
+    monkeypatch.setattr("time.sleep", lambda _seconds: None)
+    doc = await extract_weixin_article(_ARTICLE_URL, max_attempts=2)
+    assert doc is None

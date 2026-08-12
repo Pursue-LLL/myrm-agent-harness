@@ -187,7 +187,11 @@ async def test_secure_request_raises_when_stream_exceeds_limit() -> None:
     """Bodies without a usable Content-Length are aborted mid-stream when oversized."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, content=b"y" * 500, request=request)
+        return httpx.Response(
+            200,
+            stream=httpx.ByteStream(b"y" * 500),
+            request=request,
+        )
 
     with patch(
         "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
@@ -260,3 +264,145 @@ async def test_secure_get_passes_max_content_length() -> None:
     ) as mock_secure_request:
         await secure_get("https://example.com", max_content_length=42)
         assert mock_secure_request.await_args.kwargs["max_content_length"] == 42
+
+
+@pytest.mark.asyncio
+async def test_resolve_target_no_redirects_with_negative_limit() -> None:
+    """Negative max_redirects exits the loop immediately, hitting the guard raise."""
+
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(return_value=("https://93.184.216.34/", {"Host": "example.com"})),
+    ):
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, text="ok", request=req)
+        )
+        async with httpx.AsyncClient(transport=transport) as client:
+            with pytest.raises(SSRFSecurityError, match="Too many redirects"):
+                await resolve_secure_http_target(
+                    client, "https://example.com/start", max_redirects=-1
+                )
+
+
+@ pytest.mark.asyncio
+async def test_secure_request_disables_shield_passthrough() -> None:
+    """enable_ssrf_shield=False short-circuits DNS pinning entirely."""
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(),
+    ) as mock_pin:
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, text="ok", request=req)
+        )
+        async with httpx.AsyncClient(transport=transport) as client:
+            resp = await secure_request(
+                client, "GET", "https://example.com", enable_ssrf_shield=False
+            )
+            assert resp.status_code == 200
+        mock_pin.assert_not_called()
+
+
+@ pytest.mark.asyncio
+async def test_secure_request_redirect_downgrades_post_to_get() -> None:
+    """301 with a body-capable method downgrades the next hop to GET."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(301, headers={"Location": "/final"}, request=request)
+        assert request.method == "GET"
+        return httpx.Response(200, text="done", request=request)
+
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(
+            side_effect=[
+                ("https://example.com/start", {}),
+                ("https://example.com/final", {}),
+            ]
+        ),
+    ):
+        transport = httpx.MockTransport(handler)
+        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+            resp = await secure_request(client, "POST", "https://example.com/start")
+            assert resp.status_code == 200
+            assert resp.text == "done"
+
+
+def test_https_pin_extensions_empty_hop_host() -> None:
+    assert _https_pin_extensions("https:///bare", {"Host": "example.com"}) == {}
+
+
+@ pytest.mark.asyncio
+async def test_resolve_target_ssrf_blocked_during_redirect() -> None:
+    redirect_response = httpx.Response(
+        302,
+        headers={"Location": "https://example.com/final"},
+        request=httpx.Request("GET", "https://example.com/start"),
+    )
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(
+            side_effect=[
+                ("https://93.184.216.34/", {"Host": "example.com"}),
+                SSRFSecurityError("Blocked during redirect"),
+            ]
+        ),
+    ):
+        transport = httpx.MockTransport(lambda _req: redirect_response)
+        async with httpx.AsyncClient(transport=transport) as client:
+            with pytest.raises(SSRFSecurityError, match="Blocked during redirect"):
+                await resolve_secure_http_target(client, "https://example.com/start")
+
+
+@ pytest.mark.asyncio
+async def test_resolve_target_too_many_redirects() -> None:
+    redirect_response = httpx.Response(
+        302,
+        headers={"Location": "https://example.com/final"},
+        request=httpx.Request("GET", "https://example.com/start"),
+    )
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(return_value=("https://93.184.216.34/", {"Host": "example.com"})),
+    ):
+        transport = httpx.MockTransport(lambda _req: redirect_response)
+        async with httpx.AsyncClient(transport=transport) as client:
+            with pytest.raises(SSRFSecurityError, match="Too many redirects"):
+                await resolve_secure_http_target(
+                    client, "https://example.com/start", max_redirects=0
+                )
+
+
+@ pytest.mark.asyncio
+async def test_secure_request_too_many_redirects() -> None:
+    redirect_response = httpx.Response(
+        302,
+        headers={"Location": "https://example.com/final"},
+        request=httpx.Request("GET", "https://example.com/start"),
+    )
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(return_value=("https://93.184.216.34/", {"Host": "example.com"})),
+    ):
+        transport = httpx.MockTransport(lambda _req: redirect_response)
+        async with httpx.AsyncClient(transport=transport) as client:
+            with pytest.raises(SSRFSecurityError, match="Too many redirects"):
+                await secure_request(
+                    client, "GET", "https://example.com/start", max_redirects=0
+                )
+
+
+@ pytest.mark.asyncio
+async def test_secure_request_no_response_received() -> None:
+    with patch(
+        "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
+        new=AsyncMock(return_value=("https://example.com/", {})),
+    ):
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, text="ok", request=req)
+        )
+        async with httpx.AsyncClient(transport=transport) as client:
+            with pytest.raises(ValueError, match="No response received"):
+                await secure_request(
+                    client, "GET", "https://example.com", max_redirects=-1
+                )

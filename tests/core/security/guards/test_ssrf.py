@@ -110,6 +110,98 @@ class TestSSRFShield:
             assert headers == {}
 
 
+class TestCheckUrlAndResolve:
+    """Sync fast-check paths of check_url / resolve_and_check."""
+
+    def test_check_url_invalid_scheme_returns_error(self):
+        from myrm_agent_harness.core.security.guards.ssrf import check_url
+
+        verdict = check_url("ftp://x.com/file")
+        assert verdict.allowed is False
+        assert "scheme" in verdict.reason
+
+    def test_check_url_allows_internal_hostname_in_allowlist(self):
+        from myrm_agent_harness.core.security.guards.ssrf import check_url
+
+        verdict = check_url("http://my-internal-nas.example:9000/data", allowed_internal_hosts=frozenset({"my-internal-nas.example"}))
+        assert verdict.allowed is True
+
+    def test_check_url_blocks_internal_ip_literal(self):
+        from myrm_agent_harness.core.security.guards.ssrf import check_url
+
+        verdict = check_url("http://192.168.1.5/admin")
+        assert verdict.allowed is False
+        assert "private/internal" in verdict.reason
+
+    def test_check_url_allows_public_ip_literal(self):
+        from myrm_agent_harness.core.security.guards.ssrf import check_url
+
+        verdict = check_url("https://8.8.8.8/ping")
+        assert verdict.allowed is True
+
+    def test_check_url_blocks_internal_hostname_literal(self):
+        from myrm_agent_harness.core.security.guards.ssrf import check_url
+
+        verdict = check_url("http://10.0.0.9")
+        assert verdict.allowed is False
+
+    def test_resolve_allows_allowlisted_host(self):
+        from myrm_agent_harness.core.security.guards.ssrf import resolve_and_check
+
+        verdict = resolve_and_check("nas.internal", allowed_internal_hosts=frozenset({"nas.internal"}))
+        assert verdict.allowed is True
+
+    @patch("myrm_agent_harness.core.security.guards.ssrf.socket.getaddrinfo", side_effect=socket.gaierror("nxdomain"))
+    def test_resolve_dns_failure(self, _mock):
+        from myrm_agent_harness.core.security.guards.ssrf import resolve_and_check
+
+        verdict = resolve_and_check("no-such-host.example")
+        assert verdict.allowed is False
+        assert "resolution failed" in verdict.reason
+
+    @patch("myrm_agent_harness.core.security.guards.ssrf.socket.getaddrinfo")
+    def test_resolve_blocks_internal_resolved_ip(self, mock_gai):
+        from myrm_agent_harness.core.security.guards.ssrf import resolve_and_check
+
+        mock_gai.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.16.3.9", 0))]
+        verdict = resolve_and_check("attacker.example")
+        assert verdict.allowed is False
+        assert "resolves to private/internal IP" in verdict.reason
+
+    @patch("myrm_agent_harness.core.security.guards.ssrf.socket.getaddrinfo")
+    def test_resolve_allows_public_resolved_ip(self, mock_gai):
+        from myrm_agent_harness.core.security.guards.ssrf import resolve_and_check
+
+        mock_gai.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("1.1.1.1", 0)),
+        ]
+        verdict = resolve_and_check("public.example")
+        assert verdict.allowed is True
+
+
+    def test_check_url_allows_public_domain(self):
+        from myrm_agent_harness.core.security.guards.ssrf import check_url
+
+        verdict = check_url("https://example.com/docs")
+        assert verdict.allowed is True
+
+    @pytest.mark.asyncio
+    async def test_async_validate_invalid_scheme(self):
+        result = await async_validate_url_for_ssrf("ftp://x.com/file")
+        assert result.safe is False
+        assert "scheme" in result.error
+
+    @pytest.mark.asyncio
+    async def test_async_validate_guard_blocked(self):
+        from myrm_agent_harness.core.security.guards.ssrf import check_url
+
+        with URLAllowlistGuard.apply(["api.github.com"]):
+            result = await async_validate_url_for_ssrf("https://evil.com/log")
+            assert result.safe is False
+            assert "evil.com" in result.error
+
+
 class TestURLAllowlistGuard:
     """Test URL Allowlist Guard (DLP protection)."""
 

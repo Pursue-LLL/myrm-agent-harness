@@ -21,7 +21,7 @@ myrm_agent_harness/agent/skill_agent/skill_agent.py	556
 myrm_agent_harness/agent/skills/market/service.py	558
 myrm_agent_harness/agent/streaming/stream_executor.py	597
 myrm_agent_harness/agent/streaming/stream_recovery_oneshot.py	613
-myrm_agent_harness/agent/sub_agents/manager.py	571
+myrm_agent_harness/agent/sub_agents/manager.py	574
 myrm_agent_harness/agent/sub_agents/types.py	572
 myrm_agent_harness/observability/diagnostics/probes.py	574
 myrm_agent_harness/toolkits/browser/session/browser_session.py	567
@@ -33,15 +33,15 @@ myrm_agent_harness/toolkits/computer_use/perception/macos_ax.py	537
 myrm_agent_harness/toolkits/kanban/_orchestrator_tools.py	517
 myrm_agent_harness/toolkits/kanban/types.py	517
 myrm_agent_harness/toolkits/llms/adapters/chat_model/async_mixin.py	555
-myrm_agent_harness/toolkits/memory/agent_surface/mcp_server.py	801
+myrm_agent_harness/toolkits/memory/agent_surface/mcp_server.py	804
 myrm_agent_harness/toolkits/memory/agent_surface/memory_agent_tools.py	521
 myrm_agent_harness/toolkits/vector/qdrant/store.py	529
 myrm_agent_harness/toolkits/web_search/engine.py	534
 myrm_agent_harness/toolkits/web_search/web_searcher.py	549
 myrm_agent_harness/toolkits/wiki/core/claims_contract.py	640
 myrm_agent_harness/toolkits/wiki/pipeline/corpus_dedup/store.py	543
-myrm_agent_harness/agent/_internals/agent_runtime.py	938
-myrm_agent_harness/agent/_internals/run_lifecycle.py	777
+myrm_agent_harness/agent/_internals/agent_runtime.py	940
+myrm_agent_harness/agent/_internals/run_lifecycle.py	784
 myrm_agent_harness/agent/base_agent.py	655
 myrm_agent_harness/agent/context_management/infra/schemas.py	702
 myrm_agent_harness/agent/context_management/pipeline/processors/cache_ttl_prune_processor.py	782
