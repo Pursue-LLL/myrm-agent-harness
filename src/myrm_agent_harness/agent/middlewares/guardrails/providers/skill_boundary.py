@@ -3,8 +3,13 @@
 Enforces parameter-aware boundaries for loaded skills.
 """
 
+from __future__ import annotations
+
+import asyncio
+import inspect
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 
 from myrm_agent_harness.agent.middlewares.guardrails.core import (
     GuardrailDecision,
@@ -13,7 +18,15 @@ from myrm_agent_harness.agent.middlewares.guardrails.core import (
     GuardrailRequest,
 )
 
+if TYPE_CHECKING:
+    from myrm_agent_harness.agent.skills import SkillMetadata
+
 logger = logging.getLogger(__name__)
+
+#: Checker signature: (skill_id, permission_type, operation) -> (allowed, reason)
+#: Async checker functions are awaited automatically; sync callables are supported
+#: for sync tool paths.
+PermissionChecker = Callable[[str, str, str], tuple[bool, str] | Awaitable[tuple[bool, str]]]
 
 
 class SkillBoundaryProvider(GuardrailProvider):
@@ -26,7 +39,7 @@ class SkillBoundaryProvider(GuardrailProvider):
 
     def __init__(
         self,
-        permission_checker: Callable[[str, str, str], tuple[bool, str]] | None = None,
+        permission_checker: PermissionChecker | None = None,
     ):
         self._permission_checker = permission_checker
 
@@ -71,14 +84,53 @@ class SkillBoundaryProvider(GuardrailProvider):
         if not self._permission_checker:
             return GuardrailDecision(allow=True)
 
+        return asyncio.run(self._evaluate_skills(request, self._invoke_async))
+
+    async def aevaluate(self, request: GuardrailRequest) -> GuardrailDecision:
+        if not self._permission_checker:
+            return GuardrailDecision(allow=True)
+
+        return await self._evaluate_skills(request, self._invoke_async)
+
+    async def _invoke_async(
+        self, skill_id: str, permission_type: str, critical_input: str
+    ) -> tuple[bool, str]:
+        """Resolve the permission checker result, awaiting async checkers.
+
+        Sync checkers (e.g. ``asyncio.run`` wrappers) are invoked directly and
+        must not be called from a running event loop; the async tool path always
+        routes through :meth:`aevaluate` which awaits async checkers.
+        """
+        checker = self._permission_checker
+        if checker is None:
+            return True, ""
+        result = checker(skill_id, permission_type, critical_input)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    def _resolve_loaded_skills(self) -> list[SkillMetadata]:
+        """Return skills loaded in the current session (empty on failure → allow)."""
         try:
             from myrm_agent_harness.agent.skill_agent.context import get_loaded_skills
 
-            loaded_skills = get_loaded_skills()
+            return get_loaded_skills()
         except Exception as e:
             logger.warning("Failed to get loaded skills: %s", e)
-            return GuardrailDecision(allow=True)
+            return []
 
+    async def _evaluate_skills(
+        self,
+        request: GuardrailRequest,
+        invoke: Callable[[str, str, str], Awaitable[tuple[bool, str]]],
+    ) -> GuardrailDecision:
+        """Enforce permission boundaries across loaded skills.
+
+        A tool call is allowed when any loaded skill has been granted the
+        inferred permission type for the target operation, or when no skill is
+        loaded / the tool has no permission mapping.
+        """
+        loaded_skills = self._resolve_loaded_skills()
         if not loaded_skills:
             return GuardrailDecision(allow=True)
 
@@ -92,9 +144,7 @@ class SkillBoundaryProvider(GuardrailProvider):
 
         for skill in loaded_skills:
             skill_id = skill.storage_skill_id or skill.name
-            allowed, _reason = self._permission_checker(
-                skill_id, permission_type, critical_input
-            )
+            allowed, _reason = await invoke(skill_id, permission_type, critical_input)
             if allowed:
                 return GuardrailDecision(allow=True)
 
@@ -108,6 +158,3 @@ class SkillBoundaryProvider(GuardrailProvider):
                 )
             ],
         )
-
-    async def aevaluate(self, request: GuardrailRequest) -> GuardrailDecision:
-        return self.evaluate(request)

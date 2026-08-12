@@ -566,3 +566,100 @@ def test_flatten_deep_schema_empty_result():
     result, meta = flatten_deep_schema(schema, depth_threshold=0, leaf_threshold=0)
     assert meta.was_flattened is False
     assert result == schema
+
+
+def test_flatten_json_schema_deep_nesting_survives_ref_depth_bound():
+    """Ordinary nesting must not consume the $ref chain depth budget.
+
+    The depth bound guards circular ``$ref`` recursion; deeply nested but
+    acyclic schemas must survive so ``flatten_deep_schema`` can later
+    flatten them to dot-path notation. Regression for the 5-level truncation.
+    """
+    schema = {"type": "object"}
+    cur = schema
+    for i in range(15):
+        cur["properties"] = {f"p{i}": {"type": "object"}}
+        cur = cur["properties"][f"p{i}"]
+    cur["properties"] = {"leaf": {"type": "string"}}
+
+    flattened = flatten_json_schema(schema, max_depth=10)
+    leaves, depth = analyze_schema_complexity(flattened)
+    assert leaves == 1
+    assert depth == 16
+    assert "leaf" in str(flattened)
+
+    # And the downstream dot-path flattening still works on the survivor.
+    result, meta = flatten_deep_schema(flattened)
+    assert meta.was_flattened is True
+    key = ".".join(f"p{i}" for i in range(15)) + ".leaf"
+    assert key in result["properties"]
+
+
+def test_flatten_json_schema_missing_ref_degrades():
+    """An unresolvable local $ref degrades instead of leaking the raw pointer."""
+    schema = {
+        "type": "object",
+        "properties": {
+            "x": {"$ref": "#/$defs/Missing", "description": "external thing"},
+            "y": {"type": "string"},
+        },
+    }
+    flattened = flatten_json_schema(schema)
+    assert "$ref" not in str(flattened)
+    x = flattened["properties"]["x"]
+    assert x["type"] == "object"
+    assert x.get("additionalProperties") is True
+    assert x.get("description") == "external thing"
+
+
+def test_flatten_json_schema_external_url_ref_degrades():
+    """An external URL $ref can never be resolved locally — degrade it."""
+    schema = {
+        "type": "object",
+        "properties": {"z": {"$ref": "https://example.com/schema.json#/X"}},
+    }
+    flattened = flatten_json_schema(schema)
+    assert "$ref" not in str(flattened)
+    assert flattened["properties"]["z"]["type"] == "object"
+
+
+def test_flatten_json_schema_missing_ref_scalar_type_kept():
+    """A missing $ref with a declared scalar type keeps that type."""
+    schema = {
+        "type": "object",
+        "properties": {"n": {"$ref": "#/$defs/Missing", "type": "integer"}},
+    }
+    flattened = flatten_json_schema(schema)
+    assert "$ref" not in str(flattened)
+    assert flattened["properties"]["n"] == {"type": "integer"}
+
+
+def test_flatten_json_schema_circular_ref_still_bounded():
+    """Circular $ref chains still stop at the depth bound (no RecursionError)."""
+    schema = {
+        "type": "object",
+        "properties": {"next": {"$ref": "#/$defs/Node"}},
+        "$defs": {
+            "Node": {
+                "type": "object",
+                "properties": {"next": {"$ref": "#/$defs/Node"}},
+            }
+        },
+    }
+    flattened = flatten_json_schema(schema, max_depth=3)
+    assert "$ref" not in str(flattened)
+    assert flattened["properties"]["next"]["type"] == "object"
+
+
+def test_flatten_json_schema_valid_ref_still_resolves():
+    """Resolvable $refs keep working after the degradation fallback."""
+    schema = {
+        "type": "object",
+        "properties": {"addr": {"$ref": "#/$defs/Addr"}},
+        "$defs": {
+            "Addr": {"type": "object", "properties": {"street": {"type": "string"}}}
+        },
+    }
+    flattened = flatten_json_schema(schema)
+    assert "$ref" not in str(flattened)
+    assert "street" in str(flattened)

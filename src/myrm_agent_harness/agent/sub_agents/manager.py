@@ -91,6 +91,36 @@ ACTIVE_SUBAGENTS: weakref.WeakValueDictionary[str, SubagentManager] = weakref.We
 # Strong map task_id -> spawn session_id so REST list works after parent stream ends.
 ACTIVE_SUBAGENT_SESSIONS: dict[str, str] = {}
 
+# Strongly-referenced completed subagent results, keyed by task_id:
+#   task_id -> (session_id, completed_at, row_dict)
+# ACTIVE_SUBAGENTS is a WeakValueDictionary and its entries are popped in
+# _cleanup_child, so once the parent gateway session ends (server clears
+# _session_info) finished history would otherwise vanish from REST/SSE lists.
+# This registry retains terminal results for a TTL so the dashboard can still
+# render completed/failed/cancelled nodes after the parent stream closes.
+COMPLETED_SUBAGENT_RESULTS: dict[str, tuple[str, float, dict[str, object]]] = {}
+_COMPLETED_RESULT_TTL_SECONDS = 3600.0
+_COMPLETED_RESULTS_MAX_ENTRIES = 1000
+
+
+def _prune_completed_results(now: float | None = None) -> None:
+    """Evict expired or overflowed completed-result entries (FIFO by completed_at)."""
+    current = time.time() if now is None else now
+    expired = [
+        task_id
+        for task_id, (_, completed_at, _) in COMPLETED_SUBAGENT_RESULTS.items()
+        if current - completed_at > _COMPLETED_RESULT_TTL_SECONDS
+    ]
+    for task_id in expired:
+        del COMPLETED_SUBAGENT_RESULTS[task_id]
+    overflow = len(COMPLETED_SUBAGENT_RESULTS) - _COMPLETED_RESULTS_MAX_ENTRIES
+    if overflow > 0:
+        oldest = sorted(
+            COMPLETED_SUBAGENT_RESULTS.items(), key=lambda item: item[1][1]
+        )[:overflow]
+        for task_id, _ in oldest:
+            del COMPLETED_SUBAGENT_RESULTS[task_id]
+
 
 def _emit_global_subagent_event(event_name: str, task_id: str, session_id: str, data: SubagentLifecycleData) -> None:
     try:
@@ -425,11 +455,27 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
 
         if not internal:
             self._children_results[task_id] = result
+        # spawn 时已把 session_id 写入 ACTIVE_SUBAGENT_SESSIONS（_manager_spawn），
+        # 它是父 agent 流结束后匹配 REST chat 会话的 SSOT；cleanup 时读取它，
+        # 以便把终态结果登记进强引用注册表供后续查询。
+        session_id = ACTIVE_SUBAGENT_SESSIONS.get(task_id, "")
         self._children.pop(task_id, None)
         self._children_steering.pop(task_id, None)
         ACTIVE_SUBAGENTS.pop(task_id, None)  # Remove from global registry
         ACTIVE_SUBAGENT_SESSIONS.pop(task_id, None)
         self._purge_expired_results()
+
+        # 父 agent 消息流结束后 gateway._session_info 会被清除，此时 REST/SSE
+        # 只能依赖全局注册表。ACTIVE_SUBAGENTS 是弱引用且已 pop，若 manager 被
+        # GC，已完成结果将彻底丢失。这里用强引用注册表保留终态结果，供
+        # session_tree / server list_subagents 在父流结束后仍可查询到。
+        if not internal and session_id:
+            COMPLETED_SUBAGENT_RESULTS[task_id] = (
+                session_id,
+                result.completed_at or now,
+                {**result.to_dict(), **self._child_observability_metadata(task_id)},
+            )
+            _prune_completed_results(now)
 
         # Cleanup file conflict tracking data for completed subagent
         try:

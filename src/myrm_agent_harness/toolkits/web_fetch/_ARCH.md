@@ -20,14 +20,12 @@ Layered single-page web fetch engine with L1 HTTP / L2 Browser / L3 Stealth fall
 | content_pruning.py | Util | Content pruning and noise removal. | ✅ |
 | antibot_detector.py | Util | Anti-bot detection heuristics. | ✅ |
 | binary_router.py | Util | Binary content type routing. | ✅ |
-| youtube_extractor.py | Util | YouTube transcript fast-path via `[web]` optional `youtube-transcript-api` + oEmbed metadata (title/author); HTML fallback when missing. | ✅ |
-| bilibili_extractor.py | Util | Bilibili subtitle fast-path via public API + SessionVault cookie for AI subtitles; Browser fallback when unavailable. | ✅ |
-| weixin_extractor.py | Util | WeChat Official Account article fast-path via MicroMessenger UA + `#js_content` extraction (host `/s` URLs, data-src images, publish_time metadata); Browser fallback when blocked. | ✅ |
 | http3_probe.py | Util | HTTP/3 protocol probe. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
 | engine/ | FetchEngine 执行引擎子包（base + cache/fetch/escalation mixin + types）。 |
+| extractors/ | 三方内容提取 fast-path（WeChat / Bilibili / YouTube）。See `extractors/_ARCH.md`. |
 | fetchers/ | L1/L2/L3 fetcher implementations (HTTP, Browser, Stealth). |
 | router/ | AdaptiveRouter — self-learning fetcher selection with cost/latency optimization. |
 | escalation/ | L4 remote fetch hook — Protocol, ContextVar binding, metrics; vendors in server layer. |

@@ -51,7 +51,7 @@ def split_for_embedding(text: str, policy: EmbedWindowPolicy) -> list[str]:
         chunks = _split_by_character_budget(stripped, policy.effective_chunk_budget)
     else:
         chunks = _split_by_token_budget(stripped, policy.effective_chunk_budget)
-    return [part for part in chunks if part.strip()]
+    return [part.strip() for part in chunks if part.strip()]
 
 
 def _split_by_token_budget(text: str, max_tokens: int) -> list[str]:

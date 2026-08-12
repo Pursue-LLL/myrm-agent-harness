@@ -2,6 +2,19 @@
 
 Defines the diagnostic result data model (``CheckStatus`` / ``DoctorCheckResult`` /
 ``DoctorReport``) and the colored CLI renderer for doctor output.
+
+[INPUT]
+- CheckStatus/DoctorCheckResult/DoctorReport produced by .checks and .orphans
+
+[OUTPUT]
+- CheckStatus: status enum (ok/warning/error/missing)
+- DoctorCheckResult: single check result (name/status/message/fix/details)
+- DoctorReport: aggregated report (checks/summary/overall_healthy/recommendations)
+- format_report: colored CLI rendering
+
+[POS]
+Doctor data models and CLI presentation. Kept framework-agnostic so both the
+harness CLI and server health endpoints can consume the same report contract.
 """
 
 from __future__ import annotations

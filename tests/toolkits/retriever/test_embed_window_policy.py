@@ -98,8 +98,7 @@ class TestCjkWordpieceBudget:
     def test_bge_m3_large_window_uses_standard_margin(self) -> None:
         # bge-m3 (XLM-R 250k) has measured char/token < 1 across zh/ja/ko/en, so its
         # character-count budget can use the standard 0.9 margin (7372 chars) without
-        # risking window overflow. Previously it was pinned to the 0.5 margin, which
-        # wasted roughly half the provider window.
+        # risking window overflow.
         policy = EmbedWindowPolicy.for_model("BAAI/bge-m3")
         assert policy.max_input_tokens == 8192
         assert policy.effective_chunk_budget == int(8192 * 0.9)
@@ -134,6 +133,9 @@ class TestSplitForEmbedding:
         assert chunks == [text]
 
     def test_long_text_multiple_chunks(self) -> None:
+        # bge-large-zh is a wordpiece model whose budget is a character count, so
+        # each chunk must stay within the character budget (o200k tokens would be
+        # the wrong unit for this model).
         policy = EmbedWindowPolicy.for_model("BAAI/bge-large-zh-v1.5")
         paragraphs = [
             "## Section {}\n\n{}".format(
@@ -146,13 +148,13 @@ class TestSplitForEmbedding:
         chunks = split_for_embedding(text, policy)
         assert len(chunks) >= 2
         for chunk in chunks:
-            assert get_token_count(chunk) <= policy.effective_chunk_budget
+            assert len(chunk) <= policy.effective_chunk_budget
 
     def test_korean_text_chunks_stay_inside_wordpiece_window(self) -> None:
         # Korean text chunked for bge-large-zh-v1.5 must never exceed the 512-token
         # provider window. The character-count budget caps chunks at 256 chars; even
         # the worst-case Hangul density for this model (~1.86 tokens/char) stays
-        # below 512, while o200k-based chunking previously allowed ~2x that.
+        # below 512.
         policy = EmbedWindowPolicy.for_model("BAAI/bge-large-zh-v1.5")
         text = "안녕하세요 반갑습니다. 한국어 문서를 청크로 나누는 테스트입니다. " * 60
         chunks = split_for_embedding(text, policy)

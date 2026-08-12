@@ -2,6 +2,24 @@
 
 Validates dependencies, configuration, environment, and browser launchability
 before actual operations, providing clear fix suggestions for each failure.
+
+[INPUT]
+- patchright (optional extra [browser]) / camoufox (stealth ladder fallback)
+- psutil (memory/disk checks)
+- ..utils::is_timeout_error (POS: builtin/patchright timeout detection)
+- infra/tls_compat::create_httpx_client (POS: unified async HTTP client, used by the extension relay probe)
+- .orphans::check_orphan_processes (POS: orphan process doctor check)
+- .report::CheckStatus/DoctorCheckResult/DoctorReport (POS: doctor data models)
+
+[OUTPUT]
+- run_doctor: pre-flight browser diagnostics orchestrator (synchronous quick checks + concurrent I/O-bound checks)
+- _check_patchright/_check_camoufox/_check_memory/_check_disk/_check_proxy/_check_browser_launch/_check_extension_relay: individual checks
+
+[POS]
+Doctor core checks. Quick synchronous checks run first; I/O-bound checks
+(extension relay, browser launch, orphan scan) run concurrently via
+asyncio.gather with the psutil walk offloaded to a worker thread, then results
+are merged back into the ordered report.
 """
 
 from __future__ import annotations
@@ -10,7 +28,6 @@ import asyncio
 import logging
 import os
 from collections.abc import Awaitable, Callable
-from pathlib import Path
 from typing import Any
 
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
@@ -62,57 +79,6 @@ def _check_camoufox() -> DoctorCheckResult:
             message="camoufox not installed (stealth auto-upgrade unavailable)",
             fix="uv add 'camoufox>=0.4.11' or pip install 'myrm-agent-harness[browser]'",
         )
-
-
-def _check_browser_executable(executable_path_str: str = "") -> DoctorCheckResult:
-    """Check if browser executable exists and is executable."""
-    executable_path_str = executable_path_str.strip()
-
-    if not executable_path_str:
-        return DoctorCheckResult(
-            name="browser_executable",
-            status=CheckStatus.OK,
-            message="Using patchright bundled browser (default)",
-            details={"source": "bundled"},
-        )
-
-    executable_path = Path(executable_path_str).expanduser()
-
-    try:
-        path_exists = executable_path.exists()
-        path_executable = os.access(executable_path, os.X_OK)
-    except Exception as exc:
-        return DoctorCheckResult(
-            name="browser_executable",
-            status=CheckStatus.WARNING,
-            message=f"Cannot check browser executable: {exc}",
-            details={"path": str(executable_path)},
-        )
-
-    if not path_exists:
-        return DoctorCheckResult(
-            name="browser_executable",
-            status=CheckStatus.ERROR,
-            message=f"Browser executable not found: {executable_path}",
-            fix=f"Remove invalid BROWSER_EXECUTABLE_PATH or install browser at {executable_path}",
-            details={"path": str(executable_path), "exists": False},
-        )
-
-    if not path_executable:
-        return DoctorCheckResult(
-            name="browser_executable",
-            status=CheckStatus.ERROR,
-            message=f"Browser executable not executable: {executable_path}",
-            fix=f"chmod +x {executable_path}",
-            details={"path": str(executable_path), "executable": False},
-        )
-
-    return DoctorCheckResult(
-        name="browser_executable",
-        status=CheckStatus.OK,
-        message=f"Browser executable: {executable_path}",
-        details={"path": str(executable_path), "source": "custom"},
-    )
 
 
 def _check_memory() -> DoctorCheckResult:
@@ -303,7 +269,7 @@ async def _check_browser_launch(
             return DoctorCheckResult(
                 name="browser_launch",
                 status=CheckStatus.ERROR,
-                message=f"Browser launch timeout: {exc}",
+                message=f"Browser launch timed out after {_LAUNCH_TIMEOUT_S:.0f}s",
                 fix="Check system resources or network connectivity",
             )
 
@@ -314,7 +280,7 @@ async def _check_browser_launch(
                 name="browser_launch",
                 status=CheckStatus.ERROR,
                 message=f"Browser executable not found: {exc}",
-                fix="Run 'patchright install chromium' or check BROWSER_EXECUTABLE_PATH",
+                fix="Run 'patchright install chromium' to install the bundled browser",
             )
 
         if "permission denied" in error_msg:
@@ -388,6 +354,14 @@ async def _check_extension_relay() -> DoctorCheckResult:
             fix="Check server logs and extension connection settings",
         )
 
+    if not isinstance(payload, dict):
+        return DoctorCheckResult(
+            name="extension_relay",
+            status=CheckStatus.WARNING,
+            message="Extension relay returned an unexpected response format",
+            fix="Check server logs and extension connection settings",
+        )
+
     if payload.get("relay_cdp_ready") is True and payload.get("access_policy_valid") is True:
         return DoctorCheckResult(
             name="extension_relay",
@@ -424,7 +398,6 @@ async def run_doctor(
     include_launch_test: bool = True,
     include_orphan_check: bool = True,
     launch_options: dict[str, object] | None = None,
-    browser_executable_path: str = "",
     browser_proxy: str = "",
 ) -> DoctorReport:
     """Run comprehensive browser diagnostics.
@@ -433,8 +406,7 @@ async def run_doctor(
         include_launch_test: Whether to test actual browser launch
         include_orphan_check: Whether to check for orphan processes
         launch_options: Optional custom launch options for launch test
-        browser_executable_path: Custom browser executable path to check
-        browser_proxy: Proxy URL to validate
+        browser_proxy: Comma-separated proxy URLs to report in the proxy check
 
     Returns:
         DoctorReport with all check results and recommendations
@@ -443,7 +415,6 @@ async def run_doctor(
 
     checks["patchright"] = _check_patchright()
     checks["camoufox"] = _check_camoufox()
-    checks["browser_executable"] = _check_browser_executable(browser_executable_path)
     checks["memory"] = _check_memory()
     checks["disk"] = _check_disk()
     checks["proxy"] = _check_proxy(browser_proxy)

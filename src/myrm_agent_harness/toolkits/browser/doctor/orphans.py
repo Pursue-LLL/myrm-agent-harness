@@ -3,6 +3,20 @@
 Precisely detects orphan patchright/playwright chromium and driver processes
 (matches framework cache paths) and safely cleans them up (dry-run by default,
 ``force=True`` required to kill).
+
+[INPUT]
+- psutil (optional, process iteration)
+- .report::DoctorCheckResult/CheckStatus (POS: doctor data models)
+
+[OUTPUT]
+- find_orphan_chromium_processes / find_orphan_driver_processes / find_orphan_automation_processes: orphan process detection
+- cleanup_orphan_processes: safe cleanup (dry-run by default)
+- check_orphan_processes: doctor check result for the orphan scan
+
+[POS]
+Orphan process detection and cleanup. The psutil process-table walk is
+synchronous and offloaded via asyncio.to_thread by callers (doctor orchestrator,
+server health endpoints) so it never blocks an event loop.
 """
 
 from __future__ import annotations

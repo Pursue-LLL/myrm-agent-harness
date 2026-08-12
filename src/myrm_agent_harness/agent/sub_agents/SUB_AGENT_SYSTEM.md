@@ -500,9 +500,10 @@ config = SubagentConfig(
 **核心机制**（Harness `session_tree.py`，Server 薄封装于 `subagents.py` 与 `harness_bridge.py`）：
 1. spawn 写入 `ACTIVE_SUBAGENTS` + `ACTIVE_SUBAGENT_SESSIONS`（`_manager_spawn.py`）
 2. **list / SSE**：`merge_active_subagent_children(session_id, gateway_children)` 合并 gateway `list_children` 与 registry 行
-3. **cancel-all**：当前 gateway agent 的 `cancel_all_children()` **加上** `cancel_active_children_for_session(session_id)`（每消息新建 agent 时 orphan manager 仍可达）
-4. **cancel / steer 单任务**：直接查 `ACTIVE_SUBAGENTS[task_id]`（无需 gateway）
-5. **resume**：仍需 active gateway parent agent（需 `subagent_manager.resume_from_checkpoint`）
+3. **已完成结果保留**：`_cleanup_child` 把非 internal 终态结果（completed/failed/cancelled）写入强引用注册表 `COMPLETED_SUBAGENT_RESULTS`（TTL 1h / 上限 1000 条 FIFO）。`ACTIVE_SUBAGENTS` 是弱引用且 cleanup 时即 pop，若父 gateway 流已结束（`_session_info` 清除）且 manager 被 GC，仅靠 ACTIVE_SUBAGENTS 会丢失已完成子 agent 历史；强引用注册表保证 REST/SSE 列表在父流结束后仍能渲染 completed/failed/cancelled 节点。
+4. **cancel-all**：当前 gateway agent 的 `cancel_all_children()` **加上** `cancel_active_children_for_session(session_id)`（每消息新建 agent 时 orphan manager 仍可达）
+5. **cancel / steer 单任务**：直接查 `ACTIVE_SUBAGENTS[task_id]`（无需 gateway；已完成任务已移出，返回 404 属预期）
+6. **resume**：仍需 active gateway parent agent（需 `subagent_manager.resume_from_checkpoint`）
 
 **与 OpenClaw 对齐点**：类似 `subagent-registry` + `killSubagentRunAdmin`——registry 独立于 parent turn 生命周期。
 

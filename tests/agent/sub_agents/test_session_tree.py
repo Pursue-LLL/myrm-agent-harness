@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 from myrm_agent_harness.agent.sub_agents.manager import (
     ACTIVE_SUBAGENT_SESSIONS,
     ACTIVE_SUBAGENTS,
+    COMPLETED_SUBAGENT_RESULTS,
     SubagentManager,
 )
 from myrm_agent_harness.agent.sub_agents.session_tree import (
@@ -148,6 +149,75 @@ def test_list_active_children_from_registry_matches_double_chat_prefix() -> None
     finally:
         ACTIVE_SUBAGENTS.pop("task-double", None)
         ACTIVE_SUBAGENT_SESSIONS.pop("task-double", None)
+
+
+def test_list_active_children_from_registry_merges_completed_results() -> None:
+    """Completed results survive via the strong registry after the parent gateway
+    session ends (ACTIVE_SUBAGENTS is weak and popped on cleanup)."""
+    chat_uuid = "completed-123"
+    session_id = f"chat_{chat_uuid}"
+    COMPLETED_SUBAGENT_RESULTS["task-done"] = (
+        session_id,
+        1000.0,
+        {"task_id": "task-done", "status": "completed", "agent_type": "bash_worker"},
+    )
+    try:
+        rows = list_active_children_from_registry(chat_uuid)
+        assert len(rows) == 1
+        assert rows[0]["task_id"] == "task-done"
+        assert rows[0]["status"] == "completed"
+    finally:
+        COMPLETED_SUBAGENT_RESULTS.pop("task-done", None)
+
+
+def test_list_active_children_from_registry_completed_other_session_ignored() -> None:
+    chat_uuid = "completed-456"
+    session_id = f"chat_{chat_uuid}"
+    COMPLETED_SUBAGENT_RESULTS["task-other"] = (
+        "chat_other-session",
+        1000.0,
+        {"task_id": "task-other", "status": "failed", "agent_type": "researcher"},
+    )
+    try:
+        rows = list_active_children_from_registry(chat_uuid)
+        assert rows == []
+    finally:
+        COMPLETED_SUBAGENT_RESULTS.pop("task-other", None)
+
+
+def test_list_active_children_from_registry_completed_after_gateway_gone() -> None:
+    """Simulates the E2E failure: parent stream ended (no gateway, no ACTIVE_SUBAGENTS),
+    but a short-lived subagent already completed and was retained in the registry."""
+    chat_uuid = "no-gateway-789"
+    session_id = f"chat_{chat_uuid}"
+    COMPLETED_SUBAGENT_RESULTS["task-short"] = (
+        session_id,
+        2000.0,
+        {"task_id": "task-short", "status": "completed", "agent_type": "bash_worker"},
+    )
+    try:
+        rows = merge_active_subagent_children(session_id, [])
+        assert len(rows) == 1
+        assert rows[0]["task_id"] == "task-short"
+        assert rows[0]["status"] == "completed"
+    finally:
+        COMPLETED_SUBAGENT_RESULTS.pop("task-short", None)
+
+
+def test_merge_active_subagent_children_completed_does_not_clobber_gateway() -> None:
+    session_id = "chat-clobber"
+    gateway_rows = [{"task_id": "live", "status": "running", "progress": 10}]
+    COMPLETED_SUBAGENT_RESULTS["live"] = (
+        session_id,
+        1000.0,
+        {"task_id": "live", "status": "completed", "agent_type": "bash_worker"},
+    )
+    try:
+        merged = merge_active_subagent_children(session_id, gateway_rows)
+        assert len(merged) == 1
+        assert merged[0]["status"] == "running"
+    finally:
+        COMPLETED_SUBAGENT_RESULTS.pop("live", None)
 
 
 def test_cancel_active_children_for_session_cancels_matching_managers() -> None:

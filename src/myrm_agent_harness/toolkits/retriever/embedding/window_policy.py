@@ -158,11 +158,14 @@ def is_cjk_wordpiece_model(model: str | None) -> bool:
 def estimate_wordpiece_tokens(text: str) -> int:
     """Conservative wordpiece token estimate for BERT/XLM embedding models.
 
-    These tokenizers count one CJK char (Han, Hiragana, Katakana, Hangul and the
-    CJK extension/compatibility blocks) as one token, and latin/other scripts at
-    roughly 4 chars per token (rounded up). The estimate is an upper bound (>= real
-    tokens) for natural-language text, so it is safe for fail-loud window validation
-    where o200k undercounts CJK input.
+    These tokenizers count one in-vocabulary CJK char (Han, Hiragana, Katakana,
+    Hangul and the CJK extension/compatibility blocks) as one token, and latin/other
+    scripts at roughly 4 chars per token (rounded up). The estimate is an upper bound
+    (>= real tokens) for in-vocabulary text, so it is safe for fail-loud window
+    validation where o200k undercounts CJK input. Out-of-vocabulary scripts (e.g.
+    Hangul on a Chinese BERT such as bge-large-zh, measured ~1.86 tokens/char) can
+    exceed 1 token per char; that headroom is absorbed by the conservative
+    character-count chunk budget (0.5 margin), not by this estimate.
     """
     if not text:
         return 0

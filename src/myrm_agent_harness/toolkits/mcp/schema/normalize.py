@@ -102,7 +102,10 @@ def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str
 
     Args:
         schema: The original JSON schema dictionary.
-        max_depth: Maximum recursion depth to prevent infinite loops.
+        max_depth: Maximum ``$ref`` reference-chain depth.  Guards against
+            circular ``$ref`` definitions recursing forever; ordinary nested
+            objects/arrays do not consume this budget, so deeply nested but
+            acyclic schemas survive for ``flatten_deep_schema``.
 
     Returns:
         A new flattened schema dictionary.
@@ -112,13 +115,7 @@ def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str
 
     definitions = schema.get("definitions", {}) or schema.get("$defs", {})
 
-    def resolve(node: Any, depth: int) -> Any:
-        if depth > max_depth and isinstance(node, (dict, list)):
-            # Deeply nested beyond the safety bound — degrade to a permissive
-            # schema instead of dropping the node (a bare `{}` would silently
-            # lose every descendant parameter).
-            return {"type": "object", "additionalProperties": True}
-
+    def resolve(node: Any, ref_depth: int) -> Any:
         if isinstance(node, dict):
             if "$ref" in node:
                 ref_path = node["$ref"]
@@ -131,21 +128,29 @@ def flatten_json_schema(schema: dict[str, Any], max_depth: int = 10) -> dict[str
                 ):
                     def_name = parts[2]
                     if def_name in definitions:
+                        if ref_depth > max_depth:
+                            # Reference chain deeper than the safety bound
+                            # (likely a circular $ref) — degrade instead of
+                            # recursing forever.
+                            return _degrade_unresolved_ref(node)
                         # Recursively resolve the definition
-                        resolved_node = resolve(definitions[def_name], depth + 1)
+                        resolved_node = resolve(definitions[def_name], ref_depth + 1)
                         # Merge any other keys from the node (like description overrides)
                         merged = {**resolved_node}
                         for k, v in node.items():
                             if k != "$ref":
-                                merged[k] = resolve(v, depth + 1)
+                                merged[k] = resolve(v, ref_depth + 1)
                         return merged
                 # Unresolvable ref (missing definition or external URL): degrade
                 # instead of leaking the raw pointer — strict providers reject
                 # a bare `$ref` with 400, disabling the whole tool.
                 return _degrade_unresolved_ref(node)
-            return {k: resolve(v, depth + 1) for k, v in node.items()}
+            # Ordinary nesting does not consume the reference-chain depth — the
+            # bound exists only to stop circular $ref recursion, so deeply
+            # nested (but acyclic) schemas survive for `flatten_deep_schema`.
+            return {k: resolve(v, ref_depth) for k, v in node.items()}
         elif isinstance(node, list):
-            return [resolve(item, depth + 1) for item in node]
+            return [resolve(item, ref_depth) for item in node]
         else:
             return node
 

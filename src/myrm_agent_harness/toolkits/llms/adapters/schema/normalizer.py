@@ -136,12 +136,11 @@ def _inline_refs(
     cannot be resolved (missing definition, external URL, or depth limit) is
     degraded to a permissive schema instead of leaking the raw pointer —
     strict providers reject a bare ``$ref`` with 400, disabling the whole tool.
-    """
-    if depth > _MAX_INLINE_REF_DEPTH:
-        if isinstance(node, dict) and "$ref" in node:
-            return _degrade_unresolved_ref(node)
-        return node
 
+    ``depth`` counts the ``$ref`` reference-chain length only: ordinary nested
+    objects/arrays do not consume the budget, so deeply nested but acyclic
+    schemas are never truncated and a circular ``$ref`` chain is bounded.
+    """
     if isinstance(node, dict):
         ref = node.get("$ref")
         if isinstance(ref, str):
@@ -149,6 +148,10 @@ def _inline_refs(
                 if ref.startswith(prefix):
                     def_name = ref[len(prefix) :]
                     if def_name in defs:
+                        if depth > _MAX_INLINE_REF_DEPTH:
+                            # Reference chain deeper than the safety bound
+                            # (likely a circular $ref) — degrade this node.
+                            return _degrade_unresolved_ref(node)
                         resolved = copy.deepcopy(defs[def_name])
                         resolved = _inline_refs(resolved, defs, depth + 1)
                         if isinstance(resolved, dict):
@@ -162,10 +165,10 @@ def _inline_refs(
             # resolved here — degrade instead of sending it to the LLM.
             return _degrade_unresolved_ref(node)
 
-        return {k: _inline_refs(v, defs, depth + 1) for k, v in node.items()}
+        return {k: _inline_refs(v, defs, depth) for k, v in node.items()}
 
     if isinstance(node, list):
-        return [_inline_refs(item, defs, depth + 1) for item in node]
+        return [_inline_refs(item, defs, depth) for item in node]
 
     return node
 

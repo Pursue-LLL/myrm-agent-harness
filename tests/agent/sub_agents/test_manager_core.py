@@ -590,6 +590,69 @@ class TestCleanupChild:
 
         assert mgr._children_results["t1"].completed_at > 0
 
+    def test_cleanup_completed_retains_global_registry(self):
+        """Completed non-internal subagents are retained in the strong global
+        registry so REST lists survive after the parent gateway session ends."""
+        from myrm_agent_harness.agent.sub_agents.manager import (
+            ACTIVE_SUBAGENT_SESSIONS,
+            COMPLETED_SUBAGENT_RESULTS,
+        )
+
+        mgr = _make_manager()
+        result = _ok("t1")
+        result.completed_at = time.time() - 5.0
+
+        task = MagicMock()
+        task.cancelled.return_value = False
+        task.result.return_value = result
+
+        mgr._children["t1"] = task
+        mgr._children_types["t1"] = "worker"
+        mgr._children_observability["t1"] = {"role": "leaf", "budget": {}}
+        ACTIVE_SUBAGENT_SESSIONS["t1"] = "chat_retain-1"
+
+        try:
+            with patch("myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"):
+                mgr._cleanup_child("t1", task)
+            entry = COMPLETED_SUBAGENT_RESULTS.get("t1")
+            assert entry is not None
+            session_id, completed_at, row = entry
+            assert session_id == "chat_retain-1"
+            assert completed_at > 0
+            assert row["status"] == "completed"
+            assert row["role"] == "leaf"
+        finally:
+            COMPLETED_SUBAGENT_RESULTS.pop("t1", None)
+            ACTIVE_SUBAGENT_SESSIONS.pop("t1", None)
+
+    def test_cleanup_internal_not_retained_globally(self):
+        """Internal (framework-only) subagents must not leak into the global registry."""
+        from myrm_agent_harness.agent.sub_agents.manager import (
+            ACTIVE_SUBAGENT_SESSIONS,
+            COMPLETED_SUBAGENT_RESULTS,
+        )
+
+        mgr = _make_manager()
+        result = _ok("t1")
+        result.internal = True
+
+        task = MagicMock()
+        task.cancelled.return_value = False
+        task.result.return_value = result
+
+        mgr._children["t1"] = task
+        mgr._children_types["t1"] = "worker"
+        mgr._children_internal["t1"] = True
+        ACTIVE_SUBAGENT_SESSIONS["t1"] = "chat_internal-1"
+
+        try:
+            with patch("myrm_agent_harness.agent.sub_agents.manager._emit_global_subagent_event"):
+                mgr._cleanup_child("t1", task)
+            assert "t1" not in COMPLETED_SUBAGENT_RESULTS
+        finally:
+            COMPLETED_SUBAGENT_RESULTS.pop("t1", None)
+            ACTIVE_SUBAGENT_SESSIONS.pop("t1", None)
+
 
 class TestObservabilityMetadata:
     """Tests for _build_observability_metadata and _child_observability_metadata."""

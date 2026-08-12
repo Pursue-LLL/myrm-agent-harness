@@ -1938,3 +1938,80 @@ class TestOrphanRequiredPruning:
             normalize_tool_schema(schema, model_name="claude-sonnet-4-20250514")
         )
         assert result["required"] == ["name"]
+
+    def test_missing_local_ref_degrades(self) -> None:
+        """An unresolvable local $ref degrades instead of leaking raw pointer."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {
+                    "x": {"$ref": "#/$defs/Missing", "description": "external"},
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert "$ref" not in str(result)
+        x = result["properties"]["x"]
+        assert x["type"] == "object"
+        assert x.get("additionalProperties") is True
+        assert x.get("description") == "external"
+
+    def test_external_url_ref_degrades(self) -> None:
+        """An external URL $ref is degraded when no local defs exist."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"z": {"$ref": "https://example.com/schema.json#/X"}},
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert "$ref" not in str(result)
+        assert result["properties"]["z"]["type"] == "object"
+
+    def test_missing_ref_scalar_type_kept(self) -> None:
+        """A missing $ref with a declared scalar type keeps that type."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"n": {"$ref": "#/$defs/Missing", "type": "integer"}},
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert "$ref" not in str(result)
+        assert result["properties"]["n"] == {"type": "integer"}
+
+    def test_deep_ref_chain_bounded(self) -> None:
+        """Circular $ref chains still stop at the depth bound."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"next": {"$ref": "#/$defs/Node"}},
+                "$defs": {
+                    "Node": {
+                        "type": "object",
+                        "properties": {"next": {"$ref": "#/$defs/Node"}},
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert "$ref" not in str(result)
+        assert result["properties"]["next"]["type"] == "object"
+
+    def test_valid_ref_still_resolves(self) -> None:
+        """Resolvable $refs keep working after the degradation fallback."""
+        schema = _wrap(
+            {
+                "type": "object",
+                "properties": {"addr": {"$ref": "#/$defs/Addr"}},
+                "$defs": {
+                    "Addr": {
+                        "type": "object",
+                        "properties": {"street": {"type": "string"}},
+                    }
+                },
+            }
+        )
+        result = _params(normalize_tool_schema(schema))
+        assert "$ref" not in str(result)
+        assert "street" in str(result)
