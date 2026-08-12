@@ -4,6 +4,7 @@
 - ProxyConfig: frozen dataclass for a single proxy server
 - ProxyPool: Protocol for proxy pool strategies
 - RoundRobinProxyPool: Default implementation with round-robin rotation and sticky sessions
+- RoundRobinProxyPool.urls: credential-free configured proxy URLs (diagnostics/health reports)
 
 [POS]
 Manages proxy rotation across Browser Pool and FetchEngine. Supports:
@@ -129,6 +130,16 @@ class RoundRobinProxyPool:
         self._sessions: dict[str, _StickyEntry] = {}
         self._quarantine: dict[ProxyConfig, float] = {}  # proxy -> expire_time
         self._failure_counts: dict[ProxyConfig, int] = {}  # proxy -> consecutive_failures
+
+    @property
+    def urls(self) -> list[str]:
+        """Configured proxy server URLs (credentials stripped).
+
+        The ``server`` field holds the credential-free scheme://host form for
+        proxies parsed via ``from_url``/``from_csv``, so these values are safe
+        to expose to diagnostics and health reports.
+        """
+        return [c.server for c in self._proxies]
 
     def get_next(self) -> ProxyConfig:
         """Get next proxy in round-robin order, skipping quarantined ones.

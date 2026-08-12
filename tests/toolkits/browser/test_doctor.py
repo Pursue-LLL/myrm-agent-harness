@@ -2,14 +2,12 @@
 
 import asyncio
 import os
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from myrm_agent_harness.toolkits.browser.doctor import (
     CheckStatus,
-    _check_browser_executable,
     _check_camoufox,
     _check_memory,
     _check_patchright,
@@ -125,56 +123,6 @@ def test_format_report_includes_extension_relay() -> None:
     assert "Start myrm-agent-server" in rendered
 
 
-def test_check_browser_executable_default() -> None:
-    """Test browser executable check with default bundled browser."""
-    with patch.dict(os.environ, {"BROWSER_EXECUTABLE_PATH": ""}, clear=False):
-        result = _check_browser_executable()
-        assert result.status == CheckStatus.OK
-        assert "bundled" in result.message
-
-
-def test_check_browser_executable_custom_exists(tmp_path: Path) -> None:
-    """Test browser executable check with valid custom path."""
-    fake_browser = tmp_path / "chromium"
-    fake_browser.write_text("#!/bin/sh\necho 'fake browser'")
-    fake_browser.chmod(0o755)
-
-    result = _check_browser_executable(str(fake_browser))
-    assert result.status == CheckStatus.OK
-    assert str(fake_browser) in result.message
-
-
-def test_check_browser_executable_not_exists() -> None:
-    """Test browser executable check with non-existent path."""
-    result = _check_browser_executable("/nonexistent/browser")
-    assert result.status == CheckStatus.ERROR
-    assert "not found" in result.message
-    assert result.fix is not None
-
-
-def test_check_browser_executable_not_executable(tmp_path: Path) -> None:
-    """Test browser executable check with non-executable file."""
-    fake_browser = tmp_path / "chromium"
-    fake_browser.write_text("not executable")
-    fake_browser.chmod(0o644)
-
-    result = _check_browser_executable(str(fake_browser))
-    assert result.status == CheckStatus.ERROR
-    assert "not executable" in result.message
-    assert "chmod +x" in result.fix
-
-
-def test_check_browser_executable_path_raises() -> None:
-    """Test browser executable check degrades to WARNING when path probing raises."""
-    with patch(
-        "pathlib.Path.exists",
-        side_effect=PermissionError(13, "Permission denied"),
-    ):
-        result = _check_browser_executable("/restricted/browser/chrome")
-    assert result.status == CheckStatus.WARNING
-    assert "Cannot check browser executable" in result.message
-
-
 def test_check_memory_psutil_missing() -> None:
     """Test memory check when psutil not installed."""
     with patch.dict("sys.modules", {"psutil": None}):
@@ -275,7 +223,6 @@ async def test_run_doctor_skip_launch() -> None:
     report = await run_doctor(include_launch_test=False, include_orphan_check=False)
 
     assert "patchright" in report.checks
-    assert "browser_executable" in report.checks
     assert "memory" in report.checks
     assert "disk" in report.checks
     assert "proxy" in report.checks
@@ -401,7 +348,8 @@ async def test_check_browser_launch_timeout_graceful() -> None:
 
     assert result.status == CheckStatus.ERROR
     assert "patchright not available" not in result.message
-    assert "timeout" in result.message.lower()
+    assert "timed out" in result.message.lower()
+    assert not result.message.endswith(":")
 
 
 def test_format_report() -> None:
@@ -527,3 +475,28 @@ async def test_check_extension_relay_ok_when_policy_valid() -> None:
         result = await _check_extension_relay()
 
     assert result.status == CheckStatus.OK
+
+
+async def test_check_extension_relay_non_dict_payload_graceful() -> None:
+    """Non-dict JSON (e.g. gateway swallowing the endpoint) must degrade, not crash."""
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        CheckStatus,
+        _check_extension_relay,
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.text = "[]"
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.get.return_value = mock_response
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.doctor.checks.create_httpx_client",
+        return_value=mock_client,
+    ):
+        result = await _check_extension_relay()
+
+    assert result.status == CheckStatus.WARNING
+    assert "unexpected response format" in result.message.lower()
+    assert result.fix is not None

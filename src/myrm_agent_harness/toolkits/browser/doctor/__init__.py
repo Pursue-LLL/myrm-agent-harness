@@ -8,12 +8,25 @@ paths) with safety mechanisms (dry-run default, force flag required for cleanup)
 This package is the public facade for the doctor subdomain; it re-exports every
 symbol from the internal ``checks``, ``orphans``, and ``report`` modules so that
 ``myrm_agent_harness.toolkits.browser.doctor`` remains a single import point.
+
+[INPUT]
+- .checks (POS: environment/dependency checks + run_doctor orchestrator)
+- .orphans (POS: orphan process detection and cleanup)
+- .report (POS: doctor data models and CLI rendering)
+
+[OUTPUT]
+- run_doctor: pre-flight diagnostics orchestrator (re-export)
+- check_orphan_processes / cleanup_orphan_processes / find_orphan_*: orphan process utilities (re-export)
+- CheckStatus / DoctorCheckResult / DoctorReport / format_report: report contract (re-export)
+
+[POS]
+Doctor subpackage public facade. Single import point aggregating checks,
+orphans, and report submodules for the harness CLI and server health endpoints.
 """
 
 from __future__ import annotations
 
 from .checks import (
-    _check_browser_executable,  # noqa: F401 — re-exported for backward-compatible imports
     _check_browser_launch,  # noqa: F401
     _check_camoufox,  # noqa: F401
     _check_disk,  # noqa: F401

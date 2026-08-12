@@ -3,7 +3,9 @@
 MCP tools use full JSON Schema, but OpenAI-compatible providers reject:
 - top-level anyOf/oneOf/allOf/enum/not
 - nullable patterns like anyOf: [{type: X}, {type: null}]
-- $ref / $defs inline definitions
+- $ref / $defs inline definitions (unresolvable refs degrade to a permissive
+  schema instead of leaking the raw pointer — strict providers 400 on a bare
+  ``$ref``)
 - missing ``type`` on property schemas (strict providers like Moonshot/Kimi)
 - ``nullable`` keyword (OpenAPI 3.0 extension, non-standard JSON Schema)
 - null/empty-string values in enum arrays on scalar types
