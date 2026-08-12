@@ -417,7 +417,7 @@ acp/
 - **Max Turns 双层安全护栏**：Layer 1 传递 CLI `--max-turns` 参数（Claude Code 原生优雅停止），Layer 2 在 delegate_tool 事件循环中统计 TOOL_START 计数并在超限时 pool.cancel()（所有后端通用兜底）
 - **稳定 Tool Schema**：`delegate_to_agent_tool` 使用固定 tool description（不含动态 agent 列表），保护 Turn1 Prompt Cache；`agent_name` 无效时错误响应列出 `available_backends`
 - **Deploy 门控（Server）**：`external_cli_deploy.is_external_cli_deploy_supported()` + profile `strip_deploy_incompatible_builtin_tools`；沙箱自动剔除 `external_cli`；BuiltinToolsPanel sandbox 硬禁用 toggle
-- **MCP 会话注入**：`RuntimePool.run_turn` → `AcpRuntime.new_session(mcp_servers=…)`（Server 默认传空 list；`RuntimeConfig.mcp_servers` 为配置源；注入前经 `capabilities.supports_mcp` 能力守卫，跳过不支持的 backends 并记录 `pool_mcp_skipped`）
+- **MCP 会话注入**：`RuntimePool.run_turn` → `AcpRuntime.new_session(mcp_servers=…)`（无 MCP 时 Server 不传参数（None）；`RuntimeConfig.mcp_servers` 为配置源；注入前经 `capabilities.supports_mcp` 能力守卫，跳过不支持的 backends 并记录 `pool_mcp_skipped`）
 - **Host 会话级 MCP 忽略诊断**：ACP Server 侧（`new_session` / `load_session` / `fork_session` / `resume_session`）若收到 host 传入的 `mcp_servers`，记录 `acp_host_mcp_ignored` WARNING —— Myrm 内部 agent 管线自行管理 MCP，host 提供的会话级 MCP 注入不被透传，显式告警避免静默丢失
 - **Spawn 误配提示**：`runtime/_spawn_hints.format_cli_spawn_failure_message` 在 bare CLI 进程失败时返回 adapter 配置指引
 - **跨平台进程组清理**：`CliRuntime` 创建进程组，cancel 时级联终止子进程，确保跨平台（Unix/Windows）无孤儿进程遗留
