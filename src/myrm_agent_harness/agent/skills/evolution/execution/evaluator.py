@@ -23,10 +23,8 @@ from langchain_core.language_models import BaseChatModel
 from pydantic import BaseModel, Field
 
 from myrm_agent_harness.agent.skills.evolution.core.types import SkillRecord
-from myrm_agent_harness.utils.chat_utils import (
-    extract_answer_text,
-    parse_llm_json_object,
-)
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 
 logger = logging.getLogger(__name__)
 

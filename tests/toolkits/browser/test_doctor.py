@@ -141,6 +141,17 @@ def test_check_browser_executable_not_executable(tmp_path: Path) -> None:
     assert "chmod +x" in result.fix
 
 
+def test_check_browser_executable_path_raises() -> None:
+    """Test browser executable check degrades to WARNING when path probing raises."""
+    with patch(
+        "pathlib.Path.exists",
+        side_effect=PermissionError(13, "Permission denied"),
+    ):
+        result = _check_browser_executable("/restricted/browser/chrome")
+    assert result.status == CheckStatus.WARNING
+    assert "Cannot check browser executable" in result.message
+
+
 def test_check_memory_psutil_missing() -> None:
     """Test memory check when psutil not installed."""
     with patch.dict("sys.modules", {"psutil": None}):
@@ -188,6 +199,17 @@ def test_check_memory_ok() -> None:
 
         result = doctor_module._check_memory()
         assert result.status == CheckStatus.OK
+
+
+def test_check_memory_psutil_raises() -> None:
+    """Test memory check degrades to WARNING when psutil raises."""
+    with patch(
+        "psutil.virtual_memory",
+        side_effect=OSError("Cannot read /proc/meminfo"),
+    ):
+        result = _check_memory()
+    assert result.status == CheckStatus.WARNING
+    assert "Cannot check memory" in result.message
 
 
 def test_check_disk_ok() -> None:

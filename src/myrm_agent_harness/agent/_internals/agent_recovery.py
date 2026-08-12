@@ -22,7 +22,7 @@ Agent recovery strategies — context overflow, LLM failover, structured error c
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 
@@ -30,6 +30,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
+    from langgraph.graph.state import CompiledStateGraph
 
     from myrm_agent_harness.agent.base_agent import BaseAgent
 
@@ -137,11 +138,14 @@ def truncate_oldest_rounds(messages: list[BaseMessage]) -> int:
 # ============================================================================
 
 
-def rebuild_agent_with_llm(agent: BaseAgent, new_llm: BaseChatModel) -> None:
+def rebuild_agent_with_llm(
+    agent: BaseAgent, new_llm: BaseChatModel
+) -> CompiledStateGraph[Any, Any, Any, Any]:
     """Rebuild agent graph with a different LLM for failover.
 
     Reuses the cached tools / middlewares / system prompt so the only
-    change is the LLM itself.
+    change is the LLM itself. Returns the newly compiled graph so the
+    caller can re-bind the active stream (StreamContext.agent) to it.
     """
     from langchain.agents import create_agent
 
@@ -170,6 +174,8 @@ def rebuild_agent_with_llm(agent: BaseAgent, new_llm: BaseChatModel) -> None:
     if agent._cached_system_prompt and needs_explicit_preheat(new_model_name):
         agent._cache_keepalive = CacheKeepAliveManager(new_llm, agent._cached_system_prompt, new_model_name)
         agent._cache_keepalive.start()
+
+    return agent._agent
 
 
 # ============================================================================

@@ -52,10 +52,8 @@ from myrm_agent_harness.toolkits.wiki.pipeline.cognitive_map import (
 from myrm_agent_harness.toolkits.wiki.pipeline.publication import (
     publish_concept_article,
 )
-from myrm_agent_harness.utils.chat_utils import (
-    extract_answer_text,
-    parse_llm_json_list,
-)
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_list
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 if TYPE_CHECKING:

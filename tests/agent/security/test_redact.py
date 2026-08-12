@@ -621,15 +621,16 @@ class TestRedactLowerEnv:
         result = redact_sensitive_text(text)
         assert "mysecretvalue12345678" not in result
 
-    def test_lower_env_skips_url(self) -> None:
-        """含 `://` 的文本跳过小写 env 正则（URL query 参数有意放行）。"""
-        text = "https://x.com/?openai_key=mysecretvalue12345678"
+    def test_lower_env_url_query_short_key(self) -> None:
+        """URL query 中的小写短名（`?openai_key=`）由 _URL_QUERY_RE 覆盖脱敏。"""
+        text = "https://x.com/?openai_key=mysecretvalue12345678&page=2"
         result = redact_sensitive_text(text)
         assert "mysecretvalue12345678" not in result
+        assert "&page=2" in result
 
 
 class TestRedactFormBody:
-    """#170 form-urlencoded body 逐对脱敏——杜绝 `\S+` 吞参与前缀泄漏。"""
+    """#170 form-urlencoded body 逐对脱敏——杜绝 `\\S+` 吞参与前缀泄漏。"""
 
     def test_form_body_token_fully_redacted(self) -> None:
         text = "token=abc&limit=50&page=2"
@@ -673,11 +674,16 @@ class TestRedactProseWordBoundary:
         text = "secretary=John Smith"
         assert redact_sensitive_text(text) == text
 
-    def test_all_caps_token_still_redacted(self) -> None:
-        """全大写 key（`MYTOKEN=`）保留旧嵌入匹配，仍然脱敏。"""
-        text = "MYTOKEN=mysecretvalue12345678"
+    def test_all_caps_underscore_token_still_redacted(self) -> None:
+        """下划线分隔的 ALL-CAPS key（`MY_TOKEN=`）词边界命中，仍然脱敏。"""
+        text = "MY_TOKEN=mysecretvalue12345678"
         result = redact_sensitive_text(text)
         assert "mysecretvalue12345678" not in result
+
+    def test_embedded_all_caps_token_not_redacted(self) -> None:
+        """`MYTOKEN=`（无分隔内嵌）词边界不命中，保持原样（对齐 Hermes）。"""
+        text = "MYTOKEN=mysecretvalue12345678"
+        assert redact_sensitive_text(text) == text
 
     def test_underscore_boundary_keyword_still_redacted(self) -> None:
         """下划线分隔的 key（`MY_ACCESS_TOKEN=`）词边界命中，仍然脱敏。"""

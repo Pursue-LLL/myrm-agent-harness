@@ -333,7 +333,9 @@ _DB_CONNSTR_RE = re.compile(
 # `.replace()` 连带破坏 key 名（`?api_key=a` 误伤为 `?***pi_key=***`）。
 # key 名单必须 ⊇ _SECRET_ENV_NAMES（ENV 正则加负向后顾后不再兜底 URL 参数，
 # 若名单不一致，`?credential=`/`?auth=` 会双双落空而明文泄漏）。
-_URL_QUERY_KEYS = rf"{_SECRET_ENV_NAMES}|access_token|api_?[Kk]ey"
+# 追加下划线边界短名（`?openai_key=`/`?db_pw=`/`?FAL_KEY=`）——URL 中同样存在
+# 小写短名凭据参数，与 _ENV_ASSIGN_LOWER_RE 的短名集合保持一致。
+_URL_QUERY_KEYS = rf"{_SECRET_ENV_NAMES}|access_token|api_?[Kk]ey|[a-z0-9_]+_(?:key|pass|pw|token|secret|password|passwd|credential|auth)"
 _URL_QUERY_RE = re.compile(rf"([?&](?:{_URL_QUERY_KEYS})=)([^&\s]+)", re.IGNORECASE)
 
 # ── CLI flags (OPT-5) ───────────────────────────────────────────

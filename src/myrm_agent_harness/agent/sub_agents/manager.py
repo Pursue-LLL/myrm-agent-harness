@@ -146,6 +146,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         "_children_agents",
         "_children_configs",
         "_children_descriptions",
+        "_children_internal",
         "_children_observability",
         "_children_results",
         "_children_steering",
@@ -175,6 +176,7 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         self._children_steering: dict[str, SteeringToken] = {}
         self._children_configs: dict[str, SubagentConfig] = {}
         self._children_observability: dict[str, dict[str, object]] = {}
+        self._children_internal: dict[str, bool] = {}
         self._cancel_flags: dict[str, bool] = {}
         self._graceful_cancel_timeouts: dict[str, asyncio.Task[None]] = {}
         self._background_tasks: set[asyncio.Task[object]] = set()
@@ -386,9 +388,10 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         if timeout_task and not timeout_task.done():
             timeout_task.cancel()
 
+        internal = self._children_internal.pop(task_id, False)
         agent_type = self._children_types.pop(task_id, "unknown")
+        task_description = self._children_descriptions.pop(task_id, "")
         self._children_configs.pop(task_id, None)
-        self._children_descriptions.pop(task_id, None)
         now = time.time()
 
         if task.cancelled():
@@ -414,8 +417,10 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
                     completed_at=now,
                     status=SubAgentStatus.FAILED,
                 )
+        result.internal = result.internal or internal
 
-        self._children_results[task_id] = result
+        if not internal:
+            self._children_results[task_id] = result
         self._children.pop(task_id, None)
         self._children_steering.pop(task_id, None)
         ACTIVE_SUBAGENTS.pop(task_id, None)  # Remove from global registry
@@ -450,20 +455,21 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         metadata = self._child_observability_metadata(task_id)
         budget = metadata.get("budget")
 
-        _emit_global_subagent_event(
-            "complete",
-            task_id,
-            session_id,
-            SubagentLifecycleData(
-                agent_type=result.agent_type,
-                description=self._children_descriptions.get(task_id, ""),
-                role=str(metadata.get("role", "")),
-                control_scope=str(metadata.get("control_scope", "")),
-                budget=to_json_object(budget if isinstance(budget, dict) else None),
-                status=result.status.value,
-                result=to_json_object(result.to_dict()),
-            ),
-        )
+        if not internal:
+            _emit_global_subagent_event(
+                "complete",
+                task_id,
+                session_id,
+                SubagentLifecycleData(
+                    agent_type=result.agent_type,
+                    description=task_description,
+                    role=str(metadata.get("role", "")),
+                    control_scope=str(metadata.get("control_scope", "")),
+                    budget=to_json_object(budget if isinstance(budget, dict) else None),
+                    status=result.status.value,
+                    result=to_json_object(result.to_dict()),
+                ),
+            )
 
         # Idle Wakeup & Event-Driven Continuation (Trigger Parent Agent if supported)
         if hasattr(self._parent_agent, "trigger_async_wakeup"):

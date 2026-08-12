@@ -74,7 +74,18 @@ def _check_browser_executable(executable_path_str: str = "") -> DoctorCheckResul
 
     executable_path = Path(executable_path_str).expanduser()
 
-    if not executable_path.exists():
+    try:
+        path_exists = executable_path.exists()
+        path_executable = os.access(executable_path, os.X_OK)
+    except Exception as exc:
+        return DoctorCheckResult(
+            name="browser_executable",
+            status=CheckStatus.WARNING,
+            message=f"Cannot check browser executable: {exc}",
+            details={"path": str(executable_path)},
+        )
+
+    if not path_exists:
         return DoctorCheckResult(
             name="browser_executable",
             status=CheckStatus.ERROR,
@@ -83,7 +94,7 @@ def _check_browser_executable(executable_path_str: str = "") -> DoctorCheckResul
             details={"path": str(executable_path), "exists": False},
         )
 
-    if not os.access(executable_path, os.X_OK):
+    if not path_executable:
         return DoctorCheckResult(
             name="browser_executable",
             status=CheckStatus.ERROR,
@@ -112,10 +123,17 @@ def _check_memory() -> DoctorCheckResult:
             fix="uv sync --all-extras",
         )
 
-    memory = psutil.virtual_memory()
-    available_gb = memory.available / (1024**3)
-    total_gb = memory.total / (1024**3)
-    used_percent = memory.percent
+    try:
+        memory = psutil.virtual_memory()
+        available_gb = memory.available / (1024**3)
+        total_gb = memory.total / (1024**3)
+        used_percent = memory.percent
+    except Exception as exc:
+        return DoctorCheckResult(
+            name="memory",
+            status=CheckStatus.WARNING,
+            message=f"Cannot check memory: {exc}",
+        )
 
     if available_gb < 1.0:
         return DoctorCheckResult(

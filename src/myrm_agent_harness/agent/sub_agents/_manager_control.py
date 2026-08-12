@@ -46,6 +46,7 @@ class SubagentControlMixin:
     _children_configs: dict[str, SubagentConfig]
     _children_results: dict[str, SubAgentResult]
     _children_steering: dict[str, object]
+    _children_internal: dict[str, bool]
     _cancel_flags: dict[str, bool]
     _graceful_cancel_timeouts: dict[str, asyncio.Task[None]]
     _background_tasks: set[asyncio.Task[object]]
@@ -55,6 +56,8 @@ class SubagentControlMixin:
         children: list[dict[str, object]] = []
 
         for task_id, task in self._children.items():
+            if self._children_internal.get(task_id, False):
+                continue
             metadata = self._child_observability_metadata(task_id)  # type: ignore[attr-defined]
             children.append(
                 {
@@ -69,6 +72,8 @@ class SubagentControlMixin:
             )
 
         for task_id, result in self._children_results.items():
+            if result.internal or self._children_internal.get(task_id, False):
+                continue
             children.append(
                 {
                     **result.to_dict(),

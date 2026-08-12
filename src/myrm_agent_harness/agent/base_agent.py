@@ -49,6 +49,7 @@ if TYPE_CHECKING:
     from langchain.agents.middleware import AgentMiddleware
     from langchain_core.messages import BaseMessage
     from langgraph.checkpoint.base import BaseCheckpointSaver
+    from langgraph.graph.state import CompiledStateGraph
 
     from myrm_agent_harness.agent.extensions.protocols import AgentExtension
     from myrm_agent_harness.toolkits.code_execution.executors.base import CodeExecutor
@@ -255,11 +256,17 @@ class BaseAgent(BaseAgentModesMixin):
             )
             self._cache_keepalive.start()
 
-    def _rebuild_agent_with_llm(self, new_llm: BaseChatModel) -> None:
-        """Rebuild agent graph with a different LLM for failover."""
+    def _rebuild_agent_with_llm(
+        self, new_llm: BaseChatModel
+    ) -> CompiledStateGraph[Any, Any, Any, Any]:
+        """Rebuild agent graph with a different LLM for failover.
+
+        Returns the newly compiled graph so the active stream
+        (StreamContext.agent) can be re-bound to it after failover.
+        """
         from ._internals.agent_recovery import rebuild_agent_with_llm
 
-        rebuild_agent_with_llm(self, new_llm)
+        return rebuild_agent_with_llm(self, new_llm)
 
     def add_tools(self, tools: list[BaseTool]) -> None:
         """Register tools on the registry and rebuild the agent graph when already initialized.

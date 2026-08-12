@@ -27,7 +27,7 @@ from __future__ import annotations
 import asyncio
 import re
 from collections.abc import Callable
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
@@ -60,6 +60,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
     from langchain_core.messages import AnyMessage, BaseMessage
+    from langgraph.graph.state import CompiledStateGraph
 
     from myrm_agent_harness.agent.streaming.stream_compactor import StreamCompactor
     from myrm_agent_harness.agent.streaming.stream_executor import StreamContext
@@ -120,6 +121,20 @@ class StreamRecoveryMixin(
     failover_used: bool
     _escalation_used: bool
     _consecutive_overloaded: int
+
+    def _rebind_agent_after_rebuild(self, new_llm: BaseChatModel) -> None:
+        """Rebuild the agent graph for a different LLM and re-bind the active stream.
+
+        ``rebuild_agent_with_llm`` replaces ``BaseAgent._agent`` with a freshly
+        compiled graph, but ``StreamContext.agent`` still points at the previous
+        graph — without re-binding here, the next ``astream`` retry would keep
+        calling the failed primary LLM and failover would never take effect.
+        """
+        rebuild_fn = cast(
+            "Callable[[BaseChatModel], CompiledStateGraph[Any, Any, Any, Any]]",
+            self._rebuild_agent_fn,
+        )
+        self._ctx.agent = rebuild_fn(new_llm)
 
     async def _handle_overflow(self, exc: Exception, retries: int) -> bool:
         """Progressive overflow recovery. Returns True to retry.
@@ -220,8 +235,7 @@ class StreamRecoveryMixin(
                 return False
 
         self.failover_used = True
-        rebuild_fn = cast("Callable[[BaseChatModel], None]", self._rebuild_agent_fn)
-        rebuild_fn(target_fallback_llm)
+        self._rebind_agent_after_rebuild(target_fallback_llm)
         fallback_model = getattr(target_fallback_llm, "model_name", None) or getattr(
             target_fallback_llm, "model", "backup"
         )
@@ -337,8 +351,7 @@ class StreamRecoveryMixin(
             return False
 
         self.failover_used = True
-        rebuild_fn = cast("Callable[[BaseChatModel], None]", self._rebuild_agent_fn)
-        rebuild_fn(self._safety_fallback_llm)
+        self._rebind_agent_after_rebuild(self._safety_fallback_llm)
         fallback_model = getattr(
             self._safety_fallback_llm, "model_name", None
         ) or getattr(self._safety_fallback_llm, "model", "backup")
@@ -416,8 +429,7 @@ class StreamRecoveryMixin(
             scrubber.reason or "none",
         )
 
-        rebuild_fn = cast("Callable[[BaseChatModel], None]", self._rebuild_agent_fn)
-        rebuild_fn(escalation_target)
+        self._rebind_agent_after_rebuild(escalation_target)
 
         await self._compactor.put(
             {

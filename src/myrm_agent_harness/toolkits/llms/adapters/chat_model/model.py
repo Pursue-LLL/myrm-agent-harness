@@ -172,9 +172,9 @@ class ChatLiteLLM(
 
     @model_validator(mode="before")
     @classmethod
-    def validate_environment(cls, values: dict) -> dict:
+    def validate_environment(cls, values: dict[str, Any]) -> dict[str, Any]:
         try:
-            import litellm  # type: ignore
+            import litellm
         except (ImportError, TypeError):
             raise ValueError(
                 "Could not import litellm python package. Please install it with uv sync."

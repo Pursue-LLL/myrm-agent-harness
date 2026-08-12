@@ -32,10 +32,8 @@ from myrm_agent_harness.backends.skills.scanning.scanner import (
     ScanSeverity,
     SkillTrustRecommendation,
 )
-from myrm_agent_harness.utils.chat_utils import (
-    extract_answer_text,
-    parse_llm_json_object,
-)
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel

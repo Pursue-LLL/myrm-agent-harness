@@ -33,10 +33,8 @@ from typing import TYPE_CHECKING
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.utils.chat_utils import (
-    extract_answer_text,
-    parse_llm_json_object,
-)
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.json_parsing import parse_llm_json_object
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from ..core.config import WikiCompileConfig

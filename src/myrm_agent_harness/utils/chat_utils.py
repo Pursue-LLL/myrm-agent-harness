@@ -168,22 +168,3 @@ def extract_litellm_answer_text(response: object) -> str:
         getattr(message, "content", None),
         getattr(message, "reasoning_content", None),
     )
-
-
-from myrm_agent_harness.utils.json_parsing import (  # noqa: E402
-    parse_llm_json_list,
-    parse_llm_json_object,
-)
-
-__all__ = [
-    "ChatHistory",
-    "ChatHistoryEntry",
-    "ChatHistoryReq",
-    "ContentItem",
-    "convert_chat_history_simple",
-    "extract_answer_text",
-    "extract_litellm_answer_text",
-    "extract_text_content",
-    "parse_llm_json_list",
-    "parse_llm_json_object",
-]

@@ -48,13 +48,30 @@ _capability_detector = ModelCapabilityDetector()
 
 
 class ChatLiteLLMMessageMixin:
+    """Message conversion and response assembly mixin.
+
+    Hosted by :class:`ChatLiteLLM`, which supplies the field values for the
+    attributes declared below. Declarations exist so static type checkers see
+    the host-provided state; Pydantic merges the concrete fields from the host
+    class (with their defaults).
+    """
+
+    model: str
+    model_name: str | None
+    api_base: str | None
+    custom_llm_provider: str | None
+    _client_params: dict[str, Any]
+
+    def _get_model_name(self) -> str:
+        raise NotImplementedError
+
     def _convert_response_to_dict(self, response: Any) -> dict[str, Any]:
         if isinstance(response, dict):
             return response
         if hasattr(response, "model_dump"):
-            return response.model_dump()
+            return dict(response.model_dump())
         if hasattr(response, "dict"):
-            return response.dict()
+            return dict(response.dict())
         raise ValueError(f"Unable to convert LiteLLM response to dict. Type: {type(response)}")
 
     def _build_empty_choices_error(self, response: Mapping[str, Any]) -> str:
@@ -125,9 +142,9 @@ class ChatLiteLLMMessageMixin:
                     if text:
                         parts.append(text)
                 elif isinstance(block, dict):
-                    text = block.get("text")
-                    if isinstance(text, str):
-                        text = text.strip()
+                    raw_text = block.get("text")
+                    if isinstance(raw_text, str):
+                        text = raw_text.strip()
                         if text:
                             parts.append(text)
                 else:
@@ -225,7 +242,7 @@ class ChatLiteLLMMessageMixin:
             if not human_rewritten and isinstance(message, HumanMessage):
                 content = message.content
                 if isinstance(content, list):
-                    merged_content: str | list[object] = [
+                    merged_content: str | list[dict[str, Any] | str] = [
                         {"type": "text", "text": merged_system},
                         *content,
                     ]

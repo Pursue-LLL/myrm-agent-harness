@@ -136,17 +136,24 @@ async def run_with_verification(
     max_rounds: int = 2,
     verifier_task_template: str = "",
     cancel_token: CancellationToken | None = None,
+    task_id: str | None = None,
 ) -> SubAgentResult:
-    """Execute a worker then verify via an adversarial verifier, retrying on failure."""
+    """Execute a worker then verify via an adversarial verifier, retrying on failure.
+
+    When ``task_id`` is provided it becomes the visible business node for this
+    delegation; retry workers and verifiers are spawned as framework-internal
+    nodes (``internal=True``) and hidden from user-facing subagent trees.
+    """
     max_rounds = max(1, min(max_rounds, 5))
     current_task = worker_task
     last_worker_result = SubAgentResult(
         success=False,
-        task_id="verify-init",
+        task_id=task_id or "verify-init",
         agent_type=worker_type,
         error="Verification not started",
         completed_at=time.time(),
         status=SubAgentStatus.FAILED,
+        internal=task_id is None,
     )
     verdict = None
 
@@ -159,13 +166,19 @@ async def run_with_verification(
             return last_worker_result
 
         round_num = round_idx + 1
-        worker_task_id = f"verify-worker-{round_num}-{worker_type}"
+        if round_idx == 0 and task_id:
+            worker_task_id = task_id
+            worker_internal = False
+        else:
+            worker_task_id = f"verify-worker-{round_num}-{worker_type}"
+            worker_internal = True
 
         logger.info(
-            "[verification] Round %d/%d — spawning worker '%s'",
+            "[verification] Round %d/%d — spawning worker '%s'%s",
             round_num,
             max_rounds,
             worker_type,
+            " (internal)" if worker_internal else "",
         )
 
         pre_snapshot: dict[str, tuple[float, int]] = {}
@@ -184,6 +197,7 @@ async def run_with_verification(
             tool_registry_getter=tool_registry_getter,
             wait=True,
             cancel_token=cancel_token,
+            internal=worker_internal,
         )
         if isinstance(worker_result, dict):
             worker_result = _spawn_dict_to_subagent_result(
@@ -191,6 +205,7 @@ async def run_with_verification(
                 task_id=worker_task_id,
                 agent_type=worker_type,
             )
+        worker_result.internal = worker_result.internal or worker_internal
         last_worker_result = worker_result
 
         if not worker_result.success:
@@ -236,6 +251,9 @@ async def run_with_verification(
             last_worker_result.result = _append_verification_block(
                 last_worker_result.result, pass_block
             )
+            if task_id:
+                last_worker_result.task_id = task_id
+                last_worker_result.internal = False
             return last_worker_result
 
         if round_idx < max_rounds - 1:
@@ -278,4 +296,7 @@ async def run_with_verification(
     last_worker_result.result = _append_verification_block(
         last_worker_result.result, fail_block
     )
+    if task_id:
+        last_worker_result.task_id = task_id
+        last_worker_result.internal = False
     return last_worker_result

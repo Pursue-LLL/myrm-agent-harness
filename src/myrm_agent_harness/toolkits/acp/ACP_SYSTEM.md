@@ -235,7 +235,7 @@ RuntimePool(*, max_concurrent: int = 4, enable_health_monitor: bool = False)
 - `max_concurrent` 限制同时执行的委托任务数，避免进程与文件句柄耗尽
 - `prompt()` 委托给 `run_turn()`，并发控制统一在 `run_turn()` 层
 - `enable_health_monitor=True` 时自动创建 HealthMonitor，后端创建时自动注册
-- **MCP 注入能力守卫**：`run_turn()` 在转发 `mcp_servers` 前检查 `backend.capabilities.supports_mcp`，不支持的 backends（如 `CliRuntime`）收到空列表而非原始配置，杜绝向不支持 MCP 注入的后端传递配置引发会话崩溃；跳过时记录 `pool_mcp_skipped` WARNING 便于观测
+- **MCP 注入能力守卫**：`run_turn()` 在转发 `mcp_servers` 前检查 `backend.capabilities.supports_mcp`，不支持的 backends（如 `CliRuntime`）收到 `None` 而非原始配置，杜绝向不支持 MCP 注入的后端传递配置引发会话崩溃；跳过时记录 `pool_mcp_skipped` WARNING 便于观测
 
 ### 3.9 RuntimeConfig（统一配置）
 

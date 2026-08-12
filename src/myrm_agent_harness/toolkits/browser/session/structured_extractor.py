@@ -30,8 +30,8 @@ from typing import (
 from pydantic import BaseModel, ValidationError, create_model
 from pydantic.fields import FieldInfo
 
-from myrm_agent_harness.utils.chat_utils import (
-    extract_answer_text,
+from myrm_agent_harness.utils.chat_utils import extract_answer_text
+from myrm_agent_harness.utils.json_parsing import (
     parse_llm_json_list,
     parse_llm_json_object,
 )

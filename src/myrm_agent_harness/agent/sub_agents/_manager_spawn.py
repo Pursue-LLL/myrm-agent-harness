@@ -233,6 +233,7 @@ class SubagentSpawnMixin:
         cancel_token: CancellationToken | None = None,
         resume_command: object | None = None,
         complexity_tier: str | None = None,
+        internal: bool = False,
     ) -> SubAgentResult | dict[str, object]:
         if self._task_id_exists(task_id):  # type: ignore[attr-defined]
             return SubAgentResult(
@@ -284,6 +285,7 @@ class SubagentSpawnMixin:
         self._children_types[task_id] = agent_type
         self._children_descriptions[task_id] = task_description
         self._children_configs[task_id] = config
+        self._children_internal[task_id] = internal
         self._children_observability[task_id] = self._build_observability_metadata(config)  # type: ignore[attr-defined]
         task.add_done_callback(lambda t: self._cleanup_child(task_id, t))  # type: ignore[attr-defined]
 
@@ -305,37 +307,38 @@ class SubagentSpawnMixin:
         observability_metadata = self._child_observability_metadata(task_id)  # type: ignore[attr-defined]
         budget_payload = observability_metadata.get("budget")
 
-        from .manager import _emit_global_subagent_event
+        if not internal:
+            from .manager import _emit_global_subagent_event
 
-        _emit_global_subagent_event(
-            "spawn",
-            task_id,
-            session_id,
-            SubagentLifecycleData(
-                agent_type=agent_type,
-                description=task_description,
-                role=config.delegation_role.value,
-                control_scope=config.control_scope.value,
-                budget=to_json_object(budget_payload if isinstance(budget_payload, dict) else None),
-            ),
-        )
-
-        sink = get_tool_progress_sink()
-        if sink:
-            await sink.emit(
-                {
-                    "type": AgentEventType.SUBAGENT_START.value,
-                    "data": {
-                        "task_id": task_id,
-                        "parent_task_id": parent_task_id,
-                        "agent_type": agent_type,
-                        "description": task_description,
-                        "role": config.delegation_role.value,
-                        "control_scope": config.control_scope.value,
-                        "budget": budget_payload if isinstance(budget_payload, dict) else {},
-                    },
-                }
+            _emit_global_subagent_event(
+                "spawn",
+                task_id,
+                session_id,
+                SubagentLifecycleData(
+                    agent_type=agent_type,
+                    description=task_description,
+                    role=config.delegation_role.value,
+                    control_scope=config.control_scope.value,
+                    budget=to_json_object(budget_payload if isinstance(budget_payload, dict) else None),
+                ),
             )
+
+            sink = get_tool_progress_sink()
+            if sink:
+                await sink.emit(
+                    {
+                        "type": AgentEventType.SUBAGENT_START.value,
+                        "data": {
+                            "task_id": task_id,
+                            "parent_task_id": parent_task_id,
+                            "agent_type": agent_type,
+                            "description": task_description,
+                            "role": config.delegation_role.value,
+                            "control_scope": config.control_scope.value,
+                            "budget": budget_payload if isinstance(budget_payload, dict) else {},
+                        },
+                    }
+                )
 
         if wait:
             done, _pending = await asyncio.wait(
@@ -343,6 +346,9 @@ class SubagentSpawnMixin:
             )
             if done:
                 result = task.result()
+                if isinstance(result, SubAgentResult) and internal:
+                    result.internal = True
+                sink = get_tool_progress_sink()
                 if sink:
                     notif_text = self.drain_notifications()  # type: ignore[attr-defined]
                     if notif_text:
