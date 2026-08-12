@@ -37,10 +37,8 @@ from myrm_agent_harness.toolkits.retriever.embedding.base import EmbeddingServic
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
     EmbedInputTooLargeError,
     EmbedWindowPolicy,
-    estimate_wordpiece_tokens,
-    is_cjk_wordpiece_model,
+    token_counter_for_model,
 )
-from myrm_agent_harness.utils.text_utils import get_token_count
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.cache import EmbeddingCacheProtocol
