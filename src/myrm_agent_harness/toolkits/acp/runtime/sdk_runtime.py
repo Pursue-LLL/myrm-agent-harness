@@ -114,7 +114,12 @@ class SdkRuntime(BaseRuntime):
 
         if mcp_servers:
             sdk_input["mcp_servers"] = [
-                {"name": s.name, "command": s.command, "args": s.args}
+                {
+                    "name": s.name,
+                    "command": s.command,
+                    "args": s.args,
+                    "env": s.env or {},
+                }
                 for s in mcp_servers
             ]
 
@@ -198,18 +203,14 @@ class SdkRuntime(BaseRuntime):
         """Parse a single NDJSON line from the SDK bridge output."""
         data = parse_json_line(line)
         if data is None:
-            return create_event(
-                RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n"
-            )
+            return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n")
 
         event_type = data.get("type", "")
 
         if event_type in ("text", "assistant", "content_block_delta"):
             content = data.get("text", data.get("content", ""))
             if isinstance(content, str) and content:
-                return create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content=content
-                )
+                return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=content)
 
         if event_type == "thinking":
             return parse_thinking(data, session_id)

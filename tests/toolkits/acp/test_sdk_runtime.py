@@ -176,14 +176,28 @@ class TestSdkRuntimeRunTurn:
 
         mock_proc.wait = fake_wait
 
-        mcp = [McpServerConfig(name="test-mcp", command="node", args=["server.js"])]
+        mcp = [
+            McpServerConfig(
+                name="test-mcp",
+                command="node",
+                args=["server.js"],
+                env={"MCP_TOKEN": "secret"},
+            )
+        ]
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
             [e async for e in rt._do_run_turn("hello", "s1", mcp_servers=mcp)]
 
         written = b"".join(call.args[0] for call in mock_proc.stdin.write.call_args_list)
         payload = json.loads(written.split(b"\n")[0])
-        assert "mcp_servers" in payload
+        assert payload["mcp_servers"] == [
+            {
+                "name": "test-mcp",
+                "command": "node",
+                "args": ["server.js"],
+                "env": {"MCP_TOKEN": "secret"},
+            }
+        ]
 
     @pytest.mark.asyncio
     async def test_nonzero_exit_no_output_emits_error(self) -> None:
