@@ -594,7 +594,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `browser_snapshot_tool` | ARIA 快照 + iframe + Token 优化 + cursor-interactive | `scope`, `compact`, `selector`, `max_tokens`, `diff`, `cursor_interactive` |
 | `browser_interact_tool` | 15 种交互 + 可选 `steps[]` 批量 | click, dblclick, type, fill, fill_credential, press, hover, focus, select, scroll, scroll_to_bottom, upload_file, drag, check, uncheck；或 `steps[]` 一次调用多步 |
 | `browser_extract_tool` | 文本 + 截图 + 媒体URL + 结构化提取 + diff | text / screenshot / media / diff_fast / diff_accurate + extraction_schema |
-| `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network | 20 种 action（含 network_detail/network_replay + save/restore/list/delete_session；HITL 用 browser_ask_human_tool，无 wait_for_user） |
+| `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network + Web Vitals | 21 种 action（含 network_detail/network_replay/web_vitals + save/restore/list/delete_session；HITL 用 browser_ask_human_tool，无 wait_for_user） |
 | `browser_execute_script_tool` | **Code-as-Action 批量执行** + AST 特权API门禁 | _(执行 Python 脚本，AST 扫描 page.request/evaluate/context 等特权API → HITL 审批)_ |
 | `browser_ask_human_tool` | **人类接管请求** | _(单一职责，Agent 触发 HITL interrupt + extension 横幅 / managed VNC)_ |
 
@@ -675,6 +675,18 @@ Loop Guard 与 Completion Guard 为兜底；正常路径由 Turn1 工具描述�
 - SPA 数据密集应用：API 响应包含完整数据，避免繁琐的 DOM 遍历
 
 **零开销设计**：CDP 事件监听只存储请求元数据（requestId），响应体仅在 Agent 主动请求时通过 `Network.getResponseBody` 延迟获取。
+
+#### Web Vitals 洞察（WebVitalsCollector）
+
+通过 `web_vitals` action 为当前页面提供一次性的 Core Web Vitals 实测报告：
+
+**核心能力**：
+- **关键指标分级**：LCP / CLS / INP / FCP / TTFB，按官方阈值（good / needs-improvement / poor）评级
+- **慢资源归因**：按耗时排序的前 8 个资源（名称 / 耗时 / 传输大小 / 类型），定位性能瓶颈
+- **可操作建议**：根据指标自动推导修复建议（LCP 主资源压缩/预加载、TTFB 走 CDN、布局偏移预留尺寸、慢交互减少主线程阻塞、慢资源域名 preconnect）
+- **环境标注**：报告明确标注「当前网络环境实测」，非实验室模拟
+
+**设计**：单次 `page.evaluate` 读取 buffered PerformanceObserver 历史（LCP/CLS/INP）+ NavigationTiming（FCP/TTFB）+ ResourceTiming，零常驻监听、零生命周期挂钩；SPA 场景 LCP 未定型时自动短等待重试一次；INP 需用户交互才能测量，未交互时明确提示；页面不可测时优雅降级返回提示。
 
 ---
 
@@ -759,7 +771,7 @@ navigate(url="localhost:3000")       → DENY (Sandbox) / ALLOW (Local)
 
 ### 信任边界标记
 
-浏览器工具返回的所有外部内容（snapshot / extract / inspect / navigate / interact / evaluate / execute_script / console / network / ask_human 接管结果）经统一出口 `mark_untrusted`（`tools/common.py`）：**先 `redact_sensitive_text` 凭据脱敏，再 `wrap_untrusted` 包装**，提供 5 层安全防护：
+浏览器工具返回的所有外部内容（snapshot / extract / inspect / navigate / interact / evaluate / execute_script / console / network / web_vitals / ask_human 接管结果）经统一出口 `mark_untrusted`（`tools/common.py`）：**先 `redact_sensitive_text` 凭据脱敏，再 `wrap_untrusted` 包装**，提供 5 层安全防护：
 
 ```
 [SECURITY NOTICE: UNTRUSTED external content below...]
@@ -1132,6 +1144,7 @@ browser/
 │   ├── session_memory_bridge.py — SessionMemoryBridge
 │   ├── network_intelligence.py — CDP 懒加载 API 响应体检索
 │   ├── network_logger.py — 网络请求日志
+│   ├── web_vitals.py — 一次性 Core Web Vitals 采集与分级建议
 │   ├── vision_verifier.py — 三层视觉验证
 │   ├── dialog_manager.py — JS dialog 生命周期
 │   ├── download_manager.py — 文件下载

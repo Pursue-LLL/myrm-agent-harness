@@ -35,7 +35,8 @@ def create_manage_tool(session: BrowserSession):
         action: str = Field(
             description="Action: close, evaluate, new_tab, switch_tab, list_tabs, close_tab, "
             "back, forward, save_pdf, resize, wait_for_load, console_log, "
-            "network_log, network_detail, network_replay, dialog_response, dialog_policy, "
+            "network_log, network_detail, network_replay, web_vitals, "
+            "dialog_response, dialog_policy, "
             "save_session, restore_session, list_sessions, delete_session, "
             "trace_start, trace_stop, har_start, har_stop, recording_status, "
             "save_site_experience, list_site_experience, delete_site_experience, "
@@ -57,7 +58,8 @@ def create_manage_tool(session: BrowserSession):
             "(e.g. 'x-com:get_timeline_posts:{\"max_posts\":20}'). "
             "Omit for: close, list_tabs, list_sessions, list_site_experience, list_downloads, "
             "list_site_tools, back, forward, save_pdf, "
-            "wait_for_load, console_log, network_log, trace_start, trace_stop, har_start, har_stop, "
+            "wait_for_load, console_log, network_log, web_vitals, "
+            "trace_start, trace_stop, har_start, har_stop, "
             "recording_status.",
         )
 
@@ -70,6 +72,7 @@ def create_manage_tool(session: BrowserSession):
         Control: close, resize, wait_for_load. Dialogs: dialog_response.
         Sessions: save_session, restore_session, list_sessions, delete_session.
         Recording: trace_start, trace_stop, har_start, har_stop, recording_status.
+        Diagnostics: web_vitals (page performance metrics with ratings and fixes).
         Human-in-the-loop: use browser_ask_human_tool for 2FA, CAPTCHA, or payment gates.
         Site experience: save_site_experience, list_site_experience, delete_site_experience.
         Downloads: download_url (download file from URL), list_downloads (show download history).
@@ -184,6 +187,8 @@ def create_manage_tool(session: BrowserSession):
             case "recording_status":
                 status = session.get_recording_status()
                 return f"Recording status:\n{status}"
+            case "web_vitals":
+                return mark_untrusted(await session.get_web_vitals())
             case "save_site_experience":
                 return _handle_save_site_experience(value)
             case "list_site_experience":
@@ -217,7 +222,7 @@ def create_manage_tool(session: BrowserSession):
                 return (
                     f"Unknown action '{action}'. Supported: close, evaluate, new_tab, switch_tab, "
                     "list_tabs, close_tab, back, forward, save_pdf, resize, wait_for_load, "
-                    "console_log, network_log, network_detail, network_replay, "
+                    "console_log, network_log, network_detail, network_replay, web_vitals, "
                     "dialog_response, dialog_policy, "
                     "save_session, restore_session, list_sessions, delete_session, "
                     "trace_start, trace_stop, har_start, har_stop, recording_status, "

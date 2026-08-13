@@ -5,6 +5,7 @@ from __future__ import annotations
 from myrm_agent_harness.toolkits.memory._manager.helpers import _memory_ref
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     EpisodicMemory,
+    FilterDict,
     MemoryError,
     MemoryMutationRef,
     MemoryMutationResult,
@@ -539,7 +540,7 @@ class MemoryManagerDeletionMixin:
         return counts
 
     async def _collect_vector_ids(
-        self, collection: str, filters: dict[str, str]
+        self, collection: str, filters: FilterDict
     ) -> list[tuple[str, bool]]:
         if self._vector is None:
             return []
@@ -554,7 +555,7 @@ class MemoryManagerDeletionMixin:
                 return ids
 
     async def _collect_vector_docs(
-        self, collection: str, filters: dict[str, str]
+        self, collection: str, filters: FilterDict
     ) -> list[VectorDocument]:
         if self._vector is None:
             return []

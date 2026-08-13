@@ -5,7 +5,7 @@ Converts MCP ``Tool`` objects (from ``client.list_tools()``) into LangChain
 session/client's ``call_tool`` method. The input schema is normalized:
 ``$ref``/``$defs`` are inlined, property-level const unions collapse into
 ``enum`` (Rust/TypeScript servers), and top-level composite keywords
-(``anyOf``/``oneOf``/``allOf``) are flattened so FastMCP nested/optional
+(``anyOf``/``oneOf``/``allOf``) are flattened so MCPServer nested/optional
 models and kimi-cu-style multi-branch tools never degrade to empty schemas.
 
 The normalized JSON Schema dict is passed through unchanged as the
@@ -28,7 +28,7 @@ owned by ``result_processing.normalize_mcp_result`` /
 
 [INPUT]
 - mcp.types::Tool (POS: MCP tool schema type)
-- mcp.client.client::Client (POS: MCP SDK 2.x high-level client)
+- mcp.ClientSession (POS: MCP SDK 2.x high-level client over stream transports)
 - schema::collapse_const_unions, flatten_top_level_composite, flatten_json_schema, prepare_mcp_call_arguments (POS: MCP inbound tool schema normalization)
 
 [OUTPUT]
@@ -79,18 +79,14 @@ def convert_mcp_tools(
     for tool in tools:
         tool_name: str = tool.name
         description: str = getattr(tool, "description", "") or ""
-        input_schema: dict[str, Any] = (
-            getattr(tool, "input_schema", None)
-            or getattr(tool, "inputSchema", None)
-            or {}
-        )
+        input_schema: dict[str, Any] = getattr(tool, "input_schema", None) or {}
         if isinstance(input_schema, str):
             input_schema = json.loads(input_schema)
         if not isinstance(input_schema, dict):
             input_schema = {"type": "object", "properties": {}}
 
         # Resolve $ref/$defs inline, collapse property-level const unions into
-        # enums, then flatten top-level composite branches: FastMCP emits
+        # enums, then flatten top-level composite branches: MCPServer emits
         # nested/optional models as $defs + $ref (no `type`), Rust/TypeScript
         # servers declare closed value sets as `anyOf` const unions, and
         # kimi-cu-style tools declare alternatives via oneOf/anyOf — without

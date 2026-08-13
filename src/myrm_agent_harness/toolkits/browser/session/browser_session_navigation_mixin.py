@@ -101,7 +101,7 @@ class BrowserSessionNavigationMixin:
         from urllib.parse import urlparse
 
         hostname = (urlparse(url).hostname or "").lower()
-        if hostname and blocklist.is_allowed(hostname):
+        if hostname and blocklist.is_blocked(hostname):
             return hostname
         return None
 

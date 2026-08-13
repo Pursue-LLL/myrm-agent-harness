@@ -44,16 +44,13 @@ back to the default head-truncation."""
 def _mime_type(block: object) -> str:
     """Read a MIME type from an MCP content block or its dict form.
 
-    MCP SDK 2.x typed blocks use the camelCase field ``mimeType``, while the
-    internal LangChain-style dicts produced by ``mcp_block_to_lc`` use
-    ``mime_type``.  Tolerate both shapes so image/resource handling works on
-    either input.
+    MCP SDK 2.x typed blocks expose the snake_case field ``mime_type``, while
+    wire-serialized dicts carry camelCase ``mimeType``.  Tolerate both shapes
+    so image/resource handling works on either input.
     """
     if isinstance(block, dict):
         return str(block.get("mimeType") or block.get("mime_type") or "")
-    return str(
-        getattr(block, "mimeType", None) or getattr(block, "mime_type", None) or ""
-    )
+    return str(getattr(block, "mime_type", None) or "")
 
 
 def coerce_content_block(block: dict[str, object]) -> dict[str, object]:
@@ -183,12 +180,8 @@ def normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
     if not isinstance(content_blocks, list):
         return str(result)
 
-    is_error = bool(
-        getattr(result, "is_error", None) or getattr(result, "isError", False)
-    )
+    is_error = bool(getattr(result, "is_error", None))
     structured = getattr(result, "structured_content", None)
-    if structured is None:
-        structured = getattr(result, "structuredContent", None)
 
     coerced: list[dict[str, object]] = []
     for block in content_blocks:
@@ -338,7 +331,7 @@ def extract_mcp_app_metadata(result: object) -> dict[str, object] | None:
     meta = (
         result.get("_meta")
         if isinstance(result, dict)
-        else getattr(result, "_meta", None) or getattr(result, "meta", None)
+        else getattr(result, "meta", None)
     )
     if not isinstance(meta, dict):
         return None
@@ -353,8 +346,6 @@ def extract_mcp_app_metadata(result: object) -> dict[str, object] | None:
         if isinstance(result, dict)
         else getattr(result, "structured_content", None)
     )
-    if structured is None and not isinstance(result, dict):
-        structured = getattr(result, "structuredContent", None)
     extracted: dict[str, object] = {"resource_uri": resource_uri}
     if structured is not None:
         extracted["structured_content"] = structured

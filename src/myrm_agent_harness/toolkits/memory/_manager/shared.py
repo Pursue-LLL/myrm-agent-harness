@@ -95,7 +95,10 @@ from myrm_agent_harness.toolkits.memory.protocols.graph import GraphStoreProtoco
 from myrm_agent_harness.toolkits.memory.protocols.relational import (
     RelationalStoreProtocol,
 )
-from myrm_agent_harness.toolkits.memory.protocols.vector import VectorStoreProtocol
+from myrm_agent_harness.toolkits.memory.protocols.vector import (
+    FilterDict,
+    VectorStoreProtocol,
+)
 from myrm_agent_harness.toolkits.memory.retriever import MemoryRetriever
 from myrm_agent_harness.toolkits.memory.strategies.preference_stability import (
     CueFamily,
@@ -160,6 +163,7 @@ __all__ = [
     "EmbeddingCacheProtocol",
     "EmbeddingProtocol",
     "EpisodicMemory",
+    "FilterDict",
     "GovernanceService",
     "GraphStoreProtocol",
     "HealthScore",

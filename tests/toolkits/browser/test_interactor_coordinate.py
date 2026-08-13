@@ -374,3 +374,82 @@ async def test_interact_at_updates_mouse_position(
     await interactor.interact_at("hover", 300, 400)
     assert interactor._mouse_x == 300
     assert interactor._mouse_y == 400
+
+
+# =============================================================================
+# Additional coverage: type with Bézier, SPA wait degradation
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_interact_at_type_with_bezier(mock_page: Any) -> None:
+    """Type with Bézier mouse enabled calls bezier_move before the click."""
+    from myrm_agent_harness.toolkits.browser.pool.config import (
+        HumanizeConfig,
+        HumanizeMode,
+    )
+
+    cfg = HumanizeConfig(mode=HumanizeMode.CAREFUL, enable_bezier_mouse=True)
+    interactor = Interactor(mock_page, {}, humanize=cfg)
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.session.interactor_coord_mixin.bezier_move",
+            new_callable=AsyncMock,
+        ) as mock_bezier,
+        patch(_WAIT_PATCH, new_callable=AsyncMock),
+    ):
+        result = await interactor.interact_at("type", 400, 300, text="hi")
+
+    assert "Typed 'hi'" in result
+    mock_bezier.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_interact_at_spa_wait_failure_degrades(
+    interactor: Interactor, mock_page: Any
+) -> None:
+    """A failing post-action SPA wait degrades silently (action still succeeds)."""
+    with patch(_WAIT_PATCH, side_effect=Exception("wait failed")):
+        result = await interactor.interact_at("click", 400, 300)
+
+    assert "Clicked at (400, 300)" in result
+    mock_page.mouse.down.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_interact_at_hover_with_bezier(mock_page: Any) -> None:
+    """Hover with Bézier mouse enabled calls bezier_move."""
+    from myrm_agent_harness.toolkits.browser.pool.config import (
+        HumanizeConfig,
+        HumanizeMode,
+    )
+
+    cfg = HumanizeConfig(mode=HumanizeMode.CAREFUL, enable_bezier_mouse=True)
+    interactor = Interactor(mock_page, {}, humanize=cfg)
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor_coord_mixin.bezier_move",
+        new_callable=AsyncMock,
+    ) as mock_bezier:
+        result = await interactor.interact_at("hover", 400, 300)
+
+    assert "Hovered at (400, 300)" in result
+    mock_bezier.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_interact_at_unknown_coord_action_reports(mock_page: Any) -> None:
+    """An action that slips past validation reports instead of raising."""
+    from myrm_agent_harness.toolkits.browser.session import (
+        interactor_coord_mixin as coord_mod,
+    )
+
+    original = coord_mod.CoordInteractMixin._COORD_ACTIONS
+    coord_mod.CoordInteractMixin._COORD_ACTIONS = frozenset(original | {"mystery"})
+    try:
+        result = await Interactor(mock_page, {}).interact_at("mystery", 100, 100)
+    finally:
+        coord_mod.CoordInteractMixin._COORD_ACTIONS = original
+
+    assert result == "Unknown coordinate action: mystery"

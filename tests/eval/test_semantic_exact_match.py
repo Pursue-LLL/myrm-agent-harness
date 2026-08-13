@@ -37,7 +37,9 @@ class TestExactMatchPrepass:
 
 class TestSemanticAssertionShortCircuit:
     async def _run(self, expected: str, actual: str) -> tuple[bool | None, str | None]:
-        assertion = SemanticAssertion(type="llm_judge", expected=expected, threshold=1.0)
+        assertion = SemanticAssertion(
+            type="llm_judge", expected=expected, threshold=1.0
+        )
         # acompletion is never reached on an exact match; if the code calls it,
         # the AsyncMock raises and the test fails loudly.
         with patch(
@@ -67,9 +69,7 @@ class TestSemanticAssertionShortCircuit:
     @pytest.mark.asyncio
     async def test_scoring_threshold_bypasses_shortcut(self) -> None:
         """Soft-scoring (threshold < 1.0) must not short-circuit on exact match."""
-        assertion = SemanticAssertion(
-            type="llm_judge", expected="0.75", threshold=0.7
-        )
+        assertion = SemanticAssertion(type="llm_judge", expected="0.75", threshold=0.7)
         with patch(
             "litellm.acompletion",
             new_callable=AsyncMock,

@@ -42,7 +42,7 @@ dispatcher  handlers      events         recovery*
 | `stream_dispatcher.py` | chunk → output_queue；swarm_fission GraphInterrupt 专路由 |
 | `stream_recovery.py` | 主恢复策略组合（overflow/failover/escalation/retry/iteration-limit） |
 | `stream_recovery_truncation.py` | max-token 续写、truncated tool-call 重试 |
-| `stream_recovery_oneshot.py` | THINKING_SIGNATURE / DUPLICATE_TOOL_USE_ID / IMAGE_TOO_LARGE / MEDIA_REJECTED / ALLOWED_TOOLS_TOOL_CHOICE_REJECTED / LONG_CONTEXT_TIER 等一次性恢复（WebUI progress step: `thinking_signature_recovery`, `tool_history_recovery`, `image_shrink_recovery`, `long_context_tier_recovery`, `media_rejected_recovery`, `allowed_tools_rejected_recovery`） |
+| `stream_recovery_oneshot.py` | THINKING_SIGNATURE / DUPLICATE_TOOL_USE_ID / IMAGE_TOO_LARGE / MEDIA_REJECTED / ALLOWED_TOOLS_TOOL_CHOICE_REJECTED / LONG_CONTEXT_TIER 等一次性恢复（WebUI progress step: `thinking_signature_recovery`, `tool_history_recovery`, `image_shrink_recovery`, `long_context_tier_recovery`, `vision_fallback_recovery`, `media_rejected_recovery`, `allowed_tools_rejected_recovery`） |
 | `stream_recovery_continuation.py` | steering、subagent 完成、goal continuation |
 | `stream_compactor.py` | 流状态持久化/compaction |
 | `stream_buffer.py` | 引擎层流状态持久化 |

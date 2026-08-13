@@ -72,7 +72,7 @@ _SCROLL_MEASURE_JS = (
     "          return { top: inner.scrollTop, height: inner.scrollHeight, client: inner.clientHeight };"
     "        }"
     "      } catch (_err) {"
-    "        // Cross-origin iframe: cannot introspect; fall through to ancestors."
+    "        /* Cross-origin iframe: cannot introspect; fall through to ancestors. */"
     "      }"
     "    }"
     "    if (isScrollable(node)) {"

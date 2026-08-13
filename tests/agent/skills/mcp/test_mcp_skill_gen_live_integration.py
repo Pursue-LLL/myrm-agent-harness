@@ -105,14 +105,18 @@ async def test_skill_gen_live_chain_prompt_fixes(_reset_manager: object) -> None
 
         # --- Build SkillMetadata from the real tools ---
         generator = MCPSkillGenerator()
-        skill_meta = generator._create_skill_metadata("livesrv", tools, user_description="live skill probe")
+        skill_meta = generator._create_skill_metadata(
+            "livesrv", tools, user_description="live skill probe"
+        )
         assert skill_meta.is_mcp_skill is True
         assert len(skill_meta.mcp.tools) == 4
 
         # --- Level 2 SKILL.md: prompt fix B (conditional timeout) ---
         content = generator.generate_skill_content(skill_meta)
         assert "Usage Guide" in content  # 4 tools > threshold 3
-        assert "If a tool doc declares a `timeout` parameter, set `timeout=120`" in content
+        assert (
+            "If a tool doc declares a `timeout` parameter, set `timeout=120`" in content
+        )
         assert "Always set" not in content
 
         # --- Level 3 doc via MCPFileSystemStrategy: prompt fix A ---

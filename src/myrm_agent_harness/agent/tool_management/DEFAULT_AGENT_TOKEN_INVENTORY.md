@@ -104,7 +104,7 @@ glob_tool / grep_tool 登记在 CORE 层，Turn1 与 file 工具一并 bind。�
 | 39 | browser_interact_tool | 66 | `harness/toolkits/browser/tools/interact.py` | 页面交互 |
 | 40 | browser_extract_tool | 95 | `harness/toolkits/browser/tools/extract.py` | 内容提取 |
 | 41 | browser_inspect_tool | 82 | `harness/toolkits/browser/tools/inspect.py` | 元素检查 |
-| 42 | browser_manage_tool | 159 | `harness/toolkits/browser/tools/manage.py` | 浏览器管理 |
+| 42 | browser_manage_tool | 171 | `harness/toolkits/browser/tools/manage.py` | 浏览器管理（含 web_vitals 性能洞察） |
 
 ### 4.8 定时任务工具（启用 Cron 时加载）
 

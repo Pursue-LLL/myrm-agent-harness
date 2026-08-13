@@ -12,7 +12,7 @@ Provides MCP tool fetching capabilities:
 - Content boundary defense: applies ``wrap_untrusted()`` to MCP tool outputs, ensuring third-party server data receives the same 5-layer content boundary protection as all built-in tools
 - Upstream fault tolerance: catches adapter-layer exceptions, returning ``redact_sensitive_text``-sanitized error messages instead of crashing
 - Auth error detection: catches ``httpx2.HTTPStatusError(401)`` from the MCP transport, returns a clear re-authorization message, and emits ``MCPAuthExpiredEvent``
-- Extracts MCP structuredContent from artifacts as supplementary text blocks
+- Extracts MCP structured_content from artifacts as supplementary text blocks
 - Detects ext-apps ``_meta.ui.resourceUri`` and emits MCP App view events via progress_sink
 
 Pure result/post-processing logic lives in sibling modules:
@@ -47,7 +47,7 @@ server-prefix isolation (mcp__{server}__{tool} naming), per-server tool filterin
 content boundary defense (wrap_untrusted for all string outputs against prompt injection),
 upstream fault tolerance (catches NotImplementedError/ValueError),
 auth error detection (httpx2 401 → MCPAuthExpiredEvent + clear re-auth message),
-multimodal result normalization (ImageContent passthrough + structuredContent
+multimodal result normalization (ImageContent passthrough + structured_content
 extraction), ext-apps UI metadata detection and SSE event emission, and safety
 metadata registration. `process_session_tools()` is the single post-processing
 chain shared by persistent-session actors and one-shot enumeration.

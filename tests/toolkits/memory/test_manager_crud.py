@@ -299,15 +299,77 @@ class TestDeleteOperations:
         assert count == 10
 
     @pytest.mark.asyncio
+    async def test_delete_by_type_episodic_cascades_claim_graph(
+        self, mock_vector_store, mock_embedding, mock_graph_store, memory_config
+    ):
+        """Bulk-clearing episodic memories must cascade-clean Claim Graph nodes.
+
+        Task digests feed Claim Graph Evidence/Claim nodes, so wiping them all
+        leaves dangling references unless the manager cleans derived nodes —
+        matching the single-delete cascade.
+        """
+        from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
+
+        doc = VectorDocument(
+            id="digest-1",
+            content="task digest",
+            metadata={
+                "user_id": "test_user",
+                "namespaces": ["global", "agent:default"],
+                "memory_type": "episodic",
+            },
+        )
+        mock_vector_store.scroll.return_value = ([doc], None)
+        mock_vector_store.delete_by_filter.return_value = 1
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            graph=mock_graph_store,
+        )
+
+        count = await manager.delete_by_type(MemoryType.EPISODIC)
+
+        assert count == 1
+        mock_vector_store.delete_by_filter.assert_awaited_once()
+        mock_graph_store.delete_subgraph.assert_awaited_once_with("digest-1")
+
+    @pytest.mark.asyncio
+    async def test_delete_by_type_semantic_skips_graph_cascade(
+        self, mock_vector_store, mock_embedding, mock_graph_store, memory_config
+    ):
+        """Semantic bulk clears must not touch the Claim Graph.
+
+        Only episodic task digests are referenced by Claim Graph nodes, so
+        semantic deletes go through the plain wipe without cascade overhead.
+        """
+        mock_vector_store.delete_by_filter.return_value = 5
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            graph=mock_graph_store,
+        )
+
+        count = await manager.delete_by_type(MemoryType.SEMANTIC)
+
+        assert count == 5
+        mock_vector_store.delete_by_filter.assert_awaited_once()
+        mock_graph_store.delete_subgraph.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_delete_by_type_procedural_scoped_to_namespaces(
         self, mock_relational_store, memory_config
     ):
         """Procedural delete-by-type must be scoped to the manager's namespaces.
 
-        The previous implementation delegated to relational.delete_all(), which
-        wipes every scope's rules (plus profiles/pending_records) from the
-        shared tables. Mirroring delete_memories_by_metadata, rules must be
-        listed with a namespace filter and deleted one by one.
+        Rules must be listed with a namespace filter and deleted one by one so
+        the clear only touches the current scope — a global wipe would remove
+        every scope's rules and the shared profiles/pending_records tables.
         """
         rules = [
             ProceduralMemory(id="rule-a", content="A", trigger="t", action="a"),
@@ -326,6 +388,7 @@ class TestDeleteOperations:
         mock_relational_store.list_rules.assert_any_call(
             active_only=False, limit=500, offset=0, namespaces=manager.namespaces
         )
+        assert mock_relational_store.list_rules.await_count == 2
         assert mock_relational_store.delete_rule.await_count == 2
         mock_relational_store.delete_all.assert_not_called()
 

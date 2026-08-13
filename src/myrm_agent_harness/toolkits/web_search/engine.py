@@ -32,6 +32,7 @@ import asyncio
 import logging
 import time
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from langchain_core.documents import Document
 
@@ -119,6 +120,7 @@ class WebSearchTools:
         search_results_per_query: int = 10,
         top_k: int = 10,
         explicit_params: dict[str, object] | None = None,
+        blocked_hostnames: tuple[str, ...] | None = None,
     ) -> tuple[list[dict[str, object]], str]:
         """Multi-query parallel search + deduplication + ranking (auto-selects optimal mode).
 
@@ -139,6 +141,10 @@ class WebSearchTools:
             top_k: Final number of documents to return
             explicit_params: Agent-level explicit search parameters (highest priority).
                 Supported keys: time_range.
+            blocked_hostnames: Optional hostname blocklist (exact or ``*.`` wildcard). Results whose
+                URL host matches a pattern are dropped before ranking/formatting — a generic content
+                policy hook callers can use for benchmark decontamination (e.g. Hugging Face hosts).
+                None disables it.
 
         Raises:
             ValueError: When all queries return 0 results
@@ -216,6 +222,9 @@ class WebSearchTools:
             _, unified_docs = combine_search_results_unified(search_results)
             unified_docs = apply_domain_diversity_sort(unified_docs)
             search_time_ms = (time.perf_counter() - start_time) * 1000
+
+        if blocked_hostnames:
+            unified_docs = _drop_blocked_hostname_docs(unified_docs, blocked_hostnames)
 
         # Evaluate document characteristics to decide precision mode
         avg_doc_tokens = (
@@ -532,3 +541,32 @@ async def _precision_mode_search(
     )
 
     return merged_docs
+
+
+def _drop_blocked_hostname_docs(
+    documents: list[Document],
+    blocked_hostnames: tuple[str, ...],
+) -> list[Document]:
+    """Drop documents whose URL host matches the blocklist (exact or ``*.`` wildcard).
+
+    Applied to raw search results before ranking/formatting so filtered hosts never
+    surface in the LLM context — a generic content policy hook (benchmark decontamination
+    uses it to hide Hugging Face results that may carry reference material).
+    """
+    from myrm_agent_harness.toolkits.browser.domain_filter import DomainBlocklist
+
+    blocklist = DomainBlocklist.from_strings(blocked_hostnames)
+    kept: list[Document] = []
+    dropped = 0
+    for doc in documents:
+        hostname = (urlparse(str(doc.metadata.get("url") or "")).hostname or "").lower()
+        if hostname and blocklist.is_blocked(hostname):
+            dropped += 1
+            continue
+        kept.append(doc)
+    if dropped:
+        logger.info(
+            "Hostname blocklist dropped %d search result(s) before formatting",
+            dropped,
+        )
+    return kept

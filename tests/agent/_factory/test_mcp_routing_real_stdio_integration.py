@@ -22,9 +22,9 @@ def _write_mega_mcp_server(
     script_path: Path, tool_count: int = _MEGA_TOOL_COUNT
 ) -> None:
     lines = [
-        "from mcp.server.fastmcp import FastMCP",
+        "from mcp.server.mcpserver import MCPServer",
         "",
-        'server = FastMCP("mega-routing-probe")',
+        'server = MCPServer("mega-routing-probe")',
         "",
     ]
     for i in range(tool_count):
@@ -65,7 +65,7 @@ async def test_route_mcp_servers_real_stdio_mega_server_ptc_path(
     tmp_path: Path,
     _reset_manager: object,
 ) -> None:
-    """Real FastMCP stdio server with 55 tools must demote to PTC/Skill (no mocks)."""
+    """Real MCPServer stdio server with 55 tools must demote to PTC/Skill (no mocks)."""
     script = tmp_path / "mega_routing_probe.py"
     _write_mega_mcp_server(script)
 

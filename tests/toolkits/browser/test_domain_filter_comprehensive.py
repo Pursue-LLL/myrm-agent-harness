@@ -103,6 +103,24 @@ class TestDomainAllowlist:
         assert allowlist.is_allowed("EXAMPLE.COM") is True
         assert allowlist.is_allowed("Example.Com") is True
 
+    def test_is_blocked_same_matching_semantics_as_allowed(self) -> None:
+        """is_blocked mirrors is_allowed pattern matching (exact + wildcard)."""
+        blocklist = DomainAllowlist.from_strings(
+            ["huggingface.co", "*.huggingface.co", "hf.co"]
+        )
+
+        assert blocklist.is_blocked("huggingface.co") is True
+        assert blocklist.is_blocked("datasets.huggingface.co") is True
+        assert blocklist.is_blocked("hf.co") is True
+        assert blocklist.is_blocked("example.com") is False
+        assert blocklist.is_blocked("") is False
+
+    def test_is_blocked_empty_patterns(self) -> None:
+        """is_blocked returns False for an empty blocklist."""
+        blocklist = DomainAllowlist.from_strings([])
+
+        assert blocklist.is_blocked("huggingface.co") is False
+
 
 # =============================================================================
 # build_init_script

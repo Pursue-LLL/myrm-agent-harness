@@ -13,8 +13,10 @@ Mark: @pytest.mark.integration — skipped unless --run-integration flag is pass
 
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
+import sys
 
 import pytest
 
@@ -24,7 +26,9 @@ from myrm_agent_harness.toolkits.acp.acp_agent_tools import (
 from myrm_agent_harness.toolkits.acp.core.backend_detector import BackendDetector
 from myrm_agent_harness.toolkits.acp.runtime.cli_runtime import CliRuntime
 from myrm_agent_harness.toolkits.acp.runtime.pool import RuntimePool
+from myrm_agent_harness.toolkits.acp.runtime.sdk_runtime import SdkRuntime
 from myrm_agent_harness.toolkits.acp.types import (
+    McpServerConfig,
     RuntimeConfig,
     RuntimeEventType,
 )
@@ -319,6 +323,92 @@ class TestRuntimePoolReal:
         return pool
 
     @pytest.mark.asyncio
+    async def test_pool_routes_mcp_env_to_sdk_bridge(self) -> None:
+        """pool.run_turn(mcp_servers=...) must forward env to the SDK bridge child."""
+        bridge = (
+            "import sys,json;"
+            "line=sys.stdin.readline();"
+            "p=json.loads(line);"
+            "envs=[(s.get('name'),s.get('env')) for s in p.get('mcp_servers',[])];"
+            "print(json.dumps({'type':'text','text':json.dumps(envs)}),flush=True)"
+        )
+        pool = RuntimePool(max_concurrent=1)
+        pool.register(
+            "sdk-bridge",
+            RuntimeConfig(
+                backend_type="sdk",
+                command=sys.executable,
+                args=["-c", bridge],
+                timeout_seconds=30,
+                max_turns=1,
+            ),
+        )
+        try:
+            events = [
+                e
+                async for e in pool.run_turn(
+                    "sdk-bridge",
+                    "hello",
+                    "pool-sdk-env-s1",
+                    mcp_servers=[
+                        McpServerConfig(
+                            name="search",
+                            command="node",
+                            args=["server.js"],
+                            env={"MCP_TOKEN": "secret"},
+                        )
+                    ],
+                )
+            ]
+            text = "".join(
+                e.data["content"]
+                for e in events
+                if e.type == RuntimeEventType.TEXT_DELTA and isinstance(e.data.get("content"), str)
+            )
+            assert '"MCP_TOKEN": "secret"' in text
+        finally:
+            await pool.close_all()
+
+    @pytest.mark.asyncio
+    async def test_pool_mcp_forwarded_from_config_mcp_servers(self) -> None:
+        """RuntimeConfig.mcp_servers must flow to the bridge when no per-call servers."""
+        bridge = (
+            "import sys,json;"
+            "line=sys.stdin.readline();"
+            "p=json.loads(line);"
+            "envs=[(s.get('name'),s.get('env')) for s in p.get('mcp_servers',[])];"
+            "print(json.dumps({'type':'text','text':json.dumps(envs)}),flush=True)"
+        )
+        pool = RuntimePool(max_concurrent=1)
+        pool.register(
+            "sdk-cfg-mcp",
+            RuntimeConfig(
+                backend_type="sdk",
+                command=sys.executable,
+                args=["-c", bridge],
+                timeout_seconds=30,
+                max_turns=1,
+                mcp_servers=[
+                    McpServerConfig(
+                        name="cfg-mcp",
+                        command="node",
+                        env={"CFG_TOKEN": "cfg-value"},
+                    )
+                ],
+            ),
+        )
+        try:
+            events = [e async for e in pool.run_turn("sdk-cfg-mcp", "hello", "pool-sdk-cfg-s1")]
+            text = "".join(
+                e.data["content"]
+                for e in events
+                if e.type == RuntimeEventType.TEXT_DELTA and isinstance(e.data.get("content"), str)
+            )
+            assert '"CFG_TOKEN": "cfg-value"' in text
+        finally:
+            await pool.close_all()
+
+    @pytest.mark.asyncio
     @pytest.mark.skipif(
         not (_HAS_CLAUDE or _HAS_CODEX or _HAS_GEMINI),
         reason="At least one CLI backend required",
@@ -512,6 +602,110 @@ class TestDelegateToolReal:
         result = await tool_func.ainvoke({"agent_name": "dummy", "task": huge_task, "mode": "oneshot"})
         assert "[error]" in result
         assert "too large" in result.lower()
+
+
+# ── SdkRuntime bridge (no external CLI required) ────────────────────────
+
+
+class TestSdkBridgeReal:
+    """Live process-link tests for SdkRuntime using a real bridge subprocess.
+
+    Unlike the CLI classes above these need no third-party binary: the bridge
+    is the test's own Python interpreter speaking the same stdin→NDJSON stdout
+    contract as the Claude Agent SDK wrapper. This exercises the real process
+    lifecycle (spawn, stdin payload, stdout parse, exit handling) without any
+    network or LLM dependency.
+    """
+
+    # Reads the stdin payload, echoes the MCP env it received, then exits 0.
+    _BRIDGE = (
+        "import sys,json;"
+        "line=sys.stdin.readline();"
+        "p=json.loads(line);"
+        "envs=[(s.get('name'),s.get('env')) for s in p.get('mcp_servers',[])];"
+        "print(json.dumps({'type':'text','text':json.dumps(envs)}),flush=True)"
+    )
+
+    def _make_config(self, **overrides: object) -> RuntimeConfig:
+        defaults: dict[str, object] = {
+            "backend_type": "sdk",
+            "command": sys.executable,
+            "args": ["-c", self._BRIDGE],
+            "timeout_seconds": 30,
+            "max_turns": 1,
+        }
+        defaults.update(overrides)
+        return RuntimeConfig(**defaults)  # type: ignore[arg-type]
+
+    @pytest.mark.asyncio
+    async def test_mcp_env_forwarded_to_bridge_process(self) -> None:
+        """MCP server env must reach the real child process verbatim."""
+        rt = SdkRuntime("sdk-env", self._make_config())
+        mcp = [
+            McpServerConfig(
+                name="search",
+                command="node",
+                args=["server.js"],
+                env={"MCP_TOKEN": "secret", "PORT": "8080"},
+            )
+        ]
+        events = [e async for e in rt.run_turn("hello", "sdk-env-s1", mcp_servers=mcp)]
+
+        types = [e.type for e in events]
+        assert RuntimeEventType.TEXT_DELTA in types, f"Expected TEXT_DELTA, got: {types}"
+        assert RuntimeEventType.DONE in types, f"Expected DONE, got: {types}"
+
+        text = "".join(
+            e.data["content"]
+            for e in events
+            if e.type == RuntimeEventType.TEXT_DELTA and isinstance(e.data.get("content"), str)
+        )
+        assert '"MCP_TOKEN": "secret"' in text
+        assert '"PORT": "8080"' in text
+
+    @pytest.mark.asyncio
+    async def test_mcp_env_empty_object_forwarded(self) -> None:
+        """MCP without env must reach the bridge as an empty object."""
+        rt = SdkRuntime("sdk-env-empty", self._make_config())
+        mcp = [McpServerConfig(name="plain", command="echo")]
+        events = [e async for e in rt.run_turn("hello", "sdk-env-empty-s1", mcp_servers=mcp)]
+
+        text = "".join(
+            e.data["content"]
+            for e in events
+            if e.type == RuntimeEventType.TEXT_DELTA and isinstance(e.data.get("content"), str)
+        )
+        assert '["plain", {}]' in text
+
+    @pytest.mark.asyncio
+    async def test_bridge_nonzero_exit_without_text_emits_error(self) -> None:
+        """A crashing bridge (no stdout text) must surface PROCESS_CRASHED."""
+        rt = SdkRuntime("sdk-crash", self._make_config(args=["-c", "import sys;sys.exit(7)"]))
+        events = [e async for e in rt.run_turn("hello", "sdk-crash-s1")]
+
+        errors = [e for e in events if e.type == RuntimeEventType.ERROR]
+        assert len(errors) == 1
+        assert errors[0].data["error"].code == "process_crashed"
+        assert "7" in errors[0].data["error"].message
+
+    @pytest.mark.asyncio
+    async def test_bridge_cancel_terminates_child(self) -> None:
+        """cancel() during a long-running bridge must terminate the child."""
+        rt = SdkRuntime(
+            "sdk-cancel",
+            self._make_config(args=["-c", "import time;time.sleep(60)"]),
+        )
+
+        async def consume() -> None:
+            async for _ in rt.run_turn("hello", "sdk-cancel-s1"):
+                pass
+
+        task = asyncio.create_task(consume())
+        await asyncio.sleep(0.3)
+        await rt.cancel("sdk-cancel-s1")
+        await asyncio.wait_for(task, timeout=5.0)
+        await rt.close()
+        assert rt._process is None
 
 
 # ── Edge Cases ──────────────────────────────────────────────────────────

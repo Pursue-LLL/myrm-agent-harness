@@ -143,7 +143,7 @@ For JS-heavy or interactive pages (clicking, filling forms, scrolling), use brow
             blocklist = DomainBlocklist.from_strings(blocked_hostnames)
             for url in urls:
                 hostname = (urlparse(url).hostname or "").lower()
-                if blocklist.is_allowed(hostname):
+                if blocklist.is_blocked(hostname):
                     raise ToolError(
                         f"URL blocked: {url}",
                         user_hint="The URL host is excluded from fetching. Use a different URL.",

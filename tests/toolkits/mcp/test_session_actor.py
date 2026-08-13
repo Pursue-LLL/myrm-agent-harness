@@ -56,7 +56,7 @@ def _install_fake_client(
     mock_list_result = MagicMock()
     mock_list_result.tools = [MagicMock()]
 
-    init_result = SimpleNamespace(instructions=instructions, serverInfo=None)
+    init_result = SimpleNamespace(instructions=instructions, server_info=None)
 
     client_instance = MagicMock()
     client_instance.initialize = AsyncMock(return_value=init_result)
@@ -492,24 +492,24 @@ async def test_resolve_tool_normalises_hyphen_underscore() -> None:
 
 @pytest.mark.asyncio
 async def test_instructions_via_server_info() -> None:
-    """Instructions are extracted from serverInfo when not at top level."""
+    """Instructions are extracted from server_info when not at top level."""
 
     from types import SimpleNamespace
 
     class _ServerInfo:
-        instructions = "via serverInfo"
+        instructions = "via server_info"
 
     init_calls: list[int] = []
     client_cls, convert = _install_fake_client(init_calls, [_FakeTool("alpha")])
     client_cls._instance.initialize = AsyncMock(
-        return_value=SimpleNamespace(instructions=None, serverInfo=_ServerInfo())
+        return_value=SimpleNamespace(instructions=None, server_info=_ServerInfo())
     )
 
     actor = MCPSessionActor("srv", {"transport": "stdio"})
     with _patched(client_cls, convert):
         await actor.start()
         try:
-            assert actor.instructions == "via serverInfo"
+            assert actor.instructions == "via server_info"
         finally:
             await actor.close()
 
@@ -554,6 +554,90 @@ async def test_close_is_idempotent() -> None:
         await actor.close()
         await actor.close()  # should not raise
         assert actor.is_healthy() is False
+
+
+@pytest.mark.asyncio
+async def test_close_fails_in_flight_call_instead_of_hanging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """close() cancelling a busy owner task must fail the in-flight call.
+
+    Without the ``asyncio.CancelledError`` branch, the cancelled owner task
+    leaves the caller's future unresolved forever (the call's proxy tool has
+    no outer timeout), which hangs the agent mid-turn. Regression test for
+    the close() grace-window cancel path.
+    """
+    monkeypatch.setattr("myrm_agent_harness.toolkits.mcp.session_actor._CLOSE_TIMEOUT", 0.2)
+    init_calls: list[int] = []
+
+    class _HangingTool(_FakeTool):
+        def __init__(self) -> None:
+            super().__init__("hang")
+            self._gate = asyncio.Event()
+            self.entered = asyncio.Event()
+
+        async def ainvoke(self, params: dict[str, object]) -> object:
+            self.entered.set()
+            await self._gate.wait()
+            return self._result
+
+    hang_tool = _HangingTool()
+    client_cls, convert = _install_fake_client(init_calls, [hang_tool])
+
+    actor = MCPSessionActor("srv", {"transport": "stdio"})
+    with _patched(client_cls, convert):
+        await actor.start()
+        call_task = asyncio.create_task(actor.call("hang", {}))
+        # Guarantee the owner task has dequeued the call and is blocked inside
+        # ``ainvoke`` before close() starts its grace-window cancel.
+        await asyncio.wait_for(hang_tool.entered.wait(), timeout=5.0)
+        try:
+            await asyncio.wait_for(actor.close(), timeout=5.0)
+            with pytest.raises(RuntimeError, match="closed during call"):
+                await asyncio.wait_for(call_task, timeout=2.0)
+        finally:
+            if not call_task.done():
+                call_task.cancel()
+
+
+@pytest.mark.asyncio
+async def test_close_fails_in_flight_resource_read_instead_of_hanging(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """close() cancelling a busy owner task must fail the in-flight resource read.
+
+    Mirrors the tool-call regression: a resource read being awaited by the
+    owner task when close()'s grace window expires must not leave the caller
+    waiting forever.
+    """
+    monkeypatch.setattr("myrm_agent_harness.toolkits.mcp.session_actor._CLOSE_TIMEOUT", 0.2)
+    init_calls: list[int] = []
+
+    entered = asyncio.Event()
+    gate = asyncio.Event()
+
+    async def _hanging_read(uri: str) -> object:
+        entered.set()
+        await gate.wait()
+        return MagicMock()
+
+    client_cls, convert = _install_fake_client(init_calls, [_FakeTool("alpha")])
+    client_cls._instance.read_resource = AsyncMock(side_effect=_hanging_read)
+
+    actor = MCPSessionActor("srv", {"transport": "stdio"})
+    with _patched(client_cls, convert):
+        await actor.start()
+        read_task = asyncio.create_task(actor.read_resource("memory://k"))
+        # Same guarantee as the tool-call test: the owner must be blocked inside
+        # ``read_resource`` when close() starts its grace-window cancel.
+        await asyncio.wait_for(entered.wait(), timeout=5.0)
+        try:
+            await asyncio.wait_for(actor.close(), timeout=5.0)
+            with pytest.raises(RuntimeError, match="closed during resource read"):
+                await asyncio.wait_for(read_task, timeout=2.0)
+        finally:
+            if not read_task.done():
+                read_task.cancel()
 
 
 @pytest.mark.asyncio
@@ -1035,7 +1119,7 @@ class TestExtractInstructionsEdgeCases:
 
         class _NoInstructions:
             instructions = None
-            serverInfo = None  # noqa: N815
+            server_info = None
 
         assert _extract_instructions(_NoInstructions()) is None
 
@@ -1055,13 +1139,13 @@ class TestExtractInstructionsEdgeCases:
         )
 
         class _ServerInfo:
-            instructions = "from serverInfo"
+            instructions = "from server_info"
 
         class _EmptyTopLevel:
             instructions = ""
-            serverInfo = _ServerInfo()  # noqa: N815
+            server_info = _ServerInfo()
 
-        assert _extract_instructions(_EmptyTopLevel()) == "from serverInfo"
+        assert _extract_instructions(_EmptyTopLevel()) == "from server_info"
 
 
 # ────────── Init: keepalive transport gating ──────────

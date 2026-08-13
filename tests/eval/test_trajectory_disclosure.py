@@ -199,9 +199,7 @@ class TestJsonlReporterDisclosure:
             response=AgentResponse(
                 answer="a",
                 tools_called=["web_search_tool"],
-                tool_call_details=[
-                    {"tool_name": "web_search_tool", "step_key": "web"}
-                ],
+                tool_call_details=[{"tool_name": "web_search_tool", "step_key": "web"}],
                 limit_reached="max_tool_calls",
                 blocked_count=1,
             ),

@@ -126,7 +126,6 @@ class TestRecordingActions:
     async def test_trace_start(self, manage_tool) -> None:
         result = await manage_tool.ainvoke({"action": "trace_start"})
         assert "trace started" in result
-
     @pytest.mark.asyncio
     async def test_trace_stop(self, manage_tool) -> None:
         result = await manage_tool.ainvoke({"action": "trace_stop"})
@@ -146,6 +145,17 @@ class TestRecordingActions:
     async def test_recording_status(self, manage_tool) -> None:
         result = await manage_tool.ainvoke({"action": "recording_status"})
         assert "idle" in result
+
+
+class TestWebVitalsAction:
+    @pytest.mark.asyncio
+    async def test_web_vitals_returns_report(self) -> None:
+        session = _make_session()
+        session.get_web_vitals = AsyncMock(return_value="Web Vitals for https://example.com")
+        tool = create_manage_tool(session)
+        result = await tool.ainvoke({"action": "web_vitals"})
+        assert "Web Vitals for https://example.com" in result
+        session.get_web_vitals.assert_awaited_once()
 
 
 class TestDownloadActions:

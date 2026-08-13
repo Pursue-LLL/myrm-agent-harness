@@ -1533,3 +1533,264 @@ async def test_interactor_unknown_action_coverage(
             assert result == "Unknown action: unknown_action"
     finally:
         interactor_module._VALID_ACTIONS = original_actions
+
+
+# =============================================================================
+# Humanize primitives: overshoot / zero-delta guards (coverage)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_bezier_move_overshoot_correction(mock_page: Any) -> None:
+    """bezier_move shoots past the target then corrects back when the chance hits."""
+    from myrm_agent_harness.toolkits.browser.session.humanize import bezier_move
+
+    cfg = HumanizeConfig()  # overshoot_chance=0.15 default
+    with patch("random.random", return_value=0.05):  # < 0.15 → overshoot branch
+        await bezier_move(mock_page, 0, 0, 200, 100, cfg)
+
+    # steps = max(25, min(80, round(hypot(200,100)/8))) = 28 → 29 bezier moves
+    # + 1 overshoot + 1 correction return = 31 total
+    assert mock_page.mouse.move.call_count == 31
+    last_x, last_y = mock_page.mouse.move.call_args_list[-1].args[:2]
+    assert abs(last_x - 200) <= 5 and abs(last_y - 100) <= 5  # corrected back
+
+
+@pytest.mark.asyncio
+async def test_bezier_move_no_overshoot_when_chance_misses(mock_page: Any) -> None:
+    """bezier_move without the overshoot hit ends exactly on the target."""
+    from myrm_agent_harness.toolkits.browser.session.humanize import bezier_move
+
+    cfg = HumanizeConfig()
+    with patch("random.random", return_value=0.5):  # >= 0.15 → no overshoot
+        await bezier_move(mock_page, 0, 0, 200, 100, cfg)
+
+    assert mock_page.mouse.move.call_count == 29  # pure bezier path
+    last_x, last_y = mock_page.mouse.move.call_args_list[-1].args[:2]
+    assert last_x == 200 and last_y == 100  # lands exactly on target
+
+
+@pytest.mark.asyncio
+async def test_wheel_burst_zero_delta_noop(mock_page: Any) -> None:
+    """wheel_burst with a zero delta emits no wheel events."""
+    from myrm_agent_harness.toolkits.browser.session.humanize import wheel_burst
+
+    mock_page.mouse.wheel = AsyncMock()
+    await wheel_burst(mock_page, 0, HumanizeConfig())
+    mock_page.mouse.wheel.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_scroll_overshoot_correct_branch(mock_page: Any) -> None:
+    """CAREFUL overshoot-and-correct fires when the chance check hits."""
+    interactor = _careful_interactor(mock_page, {})
+    mock_page.mouse.wheel = AsyncMock()
+
+    with patch("random.random", return_value=0.05):  # < scroll_overshoot_chance=0.1
+        await interactor._scroll_overshoot_correct(1)
+
+    # overshoot burst + 1-2 correction bursts each emit wheel events
+    assert mock_page.mouse.wheel.call_count >= 2
+
+
+@pytest.mark.asyncio
+async def test_interact_fill_credential_vault_error(mock_page: Any) -> None:
+    """Vault lookup failure surfaces as a clear ValueError."""
+    interactor = Interactor(
+        mock_page, {"e0": RefInfo(role="textbox", name="Code", nth=0)}
+    )
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
+    ) as mock_resolve:
+        mock_resolve.return_value = AsyncMock()
+        with patch(
+            "myrm_agent_harness.core.security.credential_vault.CredentialVault.get_password",
+            side_effect=Exception("vault locked"),
+        ):
+            with pytest.raises(ValueError, match="Failed to retrieve credential"):
+                await interactor.interact("fill_credential", "e0", "github-personal")
+
+
+@pytest.mark.asyncio
+async def test_interact_dialog_check_failure_falls_back(
+    mock_page: Any, ref_info: RefInfo
+) -> None:
+    """Dialog detection failure degrades to the normal error path (no hint)."""
+    interactor = Interactor(mock_page, {"e0": ref_info})
+    locator = AsyncMock()
+    locator.click.side_effect = Exception("Timeout 30000 ms exceeded")
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+            return_value=locator,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+            side_effect=Exception("no backend"),
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.browser.session.interactor.logger.warning"
+        ) as mock_warn,
+    ):
+        with pytest.raises(Exception, match="Timeout"):
+            await interactor.interact("click", "e0", "")
+
+    # Falls through to the "no OS dialog detected" branch, still warns, then re-raises.
+    assert mock_warn.call_count == 1
+
+
+# =============================================================================
+# Additional coverage: remaining defensive branches
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_bezier_move_identical_points_noop(mock_page: Any) -> None:
+    """bezier_move with start == end emits no mouse events."""
+    from myrm_agent_harness.toolkits.browser.session.humanize import bezier_move
+
+    mock_page.mouse.move = AsyncMock()
+    await bezier_move(mock_page, 100, 100, 100, 100, HumanizeConfig())
+    mock_page.mouse.move.assert_not_called()
+
+
+def test_scroll_burst_break_ms_fast_returns_zero() -> None:
+    """FAST mode never pauses between scroll notches."""
+    from myrm_agent_harness.toolkits.browser.session.humanize import (
+        scroll_burst_break_ms,
+    )
+
+    cfg = HumanizeConfig.from_mode(HumanizeMode.FAST)
+    assert scroll_burst_break_ms(cfg, in_burst=True, phase_changed=True) == 0
+
+
+@pytest.mark.asyncio
+async def test_scroll_cursor_target_unmeasurable_uses_viewport_center(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A hidden target makes the wheel cursor fall back to the viewport center."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = None
+
+    x, y = await interactor._scroll_cursor_target(locator)
+
+    assert (x, y) == (640.0, 360.0)
+
+
+@pytest.mark.asyncio
+async def test_scroll_cursor_target_measure_error_uses_viewport_center(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A bounding-box error degrades to the viewport center."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.side_effect = Exception("Target closed")
+
+    x, y = await interactor._scroll_cursor_target(locator)
+
+    assert (x, y) == (640.0, 360.0)
+
+
+@pytest.mark.asyncio
+async def test_target_box_wait_failure_returns_none(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """wait_for failure yields None so callers degrade gracefully."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.wait_for.side_effect = Exception("timeout")
+
+    assert await interactor._target_box(locator) is None
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_box_disappears_mid_scroll(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """The target vanishes mid-scroll: degrade to False, no crash."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    off_zone = {"x": 100, "y": 1800, "width": 200, "height": 100}
+    # 186 initial check → off-zone; 193 cursor target → same box;
+    # 198 loop re-check → None → break
+    locator.bounding_box.side_effect = [off_zone, off_zone, None]
+    mock_page.mouse.wheel = AsyncMock()
+
+    assert await interactor._ensure_target_in_view(locator) is False
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_delta_zero_breaks(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A target within a fraction of the band: delta rounds to zero, loop stops."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    # vh=720 → zone_hi=504. cy = 454.4 + 50 = 504.4 → delta = round(0.4) = 0
+    locator.bounding_box.return_value = {
+        "x": 100,
+        "y": 454.4,
+        "width": 200,
+        "height": 100,
+    }
+    mock_page.mouse.wheel = AsyncMock()
+
+    assert await interactor._ensure_target_in_view(locator) is False
+
+
+@pytest.mark.asyncio
+async def test_scroll_noop_reason_smooth_scroll_settles(mock_page: Any) -> None:
+    """Smooth scroll: the container moves after the settle delay, no reason given."""
+    interactor = Interactor(mock_page, {})
+    state_a = {"top": 0.0, "height": 2000.0, "client": 720.0}
+    state_b = {"top": 100.0, "height": 2000.0, "client": 720.0}
+    states = iter([state_a, state_b])
+
+    async def mock_evaluate(expr: str, arg: Any = None) -> Any:
+        if "innerHeight" in expr:
+            return 800
+        if "elementFromPoint" in expr:
+            return next(states)
+        return 0
+
+    mock_page.evaluate = AsyncMock(side_effect=mock_evaluate)
+    mock_page.mouse.wheel = AsyncMock()
+
+    reason = await interactor._scroll_noop_reason(400, 300, state_a, 300)
+
+    assert reason == ""
+
+
+@pytest.mark.asyncio
+async def test_scroll_deliver_zero_delta_noop(mock_page: Any) -> None:
+    """Zero delta emits no wheel events in any mode."""
+    for mode in (HumanizeMode.FAST, HumanizeMode.DEFAULT, HumanizeMode.CAREFUL):
+        interactor = Interactor(
+            mock_page, {}, humanize=HumanizeConfig.from_mode(mode)
+        )
+        mock_page.mouse.wheel = AsyncMock()
+        await interactor._scroll_deliver(0)
+        mock_page.mouse.wheel.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_bezier_move_to_initializes_mouse_position(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A first Bézier move seeds the mouse from the viewport center."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    interactor._mouse_x = 0.0
+    interactor._mouse_y = 0.0
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {"x": 400, "y": 300, "width": 100, "height": 60}
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.bezier_move",
+        new_callable=AsyncMock,
+    ) as mock_bezier:
+        assert await interactor._bezier_move_to(locator) is True
+
+    start_x, start_y = mock_bezier.await_args.args[1], mock_bezier.await_args.args[2]
+    assert (start_x, start_y) == (640.0, 360.0)  # seeded from the viewport center

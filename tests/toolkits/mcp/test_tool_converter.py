@@ -265,7 +265,7 @@ async def test_convert_strips_null_optional_fields_before_call_tool():
 
 
 async def test_convert_tool_with_nested_ref_flattens_params_and_dispatches():
-    """FastMCP nested-model tools ($defs/$ref) keep nested dict args intact."""
+    """MCPServer nested-model tools ($defs/$ref) keep nested dict args intact."""
 
     class Address(BaseModel):
         street: str
@@ -308,7 +308,7 @@ async def test_convert_tool_with_nested_ref_flattens_params_and_dispatches():
 
 
 def test_convert_tool_with_optional_nested_ref_preserves_object():
-    """FastMCP optional nested fields (anyOf[$ref, null]) stay object-typed."""
+    """MCPServer optional nested fields (anyOf[$ref, null]) stay object-typed."""
 
     class Address(BaseModel):
         street: str
@@ -489,12 +489,12 @@ def test_llm_visible_schema_preserves_full_semantics():
 
 
 # ---------------------------------------------------------------------------
-# Real MCP SDK objects — camelCase field names must be read correctly
+# Real MCP SDK objects — snake_case fields must be read correctly
 # ---------------------------------------------------------------------------
 
 
-def test_convert_real_sdk_tool_camelcase_input_schema():
-    """``mcp.types.Tool`` exposes ``inputSchema`` (camelCase); the converter
+def test_convert_real_sdk_tool_input_schema():
+    """``mcp.types.Tool`` exposes ``input_schema`` (snake_case); the converter
     must read it or every real server's args schema silently becomes empty."""
     from mcp.types import Tool
 
@@ -509,7 +509,7 @@ def test_convert_real_sdk_tool_camelcase_input_schema():
     sdk_tool = Tool(
         name="search",
         description="search tool",
-        inputSchema=schema,
+        input_schema=schema,
     )
     tools = convert_mcp_tools([sdk_tool], fake_call)
     assert len(tools) == 1

@@ -20,6 +20,8 @@ the model instead of the leak. The business layer decides when to apply them
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from urllib.parse import urlparse
 
 # Pattern set in DomainAllowlist/DomainBlocklist form (wildcard suffix).
@@ -81,9 +83,6 @@ def normalize_answer(text: str) -> str:
     LLM judge. Non-empty guard is the caller's responsibility — an empty
     normalized string must never be treated as a match.
     """
-    import re
-    import unicodedata
-
     normalized = unicodedata.normalize("NFKC", text)
     normalized = re.sub(r"[^\w\s]", "", normalized, flags=re.UNICODE)
     return " ".join(normalized.lower().split())

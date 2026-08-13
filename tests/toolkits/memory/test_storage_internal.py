@@ -601,8 +601,13 @@ class TestStorageCrudBranches:
 
     @pytest.mark.asyncio
     async def test_delete_procedural_rules(self, mock_relational_store, memory_config):
-        """PROCEDURAL delete delegates to relational delete_all."""
-        mock_relational_store.delete_all.return_value = 7
+        """PROCEDURAL delete lists scoped rules and deletes them one by one."""
+        rules = [
+            SimpleNamespace(id="rule-a"),
+            SimpleNamespace(id="rule-b"),
+        ]
+        mock_relational_store.list_rules.side_effect = [rules, []]
+        mock_relational_store.delete_rule.return_value = True
 
         result = await delete_by_type(
             MemoryType.PROCEDURAL,
@@ -611,7 +616,9 @@ class TestStorageCrudBranches:
             config=memory_config,
         )
 
-        assert result == 7
+        assert result == 2
+        assert mock_relational_store.delete_rule.await_count == 2
+        mock_relational_store.delete_all.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_delete_by_type_no_backend_returns_zero(self, memory_config):

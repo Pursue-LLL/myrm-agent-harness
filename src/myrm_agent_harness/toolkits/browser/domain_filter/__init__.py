@@ -73,12 +73,15 @@ class DomainAllowlist:
     Patterns:
     - ``"example.com"`` — exact match
     - ``"*.example.com"`` — matches ``example.com`` and all subdomains
+
+    Callers with an allowlist semantics use :meth:`is_allowed`; callers with a
+    blocklist semantics use :meth:`is_blocked`. Both share the same pattern
+    matching — the pair exists so each call site reads in its own terms.
     """
 
     patterns: tuple[str, ...]
 
-    def is_allowed(self, hostname: str) -> bool:
-        """Check whether *hostname* matches any allowed pattern."""
+    def _matches(self, hostname: str) -> bool:
         hostname = hostname.lower()
         for pattern in self.patterns:
             if pattern.startswith("*."):
@@ -89,6 +92,19 @@ class DomainAllowlist:
             elif hostname == pattern:
                 return True
         return False
+
+    def is_allowed(self, hostname: str) -> bool:
+        """Return True when *hostname* matches an allowed pattern."""
+        return self._matches(hostname)
+
+    def is_blocked(self, hostname: str) -> bool:
+        """Return True when *hostname* matches a blocked pattern.
+
+        Semantically the mirror of :meth:`is_allowed` — both test pattern
+        membership; the distinct name lets blocklist call sites read naturally
+        instead of reinterpreting ``is_allowed`` as "is in the deny list".
+        """
+        return self._matches(hostname)
 
     @classmethod
     def from_strings(cls, domains: Sequence[str]) -> DomainAllowlist:
@@ -397,7 +413,7 @@ async def _install_http_filter(
         if (
             domain_blocklist
             and not domain_blocklist.is_empty
-            and domain_blocklist.is_allowed(hostname)
+            and domain_blocklist.is_blocked(hostname)
         ):
             await _abort_route_safely(route)
             return

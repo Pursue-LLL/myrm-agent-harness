@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from myrm_agent_harness.utils.chat_utils import extract_litellm_answer_text
 
+from .decontam import normalize_answer
 from .suite_judge import evaluate_test_suite_assertion
 
 if TYPE_CHECKING:
@@ -72,13 +73,21 @@ def evaluate_tool_assertions(
     if assertion.require_all:
         missing = expected - called
         if missing:
-            return False, (f"Missing tools: {sorted(missing)}. Called: {sorted(called)}")
-        return True, (f"All expected tools called: {sorted(expected)}. Called: {sorted(called)}")
+            return False, (
+                f"Missing tools: {sorted(missing)}. Called: {sorted(called)}"
+            )
+        return True, (
+            f"All expected tools called: {sorted(expected)}. Called: {sorted(called)}"
+        )
 
     matched = expected & called
     if not matched:
-        return False, (f"None of expected tools called. Expected one of: {sorted(expected)}. Called: {sorted(called)}")
-    return True, (f"Expected tool(s) called: {sorted(matched)}. Called: {sorted(called)}")
+        return False, (
+            f"None of expected tools called. Expected one of: {sorted(expected)}. Called: {sorted(called)}"
+        )
+    return True, (
+        f"Expected tool(s) called: {sorted(matched)}. Called: {sorted(called)}"
+    )
 
 
 async def evaluate_sandbox_assertions(
@@ -102,9 +111,14 @@ async def evaluate_sandbox_assertions(
         return None, None
 
     if not executor:
-        return False, "CodeExecutor is required for sandbox assertions but was not provided."
+        return (
+            False,
+            "CodeExecutor is required for sandbox assertions but was not provided.",
+        )
 
-    from myrm_agent_harness.toolkits.code_execution.executors.models import ExecutionContext
+    from myrm_agent_harness.toolkits.code_execution.executors.models import (
+        ExecutionContext,
+    )
 
     for assertion in assertions:
         if assertion.type == "test_suite":
@@ -118,11 +132,17 @@ async def evaluate_sandbox_assertions(
         elif assertion.type == "file_exists":
             exists = await executor.file_exists(assertion.target)
             if not exists:
-                return False, f"Sandbox assertion failed: File {assertion.target} does not exist."
+                return (
+                    False,
+                    f"Sandbox assertion failed: File {assertion.target} does not exist.",
+                )
         elif assertion.type == "file_contains":
             exists = await executor.file_exists(assertion.target)
             if not exists:
-                return False, f"Sandbox assertion failed: File {assertion.target} does not exist."
+                return (
+                    False,
+                    f"Sandbox assertion failed: File {assertion.target} does not exist.",
+                )
             content = await executor.read_file(assertion.target)
             if assertion.expected and assertion.expected not in content:
                 return (
@@ -140,7 +160,10 @@ async def evaluate_sandbox_assertions(
         elif assertion.type == "file_not_exists":
             exists = await executor.file_exists(assertion.target)
             if exists:
-                return False, f"Sandbox assertion failed: File {assertion.target} exists but should not."
+                return (
+                    False,
+                    f"Sandbox assertion failed: File {assertion.target} exists but should not.",
+                )
         elif assertion.type == "cmd_output_contains":
             ctx = ExecutionContext(code=assertion.target)
             result = await executor.execute_bash(ctx)
@@ -157,7 +180,10 @@ async def evaluate_sandbox_assertions(
         elif assertion.type == "json_matches":
             exists = await executor.file_exists(assertion.target)
             if not exists:
-                return False, f"Sandbox assertion failed: File {assertion.target} does not exist."
+                return (
+                    False,
+                    f"Sandbox assertion failed: File {assertion.target} does not exist.",
+                )
             content = await executor.read_file(assertion.target)
             try:
                 data = json.loads(content)
@@ -187,9 +213,15 @@ async def evaluate_sandbox_assertions(
                             "Sandbox assertion failed: Invalid expected format for json_matches. Use 'key=value'.",
                         )
             except json.JSONDecodeError:
-                return False, f"Sandbox assertion failed: File {assertion.target} is not valid JSON."
+                return (
+                    False,
+                    f"Sandbox assertion failed: File {assertion.target} is not valid JSON.",
+                )
         else:
-            return False, f"Sandbox assertion failed: Unknown assertion type '{assertion.type}'."
+            return (
+                False,
+                f"Sandbox assertion failed: Unknown assertion type '{assertion.type}'.",
+            )
 
     return True, "All sandbox assertions passed."
 
@@ -219,13 +251,22 @@ def evaluate_state_assertions(
                 )
         elif assertion.type == "contains":
             if assertion.expected not in actual_output:
-                return False, f"State assertion failed: expected output to contain '{assertion.expected}'"
+                return (
+                    False,
+                    f"State assertion failed: expected output to contain '{assertion.expected}'",
+                )
         elif assertion.type == "not_contains":
             if assertion.expected in actual_output:
-                return False, f"State assertion failed: output must NOT contain '{assertion.expected}'"
+                return (
+                    False,
+                    f"State assertion failed: output must NOT contain '{assertion.expected}'",
+                )
         elif assertion.type == "regex":
             if not re.search(assertion.expected, actual_output):
-                return False, f"State assertion failed: output does not match regex '{assertion.expected}'"
+                return (
+                    False,
+                    f"State assertion failed: output does not match regex '{assertion.expected}'",
+                )
         elif assertion.type == "json_valid":
             try:
                 json.loads(actual_output)
@@ -235,14 +276,23 @@ def evaluate_state_assertions(
             try:
                 parsed = json.loads(actual_output)
             except (ValueError, TypeError):
-                return False, "State assertion failed: output is not valid JSON (json_schema requires valid JSON)"
+                return (
+                    False,
+                    "State assertion failed: output is not valid JSON (json_schema requires valid JSON)",
+                )
             try:
                 schema = json.loads(assertion.expected)
             except (ValueError, TypeError):
-                return False, f"State assertion failed: invalid JSON schema definition: '{assertion.expected}'"
+                return (
+                    False,
+                    f"State assertion failed: invalid JSON schema definition: '{assertion.expected}'",
+                )
             schema_error = _validate_json_schema(parsed, schema)
             if schema_error:
-                return False, f"State assertion failed: JSON schema validation error: {schema_error}"
+                return (
+                    False,
+                    f"State assertion failed: JSON schema validation error: {schema_error}",
+                )
         elif assertion.type == "custom_python":
             safe_builtins = {
                 "len": len,
@@ -274,9 +324,16 @@ def evaluate_state_assertions(
                 "None": None,
             }
             try:
-                result = eval(assertion.expected, {"__builtins__": safe_builtins}, {"output": actual_output})  # noqa: S307  # eval-assert DSL, builtins stripped
+                result = eval(
+                    assertion.expected,
+                    {"__builtins__": safe_builtins},
+                    {"output": actual_output},
+                )  # noqa: S307  # eval-assert DSL, builtins stripped
                 if not result:
-                    return False, f"State assertion failed: custom expression '{assertion.expected}' evaluated to False"
+                    return (
+                        False,
+                        f"State assertion failed: custom expression '{assertion.expected}' evaluated to False",
+                    )
             except Exception as exc:
                 return False, f"State assertion failed: custom expression error: {exc}"
         elif assertion.type == "jaccard_similarity":
@@ -291,7 +348,10 @@ def evaluate_state_assertions(
                     f"State assertion failed: Jaccard similarity {similarity:.2f} is below threshold {assertion.threshold:.2f}",
                 )
         else:
-            return False, f"State assertion failed: Unknown assertion type '{assertion.type}'"
+            return (
+                False,
+                f"State assertion failed: Unknown assertion type '{assertion.type}'",
+            )
 
     return True, "All state assertions passed."
 
@@ -308,9 +368,17 @@ def _validate_json_schema(data: object, schema: dict[str, object]) -> str | None
                 if field_name not in data:
                     return f"Missing required field: '{field_name}'"
 
-    if "properties" in schema and isinstance(schema["properties"], dict) and isinstance(data, dict):
+    if (
+        "properties" in schema
+        and isinstance(schema["properties"], dict)
+        and isinstance(data, dict)
+    ):
         for prop_name, prop_schema in schema["properties"].items():
-            if prop_name in data and isinstance(prop_schema, dict) and "type" in prop_schema:
+            if (
+                prop_name in data
+                and isinstance(prop_schema, dict)
+                and "type" in prop_schema
+            ):
                 expected_type = prop_schema["type"]
                 actual_value = data[prop_name]
                 if not _check_json_type(actual_value, str(expected_type)):
@@ -342,8 +410,6 @@ def _exact_match_prepass(expected: str, actual_output: str) -> bool:
     answer is trivially correct and the LLM judge is unnecessary. Guarded by a
     non-empty check on both sides so an empty output never passes.
     """
-    from myrm_agent_harness.eval.decontam import normalize_answer
-
     normalized_expected = normalize_answer(expected)
     normalized_actual = normalize_answer(actual_output)
     if not normalized_expected or not normalized_actual:
@@ -375,7 +441,10 @@ async def evaluate_semantic_assertions(
     try:
         from litellm import acompletion
     except ImportError:
-        return False, "Semantic assertions require the 'litellm' package to be installed."
+        return (
+            False,
+            "Semantic assertions require the 'litellm' package to be installed.",
+        )
 
     default_judge_model = os.environ.get("MYRM_EVAL_JUDGE_MODEL", "gpt-4o-mini")
     default_binary_prompt = (
@@ -459,7 +528,10 @@ async def evaluate_semantic_assertions(
                         elif result_text.startswith("FAIL"):
                             score = 0.0
                         else:
-                            return False, f"Semantic assertion: judge returned unparseable score '{result_text}'"
+                            return (
+                                False,
+                                f"Semantic assertion: judge returned unparseable score '{result_text}'",
+                            )
 
                     if score >= assertion.threshold:
                         continue
@@ -476,6 +548,9 @@ async def evaluate_semantic_assertions(
             except Exception as e:
                 return False, f"Semantic assertion failed due to LLM error: {e!s}"
         else:
-            return False, f"Semantic assertion failed: Unknown assertion type '{assertion.type}'"
+            return (
+                False,
+                f"Semantic assertion failed: Unknown assertion type '{assertion.type}'",
+            )
 
     return True, "All semantic assertions passed."

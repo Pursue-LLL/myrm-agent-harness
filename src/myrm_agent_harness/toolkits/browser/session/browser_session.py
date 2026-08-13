@@ -98,6 +98,7 @@ from .snapshot_manager import SnapshotManager, SnapshotResult
 from .structured_extractor import StructuredExtractor
 from .tab_controller import TabController
 from .vision_verifier import VisionVerifier
+from .web_vitals import WebVitalsCollector
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -215,6 +216,7 @@ class BrowserSession(
         self._extractor: Extractor | None = None
         self._network_logger = NetworkLogger()
         self._network_intelligence = NetworkIntelligence()
+        self._web_vitals = WebVitalsCollector()
         self._console_logger = ConsoleLogger()
         self._persistence: SessionPersistence | None = SessionPersistence(session_vault) if session_vault else None
         self._recording_manager: RecordingManager | None = None
@@ -500,6 +502,19 @@ class BrowserSession(
                     },
                 }
             )
+
+    async def get_web_vitals(self) -> str:
+        """Collect and grade Core Web Vitals for the current page.
+
+        Returns:
+            Formatted report (metrics, slow resources, suggestions). Degrades
+            gracefully when the page is not measurable yet.
+        """
+        await self._ensure_components()
+        page = self._tab_controller.get_active_page()
+        url = page.url
+        report = await self._web_vitals.collect(page, url)
+        return report.to_text()
 
     async def get_final_screenshot(self) -> bytes:
         """GetfinalStateScreenshot"""

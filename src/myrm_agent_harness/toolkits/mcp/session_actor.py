@@ -615,6 +615,17 @@ class MCPSessionActor:
                         resource_bytes = await self._read_resource(session, item.uri)
                         if not item.future.done():
                             item.future.set_result(resource_bytes)
+                    except asyncio.CancelledError:
+                        # Owner task cancelled (close() exceeded its grace window):
+                        # fail the caller's future so it never hangs on a session
+                        # that is going away, then re-raise to keep cancel semantics.
+                        if not item.future.done():
+                            item.future.set_exception(
+                                RuntimeError(
+                                    f"MCP session '{self.server_name}' closed during resource read"
+                                )
+                            )
+                        raise
                     except (
                         ConnectionError,
                         ProcessLookupError,
@@ -641,6 +652,15 @@ class MCPSessionActor:
                     result = await self._invoke(item.tool_name, item.params)
                     if not item.future.done():
                         item.future.set_result(result)
+                except asyncio.CancelledError:
+                    # Owner task cancelled (close() exceeded its grace window):
+                    # fail the caller's future so it never hangs on a session
+                    # that is going away, then re-raise to keep cancel semantics.
+                    if not item.future.done():
+                        item.future.set_exception(
+                            RuntimeError(f"MCP session '{self.server_name}' closed during call")
+                        )
+                    raise
                 except (
                     ConnectionError,
                     ProcessLookupError,
@@ -1052,9 +1072,7 @@ def _extract_instructions(client_or_result: object) -> str | None:
     """Pull server instructions from an MCP Client or result object."""
     instructions = getattr(client_or_result, "instructions", None)
     if not instructions:
-        server_info = getattr(client_or_result, "server_info", None) or getattr(
-            client_or_result, "serverInfo", None
-        )
+        server_info = getattr(client_or_result, "server_info", None)
         if server_info is not None:
             instructions = getattr(server_info, "instructions", None)
     return instructions if isinstance(instructions, str) else None

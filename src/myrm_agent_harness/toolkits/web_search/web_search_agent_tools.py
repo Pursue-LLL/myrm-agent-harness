@@ -50,6 +50,7 @@ def create_web_search_tool(
     *,
     description_locale: str | None = None,
     blocked_terms: tuple[str, ...] | None = None,
+    blocked_hostnames: tuple[str, ...] | None = None,
 ):
     """Create a web search meta-tool.
 
@@ -63,6 +64,10 @@ def create_web_search_tool(
             containing a blocked term (case-insensitive) is rejected before the search runs —
             a generic content policy hook callers can use for benchmark decontamination
             (e.g. Hugging Face references). None disables it.
+        blocked_hostnames: Optional hostname blocklist (exact or ``*.`` wildcard) for search
+            results. Results whose URL host matches a pattern are dropped before the formatted
+            context is built — a generic content policy hook callers can use for benchmark
+            decontamination (e.g. Hugging Face hosts). None disables it.
 
     Returns:
         web_search_tool tool function
@@ -134,6 +139,7 @@ def create_web_search_tool(
                 search_results_per_query=10,
                 top_k=10,
                 explicit_params=explicit_params,
+                blocked_hostnames=blocked_hostnames,
             )
         )
 
