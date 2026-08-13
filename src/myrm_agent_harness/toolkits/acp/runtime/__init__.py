@@ -1,4 +1,8 @@
-"""ACP Runtime backends — unified interface for ACP, SDK, and CLI agents."""
+"""ACP Runtime backends — unified interface for ACP, SDK, and CLI agents.
+
+[POS]
+ACP runtime direction — external agents are delegated to over a unified RuntimeBackend interface.
+"""
 
 from __future__ import annotations
 

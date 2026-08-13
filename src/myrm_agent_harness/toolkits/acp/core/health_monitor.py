@@ -5,8 +5,8 @@ backends (so the next ``run_turn`` can reconnect), enforces a restart budget,
 and publishes health events via EventBus.
 
 [INPUT]
-- myrm_agent_harness.toolkits.acp.core.event_bus::EventBus (POS: ACP event bus layer)
-- myrm_agent_harness.toolkits.acp.types::RuntimeBackend, RuntimeEventType, create_event (POS: ACP runtime type definitions)
+- myrm_agent_harness.toolkits.acp.core.event_bus::EventBus (POS: ACP event bus layer. Provides decoupled event dispatch mechanism for the Runtime system with session isolation and type filtering)
+- myrm_agent_harness.toolkits.acp.types::RuntimeBackend, RuntimeEventType, create_event (POS: ACP runtime type definitions layer. Provides all ACP-related core abstractions and data structures, serving as the foundation for the entire ACP module)
 
 [OUTPUT]
 - HealthMetrics: Health metrics for a single backend.

@@ -5,8 +5,8 @@ common installation paths, and npm global. Maintains process-wide caches
 for versioned and non-versioned detection results to avoid repeated scans.
 
 [INPUT]
-- myrm_agent_harness.toolkits.acp.toolchains::TOOLCHAIN_BASE_DIR (POS: isolated toolchain base dir)
-- myrm_agent_harness.toolkits.acp.auth.credential_store::CredentialState (POS: credential state detection) [TYPE_CHECKING]
+- myrm_agent_harness.toolkits.acp.toolchains::TOOLCHAIN_BASE_DIR (POS: Isolated toolchain manager for external CLI agents — keeps tool installations out of the global OS environment)
+- myrm_agent_harness.toolkits.acp.auth.credential_store::CredentialState (POS: Credential persistence and detection layer for the ACP auth subsystem) [TYPE_CHECKING]
 
 [OUTPUT]
 - DetectedBackend: A detected CLI backend with its path and version.

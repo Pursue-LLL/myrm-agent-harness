@@ -2,6 +2,17 @@
 
 Downloads portable environments (like Node.js) and installs CLI tools in an
 isolated directory to prevent global OS environment pollution.
+
+[INPUT]
+- (none)
+
+[OUTPUT]
+- TOOLCHAIN_BASE_DIR: Base directory for isolated toolchain installations.
+- IsolatedToolchainManager: Downloads portable environments and installs CLI tools.
+
+[POS]
+Isolated toolchain manager for external CLI agents — keeps tool installations
+out of the global OS environment.
 """
 
 from __future__ import annotations

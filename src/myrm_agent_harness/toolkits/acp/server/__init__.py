@@ -1,4 +1,8 @@
-"""ACP Server — bridges IDE clients to the agent system via ACP protocol."""
+"""ACP Server — bridges IDE clients to the agent system via ACP protocol.
+
+[POS]
+ACP server direction — IDE clients talk to the hosted agent system over ACP.
+"""
 
 from __future__ import annotations
 
