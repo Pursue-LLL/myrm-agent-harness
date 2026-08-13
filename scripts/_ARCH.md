@@ -45,7 +45,7 @@ python scripts/check_file_line_limit.py --baseline scripts/file_line_baseline.tx
 python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
 ```
 
-Pre-commit runs `validate_arch_inventory.py` via hook `harness-arch-inventory-check` (see `.pre-commit-config.yaml`).
+Pre-commit runs `validate_arch_inventory.py` via hook `harness-arch-inventory-check` and `check_file_line_limit.py` via hook `harness-line-limit-check` (see `.pre-commit-config.yaml`).
 
 ## File line grandfather 策略
 

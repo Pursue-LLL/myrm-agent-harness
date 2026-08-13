@@ -32,3 +32,11 @@ repos:
         pass_filenames: false
         always_run: true
         description: "Ensure _ARCH.md file tables list every sibling .py module"
+
+      - id: harness-line-limit-check
+        name: Harness File Line Limit
+        entry: python scripts/check_file_line_limit.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: "Reject .py files exceeding the 500-line cap or their baseline allowance"
