@@ -68,6 +68,7 @@ class MemoryManagerListingMaintenanceMixin:
         )
 
     async def delete_by_type(self, memory_type: MemoryType) -> int:
+        cascade_ids: list[str] = []
         if (
             memory_type == MemoryType.EPISODIC
             and self._vector is not None
@@ -77,30 +78,23 @@ class MemoryManagerListingMaintenanceMixin:
             # bulk clear must cascade-clean derived nodes — matching the single
             # delete path. Collect owned ids first (they are gone after the wipe).
             filters = _user_filter(namespaces=self._namespaces, include_archived=True)
-            owned_ids = [
+            cascade_ids = [
                 memory_id
                 for memory_id, owned in await self._collect_vector_ids(
                     self._config.episodic_collection, filters
                 )
                 if owned
             ]
-            deleted = await _delete_by_type(
-                memory_type,
-                relational=self._relational,
-                vector=self._vector,
-                config=self._config,
-                namespaces=self._namespaces,
-            )
-            for memory_id in owned_ids:
-                await self._cascade_clean_derived_graph_nodes(memory_id)
-            return deleted
-        return await _delete_by_type(
+        deleted = await _delete_by_type(
             memory_type,
             relational=self._relational,
             vector=self._vector,
             config=self._config,
             namespaces=self._namespaces,
         )
+        for memory_id in cascade_ids:
+            await self._cascade_clean_derived_graph_nodes(memory_id)
+        return deleted
 
     async def _collect_snapshot(self) -> MemorySnapshot | None:
         """Collect a point-in-time count of active semantic + episodic memories."""

@@ -8,7 +8,7 @@ Deep domain filtering — four-layer defense-in-depth for browser network egress
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| `__init__.py` | Package | Public facade: `DomainAllowlist`, `install_domain_filter` (four-layer installer with resource blocking) | ✅ |
+| `__init__.py` | Package | Public facade: `DomainAllowlist`, `install_domain_filter` (four-layer installer with resource blocking). `DomainAllowlist` matches exact and `*.` wildcard patterns; callers use `is_allowed` (allowlist semantics) or `is_blocked` (blocklist semantics) on the same matching core. | ✅ |
 | `ad_domains.py` | Data | Lazily-loaded frozenset of ~3500 ad/tracker domains (bundled `assets/ad_domains.txt`) | ✅ |
 
 ## Key Dependencies

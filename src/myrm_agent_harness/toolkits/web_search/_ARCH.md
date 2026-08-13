@@ -10,7 +10,7 @@ and the intent-aware search parameter optimizer.
 |------|------|-------------|-------|
 | __init__.py | Package | Web search toolkit entry point. Aggregates and re-exports search tools, result types. | ✅ |
 | common.py | Core | Provides SearchResult (title, link, snippet, summary, date, site_name, authority_description, engines, citations). | ✅ |
-| engine.py | Core | Web search tools wrapper. Two modes: basic (BM25) and precision (BM25+Reranker+Autocut). Integrates intent detection. | ✅ |
+| engine.py | Core | Web search tools wrapper. Two modes: basic (BM25) and precision (BM25+Reranker+Autocut). Integrates intent detection. `fast_search_with_questions` accepts `blocked_hostnames` to drop matching results before ranking/formatting. | ✅ |
 | _explicit_params.py | Core | Agent explicit param normalizer. Maps time_range to provider formats; Tavily site: → search_domain_filter. | ✅ |
 | error_handling.py | Core | Search failure classification and ErrorContext construction. Quota/rate-limit SSOT (`is_quota_or_rate_limit_error`) — non-retryable + chain hop. | ✅ |
 | exceptions.py | Core | Web Search exception hierarchy. All exceptions implement format_for_llm(). | ✅ |
@@ -18,7 +18,7 @@ and the intent-aware search parameter optimizer.
 | litellm_search.py | Core | LiteLLM search adapter. Translates provider-agnostic search requests into LiteLLM API calls. | ✅ |
 | metrics.py | Core | In-process counters for web search operations (thread-safe, optional observability hook). | ✅ |
 | search_results_processor.py | Core | Search result post-processor. Two-layer deduplication (URL arbitration: same URL keeps longest content; content hash: mirror site dedup) + domain diversity sorting (same-domain decay). | ✅ |
-| web_search_agent_tools.py | Core | Web search meta-tool. Integrates web search capability as a meta-tool (high frequency, 80%+ queries). Supports explicit search param: time_range. | ✅ |
+| web_search_agent_tools.py | Core | Web search meta-tool. Integrates web search capability as a meta-tool (high frequency, 80%+ queries). Supports explicit search param: time_range. Accepts `blocked_hostnames`/`blocked_terms` (term matches raise `ToolError`; hostnames filter results before the LLM sees them). | ✅ |
 | _web_search_tool_description.py | Core | LLM-visible `web_search_tool` description SSOT (English + Chinese; locale via `is_chinese`). Imported by `web_search_agent_tools.py` and static tests. | ✅ |
 | citation_resolver.py | Core | SSRF-safe citation redirect resolution. Normalizes `metadata.sources` so `url` is the final clickable destination; preserves provider redirect in `redirect_url`. | ✅ |
 | web_searcher.py | Core | Web search orchestrator. Unified interface for querying search providers with caching, retry, per-query parameter override, and optional priority provider chain (`provider_chain`). Dispatches native slugs (`volcengine_doubao`) or LiteLLM providers. | ✅ |
@@ -52,6 +52,7 @@ User query → LLM Query Rewriting → questions: list[str]
          LiteLLM → SearxNG API (with dynamic engines/categories/time_range)
     → combine_search_results_unified()  [two-layer dedup: URL arbitration + content hash]
     → apply_domain_diversity_sort()     [same-domain decay]
+    → _drop_blocked_hostname_docs()     [when blocked_hostnames set: drop matching URL hosts before ranking/formatting]
     → BM25 / Precision mode selection
     → enrich_sources_with_resolved_urls()  [wrapper URLs only: SSRF-safe HEAD; direct links passthrough]
 ```

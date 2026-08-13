@@ -41,6 +41,15 @@ class TestSuggestions:
         suggestions = build_suggestions(report)
         assert any("hero.jpg" in s and "LCP" in s for s in suggestions)
 
+    def test_slow_lcp_without_url_suggests_render_path(self) -> None:
+        report = WebVitalsReport(url="https://example.com", lcp_ms=3000)
+        suggestions = build_suggestions(report)
+        assert any("initial render path" in s for s in suggestions)
+
+    def test_good_lcp_without_url_no_suggestion(self) -> None:
+        report = WebVitalsReport(url="https://example.com", lcp_ms=1000)
+        assert build_suggestions(report) == []
+
     def test_slow_ttfb_suggests_cdn(self) -> None:
         report = WebVitalsReport(url="https://example.com", ttfb_ms=1200)
         suggestions = build_suggestions(report)
@@ -182,6 +191,22 @@ class TestCollector:
         with patch("myrm_agent_harness.toolkits.browser.session.web_vitals._RETRY_WAIT_S", 0.0):
             report = await WebVitalsCollector().collect(page, "https://example.com")
         assert report.lcp_ms == 3200
+        assert page.evaluate.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_collect_retry_failure_degrades_to_empty_report(self) -> None:
+        page = MagicMock()
+        page.evaluate = AsyncMock(
+            side_effect=[
+                {"lcp": None, "cls": None, "inp": None, "fcp": None, "ttfb": None, "resources": []},
+                RuntimeError("page closed during retry"),
+            ]
+        )
+        with patch("myrm_agent_harness.toolkits.browser.session.web_vitals._RETRY_WAIT_S", 0.0):
+            report = await WebVitalsCollector().collect(page, "https://example.com")
+        assert report.lcp_ms is None
+        assert report.slow_resources == []
+        assert "Web Vitals for https://example.com" in report.to_text()
         assert page.evaluate.await_count == 2
 
     @pytest.mark.asyncio

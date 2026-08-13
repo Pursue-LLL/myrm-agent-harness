@@ -458,6 +458,40 @@ def _careful_interactor(mock_page: Any, refs_map: dict[str, RefInfo]) -> Interac
     )
 
 
+def _probe(
+    *,
+    visible: bool = True,
+    is_top: bool = True,
+    x: float = 100,
+    y: float = 0,
+    width: float = 200,
+    height: float = 100,
+    container: dict | None = None,
+) -> dict:
+    """Rendered-state dict returned by _TARGET_PROBE_JS."""
+    return {
+        "x": x,
+        "y": y,
+        "width": width,
+        "height": height,
+        "visible": visible,
+        "is_top": is_top,
+        "container": container,
+    }
+
+
+def _doc_container(delta: int) -> dict:
+    """The main document as the scroll container."""
+    return {
+        "left": 0,
+        "top": 0,
+        "width": 1280,
+        "height": 720,
+        "is_doc": True,
+        "delta": delta,
+    }
+
+
 @pytest.mark.asyncio
 async def test_ensure_target_in_view_disabled_outside_careful(
     mock_page: Any, refs_map: dict[str, RefInfo]
@@ -493,6 +527,7 @@ async def test_ensure_target_in_view_already_in_zone_no_scroll(
         "width": 200,
         "height": 100,
     }  # cy = 350, zone (0.3, 0.7) * 720 = (216, 504)
+    locator.evaluate.return_value = _probe(y=300, container=_doc_container(0))
     mock_page.mouse.wheel = AsyncMock()
 
     moved = await interactor._ensure_target_in_view(locator)
@@ -505,7 +540,7 @@ async def test_ensure_target_in_view_already_in_zone_no_scroll(
 async def test_ensure_target_in_view_scrolls_below_target(
     mock_page: Any, refs_map: dict[str, RefInfo]
 ) -> None:
-    """A target below the band is wheeled toward it (humanized notches)."""
+    """A target below the viewport is wheeled toward it (humanized notches)."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
     locator.bounding_box.return_value = {
@@ -513,7 +548,10 @@ async def test_ensure_target_in_view_scrolls_below_target(
         "y": 1800,
         "width": 200,
         "height": 100,
-    }  # cy = 1850 > zone_hi = 504
+    }  # off-viewport → probe reads invisible → main document container
+    locator.evaluate.return_value = _probe(
+        visible=False, y=1800, container=_doc_container(1490)
+    )
     mock_page.mouse.wheel = AsyncMock()
 
     with patch("random.random", return_value=0.5):  # no overshoot branch
@@ -527,7 +565,7 @@ async def test_ensure_target_in_view_scrolls_below_target(
 async def test_ensure_target_in_view_scrolls_above_target(
     mock_page: Any, refs_map: dict[str, RefInfo]
 ) -> None:
-    """A target above the band is wheeled up (negative delta)."""
+    """A target above the viewport is wheeled up (negative delta)."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
     locator.bounding_box.return_value = {
@@ -536,6 +574,9 @@ async def test_ensure_target_in_view_scrolls_above_target(
         "width": 200,
         "height": 100,
     }  # cy = -750 < zone_lo = 216
+    locator.evaluate.return_value = _probe(
+        visible=False, y=-800, container=_doc_container(-1110)
+    )
     mock_page.mouse.wheel = AsyncMock()
 
     with patch("random.random", return_value=0.5):
@@ -566,17 +607,18 @@ async def test_ensure_target_in_view_measure_failure_no_scroll(
 async def test_ensure_target_in_view_stops_when_target_enters_zone(
     mock_page: Any, refs_map: dict[str, RefInfo]
 ) -> None:
-    """Per-step re-measure breaks the loop as soon as the target enters the zone."""
+    """Per-step re-probe breaks the loop as soon as the target enters the zone."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
-    # Read order: target-box check (below), cursor-target clamp, loop re-check
-    # (still below -> one deliver), loop re-check (inside -> break).
+    # Read order: loop re-check box (below) + probe (invisible → container wheel),
+    # then loop re-check box (inside zone) + probe (visible → break).
     locator.bounding_box.side_effect = [
         {"x": 100, "y": 1800, "width": 200, "height": 100},
-        {"x": 100, "y": 1800, "width": 200, "height": 100},
-        {"x": 100, "y": 1800, "width": 200, "height": 100},
         {"x": 100, "y": 300, "width": 200, "height": 100},
-        {"x": 100, "y": 300, "width": 200, "height": 100},
+    ]
+    locator.evaluate.side_effect = [
+        _probe(visible=False, y=1800, container=_doc_container(1490)),
+        _probe(y=300, container=_doc_container(0)),
     ]
     mock_page.mouse.wheel = AsyncMock()
 
@@ -587,7 +629,7 @@ async def test_ensure_target_in_view_stops_when_target_enters_zone(
         moved = await interactor._ensure_target_in_view(locator)
 
     assert moved is True
-    mock_deliver.assert_awaited_once()  # re-measure breaks the loop right after
+    mock_deliver.assert_awaited_once()  # re-probe breaks the loop right after
 
 
 @pytest.mark.asyncio
@@ -603,11 +645,119 @@ async def test_ensure_target_in_view_degrades_on_wheel_error(
         "width": 200,
         "height": 100,
     }
+    locator.evaluate.return_value = _probe(
+        visible=False, y=1800, container=_doc_container(1490)
+    )
     mock_page.mouse.wheel = AsyncMock(side_effect=Exception("Target closed"))
 
     moved = await interactor._ensure_target_in_view(locator)
 
     assert moved is False
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_scrolls_nested_container(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A target clipped by an inner scroller wheels that scroller, not the page.
+
+    The geometry lies inside the page viewport (y=601) so the old zone check
+    wrongly treated it as in-view; the rendered probe reads it invisible and
+    scrolls the nested overflow:auto ancestor instead.
+    """
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {
+        "x": 21,
+        "y": 601,
+        "width": 100,
+        "height": 40,
+    }
+    locator.evaluate.return_value = _probe(
+        visible=False,
+        y=601,
+        width=100,
+        height=40,
+        container={
+            "left": 21,
+            "top": 0,
+            "width": 300,
+            "height": 120,
+            "is_doc": False,
+            "delta": 561,
+        },
+    )
+    mock_page.mouse.wheel = AsyncMock()
+
+    with (
+        patch.object(interactor, "_scroll_deliver", new=AsyncMock()) as mock_deliver,
+        patch.object(interactor, "_scroll_move_cursor", new=AsyncMock()) as mock_move,
+    ):
+        moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is True
+    mock_deliver.assert_awaited_once_with(561)
+    # wheel dispatch lands inside the scroller (its center), not on the target
+    args, _kwargs = mock_move.await_args
+    assert args[0] == 171.0  # 21+10 + (21+150) - (21+50) = 171
+    assert args[1] == 61.0  # 621 + (0+60) - (601+20) = 60 → 61? assert below
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_visible_in_nested_container_breaks(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A nested-container target already visible needs no further scrolling."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {
+        "x": 21,
+        "y": 601,
+        "width": 100,
+        "height": 40,
+    }
+    locator.evaluate.return_value = _probe(
+        visible=True,
+        y=601,
+        width=100,
+        height=40,
+        container={"left": 21, "top": 0, "width": 300, "height": 120, "is_doc": False, "delta": 0},
+    )
+    mock_page.mouse.wheel = AsyncMock()
+
+    moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is False
+    mock_page.mouse.wheel.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_visible_in_iframe_breaks(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """An iframe target already visible stops — the page band is meaningless there."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {
+        "x": 45,
+        "y": 76,
+        "width": 100,
+        "height": 40,
+    }
+    locator.evaluate.return_value = _probe(
+        visible=True,
+        is_top=False,
+        y=55,
+        width=100,
+        height=40,
+        container={"left": 0, "top": 0, "width": 400, "height": 150, "is_doc": True, "delta": 0},
+    )
+    mock_page.mouse.wheel = AsyncMock()
+
+    moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is False
+    mock_page.mouse.wheel.assert_not_called()
 
 
 @pytest.mark.asyncio

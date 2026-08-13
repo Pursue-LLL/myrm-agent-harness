@@ -84,6 +84,53 @@ _SCROLL_MEASURE_JS = (
     "})"
 )
 
+# Runs inside the target's own frame (main page or same-origin iframe) and reads
+# its *rendered* state: bounding box in frame-local coords, whether the target is
+# actually visible to the user (elementFromPoint hit-test — a target clipped by a
+# nested scroll container or an iframe viewport reads as invisible even though its
+# geometry lies inside the page viewport), whether the probe ran in the top frame,
+# and — when invisible — the nearest wheel-scrollable ancestor plus the exact wheel
+# delta that centers the target in it. The delta is computed from frame-local
+# relative positions, so it is origin-independent and works across iframes.
+_TARGET_PROBE_JS = (
+    "((el) => {"
+    "  const r = el.getBoundingClientRect();"
+    "  const cx = r.x + r.width / 2;"
+    "  const cy = r.y + r.height / 2;"
+    "  const hit = document.elementFromPoint(cx, cy);"
+    "  const visible = !!hit && (hit === el || el.contains(hit));"
+    "  const out = {"
+    "    x: r.x, y: r.y, width: r.width, height: r.height,"
+    "    visible,"
+    "    is_top: window === window.top,"
+    "    container: null,"
+    "  };"
+    "  const doc = document.scrollingElement || document.documentElement;"
+    "  const isScrollable = (n) => {"
+    "    if (n === doc) return n.scrollHeight > n.clientHeight + 1;"
+    "    if (!(n instanceof Element) || n.scrollHeight <= n.clientHeight + 1) return false;"
+    "    const s = getComputedStyle(n);"
+    "    return s.overflowY === 'auto' || s.overflowY === 'scroll' || s.overflowY === 'overlay';"
+    "  };"
+    "  let node = el.parentElement;"
+    "  while (node) {"
+    "    if (isScrollable(node)) {"
+    "      const cb = node.getBoundingClientRect();"
+    "      const targetTop = r.top - cb.top + node.scrollTop;"
+    "      const desiredScroll = targetTop + r.height / 2 - node.clientHeight / 2;"
+    "      out.container = {"
+    "        left: cb.left, top: cb.top, width: cb.width, height: cb.height,"
+    "        is_doc: node === doc,"
+    "        delta: Math.round(desiredScroll - node.scrollTop),"
+    "      };"
+    "      break;"
+    "    }"
+    "    node = node.parentElement;"
+    "  }"
+    "  return out;"
+    "})"
+)
+
 _SCROLL_TO_BOTTOM_MAX_STEPS_CAP = 1000
 _SCROLL_TO_BOTTOM_DEFAULT_MAX_STEPS = 15
 _SCROLL_TO_BOTTOM_DEFAULT_DELAY_MS = 500
@@ -161,51 +208,96 @@ class ScrollHumanizeMixin:
             return None
         return box
 
+    async def _target_probe(self, locator: Locator) -> dict | None:
+        """Probe a target's real rendered state via JS.
+
+        Returns the target's frame-local box, whether it is actually visible
+        (elementFromPoint hit-test, so elements clipped by nested scroll
+        containers or iframe viewports read as invisible), whether the probe ran
+        in the top frame, and — when invisible — the nearest wheel-scrollable
+        ancestor with the exact wheel delta that centers the target in it.
+        Returns None on any measure error so callers degrade silently.
+        """
+        try:
+            await locator.wait_for(state="visible", timeout=2000)
+            return await locator.evaluate(_TARGET_PROBE_JS)
+        except Exception:
+            return None
+
     async def _ensure_target_in_view(self, locator: Locator) -> bool:
-        """Bring a CAREFUL interaction target into the viewport center band.
+        """Bring a CAREFUL interaction target into view with humanized wheel scrolls.
 
         Replaces Playwright's implicit one-shot ``scrollIntoViewIfNeeded`` (instant
         JS jump, no wheel events) with the same humanized wheel stack used by
-        explicit scrolls. The target's viewport box is read via ``_target_box``,
-        the gap to the center band is delivered as humanized wheel notches through
-        ``_scroll_deliver``, and the box is re-read each step so nested/cross-origin
-        containers degrade gracefully. Returns True when a wheel scroll happened.
+        explicit scrolls. Three cases are distinguished from the target's rendered
+        state rather than from geometry alone:
 
-        Best-effort by contract: any failure (page navigating/closed mid-wheel,
-        measure errors, ...) degrades silently to False, because the action itself
-        still runs through its normal path afterwards.
+        - Target clipped by an ancestor scroll container (nested scrollers,
+          iframes): the nearest wheel-scrollable ancestor is wheeled until the
+          target is actually visible, so the following click lands on the target.
+        - Target visible inside the top frame but outside the center band: wheeled
+          toward the band on the main document.
+        - Target visible in a nested/iframe container: no further scrolling — the
+          main-viewport center band is meaningless for clipped containers.
+
+        Returns True when a wheel scroll happened. Best-effort by contract: any
+        failure (page navigating/closed mid-wheel, measure errors, ...) degrades
+        silently to False, because the action itself still runs through its normal
+        path afterwards.
         """
         if not self._humanize.enable_bezier_mouse:
             return False
         try:
             zone = self._humanize.scroll_target_zone
             viewport = self._page.viewport_size or {"width": 1280, "height": 720}
-            vh = float(viewport["height"])
+            vw, vh = float(viewport["width"]), float(viewport["height"])
             zone_lo, zone_hi = vh * zone[0], vh * zone[1]
-
-            box = await self._target_box(locator)
-            if box is None:
-                return False
-            cy = box["y"] + box["height"] / 2
-            if zone_lo <= cy <= zone_hi:
-                return False
-
-            target_x, target_y = await self._scroll_cursor_target(locator)
-            await self._scroll_move_cursor(target_x, target_y)
 
             moved = False
             for _ in range(_TARGET_SCROLL_MAX_STEPS):
                 box = await self._target_box(locator)
                 if box is None:
                     break
+                probe = await self._target_probe(locator)
+                if probe is None:
+                    break
+                cx = box["x"] + box["width"] / 2
                 cy = box["y"] + box["height"] / 2
-                if zone_lo <= cy <= zone_hi:
+                container = probe.get("container")
+
+                if probe["visible"]:
+                    if not probe["is_top"] or (container and not container["is_doc"]):
+                        break  # nested/iframe target already visible — interaction can proceed
+                    if zone_lo <= cy <= zone_hi:
+                        break
+                    delta = round(cy - (zone_hi if cy > zone_hi else zone_lo))
+                    if delta == 0:
+                        break
+                    await self._scroll_move_cursor(
+                        min(max(cx, 1.0), vw - 1.0), min(max(cy, 1.0), vh - 1.0)
+                    )
+                    await self._scroll_deliver(delta)
+                    moved = True
+                    continue
+
+                if not container or container["delta"] == 0:
                     break
-                target = zone_hi if cy > zone_hi else zone_lo
-                delta = round(cy - target)
-                if delta == 0:
-                    break
-                await self._scroll_deliver(delta)
+                # Wheel dispatch must land inside the target's scroll container.
+                # Its center in frame-local coords, translated to main-page coords
+                # via the delta between the target's Playwright box (main-page)
+                # and its frame-local box returned by the probe.
+                c_cx = cx + (
+                    container["left"] + container["width"] / 2
+                    - probe["x"] - probe["width"] / 2
+                )
+                c_cy = cy + (
+                    container["top"] + container["height"] / 2
+                    - probe["y"] - probe["height"] / 2
+                )
+                await self._scroll_move_cursor(
+                    min(max(c_cx, 1.0), vw - 1.0), min(max(c_cy, 1.0), vh - 1.0)
+                )
+                await self._scroll_deliver(container["delta"])
                 moved = True
             return moved
         except Exception as e:

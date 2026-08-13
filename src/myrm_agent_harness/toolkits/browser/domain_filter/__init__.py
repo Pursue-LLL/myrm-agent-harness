@@ -117,7 +117,7 @@ class DomainAllowlist:
         return len(self.patterns) == 0
 
 
-# Blocklist uses the same pattern matcher as allowlist; ``is_allowed`` means "matches block rule".
+# DomainBlocklist shares the pattern matcher; blocklist call sites use is_blocked().
 DomainBlocklist = DomainAllowlist
 
 

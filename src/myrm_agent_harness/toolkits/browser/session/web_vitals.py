@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 
 _MAX_SLOW_RESOURCES = 8
 _RETRY_WAIT_S = 1.0
-_MAX_COLLECT_ATTEMPTS = 2
 
 # Official Core Web Vitals thresholds (good / needs-improvement boundary pairs).
 _LCP_THRESHOLDS = (2500, 4000)
@@ -264,11 +263,17 @@ def build_suggestions(report: WebVitalsReport) -> list[str]:
         "needs-improvement",
         "poor",
     )
-    if lcp_poor and report.lcp_url:
-        suggestions.append(
-            f"LCP is driven by {_truncate_url(report.lcp_url)} — compress it, lazy-load "
-            "below-the-fold content, or preload the critical image/font."
-        )
+    if lcp_poor:
+        if report.lcp_url:
+            suggestions.append(
+                f"LCP is driven by {_truncate_url(report.lcp_url)} — compress it, lazy-load "
+                "below-the-fold content, or preload the critical image/font."
+            )
+        else:
+            suggestions.append(
+                "Slow LCP without an attributable resource — optimize the initial render "
+                "path: inline critical CSS and remove render-blocking scripts."
+            )
     if report.ttfb_ms is not None and rate_metric(report.ttfb_ms, _TTFB_THRESHOLDS) in (
         "needs-improvement",
         "poor",

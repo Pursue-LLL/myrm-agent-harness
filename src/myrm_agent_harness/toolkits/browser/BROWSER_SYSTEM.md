@@ -683,7 +683,7 @@ Loop Guard 与 Completion Guard 为兜底；正常路径由 Turn1 工具描述�
 **核心能力**：
 - **关键指标分级**：LCP / CLS / INP / FCP / TTFB，按官方阈值（good / needs-improvement / poor）评级
 - **慢资源归因**：按耗时排序的前 8 个资源（名称 / 耗时 / 传输大小 / 类型），定位性能瓶颈
-- **可操作建议**：根据指标自动推导修复建议（LCP 主资源压缩/预加载、TTFB 走 CDN、布局偏移预留尺寸、慢交互减少主线程阻塞、慢资源域名 preconnect）
+- **可操作建议**：根据指标自动推导修复建议（LCP 主资源压缩/预加载、无归属资源时优化首屏渲染路径、TTFB 走 CDN、布局偏移预留尺寸、慢交互减少主线程阻塞、慢资源域名 preconnect）
 - **环境标注**：报告明确标注「当前网络环境实测」，非实验室模拟
 
 **设计**：单次 `page.evaluate` 读取 buffered PerformanceObserver 历史（LCP/CLS/INP）+ NavigationTiming（FCP/TTFB）+ ResourceTiming，零常驻监听、零生命周期挂钩；SPA 场景 LCP 未定型时自动短等待重试一次；INP 需用户交互才能测量，未交互时明确提示；页面不可测时优雅降级返回提示。
