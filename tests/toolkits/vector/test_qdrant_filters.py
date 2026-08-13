@@ -113,3 +113,27 @@ def test_build_qdrant_filter_id_bool_not_has_id():
     assert f.must[0].key == "id"
     assert isinstance(f.must[0].match, MatchValue)
 
+
+def test_build_qdrant_filter_id_empty_in_narrows_to_zero():
+    # An empty ``$in`` or list-value ID query builds an empty HasIdCondition.
+    # Real Qdrant treats it as an empty point-id set: 0 matches, no crash.
+    from qdrant_client.models import HasIdCondition
+    f = build_qdrant_filter({"id": {"$in": []}})
+    assert isinstance(f.must[0], HasIdCondition)
+    assert f.must[0].has_id == []
+    f = build_qdrant_filter({"id": []})
+    assert isinstance(f.must[0], HasIdCondition)
+    assert f.must[0].has_id == []
+
+
+def test_build_qdrant_filter_id_float_none_fail_fast():
+    # float/None are outside the FilterDict value contract for point ids; they
+    # fall through to MatchValue and raise at construction time (same behavior
+    # as for any other payload field — a pre-existing generic fail-fast path).
+    import pytest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        build_qdrant_filter({"id": 1.5})
+    with pytest.raises(ValidationError):
+        build_qdrant_filter({"id": None})
+

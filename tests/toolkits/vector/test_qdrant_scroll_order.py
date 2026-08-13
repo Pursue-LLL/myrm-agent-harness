@@ -68,10 +68,10 @@ class TestScrollOrderBy:
 
 class TestEnsurePayloadIndexes:
     @pytest.mark.asyncio
-    async def test_creates_four_indexes(self, store, mock_client):
+    async def test_creates_payload_indexes(self, store, mock_client):
         mock_client.create_payload_index.return_value = True
         await store.ensure_payload_indexes("test_col")
-        assert mock_client.create_payload_index.call_count == 5
+        assert mock_client.create_payload_index.call_count == 6
         created_fields = [
             c[1]["field_name"] for c in mock_client.create_payload_index.call_args_list
         ]
@@ -81,6 +81,7 @@ class TestEnsurePayloadIndexes:
             "importance",
             "tags",
             "namespaces",
+            "primary_namespace",
         }
 
     @pytest.mark.asyncio

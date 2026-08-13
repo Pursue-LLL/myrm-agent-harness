@@ -172,3 +172,75 @@ async def test_id_scalar_filter_narrows_results(embedded_store) -> None:
         filters={"primary_namespace": ["global"], "id": q1_point_id},
     )
     assert {r.document.id for r in results} == {q1_point_id}
+
+
+@pytest.mark.asyncio
+async def test_empty_id_set_returns_zero_without_crash(embedded_store) -> None:
+    await embedded_store.create_collection("mem_ids_empty", dimension=DIM, distance="cosine")
+    await embedded_store.upsert(
+        "mem_ids_empty",
+        [_doc("e1", primary="global", namespaces=["global"], content="one")],
+    )
+
+    # Empty ``$in`` / list-value ID queries build an empty HasIdCondition; the
+    # live backend must treat them as an empty point-id set (0 matches) for
+    # search and count alike, never raising.
+    results = await embedded_store.search(
+        "mem_ids_empty",
+        _EMBEDDED_VECTOR,
+        limit=10,
+        filters={"primary_namespace": ["global"], "id": {"$in": []}},
+    )
+    assert results == []
+
+    results = await embedded_store.search(
+        "mem_ids_empty",
+        _EMBEDDED_VECTOR,
+        limit=10,
+        filters={"primary_namespace": ["global"], "id": []},
+    )
+    assert results == []
+
+    assert (
+        await embedded_store.count(
+            "mem_ids_empty", filters={"primary_namespace": ["global"], "id": []}
+        )
+        == 0
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_by_id_filter_removes_only_target(embedded_store) -> None:
+    await embedded_store.create_collection(
+        "mem_ids_delete", dimension=DIM, distance="cosine"
+    )
+    await embedded_store.upsert(
+        "mem_ids_delete",
+        [
+            _doc("d1", primary="global", namespaces=["global"], content="one"),
+            _doc("d2", primary="global", namespaces=["global"], content="two"),
+        ],
+    )
+
+    all_results = await embedded_store.search(
+        "mem_ids_delete",
+        _EMBEDDED_VECTOR,
+        limit=10,
+        filters={"primary_namespace": ["global"]},
+    )
+    d1_point_id = next(r.document.id for r in all_results if r.document.content == "one")
+
+    # ID-filtered deletion must reach the same HasIdCondition path as search and
+    # remove only the targeted point, leaving the sibling untouched.
+    deleted = await embedded_store.delete_by_filter(
+        "mem_ids_delete", {"id": [d1_point_id]}
+    )
+    assert deleted == 1
+
+    remaining = await embedded_store.search(
+        "mem_ids_delete",
+        _EMBEDDED_VECTOR,
+        limit=10,
+        filters={"primary_namespace": ["global"]},
+    )
+    assert {r.document.content for r in remaining} == {"two"}
