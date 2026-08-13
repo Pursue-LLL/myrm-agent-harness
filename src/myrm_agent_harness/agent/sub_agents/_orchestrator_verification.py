@@ -67,7 +67,9 @@ __all__ = [
 # automatically instead of silently drifting out of sync.
 _SYNC_MANAGED_FIELDS = frozenset({"task_id", "agent_type", "internal"})
 _SYNC_FIELDS = tuple(
-    field.name for field in fields(SubAgentResult) if field.name not in _SYNC_MANAGED_FIELDS
+    field.name
+    for field in fields(SubAgentResult)
+    if field.name not in _SYNC_MANAGED_FIELDS
 )
 
 
@@ -187,7 +189,9 @@ async def run_with_verification(
         else:
             # Internal retry workers get a unique id: parallel delegated tasks
             # share this manager and must not collide on a fixed-format id.
-            worker_task_id = f"verify-worker-{round_num}-{worker_type}-{uuid.uuid4().hex[:8]}"
+            worker_task_id = (
+                f"verify-worker-{round_num}-{worker_type}-{uuid.uuid4().hex[:8]}"
+            )
             worker_internal = True
 
         logger.info(

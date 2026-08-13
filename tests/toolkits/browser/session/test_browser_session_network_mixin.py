@@ -14,7 +14,9 @@ from myrm_agent_harness.toolkits.browser.session.browser_session_network_mixin i
     _REPLAY_OUTPUT_MAX,
     BrowserSessionNetworkMixin,
 )
-from myrm_agent_harness.toolkits.browser.session.network_intelligence import CdpRequestRecord
+from myrm_agent_harness.toolkits.browser.session.network_intelligence import (
+    CdpRequestRecord,
+)
 
 
 class _StubSession(BrowserSessionNetworkMixin):
@@ -40,7 +42,9 @@ class TestReplayRedaction:
     @pytest.mark.asyncio
     async def test_replay_output_redacted(self):
         session = _StubSession()
-        session.page.evaluate = AsyncMock(return_value='{"token":"sk-proj-abcdefghijklmnop12345678"}')
+        session.page.evaluate = AsyncMock(
+            return_value='{"token":"sk-proj-abcdefghijklmnop12345678"}'
+        )
 
         result = await session.replay_network_request(1)
 

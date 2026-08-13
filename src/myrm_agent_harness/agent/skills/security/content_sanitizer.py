@@ -56,11 +56,18 @@ _PEM_REASON = "Private Key"
 _PATH_REASON = "Absolute Path"
 
 # Absolute paths (macOS/Linux) — supports line-start via (?:^|...) with MULTILINE
-_MACOS_PATH_RE = re.compile(r"(?:(?<=[\s\"'=:(])|(?<=^))/Users/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.\-]+)+", re.MULTILINE)
-_LINUX_PATH_RE = re.compile(r"(?:(?<=[\s\"'=:(])|(?<=^))/home/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.\-]+)+", re.MULTILINE)
+_MACOS_PATH_RE = re.compile(
+    r"(?:(?<=[\s\"'=:(])|(?<=^))/Users/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.\-]+)+",
+    re.MULTILINE,
+)
+_LINUX_PATH_RE = re.compile(
+    r"(?:(?<=[\s\"'=:(])|(?<=^))/home/[a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_.\-]+)+",
+    re.MULTILINE,
+)
 # Windows paths (for Tauri desktop users) — supports line-start
 _WINDOWS_PATH_RE = re.compile(
-    r"(?i)(?:(?<=[\s\"'=:(])|(?<=^))[A-Z]:\\(?:Users|Documents and Settings)\\[^\s\"']+", re.MULTILINE
+    r"(?i)(?:(?<=[\s\"'=:(])|(?<=^))[A-Z]:\\(?:Users|Documents and Settings)\\[^\s\"']+",
+    re.MULTILINE,
 )
 
 
@@ -249,7 +256,10 @@ class ContentSanitizer:
                     for match_info in line_matches:
                         overlaps = False
                         for existing in filtered:
-                            if match_info["start"] < existing["end"] and match_info["end"] > existing["start"]:
+                            if (
+                                match_info["start"] < existing["end"]
+                                and match_info["end"] > existing["start"]
+                            ):
                                 overlaps = True
                                 break
                         if not overlaps:
@@ -259,7 +269,11 @@ class ContentSanitizer:
                     for match_info in filtered:
                         start = match_info["start"]
                         end = match_info["end"]
-                        modified_line = modified_line[:start] + match_info["replacement"] + modified_line[end:]
+                        modified_line = (
+                            modified_line[:start]
+                            + match_info["replacement"]
+                            + modified_line[end:]
+                        )
                         if match_info["reason"] not in reasons:
                             reasons.append(match_info["reason"])
 
@@ -281,7 +295,10 @@ class ContentSanitizer:
         )
 
     def sanitize(
-        self, content: str | bytes, filename: str, ignored_indices: list[int] | None = None
+        self,
+        content: str | bytes,
+        filename: str,
+        ignored_indices: list[int] | None = None,
     ) -> SanitizationResult:
         """Scan and sanitize file content for export."""
         if isinstance(content, bytes):
@@ -290,7 +307,9 @@ class ContentSanitizer:
             except UnicodeDecodeError:
                 # Binary content cannot be treated as text — return an empty string
                 # so the result keeps its ``str`` contract.
-                return SanitizationResult(is_safe=True, redactions=[], sanitized_content="")
+                return SanitizationResult(
+                    is_safe=True, redactions=[], sanitized_content=""
+                )
         else:
             text_content = content
 

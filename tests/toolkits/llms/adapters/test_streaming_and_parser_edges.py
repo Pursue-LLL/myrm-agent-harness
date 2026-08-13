@@ -64,7 +64,9 @@ class TestBuildToolCallChunks:
 
 class TestAggregateToolCallChunk:
     def test_dict_args_serialized(self) -> None:
-        aggregated: list[dict[str, object]] = [{"function": {"name": "", "arguments": ""}, "id": ""}]
+        aggregated: list[dict[str, object]] = [
+            {"function": {"name": "", "arguments": ""}, "id": ""}
+        ]
         aggregate_tool_call_chunk(
             {"index": 0, "name": "f", "args": {"a": 1}, "id": "c1"},
             aggregated,
@@ -73,7 +75,9 @@ class TestAggregateToolCallChunk:
         assert aggregated[0]["id"] == "c1"
 
     def test_unexpected_args_type_warns(self) -> None:
-        aggregated: list[dict[str, object]] = [{"function": {"name": "", "arguments": ""}, "id": ""}]
+        aggregated: list[dict[str, object]] = [
+            {"function": {"name": "", "arguments": ""}, "id": ""}
+        ]
         aggregate_tool_call_chunk({"index": 0, "args": 42}, aggregated)
         assert aggregated[0]["function"]["arguments"] == ""
 
@@ -117,7 +121,10 @@ class TestQwenXmlJsonGuards:
             '<tool_call> {"function": {"name": "f", "arguments": {"a": 1}}} </tool_call>'
         )
         assert result and result[0]["function"]["name"] == "f"
-        assert _parse_qwen_xml_json_format('<tool_call> {"arguments": {}} </tool_call>') == []
+        assert (
+            _parse_qwen_xml_json_format('<tool_call> {"arguments": {}} </tool_call>')
+            == []
+        )
 
     def test_available_tools_filter(self) -> None:
         result = _parse_qwen_xml_json_format(
@@ -132,7 +139,7 @@ class TestQwenXmlJsonGuards:
         assert result and result[0]["function"]["arguments"]
 
     def test_fully_malformed_skipped(self) -> None:
-        assert _parse_qwen_xml_json_format('<tool_call> }broken{ </tool_call>') == []
+        assert _parse_qwen_xml_json_format("<tool_call> }broken{ </tool_call>") == []
 
 
 class TestAnthropicXmlGuards:
@@ -144,7 +151,9 @@ class TestAnthropicXmlGuards:
         assert result == []
 
     def test_code_block_skip(self) -> None:
-        content = '```xml\n<invoke name="f"><parameter name="a">1</parameter></invoke>\n```'
+        content = (
+            '```xml\n<invoke name="f"><parameter name="a">1</parameter></invoke>\n```'
+        )
         result = _parse_anthropic_xml_format(content, available_tools=["f"])
         assert result == []
 

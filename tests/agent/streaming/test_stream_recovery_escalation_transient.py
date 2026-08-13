@@ -194,6 +194,7 @@ class TestHandleEscalation:
         assert len(escalation_events) == 1
         assert escalation_events[0]["data"]["from_model"] == "gpt-4o-mini"
         assert escalation_events[0]["data"]["to_model"] == "gpt-4o"
+        assert escalation_events[0]["data"]["restart"] is True
         scrubber.reset.assert_called_once()
 
     @pytest.mark.asyncio
@@ -333,6 +334,7 @@ class TestHandleTransientRetry:
             if isinstance(e, dict) and e.get("step_key") == "transient_retry"
         ]
         assert len(retry_events) == 1
+        assert retry_events[0]["restart"] is True
 
     @pytest.mark.asyncio
     async def test_transient_exhausted(self, ctx):

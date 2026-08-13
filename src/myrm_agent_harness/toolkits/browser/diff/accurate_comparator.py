@@ -111,9 +111,13 @@ class AccurateComparator:
     def __post_init__(self) -> None:
         """Validate parameters."""
         if not 0.0 <= self.color_tolerance <= 1.0:
-            raise ValueError(f"color_tolerance must be in [0.0, 1.0], got {self.color_tolerance}")
+            raise ValueError(
+                f"color_tolerance must be in [0.0, 1.0], got {self.color_tolerance}"
+            )
         if not 0.0 <= self.mismatch_threshold <= 100.0:
-            raise ValueError(f"mismatch_threshold must be in [0.0, 100.0], got {self.mismatch_threshold}")
+            raise ValueError(
+                f"mismatch_threshold must be in [0.0, 100.0], got {self.mismatch_threshold}"
+            )
 
     async def compare(
         self,
@@ -151,7 +155,9 @@ class AccurateComparator:
         try:
 
             async def _serve_blank(route: Route) -> None:
-                await route.fulfill(body="<html><body></body></html>", content_type="text/html")
+                await route.fulfill(
+                    body="<html><body></body></html>", content_type="text/html"
+                )
 
             async def _serve_baseline(route: Route) -> None:
                 await route.fulfill(body=baseline_bytes, content_type="image/png")
@@ -184,7 +190,12 @@ class AccurateComparator:
             if not isinstance(raw, dict):
                 raise TypeError(f"Expected dict from JS, got {type(raw)}")
 
-            required_keys = {"totalPixels", "differentPixels", "mismatchPercentage", "diffBase64"}
+            required_keys = {
+                "totalPixels",
+                "differentPixels",
+                "mismatchPercentage",
+                "diffBase64",
+            }
             missing = required_keys - raw.keys()
             if missing:
                 raise ValueError(f"JS result missing required keys: {missing}")

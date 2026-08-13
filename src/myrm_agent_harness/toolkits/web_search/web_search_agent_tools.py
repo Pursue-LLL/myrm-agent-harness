@@ -39,6 +39,7 @@ if TYPE_CHECKING:
 from myrm_agent_harness.toolkits.web_search._web_search_tool_description import (
     resolve_web_search_tool_description,
 )
+from myrm_agent_harness.utils.errors import ToolError
 
 
 def create_web_search_tool(
@@ -48,6 +49,7 @@ def create_web_search_tool(
     sufficiency_llm_config: LLMConfig | None = None,
     *,
     description_locale: str | None = None,
+    blocked_terms: tuple[str, ...] | None = None,
 ):
     """Create a web search meta-tool.
 
@@ -57,6 +59,10 @@ def create_web_search_tool(
         sufficiency_config: RSG configuration (optional); enables retrieval quality evaluation
         sufficiency_llm_config: LLM config for the sufficiency evaluator (required if sufficiency_config.enabled)
         description_locale: BCP-47 locale for LLM-facing tool description (default English).
+        blocked_terms: Optional substring blocklist for search queries. When set, any query
+            containing a blocked term (case-insensitive) is rejected before the search runs —
+            a generic content policy hook callers can use for benchmark decontamination
+            (e.g. Hugging Face references). None disables it.
 
     Returns:
         web_search_tool tool function
@@ -102,6 +108,19 @@ def create_web_search_tool(
         Results are processed via BM25 + reranker model, returning the most relevant content snippets.
         """
         from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
+
+        if blocked_terms:
+            for q in questions:
+                if any(term in q.lower() for term in blocked_terms):
+                    raise ToolError(
+                        f"Search query blocked: {q}",
+                        user_hint="The query is excluded from search for this run. Rephrase it without the blocked terms.",
+                        error_code="BENCHMARK_BLOCKED_QUERY",
+                        diagnostic_info={
+                            "error_category": "benchmark_blocked",
+                            "query": q,
+                        },
+                    )
 
         explicit_params: dict[str, object] | None = None
         if time_range:

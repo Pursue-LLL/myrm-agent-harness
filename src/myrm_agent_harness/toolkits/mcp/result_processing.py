@@ -183,7 +183,12 @@ def normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
     if not isinstance(content_blocks, list):
         return str(result)
 
-    is_error = bool(getattr(result, "is_error", False))
+    is_error = bool(
+        getattr(result, "is_error", None) or getattr(result, "isError", False)
+    )
+    structured = getattr(result, "structured_content", None)
+    if structured is None:
+        structured = getattr(result, "structuredContent", None)
 
     coerced: list[dict[str, object]] = []
     for block in content_blocks:
@@ -205,7 +210,6 @@ def normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
         # self-correct instead of seeing a bare error marker. Dedup against
         # already-joined text since the spec suggests servers mirror the
         # serialized JSON in a TextContent block.
-        structured = getattr(result, "structured_content", None)
         if structured is not None:
             try:
                 serialized = json.dumps(structured, ensure_ascii=False)
@@ -215,7 +219,6 @@ def normalize_mcp_result(result: object) -> str | list[dict[str, object]]:
                 message = f"{message}\n{serialized}" if message else serialized
         return f"[MCP tool error] {message}" if message else "[MCP tool error]"
 
-    structured = getattr(result, "structured_content", None)
     if structured is not None:
         coerced.append(
             {"type": "text", "text": json.dumps(structured, ensure_ascii=False)}
@@ -350,6 +353,8 @@ def extract_mcp_app_metadata(result: object) -> dict[str, object] | None:
         if isinstance(result, dict)
         else getattr(result, "structured_content", None)
     )
+    if structured is None and not isinstance(result, dict):
+        structured = getattr(result, "structuredContent", None)
     extracted: dict[str, object] = {"resource_uri": resource_uri}
     if structured is not None:
         extracted["structured_content"] = structured
@@ -389,6 +394,4 @@ async def emit_mcp_app_event(raw_result: object, tool_name: str) -> None:
     try:
         await sink.emit(event)
     except Exception as exc:
-        logger.debug(
-            "Failed to emit mcp_app event for tool '%s': %s", tool_name, exc
-        )
+        logger.debug("Failed to emit mcp_app event for tool '%s': %s", tool_name, exc)

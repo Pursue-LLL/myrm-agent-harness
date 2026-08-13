@@ -84,7 +84,10 @@ def test_check_camoufox_missing_fix_string() -> None:
 
 def test_format_report_includes_camoufox() -> None:
     """Environment section in CLI report must list camoufox when checked."""
-    from myrm_agent_harness.toolkits.browser.doctor import DoctorCheckResult, DoctorReport
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        DoctorCheckResult,
+        DoctorReport,
+    )
 
     report = DoctorReport(
         checks={
@@ -103,7 +106,10 @@ def test_format_report_includes_camoufox() -> None:
 
 def test_format_report_includes_extension_relay() -> None:
     """Extension Relay section in CLI report must render when checked."""
-    from myrm_agent_harness.toolkits.browser.doctor import DoctorCheckResult, DoctorReport
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        DoctorCheckResult,
+        DoctorReport,
+    )
 
     report = DoctorReport(
         checks={
@@ -239,7 +245,10 @@ async def test_run_doctor_with_orphan_check() -> None:
     report = await run_doctor(include_launch_test=False, include_orphan_check=True)
 
     assert "orphan_processes" in report.checks
-    assert report.checks["orphan_processes"].status in (CheckStatus.OK, CheckStatus.WARNING)
+    assert report.checks["orphan_processes"].status in (
+        CheckStatus.OK,
+        CheckStatus.WARNING,
+    )
 
 
 @pytest.mark.asyncio
@@ -250,7 +259,10 @@ async def test_run_doctor_with_launch() -> None:
     assert "browser_launch" in report.checks
 
     if report.checks["browser_launch"].status == CheckStatus.OK:
-        assert report.overall_healthy or report.checks["browser_launch"].status == CheckStatus.WARNING
+        assert (
+            report.overall_healthy
+            or report.checks["browser_launch"].status == CheckStatus.WARNING
+        )
 
 
 @pytest.mark.asyncio
@@ -288,7 +300,9 @@ async def test_run_doctor_runs_relay_and_launch_concurrently() -> None:
         started.append("orphan")
         return orphan
 
-    async def fake_launch(_launch_options: dict[str, object] | None) -> DoctorCheckResult:
+    async def fake_launch(
+        _launch_options: dict[str, object] | None,
+    ) -> DoctorCheckResult:
         started.append("launch")
         await asyncio.sleep(0)
         relay_completed.set()
@@ -374,7 +388,11 @@ def test_format_report() -> None:
 
 def test_format_report_with_warnings_and_errors() -> None:
     """Test report formatting with WARNING and ERROR statuses."""
-    from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, DoctorCheckResult, DoctorReport
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        CheckStatus,
+        DoctorCheckResult,
+        DoctorReport,
+    )
 
     report = DoctorReport(
         checks={
@@ -567,3 +585,345 @@ async def test_run_doctor_forwards_extension_relay_base_url() -> None:
 
     assert report.checks["extension_relay"].message == "relay mock"
 
+
+def test_check_memory_tight_warning() -> None:
+    """Memory check warns when available memory is between 1 and 2 GB."""
+    mock_psutil = MagicMock()
+    mock_memory = MagicMock()
+    mock_memory.available = int(1.5 * 1024**3)
+    mock_memory.total = 8 * 1024**3
+    mock_memory.percent = 82.0
+    mock_psutil.virtual_memory.return_value = mock_memory
+
+    with patch.dict("sys.modules", {"psutil": mock_psutil}):
+        from importlib import reload
+
+        import myrm_agent_harness.toolkits.browser.doctor as doctor_module
+
+        reload(doctor_module)
+        result = doctor_module._check_memory()
+
+    assert result.status == CheckStatus.WARNING
+    assert "Memory tight" in result.message
+
+
+def test_check_disk_psutil_missing() -> None:
+    """Disk check warns when psutil is unavailable."""
+    from myrm_agent_harness.toolkits.browser.doctor import _check_disk
+
+    with patch.dict("sys.modules", {"psutil": None}):
+        result = _check_disk()
+
+    assert result.status == CheckStatus.WARNING
+    assert "psutil not installed" in result.message
+
+
+def test_check_disk_low_error() -> None:
+    """Disk check errors when free space drops below 0.5 GB."""
+    mock_psutil = MagicMock()
+    mock_usage = MagicMock()
+    mock_usage.free = int(0.2 * 1024**3)
+    mock_usage.percent = 98.0
+    mock_psutil.disk_usage.return_value = mock_usage
+
+    from myrm_agent_harness.toolkits.browser.doctor import _check_disk
+
+    with patch.dict("sys.modules", {"psutil": mock_psutil}):
+        result = _check_disk()
+
+    assert result.status == CheckStatus.ERROR
+    assert "Low disk space" in result.message
+
+
+def test_check_disk_tight_warning() -> None:
+    """Disk check warns when free space is between 0.5 and 1 GB."""
+    mock_psutil = MagicMock()
+    mock_usage = MagicMock()
+    mock_usage.free = int(0.7 * 1024**3)
+    mock_usage.percent = 90.0
+    mock_psutil.disk_usage.return_value = mock_usage
+
+    from myrm_agent_harness.toolkits.browser.doctor import _check_disk
+
+    with patch.dict("sys.modules", {"psutil": mock_psutil}):
+        result = _check_disk()
+
+    assert result.status == CheckStatus.WARNING
+    assert "Disk space tight" in result.message
+
+
+def test_check_disk_scan_exception() -> None:
+    """Disk check warns with the exception detail when the scan fails."""
+    mock_psutil = MagicMock()
+    mock_psutil.disk_usage.side_effect = OSError("no such mount")
+
+    from myrm_agent_harness.toolkits.browser.doctor import _check_disk
+
+    with patch.dict("sys.modules", {"psutil": mock_psutil}):
+        result = _check_disk()
+
+    assert result.status == CheckStatus.WARNING
+    assert "Cannot check disk space" in result.message
+
+
+@pytest.mark.asyncio
+async def test_check_browser_launch_patchright_missing() -> None:
+    """Launch check reports ERROR when patchright is not installed."""
+    from myrm_agent_harness.toolkits.browser.doctor import _check_browser_launch
+
+    with patch.dict(
+        "sys.modules",
+        {"patchright": None, "patchright.async_api": None},
+    ):
+        result = await _check_browser_launch()
+
+    assert result.status == CheckStatus.ERROR
+    assert "patchright not available" in result.message
+
+
+@pytest.mark.asyncio
+async def test_check_extension_relay_non_http_scheme() -> None:
+    """Relay probe rejects non-http base URLs from the environment."""
+    from myrm_agent_harness.toolkits.browser.doctor import _check_extension_relay
+
+    with patch.dict(os.environ, {"MYRM_SERVER_URL": "ftp://localhost:8080"}):
+        result = await _check_extension_relay()
+
+    assert result.status == CheckStatus.WARNING
+    assert "http(s) scheme" in result.message
+
+
+@pytest.mark.asyncio
+async def test_check_extension_relay_connection_error() -> None:
+    """Relay probe degrades to WARNING when the server is unreachable."""
+    import httpx
+
+    from myrm_agent_harness.toolkits.browser.doctor import _check_extension_relay
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.get.side_effect = httpx.ConnectError("connection refused")
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.doctor.checks.create_httpx_client",
+        return_value=mock_client,
+    ):
+        result = await _check_extension_relay()
+
+    assert result.status == CheckStatus.WARNING
+    assert "Server unreachable" in result.message
+
+
+@pytest.mark.asyncio
+async def test_check_extension_relay_probe_failure() -> None:
+    """Relay probe reports unexpected failures with the exception detail."""
+    from myrm_agent_harness.toolkits.browser.doctor import _check_extension_relay
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.get.side_effect = RuntimeError("boom")
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.doctor.checks.create_httpx_client",
+        return_value=mock_client,
+    ):
+        result = await _check_extension_relay()
+
+    assert result.status == CheckStatus.WARNING
+    assert "probe failed" in result.message.lower()
+    assert "boom" in result.message
+
+
+@pytest.mark.asyncio
+async def test_check_extension_relay_auth_token_missing() -> None:
+    """Relay probe warns when the server requires an unconfigured auth token."""
+    import json
+
+    from myrm_agent_harness.toolkits.browser.doctor import _check_extension_relay
+
+    payload = json.dumps(
+        {
+            "relay_cdp_ready": False,
+            "access_policy_valid": False,
+            "auth_token_required": True,
+            "auth_token_configured": False,
+        }
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.text = payload
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.get.return_value = mock_response
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.doctor.checks.create_httpx_client",
+        return_value=mock_client,
+    ):
+        result = await _check_extension_relay()
+
+    assert result.status == CheckStatus.WARNING
+    assert "auth token missing" in result.message
+
+
+@pytest.mark.asyncio
+async def test_check_extension_relay_not_connected() -> None:
+    """Relay probe warns when the extension is not connected at all."""
+    import json
+
+    from myrm_agent_harness.toolkits.browser.doctor import _check_extension_relay
+
+    payload = json.dumps(
+        {
+            "relay_cdp_ready": False,
+            "access_policy_valid": False,
+            "auth_token_required": False,
+            "auth_token_configured": False,
+        }
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.text = payload
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value = mock_client
+    mock_client.get.return_value = mock_response
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.doctor.checks.create_httpx_client",
+        return_value=mock_client,
+    ):
+        result = await _check_extension_relay()
+
+    assert result.status == CheckStatus.WARNING
+    assert "not connected" in result.message
+
+
+@pytest.mark.asyncio
+async def test_run_doctor_summary_includes_error_and_missing() -> None:
+    """Summary counts ERROR and MISSING checks and surfaces their fixes."""
+    from myrm_agent_harness.toolkits.browser.doctor import DoctorCheckResult
+
+    async def fake_relay(_base_url: str) -> DoctorCheckResult:
+        return DoctorCheckResult(
+            name="extension_relay",
+            status=CheckStatus.ERROR,
+            message="relay broken",
+            fix="Restart the server",
+        )
+
+    async def fake_launch(_opts: object) -> DoctorCheckResult:
+        return DoctorCheckResult(
+            name="browser_launch",
+            status=CheckStatus.MISSING,
+            message="not tested",
+        )
+
+    def fake_orphan() -> DoctorCheckResult:
+        return DoctorCheckResult(
+            name="orphan_processes",
+            status=CheckStatus.OK,
+            message="clean",
+        )
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.checks._check_extension_relay",
+            side_effect=fake_relay,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.checks._check_browser_launch",
+            side_effect=fake_launch,
+        ),
+        patch(
+            "myrm_agent_harness.toolkits.browser.doctor.checks.check_orphan_processes",
+            side_effect=fake_orphan,
+        ),
+    ):
+        report = await run_doctor(include_launch_test=True, include_orphan_check=True)
+
+    assert "1 errors" in report.summary
+    assert "1 missing" in report.summary
+    assert report.overall_healthy is False
+    assert "Restart the server" in report.recommendations
+
+
+def test_format_report_full_sections() -> None:
+    """CLI report renders cleanup and launch sections with fixes."""
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        DoctorCheckResult,
+        DoctorReport,
+    )
+
+    report = DoctorReport(
+        checks={
+            "patchright": DoctorCheckResult(
+                name="patchright",
+                status=CheckStatus.OK,
+                message="patchright 1.50.0 installed",
+            ),
+            "memory": DoctorCheckResult(
+                name="memory",
+                status=CheckStatus.WARNING,
+                message="Memory tight: 1.5 GB available (82% used)",
+                fix="Consider closing other applications for better stability",
+            ),
+            "orphan_processes": DoctorCheckResult(
+                name="orphan_processes",
+                status=CheckStatus.WARNING,
+                message="Found 2 orphan automation process(es)",
+                fix="python -m myrm_agent_harness.toolkits.browser --cleanup-orphans --force",
+            ),
+            "extension_relay": DoctorCheckResult(
+                name="extension_relay",
+                status=CheckStatus.OK,
+                message="Extension CDP relay is ready",
+            ),
+            "browser_launch": DoctorCheckResult(
+                name="browser_launch",
+                status=CheckStatus.ERROR,
+                message="Browser executable not found",
+                fix="Run 'patchright install chromium' to install the bundled browser",
+            ),
+        },
+        summary="1/5 checks passed, 2 warnings, 1 error",
+        overall_healthy=False,
+        recommendations=[
+            "python -m myrm_agent_harness.toolkits.browser --cleanup-orphans --force",
+            "Run 'patchright install chromium' to install the bundled browser",
+        ],
+    )
+
+    rendered = format_report(report)
+    assert "Process Cleanup" in rendered
+    assert "Launch Test" in rendered
+    assert "Found 2 orphan automation" in rendered
+    assert "patchright install chromium" in rendered
+    assert "Consider closing other applications" in rendered
+
+
+def test_format_report_with_colorama() -> None:
+    """CLI report applies ANSI colors when colorama is available."""
+    from myrm_agent_harness.toolkits.browser.doctor import (
+        DoctorCheckResult,
+        DoctorReport,
+    )
+
+    report = DoctorReport(
+        checks={
+            "patchright": DoctorCheckResult(
+                name="patchright",
+                status=CheckStatus.OK,
+                message="patchright 1.50.0 installed",
+            ),
+        },
+        summary="1/1 checks passed",
+        overall_healthy=True,
+    )
+
+    with patch.dict("sys.modules", {"colorama": MagicMock()}):
+        rendered = format_report(report)
+
+    assert "Browser Doctor" in rendered
+    assert "\033[92m" in rendered  # green status icon for OK checks

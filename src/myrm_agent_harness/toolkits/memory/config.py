@@ -27,7 +27,6 @@ from myrm_agent_harness.toolkits.memory.types import MemoryType
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.adaptive import AdaptiveChannelStrategy
-    from myrm_agent_harness.toolkits.memory.archival import ArchivalStrategy
     from myrm_agent_harness.toolkits.memory.intent_recognizers import (
         QueryIntentRecognizer,
     )
@@ -310,28 +309,6 @@ class RecurrenceConfig:
 
 
 @dataclass(frozen=True, slots=True)
-class ArchivalConfig:
-    """Memory archival configuration.
-
-    Archival system moves old, rarely-accessed memories to separate collections
-    to improve search performance while preserving historical data.
-    """
-
-    enabled: bool = True
-    archival_strategy: ArchivalStrategy | None = None
-    auto_archive_interval_hours: int = 168
-    """Auto-archival interval (default: 168h / 7 days)."""
-    min_age_days: float = 180.0
-    """Minimum memory age for archival eligibility (default: 180 days / 6 months)."""
-    max_access_count: int = 5
-    """Maximum access count for archival (default: 5 times)."""
-    max_importance: float = 0.3
-    """Maximum importance for archival (default: 0.3 / low priority)."""
-    batch_size: int = 100
-    """Maximum memories to archive per operation (default: 100)."""
-
-
-@dataclass(frozen=True, slots=True)
 class MemoryConfig:
     """Memory system configuration.
 
@@ -378,7 +355,6 @@ class MemoryConfig:
     consolidation: ConsolidationConfig = field(default_factory=ConsolidationConfig)
     recurrence: RecurrenceConfig = field(default_factory=RecurrenceConfig)
     forgetting: ForgettingConfig = field(default_factory=ForgettingConfig)
-    archival: ArchivalConfig = field(default_factory=ArchivalConfig)
     rating_alpha: float = 0.3
     """EMA smoothing factor for positive user_rating updates (normalized >= old_rating).
     Formula: rating_new = rating_old + alpha * (normalized_score - rating_old)"""

@@ -244,6 +244,12 @@ class TestHandleThinkingSignature:
             isinstance(e, dict) and e.get("step_key") == "thinking_signature_recovery"
             for e in events
         )
+        assert any(
+            isinstance(e, dict)
+            and e.get("step_key") == "thinking_signature_recovery"
+            and e.get("restart") is True
+            for e in events
+        )
 
 
 # ============================================================================
@@ -273,6 +279,7 @@ class TestHandleDuplicateToolUseId:
         assert ai_ids == ["call_x", "call_x@2"]
         assert executor._compactor.events
         assert executor._compactor.events[0]["step_key"] == "tool_history_recovery"
+        assert executor._compactor.events[0]["restart"] is True
 
     @pytest.mark.asyncio
     async def test_returns_false_if_already_attempted(self, ctx: StreamContext) -> None:
@@ -402,6 +409,12 @@ class TestHandleImageShrink:
             isinstance(e, dict) and e.get("step_key") == "image_shrink_recovery"
             for e in events
         )
+        assert any(
+            isinstance(e, dict)
+            and e.get("step_key") == "image_shrink_recovery"
+            and e.get("restart") is True
+            for e in events
+        )
 
 
 # ============================================================================
@@ -494,6 +507,12 @@ class TestHandleLongContextTier:
         events = executor._compactor.events
         assert any(
             isinstance(e, dict) and e.get("step_key") == "long_context_tier_recovery"
+            for e in events
+        )
+        assert any(
+            isinstance(e, dict)
+            and e.get("step_key") == "long_context_tier_recovery"
+            and e.get("restart") is True
             for e in events
         )
 
@@ -741,6 +760,12 @@ class TestHandleMediaRejected:
         events = executor._compactor.events
         assert any(
             isinstance(e, dict) and e.get("step_key") == "vision_fallback_recovery"
+            for e in events
+        )
+        assert any(
+            isinstance(e, dict)
+            and e.get("step_key") == "vision_fallback_recovery"
+            and e.get("restart") is True
             for e in events
         )
 

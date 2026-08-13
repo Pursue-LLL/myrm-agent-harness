@@ -1,9 +1,9 @@
 """MCP client manager.
 
-Provides MCP server connection configuration and ``mcp.client.Client`` target
+Provides MCP server connection configuration and MCP transport target
 building:
 - Supports SSE, Stdio, and Streamable HTTP transports
-- Configuration format conversion (config → ``Client`` target)
+- Configuration format conversion (config → transport target)
 - Optional auth integration (via MCPAuthProvider Protocol for HTTP headers)
 - TLS/mTLS support via ``ssl.SSLContext`` injection for HTTP transports
 
@@ -63,7 +63,9 @@ class MCPServerConfigProtocol(Protocol):
     headers: dict[str, str] | None  # HTTP headers for SSE/streamable_http
     extra_params: dict[str, object] | None
     required_secrets: list[str] | None
-    tool_include: list[str] | None  # tool whitelist (takes precedence over tool_exclude)
+    tool_include: (
+        list[str] | None
+    )  # tool whitelist (takes precedence over tool_exclude)
     tool_exclude: list[str] | None  # tool blacklist (ignored when tool_include set)
     host_serial: bool  # host-level serial scheduling override
     connect_timeout: float
@@ -76,23 +78,26 @@ class MCPServerConfigProtocol(Protocol):
 
 
 class MCPClientManager:
-    """MCP client manager — builds ``mcp.client.Client`` targets from config."""
+    """MCP client manager — builds MCP transport targets from config."""
 
     @staticmethod
     def build_client_target(
         server_config: MCPServerConfigProtocol,
     ) -> str | StdioServerParameters:
-        """Build a ``mcp.client.Client`` target from server config.
+        """Build an MCP transport target from server config.
 
         Returns a URL string for HTTP transports or ``StdioServerParameters``
-        for stdio — ``Client`` auto-detects the transport from the target type.
+        for stdio — callers wrap it with the matching ``mcp.client.*_client``
+        context manager before handing it to ``ClientSession``.
         """
         server_type = server_config.type
 
         if server_type in ("sse", "streamable_http"):
             url = server_config.url
             if not url:
-                raise ValueError(f"MCP server '{server_config.name}': HTTP transport requires 'url'")
+                raise ValueError(
+                    f"MCP server '{server_config.name}': HTTP transport requires 'url'"
+                )
             return str(url)
 
         if server_type == "stdio":
@@ -126,7 +131,9 @@ class MCPClientManager:
         return result
 
     @staticmethod
-    def _resolve_tls_path(raw_path: str, label: str, server_name: str, *, allow_dir: bool = False) -> str:
+    def _resolve_tls_path(
+        raw_path: str, label: str, server_name: str, *, allow_dir: bool = False
+    ) -> str:
         """Expand ~ and validate that the TLS path exists.
 
         ``allow_dir`` permits an OpenSSL ``capath`` directory for the CA bundle
@@ -137,7 +144,9 @@ class MCPClientManager:
         if path.is_file() or (allow_dir and path.is_dir()):
             return expanded
         kind = "file or directory" if allow_dir else "file"
-        raise FileNotFoundError(f"MCP server '{server_name}': {label} {kind} not found: {expanded}")
+        raise FileNotFoundError(
+            f"MCP server '{server_name}': {label} {kind} not found: {expanded}"
+        )
 
     @staticmethod
     def _build_ssl_context(
@@ -158,13 +167,20 @@ class MCPClientManager:
         client_key_password = server_config.client_key_password
         name = server_config.name
 
-        if ssl_verify is None and client_cert is None and client_key is None and client_key_password is None:
+        if (
+            ssl_verify is None
+            and client_cert is None
+            and client_key is None
+            and client_key_password is None
+        ):
             return None
 
         if ssl_verify is False:
             ssl_context = httpx2.create_ssl_context(verify=False)
         elif isinstance(ssl_verify, str):
-            ca_path = MCPClientManager._resolve_tls_path(ssl_verify, "ssl_verify (CA bundle)", name, allow_dir=True)
+            ca_path = MCPClientManager._resolve_tls_path(
+                ssl_verify, "ssl_verify (CA bundle)", name, allow_dir=True
+            )
             ssl_context = (
                 ssl.create_default_context(capath=ca_path)
                 if Path(ca_path).is_dir()
@@ -181,24 +197,36 @@ class MCPClientManager:
                     f"(a private key cannot be used without its certificate)"
                 )
             if client_key_password is not None:
-                raise ValueError(f"MCP server '{name}': 'client_key_password' provided without 'client_cert'")
+                raise ValueError(
+                    f"MCP server '{name}': 'client_key_password' provided without 'client_cert'"
+                )
             return ssl_context
 
         # 3) Load the client certificate chain (mTLS), supporting encrypted keys.
         cert_path = MCPClientManager._resolve_tls_path(client_cert, "client_cert", name)
         key_path = (
-            MCPClientManager._resolve_tls_path(client_key, "client_key", name) if client_key is not None else None
+            MCPClientManager._resolve_tls_path(client_key, "client_key", name)
+            if client_key is not None
+            else None
         )
-        password = client_key_password if client_key_password is not None else _noninteractive_passphrase
+        password = (
+            client_key_password
+            if client_key_password is not None
+            else _noninteractive_passphrase
+        )
         try:
-            ssl_context.load_cert_chain(certfile=cert_path, keyfile=key_path, password=password)
+            ssl_context.load_cert_chain(
+                certfile=cert_path, keyfile=key_path, password=password
+            )
         except (ssl.SSLError, OSError) as exc:
             hint = (
                 "verify the client key passphrase (client_key_password)"
                 if client_key_password
                 else "the key may be passphrase-protected — set client_key_password"
             )
-            raise ValueError(f"MCP server '{name}': failed to load client certificate/key: {exc} ({hint})") from exc
+            raise ValueError(
+                f"MCP server '{name}': failed to load client certificate/key: {exc} ({hint})"
+            ) from exc
 
         return ssl_context
 
@@ -233,9 +261,15 @@ class MCPClientManager:
         logger.info(
             "[MCP TLS] Server '%s': verify=%s, client_cert=%s, key_passphrase=%s",
             server_config.name,
-            "disabled"
-            if server_config.ssl_verify is False
-            else ("custom CA" if isinstance(server_config.ssl_verify, str) else "default"),
+            (
+                "disabled"
+                if server_config.ssl_verify is False
+                else (
+                    "custom CA"
+                    if isinstance(server_config.ssl_verify, str)
+                    else "default"
+                )
+            ),
             "configured" if server_config.client_cert else "none",
             "yes" if server_config.client_key_password else "no",
         )
@@ -297,7 +331,9 @@ class MCPClientManager:
                 server_config.url or "",
             )
             if auth_headers:
-                object.__setattr__(server_config, "_injected_auth_headers", auth_headers)
+                object.__setattr__(
+                    server_config, "_injected_auth_headers", auth_headers
+                )
         except Exception:
             logger.warning(
                 "Auth provider failed for MCP server '%s', proceeding without auth",

@@ -151,9 +151,7 @@ async def restore_browser_state(
         if metadata.get("current_url"):
             url = metadata["current_url"]
             await session.new_tab(url)
-            logger.info(
-                "Recovery: navigated to %s", redact_sensitive_text(url)[:80]
-            )
+            logger.info("Recovery: navigated to %s", redact_sensitive_text(url)[:80])
 
         # 3. Take snapshot to refresh ref mappings
         await session.snapshot()

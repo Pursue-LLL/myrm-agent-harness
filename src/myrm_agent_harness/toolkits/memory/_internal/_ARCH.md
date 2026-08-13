@@ -13,6 +13,7 @@ Internal implementation details — not part of the public API.
 | governance_service.py | Core | Governance-side orchestration. Handles approval flow, profile updates, and content scanning. | ✅ |
 | hash_utils.py | Core | Content hash computation utilities for deduplication. | ✅ |
 | maintenance.py | Core | Stateless background maintenance operations. Handles dedup, forgetting, access tracking, Task Digest evaporation, and Blob GC. Dedup candidates and forgetting scrolls are namespace-scoped to never touch other agents' memories. | ✅ |
+| maintenance_rule_forgetting.py | Core | Forgetting execution for procedural rules — archives TTL-expired rules (bypassing retention-score threshold) then applies ForgettingStrategy to the rest. | ✅ |
 | maintenance_claim_support.py | Internal | Claim graph helper utilities (parsing, scope, relation classification, search). | ✅ |
 | maintenance_claim_compile.py | Internal | Claim graph compilation from evaporated L2 digests. | ✅ |
 | maintenance_enrichment.py | Internal | Graph-enriched retrieval (sibling scoring + claim recall + namespace filtering). | ✅ |

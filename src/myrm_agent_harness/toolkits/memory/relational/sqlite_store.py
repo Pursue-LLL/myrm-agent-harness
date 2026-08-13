@@ -214,6 +214,10 @@ class SQLiteRelationalStore(RelationalStore):
                 await self._connection.execute(
                     "ALTER TABLE procedural_rules ADD COLUMN is_user_locked INTEGER NOT NULL DEFAULT 0"
                 )
+            if "expected_valid_days" not in rule_columns:
+                await self._connection.execute(
+                    "ALTER TABLE procedural_rules ADD COLUMN expected_valid_days INTEGER"
+                )
 
     def _scope_values(
         self, scope: MemoryScope | None
@@ -282,7 +286,8 @@ class SQLiteRelationalStore(RelationalStore):
                     last_accessed_at TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    is_user_locked INTEGER NOT NULL DEFAULT 0
+                    is_user_locked INTEGER NOT NULL DEFAULT 0,
+                    expected_valid_days INTEGER
                 )
             """
             )
@@ -476,8 +481,8 @@ class SQLiteRelationalStore(RelationalStore):
                    (id, user_id, content, trigger_text, action_text, priority, is_active, trigger_keywords,
                     source, metadata, primary_namespace, namespaces, agent_id, channel_id, conversation_id,
                     task_id, tool_name, tool_rule_priority, access_count, last_accessed_at,
-                    created_at, updated_at, is_user_locked)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    created_at, updated_at, is_user_locked, expected_valid_days)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     rule_id,
                     "default",
@@ -502,6 +507,7 @@ class SQLiteRelationalStore(RelationalStore):
                     now,
                     now,
                     int(rule.is_user_locked),
+                    rule.expected_valid_days,
                 ),
             )
             await conn.commit()
@@ -623,7 +629,7 @@ class SQLiteRelationalStore(RelationalStore):
                        primary_namespace = ?, namespaces = ?, agent_id = ?, channel_id = ?,
                        conversation_id = ?, task_id = ?, tool_name = ?,
                        tool_rule_priority = ?, access_count = ?, last_accessed_at = ?,
-                       is_user_locked = ?, updated_at = ?
+                       is_user_locked = ?, expected_valid_days = ?, updated_at = ?
                    WHERE id = ?""",
                 (
                     rule.content,
@@ -645,6 +651,7 @@ class SQLiteRelationalStore(RelationalStore):
                     rule.access_count,
                     rule.last_accessed_at.isoformat() if rule.last_accessed_at else None,
                     int(rule.is_user_locked),
+                    rule.expected_valid_days,
                     now,
                     rule_id,
                 ),

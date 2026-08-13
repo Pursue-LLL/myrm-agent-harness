@@ -815,7 +815,9 @@ class TestRunWithVerification:
                     kwargs["agent_type"],
                     _verdict_json("FAIL", "Issues found", "HIGH"),
                 )
-            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH"))
+            return _ok(
+                tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH")
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -837,7 +839,10 @@ class TestRunWithVerification:
         assert result.task_id == "biz-1234"
         assert result.internal is False
 
-        assert spawned[0] == ("biz-1234", False), "first worker reuses business id, visible"
+        assert spawned[0] == (
+            "biz-1234",
+            False,
+        ), "first worker reuses business id, visible"
         # Round 1 verifier, round 2 worker, round 2 verifier are all internal
         assert all(internal for _, internal in spawned[1:]), spawned
 
@@ -852,7 +857,9 @@ class TestRunWithVerification:
             tid = kwargs["task_id"]
             if "worker" in tid:
                 return _ok(tid, kwargs["agent_type"], "work output")
-            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH"))
+            return _ok(
+                tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH")
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -889,7 +896,9 @@ class TestRunWithVerification:
             tid = kwargs["task_id"]
             if "worker" in tid:
                 return _ok(tid, kwargs["agent_type"], "work output")
-            return _ok(tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH"))
+            return _ok(
+                tid, kwargs["agent_type"], _verdict_json("PASS", "ok STDOUT", "HIGH")
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -1066,7 +1075,9 @@ class TestInternalIdUniqueness:
             spawned.append(kwargs["task_id"])
             if kwargs["agent_type"] == "w":
                 return _ok(kwargs["task_id"], "w", "work output")
-            return _ok(kwargs["task_id"], "v", _verdict_json("PASS", "ok STDOUT", "HIGH"))
+            return _ok(
+                kwargs["task_id"], "v", _verdict_json("PASS", "ok STDOUT", "HIGH")
+            )
 
         mgr.spawn_child = _spawn
         w_cfg = SubagentConfig(system_prompt="worker")
@@ -1088,7 +1099,9 @@ class TestInternalIdUniqueness:
             assert result.success
 
         internal_ids = [
-            tid for tid in spawned if tid.startswith(("verify-worker-", "verify-check-"))
+            tid
+            for tid in spawned
+            if tid.startswith(("verify-worker-", "verify-check-"))
         ]
         assert len(internal_ids) == 2  # one verifier per invocation
         assert len(internal_ids) == len(set(internal_ids)), internal_ids
@@ -1101,7 +1114,9 @@ class TestInternalIdUniqueness:
 
 class TestFormatWorkerOutput:
     def test_dict_with_text_returns_text(self):
-        assert _format_worker_output_for_verifier({"text": "hello", "other": 1}) == "hello"
+        assert (
+            _format_worker_output_for_verifier({"text": "hello", "other": 1}) == "hello"
+        )
 
     def test_dict_without_text_returns_filtered_json(self):
         result = _format_worker_output_for_verifier(
@@ -1217,7 +1232,9 @@ class TestRunWithVerificationCancelled:
 class TestExecuteVerifierRoundWorkspaceDiff:
     @pytest.mark.asyncio
     @patch("myrm_agent_harness.agent.sub_agents._verifier_round.diff_snapshots")
-    @patch("myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot")
+    @patch(
+        "myrm_agent_harness.agent.sub_agents._verifier_round.take_workspace_snapshot"
+    )
     @patch("myrm_agent_harness.toolkits.code_execution.executors.base.get_executor")
     async def test_diff_injected_and_verdict_returned(
         self, mock_get_executor, mock_snapshot, mock_diff
@@ -1265,7 +1282,9 @@ class TestExecuteVerifierRoundWorkspaceDiff:
 
 class TestRunWithVerificationSnapshotFailure:
     @pytest.mark.asyncio
-    @patch("myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot")
+    @patch(
+        "myrm_agent_harness.agent.sub_agents._orchestrator_verification.take_workspace_snapshot"
+    )
     @patch(_GET_EXECUTOR_PATH)
     async def test_pre_snapshot_failure_does_not_abort(
         self, mock_get_executor, mock_snapshot
@@ -1299,4 +1318,3 @@ class TestRunWithVerificationSnapshotFailure:
             max_rounds=2,
         )
         assert result.success
-

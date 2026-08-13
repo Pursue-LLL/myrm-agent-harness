@@ -83,13 +83,19 @@ class TestUrlDetection:
 
 class TestOpenersAndApi:
     def test_build_opener_without_proxy(self) -> None:
-        with patch("myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor.urllib.request.build_opener") as bo:
+        with patch(
+            "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor.urllib.request.build_opener"
+        ) as bo:
             _build_opener(None)
             bo.assert_called_once_with()
 
     def test_build_opener_with_proxy(self) -> None:
-        proxy = SimpleNamespace(get_next=lambda: SimpleNamespace(to_url=lambda: "http://127.0.0.1:8888"))
-        with patch("myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor.urllib.request.build_opener") as bo:
+        proxy = SimpleNamespace(
+            get_next=lambda: SimpleNamespace(to_url=lambda: "http://127.0.0.1:8888")
+        )
+        with patch(
+            "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor.urllib.request.build_opener"
+        ) as bo:
             _build_opener(proxy)  # type: ignore[arg-type]
             assert bo.call_count == 1
             handler = bo.call_args[0][0]
@@ -198,7 +204,10 @@ class TestFetchSubtitle:
         opener = MagicMock()
         with patch(
             "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._api_request",
-            return_value={"code": 0, "data": {"subtitle": {"subtitles": [{"subtitle_url": ""}]}}},
+            return_value={
+                "code": 0,
+                "data": {"subtitle": {"subtitles": [{"subtitle_url": ""}]}},
+            },
         ):
             result = self._run(_fetch_subtitle(BVID, 1234, opener))  # type: ignore[arg-type]
 
@@ -208,7 +217,11 @@ class TestFetchSubtitle:
         opener = MagicMock()
         with patch(
             "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._api_request",
-            return_value={"code": 0, "data": {"subtitle": {"subtitles": [{"subtitle_url": "//x.json"}]}}, "body": []},
+            return_value={
+                "code": 0,
+                "data": {"subtitle": {"subtitles": [{"subtitle_url": "//x.json"}]}},
+                "body": [],
+            },
         ):
             result = self._run(_fetch_subtitle(BVID, 1234, opener))  # type: ignore[arg-type]
 
@@ -244,29 +257,53 @@ class TestExtractSubtitle:
     def test_zero_cid_returns_none(self) -> None:
         with patch(
             "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._fetch_video_metadata",
-            new=AsyncMock(return_value={"cid": 0, "duration": 0, "title": "", "author_name": ""}),
+            new=AsyncMock(
+                return_value={"cid": 0, "duration": 0, "title": "", "author_name": ""}
+            ),
         ):
             assert self._run(extract_bilibili_subtitle(BILIBILI_URL)) is None
 
     def test_no_subtitle_returns_none(self) -> None:
-        with patch(
-            "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._fetch_video_metadata",
-            new=AsyncMock(return_value={"cid": 1234, "duration": 60, "title": "T", "author_name": "A"}),
-        ), patch(
-            "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._fetch_subtitle",
-            new=AsyncMock(return_value=None),
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._fetch_video_metadata",
+                new=AsyncMock(
+                    return_value={
+                        "cid": 1234,
+                        "duration": 60,
+                        "title": "T",
+                        "author_name": "A",
+                    }
+                ),
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._fetch_subtitle",
+                new=AsyncMock(return_value=None),
+            ),
         ):
             assert self._run(extract_bilibili_subtitle(BILIBILI_URL)) is None
 
     def test_full_success(self) -> None:
-        metadata = {"cid": 1234, "duration": 3661, "title": "Demo", "author_name": "Alice", "bvid": BVID}
-        segments = [{"from": 0.0, "content": "hello"}, {"from": 65.0, "content": "world"}]
-        with patch(
-            "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._fetch_video_metadata",
-            new=AsyncMock(return_value=metadata),
-        ), patch(
-            "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._fetch_subtitle",
-            new=AsyncMock(return_value=segments),
+        metadata = {
+            "cid": 1234,
+            "duration": 3661,
+            "title": "Demo",
+            "author_name": "Alice",
+            "bvid": BVID,
+        }
+        segments = [
+            {"from": 0.0, "content": "hello"},
+            {"from": 65.0, "content": "world"},
+        ]
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._fetch_video_metadata",
+                new=AsyncMock(return_value=metadata),
+            ),
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.extractors.bilibili_extractor._fetch_subtitle",
+                new=AsyncMock(return_value=segments),
+            ),
         ):
             doc = self._run(extract_bilibili_subtitle(BILIBILI_URL))
 

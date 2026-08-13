@@ -20,7 +20,13 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.memory.types import ProceduralMemory, ProfileEntry, RuleSource
+from myrm_agent_harness.toolkits.memory.tool_capture import TOOL_FAILURE_ORIGIN
+from myrm_agent_harness.toolkits.memory.types import (
+    ProceduralMemory,
+    ProfileEntry,
+    RuleSource,
+    ToolRulePriority,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.protocols.relational import RelationalStoreProtocol
@@ -99,6 +105,16 @@ async def load_context(
             for r in rules_raw:
                 if isinstance(r, ProceduralMemory):
                     if r.source == RuleSource.AGENT_SELF:
+                        origin = r.metadata.get("origin", "")
+                        if (
+                            origin == TOOL_FAILURE_ORIGIN
+                            and r.tool_rule_priority == ToolRulePriority.NORMAL
+                        ):
+                            # Auto-generated failure rules are transient advisories:
+                            # keep them out of the stable prompt layer so a momentary
+                            # tool failure cannot permanently steer tool selection.
+                            # They remain recallable via memory_search_tool.
+                            continue
                         agent_instrs.append({"instruction": r.action, "priority": r.priority})
                     else:
                         user_rules.append(

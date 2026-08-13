@@ -212,6 +212,14 @@ class TestReviewTrajectoryWithLLM:
         assert result.has_value is False
 
     @pytest.mark.asyncio
+    async def test_returns_none_on_event_loop_shutdown_race(self):
+        """Event loop already closed (TestClient teardown) must return None quietly."""
+        llm, structured = self._make_llm_mock(RuntimeError("no running event loop"))
+        result = await review_trajectory_with_llm("<User>: hello", llm)
+        assert result is None
+        structured.ainvoke.assert_awaited_once()
+
+    @pytest.mark.asyncio
     async def test_returns_no_value_when_result_type_nothing(self):
         rubric = self._make_rubric(reasoning="Not worth it", result_type="nothing")
         llm, _ = self._make_llm_mock(rubric)

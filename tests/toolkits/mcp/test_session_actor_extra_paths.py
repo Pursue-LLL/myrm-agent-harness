@@ -29,9 +29,9 @@ from myrm_agent_harness.toolkits.mcp.session_actor import MCPSessionActor
 _RESOURCE_SERVER_SRC = """
 import sys
 
-from mcp.server import MCPServer
+from mcp.server.fastmcp import FastMCP
 
-server = MCPServer("res-probe")
+server = FastMCP("res-probe")
 
 
 @server.tool()

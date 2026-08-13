@@ -639,6 +639,7 @@ class MemoryExtractor:
                         language=language,
                         tool_name=m.tool_name,
                         tool_rule_priority=priority_val,
+                        expected_valid_days=m.expected_valid_days,
                     )
                 )
             elif m.memory_type == MemoryType.TASK_DIGEST:

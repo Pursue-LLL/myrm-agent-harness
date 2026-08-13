@@ -234,6 +234,7 @@ async def test_interact_hover_bezier_success(
     )
     mock_page.mouse = MagicMock()
     mock_page.mouse.move = AsyncMock()
+    mock_page.mouse.wheel = AsyncMock()
     mock_page.wait_for_timeout = AsyncMock()
     mock_page.viewport_size = {"width": 800, "height": 600}
 
@@ -444,6 +445,271 @@ async def test_interact_scroll_invalid_text(interactor: Interactor) -> None:
         pytest.raises(ValueError, match="Scroll requires numeric text"),
     ):
         await interactor.interact("scroll", "e0", "not_a_number")
+
+
+# =============================================================================
+# _ensure_target_in_view: humanized pre-interaction scroll (CAREFUL only)
+# =============================================================================
+
+
+def _careful_interactor(mock_page: Any, refs_map: dict[str, RefInfo]) -> Interactor:
+    return Interactor(
+        mock_page, refs_map, humanize=HumanizeConfig.from_mode(HumanizeMode.CAREFUL)
+    )
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_disabled_outside_careful(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """FAST/DEFAULT never pre-scroll: the helper is a pure no-op."""
+    for mode in (HumanizeMode.FAST, HumanizeMode.DEFAULT):
+        interactor = Interactor(
+            mock_page, refs_map, humanize=HumanizeConfig.from_mode(mode)
+        )
+        locator = AsyncMock()
+        locator.bounding_box.return_value = {
+            "x": 100,
+            "y": 1800,
+            "width": 200,
+            "height": 100,
+        }
+        mock_page.mouse.wheel.reset_mock()
+        moved = await interactor._ensure_target_in_view(locator)
+        assert moved is False
+        mock_page.mouse.wheel.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_already_in_zone_no_scroll(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A target already inside the center band costs zero wheel events."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {
+        "x": 100,
+        "y": 300,
+        "width": 200,
+        "height": 100,
+    }  # cy = 350, zone (0.3, 0.7) * 720 = (216, 504)
+    mock_page.mouse.wheel = AsyncMock()
+
+    moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is False
+    mock_page.mouse.wheel.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_scrolls_below_target(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A target below the band is wheeled toward it (humanized notches)."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {
+        "x": 100,
+        "y": 1800,
+        "width": 200,
+        "height": 100,
+    }  # cy = 1850 > zone_hi = 504
+    mock_page.mouse.wheel = AsyncMock()
+
+    with patch("random.random", return_value=0.5):  # no overshoot branch
+        moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is True
+    assert mock_page.mouse.wheel.call_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_scrolls_above_target(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A target above the band is wheeled up (negative delta)."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {
+        "x": 100,
+        "y": -800,
+        "width": 200,
+        "height": 100,
+    }  # cy = -750 < zone_lo = 216
+    mock_page.mouse.wheel = AsyncMock()
+
+    with patch("random.random", return_value=0.5):
+        moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is True
+    deltas = [c.args[1] for c in mock_page.mouse.wheel.call_args_list]
+    assert all(d < 0 for d in deltas)
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_measure_failure_no_scroll(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """Unmeasurable targets degrade silently (no scroll, no crash)."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = None
+    mock_page.mouse.wheel = AsyncMock()
+
+    moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is False
+    mock_page.mouse.wheel.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_stops_when_target_enters_zone(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """Per-step re-measure breaks the loop as soon as the target enters the zone."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    # Read order: target-box check (below), cursor-target clamp, loop re-check
+    # (still below -> one deliver), loop re-check (inside -> break).
+    locator.bounding_box.side_effect = [
+        {"x": 100, "y": 1800, "width": 200, "height": 100},
+        {"x": 100, "y": 1800, "width": 200, "height": 100},
+        {"x": 100, "y": 1800, "width": 200, "height": 100},
+        {"x": 100, "y": 300, "width": 200, "height": 100},
+        {"x": 100, "y": 300, "width": 200, "height": 100},
+    ]
+    mock_page.mouse.wheel = AsyncMock()
+
+    with (
+        patch.object(interactor, "_scroll_deliver", new=AsyncMock()) as mock_deliver,
+        patch("random.random", return_value=0.5),
+    ):
+        moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is True
+    mock_deliver.assert_awaited_once()  # re-measure breaks the loop right after
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_degrades_on_wheel_error(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """Wheel errors during the best-effort pre-scroll degrade silently."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {
+        "x": 100,
+        "y": 1800,
+        "width": 200,
+        "height": 100,
+    }
+    mock_page.mouse.wheel = AsyncMock(side_effect=Exception("Target closed"))
+
+    moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is False
+
+
+@pytest.mark.asyncio
+async def test_interact_click_careful_pre_scrolls(mock_page: Any) -> None:
+    """CAREFUL click on an off-band target humanized-wheels it into view first."""
+    refs = {
+        "e0": RefInfo(
+            role="button", name="Click Me", nth=None, bbox={"x": 100, "y": 50}, position="center-center"
+        )
+    }
+    interactor = _careful_interactor(mock_page, refs)
+    locator = AsyncMock()
+    # Read order: initial target check (below) -> cursor-target clamp (below) ->
+    # loop re-check (still below, one deliver) -> loop re-check (now in zone) ->
+    # _bezier_move_to (in viewport, Bézier proceeds).
+    locator.bounding_box.side_effect = [
+        {"x": 100, "y": 1800, "width": 200, "height": 100},  # cy = 1850 > 504
+        {"x": 100, "y": 1800, "width": 200, "height": 100},
+        {"x": 100, "y": 1800, "width": 200, "height": 100},
+        {"x": 100, "y": 400, "width": 200, "height": 100},  # cy = 450 in zone
+        {"x": 100, "y": 400, "width": 200, "height": 100},  # inside viewport
+    ]
+    mock_page.mouse = MagicMock()
+    mock_page.mouse.move = AsyncMock()
+    mock_page.mouse.wheel = AsyncMock()
+    mock_page.mouse.down = AsyncMock()
+    mock_page.mouse.up = AsyncMock()
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+            return_value=locator,
+        ),
+        patch("random.random", return_value=0.5),
+    ):
+        result = await interactor.interact("click", "e0")
+
+    assert "Clicked e0" in result
+    assert mock_page.mouse.wheel.call_count >= 1
+    locator.click.assert_not_called()  # CAREFUL uses Bézier + mouse.down/up
+    mock_page.mouse.down.assert_awaited_once()
+    mock_page.mouse.up.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_interact_click_careful_locked_scroll_falls_back(mock_page: Any) -> None:
+    """Locked scroll: CAREFUL click falls back to native locator.click.
+
+    When the pre-interaction wheel cannot move the target into the viewport (e.g.
+    body {overflow: hidden}), the Bézier move is refused for an off-viewport target
+    and the click goes through the native path — scrollIntoViewIfNeeded either
+    scrolls it in or fails loudly, never a silent click at the viewport edge.
+    """
+    refs = {
+        "e0": RefInfo(
+            role="button", name="Click Me", nth=None, bbox={"x": 100, "y": 50}, position="center-center"
+        )
+    }
+    interactor = _careful_interactor(mock_page, refs)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {
+        "x": 100,
+        "y": 1800,
+        "width": 200,
+        "height": 100,
+    }  # cy = 1850 > zone_hi = 504; box never moves (scroll locked)
+    mock_page.mouse = MagicMock()
+    mock_page.mouse.move = AsyncMock()
+    mock_page.mouse.wheel = AsyncMock()
+    mock_page.mouse.down = AsyncMock()
+    mock_page.mouse.up = AsyncMock()
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+            return_value=locator,
+        ),
+        patch("random.random", return_value=0.5),
+    ):
+        result = await interactor.interact("click", "e0")
+
+    assert "Clicked e0" in result
+    locator.click.assert_awaited_once()  # native fallback path
+    mock_page.mouse.down.assert_not_called()
+    mock_page.mouse.up.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_interact_click_default_no_pre_scroll(
+    interactor: Interactor, mock_page: Any
+) -> None:
+    """DEFAULT/FAST click never emits pre-interaction wheel events."""
+    locator = AsyncMock()
+
+    with patch(
+        "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+        return_value=locator,
+    ):
+        result = await interactor.interact("click", "e0")
+
+    assert "Clicked e0" in result
+    mock_page.mouse.wheel.assert_not_called()
 
 
 # =============================================================================

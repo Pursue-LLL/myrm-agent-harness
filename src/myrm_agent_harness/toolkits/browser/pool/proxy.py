@@ -45,7 +45,11 @@ class ProxyConfig:
         """Convert to URL string for httpx/Scrapling (e.g. http://user:pass@host:port)."""
         if self.username and self.password:
             parsed = urlparse(self.server)
-            host = f"{parsed.hostname}:{parsed.port}" if parsed.port else str(parsed.hostname)
+            host = (
+                f"{parsed.hostname}:{parsed.port}"
+                if parsed.port
+                else str(parsed.hostname)
+            )
             return f"{parsed.scheme}://{self.username}:{self.password}@{host}"
         return self.server
 
@@ -67,9 +71,15 @@ class ProxyConfig:
         """Parse proxy URL (e.g. http://user:pass@host:port) into ProxyConfig."""
         parsed = urlparse(url)
         if parsed.username:
-            host = f"{parsed.hostname}:{parsed.port}" if parsed.port else str(parsed.hostname)
+            host = (
+                f"{parsed.hostname}:{parsed.port}"
+                if parsed.port
+                else str(parsed.hostname)
+            )
             server = f"{parsed.scheme}://{host}"
-            return ProxyConfig(server=server, username=parsed.username, password=parsed.password)
+            return ProxyConfig(
+                server=server, username=parsed.username, password=parsed.password
+            )
         return ProxyConfig(server=url)
 
 
@@ -129,7 +139,9 @@ class RoundRobinProxyPool:
         self._cycle = itertools.cycle(self._proxies)
         self._sessions: dict[str, _StickyEntry] = {}
         self._quarantine: dict[ProxyConfig, float] = {}  # proxy -> expire_time
-        self._failure_counts: dict[ProxyConfig, int] = {}  # proxy -> consecutive_failures
+        self._failure_counts: dict[ProxyConfig, int] = (
+            {}
+        )  # proxy -> consecutive_failures
 
     @property
     def urls(self) -> list[str]:
@@ -165,7 +177,9 @@ class RoundRobinProxyPool:
 
         # If all are quarantined, raise error to trigger higher-level backoff
         logger.error("All %d proxies are currently quarantined.", len(self._proxies))
-        raise ProxyPoolExhaustedError("All proxies in the pool are currently quarantined.")
+        raise ProxyPoolExhaustedError(
+            "All proxies in the pool are currently quarantined."
+        )
 
     def get_for_session(self, session_id: str, ttl: int = 3600) -> ProxyConfig:
         """Get or create a sticky session binding.
@@ -181,14 +195,18 @@ class RoundRobinProxyPool:
             del self._sessions[session_id]
 
         proxy = self.get_next()
-        self._sessions[session_id] = _StickyEntry(proxy=proxy, created_at=time.monotonic(), ttl=ttl)
+        self._sessions[session_id] = _StickyEntry(
+            proxy=proxy, created_at=time.monotonic(), ttl=ttl
+        )
         return proxy
 
     def release_session(self, session_id: str) -> None:
         """Release a sticky session binding."""
         self._sessions.pop(session_id, None)
 
-    def report_failure(self, session_id: str, base_quarantine_seconds: int = 60) -> None:
+    def report_failure(
+        self, session_id: str, base_quarantine_seconds: int = 60
+    ) -> None:
         """Report a proxy failure for a session.
 
         Quarantines the proxy using exponential backoff based on consecutive failures,
@@ -227,7 +245,11 @@ class RoundRobinProxyPool:
     def cleanup_expired_sessions(self) -> int:
         """Remove all expired sticky sessions. Returns count of removed sessions."""
         now = time.monotonic()
-        expired = [sid for sid, entry in self._sessions.items() if now - entry.created_at >= entry.ttl]
+        expired = [
+            sid
+            for sid, entry in self._sessions.items()
+            if now - entry.created_at >= entry.ttl
+        ]
         for sid in expired:
             del self._sessions[sid]
         if expired:

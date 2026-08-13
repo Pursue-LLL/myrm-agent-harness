@@ -129,7 +129,10 @@ class TestModelOutputValidator:
         assert "a" in r["extracted_text"] and "b" in r["extracted_text"]
 
     def test_ai_message_with_tool_calls_valid_without_text(self) -> None:
-        m = AIMessage(content="", tool_calls=[{"name": "t", "args": {}, "id": "1", "type": "tool_call"}])
+        m = AIMessage(
+            content="",
+            tool_calls=[{"name": "t", "args": {}, "id": "1", "type": "tool_call"}],
+        )
         r = ModelOutputValidator.validate_model_output(m)
         assert r["has_tool_calls"] is True
         assert r["is_valid"] is True

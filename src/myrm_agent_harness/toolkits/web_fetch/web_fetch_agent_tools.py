@@ -20,6 +20,7 @@ Web fetch meta-tool for known-URL full read and RAG extract modes.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from langchain.tools import tool
 from pydantic import BaseModel, Field
@@ -82,8 +83,15 @@ def create_web_fetch_tool(
     sufficiency_config: SufficiencyConfig | None = None,
     sufficiency_llm_config: LLMConfig | None = None,
     model_preview_chars: int | None = None,
+    blocked_hostnames: tuple[str, ...] | None = None,
 ):
-    """Create web fetch meta-tool."""
+    """Create web fetch meta-tool.
+
+    ``blocked_hostnames`` is an optional hostname blocklist (exact or ``*.``
+    wildcard patterns). When set, URLs whose host matches a pattern are
+    rejected before fetching — a generic content policy hook callers can use
+    for benchmark decontamination or domain filtering. None disables it.
+    """
     enable_extract = reranker_config is not None and embedding_config is not None
     if enable_extract:
         sections = _EXTRACT_SECTION + _FULL_CONTENT_WITH_EXTRACT
@@ -126,6 +134,25 @@ For JS-heavy or interactive pages (clicking, filling forms, scrolling), use brow
         from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
         logger = get_agent_logger(__name__)
+
+        if blocked_hostnames:
+            from myrm_agent_harness.toolkits.browser.domain_filter import (
+                DomainBlocklist,
+            )
+
+            blocklist = DomainBlocklist.from_strings(blocked_hostnames)
+            for url in urls:
+                hostname = (urlparse(url).hostname or "").lower()
+                if blocklist.is_allowed(hostname):
+                    raise ToolError(
+                        f"URL blocked: {url}",
+                        user_hint="The URL host is excluded from fetching. Use a different URL.",
+                        error_code="BENCHMARK_BLOCKED_HOST",
+                        diagnostic_info={
+                            "error_category": "benchmark_blocked",
+                            "hostname": hostname,
+                        },
+                    )
 
         if not allow_private_networks:
             from myrm_agent_harness.core.security.guards.ssrf import (

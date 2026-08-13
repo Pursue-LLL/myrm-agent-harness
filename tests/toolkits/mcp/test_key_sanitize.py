@@ -42,7 +42,10 @@ def test_sanitize_property_key_truncates_long():
 def test_sanitize_property_keys_flat():
     schema = {
         "type": "object",
-        "properties": {"issue_class~neq": {"type": "string"}, "ok_key": {"type": "integer"}},
+        "properties": {
+            "issue_class~neq": {"type": "string"},
+            "ok_key": {"type": "integer"},
+        },
     }
     result, restore_map = sanitize_property_keys(schema)
     assert "issue_class~neq" not in result["properties"]

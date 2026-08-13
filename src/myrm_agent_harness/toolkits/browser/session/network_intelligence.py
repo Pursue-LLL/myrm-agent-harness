@@ -152,7 +152,9 @@ class NetworkIntelligence:
             )
             self._requests.append(record)
         except Exception as exc:
-            logger.debug("NetworkIntelligence: requestWillBeSent handler error: %s", exc)
+            logger.debug(
+                "NetworkIntelligence: requestWillBeSent handler error: %s", exc
+            )
 
     def _on_response_received(self, params: dict) -> None:
         """Handle CDP Network.responseReceived — update status and mime_type."""

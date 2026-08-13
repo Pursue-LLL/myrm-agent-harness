@@ -157,6 +157,7 @@ class TestHandleMediaRejected:
         assert len(compactor.events) == 1
         event = compactor.events[0]
         assert event["step_key"] == "media_rejected_recovery"
+        assert event["restart"] is True
 
     @pytest.mark.asyncio
     async def test_handles_video_content(self) -> None:

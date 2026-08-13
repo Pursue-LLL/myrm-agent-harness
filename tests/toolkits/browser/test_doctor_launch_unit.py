@@ -6,7 +6,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.doctor import CheckStatus, _check_browser_launch
+from myrm_agent_harness.toolkits.browser.doctor import (
+    CheckStatus,
+    _check_browser_launch,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -22,11 +25,18 @@ async def test_check_browser_launch_timeout():
         yield mock_playwright
 
     mock_async_playwright = AsyncMock()
-    mock_async_playwright.return_value.__aenter__ = AsyncMock(side_effect=mock_async_playwright_context)
+    mock_async_playwright.return_value.__aenter__ = AsyncMock(
+        side_effect=mock_async_playwright_context
+    )
     mock_async_playwright.return_value.__aexit__ = AsyncMock(return_value=None)
-    mock_async_playwright.return_value.start = AsyncMock(side_effect=TimeoutError("Launch timeout"))
+    mock_async_playwright.return_value.start = AsyncMock(
+        side_effect=TimeoutError("Launch timeout")
+    )
 
-    with patch("patchright.async_api.async_playwright", return_value=mock_async_playwright.return_value):
+    with patch(
+        "patchright.async_api.async_playwright",
+        return_value=mock_async_playwright.return_value,
+    ):
         result = await _check_browser_launch(launch_options=None)
 
     assert result.status == CheckStatus.ERROR
@@ -43,7 +53,10 @@ async def test_check_browser_launch_patchright_timeout():
         side_effect=PlaywrightTimeoutError("Launch timeout")
     )
 
-    with patch("patchright.async_api.async_playwright", return_value=mock_async_playwright.return_value):
+    with patch(
+        "patchright.async_api.async_playwright",
+        return_value=mock_async_playwright.return_value,
+    ):
         result = await _check_browser_launch(launch_options=None)
 
     assert result.status == CheckStatus.ERROR
@@ -58,7 +71,10 @@ async def test_check_browser_launch_executable_not_found():
         side_effect=RuntimeError("Executable doesn't exist at /nonexistent/chrome")
     )
 
-    with patch("patchright.async_api.async_playwright", return_value=mock_async_playwright.return_value):
+    with patch(
+        "patchright.async_api.async_playwright",
+        return_value=mock_async_playwright.return_value,
+    ):
         result = await _check_browser_launch(launch_options=None)
 
     assert result.status == CheckStatus.ERROR
@@ -69,9 +85,14 @@ async def test_check_browser_launch_executable_not_found():
 async def test_check_browser_launch_permission_denied():
     """Should handle permission errors."""
     mock_async_playwright = AsyncMock()
-    mock_async_playwright.return_value.start = AsyncMock(side_effect=RuntimeError("Permission denied: /path/to/chrome"))
+    mock_async_playwright.return_value.start = AsyncMock(
+        side_effect=RuntimeError("Permission denied: /path/to/chrome")
+    )
 
-    with patch("patchright.async_api.async_playwright", return_value=mock_async_playwright.return_value):
+    with patch(
+        "patchright.async_api.async_playwright",
+        return_value=mock_async_playwright.return_value,
+    ):
         result = await _check_browser_launch(launch_options=None)
 
     assert result.status == CheckStatus.ERROR
@@ -82,9 +103,14 @@ async def test_check_browser_launch_permission_denied():
 async def test_check_browser_launch_generic_error():
     """Should handle generic launch errors."""
     mock_async_playwright = AsyncMock()
-    mock_async_playwright.return_value.start = AsyncMock(side_effect=RuntimeError("Unknown launch error"))
+    mock_async_playwright.return_value.start = AsyncMock(
+        side_effect=RuntimeError("Unknown launch error")
+    )
 
-    with patch("patchright.async_api.async_playwright", return_value=mock_async_playwright.return_value):
+    with patch(
+        "patchright.async_api.async_playwright",
+        return_value=mock_async_playwright.return_value,
+    ):
         result = await _check_browser_launch(launch_options=None)
 
     assert result.status == CheckStatus.ERROR

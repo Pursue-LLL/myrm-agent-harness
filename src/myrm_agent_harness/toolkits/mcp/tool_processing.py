@@ -37,7 +37,11 @@ from myrm_agent_harness.core.security.tool_registry import (
     register_ptc_safety_metadata,
 )
 
-from .config import parse_mcp_tool_name, sanitize_mcp_name_component, should_register_mcp_tool
+from .config import (
+    parse_mcp_tool_name,
+    sanitize_mcp_name_component,
+    should_register_mcp_tool,
+)
 from .result_processing import (
     OversizedResultHandler,
     emit_mcp_app_event,
@@ -82,9 +86,7 @@ def apply_tool_filter(
     if not tool_include and not tool_exclude:
         return tools
     filtered = [
-        t
-        for t in tools
-        if should_register_mcp_tool(t.name, tool_include, tool_exclude)
+        t for t in tools if should_register_mcp_tool(t.name, tool_include, tool_exclude)
     ]
     removed = len(tools) - len(filtered)
     if removed:
@@ -224,9 +226,7 @@ def register_tool_annotations(
             is_idempotent=annotations.get("idempotentHint", False),
         )
 
-        register_ptc_safety_metadata(
-            skill_name, tool.name, safety_meta, annotations
-        )
+        register_ptc_safety_metadata(skill_name, tool.name, safety_meta, annotations)
 
 
 def prefix_tool_names(tools: list[BaseTool], server_name: str) -> None:
@@ -328,9 +328,7 @@ def wrap_tools_with_timeout(
                                 _max_chars,
                                 _handler,
                             )
-                        normalized = wrap_untrusted(
-                            normalized, source=f"mcp:{_name}"
-                        )
+                        normalized = wrap_untrusted(normalized, source=f"mcp:{_name}")
                     else:
                         # Multimodal text blocks get the same output-size guard
                         # as plain-string results first, then the content
@@ -349,18 +347,14 @@ def wrap_tools_with_timeout(
                 logger.error(error_msg)
                 return error_msg
             except (NotImplementedError, ValueError, TypeError) as exc:
-                error_msg = (
-                    f"MCP tool '{_name}' returned unsupported content: {exc}"
-                )
+                error_msg = f"MCP tool '{_name}' returned unsupported content: {exc}"
                 logger.warning(error_msg)
                 return redact_sensitive_text(error_msg)
             except Exception as exc:
                 if _is_mcp_auth_error(exc):
                     server = parse_mcp_tool_name(_name)
                     srv_label = server[0] if server else _name
-                    logger.warning(
-                        "MCP tool '%s' failed with auth error (401)", _name
-                    )
+                    logger.warning("MCP tool '%s' failed with auth error (401)", _name)
                     _emit_auth_expired_for_tool(srv_label, str(exc))
                     return (
                         f"MCP server '{srv_label}' requires re-authorization. "

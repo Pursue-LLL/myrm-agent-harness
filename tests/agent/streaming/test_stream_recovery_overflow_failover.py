@@ -144,6 +144,7 @@ async def test_overflow_stage1_compact(ctx):
         if isinstance(e, dict) and e.get("step_key") == "context_compaction"
     ]
     assert len(status_events) == 1
+    assert status_events[0]["restart"] is True
 
 
 @pytest.mark.asyncio
@@ -178,6 +179,7 @@ async def test_overflow_stage1_fallthrough_to_truncate(ctx):
         if isinstance(e, dict) and e.get("step_key") == "context_truncation"
     ]
     assert len(status_events) == 1
+    assert status_events[0]["restart"] is True
 
 
 @pytest.mark.asyncio
@@ -238,6 +240,8 @@ async def test_failover_unconfigured_emits_status(ctx):
     ]
     assert len(unconfigured) == 1
     assert unconfigured[0]["error_kind"] == ErrorKind.MODEL_NOT_FOUND.value
+    # Unconfigured is a hint only — the turn does NOT restart, so no restart flag.
+    assert "restart" not in unconfigured[0]
 
     with patch(
         "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
@@ -312,6 +316,7 @@ async def test_failover_success(ctx):
     ]
     assert len(failover_events) == 1
     assert failover_events[0]["fallback_model"] == "gpt-4o-mini"
+    assert failover_events[0]["restart"] is True
 
 
 @pytest.mark.asyncio
@@ -357,6 +362,7 @@ async def test_failover_auth_with_fallback(ctx):
     ]
     assert len(failover_events) == 1
     assert failover_events[0]["error_kind"] == ErrorKind.AUTH.value
+    assert failover_events[0]["restart"] is True
     mock_emitter.emit_failover.assert_awaited_once()
 
 
@@ -410,11 +416,13 @@ async def test_safety_fallback(ctx):
     assert result is True
     rebuild_fn.assert_called_once_with(safety_llm)
     events = executor._compactor.events
-    assert any(
-        e.get("step_key") == "safety_fallback_active"
+    safety_events = [
+        e
         for e in events
-        if isinstance(e, dict)
-    )
+        if isinstance(e, dict) and e.get("step_key") == "safety_fallback_active"
+    ]
+    assert len(safety_events) == 1
+    assert safety_events[0]["restart"] is True
 
 
 # ─── _handle_safety_refusal_fallback ─────────────────────────────────────────
@@ -448,11 +456,13 @@ async def test_safety_refusal_fallback_triggers_on_refusal(ctx):
     assert executor.failover_used is True
     rebuild_fn.assert_called_once_with(safety_llm)
     events = executor._compactor.events
-    assert any(
-        e.get("step_key") == "safety_fallback_active"
+    safety_events = [
+        e
         for e in events
-        if isinstance(e, dict)
-    )
+        if isinstance(e, dict) and e.get("step_key") == "safety_fallback_active"
+    ]
+    assert len(safety_events) == 1
+    assert safety_events[0]["restart"] is True
 
 
 @pytest.mark.asyncio

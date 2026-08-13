@@ -29,7 +29,9 @@ from myrm_agent_harness.backends.skills.types import SkillPermission
 logger = logging.getLogger(__name__)
 
 # Global permission usage logger (set by business layer)
-_permission_usage_callback: Callable[[str, str, str, str, bool, str], None] | None = None
+_permission_usage_callback: Callable[[str, str, str, str, bool, str], None] | None = (
+    None
+)
 
 
 # Mapping from security permission types to SkillPermission.
@@ -207,7 +209,9 @@ def log_permission_usage(
     """
     if _permission_usage_callback:
         try:
-            _permission_usage_callback(user_id, skill_id, permission, operation, allowed, deny_reason)
+            _permission_usage_callback(
+                user_id, skill_id, permission, operation, allowed, deny_reason
+            )
         except Exception as e:
             logger.error(f"Permission usage callback failed: {e}", exc_info=True)
     else:

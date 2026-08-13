@@ -529,6 +529,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 - **打字延迟**：在 `type` 动作中引入随机的按键延迟（30-100ms/char），模拟人类输入节奏。
 - **点击延迟**：在 `click` 和 `dblclick` 动作中引入随机的按下/抬起延迟（50-150ms），模拟真实鼠标点击。
 - **滚轮惯性滚动**：`scroll`/`scroll_to_bottom`/坐标 `scroll` 统一改为 `mouse.wheel` 小步滚轮突发（20-40px/步、8-20ms 间隔，模拟物理滚轮惯性）；CAREFUL 档叠加 加速-巡航-减速 notch 节奏、滚动前停顿、突发组间隙停顿（2-4 格连发 + 相位切换/偶发阅读停顿）、偶发过冲+回正微调。光标先定位到目标滚动容器（元素中心，钳制在视口内），嵌套滚动容器通过 `elementFromPoint` 逐层解析（仅认真实可滚动的盒子：`overflow: auto/scroll` 或文档级滚动，跳过 `overflow: visible` 的非滚动盒），保证滚轮落在正确容器上；所有间隔用 `asyncio.sleep`（不产生 CDP wait 痕迹）。`scroll` 动作会诚实上报结果（已到底/已到顶/无滚动溢出/无可见位移），`scroll_to_bottom` 对无可滚动内容提前退出。
+- **交互前置滚动拟人化（CAREFUL）**：`click`/`hover`/`focus`/`type`/`fill` 等 ref 交互执行前，若目标不在视口中部 zone（默认 0.3-0.7 视口高），先复用上面的 humanized 滚轮把目标滚进 zone，再执行交互——替换 Playwright 内置 `scrollIntoViewIfNeeded` 的一次性 JS 跳转（无 wheel 事件、CDP 痕迹明显），同时修复 CAREFUL 模式下点击视口外元素因坐标越界而落空的缺陷。目标位置用 `locator.bounding_box()` 纯几何读取（不触发滚动），逐格滚动后重读 box 直到进入 zone 或达到步数上限，嵌套/跨域容器优雅降级。若前置滚动失败（页面滚动被锁、嵌套/跨域容器滚不到），`_bezier_move_to` 会拒绝移动到中心仍在视口外的目标（CDP 会把视口外坐标钳制到视口边缘导致静默落空点击），交互退回原生 locator 动作——其 `scrollIntoViewIfNeeded` 要么把目标滚入视口（嵌套容器场景仍可成功），要么显式超时报错，绝不静默误点。`scroll`/`scroll_to_bottom` 自带定位，不参与前置。
 - **动态超时自适应**：根据文本长度和随机延迟动态计算 `timeout`，防止因拟人化延迟导致 Playwright 内部超时崩溃。
 
 **反检测验证**（内部基准，非全站保证；高强度站点可能仍需自动升级到 Camoufox）：

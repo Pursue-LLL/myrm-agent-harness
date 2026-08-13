@@ -41,7 +41,9 @@ from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
 )
 
 if TYPE_CHECKING:
-    from myrm_agent_harness.toolkits.memory.protocols.cache import EmbeddingCacheProtocol
+    from myrm_agent_harness.toolkits.memory.protocols.cache import (
+        EmbeddingCacheProtocol,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +206,9 @@ class CloudEmbedding(EmbeddingService):
         if self._cache is None:
             async for attempt in AsyncRetrying(
                 stop=stop_after_attempt(self._max_retries + 1),
-                wait=wait_exponential(min=self._retry_wait_min, max=self._retry_wait_max),
+                wait=wait_exponential(
+                    min=self._retry_wait_min, max=self._retry_wait_max
+                ),
                 retry=retry_if_exception_type((TimeoutError, ConnectionError, OSError)),
                 reraise=True,
             ):
@@ -277,7 +281,9 @@ class CloudEmbedding(EmbeddingService):
         for text in texts:
             text_len = len(text)
             would_exceed_count = len(current_batch) >= _MAX_TEXTS_PER_BATCH
-            would_exceed_chars = current_batch and (current_chars + text_len) > _MAX_CHARS_PER_BATCH
+            would_exceed_chars = (
+                current_batch and (current_chars + text_len) > _MAX_CHARS_PER_BATCH
+            )
 
             if would_exceed_count or would_exceed_chars:
                 batches.append(current_batch)
@@ -299,10 +305,16 @@ class CloudEmbedding(EmbeddingService):
         try:
             import litellm
         except ImportError as e:
-            raise ImportError("litellm is required for CloudEmbedding. Install with: uv add litellm") from e
+            raise ImportError(
+                "litellm is required for CloudEmbedding. Install with: uv add litellm"
+            ) from e
 
         model_name = self._model
-        if self._api_base and "/" in model_name and not model_name.startswith(("openai/", "azure/", "anthropic/")):
+        if (
+            self._api_base
+            and "/" in model_name
+            and not model_name.startswith(("openai/", "azure/", "anthropic/"))
+        ):
             model_name = f"openai/{model_name}"
 
         kwargs: dict[str, str | list[str] | None] = {

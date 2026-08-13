@@ -2,22 +2,36 @@ import time
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.pool.proxy import ProxyConfig, ProxyPoolExhaustedError, RoundRobinProxyPool
+from myrm_agent_harness.toolkits.browser.pool.proxy import (
+    ProxyConfig,
+    ProxyPoolExhaustedError,
+    RoundRobinProxyPool,
+)
 
 
 def test_proxy_config_to_url():
     config = ProxyConfig(server="http://proxy.example.com:8080")
     assert config.to_url() == "http://proxy.example.com:8080"
 
-    config_auth = ProxyConfig(server="http://proxy.example.com:8080", username="user", password="pwd")
+    config_auth = ProxyConfig(
+        server="http://proxy.example.com:8080", username="user", password="pwd"
+    )
     assert config_auth.to_url() == "http://user:pwd@proxy.example.com:8080"
+
 
 def test_proxy_config_to_playwright_dict():
     config = ProxyConfig(server="http://proxy.example.com:8080")
     assert config.to_playwright_dict() == {"server": "http://proxy.example.com:8080"}
 
-    config_auth = ProxyConfig(server="http://proxy.example.com:8080", username="user", password="pwd")
-    assert config_auth.to_playwright_dict() == {"server": "http://proxy.example.com:8080", "username": "user", "password": "pwd"}
+    config_auth = ProxyConfig(
+        server="http://proxy.example.com:8080", username="user", password="pwd"
+    )
+    assert config_auth.to_playwright_dict() == {
+        "server": "http://proxy.example.com:8080",
+        "username": "user",
+        "password": "pwd",
+    }
+
 
 def test_proxy_config_from_url():
     config = ProxyConfig.from_url("http://proxy.example.com:8080")
@@ -30,6 +44,7 @@ def test_proxy_config_from_url():
     assert config_auth.username == "user"
     assert config_auth.password == "pwd"
 
+
 def test_round_robin_proxy_pool_basic():
     proxies = [ProxyConfig(server=f"http://proxy{i}.com") for i in range(3)]
     pool = RoundRobinProxyPool(proxies)
@@ -38,6 +53,7 @@ def test_round_robin_proxy_pool_basic():
     assert pool.get_next() == proxies[1]
     assert pool.get_next() == proxies[2]
     assert pool.get_next() == proxies[0]
+
 
 def test_round_robin_proxy_pool_sticky_session():
     proxies = [ProxyConfig(server=f"http://proxy{i}.com") for i in range(3)]
@@ -57,6 +73,7 @@ def test_round_robin_proxy_pool_sticky_session():
 
     pool.release_session("session1")
     assert pool.active_session_count == 1
+
 
 def test_round_robin_proxy_pool_quarantine_exponential_backoff(monkeypatch):
     proxies = [ProxyConfig(server=f"http://proxy{i}.com") for i in range(2)]
@@ -81,11 +98,11 @@ def test_round_robin_proxy_pool_quarantine_exponential_backoff(monkeypatch):
 
     # Advance time by 61s, quarantine should expire
     current_time += 61.0
-    assert pool.get_next() == proxies[0] # Now available again
+    assert pool.get_next() == proxies[0]  # Now available again
 
     # 2nd failure: 300s quarantine
-    pool.get_for_session("session2") # gets proxies[1]
-    pool.get_for_session("session3") # gets proxies[0]
+    pool.get_for_session("session2")  # gets proxies[1]
+    pool.get_for_session("session3")  # gets proxies[0]
     pool.report_failure("session3", base_quarantine_seconds=60)
     assert pool._quarantine[proxies[0]] == current_time + 300
     assert pool._failure_counts[proxies[0]] == 2
@@ -94,19 +111,20 @@ def test_round_robin_proxy_pool_quarantine_exponential_backoff(monkeypatch):
     current_time += 301.0
 
     # 3rd failure: 3600s quarantine
-    pool.get_next() # trigger cleanup of expired quarantine
-    pool.get_for_session("session4") # gets proxies[0]
+    pool.get_next()  # trigger cleanup of expired quarantine
+    pool.get_for_session("session4")  # gets proxies[0]
     pool.report_failure("session4", base_quarantine_seconds=60)
     assert pool._quarantine[proxies[0]] == current_time + 3600
     assert pool._failure_counts[proxies[0]] == 3
 
     # 4th failure: capped at 3600s
     current_time += 3601.0
-    pool.get_next() # trigger cleanup of expired quarantine
-    pool.get_for_session("session5") # gets proxies[0]
+    pool.get_next()  # trigger cleanup of expired quarantine
+    pool.get_for_session("session5")  # gets proxies[0]
     pool.report_failure("session5", base_quarantine_seconds=60)
     assert pool._quarantine[proxies[0]] == current_time + 3600
     assert pool._failure_counts[proxies[0]] == 4
+
 
 def test_round_robin_proxy_pool_exhausted():
     proxies = [ProxyConfig(server=f"http://proxy{i}.com") for i in range(2)]
@@ -119,8 +137,12 @@ def test_round_robin_proxy_pool_exhausted():
     pool.report_failure("session2")
 
     # All proxies quarantined
-    with pytest.raises(ProxyPoolExhaustedError, match="All proxies in the pool are currently quarantined"):
+    with pytest.raises(
+        ProxyPoolExhaustedError,
+        match="All proxies in the pool are currently quarantined",
+    ):
         pool.get_next()
+
 
 def test_from_urls_and_csv():
     urls = ["http://proxy1.com", "http://user:pwd@proxy2.com"]
@@ -141,5 +163,7 @@ def test_round_robin_proxy_pool_urls_strip_credentials():
     assert pool.urls == ["http://proxy1.com", "http://proxy2.com:8080"]
 
     # Direct construction with embedded userinfo must also be stripped
-    direct = RoundRobinProxyPool([ProxyConfig(server="http://user:pwd@proxy3.com:3128")])
+    direct = RoundRobinProxyPool(
+        [ProxyConfig(server="http://user:pwd@proxy3.com:3128")]
+    )
     assert direct.urls == ["http://proxy3.com:3128"]

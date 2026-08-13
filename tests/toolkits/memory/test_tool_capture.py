@@ -151,8 +151,13 @@ class TestToolMemoryCaptureHook:
             {"tool_name": "web_fetch_tool", "error": "timeout again"},
         )
         assert len(hook.pending_rules) == 1
-        assert hook.pending_rules[0].tool_rule_priority == ToolRulePriority.NORMAL
-        assert hook.pending_rules[0].tool_name == "web_fetch_tool"
+        rule = hook.pending_rules[0]
+        assert rule.tool_rule_priority == ToolRulePriority.NORMAL
+        assert rule.tool_name == "web_fetch_tool"
+        # Transient failure rules carry a short TTL + origin marker so the context
+        # loader can keep them out of the stable prompt layer.
+        assert rule.expected_valid_days == 1
+        assert rule.metadata.get("origin") == "tool_failure"
 
     @pytest.mark.asyncio
     async def test_on_post_tool_failure_no_duplicate_rule(self):

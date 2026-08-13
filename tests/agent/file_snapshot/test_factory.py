@@ -18,7 +18,9 @@ from myrm_agent_harness.agent.file_snapshot.factory import (
     get_cached_store,
 )
 from myrm_agent_harness.agent.file_snapshot.local_store import LocalFileSnapshotStore
-from myrm_agent_harness.agent.file_snapshot.shadow_git_store import ShadowGitSnapshotStore
+from myrm_agent_harness.agent.file_snapshot.shadow_git_store import (
+    ShadowGitSnapshotStore,
+)
 
 
 @pytest.fixture(autouse=True)

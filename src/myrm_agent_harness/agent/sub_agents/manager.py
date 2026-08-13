@@ -87,7 +87,9 @@ class CapacitySnapshot:
 # ACTIVE_SUBAGENT_SESSIONS mirrors spawn session_id for REST list after parent stream ends.
 # This allows Server API to find and control background subagents
 # without needing complex session lifecycle binding.
-ACTIVE_SUBAGENTS: weakref.WeakValueDictionary[str, SubagentManager] = weakref.WeakValueDictionary()
+ACTIVE_SUBAGENTS: weakref.WeakValueDictionary[str, SubagentManager] = (
+    weakref.WeakValueDictionary()
+)
 # Strong map task_id -> spawn session_id so REST list works after parent stream ends.
 ACTIVE_SUBAGENT_SESSIONS: dict[str, str] = {}
 
@@ -122,9 +124,14 @@ def _prune_completed_results(now: float | None = None) -> None:
             del COMPLETED_SUBAGENT_RESULTS[task_id]
 
 
-def _emit_global_subagent_event(event_name: str, task_id: str, session_id: str, data: SubagentLifecycleData) -> None:
+def _emit_global_subagent_event(
+    event_name: str, task_id: str, session_id: str, data: SubagentLifecycleData
+) -> None:
     try:
-        from myrm_agent_harness.runtime.events import SubagentLifecycleEvent, get_event_bus
+        from myrm_agent_harness.runtime.events import (
+            SubagentLifecycleEvent,
+            get_event_bus,
+        )
 
         get_event_bus().publish(
             SubagentLifecycleEvent(
@@ -214,7 +221,9 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         self._background_tasks: set[asyncio.Task[object]] = set()
         self._semaphore = asyncio.Semaphore(_DEFAULT_CONCURRENCY)
         self._current_depth = current_depth
-        self._budget_state = budget_state or DelegationBudgetState(max_descendants=_DEFAULT_DESCENDANTS_PER_RUN)
+        self._budget_state = budget_state or DelegationBudgetState(
+            max_descendants=_DEFAULT_DESCENDANTS_PER_RUN
+        )
         self._max_children_per_agent = max_children_per_agent
         self._notification_manager = NotificationManager()
         self._checkpoint_storage = SubagentCheckpointStorage()
@@ -258,7 +267,8 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
             max_descendants=self._budget_state.max_descendants,
             remaining_descendants=max(
                 0,
-                self._budget_state.max_descendants - self._budget_state.spawned_descendants,
+                self._budget_state.max_descendants
+                - self._budget_state.spawned_descendants,
             ),
         )
 
@@ -300,7 +310,9 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
     # Guard event emission
     # =========================================================================
 
-    def _emit_delegation_guard_event(self, task_id: str, guard_type: str, reason: str) -> None:
+    def _emit_delegation_guard_event(
+        self, task_id: str, guard_type: str, reason: str
+    ) -> None:
         """Emit a lifecycle event when delegation is rejected by depth/capacity guards."""
         session_id = ""
         parent_ctx = getattr(self._parent_agent, "_last_context", None)
@@ -329,7 +341,9 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
     def _task_id_exists(self, task_id: str) -> bool:
         return task_id in self._children or task_id in self._children_results
 
-    def _validate_depth(self, task_id: str, config: SubagentConfig) -> SubAgentResult | None:
+    def _validate_depth(
+        self, task_id: str, config: SubagentConfig
+    ) -> SubAgentResult | None:
         if self._current_depth >= _MAX_GLOBAL_SPAWN_DEPTH:
             error_msg = (
                 f"Max spawn depth ({_MAX_GLOBAL_SPAWN_DEPTH}) reached at depth {self._current_depth}. "
@@ -346,12 +360,17 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
                 completed_at=time.time(),
                 status=SubAgentStatus.FAILED,
             )
-        if config.control_scope == ControlScope.ORCHESTRATOR and self._current_depth >= config.max_spawn_depth:
+        if (
+            config.control_scope == ControlScope.ORCHESTRATOR
+            and self._current_depth >= config.max_spawn_depth
+        ):
             error_msg = (
                 f"Config max_spawn_depth={config.max_spawn_depth} exceeded at depth {self._current_depth}. "
                 f"This agent type is not allowed to delegate further at this nesting level."
             )
-            logger.warning("Config depth limit rejected task %s: %s", task_id, error_msg)
+            logger.warning(
+                "Config depth limit rejected task %s: %s", task_id, error_msg
+            )
             self._emit_delegation_guard_event(task_id, "config_depth_limit", error_msg)
             return SubAgentResult(
                 success=False,
@@ -363,7 +382,9 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
             )
         return None
 
-    def _validate_capacity(self, task_id: str, agent_type: str, config: SubagentConfig) -> SubAgentResult | None:
+    def _validate_capacity(
+        self, task_id: str, agent_type: str, config: SubagentConfig
+    ) -> SubAgentResult | None:
         active_children = sum(1 for task in self._children.values() if not task.done())
         max_active_children = min(
             self._max_children_per_agent,
@@ -374,7 +395,12 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
                 f"Active child limit exceeded: {active_children}/{max_active_children} children already running. "
                 f"Wait for existing subagents to complete before spawning new ones."
             )
-            logger.warning("Child limit rejected task %s (type=%s): %s", task_id, agent_type, error_msg)
+            logger.warning(
+                "Child limit rejected task %s (type=%s): %s",
+                task_id,
+                agent_type,
+                error_msg,
+            )
             self._emit_delegation_guard_event(task_id, "child_limit", error_msg)
             return SubAgentResult(
                 success=False,
@@ -398,7 +424,12 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
                 f"This run has spawned too many subagents. Complete the task with existing agents "
                 f"or reduce the delegation depth."
             )
-            logger.warning("Budget exceeded for task %s (type=%s): %s", task_id, agent_type, error_msg)
+            logger.warning(
+                "Budget exceeded for task %s (type=%s): %s",
+                task_id,
+                agent_type,
+                error_msg,
+            )
             self._emit_delegation_guard_event(task_id, "budget_exceeded", error_msg)
             return SubAgentResult(
                 success=False,
@@ -530,7 +561,9 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
             # Trigger the parent agent with the background task result
             try:
                 # We do this asynchronously to avoid blocking cleanup
-                wakeup_task = asyncio.create_task(self._parent_agent.trigger_async_wakeup(result))
+                wakeup_task = asyncio.create_task(
+                    self._parent_agent.trigger_async_wakeup(result)
+                )
                 self._background_tasks.add(wakeup_task)
                 wakeup_task.add_done_callback(self._background_tasks.discard)
             except Exception as e:
@@ -540,14 +573,20 @@ class SubagentManager(SubagentSpawnMixin, SubagentControlMixin):
         """Evict oldest completed results (FIFO by completed_at) when cache exceeds 50 entries."""
         if len(self._children_results) <= 50:
             return
-        completed = [(tid, r) for tid, r in self._children_results.items() if r.status != SubAgentStatus.RUNNING]
+        completed = [
+            (tid, r)
+            for tid, r in self._children_results.items()
+            if r.status != SubAgentStatus.RUNNING
+        ]
         completed.sort(key=lambda x: x[1].completed_at)
         evict_count = len(self._children_results) - 50
         for tid, _ in completed[:evict_count]:
             del self._children_results[tid]
             self._children_observability.pop(tid, None)
 
-    def _build_observability_metadata(self, config: SubagentConfig) -> dict[str, object]:
+    def _build_observability_metadata(
+        self, config: SubagentConfig
+    ) -> dict[str, object]:
         budget: dict[str, object] = {
             "timeout_seconds": config.timeout_seconds,
         }

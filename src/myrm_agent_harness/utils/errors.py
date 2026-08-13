@@ -23,7 +23,10 @@ import traceback
 
 from langchain_core.messages import BaseMessage
 
-from myrm_agent_harness.core.security.redact import redact_for_llm, redact_sensitive_text
+from myrm_agent_harness.core.security.redact import (
+    redact_for_llm,
+    redact_sensitive_text,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +129,9 @@ def _redact_suggestion(suggestion: str) -> str:
     return redact_sensitive_text(suggestion)
 
 
-def format_error_message(exception: Exception, context: str = "", include_traceback: bool = False) -> str:
+def format_error_message(
+    exception: Exception, context: str = "", include_traceback: bool = False
+) -> str:
     """格式化异常信息
 
     Args:
@@ -243,4 +248,6 @@ class ModelOutputValidator:
     @staticmethod
     def create_model_capability_error() -> RuntimeError:
         """创建模型能力不足的标准错误"""
-        return RuntimeError("This model may have limited support for tool invocation capabilities")
+        return RuntimeError(
+            "This model may have limited support for tool invocation capabilities"
+        )

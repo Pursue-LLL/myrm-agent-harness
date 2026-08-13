@@ -120,11 +120,11 @@ class TestCallToolResultNormalization:
         assert "file" not in types
 
     def test_structured_content_appended(self):
-        """structured_content from CallToolResult is appended as JSON text."""
+        """structuredContent (real wire camelCase) is appended as JSON text."""
         result = normalize_mcp_result(
             CallToolResult(
                 content=[TextContent(type="text", text="summary")],
-                structured_content={"key": "value", "num": 42},
+                structuredContent={"key": "value", "num": 42},
             )
         )
         assert isinstance(result, str)
@@ -132,12 +132,25 @@ class TestCallToolResultNormalization:
         assert '"key"' in result
         assert "42" in result
 
+    def test_snake_case_extra_fields_still_read(self):
+        """Legacy snake_case kwargs (extra attrs) still read via the compat path."""
+        result = normalize_mcp_result(
+            CallToolResult(
+                content=[TextContent(type="text", text="summary")],
+                is_error=True,
+                structured_content={"key": "value"},
+            )
+        )
+        assert isinstance(result, str)
+        assert "[MCP tool error]" in result
+        assert '"key"' in result
+
     def test_is_error_collapses_to_error_string(self):
-        """is_error=True yields a single error string for the agent."""
+        """isError (real wire camelCase) collapses to a single error string."""
         result = normalize_mcp_result(
             CallToolResult(
                 content=[TextContent(type="text", text="permission denied")],
-                is_error=True,
+                isError=True,
             )
         )
         assert isinstance(result, str)
@@ -145,10 +158,8 @@ class TestCallToolResultNormalization:
         assert "permission denied" in result
 
     def test_is_error_with_empty_content(self):
-        """is_error=True with no text yields a bare error marker."""
-        result = normalize_mcp_result(
-            CallToolResult(content=[], is_error=True)
-        )
+        """isError=True with no text yields a bare error marker."""
+        result = normalize_mcp_result(CallToolResult(content=[], isError=True))
         assert result == "[MCP tool error]"
 
     def test_embedded_resource_text_passthrough(self):
@@ -211,7 +222,9 @@ class TestCallToolResultNormalization:
         """AudioContent degrades to a short text marker, not a base64 dump."""
         result = normalize_mcp_result(
             CallToolResult(
-                content=[AudioContent(type="audio", data="audio_b64", mimeType="audio/mpeg")]
+                content=[
+                    AudioContent(type="audio", data="audio_b64", mimeType="audio/mpeg")
+                ]
             )
         )
         assert isinstance(result, str)
@@ -248,9 +261,7 @@ class TestCallToolResultNormalization:
         """Multiple text blocks are joined with newline separator."""
         result = normalize_mcp_result(
             CallToolResult(
-                content=[
-                    TextContent(type="text", text=f"line {i}") for i in range(3)
-                ]
+                content=[TextContent(type="text", text=f"line {i}") for i in range(3)]
             )
         )
         assert isinstance(result, str)
@@ -343,6 +354,7 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_resource_link_result(self):
         """Tool returns CallToolResult with file block — full pipeline."""
+
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(
                 content=[
@@ -367,6 +379,7 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_text_result(self):
         """Tool returns CallToolResult with text block — plain string output."""
+
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(
                 content=[TextContent(type="text", text="query result: 42")]
@@ -383,10 +396,13 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_image_result(self):
         """Tool returns CallToolResult with image block — multimodal list output."""
+
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(
                 content=[
-                    ImageContent(type="image", data="chart_png_base64", mimeType="image/png")
+                    ImageContent(
+                        type="image", data="chart_png_base64", mimeType="image/png"
+                    )
                 ]
             )
 
@@ -401,6 +417,7 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_mixed_types_result(self):
         """Text + file + image: file degraded, image preserved."""
+
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(
                 content=[
@@ -428,11 +445,12 @@ class TestFullToolExecutionPipeline:
 
     @pytest.mark.asyncio
     async def test_tool_returning_is_error_result(self):
-        """Tool returns CallToolResult with is_error=True — error string output."""
+        """Tool returns CallToolResult with isError=True — error string output."""
+
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(
                 content=[TextContent(type="text", text="rate limited")],
-                is_error=True,
+                isError=True,
             )
 
         tool = _make_tool("limited_tool")
@@ -464,6 +482,7 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_embedded_resource_blob(self):
         """EmbeddedResource non-image blob -> file -> degraded to text."""
+
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(
                 content=[
@@ -505,6 +524,7 @@ class TestFullToolExecutionPipeline:
     @pytest.mark.asyncio
     async def test_tool_returning_empty_content(self):
         """Tool returns CallToolResult with empty content — empty string output."""
+
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(content=[])
 
@@ -523,6 +543,7 @@ class TestProcessSessionToolsChain:
     @pytest.mark.asyncio
     async def test_full_chain_applies_coercion(self):
         """process_session_tools -> _wrap_tools_with_timeout -> coercion active."""
+
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(
                 content=[
@@ -555,10 +576,13 @@ class TestProcessSessionToolsChain:
     @pytest.mark.asyncio
     async def test_full_chain_preserves_image(self):
         """process_session_tools preserves image blocks in multimodal output."""
+
         async def _mock_invoke(*a: object, **kw: object) -> CallToolResult:
             return CallToolResult(
                 content=[
-                    ImageContent(type="image", data="screenshot_b64", mimeType="image/png")
+                    ImageContent(
+                        type="image", data="screenshot_b64", mimeType="image/png"
+                    )
                 ]
             )
 

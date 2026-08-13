@@ -310,6 +310,13 @@ class SkillAgentReviewMixin:
                             logger.error("Skill review callback failed: %s", cb_err)
 
             except Exception as e:
+                if isinstance(e, RuntimeError) and "no running event loop" in str(e):
+                    # 事件循环已关闭（如 TestClient/测试 teardown）时后台复盘无法发起
+                    # LLM 调用；属于生命周期竞态而非真实失败，降级为 debug 避免噪声。
+                    logger.debug(
+                        "Skill review skipped during event-loop shutdown: %s", e
+                    )
+                    return
                 logger.error("Background skill review failed: %s", e, exc_info=True)
 
         task = asyncio.create_task(_execute_review())

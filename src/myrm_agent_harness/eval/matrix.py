@@ -45,6 +45,12 @@ class MatrixCellResult:
     token_usage: dict[str, int] = field(default_factory=dict)
     cost: float = 0.0
     error: str | None = None
+    # Trajectory disclosure: tool invocation count, engine limit that stopped
+    # the run (if any), and decontamination blocks — so a matrix report shows
+    # when a case was truncated or pollution-guarded rather than completed.
+    tool_calls: int = 0
+    limit_reached: str | None = None
+    blocked_count: int = 0
 
 
 @dataclass(slots=True)
@@ -102,6 +108,9 @@ class MatrixResult:
             token_usage=turn.response.token_usage,
             cost=turn.response.cost,
             error=turn.error,
+            tool_calls=len(turn.response.tools_called),
+            limit_reached=turn.response.limit_reached,
+            blocked_count=turn.response.blocked_count,
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -119,6 +128,9 @@ class MatrixResult:
                         "token_usage": cell.token_usage,
                         "cost": round(cell.cost, 6),
                         "error": cell.error,
+                        "tool_calls": cell.tool_calls,
+                        "limit_reached": cell.limit_reached,
+                        "blocked_count": cell.blocked_count,
                     }
             row["profiles"] = cells
             matrix.append(row)
@@ -135,6 +147,18 @@ class MatrixResult:
                     "total_tokens": r.total_tokens,
                     "total_cost": round(r.total_cost, 6),
                     "total_ms": round(r.total_ms, 2),
+                    "total_tool_calls": sum(
+                        len(turn.response.tools_called)
+                        for turn in r.turn_results
+                    ),
+                    "limit_hits": sum(
+                        1
+                        for turn in r.turn_results
+                        if turn.response.limit_reached is not None
+                    ),
+                    "blocked_count": sum(
+                        turn.response.blocked_count for turn in r.turn_results
+                    ),
                 }
 
         return {

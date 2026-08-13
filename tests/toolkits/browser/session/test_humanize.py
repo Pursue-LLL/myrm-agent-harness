@@ -306,6 +306,21 @@ class TestHumanizeConfigValidation:
         with pytest.raises(ValueError, match="scroll_reading_pause_chance"):
             HumanizeConfig(scroll_reading_pause_chance=1.5)
 
+    def test_scroll_target_zone_invalid_raises(self) -> None:
+        for kwargs in (
+            {"scroll_target_zone": (0.5, 1.5)},
+            {"scroll_target_zone": (-0.1, 0.5)},
+            {"scroll_target_zone": (0.7, 0.3)},
+            {"scroll_target_zone": (0.4, 0.4)},
+        ):
+            with pytest.raises(ValueError, match="scroll_target_zone"):
+                HumanizeConfig(**kwargs)
+
+    def test_scroll_target_zone_default(self) -> None:
+        cfg = HumanizeConfig.from_mode(HumanizeMode.CAREFUL)
+        lo, hi = cfg.scroll_target_zone
+        assert 0.0 <= lo < hi <= 1.0
+
     def test_scroll_tuple_range_invalid_raises(self) -> None:
         for name in (
             "scroll_delta_base",

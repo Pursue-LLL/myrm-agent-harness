@@ -176,9 +176,7 @@ def _inline_refs(
                         if isinstance(resolved, dict):
                             for key, value in node.items():
                                 if key != "$ref":
-                                    resolved[key] = _inline_refs(
-                                        value, defs, depth + 1
-                                    )
+                                    resolved[key] = _inline_refs(value, defs, depth + 1)
                             return resolved
                         return resolved
                     return _degrade_unresolved_ref(node)

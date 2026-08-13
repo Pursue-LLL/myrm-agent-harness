@@ -68,7 +68,9 @@ from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
     resolve_embed_window_policy,
     token_counter_for_model,
 )
-from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import split_for_embedding
+from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import (
+    split_for_embedding,
+)
 
 if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.config import MemoryConfig
@@ -166,7 +168,9 @@ def _fit_text_for_embedding(text: str, embedding: EmbeddingProtocol) -> str:
     return chunks[0]
 
 
-async def embed_single(text: str, embedding: EmbeddingProtocol, cache: EmbeddingCacheProtocol | None) -> list[float]:
+async def embed_single(
+    text: str, embedding: EmbeddingProtocol, cache: EmbeddingCacheProtocol | None
+) -> list[float]:
     safe_text = _fit_text_for_embedding(text, embedding)
     if cache is not None:
         cached = await cache.get(safe_text)
@@ -235,7 +239,9 @@ async def store_semantics_batch(
             if m.embedding is None:
                 m.embedding = vecs[idx]
                 idx += 1
-    await vector.upsert(config.semantic_collection, [semantic_to_doc(m) for m in memories])
+    await vector.upsert(
+        config.semantic_collection, [semantic_to_doc(m) for m in memories]
+    )
     return memories
 
 
@@ -285,7 +291,9 @@ async def store_episodics_batch(
             if m.embedding is None:
                 m.embedding = vecs[idx]
                 idx += 1
-    await vector.upsert(config.episodic_collection, [episodic_to_doc(m) for m in memories])
+    await vector.upsert(
+        config.episodic_collection, [episodic_to_doc(m) for m in memories]
+    )
 
     if graph is not None:
         for m in memories:
@@ -302,11 +310,14 @@ async def store_episodics_batch(
                         match_keys=["name"],
                         properties={"name": entity},
                     )
-                    await graph.create_relationship(mem_node.id, entity_node.id, "MENTIONS")
+                    await graph.create_relationship(
+                        mem_node.id, entity_node.id, "MENTIONS"
+                    )
             except Exception as e:
-                logger.warning("Graph indexing failed for batch item (non-fatal): %s", e)
+                logger.warning(
+                    "Graph indexing failed for batch item (non-fatal): %s", e
+                )
     return memories
-
 
 
 # ======================================================================
@@ -355,7 +366,9 @@ async def update_vector_memory(
     return memory
 
 
-async def delete_from_vector(collection: str, ids: list[str], vector: VectorStoreProtocol) -> int:
+async def delete_from_vector(
+    collection: str, ids: list[str], vector: VectorStoreProtocol
+) -> int:
     return await vector.delete(collection, ids)
 
 
@@ -390,8 +403,12 @@ async def list_by_type(
         order_by = (_SORT_FIELD_MAP[sort_by], sort_order)
 
     if memory_type == MemoryType.PROFILE and relational:
-        entries = await relational.list_profiles(limit=limit, offset=offset, namespaces=namespaces)
-        visible_entries = [entry for entry in entries if not entry.key.startswith("_system_")]
+        entries = await relational.list_profiles(
+            limit=limit, offset=offset, namespaces=namespaces
+        )
+        visible_entries = [
+            entry for entry in entries if not entry.key.startswith("_system_")
+        ]
         return [
             SemanticMemory(
                 id=e.id,
@@ -405,7 +422,11 @@ async def list_by_type(
             for e in visible_entries
         ]
     if memory_type == MemoryType.PROCEDURAL and relational:
-        return list(await relational.list_rules(active_only=True, limit=limit, offset=offset, namespaces=namespaces))
+        return list(
+            await relational.list_rules(
+                active_only=True, limit=limit, offset=offset, namespaces=namespaces
+            )
+        )
 
     def _build_filters(base_filters: dict) -> dict:
         if tag_filter:
@@ -434,19 +455,31 @@ async def list_by_type(
         return docs
 
     if memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) and vector:
-        coll = config.semantic_collection if memory_type == MemoryType.SEMANTIC else config.episodic_collection
-        filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))
+        coll = (
+            config.semantic_collection
+            if memory_type == MemoryType.SEMANTIC
+            else config.episodic_collection
+        )
+        filters = _build_filters(
+            _user_filter(namespaces=namespaces, include_archived=include_archived)
+        )
         docs = await _scroll_with_offset(coll, filters, fetch_limit=limit, skip=offset)
-        converter = doc_to_semantic if memory_type == MemoryType.SEMANTIC else doc_to_episodic
+        converter = (
+            doc_to_semantic if memory_type == MemoryType.SEMANTIC else doc_to_episodic
+        )
         return [converter(d) for d in docs]
     if memory_type == MemoryType.CONVERSATION and vector:
-        filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))
+        filters = _build_filters(
+            _user_filter(namespaces=namespaces, include_archived=include_archived)
+        )
         docs = await _scroll_with_offset(
             config.conversation_collection, filters, fetch_limit=limit, skip=offset
         )
         return [doc_to_conversation(d, config=config) for d in docs]
     if memory_type == MemoryType.TASK_DIGEST and vector:
-        filters = _build_filters(_user_filter(namespaces=namespaces, include_archived=include_archived))
+        filters = _build_filters(
+            _user_filter(namespaces=namespaces, include_archived=include_archived)
+        )
         filters["event_type"] = MemoryType.TASK_DIGEST.value
         docs = await _scroll_with_offset(
             config.episodic_collection, filters, fetch_limit=limit, skip=offset
@@ -475,8 +508,14 @@ async def count_by_type(
     if memory_type == MemoryType.PROCEDURAL and relational:
         return await relational.count_rules(namespaces=namespaces)
     if memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) and vector:
-        coll = config.semantic_collection if memory_type == MemoryType.SEMANTIC else config.episodic_collection
-        return await vector.count(coll, filters=_apply_tag(_user_filter(namespaces=namespaces, since=since)))
+        coll = (
+            config.semantic_collection
+            if memory_type == MemoryType.SEMANTIC
+            else config.episodic_collection
+        )
+        return await vector.count(
+            coll, filters=_apply_tag(_user_filter(namespaces=namespaces, since=since))
+        )
     if memory_type == MemoryType.CONVERSATION and vector:
         return await vector.count(
             config.conversation_collection,
@@ -507,6 +546,12 @@ async def delete_by_type(
     if memory_type == MemoryType.PROCEDURAL and relational:
         return await relational.delete_all()
     if memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) and vector:
-        coll = config.semantic_collection if memory_type == MemoryType.SEMANTIC else config.episodic_collection
-        return await vector.delete_by_filter(coll, _user_filter(namespaces=namespaces, include_archived=True))
+        coll = (
+            config.semantic_collection
+            if memory_type == MemoryType.SEMANTIC
+            else config.episodic_collection
+        )
+        return await vector.delete_by_filter(
+            coll, _user_filter(namespaces=namespaces, include_archived=True)
+        )
     return 0

@@ -276,7 +276,9 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
 }
 
 
-def compute_canonical_args_hash(tool_name: str, tool_args: dict[str, object] | None) -> str | None:
+def compute_canonical_args_hash(
+    tool_name: str, tool_args: dict[str, object] | None
+) -> str | None:
     """Compute hash of canonical parameters, ignoring LLM-generated auxiliary fields.
 
     Only core functional parameters are hashed (e.g., 'command' for bash tools),

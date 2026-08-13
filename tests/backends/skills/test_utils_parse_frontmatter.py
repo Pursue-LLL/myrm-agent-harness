@@ -174,3 +174,68 @@ def test_build_skill_metadata_primary_env_none():
         trust=SkillTrust.INSTALLED,
     )
     assert meta.primary_env is None
+
+
+# ── required_permissions parsing ─────────────────────────────────────────
+
+
+def test_parse_skill_frontmatter_required_permissions():
+    content = """---
+description: test
+required_permissions:
+  - file_read
+  - shell_exec
+  - network_access
+---
+# Skill
+"""
+    fm = parse_skill_frontmatter(content, "my-skill")
+    assert [p.value for p in fm.required_permissions] == [
+        "file_read",
+        "shell_exec",
+        "network_access",
+    ]
+
+
+def test_parse_skill_frontmatter_required_permissions_empty_when_absent():
+    content = "---\ndescription: test\n---\n# Skill\n"
+    fm = parse_skill_frontmatter(content, "my-skill")
+    assert fm.required_permissions == []
+
+
+def test_parse_skill_frontmatter_required_permissions_skips_unknown():
+    """Unknown permission names are skipped with a warning, not fatal."""
+    content = """---
+description: test
+required_permissions:
+  - file_write
+  - not_a_real_permission
+  - shell_exec
+---
+# Skill
+"""
+    fm = parse_skill_frontmatter(content, "my-skill")
+    assert [p.value for p in fm.required_permissions] == ["file_write", "shell_exec"]
+
+
+def test_build_skill_metadata_required_permissions_propagated():
+    content = """---
+description: test
+required_permissions:
+  - file_write
+  - code_interpreter
+---
+# Skill
+"""
+    fm = parse_skill_frontmatter(content, "my-skill")
+    meta = build_skill_metadata(
+        skill_name="my-skill",
+        frontmatter=fm,
+        storage_path="/tmp/skills/my-skill",
+        content=content,
+        trust=SkillTrust.INSTALLED,
+    )
+    assert [p.value for p in meta.required_permissions] == [
+        "file_write",
+        "code_interpreter",
+    ]

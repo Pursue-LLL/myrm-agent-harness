@@ -152,6 +152,7 @@ class TestHandleAllowedToolsRejected:
 
         assert len(compactor.events) == 1
         assert compactor.events[0]["step_key"] == "allowed_tools_rejected_recovery"
+        assert compactor.events[0]["restart"] is True
 
     @pytest.mark.asyncio
     async def test_no_learn_when_model_name_missing(self) -> None:

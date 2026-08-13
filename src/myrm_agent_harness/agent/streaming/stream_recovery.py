@@ -179,7 +179,7 @@ class StreamRecoveryMixin(
             _MAX_OVERFLOW_RETRIES,
             saved,
         )
-        await self._emit_recovery_event(step_key)
+        await self._emit_recovery_event(step_key, restart=True)
         self.streaming_final_answer = False
         return True
 
@@ -251,7 +251,10 @@ class StreamRecoveryMixin(
         )
 
         await self._emit_recovery_event(
-            step_key, error_kind=error_kind.value, fallback_model=fallback_model
+            step_key,
+            error_kind=error_kind.value,
+            fallback_model=fallback_model,
+            restart=True,
         )
         from_model = _resolve_model_name_from_ctx(self._ctx) or "primary"
         await self._emit_failover_sse_notify(
@@ -366,6 +369,7 @@ class StreamRecoveryMixin(
             "safety_fallback_active",
             error_kind=ErrorKind.SAFETY_BLOCK.value,
             fallback_model=fallback_model,
+            restart=True,
         )
         self.streaming_final_answer = False
         return True
@@ -438,6 +442,7 @@ class StreamRecoveryMixin(
                     "from_model": current_model,
                     "to_model": target_model,
                     "reason": scrubber.reason,
+                    "restart": True,
                 },
                 "messageId": ctx.message_id,
             }
@@ -522,6 +527,7 @@ class StreamRecoveryMixin(
             error_kind=error_kind.value,
             delay_ms=int(delay_seconds * 1000),
             attempt=retries + 1,
+            restart=True,
         )
 
         if self._ctx.cancel_token:

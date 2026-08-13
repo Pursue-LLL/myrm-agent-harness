@@ -12,7 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from myrm_agent_harness.agent.file_snapshot.shadow_git_store import ShadowGitSnapshotStore
+from myrm_agent_harness.agent.file_snapshot.shadow_git_store import (
+    ShadowGitSnapshotStore,
+)
 from myrm_agent_harness.agent.file_snapshot.types import SnapshotTrigger
 
 
@@ -48,12 +50,16 @@ def workspace(tmp_path: Path) -> Path:
 
 
 @pytest.mark.asyncio
-async def test_normal_workspace_not_oversized(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_normal_workspace_not_oversized(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     assert await store.is_oversized_workspace(str(workspace)) is False
 
 
 @pytest.mark.asyncio
-async def test_nonexistent_workspace_not_oversized(store: ShadowGitSnapshotStore, tmp_path: Path):
+async def test_nonexistent_workspace_not_oversized(
+    store: ShadowGitSnapshotStore, tmp_path: Path
+):
     """Nonexistent dir yields zero files from os.walk, not oversized."""
     assert await store.is_oversized_workspace(str(tmp_path / "gone")) is False
 
@@ -64,7 +70,9 @@ async def test_nonexistent_workspace_not_oversized(store: ShadowGitSnapshotStore
 
 
 @pytest.mark.asyncio
-async def test_find_project_for_commit_found(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_find_project_for_commit_found(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     proj_hash, workdir = await store.find_project_for_commit(sid)
     assert proj_hash is not None
@@ -72,7 +80,9 @@ async def test_find_project_for_commit_found(store: ShadowGitSnapshotStore, work
 
 
 @pytest.mark.asyncio
-async def test_find_project_for_commit_not_found(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_find_project_for_commit_not_found(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     proj_hash, workdir = await store.find_project_for_commit("a" * 40)
     assert proj_hash is None
@@ -85,14 +95,18 @@ async def test_find_project_for_commit_not_found(store: ShadowGitSnapshotStore, 
 
 
 @pytest.mark.asyncio
-async def test_maybe_prune_creates_marker(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_maybe_prune_creates_marker(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     marker = store._store_path / ".last_prune"
     assert marker.exists()
 
 
 @pytest.mark.asyncio
-async def test_maybe_prune_skips_within_interval(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_maybe_prune_skips_within_interval(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     marker = store._store_path / ".last_prune"
     mtime_before = marker.stat().st_mtime
@@ -108,7 +122,9 @@ async def test_maybe_prune_skips_within_interval(store: ShadowGitSnapshotStore, 
 
 
 @pytest.mark.asyncio
-async def test_prune_orphan_removes_deleted_workspace(store: ShadowGitSnapshotStore, tmp_path: Path):
+async def test_prune_orphan_removes_deleted_workspace(
+    store: ShadowGitSnapshotStore, tmp_path: Path
+):
     ws = tmp_path / "ephemeral"
     ws.mkdir()
     (ws / "f.txt").write_text("data\n")
@@ -118,6 +134,7 @@ async def test_prune_orphan_removes_deleted_workspace(store: ShadowGitSnapshotSt
     assert any(projects_dir.iterdir())
 
     import shutil
+
     shutil.rmtree(ws)
 
     await store._prune_orphan_projects()
@@ -132,7 +149,9 @@ async def test_prune_orphan_removes_deleted_workspace(store: ShadowGitSnapshotSt
 
 
 @pytest.mark.asyncio
-async def test_repair_detects_missing_head(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_repair_detects_missing_head(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     (store._git_dir / "HEAD").unlink()
 
@@ -141,7 +160,9 @@ async def test_repair_detects_missing_head(store: ShadowGitSnapshotStore, worksp
 
 
 @pytest.mark.asyncio
-async def test_repair_detects_empty_head(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_repair_detects_empty_head(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     (store._git_dir / "HEAD").write_text("")
 
@@ -167,7 +188,9 @@ async def test_repair_noop_when_healthy(store: ShadowGitSnapshotStore, workspace
 
 
 @pytest.mark.asyncio
-async def test_drop_oversized_from_index(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_drop_oversized_from_index(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     """Files > 10MB should be dropped from the git index."""
     large = workspace / "oversized.bin"
     large.write_bytes(b"\x00" * (11 * 1024 * 1024))
@@ -183,7 +206,9 @@ async def test_drop_oversized_from_index(store: ShadowGitSnapshotStore, workspac
 
 
 @pytest.mark.asyncio
-async def test_bare_env_strips_work_tree(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_bare_env_strips_work_tree(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     """_bare_env() should not contain GIT_WORK_TREE or GIT_INDEX_FILE."""
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     env = store._bare_env()
@@ -215,7 +240,9 @@ async def test_project_metadata_created(store: ShadowGitSnapshotStore, workspace
 
 
 @pytest.mark.asyncio
-async def test_is_oversized_exceeds_file_count(store: ShadowGitSnapshotStore, tmp_path: Path, monkeypatch):
+async def test_is_oversized_exceeds_file_count(
+    store: ShadowGitSnapshotStore, tmp_path: Path, monkeypatch
+):
     import myrm_agent_harness.agent.file_snapshot.shadow_git_maintenance as maint
 
     monkeypatch.setattr(maint, "_MAX_FILE_COUNT", 1)
@@ -227,7 +254,9 @@ async def test_is_oversized_exceeds_file_count(store: ShadowGitSnapshotStore, tm
 
 
 @pytest.mark.asyncio
-async def test_is_oversized_walk_error(store: ShadowGitSnapshotStore, tmp_path: Path, monkeypatch):
+async def test_is_oversized_walk_error(
+    store: ShadowGitSnapshotStore, tmp_path: Path, monkeypatch
+):
     import os as os_module
 
     def boom(*args, **kwargs):
@@ -238,7 +267,9 @@ async def test_is_oversized_walk_error(store: ShadowGitSnapshotStore, tmp_path: 
 
 
 @pytest.mark.asyncio
-async def test_drop_oversized_ls_failure(store: ShadowGitSnapshotStore, tmp_path: Path, monkeypatch):
+async def test_drop_oversized_ls_failure(
+    store: ShadowGitSnapshotStore, tmp_path: Path, monkeypatch
+):
     async def fail_ls(*args, **kwargs):
         raise RuntimeError("git ls-files failed")
 
@@ -260,11 +291,15 @@ async def test_drop_oversized_skips_blank_and_stat_failure(
 
     monkeypatch.setattr(store, "_run_cmd", fake_run_cmd)
     monkeypatch.setattr(Path, "stat", fail_stat)
-    await store.drop_oversized_from_index({}, workspace)  # blank line + stat error tolerated
+    await store.drop_oversized_from_index(
+        {}, workspace
+    )  # blank line + stat error tolerated
 
 
 @pytest.mark.asyncio
-async def test_drop_oversized_removes_large_cached_file(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+async def test_drop_oversized_removes_large_cached_file(
+    store: ShadowGitSnapshotStore, workspace: Path, monkeypatch
+):
     big = workspace / "big.bin"
     big.write_bytes(b"\x00" * (11 * 1024 * 1024))
     removed: list[str] = []
@@ -292,14 +327,18 @@ async def test_find_project_projects_dir_missing(store: ShadowGitSnapshotStore):
 
 
 @pytest.mark.asyncio
-async def test_find_project_skips_non_json(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_find_project_skips_non_json(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     (store._git_dir / "projects" / "stray.txt").write_text("x")
     assert await store.find_project_for_commit("a" * 40) == (None, None)
 
 
 @pytest.mark.asyncio
-async def test_find_project_bad_metadata(store: ShadowGitSnapshotStore, workspace: Path):
+async def test_find_project_bad_metadata(
+    store: ShadowGitSnapshotStore, workspace: Path
+):
     sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     meta = next((store._git_dir / "projects").glob("*.json"))
     meta.write_text("{broken")
@@ -307,7 +346,9 @@ async def test_find_project_bad_metadata(store: ShadowGitSnapshotStore, workspac
 
 
 @pytest.mark.asyncio
-async def test_find_project_command_failures(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+async def test_find_project_command_failures(
+    store: ShadowGitSnapshotStore, workspace: Path, monkeypatch
+):
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
 
     async def fail_commands(*args, **kwargs):
@@ -332,7 +373,9 @@ async def test_prune_orphan_projects_dir_missing(store: ShadowGitSnapshotStore):
 
 
 @pytest.mark.asyncio
-async def test_prune_orphan_skips_non_json_and_bad_meta(store: ShadowGitSnapshotStore, tmp_path: Path):
+async def test_prune_orphan_skips_non_json_and_bad_meta(
+    store: ShadowGitSnapshotStore, tmp_path: Path
+):
     ws = tmp_path / "ephemeral"
     ws.mkdir()
     (ws / "f.txt").write_text("data\n")
@@ -346,7 +389,9 @@ async def test_prune_orphan_skips_non_json_and_bad_meta(store: ShadowGitSnapshot
 
 
 @pytest.mark.asyncio
-async def test_prune_orphan_update_ref_failure(store: ShadowGitSnapshotStore, tmp_path: Path, monkeypatch):
+async def test_prune_orphan_update_ref_failure(
+    store: ShadowGitSnapshotStore, tmp_path: Path, monkeypatch
+):
     import shutil
 
     ws = tmp_path / "ephemeral"
@@ -365,7 +410,9 @@ async def test_prune_orphan_update_ref_failure(store: ShadowGitSnapshotStore, tm
 
 
 @pytest.mark.asyncio
-async def test_enforce_global_size_cap_runs_gc(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+async def test_enforce_global_size_cap_runs_gc(
+    store: ShadowGitSnapshotStore, workspace: Path, monkeypatch
+):
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     import myrm_agent_harness.agent.file_snapshot.shadow_git_maintenance as maint
 
@@ -383,7 +430,9 @@ async def test_enforce_global_size_cap_runs_gc(store: ShadowGitSnapshotStore, wo
 
 
 @pytest.mark.asyncio
-async def test_enforce_global_size_cap_gc_failure(store: ShadowGitSnapshotStore, workspace: Path, monkeypatch):
+async def test_enforce_global_size_cap_gc_failure(
+    store: ShadowGitSnapshotStore, workspace: Path, monkeypatch
+):
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     import myrm_agent_harness.agent.file_snapshot.shadow_git_maintenance as maint
 

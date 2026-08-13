@@ -82,7 +82,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
 async def dedup_semantics(
     memories: list[SemanticMemory],
     vector: VectorStoreProtocol,
@@ -121,7 +120,9 @@ async def dedup_semantics(
     if skipped:
         total = len(memories)
         rate = skipped / total * 100 if total > 0 else 0
-        logger.warning("Dedup: skipped %d/%d near-duplicates (rate=%.1f%%)", skipped, total, rate)
+        logger.warning(
+            "Dedup: skipped %d/%d near-duplicates (rate=%.1f%%)", skipped, total, rate
+        )
     return [m for m, is_dup in zip(memories, dup_flags, strict=False) if not is_dup]
 
 
@@ -173,6 +174,7 @@ async def run_forgetting(
                     memories,
                     collection,
                     vector,
+                    namespaces=namespaces,
                 )
             candidates = strategy.select_candidates(memories, rel_counts)
             if not candidates:
@@ -188,7 +190,9 @@ async def run_forgetting(
                         try:
                             await graph.delete_subgraph(memory_id)
                         except Exception as e:
-                            logger.warning("Graph cleanup failed for %s: %s", memory_id, e)
+                            logger.warning(
+                                "Graph cleanup failed for %s: %s", memory_id, e
+                            )
                             result.errors.append((memory_id, str(e)))
 
             elif fg_cfg.mode == ForgettingMode.ARCHIVE:
@@ -200,7 +204,9 @@ async def run_forgetting(
                         continue
                     doc.metadata["status"] = "archived"
                     doc.metadata["archived_at"] = now_iso
-                    doc.metadata["archive_reason"] = f"retention={score.total_score:.3f}"
+                    doc.metadata["archive_reason"] = (
+                        f"retention={score.total_score:.3f}"
+                    )
                     archive_docs.append(doc)
                 if archive_docs:
                     await vector.upsert(collection, archive_docs)
@@ -216,12 +222,18 @@ async def run_forgetting(
                 )
 
         if relational is not None:
-            await _forget_procedural_rules(relational, strategy, fg_cfg, result, namespaces)
+            await _forget_procedural_rules(
+                relational, strategy, fg_cfg, result, namespaces
+            )
 
         if result.forgotten_count:
-            logger.warning("Forgetting DELETE: removed %d memories", result.forgotten_count)
+            logger.warning(
+                "Forgetting DELETE: removed %d memories", result.forgotten_count
+            )
         if result.archived_count:
-            logger.warning("Forgetting ARCHIVE: archived %d memories", result.archived_count)
+            logger.warning(
+                "Forgetting ARCHIVE: archived %d memories", result.archived_count
+            )
 
     except Exception as e:
         logger.warning("Forgetting scan failed (non-fatal): %s", e)
@@ -237,52 +249,11 @@ async def _forget_procedural_rules(
     namespaces: list[str] | None,
 ) -> None:
     """Apply forgetting strategy to ProceduralMemory stored in relational DB."""
-    from myrm_agent_harness.toolkits.memory.strategies.forgetting import ForgettingMode
-    from myrm_agent_harness.toolkits.memory.types import ToolRulePriority
+    from myrm_agent_harness.toolkits.memory._internal.maintenance_rule_forgetting import (
+        forget_procedural_rules,
+    )
 
-    try:
-        rules = await relational.list_rules(
-            active_only=True,
-            limit=fg_cfg.max_forget_per_run * 2,
-            namespaces=namespaces,
-        )
-    except Exception as e:
-        logger.warning("Forgetting: failed to fetch procedural rules: %s", e)
-        return
-
-    rules = [r for r in rules if not r.is_user_locked]
-
-    for rule in rules:
-        if rule.tool_rule_priority == ToolRulePriority.CRITICAL:
-            current_importance = rule.metadata.get("importance", 0.5)
-            try:
-                normalized_importance = float(current_importance)
-            except (TypeError, ValueError):
-                normalized_importance = 0.5
-            rule.metadata["importance"] = max(normalized_importance, 0.95)
-
-    candidates = strategy.select_candidates(rules, {})
-    if not candidates:
-        return
-
-    for rule, score in candidates:
-        try:
-            if fg_cfg.mode == ForgettingMode.DELETE:
-                if await relational.delete_rule(rule.id):
-                    result.forgotten_count += 1
-                    result.forgotten_ids.append(rule.id)
-            elif fg_cfg.mode == ForgettingMode.ARCHIVE:
-                rule.is_active = False
-                rule.metadata["archived_at"] = datetime.now(UTC).isoformat()
-                rule.metadata["archive_reason"] = f"retention={score.total_score:.3f}"
-                await relational.update_rule(rule.id, rule)
-                result.archived_count += 1
-                result.archived_ids.append(rule.id)
-            else:
-                logger.info("Forgetting MARK mode: procedural rule %s (score=%.3f)", rule.id, score.total_score)
-        except Exception as e:
-            logger.warning("Forgetting procedural rule %s failed: %s", rule.id, e)
-            result.errors.append((rule.id, str(e)))
+    await forget_procedural_rules(relational, strategy, fg_cfg, result, namespaces)
 
 
 async def evaporate_task_digests(
@@ -329,13 +300,18 @@ async def _estimate_relation_counts(
     memories: list[SemanticMemory] | list[EpisodicMemory],
     collection: str,
     vector: VectorStoreProtocol,
+    namespaces: list[str] | None = None,
 ) -> dict[str, int]:
     """Approximate relation_count by counting vector neighbors (sim > 0.8).
 
     Only called for SemanticMemory. Concurrency is capped to avoid
-    overwhelming the vector backend.
+    overwhelming the vector backend. Neighbor counting is restricted to the
+    same namespaces as the candidate pool so cross-scope memories never
+    inflate another agent's retention score.
     """
-    embeddable = [(m.id, m.embedding) for m in memories if getattr(m, "embedding", None)]
+    embeddable = [
+        (m.id, m.embedding) for m in memories if getattr(m, "embedding", None)
+    ]
     if not embeddable:
         return {}
 
@@ -348,7 +324,7 @@ async def _estimate_relation_counts(
                     collection,
                     emb,
                     limit=5,
-                    filters=None,
+                    filters=_user_filter(namespaces=namespaces) if namespaces else None,
                     score_threshold=0.8,
                 )
                 return mem_id, max(len(hits) - 1, 0)
@@ -373,8 +349,16 @@ async def bump_access_counts(
             if isinstance(mem, (SemanticMemory, EpisodicMemory)):
                 mem.access_count += 1
                 mem.last_accessed_at = now
-        sem_docs = [semantic_to_doc(r.memory) for r in results if isinstance(r.memory, SemanticMemory)]
-        epi_docs = [episodic_to_doc(r.memory) for r in results if isinstance(r.memory, EpisodicMemory)]
+        sem_docs = [
+            semantic_to_doc(r.memory)
+            for r in results
+            if isinstance(r.memory, SemanticMemory)
+        ]
+        epi_docs = [
+            episodic_to_doc(r.memory)
+            for r in results
+            if isinstance(r.memory, EpisodicMemory)
+        ]
         if sem_docs:
             await vector.upsert(config.semantic_collection, sem_docs)
         if epi_docs:
@@ -388,7 +372,11 @@ async def bump_access_counts(
                     try:
                         await relational.update_rule(mem.id, mem)
                     except Exception as exc:
-                        logger.debug("Procedural access count update skipped for %s: %s", mem.id, exc)
+                        logger.debug(
+                            "Procedural access count update skipped for %s: %s",
+                            mem.id,
+                            exc,
+                        )
     except Exception as e:
         logger.warning("Access count update failed (non-fatal): %s", e)
 
@@ -446,7 +434,9 @@ async def sweep_orphaned_blobs(
                     blob_hash = raw_exchange[len("blob://") :]
                     active_blobs.add(blob_hash)
         except Exception as e:
-            logger.error("Blob GC scroll failed. Aborting GC to prevent data loss: %s", e)
+            logger.error(
+                "Blob GC scroll failed. Aborting GC to prevent data loss: %s", e
+            )
             return 0
 
     # 3. Delete orphaned blobs

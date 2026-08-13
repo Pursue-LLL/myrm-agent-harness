@@ -18,16 +18,16 @@ from myrm_agent_harness.toolkits.mcp.connection_manager import MCPConnectionMana
 
 # A minimal real MCP server: records each process launch (one line per spawn),
 # then serves two trivial tools over stdio.
-_PROBE_SERVER_SRC = '''
+_PROBE_SERVER_SRC = """
 import sys
 from pathlib import Path
 
 # Record one line per process launch — the spawn counter.
 Path(sys.argv[1]).open("a", encoding="utf-8").write("spawn\\n")
 
-from mcp.server import MCPServer
+from mcp.server.fastmcp import FastMCP
 
-server = MCPServer("spawn-probe")
+server = FastMCP("spawn-probe")
 
 
 @server.tool()
@@ -42,7 +42,7 @@ def add(a: int, b: int) -> int:
 
 if __name__ == "__main__":
     server.run(transport="stdio")
-'''
+"""
 
 
 def _count_spawns(spawn_log: object) -> int:
@@ -58,7 +58,9 @@ def _reset_manager() -> object:
 
 
 @pytest.mark.asyncio
-async def test_stdio_session_reused_single_spawn(tmp_path, _reset_manager: object) -> None:
+async def test_stdio_session_reused_single_spawn(
+    tmp_path, _reset_manager: object
+) -> None:
     script = tmp_path / "probe_server.py"
     script.write_text(_PROBE_SERVER_SRC, encoding="utf-8")
     spawn_log = tmp_path / "spawns.log"

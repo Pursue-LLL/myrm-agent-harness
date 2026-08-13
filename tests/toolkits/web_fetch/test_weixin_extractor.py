@@ -256,7 +256,10 @@ def _html_with_images(n: int) -> str:
 def test_normalize_lazy_images_handles_list_attr() -> None:
     from bs4 import BeautifulSoup
 
-    soup = BeautifulSoup("<div id='js_content'><img data-src='https://a.com/x.png' /></div>", "html.parser")
+    soup = BeautifulSoup(
+        "<div id='js_content'><img data-src='https://a.com/x.png' /></div>",
+        "html.parser",
+    )
     img = soup.find("img")
     assert img is not None
     img.attrs["data-src"] = ["https://a.com/x.png"]

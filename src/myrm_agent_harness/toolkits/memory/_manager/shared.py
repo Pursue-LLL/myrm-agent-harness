@@ -71,7 +71,6 @@ from myrm_agent_harness.toolkits.memory._internal.write_service import (
     build_episodic_deduplicator,
     build_semantic_deduplicator,
 )
-from myrm_agent_harness.toolkits.memory.archival import ArchivalResult
 from myrm_agent_harness.toolkits.memory.backup import (
     BackupMetadata,
     BackupResult,
@@ -152,7 +151,6 @@ __all__ = [
     "UTC",
     "AgentMemoryPolicy",
     "AnyMemory",
-    "ArchivalResult",
     "BackupMetadata",
     "BackupResult",
     "BaseChatModel",

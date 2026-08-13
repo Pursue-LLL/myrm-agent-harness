@@ -557,23 +557,12 @@ class TestDualChannelFusion:
         assert fused[0].score == 1.0
 
 
-class TestArchivalVsDetailGate:
-    """Verify archival config provides noise reduction (gbrain's detail-gate equivalent).
+class TestTypeWeightsDemoteNoise:
+    """Verify retrieval type weights inherently demote chat noise.
 
-    gbrain: detail-gate separates full-detail from summary chunks in SQL
-    MyrmAgent: Archival system moves old/rarely-accessed memories to separate collections
+    CONVERSATION (0.95) ranks below SEMANTIC (1.0), mirroring gbrain's
+    detail-gate intent without a separate archival pipeline.
     """
-
-    def test_archival_config_defaults_reasonable(self) -> None:
-        """Archival config should have production-ready defaults."""
-        from myrm_agent_harness.toolkits.memory.config import ArchivalConfig
-
-        ac = ArchivalConfig()
-        assert ac.enabled is True
-        assert ac.min_age_days >= 90  # At least 3 months before archiving
-        assert ac.max_access_count >= 3  # Rarely accessed threshold
-        assert ac.max_importance <= 0.5  # Only archive unimportant memories
-        assert ac.batch_size >= 50  # Efficient batch processing
 
     def test_type_weights_can_demote_conversation_noise(self) -> None:
         """CONVERSATION type weight (0.95) inherently reduces chat noise vs SEMANTIC (1.0)."""

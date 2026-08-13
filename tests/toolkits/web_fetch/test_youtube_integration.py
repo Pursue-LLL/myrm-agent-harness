@@ -30,7 +30,10 @@ async def test_youtube_url_routes_to_transcript_extractor() -> None:
         ) as mock_extract:
             mock_extract.return_value = MagicMock(
                 page_content="00:00 Hello\n00:05 World",
-                metadata={"video_id": "dQw4w9WgXcQ", "source_type": "youtube_transcript"},
+                metadata={
+                    "video_id": "dQw4w9WgXcQ",
+                    "source_type": "youtube_transcript",
+                },
             )
 
             await engine.crawl(youtube_url)
@@ -73,11 +76,14 @@ async def test_youtube_fallback_to_html_on_transcript_failure() -> None:
 
         youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
-        with patch(
-            "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_youtube_transcript",
-            new_callable=AsyncMock,
-            return_value=None,
-        ), patch.object(engine, "_crawl_with_degradation") as mock_crawl:
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_youtube_transcript",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(engine, "_crawl_with_degradation") as mock_crawl,
+        ):
             mock_doc = MagicMock(page_content="YouTube page HTML", metadata={})
             mock_result = MagicMock(status_code=200, etag=None, last_modified=None)
             mock_crawl.return_value = (mock_doc, mock_result)
@@ -158,11 +164,14 @@ async def test_youtube_fail_does_not_pollute_fail_cache() -> None:
 
         youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
-        with patch(
-            "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_youtube_transcript",
-            new_callable=AsyncMock,
-            return_value=None,
-        ), patch.object(engine, "_crawl_with_degradation") as mock_crawl:
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_youtube_transcript",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(engine, "_crawl_with_degradation") as mock_crawl,
+        ):
             mock_doc = MagicMock(page_content="HTML content", metadata={})
             mock_result = MagicMock(status_code=200, etag=None, last_modified=None)
             mock_crawl.return_value = (mock_doc, mock_result)
@@ -192,7 +201,10 @@ async def test_youtube_shorts_url_recognized() -> None:
         ) as mock_extract:
             mock_extract.return_value = MagicMock(
                 page_content="shorts transcript",
-                metadata={"video_id": "abc123XYZ00", "source_type": "youtube_transcript"},
+                metadata={
+                    "video_id": "abc123XYZ00",
+                    "source_type": "youtube_transcript",
+                },
             )
 
             result = await engine.crawl(shorts_url)
@@ -216,7 +228,10 @@ async def test_youtu_be_short_link_recognized() -> None:
         ) as mock_extract:
             mock_extract.return_value = MagicMock(
                 page_content="short link transcript",
-                metadata={"video_id": "dQw4w9WgXcQ", "source_type": "youtube_transcript"},
+                metadata={
+                    "video_id": "dQw4w9WgXcQ",
+                    "source_type": "youtube_transcript",
+                },
             )
 
             result = await engine.crawl(short_url)
@@ -240,7 +255,10 @@ async def test_youtube_force_refresh_bypasses_cache() -> None:
         ) as mock_extract:
             mock_extract.return_value = MagicMock(
                 page_content="transcript v1",
-                metadata={"video_id": "dQw4w9WgXcQ", "source_type": "youtube_transcript"},
+                metadata={
+                    "video_id": "dQw4w9WgXcQ",
+                    "source_type": "youtube_transcript",
+                },
             )
 
             await engine.crawl(youtube_url)
@@ -248,7 +266,10 @@ async def test_youtube_force_refresh_bypasses_cache() -> None:
 
             mock_extract.return_value = MagicMock(
                 page_content="transcript v2",
-                metadata={"video_id": "dQw4w9WgXcQ", "source_type": "youtube_transcript"},
+                metadata={
+                    "video_id": "dQw4w9WgXcQ",
+                    "source_type": "youtube_transcript",
+                },
             )
 
             result = await engine.crawl(youtube_url, force_refresh=True)
@@ -275,10 +296,13 @@ async def test_youtube_timeout_triggers_fallback() -> None:
         async def slow_extract(*args: object, **kwargs: object) -> None:
             await aio.sleep(10)
 
-        with patch(
-            "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_youtube_transcript",
-            side_effect=slow_extract,
-        ), patch.object(engine, "_crawl_with_degradation") as mock_crawl:
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_youtube_transcript",
+                side_effect=slow_extract,
+            ),
+            patch.object(engine, "_crawl_with_degradation") as mock_crawl,
+        ):
             mock_crawl.return_value = (
                 MagicMock(page_content="fallback html", metadata={}),
                 MagicMock(status_code=200, etag=None, last_modified=None),
@@ -310,7 +334,10 @@ async def test_youtube_concurrent_requests_coalescing() -> None:
             await aio.sleep(0.1)
             return MagicMock(
                 page_content="coalesced transcript",
-                metadata={"video_id": "dQw4w9WgXcQ", "source_type": "youtube_transcript"},
+                metadata={
+                    "video_id": "dQw4w9WgXcQ",
+                    "source_type": "youtube_transcript",
+                },
             )
 
         with patch(
@@ -339,12 +366,18 @@ async def test_youtube_both_transcript_and_fallback_fail() -> None:
 
         youtube_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
-        with patch(
-            "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_youtube_transcript",
-            new_callable=AsyncMock,
-            return_value=None,
-        ), patch.object(engine, "_crawl_with_degradation") as mock_crawl:
-            mock_crawl.return_value = (None, MagicMock(status_code=403, etag=None, last_modified=None))
+        with (
+            patch(
+                "myrm_agent_harness.toolkits.web_fetch.engine.base.extract_youtube_transcript",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+            patch.object(engine, "_crawl_with_degradation") as mock_crawl,
+        ):
+            mock_crawl.return_value = (
+                None,
+                MagicMock(status_code=403, etag=None, last_modified=None),
+            )
 
             result = await engine.crawl(youtube_url)
             assert result is None

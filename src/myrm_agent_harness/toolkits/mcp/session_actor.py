@@ -2,7 +2,7 @@
 
 Why this exists
 ---------------
-A single owner task opens the MCP session **once** via ``mcp.client.Client``,
+A single owner task opens the MCP session **once** via ``mcp.ClientSession``,
 keeps it warm, and serialises all tool calls onto it. Callers never touch the
 session directly — they submit a request and await a future that the owner
 resolves.
@@ -20,7 +20,7 @@ queue, zero locks) while leaving the prompt-facing proxy tools frozen — prompt
 prefix cache stability is never compromised.
 
 [INPUT]
-- mcp.client::Client (POS: MCP SDK 2.x high-level client)
+- mcp::ClientSession (POS: MCP SDK high-level session client)
 - tool_converter::convert_mcp_tools (POS: MCP→LangChain tool converter)
 - agent::MCPAgent (POS: MCP agent layer — shared tool post-processing)
 - config::sanitize_mcp_name_component (POS: MCP Configuration — name sanitizer for prefix fallback)
@@ -330,7 +330,7 @@ class MCPSessionActor:
                 await hc.aclose()
 
     def _build_elicitation_callback(self) -> object | None:
-        """Build an ``elicitation_callback`` for ``mcp.client.Client``.
+        """Build an ``elicitation_callback`` for ``mcp.ClientSession``.
 
         When ``elicitation_handler`` is provided the callback bridges MCP SDK
         ``ElicitRequest`` events to the business layer (e.g. ApprovalRegistry),
@@ -398,14 +398,18 @@ class MCPSessionActor:
         return _elicitation_callback
 
     def _build_client_target(self, conn: dict[str, object]) -> object:
-        """Build the ``mcp.client.Client`` target from the connection config dict.
+        """Build the transport target for ``mcp.ClientSession`` from the connection config dict.
 
         Returns a proper SDK v2 target:
         - SSE: ``sse_client(url, headers=...)`` — headers passed directly.
         - Streamable HTTP with auth headers: ``streamable_http_client(url, http_client=...)``
           — ``httpx2.AsyncClient`` stored on ``self._http_client`` for explicit cleanup.
-        - Streamable HTTP without headers: bare URL string (``Client`` auto-wraps).
+        - Streamable HTTP without headers: ``streamable_http_client(url)`` —
+          ``ClientSession`` requires an explicit transport context manager.
         - stdio: ``stdio_client(StdioServerParameters(...))`` transport.
+
+        Every branch returns an async context manager yielding the transport
+        stream pair consumed by ``ClientSession``.
         """
         transport = conn.get("transport", "stdio")
         if transport in ("sse", "streamable_http"):
@@ -428,7 +432,9 @@ class MCPSessionActor:
                 from mcp.client.streamable_http import streamable_http_client
 
                 return streamable_http_client(url_str, http_client=http_client)
-            return url_str
+            from mcp.client.streamable_http import streamable_http_client
+
+            return streamable_http_client(url_str)
 
         from mcp import StdioServerParameters
         from mcp.client.stdio import stdio_client
@@ -459,7 +465,7 @@ class MCPSessionActor:
         (terminal failures), the inner ``finally`` (served sessions), and
         ``close()``.
         """
-        from mcp.client import Client
+        from mcp import ClientSession
         from mcp.types import Implementation
 
         from myrm_agent_harness import __version__
@@ -492,20 +498,24 @@ class MCPSessionActor:
                 }
                 if elicitation_cb is not None:
                     client_kwargs["elicitation_callback"] = elicitation_cb
-                client = Client(target, **client_kwargs)  # type: ignore[arg-type]
                 try:
-                    async with client:
-                        async with asyncio.timeout(self._connect_timeout):
-                            raw_tools = convert_mcp_tools(
-                                list((await client.list_tools()).tools),
-                                client.call_tool,
-                                server_name=self.server_name,
-                            )
-                        if not raw_tools:
-                            raise _TransientStartError("no tools enumerated")
-                        self._apply_tools(client, raw_tools)
-                        connected_at = time.monotonic()
-                        outcome = await self._serve_on(client)
+                    async with target as streams:
+                        read, write = streams[0], streams[1]
+                        async with ClientSession(
+                            read, write, **client_kwargs  # type: ignore[arg-type]
+                        ) as client:
+                            init_result = await client.initialize()
+                            async with asyncio.timeout(self._connect_timeout):
+                                raw_tools = convert_mcp_tools(
+                                    list((await client.list_tools()).tools),
+                                    client.call_tool,
+                                    server_name=self.server_name,
+                                )
+                            if not raw_tools:
+                                raise _TransientStartError("no tools enumerated")
+                            self._apply_tools(client, raw_tools, init_result)
+                            connected_at = time.monotonic()
+                            outcome = await self._serve_on(client)
                 finally:
                     await self._close_http_client()
             except asyncio.CancelledError:
@@ -704,7 +714,12 @@ class MCPSessionActor:
                 server_name=self.server_name,
             )
 
-    def _apply_tools(self, client: object, raw_tools: list[BaseTool]) -> None:
+    def _apply_tools(
+        self,
+        client: object,
+        raw_tools: list[BaseTool],
+        init_result: object | None = None,
+    ) -> None:
         """Bind freshly enumerated tools to the live session.
 
         Runs on every (re)connect so the executable tools always target the
@@ -726,7 +741,7 @@ class MCPSessionActor:
         )
         instructions: str | None = None
         if not self._ready.is_set():
-            instructions = _extract_instructions(client)
+            instructions = _extract_instructions(init_result)
         self._enforce_runtime_posture(instructions, processed)
         self._tools = {tool.name: tool for tool in processed}
         if not self._ready.is_set():
@@ -735,7 +750,7 @@ class MCPSessionActor:
             self._ready.set()
 
     def _make_notification_handler(self):
-        """Build a ``message_handler`` for ``mcp.client.Client``.
+        """Build a ``message_handler`` for ``mcp.ClientSession``.
 
         In MCP SDK 2.x, notifications are delivered as their concrete types
         (no ``ServerNotification`` RootModel wrapper). Dispatches

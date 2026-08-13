@@ -361,7 +361,9 @@ class TestTakeoverToolRedaction:
 
         tool = create_takeover_tool(session)
 
-        takeover_logger = logging.getLogger("myrm_agent_harness.toolkits.browser.tools.takeover")
+        takeover_logger = logging.getLogger(
+            "myrm_agent_harness.toolkits.browser.tools.takeover"
+        )
         takeover_logger.setLevel(logging.INFO)
         with (
             caplog.at_level(logging.INFO, logger=takeover_logger.name),

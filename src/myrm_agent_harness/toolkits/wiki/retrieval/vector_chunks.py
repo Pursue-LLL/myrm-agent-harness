@@ -25,7 +25,9 @@ from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
     resolve_embed_window_policy,
     token_counter_for_model,
 )
-from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import split_for_embedding
+from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import (
+    split_for_embedding,
+)
 from myrm_agent_harness.toolkits.vector.base import VectorDocument
 
 if TYPE_CHECKING:
@@ -103,7 +105,9 @@ async def upsert_text_vectors(
             f"Embedding batch size mismatch for '{parent_key}': {len(vectors)} != {len(chunks)}"
         )
 
-    await delete_text_vectors(vector, collection_name, parent_key, metadata_key=metadata_key)
+    await delete_text_vectors(
+        vector, collection_name, parent_key, metadata_key=metadata_key
+    )
 
     docs: list[VectorDocument] = []
     for index, (chunk, vec) in enumerate(zip(chunks, vectors, strict=True)):

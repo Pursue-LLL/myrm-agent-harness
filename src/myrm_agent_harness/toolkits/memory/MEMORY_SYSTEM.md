@@ -672,9 +672,10 @@ result = await extractor.extract(messages=messages)
 
 **数据流**：
 - `extract_memories_from_conversation` 对 user 消息执行正则预扫描，零 LLM 成本捕获 edicts
-- `ToolMemoryCaptureHook.on_post_tool_failure` 跟踪工具失败次数
+- `ToolMemoryCaptureHook.on_post_tool_failure` 跟踪工具失败次数；达到阈值（≥2 次）时生成 NORMAL 规则，并附带 `metadata.origin="tool_failure"` + `expected_valid_days=1`（24 小时警戒期）
 - `MemorySession.flush()` 调用 `hook.drain_pending()` 将待持久化规则纳入批量写入
-- `memory_context_middleware` 将 CRITICAL/HIGH 优先级规则提升到 stable 层（抗压缩），NORMAL 保持在 untrusted 层
+- `storage_context.load_context` 对 `source==AGENT_SELF` 且 `metadata.origin=="tool_failure"` 且非 CRITICAL/HIGH 的规则**不注入 stable 层**（视为瞬时提醒，仅可通过 `memory_search_tool` 检索）；用户显式保存的 AGENT_SELF 指令与 `pattern_discovery` 已确立模式不受影响
+- `maintenance_rule_forgetting` 对 `expected_valid_days` 已过期的规则直接归档（绕过 retention 评分阈值，避免瞬时失败规则长期残留）
 
 **优先级层级**（`ToolRulePriority`）：
 
@@ -682,7 +683,7 @@ result = await extractor.extract(messages=messages)
 |------|------|---------|---------|
 | CRITICAL | 用户显式禁令 | stable_sections | 免压缩 |
 | HIGH | 用户强偏好 | stable_sections | 免压缩 |
-| NORMAL | 自动推断/失败 | untrusted_sections | 可压缩 |
+| NORMAL | 自动推断/失败 | untrusted_sections（按需检索） | 可压缩 |
 
 ```python
 from myrm_agent_harness.toolkits.memory import ToolMemoryCaptureHook, MemorySession

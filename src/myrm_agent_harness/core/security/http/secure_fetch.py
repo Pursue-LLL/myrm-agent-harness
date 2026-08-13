@@ -24,7 +24,10 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
-from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError, async_pin_url
+from myrm_agent_harness.core.security.guards.ssrf import (
+    SSRFSecurityError,
+    async_pin_url,
+)
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 logger = logging.getLogger(__name__)
@@ -90,7 +93,9 @@ def _next_redirect(
     return next_url, next_method
 
 
-def _https_pin_extensions(request_url: str, pin_headers: dict[str, str]) -> dict[str, object]:
+def _https_pin_extensions(
+    request_url: str, pin_headers: dict[str, str]
+) -> dict[str, object]:
     """Return httpx transport extensions for DNS-pinned HTTPS hops.
 
     DNS pinning connects to a resolved IP while preserving the logical Host header.
@@ -129,8 +134,14 @@ async def resolve_secure_http_target(
     max_redirects: int = DEFAULT_MAX_REDIRECTS,
 ) -> SecureHttpTarget:
     """Follow redirects with SSRF checks and return the pinned final-hop target."""
-    shield_enabled = is_ssrf_shield_enabled() if enable_ssrf_shield is None else enable_ssrf_shield
-    allowed_hosts = parse_allowed_internal_hosts() if allowed_internal_hosts is None else allowed_internal_hosts
+    shield_enabled = (
+        is_ssrf_shield_enabled() if enable_ssrf_shield is None else enable_ssrf_shield
+    )
+    allowed_hosts = (
+        parse_allowed_internal_hosts()
+        if allowed_internal_hosts is None
+        else allowed_internal_hosts
+    )
 
     logical_url = url
     current_method = method.upper()
@@ -166,7 +177,8 @@ async def resolve_secure_http_target(
                 logical_url=logical_url,
                 current_method=current_method,
                 status_code=response.status_code,
-                location=response.headers.get("Location") or response.headers.get("location"),
+                location=response.headers.get("Location")
+                or response.headers.get("location"),
             )
             if redirected is None:
                 return SecureHttpTarget(
@@ -179,7 +191,9 @@ async def resolve_secure_http_target(
             logical_url, current_method = redirected
             redirect_count += 1
             if redirect_count > max_redirects:
-                raise SSRFSecurityError(f"Too many redirects (limit: {max_redirects}) for {url}")
+                raise SSRFSecurityError(
+                    f"Too many redirects (limit: {max_redirects}) for {url}"
+                )
         finally:
             await response.aclose()
 
@@ -207,8 +221,14 @@ async def secure_request(
     ``max_content_length`` (secure-by-default cap of 20 MB), so oversized
     responses never fully load into memory. Pass ``None`` to disable the cap.
     """
-    shield_enabled = is_ssrf_shield_enabled() if enable_ssrf_shield is None else enable_ssrf_shield
-    allowed_hosts = parse_allowed_internal_hosts() if allowed_internal_hosts is None else allowed_internal_hosts
+    shield_enabled = (
+        is_ssrf_shield_enabled() if enable_ssrf_shield is None else enable_ssrf_shield
+    )
+    allowed_hosts = (
+        parse_allowed_internal_hosts()
+        if allowed_internal_hosts is None
+        else allowed_internal_hosts
+    )
 
     logical_url = url
     current_method = method.upper()
@@ -245,7 +265,8 @@ async def secure_request(
             logical_url=logical_url,
             current_method=current_method,
             status_code=response.status_code,
-            location=response.headers.get("Location") or response.headers.get("location"),
+            location=response.headers.get("Location")
+            or response.headers.get("location"),
         )
         if redirected is None:
             break
@@ -255,7 +276,9 @@ async def secure_request(
         logical_url, current_method = redirected
         redirect_count += 1
         if redirect_count > max_redirects:
-            raise SSRFSecurityError(f"Too many redirects (limit: {max_redirects}) for {url}")
+            raise SSRFSecurityError(
+                f"Too many redirects (limit: {max_redirects}) for {url}"
+            )
 
     if response is None:
         raise ValueError(f"No response received for {url}")

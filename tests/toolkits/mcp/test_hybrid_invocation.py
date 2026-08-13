@@ -227,7 +227,7 @@ class TestNormalizeMcpResult:
     def test_structured_content_appended(self) -> None:
         result = CallToolResult(
             content=[TextContent(type="text", text="done")],
-            structured_content={"status": "ok", "count": 42},
+            structuredContent={"status": "ok", "count": 42},
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
@@ -248,10 +248,10 @@ class TestNormalizeMcpResult:
         assert normalized[1]["type"] == "image"
 
     def test_is_error_result(self) -> None:
-        """is_error=True collapses to a single error string."""
+        """isError=True collapses to a single error string."""
         result = CallToolResult(
             content=[TextContent(type="text", text="invalid request")],
-            is_error=True,
+            isError=True,
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
@@ -264,7 +264,7 @@ class TestNormalizeMcpResult:
                 ImageContent(type="image", data="abc123", mimeType="image/png"),
                 TextContent(type="text", text="caption"),
             ],
-            structured_content={"rows": 5},
+            structuredContent={"rows": 5},
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, list)
@@ -297,7 +297,9 @@ class TestNormalizeMcpResult:
         from mcp.types import AudioContent
 
         result = CallToolResult(
-            content=[AudioContent(type="audio", data="audio_b64", mimeType="audio/mpeg")]
+            content=[
+                AudioContent(type="audio", data="audio_b64", mimeType="audio/mpeg")
+            ]
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
@@ -312,7 +314,7 @@ class TestNormalizeMcpResult:
         original_blocks = [TextContent(type="text", text="original")]
         result = CallToolResult(
             content=original_blocks,
-            structured_content={"added": True},
+            structuredContent={"added": True},
         )
         normalize_mcp_result(result)
         assert len(original_blocks) == 1

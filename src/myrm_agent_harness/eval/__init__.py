@@ -17,6 +17,13 @@ from .assertions import (
 )
 from .benchmarks import BenchmarkSpec, get_benchmark, list_benchmarks, register_benchmark
 from .builder import build_skill_eval_cases, extract_case_from_trajectory
+from .decontam import (
+    HUGGINGFACE_DOMAINS,
+    HUGGINGFACE_QUERY_MARKERS,
+    is_huggingface_url,
+    normalize_answer,
+    query_targets_huggingface,
+)
 from .loader import load_cases, load_multi_turn_cases
 from .matrix import MatrixCellResult, MatrixResult, MatrixRunner
 from .protocols import (
@@ -65,8 +72,13 @@ __all__ = [
     "evaluate_tool_assertions",
     "extract_case_from_trajectory",
     "get_benchmark",
+    "HUGGINGFACE_DOMAINS",
+    "HUGGINGFACE_QUERY_MARKERS",
+    "is_huggingface_url",
     "list_benchmarks",
     "load_cases",
     "load_multi_turn_cases",
+    "normalize_answer",
+    "query_targets_huggingface",
     "register_benchmark",
 ]

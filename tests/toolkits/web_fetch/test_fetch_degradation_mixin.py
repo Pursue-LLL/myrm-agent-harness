@@ -16,7 +16,10 @@ import pytest
 from langchain_core.documents import Document
 
 from myrm_agent_harness.toolkits.web_fetch.engine import FetchEngine
-from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetcherType, FetchResult
+from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import (
+    FetcherType,
+    FetchResult,
+)
 
 
 def _make_engine(tmpdir: str) -> FetchEngine:
@@ -49,7 +52,11 @@ def _doc(text: str = "content") -> Document:
     return Document(page_content=text, metadata={"title": "page"})
 
 
-RICH_HTML = "<html><body><article><p>" + ("lorem ipsum content " * 40) + "</p></article></body></html>"
+RICH_HTML = (
+    "<html><body><article><p>"
+    + ("lorem ipsum content " * 40)
+    + "</p></article></body></html>"
+)
 
 
 # ===================================================================
@@ -157,7 +164,9 @@ class TestTryFetchAndProcess:
                 "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.parse_weixin_article_html",
                 new=lambda html, url=None: _doc("weixin"),
             ):
-                doc, degradable, _, _, _, _ = await engine._try_fetch_and_process(url, FetcherType.HTTP)
+                doc, degradable, _, _, _, _ = await engine._try_fetch_and_process(
+                    url, FetcherType.HTTP
+                )
 
                 assert doc is not None
                 assert doc.page_content == "weixin"
@@ -171,14 +180,19 @@ class TestTryFetchAndProcess:
             http, _, _ = _stub_fetchers(engine)
             http.fetch.return_value = _http_result("<html>shell</html>")
             url = "https://mp.weixin.qq.com/s/abc123"
-            with patch(
-                "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.parse_weixin_article_html",
-                new=lambda html, url=None: None,
-            ), patch(
-                "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.has_weixin_js_content",
-                new=lambda html: False,
+            with (
+                patch(
+                    "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.parse_weixin_article_html",
+                    new=lambda html, url=None: None,
+                ),
+                patch(
+                    "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.has_weixin_js_content",
+                    new=lambda html: False,
+                ),
             ):
-                doc, degradable, _, _, _, _ = await engine._try_fetch_and_process(url, FetcherType.HTTP)
+                doc, degradable, _, _, _, _ = await engine._try_fetch_and_process(
+                    url, FetcherType.HTTP
+                )
 
                 assert doc is None
                 assert degradable is True
@@ -237,7 +251,9 @@ class TestTryFetchAndProcess:
                 "myrm_agent_harness.toolkits.web_fetch.escalation.context.get_bound_browser_launch_mode",
                 new=lambda: "EXTENSION",
             ):
-                await engine._try_fetch_and_process("http://example.com/page", FetcherType.BROWSER)
+                await engine._try_fetch_and_process(
+                    "http://example.com/page", FetcherType.BROWSER
+                )
 
                 browser.set_launch_mode_preference.assert_called_once_with("EXTENSION")
             await engine.shutdown()
@@ -262,7 +278,9 @@ class TestCrawlWithDegradation:
             stealth.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             assert result is not None
@@ -283,7 +301,9 @@ class TestCrawlWithDegradation:
             browser.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             await engine.shutdown()
@@ -304,13 +324,18 @@ class TestCrawlWithDegradation:
                 provider_id="reader",
                 fetch_url=AsyncMock(
                     return_value=SimpleNamespace(
-                        content="# md", is_markdown=True, url="http://example.com/page", title="t"
+                        content="# md",
+                        is_markdown=True,
+                        url="http://example.com/page",
+                        title="t",
                     )
                 ),
             )
             engine.set_escalation_providers([provider])
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             assert doc.metadata.get("escalation_provider") == "reader"
@@ -330,7 +355,9 @@ class TestCrawlWithDegradation:
             browser.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             await engine.shutdown()
@@ -343,7 +370,9 @@ class TestCrawlWithDegradation:
             http.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             http.fetch.assert_awaited_once()
@@ -356,7 +385,9 @@ class TestCrawlWithDegradation:
             http, browser, stealth = _stub_fetchers(engine)
             http.fetch.return_value = _http_result("", status=404)
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is None
             browser.fetch.assert_not_awaited()
@@ -434,13 +465,18 @@ class TestEscalationMixin:
                 provider_id="reader3",
                 fetch_url=AsyncMock(
                     return_value=SimpleNamespace(
-                        content="x" * 100, is_markdown=True, url="http://example.com/page", title="t"
+                        content="x" * 100,
+                        is_markdown=True,
+                        url="http://example.com/page",
+                        title="t",
                     )
                 ),
             )
             engine.set_escalation_providers([provider])
 
-            doc, result = await engine._try_escalation("http://example.com/page", max_chars=10)
+            doc, result = await engine._try_escalation(
+                "http://example.com/page", max_chars=10
+            )
 
             assert doc is not None
             assert doc.page_content == "x" * 10
@@ -456,7 +492,10 @@ class TestEscalationMixin:
                 provider_id="reader4",
                 fetch_url=AsyncMock(
                     return_value=SimpleNamespace(
-                        content="<p>html</p>", is_markdown=False, url="http://example.com/page", title="t"
+                        content="<p>html</p>",
+                        is_markdown=False,
+                        url="http://example.com/page",
+                        title="t",
                     )
                 ),
             )
@@ -474,7 +513,11 @@ class TestEscalationMixin:
             engine = _make_engine(tmp)
             provider = SimpleNamespace(
                 provider_id="reader5",
-                fetch_url=AsyncMock(return_value=SimpleNamespace(content="   ", is_markdown=True, url=None, title="")),
+                fetch_url=AsyncMock(
+                    return_value=SimpleNamespace(
+                        content="   ", is_markdown=True, url=None, title=""
+                    )
+                ),
             )
             engine.set_escalation_providers([provider])
 
@@ -501,7 +544,12 @@ class TestEscalationMixin:
             engine = _make_engine(tmp)
             vault = AsyncMock()
             vault.load.return_value = SimpleNamespace(
-                storage_state={"cookies": [{"name": "SESSDATA", "value": "v1"}, {"name": "buvid3", "value": "v2"}]}
+                storage_state={
+                    "cookies": [
+                        {"name": "SESSDATA", "value": "v1"},
+                        {"name": "buvid3", "value": "v2"},
+                    ]
+                }
             )
             engine._http_fetcher._session_vault = vault
 
@@ -522,7 +570,6 @@ class TestEscalationMixin:
 
             assert cookies is None
             await engine.shutdown()
-
 
     @pytest.mark.asyncio
     async def test_load_bilibili_cookies_vault_error(self) -> None:
@@ -547,14 +594,21 @@ class TestEscalationMixin:
                 SimpleNamespace(
                     provider_id="p1",
                     fetch_url=AsyncMock(
-                        return_value=SimpleNamespace(content="<p>raw html</p>", is_markdown=False, url=None, title=None)
+                        return_value=SimpleNamespace(
+                            content="<p>raw html</p>",
+                            is_markdown=False,
+                            url=None,
+                            title=None,
+                        )
                     ),
                 )
             ]
             engine._pipeline = MagicMock()  # type: ignore[assignment]
             engine._pipeline.process.return_value = None
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is None
             assert result is None
@@ -574,12 +628,15 @@ class TestFetchMixinRemaining:
             http, _, _ = _stub_fetchers(engine)
             http.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc("generic")
-            with patch(
-                "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.parse_weixin_article_html",
-                new=lambda html, url=None: None,
-            ), patch(
-                "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.has_weixin_js_content",
-                new=lambda html: True,
+            with (
+                patch(
+                    "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.parse_weixin_article_html",
+                    new=lambda html, url=None: None,
+                ),
+                patch(
+                    "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.has_weixin_js_content",
+                    new=lambda html: True,
+                ),
             ):
                 doc, degradable, _, _, _, result = await engine._try_fetch_and_process(
                     "https://mp.weixin.qq.com/s/abc123", FetcherType.HTTP
@@ -601,7 +658,9 @@ class TestFetchMixinRemaining:
             http.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, _, _, cpu, mem, _ = await engine._try_fetch_and_process("http://example.com/page", FetcherType.HTTP)
+            doc, _, _, cpu, mem, _ = await engine._try_fetch_and_process(
+                "http://example.com/page", FetcherType.HTTP
+            )
 
             assert doc is not None
             assert cpu is None
@@ -622,7 +681,9 @@ class TestFetchMixinRemaining:
             browser.fetch.return_value = None
             engine._escalation_providers = None
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is None
             assert result is None
@@ -642,7 +703,9 @@ class TestFetchMixinRemaining:
             stealth.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc("stealth")
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             assert doc.page_content == "stealth"
@@ -658,7 +721,9 @@ class TestFetchMixinRemaining:
             stealth.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc("stealth final")
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             assert doc.page_content == "stealth final"
@@ -681,12 +746,15 @@ class TestLadderRemainingBranches:
             http, _, _ = _stub_fetchers(engine)
             http.fetch.return_value = _http_result(RICH_HTML)
             url = "https://mp.weixin.qq.com/s/abc123"
-            with patch(
-                "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.parse_weixin_article_html",
-                new=lambda html, url=None: None,
-            ), patch(
-                "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.has_weixin_js_content",
-                new=lambda html: False,
+            with (
+                patch(
+                    "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.parse_weixin_article_html",
+                    new=lambda html, url=None: None,
+                ),
+                patch(
+                    "myrm_agent_harness.toolkits.web_fetch.extractors.weixin_extractor.has_weixin_js_content",
+                    new=lambda html: False,
+                ),
             ):
                 doc, degradable, _, _, _, result = await engine._try_fetch_and_process(
                     url, FetcherType.HTTP
@@ -715,13 +783,18 @@ class TestLadderRemainingBranches:
                     provider_id="esc",
                     fetch_url=AsyncMock(
                         return_value=SimpleNamespace(
-                            content="# Escaped body", is_markdown=True, url="http://escalated.example", title="Esc"
+                            content="# Escaped body",
+                            is_markdown=True,
+                            url="http://escalated.example",
+                            title="Esc",
                         )
                     ),
                 )
             ]
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             assert doc.page_content == "# Escaped body"
@@ -739,7 +812,9 @@ class TestLadderRemainingBranches:
             browser.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc("browser final")
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             assert doc.page_content == "browser final"
@@ -760,7 +835,9 @@ class TestLadderRemainingBranches:
             stealth.fetch.return_value = None
             engine._escalation_providers = None
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is None
             assert result is None
@@ -780,13 +857,18 @@ class TestLadderRemainingBranches:
                     provider_id="esc2",
                     fetch_url=AsyncMock(
                         return_value=SimpleNamespace(
-                            content="# Last resort", is_markdown=True, url=None, title=None
+                            content="# Last resort",
+                            is_markdown=True,
+                            url=None,
+                            title=None,
                         )
                     ),
                 )
             ]
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             assert doc.page_content == "# Last resort"
@@ -806,18 +888,30 @@ class TestLadderRemainingBranches:
                 SimpleNamespace(
                     provider_id="p1",
                     fetch_url=AsyncMock(
-                        return_value=SimpleNamespace(content="<p>raw one</p>", is_markdown=False, url=None, title=None)
+                        return_value=SimpleNamespace(
+                            content="<p>raw one</p>",
+                            is_markdown=False,
+                            url=None,
+                            title=None,
+                        )
                     ),
                 ),
                 SimpleNamespace(
                     provider_id="p2",
                     fetch_url=AsyncMock(
-                        return_value=SimpleNamespace(content="<p>raw two</p>", is_markdown=False, url=None, title=None)
+                        return_value=SimpleNamespace(
+                            content="<p>raw two</p>",
+                            is_markdown=False,
+                            url=None,
+                            title=None,
+                        )
                     ),
                 ),
             ]
 
-            doc, result = await engine._crawl_with_degradation("http://example.com/page")
+            doc, result = await engine._crawl_with_degradation(
+                "http://example.com/page"
+            )
 
             assert doc is not None
             assert doc.page_content == "html escaped"

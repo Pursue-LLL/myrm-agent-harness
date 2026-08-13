@@ -261,6 +261,34 @@ async def test_create_rule_with_tool_fields(store: SQLiteRelationalStore) -> Non
 
 
 @pytest.mark.asyncio
+async def test_create_rule_persists_expected_valid_days(
+    store: SQLiteRelationalStore,
+) -> None:
+    """expected_valid_days round-trips through create/get/update."""
+    rule = _make_tool_rule(
+        "web_fetch_tool",
+        trigger="repeated timeout",
+        action="retry with fallback",
+    )
+    rule.expected_valid_days = 1
+    rule.metadata["origin"] = "tool_failure"
+    created = await store.create_rule(rule)
+    fetched = await store.get_rule(created.id)
+    assert fetched is not None
+    assert fetched.expected_valid_days == 1
+    assert fetched.metadata.get("origin") == "tool_failure"
+
+    fetched.expected_valid_days = 3
+    updated = await store.update_rule(fetched.id, fetched)
+    re_fetched = await store.get_rule(updated.id)
+    assert re_fetched is not None
+    assert re_fetched.expected_valid_days == 3
+
+    listed = await store.list_rules(active_only=True)
+    assert any(r.id == created.id and r.expected_valid_days == 3 for r in listed)
+
+
+@pytest.mark.asyncio
 async def test_list_rules_by_tool_basic(store: SQLiteRelationalStore) -> None:
     """list_rules_by_tool returns only rules for the specified tool."""
     await store.create_rule(

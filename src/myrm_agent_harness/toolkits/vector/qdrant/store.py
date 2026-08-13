@@ -73,7 +73,9 @@ class QdrantVectorStore(VectorStore):
         """Get the deployment mode string."""
         return self._config.mode.value
 
-    async def _with_retry(self, operation: object, *args: object, **kwargs: object) -> object:
+    async def _with_retry(
+        self, operation: object, *args: object, **kwargs: object
+    ) -> object:
         """Execute operation with exponential backoff retry."""
         last_exception: Exception | None = None
 
@@ -90,13 +92,17 @@ class QdrantVectorStore(VectorStore):
                     )
                     await asyncio.sleep(delay)
                 else:
-                    logger.warning(f"Qdrant operation failed after {self.MAX_RETRIES} attempts: {e}")
+                    logger.warning(
+                        f"Qdrant operation failed after {self.MAX_RETRIES} attempts: {e}"
+                    )
 
         if last_exception:
             raise last_exception
         raise RuntimeError("Unexpected: no exception but operation failed")
 
-    async def _execute(self, operation: object, *args: object, **kwargs: object) -> object:
+    async def _execute(
+        self, operation: object, *args: object, **kwargs: object
+    ) -> object:
         """Execute client operation, handling sync/async transparently."""
         if self._is_async:
             return await operation(*args, **kwargs)  # type: ignore[misc]
@@ -140,7 +146,9 @@ class QdrantVectorStore(VectorStore):
 
     async def collection_exists(self, name: str) -> bool:
         try:
-            return await self._with_retry(self._client.collection_exists, collection_name=name)
+            return await self._with_retry(
+                self._client.collection_exists, collection_name=name
+            )
         except Exception:
             return False
 
@@ -186,14 +194,18 @@ class QdrantVectorStore(VectorStore):
             except Exception as e:
                 logger.debug("Payload index %s on %s skipped: %s", field, collection, e)
 
-    async def backfill_epoch_timestamps(self, collection: str, batch_size: int = 100) -> int:
+    async def backfill_epoch_timestamps(
+        self, collection: str, batch_size: int = 100
+    ) -> int:
         """Backfill ``_created_ts`` / ``_updated_ts`` for points missing them.
 
         Returns the number of points updated.
         """
         from qdrant_client.http.models import Filter, IsEmptyCondition, PayloadField
 
-        missing_filter = Filter(must=[IsEmptyCondition(is_empty=PayloadField(key="_created_ts"))])
+        missing_filter = Filter(
+            must=[IsEmptyCondition(is_empty=PayloadField(key="_created_ts"))]
+        )
         updated = 0
         offset: str | None = None
 
@@ -239,7 +251,11 @@ class QdrantVectorStore(VectorStore):
             offset = str(next_offset)
 
         if updated:
-            logger.info("Backfilled %d points in collection %s with epoch timestamps", updated, collection)
+            logger.info(
+                "Backfilled %d points in collection %s with epoch timestamps",
+                updated,
+                collection,
+            )
         return updated
 
     # Document operations
@@ -459,7 +475,9 @@ class QdrantVectorStore(VectorStore):
         from myrm_agent_harness.toolkits.vector.config import DeploymentMode
 
         if self._config.mode == DeploymentMode.EMBEDDED:
-            logger.debug("Skipping close for EMBEDDED Qdrant client (managed as singleton)")
+            logger.debug(
+                "Skipping close for EMBEDDED Qdrant client (managed as singleton)"
+            )
             return
 
         if self._is_async and hasattr(self._client, "close"):
@@ -513,8 +531,16 @@ class QdrantVectorStore(VectorStore):
         created_at_str = payload.pop("created_at", None)
         updated_at_str = payload.pop("updated_at", None)
 
-        created_at = datetime.fromisoformat(created_at_str) if created_at_str else datetime.now(UTC)
-        updated_at = datetime.fromisoformat(updated_at_str) if updated_at_str else datetime.now(UTC)
+        created_at = (
+            datetime.fromisoformat(created_at_str)
+            if created_at_str
+            else datetime.now(UTC)
+        )
+        updated_at = (
+            datetime.fromisoformat(updated_at_str)
+            if updated_at_str
+            else datetime.now(UTC)
+        )
 
         vector_value = point.vector if hasattr(point, "vector") else None  # type: ignore[union-attr]
         if isinstance(vector_value, dict):

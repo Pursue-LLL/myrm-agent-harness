@@ -153,7 +153,7 @@ def _extract_user_data_dir(cmdline: str) -> str:
     if "--user-data-dir=" in cmdline:
         parts = cmdline.split("--user-data-dir=", 1)
         if len(parts) > 1:
-            path_part = parts[1].split()[0].strip()
+            path_part = parts[1].strip().split()[0] if parts[1].strip() else ""
             return path_part
     elif "--user-data-dir" in cmdline:
         parts = cmdline.split("--user-data-dir", 1)
@@ -198,7 +198,9 @@ def _has_python_ancestor(proc: object, current_pid: int) -> bool:
         import psutil
 
         current_proc = psutil.Process(current_pid)
-        current_tree_pids = {p.pid for p in [current_proc, *current_proc.children(recursive=True)]}
+        current_tree_pids = {
+            p.pid for p in [current_proc, *current_proc.children(recursive=True)]
+        }
 
         if not isinstance(proc, psutil.Process):
             return False
@@ -227,7 +229,9 @@ def _has_python_ancestor(proc: object, current_pid: int) -> bool:
         return True
 
 
-def cleanup_orphan_processes(orphan_pids: list[int] | None = None, *, force: bool = False) -> dict[str, object]:
+def cleanup_orphan_processes(
+    orphan_pids: list[int] | None = None, *, force: bool = False
+) -> dict[str, object]:
     """Clean up orphan automation processes with safety checks.
 
     Args:

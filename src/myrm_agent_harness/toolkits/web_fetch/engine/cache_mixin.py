@@ -50,7 +50,11 @@ class FetchEngineCacheMixin:
         return -round(effective_count)
 
     def _handle_cache_hit(
-        self: FetchEngine, cached_item: CachedDocument, is_expired: bool, url: str, cache_key: str
+        self: FetchEngine,
+        cached_item: CachedDocument,
+        is_expired: bool,
+        url: str,
+        cache_key: str,
     ) -> Document | None:
         """Handle cache hit logic (fresh / stale-while-revalidate / stale)."""
         cache_age = time.time() - cached_item.cached_at
@@ -61,24 +65,43 @@ class FetchEngineCacheMixin:
 
         if self._stale_while_revalidate:
             if self._background_queue.qsize() >= self._max_background_tasks:
-                logger.warning(f"Background queue full ({self._max_background_tasks}), skipping revalidation: {url}")
+                logger.warning(
+                    f"Background queue full ({self._max_background_tasks}), skipping revalidation: {url}"
+                )
                 self._bg_revalidations_skipped += 1
             else:
-                logger.info(f"Serving stale while revalidating (age={cache_age:.1f}s): {url}")
+                logger.info(
+                    f"Serving stale while revalidating (age={cache_age:.1f}s): {url}"
+                )
                 priority = self._calculate_priority(cache_key)
-                task = BackgroundTask(priority=priority, url=url, cache_key=cache_key, cached_item=cached_item)
+                task = BackgroundTask(
+                    priority=priority,
+                    url=url,
+                    cache_key=cache_key,
+                    cached_item=cached_item,
+                )
                 self._background_queue.put_nowait(task)
             return cached_item.doc
 
-        if self._enable_http_validation and (cached_item.etag or cached_item.last_modified):
-            logger.info(f"Cache expired (age={cache_age:.1f}s), sending conditional request: {url}")
+        if self._enable_http_validation and (
+            cached_item.etag or cached_item.last_modified
+        ):
+            logger.info(
+                f"Cache expired (age={cache_age:.1f}s), sending conditional request: {url}"
+            )
             return None
 
-        logger.info(f"Cache hit (stale, age={cache_age:.1f}s, no validation headers): {url}")
+        logger.info(
+            f"Cache hit (stale, age={cache_age:.1f}s, no validation headers): {url}"
+        )
         return cached_item.doc
 
     async def _handle_fetch_error(
-        self: FetchEngine, url: str, cache_key: str, future: asyncio.Future[Document | None], error: Exception
+        self: FetchEngine,
+        url: str,
+        cache_key: str,
+        future: asyncio.Future[Document | None],
+        error: Exception,
     ) -> Document | None:
         """Unified fetch error handling."""
         self._fail_cache.set(cache_key, True)
@@ -107,7 +130,9 @@ class FetchEngineCacheMixin:
                 if task.cached_item is None:
                     break
 
-                await self._background_revalidate(task.url, task.cache_key, task.cached_item)
+                await self._background_revalidate(
+                    task.url, task.cache_key, task.cached_item
+                )
                 self._background_queue.task_done()
             except asyncio.CancelledError:
                 break
@@ -122,21 +147,32 @@ class FetchEngineCacheMixin:
         try:
             async with asyncio.timeout(30):
                 etag = cached_item.etag if self._enable_http_validation else None
-                last_modified = cached_item.last_modified if self._enable_http_validation else None
+                last_modified = (
+                    cached_item.last_modified if self._enable_http_validation else None
+                )
 
-                doc, fetch_result = await self._crawl_with_degradation(url, etag=etag, last_modified=last_modified)
+                doc, fetch_result = await self._crawl_with_degradation(
+                    url, etag=etag, last_modified=last_modified
+                )
 
                 if fetch_result and fetch_result.status_code == 304:
-                    logger.info(f"Background revalidation: 304 (cache still valid): {url}")
+                    logger.info(
+                        f"Background revalidation: 304 (cache still valid): {url}"
+                    )
                     cached_item.cached_at = time.time()
                     self._crawl_cache.set(cache_key, cached_item)
                     self._bg_revalidations_success += 1
                 elif doc is not None:
                     logger.info(f"Background revalidation: 200 (cache updated): {url}")
                     new_etag = fetch_result.etag if fetch_result else None
-                    new_last_modified = fetch_result.last_modified if fetch_result else None
+                    new_last_modified = (
+                        fetch_result.last_modified if fetch_result else None
+                    )
                     cached = CachedDocument(
-                        doc=doc, etag=new_etag, last_modified=new_last_modified, cached_at=time.time()
+                        doc=doc,
+                        etag=new_etag,
+                        last_modified=new_last_modified,
+                        cached_at=time.time(),
                     )
                     self._crawl_cache.set(cache_key, cached)
                     self._bg_revalidations_success += 1

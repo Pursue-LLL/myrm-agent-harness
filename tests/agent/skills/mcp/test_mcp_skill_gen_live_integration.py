@@ -29,9 +29,9 @@ from myrm_agent_harness.toolkits.mcp.connection_manager import MCPConnectionMana
 
 
 def _make_server_app():
-    from mcp.server import MCPServer
+    from mcp.server.fastmcp import FastMCP
 
-    server = MCPServer("live-skill-probe")
+    server = FastMCP("live-skill-probe")
 
     @server.tool()
     def echo(text: str) -> str:
@@ -113,8 +113,7 @@ async def test_skill_gen_live_chain_prompt_fixes(_reset_manager: object) -> None
         content = generator.generate_skill_content(skill_meta)
         assert "Usage Guide" in content  # 4 tools > threshold 3
         assert (
-            "If a tool doc declares a `timeout` parameter, set `timeout=120`"
-            in content
+            "If a tool doc declares a `timeout` parameter, set `timeout=120`" in content
         )
         assert "Always set" not in content
 
@@ -125,7 +124,7 @@ async def test_skill_gen_live_chain_prompt_fixes(_reset_manager: object) -> None
         joined = "\n".join(lines)
         assert "MCP Function Call Rules" in joined
         # Fix A: the generic example (last code block) resolves through `result`.
-        assert "print(f\"[OBSERVATION] {result}\")" in joined
+        assert 'print(f"[OBSERVATION] {result}")' in joined
         example_block = joined.split("```python")[-1].split("```")[0]
         assert "{variable}" not in example_block
         assert "result = await function_name(param1=" in example_block

@@ -125,13 +125,21 @@ class EmbedWindowPolicy:
     def for_model(cls, model: str) -> EmbedWindowPolicy:
         max_tokens = _lookup_max_input_tokens(model)
         effective = max(32, int(max_tokens * _safety_margin_for(max_tokens, model)))
-        return cls(max_input_tokens=max_tokens, effective_chunk_budget=effective, model=model or None)
+        return cls(
+            max_input_tokens=max_tokens,
+            effective_chunk_budget=effective,
+            model=model or None,
+        )
 
     @classmethod
-    def from_max_tokens(cls, max_input_tokens: int, *, model: str | None = None) -> EmbedWindowPolicy:
+    def from_max_tokens(
+        cls, max_input_tokens: int, *, model: str | None = None
+    ) -> EmbedWindowPolicy:
         safe_max = max(32, max_input_tokens)
         effective = max(32, int(safe_max * _safety_margin_for(safe_max, model)))
-        return cls(max_input_tokens=safe_max, effective_chunk_budget=effective, model=model)
+        return cls(
+            max_input_tokens=safe_max, effective_chunk_budget=effective, model=model
+        )
 
 
 # CJK scripts that BERT/XLM wordpiece tokenizers count as one token per char.
@@ -236,7 +244,10 @@ def _safety_margin_for(max_input_tokens: int, model: str | None) -> float:
     """
     if is_cjk_wordpiece_model(model):
         base = model.rsplit("/", 1)[-1].lower()
-        if max_input_tokens > SMALL_WINDOW_MAX_TOKENS and base in _XLM_R_SAFE_WORDPIECE_MODELS:
+        if (
+            max_input_tokens > SMALL_WINDOW_MAX_TOKENS
+            and base in _XLM_R_SAFE_WORDPIECE_MODELS
+        ):
             return SAFETY_MARGIN
         return CJK_WORDPIECE_SAFETY_MARGIN
     if max_input_tokens <= SMALL_WINDOW_MAX_TOKENS:

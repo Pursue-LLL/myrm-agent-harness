@@ -23,7 +23,9 @@ from myrm_agent_harness.infra.atomic_write import async_atomic_write
 logger = logging.getLogger(__name__)
 
 
-from myrm_agent_harness.toolkits.code_execution.interceptor import trigger_destructive_action_hook  # noqa: E402
+from myrm_agent_harness.toolkits.code_execution.interceptor import (
+    trigger_destructive_action_hook,
+)  # noqa: E402
 
 
 def _current_session_id() -> str | None:
@@ -277,7 +279,12 @@ class LocalFileOpsMixin:
         match_count = len(stdout.splitlines()) if stdout else 0
         logger.debug(
             "grep: tool=%s, regex=%s, case_sensitive=%s, elapsed=%.4fs, pattern_len=%d, matches=%d",
-            tool, use_regex, case_sensitive, elapsed, len(pattern), match_count,
+            tool,
+            use_regex,
+            case_sensitive,
+            elapsed,
+            len(pattern),
+            match_count,
         )
 
         return stdout

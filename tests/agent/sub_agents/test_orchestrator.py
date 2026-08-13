@@ -114,10 +114,13 @@ class TestExecuteDagPlan:
             async def mock_sleep_func(delay):
                 await original_sleep(0.001)
 
-            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
-                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-                create=True,
-            ) as mock_get_instance:
+            with (
+                patch("asyncio.sleep", side_effect=mock_sleep_func),
+                patch(
+                    "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                    create=True,
+                ) as mock_get_instance,
+            ):
                 mock_vault = MagicMock()
                 mock_get_instance.return_value = mock_vault
                 task = asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: []))
@@ -181,10 +184,13 @@ class TestExecuteDagPlan:
                     plan.completed = True  # Force completion to exit loop
                 await original_sleep(0.001)
 
-            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
-                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-                create=True,
-            ) as mock_get_instance:
+            with (
+                patch("asyncio.sleep", side_effect=mock_sleep_func),
+                patch(
+                    "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                    create=True,
+                ) as mock_get_instance,
+            ):
                 mock_vault = MagicMock()
                 mock_get_instance.return_value = mock_vault
                 task = asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: []))
@@ -327,10 +333,13 @@ class TestExecuteDagPlan:
             async def mock_sleep_func(delay):
                 await original_sleep(0.001)
 
-            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
-                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-                create=True,
-            ) as mock_get_instance:
+            with (
+                patch("asyncio.sleep", side_effect=mock_sleep_func),
+                patch(
+                    "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                    create=True,
+                ) as mock_get_instance,
+            ):
                 mock_vault = MagicMock()
                 mock_get_instance.return_value = mock_vault
                 task = asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: []))
@@ -418,10 +427,13 @@ class TestExecuteDagPlan:
             async def mock_sleep_func(delay):
                 await original_sleep(0.001)
 
-            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
-                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-                create=True,
-            ) as mock_get_instance:
+            with (
+                patch("asyncio.sleep", side_effect=mock_sleep_func),
+                patch(
+                    "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                    create=True,
+                ) as mock_get_instance,
+            ):
                 mock_vault = MagicMock()
                 mock_get_instance.return_value = mock_vault
                 task = asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: []))
@@ -496,10 +508,13 @@ class TestExecuteDagPlan:
             async def mock_sleep_func(delay):
                 await original_sleep(0.001)
 
-            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
-                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-                create=True,
-            ) as mock_get_instance:
+            with (
+                patch("asyncio.sleep", side_effect=mock_sleep_func),
+                patch(
+                    "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                    create=True,
+                ) as mock_get_instance,
+            ):
                 mock_vault = MagicMock()
                 mock_get_instance.return_value = mock_vault
                 task = asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: []))
@@ -573,10 +588,13 @@ class TestExecuteDagPlan:
             async def mock_sleep_func(delay):
                 await original_sleep(0.001)
 
-            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
-                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-                create=True,
-            ) as mock_get_instance:
+            with (
+                patch("asyncio.sleep", side_effect=mock_sleep_func),
+                patch(
+                    "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                    create=True,
+                ) as mock_get_instance,
+            ):
                 mock_vault = MagicMock()
                 mock_get_instance.return_value = mock_vault
                 task = asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: []))
@@ -659,10 +677,13 @@ class TestExecuteDagPlan:
             async def mock_sleep_func(delay):
                 await original_sleep(0.001)
 
-            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
-                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-                create=True,
-            ) as mock_get_instance:
+            with (
+                patch("asyncio.sleep", side_effect=mock_sleep_func),
+                patch(
+                    "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                    create=True,
+                ) as mock_get_instance,
+            ):
                 mock_vault = MagicMock()
                 mock_get_instance.return_value = mock_vault
                 task = asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: []))
@@ -708,10 +729,12 @@ class TestExecuteDagPlan:
             def get_ready_steps(self):
                 resolved = ("completed", "skipped")
                 return [
-                    s for s in self.steps
+                    s
+                    for s in self.steps
                     if s.status == "pending"
                     and all(
-                        next((x.status for x in self.steps if x.step_id == d), "") in resolved
+                        next((x.status for x in self.steps if x.step_id == d), "")
+                        in resolved
                         for d in s.dependencies
                     )
                 ]
@@ -729,23 +752,30 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
+                coro
+            )
             original_sleep = asyncio.sleep
 
             async def mock_sleep_func(delay):
                 await original_sleep(0.001)
 
-            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
-                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-                create=True,
-            ) as mock_get_instance:
+            with (
+                patch("asyncio.sleep", side_effect=mock_sleep_func),
+                patch(
+                    "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                    create=True,
+                ) as mock_get_instance,
+            ):
                 mock_get_instance.return_value = MagicMock()
                 result = await asyncio.wait_for(
                     asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: [])),
                     timeout=2.0,
                 )
 
-        assert result["success"], "Optional step failure should not block overall success"
+        assert result[
+            "success"
+        ], "Optional step failure should not block overall success"
         assert plan.steps[0].status == "skipped"
         assert plan.steps[1].status == "completed"
         assert "s1" in result["partial_failures"]
@@ -754,7 +784,9 @@ class TestExecuteDagPlan:
     async def test_critical_step_failure_blocks_downstream(self):
         """allow_failure=False step fails -> status='failed', downstream blocked, success=False."""
         mgr = MagicMock()
-        mgr.spawn_child = AsyncMock(return_value=_fail("critical-step", "general", "crash"))
+        mgr.spawn_child = AsyncMock(
+            return_value=_fail("critical-step", "general", "crash")
+        )
 
         class MockStep:
             def __init__(self, step_id, desc, expected, deps=None, allow_failure=False):
@@ -775,10 +807,12 @@ class TestExecuteDagPlan:
             def get_ready_steps(self):
                 resolved = ("completed", "skipped")
                 return [
-                    s for s in self.steps
+                    s
+                    for s in self.steps
                     if s.status == "pending"
                     and all(
-                        next((x.status for x in self.steps if x.step_id == d), "") in resolved
+                        next((x.status for x in self.steps if x.step_id == d), "")
+                        in resolved
                         for d in s.dependencies
                     )
                 ]
@@ -796,23 +830,30 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
+                coro
+            )
             original_sleep = asyncio.sleep
 
             async def mock_sleep_func(delay):
                 await original_sleep(0.001)
 
-            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
-                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-                create=True,
-            ) as mock_get_instance:
+            with (
+                patch("asyncio.sleep", side_effect=mock_sleep_func),
+                patch(
+                    "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                    create=True,
+                ) as mock_get_instance,
+            ):
                 mock_get_instance.return_value = MagicMock()
                 result = await asyncio.wait_for(
                     asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: [])),
                     timeout=2.0,
                 )
 
-        assert not result["success"], "Critical step failure should mark overall as failed"
+        assert not result[
+            "success"
+        ], "Critical step failure should mark overall as failed"
         assert plan.steps[0].status == "failed"
         assert plan.steps[1].status == "pending"
         assert result["partial_failures"] == []
@@ -855,16 +896,21 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(coro)
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
+                coro
+            )
             original_sleep = asyncio.sleep
 
             async def mock_sleep_func(delay):
                 await original_sleep(0.001)
 
-            with patch("asyncio.sleep", side_effect=mock_sleep_func), patch(
-                "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
-                create=True,
-            ) as mock_get_instance:
+            with (
+                patch("asyncio.sleep", side_effect=mock_sleep_func),
+                patch(
+                    "myrm_agent_harness.agent.artifacts.vault.ArtifactVault.get_instance",
+                    create=True,
+                ) as mock_get_instance,
+            ):
                 mock_get_instance.return_value = MagicMock()
                 result = await asyncio.wait_for(
                     asyncio.create_task(execute_dag_plan(plan, mgr, {}, lambda: [])),
@@ -916,8 +962,8 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = (
-                lambda coro: asyncio.create_task(coro)
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
+                coro
             )
 
             result = await execute_dag_plan(
@@ -963,8 +1009,8 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = (
-                lambda coro: asyncio.create_task(coro)
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
+                coro
             )
 
             result = await execute_dag_plan(
@@ -1012,11 +1058,13 @@ class TestExecuteDagPlan:
         with patch("asyncio.TaskGroup") as mock_tg:
             mock_tg_instance = MagicMock()
             mock_tg.return_value.__aenter__.return_value = mock_tg_instance
-            mock_tg_instance.create_task.side_effect = (
-                lambda coro: asyncio.create_task(coro)
+            mock_tg_instance.create_task.side_effect = lambda coro: asyncio.create_task(
+                coro
             )
 
-            result = await execute_dag_plan(plan, mgr, {}, lambda: [], progress_sink=_sink)
+            result = await execute_dag_plan(
+                plan, mgr, {}, lambda: [], progress_sink=_sink
+            )
 
         assert result["success"] is False
         assert any(call[1] == "error" and call[0] == "s1" for call in sink_calls)
@@ -1370,15 +1418,20 @@ class TestSubAgentResultStillRunning:
 
     def test_still_running_in_to_dict_when_true(self):
         r = SubAgentResult(
-            success=False, task_id="t1", agent_type="w",
-            status=SubAgentStatus.TIMED_OUT, still_running=True,
+            success=False,
+            task_id="t1",
+            agent_type="w",
+            status=SubAgentStatus.TIMED_OUT,
+            still_running=True,
         )
         d = r.to_dict()
         assert d["still_running"] is True
         assert "completed_at" not in d
 
     def test_still_running_absent_in_to_dict_when_false(self):
-        r = SubAgentResult(success=True, task_id="t1", agent_type="w", completed_at=100.0)
+        r = SubAgentResult(
+            success=True, task_id="t1", agent_type="w", completed_at=100.0
+        )
         d = r.to_dict()
         assert "still_running" not in d
         assert d["completed_at"] == 100.0
@@ -1393,13 +1446,16 @@ class TestSubAgentResultStillRunning:
     def test_still_running_true_with_all_optional_fields(self):
         """Edge: still_running=True with token_usage, error, trace_id, payload, handover."""
         from myrm_agent_harness.agent.sub_agents.types import AgentHandoverState
+
         r = SubAgentResult(
             success=False,
             task_id="t1",
             agent_type="w",
             result="partial",
             error="timed out",
-            token_usage=TokenUsage(prompt_tokens=10, completion_tokens=5, total_tokens=15),
+            token_usage=TokenUsage(
+                prompt_tokens=10, completion_tokens=5, total_tokens=15
+            ),
             duration_seconds=59.9999,
             completed_at=999.0,
             status=SubAgentStatus.TIMED_OUT,
@@ -1410,7 +1466,9 @@ class TestSubAgentResultStillRunning:
             still_running=True,
         )
         d = r.to_dict()
-        assert "completed_at" not in d, "completed_at must be omitted when still_running=True"
+        assert (
+            "completed_at" not in d
+        ), "completed_at must be omitted when still_running=True"
         assert d["still_running"] is True
         assert d["trace_id"] == "trace-abc"
         assert d["error"] == "timed out"
@@ -1428,7 +1486,8 @@ class TestSubAgentResultStillRunning:
         for status in SubAgentStatus:
             r = SubAgentResult(
                 success=(status == SubAgentStatus.COMPLETED),
-                task_id="t", agent_type="w",
+                task_id="t",
+                agent_type="w",
                 status=status,
             )
             d = r.to_dict()
@@ -1438,17 +1497,36 @@ class TestSubAgentResultStillRunning:
         """Minimal result produces exactly the expected base keys + completed_at."""
         r = SubAgentResult(success=True, task_id="t", agent_type="w")
         d = r.to_dict()
-        expected_keys = {"success", "task_id", "agent_type", "result", "status", "duration_seconds", "completed_at"}
+        expected_keys = {
+            "success",
+            "task_id",
+            "agent_type",
+            "result",
+            "status",
+            "duration_seconds",
+            "completed_at",
+        }
         assert set(d.keys()) == expected_keys
 
     def test_to_dict_still_running_keys_are_deterministic(self):
         """still_running=True produces base keys + still_running, without completed_at."""
         r = SubAgentResult(
-            success=False, task_id="t", agent_type="w",
-            status=SubAgentStatus.TIMED_OUT, still_running=True,
+            success=False,
+            task_id="t",
+            agent_type="w",
+            status=SubAgentStatus.TIMED_OUT,
+            still_running=True,
         )
         d = r.to_dict()
-        expected_keys = {"success", "task_id", "agent_type", "result", "status", "duration_seconds", "still_running"}
+        expected_keys = {
+            "success",
+            "task_id",
+            "agent_type",
+            "result",
+            "status",
+            "duration_seconds",
+            "still_running",
+        }
         assert set(d.keys()) == expected_keys
 
 
@@ -1459,6 +1537,7 @@ class TestNonfatalTimeoutSpawnChild:
         from myrm_agent_harness.agent.sub_agents._manager_spawn import (
             _HARD_TIMEOUT_MULTIPLIER,
         )
+
         assert _HARD_TIMEOUT_MULTIPLIER == 3
 
 
@@ -1517,11 +1596,16 @@ class TestVerification:
 
         # It should reject the PASS, and loop again.
         # We'll just provide the same results for round 2, and it will fail eventually.
-        mgr.spawn_child = AsyncMock(side_effect=[worker_result, verifier_result, worker_result, verifier_result])
+        mgr.spawn_child = AsyncMock(
+            side_effect=[worker_result, verifier_result, worker_result, verifier_result]
+        )
 
         from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
+
         config = SubagentConfig(system_prompt="")
-        verifier_config = SubagentConfig(system_prompt="", workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
+        verifier_config = SubagentConfig(
+            system_prompt="", workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX
+        )
 
         result = await run_with_verification(
             manager=mgr,
@@ -1805,10 +1889,16 @@ class TestVerification:
         assert "dict out" in result.result
 
     @patch("myrm_agent_harness.toolkits.code_execution.executors.base.get_executor")
-    @patch("myrm_agent_harness.agent.skills.evolution.execution.executor_context.ExecutorContextManager")
-    async def test_run_with_verification_readonly_sandbox(self, mock_ctx_mgr, mock_get_executor):
+    @patch(
+        "myrm_agent_harness.agent.skills.evolution.execution.executor_context.ExecutorContextManager"
+    )
+    async def test_run_with_verification_readonly_sandbox(
+        self, mock_ctx_mgr, mock_get_executor
+    ):
         from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
-        from myrm_agent_harness.toolkits.code_execution.executors.readonly_proxy import ReadonlyExecutorProxy
+        from myrm_agent_harness.toolkits.code_execution.executors.readonly_proxy import (
+            ReadonlyExecutorProxy,
+        )
 
         mgr = MagicMock()
         w1 = _ok("worker done")
@@ -1818,7 +1908,9 @@ class TestVerification:
         mock_executor = MagicMock()
         mock_get_executor.return_value = mock_executor
 
-        config = SubagentConfig(system_prompt="", workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX)
+        config = SubagentConfig(
+            system_prompt="", workspace_policy=WorkspacePolicy.READ_ONLY_SANDBOX
+        )
 
         result = await run_with_verification(
             manager=mgr,
@@ -1872,7 +1964,9 @@ class TestRunAlternatives:
                 status=SubAgentStatus.COMPLETED,
                 completed_at=time.time(),
             )
-            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future: asyncio.Future[SubAgentResult] = (
+                asyncio.get_event_loop().create_future()
+            )
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -1905,7 +1999,9 @@ class TestRunAlternatives:
                 status=SubAgentStatus.COMPLETED,
                 completed_at=time.time(),
             )
-            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future: asyncio.Future[SubAgentResult] = (
+                asyncio.get_event_loop().create_future()
+            )
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -1945,7 +2041,9 @@ class TestRunAlternatives:
                     status=SubAgentStatus.FAILED,
                 )
             mgr.child_results[tid] = _ok(tid, kwargs["agent_type"], "ok")
-            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future: asyncio.Future[SubAgentResult] = (
+                asyncio.get_event_loop().create_future()
+            )
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -2004,7 +2102,9 @@ class TestRunAlternatives:
             captured_contexts.append(kwargs["context"])
             tid = kwargs["task_id"]
             mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
-            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future: asyncio.Future[SubAgentResult] = (
+                asyncio.get_event_loop().create_future()
+            )
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -2030,7 +2130,9 @@ class TestRunAlternatives:
             tid = kwargs["task_id"]
             captured_task_ids.append(tid)
             mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
-            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future: asyncio.Future[SubAgentResult] = (
+                asyncio.get_event_loop().create_future()
+            )
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -2055,7 +2157,9 @@ class TestRunAlternatives:
             captured_cancel_tokens.append(kwargs.get("cancel_token"))
             tid = kwargs["task_id"]
             mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
-            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future: asyncio.Future[SubAgentResult] = (
+                asyncio.get_event_loop().create_future()
+            )
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -2080,7 +2184,9 @@ class TestRunAlternatives:
         async def _spawn(**kwargs):
             tid = kwargs["task_id"]
             mgr.child_results[tid] = _ok(tid, kwargs["agent_type"])
-            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future: asyncio.Future[SubAgentResult] = (
+                asyncio.get_event_loop().create_future()
+            )
             future.set_result(mgr.child_results[tid])
             mgr.children[tid] = future
             return future
@@ -2108,7 +2214,9 @@ class TestRunAlternatives:
             else:
                 r = _fail(tid, kwargs["agent_type"], "runtime error")
             mgr.child_results[tid] = r
-            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future: asyncio.Future[SubAgentResult] = (
+                asyncio.get_event_loop().create_future()
+            )
             future.set_result(r)
             mgr.children[tid] = future
             return future
@@ -2153,7 +2261,9 @@ class TestRunAlternatives:
                 completed_at=time.time(),
             )
             mgr.child_results[tid] = r
-            future: asyncio.Future[SubAgentResult] = asyncio.get_event_loop().create_future()
+            future: asyncio.Future[SubAgentResult] = (
+                asyncio.get_event_loop().create_future()
+            )
             future.set_result(r)
             mgr.children[tid] = future
             return future

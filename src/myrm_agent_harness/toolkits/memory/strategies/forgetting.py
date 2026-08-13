@@ -175,3 +175,28 @@ class ForgettingStrategy:
                 candidates.append((mem, score))
         candidates.sort(key=lambda x: x[1].total_score)
         return candidates[: self.config.max_forget_per_run]
+
+
+def ttl_expired(
+    memories: Sequence[ForgettableMemory],
+    *,
+    now: datetime | None = None,
+) -> list[ForgettableMemory]:
+    """Return memories whose ``created_at + expected_valid_days`` has passed.
+
+    TTL expiration bypasses retention-score thresholding: a memory that outlives
+    its LLM-estimated validity window decays to the neutral-weight floor exactly
+    at the threshold and would otherwise never be forgotten.
+    """
+    current = now or datetime.now(UTC)
+    expired: list[ForgettableMemory] = []
+    for mem in memories:
+        evd = getattr(mem, "expected_valid_days", None)
+        if not isinstance(evd, int) or evd <= 0:
+            continue
+        created = mem.created_at
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=UTC)
+        if (current - created).days >= evd:
+            expired.append(mem)
+    return expired

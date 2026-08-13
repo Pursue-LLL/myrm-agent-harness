@@ -5,7 +5,9 @@ from __future__ import annotations
 import pytest
 
 from myrm_agent_harness.toolkits.memory._internal.storage import _fit_text_for_embedding
-from myrm_agent_harness.toolkits.retriever.embedding.cloud_embedding import CloudEmbedding
+from myrm_agent_harness.toolkits.retriever.embedding.cloud_embedding import (
+    CloudEmbedding,
+)
 from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
     EmbedInputTooLargeError,
     EmbedWindowPolicy,
@@ -14,7 +16,9 @@ from myrm_agent_harness.toolkits.retriever.embedding.window_policy import (
     resolve_embed_window_policy,
     token_counter_for_model,
 )
-from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import split_for_embedding
+from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import (
+    split_for_embedding,
+)
 from myrm_agent_harness.toolkits.wiki.retrieval.vector_chunks import (
     _validate_chunks_fit_window,
     collapse_vector_hits,
@@ -104,7 +108,7 @@ class TestCjkWordpieceBudget:
     def test_wordpiece_estimate_counts_cjk_extension_blocks(self) -> None:
         # CJK Extension A and Compatibility blocks are also single-token chars.
         assert estimate_wordpiece_tokens("\U00020000") == 1  # Extension A
-        assert estimate_wordpiece_tokens("\uF900") == 1  # Compatibility
+        assert estimate_wordpiece_tokens("\uf900") == 1  # Compatibility
 
     def test_wordpiece_estimate_counts_cjk_punctuation(self) -> None:
         # CJK punctuation (U+3000-303F) and fullwidth forms (U+FF00-FFEF: ！？）
@@ -136,7 +140,9 @@ class TestCjkWordpieceBudget:
         # wordpiece input and silently truncates at the provider.
         assert is_cjk_wordpiece_model("sentence-transformers/all-MiniLM-L6-v2")
         assert is_cjk_wordpiece_model("all-MiniLM-L12-v2")
-        assert is_cjk_wordpiece_model("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+        assert is_cjk_wordpiece_model(
+            "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        )
         assert is_cjk_wordpiece_model("intfloat/multilingual-e5-large")
         assert is_cjk_wordpiece_model("jina-embeddings-v2-base-zh")
         assert is_cjk_wordpiece_model("gte-large-zh")
@@ -249,7 +255,10 @@ class TestSplitForEmbedding:
         paragraphs = [
             "## Section {}\n\n{}".format(
                 i,
-                "Detailed engineering notes about module {} with extra context.".format(i) * 60,
+                "Detailed engineering notes about module {} with extra context.".format(
+                    i
+                )
+                * 60,
             )
             for i in range(20)
         ]
@@ -269,7 +278,9 @@ class TestSplitForEmbedding:
         # If TextChunker yields no docs (e.g. an unparseable input), the chunker
         # must fall back to the source text and still bound it to the budget, so
         # content is never dropped and never exceeds the provider window.
-        from myrm_agent_harness.toolkits.retriever.splitter import embed_budget as _embed_budget
+        from myrm_agent_harness.toolkits.retriever.splitter import (
+            embed_budget as _embed_budget,
+        )
 
         class _EmptyChunker:
             def chunk_text(self, *args: object, **kwargs: object) -> list[object]:
@@ -290,7 +301,9 @@ class TestSplitForEmbedding:
         # one huge word that the splitter keeps whole) must be bisected recursively
         # until every part fits. This guards the BPE path when line-based splitting
         # cannot make progress.
-        from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import _enforce_chunk_budget
+        from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import (
+            _enforce_chunk_budget,
+        )
 
         budget = 7371
         text = "x" * 70000  # ~8750 o200k tokens in one line
@@ -302,7 +315,9 @@ class TestSplitForEmbedding:
     def test_enforce_chunk_budget_multiline_recursive(self) -> None:
         # When line-based splitting produces several lines that each still exceed
         # the budget, every line must be bounded recursively as well.
-        from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import _enforce_chunk_budget
+        from myrm_agent_harness.toolkits.retriever.splitter.embed_budget import (
+            _enforce_chunk_budget,
+        )
 
         budget = 7371
         text = "x" * 70000 + "\n" + "y" * 70000  # 两行，每行 ~8750 tokens
@@ -362,7 +377,8 @@ class TestWordpieceHeaderAwareChunking:
         sections = []
         for i in range(6):
             body = "\n".join(
-                f"第{i}节工程说明细节行{j}，包含足够长的中文描述内容用于测试。" for j in range(6)
+                f"第{i}节工程说明细节行{j}，包含足够长的中文描述内容用于测试。"
+                for j in range(6)
             )
             sections.append(f"## 第{i}节标题\n\n{body}")
         text = "\n\n".join(sections)
@@ -420,7 +436,9 @@ class _FakeVectorStore:
         self.upserted_docs: list[object] | None = None
         self.delete_calls = 0
 
-    async def delete_by_filter(self, collection_name: str, filt: dict[str, str]) -> None:
+    async def delete_by_filter(
+        self, collection_name: str, filt: dict[str, str]
+    ) -> None:
         self.delete_calls += 1
 
     async def delete(self, collection_name: str, ids: list[str]) -> None:

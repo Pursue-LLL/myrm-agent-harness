@@ -44,7 +44,9 @@ def _domain_from_url(url: str) -> str:
 def _clear_engine_affinity_for_url(url: str) -> None:
     domain = _domain_from_url(url)
     if domain:
-        from myrm_agent_harness.toolkits.browser.pool.engine_affinity import get_engine_affinity_store
+        from myrm_agent_harness.toolkits.browser.pool.engine_affinity import (
+            get_engine_affinity_store,
+        )
 
         get_engine_affinity_store().clear(domain)
 
@@ -164,7 +166,10 @@ class BrowserSessionNavigationMixin:
             else:
                 del self._terminal_challenges[_nav_domain]
 
-        from myrm_agent_harness.toolkits.browser.utils.proxy_error import is_blocked_response, is_proxy_error
+        from myrm_agent_harness.toolkits.browser.utils.proxy_error import (
+            is_blocked_response,
+            is_proxy_error,
+        )
 
         if not self._allow_private_networks and self._extension_bridge is not None:
             from myrm_agent_harness.toolkits.browser.url_routing import is_private_url
@@ -178,13 +183,17 @@ class BrowserSessionNavigationMixin:
             from urllib.parse import urlparse
 
             from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
-            from myrm_agent_harness.toolkits.browser.pool.engine_affinity import get_engine_affinity_store
+            from myrm_agent_harness.toolkits.browser.pool.engine_affinity import (
+                get_engine_affinity_store,
+            )
 
             domain = urlparse(url).netloc
             if domain:
                 remembered = get_engine_affinity_store().get(domain)
                 if remembered is not None:
-                    logger.info("Engine affinity hit for %s → %s", domain, remembered.value)
+                    logger.info(
+                        "Engine affinity hit for %s → %s", domain, remembered.value
+                    )
                     self._engine_preference = remembered
                     try:
                         await self.restart(engine=remembered.value, restore_url=False)
@@ -209,19 +218,28 @@ class BrowserSessionNavigationMixin:
             baseline_screenshot = None
             if verify_goal:
                 try:
-                    from myrm_agent_harness.toolkits.browser.utils.selectors import PASSWORD_FIELD_SELECTOR
+                    from myrm_agent_harness.toolkits.browser.utils.selectors import (
+                        PASSWORD_FIELD_SELECTOR,
+                    )
 
                     password_locator = page.locator(PASSWORD_FIELD_SELECTOR)
-                    baseline_screenshot = await page.screenshot(type="png", full_page=False, mask=[password_locator])
+                    baseline_screenshot = await page.screenshot(
+                        type="png", full_page=False, mask=[password_locator]
+                    )
                 except Exception as e:
-                    logger.warning("Failed to take baseline screenshot for navigation verification: %s", e)
+                    logger.warning(
+                        "Failed to take baseline screenshot for navigation verification: %s",
+                        e,
+                    )
 
             try:
                 title, final_url, status_code = await navigator.goto(url)
 
                 if is_blocked_response(status_code):
                     if attempt < max_attempts:
-                        raise Exception(f"Blocked response detected: HTTP {status_code}")
+                        raise Exception(
+                            f"Blocked response detected: HTTP {status_code}"
+                        )
                     logger.warning(
                         "Blocked HTTP %s after %s navigation attempts for %s; "
                         "proceeding to CAPTCHA/stealth ladder with loaded page",
@@ -234,7 +252,9 @@ class BrowserSessionNavigationMixin:
                 break  # Success, exit retry loop
 
             except Exception as e:
-                if (is_proxy_error(e) or "Blocked response" in str(e)) and attempt < max_attempts:
+                if (
+                    is_proxy_error(e) or "Blocked response" in str(e)
+                ) and attempt < max_attempts:
                     logger.warning(
                         "Proxy error or block detected during navigation to %s: %s. "
                         "Quarantining proxy and retrying (attempt %d/%d)...",
@@ -248,9 +268,13 @@ class BrowserSessionNavigationMixin:
                         # Quarantine the bad proxy and release the sticky session
                         # We use duck typing/hasattr in case it's not RoundRobinProxyPool
                         if hasattr(self._browser_pool._proxy_pool, "report_failure"):
-                            self._browser_pool._proxy_pool.report_failure(self._context_key)
+                            self._browser_pool._proxy_pool.report_failure(
+                                self._context_key
+                            )
                         else:
-                            self._browser_pool._proxy_pool.release_session(self._context_key)
+                            self._browser_pool._proxy_pool.release_session(
+                                self._context_key
+                            )
 
                     # Restart session to get a new proxy and migrate state losslessly
                     await self.restart(restore_url=False)
@@ -266,9 +290,13 @@ class BrowserSessionNavigationMixin:
             if captcha_result is not None:
                 if not captcha_result.success:
                     # Auto-fallback to CAMOUFOX if Chromium is blocked
-                    from myrm_agent_harness.toolkits.browser.pool.config import BrowserEngine
+                    from myrm_agent_harness.toolkits.browser.pool.config import (
+                        BrowserEngine,
+                    )
 
-                    current_engine = self._engine_preference or BrowserEngine.CHROMIUM_PATCHRIGHT
+                    current_engine = (
+                        self._engine_preference or BrowserEngine.CHROMIUM_PATCHRIGHT
+                    )
                     if current_engine != BrowserEngine.FIREFOX_CAMOUFOX:
                         logger.warning(
                             f"CAPTCHA not resolved with {current_engine.value}. Auto-upgrading to CAMOUFOX and retrying..."
@@ -277,7 +305,10 @@ class BrowserSessionNavigationMixin:
                             "Detected advanced anti-bot protection. Switching to enhanced stealth mode..."
                         )
                         try:
-                            await self.restart(engine=BrowserEngine.FIREFOX_CAMOUFOX.value, restore_url=False)
+                            await self.restart(
+                                engine=BrowserEngine.FIREFOX_CAMOUFOX.value,
+                                restore_url=False,
+                            )
                         except BrowserLaunchError as exc:
                             _clear_engine_affinity_for_url(url)
                             _camoufox_launch_tool_error(exc)
@@ -299,7 +330,9 @@ class BrowserSessionNavigationMixin:
 
                             upgrade_domain = urlparse(url).netloc
                             if upgrade_domain:
-                                get_engine_affinity_store().record(upgrade_domain, BrowserEngine.FIREFOX_CAMOUFOX)
+                                get_engine_affinity_store().record(
+                                    upgrade_domain, BrowserEngine.FIREFOX_CAMOUFOX
+                                )
                         else:
                             title = await self._tab_controller.get_active_page().title()
                             final_url = self._tab_controller.get_active_page().url
@@ -366,7 +399,9 @@ class BrowserSessionNavigationMixin:
         await self._publish_inspector_view()
         return result
 
-    async def _navigate_via_extension(self, url: str, *, verify_goal: str | None = None) -> str:
+    async def _navigate_via_extension(
+        self, url: str, *, verify_goal: str | None = None
+    ) -> str:
         """Navigate to a private URL via the Extension Bridge (user's local browser).
 
         Called when a private URL is detected and extension_bridge is available.
@@ -374,7 +409,9 @@ class BrowserSessionNavigationMixin:
         """
         from urllib.parse import urlparse
 
-        from myrm_agent_harness.toolkits.browser.pool.extension_bridge import ExtensionBridgeNotAvailableError
+        from myrm_agent_harness.toolkits.browser.pool.extension_bridge import (
+            ExtensionBridgeNotAvailableError,
+        )
         from myrm_agent_harness.utils.errors import ToolError
 
         assert self._extension_bridge is not None
@@ -412,7 +449,9 @@ class BrowserSessionNavigationMixin:
                     message=f"Extension bridge lost connection while navigating to '{url}'.",
                     user_hint="The browser extension disconnected. Please reconnect it and retry.",
                     error_code="PRIVATE_URL_EXTENSION_LOST",
-                    recovery_suggestions=["Retry navigation after extension reconnects"],
+                    recovery_suggestions=[
+                        "Retry navigation after extension reconnects"
+                    ],
                 ) from exc
             if (
                 "missing required capability" in error_text
@@ -487,7 +526,10 @@ class BrowserSessionNavigationMixin:
 
     async def close_tab(self, tab_id: str) -> str:
         """Close specified Tab; if still has Tab, bind Component to Current active page."""
-        if self._tab_controller.list_tabs() and tab_id == self._tab_controller.get_active_tab_id():
+        if (
+            self._tab_controller.list_tabs()
+            and tab_id == self._tab_controller.get_active_tab_id()
+        ):
             try:
                 page = self._tab_controller.get_active_page()
                 self._network_logger.detach_page(page)
@@ -513,6 +555,7 @@ class BrowserSessionNavigationMixin:
         await self._tab_controller.switch_tab(tab_id)
         await self._initialize_components()
         return f"Switched to tab {tab_id}"
+
     @staticmethod
     def _get_site_experience_hint(url: str) -> str:
         """Query site experience and domain skill tools, format as injected text."""
@@ -532,10 +575,14 @@ class BrowserSessionNavigationMixin:
 
             store = get_global_site_experience_store()
             metrics_manager = get_global_domain_metrics_manager()
-            experience, possibly_stale = store.get(domain, domain_metrics_manager=metrics_manager)
+            experience, possibly_stale = store.get(
+                domain, domain_metrics_manager=metrics_manager
+            )
 
             if experience is not None and not experience.is_empty():
-                parts.append(experience.format_for_injection(possibly_stale=possibly_stale))
+                parts.append(
+                    experience.format_for_injection(possibly_stale=possibly_stale)
+                )
         except Exception:
             pass
 

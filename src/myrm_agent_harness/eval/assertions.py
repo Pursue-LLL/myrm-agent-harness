@@ -335,6 +335,22 @@ def _check_json_type(value: object, expected_type: str) -> bool:
     return isinstance(value, allowed_types)
 
 
+def _exact_match_prepass(expected: str, actual_output: str) -> bool:
+    """Exact-match short-circuit for deterministic answers.
+
+    When the normalized actual output equals the normalized criteria, the
+    answer is trivially correct and the LLM judge is unnecessary. Guarded by a
+    non-empty check on both sides so an empty output never passes.
+    """
+    from myrm_agent_harness.eval.decontam import normalize_answer
+
+    normalized_expected = normalize_answer(expected)
+    normalized_actual = normalize_answer(actual_output)
+    if not normalized_expected or not normalized_actual:
+        return False
+    return normalized_expected == normalized_actual
+
+
 async def evaluate_semantic_assertions(
     assertions: list[SemanticAssertion],
     actual_output: str,
@@ -378,12 +394,21 @@ async def evaluate_semantic_assertions(
 
     for assertion in assertions:
         if assertion.type == "llm_judge":
+            use_scoring = assertion.threshold < 1.0
+            if not use_scoring and _exact_match_prepass(
+                assertion.expected, actual_output
+            ):
+                # Exact-match pre-pass: when the normalized output equals the
+                # normalized criteria (factual/numeric answers), the LLM judge
+                # is skipped entirely — saves a judge call per case and keeps
+                # deterministic answers deterministic (BigBang-style guard).
+                continue
+
             model = (
                 judge_override.model
                 if judge_override
                 else assertion.judge_model or default_judge_model
             )
-            use_scoring = assertion.threshold < 1.0
 
             if assertion.judge_prompt:
                 template = assertion.judge_prompt

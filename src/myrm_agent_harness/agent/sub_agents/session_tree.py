@@ -89,7 +89,11 @@ def list_active_children_from_registry(session_id: str) -> list[dict[str, object
     # _cleanup_child 中被 pop，父 agent 流结束后 manager 可能被 GC，导致
     # 已完成子 agent 从 REST/SSE 列表消失）。这里合并保留的终态结果，
     # 保证父流结束后 dashboard 仍能渲染 completed/failed/cancelled 节点。
-    for task_id, (candidate_session, _completed_at, row) in COMPLETED_SUBAGENT_RESULTS.items():
+    for task_id, (
+        candidate_session,
+        _completed_at,
+        row,
+    ) in COMPLETED_SUBAGENT_RESULTS.items():
         if candidate_session not in candidates:
             continue
         if task_id not in merged:

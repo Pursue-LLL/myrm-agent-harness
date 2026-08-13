@@ -486,3 +486,33 @@ def test_llm_visible_schema_preserves_full_semantics():
     assert "street" in props["address"]["properties"]
     assert props["address"]["required"] == ["street"]
     assert params["required"] == ["date", "trainType"]
+
+
+# ---------------------------------------------------------------------------
+# Real MCP SDK objects — camelCase field names must be read correctly
+# ---------------------------------------------------------------------------
+
+
+def test_convert_real_sdk_tool_camelcase_input_schema():
+    """``mcp.types.Tool`` exposes ``inputSchema`` (camelCase); the converter
+    must read it or every real server's args schema silently becomes empty."""
+    from mcp.types import Tool
+
+    async def fake_call(name: str, args: dict[str, Any]) -> SimpleNamespace:
+        return SimpleNamespace(content=[SimpleNamespace(text="ok")])
+
+    schema = {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"],
+    }
+    sdk_tool = Tool(
+        name="search",
+        description="search tool",
+        inputSchema=schema,
+    )
+    tools = convert_mcp_tools([sdk_tool], fake_call)
+    assert len(tools) == 1
+    assert tools[0].name == "search"
+    assert tools[0].args_schema["properties"]["query"]["type"] == "string"
+    assert tools[0].args_schema["required"] == ["query"]

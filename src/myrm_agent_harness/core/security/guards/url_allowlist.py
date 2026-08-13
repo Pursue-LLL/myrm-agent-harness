@@ -56,7 +56,9 @@ class URLAllowlistGuard:
             if hostname == domain or hostname.endswith(f".{domain}"):
                 return
 
-        logger.warning("DLP Shield blocked request to unauthorized domain: %s", hostname)
+        logger.warning(
+            "DLP Shield blocked request to unauthorized domain: %s", hostname
+        )
         raise SSRFSecurityError(
             f"Access to {hostname} is blocked. "
             f"The current skill is only allowed to access: {', '.join(allowed_domains)}"

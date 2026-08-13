@@ -60,15 +60,17 @@ class TestNetworkIntelligenceRedaction:
     """
 
     def _on_post(self, ni: NetworkIntelligence, body: str) -> None:
-        ni._on_request_will_be_sent({
-            "requestId": "req-post",
-            "type": "Fetch",
-            "request": {
-                "url": "https://api.example.com/login",
-                "method": "POST",
-                "postData": body,
-            },
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-post",
+                "type": "Fetch",
+                "request": {
+                    "url": "https://api.example.com/login",
+                    "method": "POST",
+                    "postData": body,
+                },
+            }
+        )
 
     def test_post_data_raw_stored_for_replay(self):
         """The raw body (not the redacted form) must be kept so network_replay
@@ -93,7 +95,11 @@ class TestNetworkIntelligenceRedaction:
         """A credential split by the display cut in get_summary must not
         surface as a plaintext fragment (raw window is redacted first)."""
         ni = NetworkIntelligence()
-        body = '{"op":"login","payload":"' + "x" * 150 + '","password":"mysecretvalue12345678"}'
+        body = (
+            '{"op":"login","payload":"'
+            + "x" * 150
+            + '","password":"mysecretvalue12345678"}'
+        )
         self._on_post(ni, body)
 
         summary = ni.get_summary()
@@ -113,16 +119,20 @@ class TestNetworkIntelligenceRedaction:
         """A credential in the truncated tail of a large response body must
         not surface as a plaintext fragment."""
         ni = NetworkIntelligence()
-        ni._on_request_will_be_sent({
-            "requestId": "req-1",
-            "type": "XHR",
-            "request": {"url": "https://api.example.com/data", "method": "GET"},
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-1",
+                "type": "XHR",
+                "request": {"url": "https://api.example.com/data", "method": "GET"},
+            }
+        )
         mock_cdp = AsyncMock()
         head = "x" * 7990
         tail = '"password":"mysecretvalue12345678"}'
         large_body = head + tail
-        mock_cdp.send = AsyncMock(return_value={"body": large_body, "base64Encoded": False})
+        mock_cdp.send = AsyncMock(
+            return_value={"body": large_body, "base64Encoded": False}
+        )
         ni._cdp_session = mock_cdp
 
         result = await ni.get_response_body(1)
@@ -178,23 +188,30 @@ class TestNetworkIntelligence:
             params = {
                 "requestId": f"req-{resource_type}",
                 "type": resource_type,
-                "request": {"url": "https://cdn.example.com/style.css", "method": "GET"},
+                "request": {
+                    "url": "https://cdn.example.com/style.css",
+                    "method": "GET",
+                },
             }
             ni._on_request_will_be_sent(params)
         assert len(ni.get_api_requests()) == 0
 
     def test_on_response_received_updates_status(self):
         ni = NetworkIntelligence()
-        ni._on_request_will_be_sent({
-            "requestId": "req-1",
-            "type": "XHR",
-            "request": {"url": "https://api.example.com/data", "method": "GET"},
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-1",
+                "type": "XHR",
+                "request": {"url": "https://api.example.com/data", "method": "GET"},
+            }
+        )
 
-        ni._on_response_received({
-            "requestId": "req-1",
-            "response": {"status": 200, "mimeType": "application/json"},
-        })
+        ni._on_response_received(
+            {
+                "requestId": "req-1",
+                "response": {"status": 200, "mimeType": "application/json"},
+            }
+        )
 
         requests = ni.get_api_requests()
         assert requests[0].status == 200
@@ -218,35 +235,43 @@ class TestNetworkIntelligence:
     def test_max_requests_limit(self):
         ni = NetworkIntelligence(max_requests=5)
         for i in range(10):
-            ni._on_request_will_be_sent({
-                "requestId": f"req-{i}",
-                "type": "XHR",
-                "request": {"url": f"https://api.example.com/{i}", "method": "GET"},
-            })
+            ni._on_request_will_be_sent(
+                {
+                    "requestId": f"req-{i}",
+                    "type": "XHR",
+                    "request": {"url": f"https://api.example.com/{i}", "method": "GET"},
+                }
+            )
         assert len(ni.get_api_requests()) == 5
         assert ni.get_api_requests()[0].request_id == "req-5"
 
     def test_get_summary(self):
         ni = NetworkIntelligence()
-        ni._on_request_will_be_sent({
-            "requestId": "req-1",
-            "type": "XHR",
-            "request": {"url": "https://api.example.com/users", "method": "GET"},
-        })
-        ni._on_response_received({
-            "requestId": "req-1",
-            "response": {"status": 200, "mimeType": "application/json"},
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-1",
+                "type": "XHR",
+                "request": {"url": "https://api.example.com/users", "method": "GET"},
+            }
+        )
+        ni._on_response_received(
+            {
+                "requestId": "req-1",
+                "response": {"status": 200, "mimeType": "application/json"},
+            }
+        )
 
-        ni._on_request_will_be_sent({
-            "requestId": "req-2",
-            "type": "Fetch",
-            "request": {
-                "url": "https://api.example.com/graphql",
-                "method": "POST",
-                "postData": '{"operationName":"GetIssues"}',
-            },
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-2",
+                "type": "Fetch",
+                "request": {
+                    "url": "https://api.example.com/graphql",
+                    "method": "POST",
+                    "postData": '{"operationName":"GetIssues"}',
+                },
+            }
+        )
 
         summary = ni.get_summary()
         assert "GET https://api.example.com/users" in summary
@@ -255,11 +280,13 @@ class TestNetworkIntelligence:
 
     def test_clear(self):
         ni = NetworkIntelligence()
-        ni._on_request_will_be_sent({
-            "requestId": "req-1",
-            "type": "XHR",
-            "request": {"url": "https://api.example.com/data", "method": "GET"},
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-1",
+                "type": "XHR",
+                "request": {"url": "https://api.example.com/data", "method": "GET"},
+            }
+        )
         assert len(ni.get_api_requests()) == 1
 
         ni.clear()
@@ -282,7 +309,9 @@ class TestNetworkIntelligence:
     @pytest.mark.asyncio
     async def test_attach_failure_non_critical(self):
         mock_page = MagicMock()
-        mock_page.context.new_cdp_session = AsyncMock(side_effect=Exception("CDP failed"))
+        mock_page.context.new_cdp_session = AsyncMock(
+            side_effect=Exception("CDP failed")
+        )
 
         ni = NetworkIntelligence()
         await ni.attach(mock_page)
@@ -318,14 +347,18 @@ class TestNetworkIntelligence:
     @pytest.mark.asyncio
     async def test_get_response_body_success(self):
         ni = NetworkIntelligence()
-        ni._on_request_will_be_sent({
-            "requestId": "req-1",
-            "type": "XHR",
-            "request": {"url": "https://api.example.com/data", "method": "GET"},
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-1",
+                "type": "XHR",
+                "request": {"url": "https://api.example.com/data", "method": "GET"},
+            }
+        )
 
         mock_cdp = AsyncMock()
-        mock_cdp.send = AsyncMock(return_value={"body": '{"users": [1, 2, 3]}', "base64Encoded": False})
+        mock_cdp.send = AsyncMock(
+            return_value={"body": '{"users": [1, 2, 3]}', "base64Encoded": False}
+        )
         ni._cdp_session = mock_cdp
 
         result = await ni.get_response_body(1)
@@ -337,18 +370,24 @@ class TestNetworkIntelligence:
     @pytest.mark.asyncio
     async def test_get_response_body_binary(self):
         ni = NetworkIntelligence()
-        ni._on_request_will_be_sent({
-            "requestId": "req-1",
-            "type": "XHR",
-            "request": {"url": "https://api.example.com/image", "method": "GET"},
-        })
-        ni._on_response_received({
-            "requestId": "req-1",
-            "response": {"status": 200, "mimeType": "image/png"},
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-1",
+                "type": "XHR",
+                "request": {"url": "https://api.example.com/image", "method": "GET"},
+            }
+        )
+        ni._on_response_received(
+            {
+                "requestId": "req-1",
+                "response": {"status": 200, "mimeType": "image/png"},
+            }
+        )
 
         mock_cdp = AsyncMock()
-        mock_cdp.send = AsyncMock(return_value={"body": "iVBORw0KGgo=", "base64Encoded": True})
+        mock_cdp.send = AsyncMock(
+            return_value={"body": "iVBORw0KGgo=", "base64Encoded": True}
+        )
         ni._cdp_session = mock_cdp
 
         result = await ni.get_response_body(1)
@@ -358,11 +397,13 @@ class TestNetworkIntelligence:
     @pytest.mark.asyncio
     async def test_get_response_body_no_cdp(self):
         ni = NetworkIntelligence()
-        ni._on_request_will_be_sent({
-            "requestId": "req-1",
-            "type": "XHR",
-            "request": {"url": "https://api.example.com/data", "method": "GET"},
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-1",
+                "type": "XHR",
+                "request": {"url": "https://api.example.com/data", "method": "GET"},
+            }
+        )
 
         result = await ni.get_response_body(1)
         assert "Error: CDP session not available" in result
@@ -379,11 +420,13 @@ class TestNetworkIntelligence:
     @pytest.mark.asyncio
     async def test_get_response_body_expired_request(self):
         ni = NetworkIntelligence()
-        ni._on_request_will_be_sent({
-            "requestId": "req-1",
-            "type": "XHR",
-            "request": {"url": "https://api.example.com/data", "method": "GET"},
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-1",
+                "type": "XHR",
+                "request": {"url": "https://api.example.com/data", "method": "GET"},
+            }
+        )
 
         mock_cdp = AsyncMock()
         mock_cdp.send = AsyncMock(
@@ -398,15 +441,19 @@ class TestNetworkIntelligence:
     @pytest.mark.asyncio
     async def test_get_response_body_truncation(self):
         ni = NetworkIntelligence()
-        ni._on_request_will_be_sent({
-            "requestId": "req-1",
-            "type": "XHR",
-            "request": {"url": "https://api.example.com/data", "method": "GET"},
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-1",
+                "type": "XHR",
+                "request": {"url": "https://api.example.com/data", "method": "GET"},
+            }
+        )
 
         large_body = "x" * 10000
         mock_cdp = AsyncMock()
-        mock_cdp.send = AsyncMock(return_value={"body": large_body, "base64Encoded": False})
+        mock_cdp.send = AsyncMock(
+            return_value={"body": large_body, "base64Encoded": False}
+        )
         ni._cdp_session = mock_cdp
 
         result = await ni.get_response_body(1)
@@ -416,11 +463,13 @@ class TestNetworkIntelligence:
     def test_document_type_tracked(self):
         """Document type requests should also be tracked for navigation API discovery."""
         ni = NetworkIntelligence()
-        ni._on_request_will_be_sent({
-            "requestId": "req-doc",
-            "type": "Document",
-            "request": {"url": "https://example.com/page", "method": "GET"},
-        })
+        ni._on_request_will_be_sent(
+            {
+                "requestId": "req-doc",
+                "type": "Document",
+                "request": {"url": "https://example.com/page", "method": "GET"},
+            }
+        )
         # Document is tracked in _requests but not in get_api_requests()
         assert len(ni._requests) == 1
         assert len(ni.get_api_requests()) == 0

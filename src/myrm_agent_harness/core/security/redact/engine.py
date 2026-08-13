@@ -227,7 +227,9 @@ def redact_sensitive_text(text: str) -> str:
     # 参数（由 _URL_QUERY_RE 处理），此处无条件执行——含 URL 的混合文本同样脱敏。
     text = _replace_pattern_bounded(text, _ENV_ASSIGN_LOWER_RE, _redact_env_assignment)
 
-    text = _replace_pattern_bounded(text, _JSON_FIELD_RE, lambda m: f'{m.group(1)}: "{_mask_token(m.group(2))}"')
+    text = _replace_pattern_bounded(
+        text, _JSON_FIELD_RE, lambda m: f'{m.group(1)}: "{_mask_token(m.group(2))}"'
+    )
 
     # Unquoted / quoted YAML-colon config（`password: secret`、`password: "hunter2!"`）。
     # 正则锚定行首且 key 字符类不含 `:`/`/`/`?`，天然不匹配 URL 行，无需全局 URL 开关。
@@ -240,27 +242,41 @@ def redact_sensitive_text(text: str) -> str:
     )
 
     # PEM block special handling: preserve header/footer for debugging (OPT-3)
-    text = _replace_pattern_bounded(text, _PRIVATE_KEY_RE, lambda m: _redact_pem_block(m.group(0)))
+    text = _replace_pattern_bounded(
+        text, _PRIVATE_KEY_RE, lambda m: _redact_pem_block(m.group(0))
+    )
 
-    text = _replace_pattern_bounded(text, _DB_CONNSTR_RE, lambda m: f"{m.group(1)}***{m.group(3)}")
+    text = _replace_pattern_bounded(
+        text, _DB_CONNSTR_RE, lambda m: f"{m.group(1)}***{m.group(3)}"
+    )
 
     # URL userinfo（`https://user:pass@host`）与 bare-token（`https://TOKEN@host`）
-    text = _replace_pattern_bounded(text, _URL_USERINFO_RE, lambda m: f"{m.group(1)}://{m.group(2)}:***@")
     text = _replace_pattern_bounded(
-        text, _URL_BARE_TOKEN_RE, lambda m: f"{m.group(1)}{_mask_token(m.group(2))}{m.group(3)}"
+        text, _URL_USERINFO_RE, lambda m: f"{m.group(1)}://{m.group(2)}:***@"
+    )
+    text = _replace_pattern_bounded(
+        text,
+        _URL_BARE_TOKEN_RE,
+        lambda m: f"{m.group(1)}{_mask_token(m.group(2))}{m.group(3)}",
     )
 
     # URL query parameters (OPT-2)
-    text = _replace_pattern_bounded(text, _URL_QUERY_RE, lambda m: f"{m.group(1)}{_mask_token(m.group(2))}")
+    text = _replace_pattern_bounded(
+        text, _URL_QUERY_RE, lambda m: f"{m.group(1)}{_mask_token(m.group(2))}"
+    )
 
     # CLI flags (OPT-5)
     text = _replace_pattern_bounded(text, _CLI_FLAG_RE, _redact_cli_flag)
 
     # Telegram Bot URL (OPT-6)
-    text = _replace_pattern_bounded(text, _TELEGRAM_BOT_RE, lambda m: f"{m.group(1)}{_mask_token(m.group(2))}")
+    text = _replace_pattern_bounded(
+        text, _TELEGRAM_BOT_RE, lambda m: f"{m.group(1)}{_mask_token(m.group(2))}"
+    )
 
     # API-key 风格认证头（x-api-key 等）
-    text = _replace_pattern_bounded(text, _SECRET_HEADER_RE, lambda m: f"{m.group(1)}{_mask_token(m.group(2))}")
+    text = _replace_pattern_bounded(
+        text, _SECRET_HEADER_RE, lambda m: f"{m.group(1)}{_mask_token(m.group(2))}"
+    )
 
     # JWT token（eyJ… 无 key 上下文的裸 JWT）
     text = _replace_pattern_bounded(text, _JWT_RE, lambda m: _mask_token(m.group(0)))
@@ -295,7 +311,9 @@ _INVISIBLE_CODEPOINTS: frozenset[int] = frozenset(
     }
 )
 
-_INVISIBLE_ESCAPE_RE = re.compile("[" + "".join(f"\\u{cp:04X}" for cp in sorted(_INVISIBLE_CODEPOINTS)) + "]")
+_INVISIBLE_ESCAPE_RE = re.compile(
+    "[" + "".join(f"\\u{cp:04X}" for cp in sorted(_INVISIBLE_CODEPOINTS)) + "]"
+)
 
 
 def escape_invisible_unicode(text: str) -> str:

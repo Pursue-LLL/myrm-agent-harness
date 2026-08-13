@@ -37,7 +37,6 @@ from myrm_agent_harness.toolkits.memory.types import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from myrm_agent_harness.toolkits.memory.archival import ArchivalResult
     from myrm_agent_harness.toolkits.memory.backup import BackupResult, MemoryBackupStrategy, RestoreResult
     from myrm_agent_harness.toolkits.memory.health import HealthScore, MaintenanceReport
 
@@ -184,10 +183,6 @@ class ReadOnlyMemoryView(MemoryManager):
         self._deny()
         raise AssertionError  # unreachable
 
-    async def archive_memories_auto(self) -> ArchivalResult:
-        self._deny()
-        raise AssertionError  # unreachable
-
     async def restore_backup(
         self, backup_id: str, strategy: MemoryBackupStrategy, *, overwrite: bool = False
     ) -> RestoreResult:
@@ -265,10 +260,6 @@ class ReadOnlyMemoryView(MemoryManager):
         self._deny()
         return ""
 
-    async def unarchive_memories(self, memory_ids: list[str], memory_type: MemoryType) -> int:
-        self._deny()
-        return 0
-
     def set_last_cited_memory_ids(self, ids: list[str]) -> None:
         self._last_cited_memory_ids = ids
 
@@ -295,9 +286,6 @@ class ReadOnlyMemoryView(MemoryManager):
 
     async def count_memories(self, memory_type: MemoryType, **kwargs: Any) -> int:
         return await self._parent.count_memories(memory_type, **kwargs)
-
-    async def search_archived(self, query: str, memory_type: MemoryType, *, limit: int = 10) -> list[Any]:
-        return []
 
     async def list_backups(self, strategy: MemoryBackupStrategy) -> list[Any]:
         return await strategy.list_backups()

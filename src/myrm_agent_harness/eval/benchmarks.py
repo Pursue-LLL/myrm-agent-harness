@@ -46,6 +46,21 @@ class BenchmarkSpec:
             shell mount, keeping the baseline otherwise user-config-free.
         supports_memory_ab: Whether the dataset is suitable for the Memory A/B
             comparison flow (``False`` hides the Memory A/B button).
+        max_tool_calls: Per-run tool-call budget the executor must apply in
+            ``benchmark_mode`` (0 = inherit the engine default of 30). Large
+            multi-hop suites (e.g. BrowseComp web research) declare a higher
+            ceiling so the scored run measures the model, not the limit.
+        max_iterations: Per-run LangGraph recursion budget (0 = inherit the
+            engine default of 50). Mirrors ``max_tool_calls``; both ceilings
+            must be lifted together for long-horizon suites.
+        harness: Which harness the official run is graded against —
+            ``"myrm"`` (our eval runtime) or ``"official"`` (the publisher's
+            own harness). Kept in the spec so an ``"official"`` reference
+            score stays distinguishable from our harness's measurement.
+        judge_prompt: Default LLM-judge grading prompt for the benchmark.
+            Registered centrally so the eval service can surface/disclose it
+            and adapters stay consistent (the concrete per-case assertion may
+            still override via ``SemanticAssertion.judge_prompt``).
     """
 
     id: str
@@ -57,6 +72,10 @@ class BenchmarkSpec:
     scoring: str = "llm_judge"
     required_tools: tuple[str, ...] = ()
     supports_memory_ab: bool = True
+    max_tool_calls: int = 0
+    max_iterations: int = 0
+    harness: str = "myrm"
+    judge_prompt: str = ""
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -68,6 +87,10 @@ class BenchmarkSpec:
             "scoring": self.scoring,
             "required_tools": list(self.required_tools),
             "supports_memory_ab": self.supports_memory_ab,
+            "max_tool_calls": self.max_tool_calls,
+            "max_iterations": self.max_iterations,
+            "harness": self.harness,
+            "judge_prompt": self.judge_prompt,
         }
 
 

@@ -35,7 +35,7 @@ PROCEDURAL_COLUMNS = (
     "priority, is_active, trigger_keywords, source, metadata, "
     "primary_namespace, namespaces, agent_id, channel_id, conversation_id, task_id, "
     "tool_name, tool_rule_priority, access_count, last_accessed_at, created_at, updated_at, "
-    "is_user_locked"
+    "is_user_locked, expected_valid_days"
 )
 
 
@@ -75,7 +75,7 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
     priority, is_active, trigger_keywords, source, metadata, primary_namespace,
     namespaces, agent_id, channel_id, conversation_id, task_id,
     tool_name, tool_rule_priority, access_count, last_accessed_at,
-    created_at, updated_at.
+    created_at, updated_at, is_user_locked, expected_valid_days.
     """
     keywords = json.loads(row[7]) if row[7] else []  # type: ignore[arg-type]
     metadata = json.loads(row[9]) if row[9] else {}  # type: ignore[arg-type]
@@ -88,6 +88,9 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
         tool_priority = ToolRulePriority.NORMAL
 
     is_locked = bool(row[22]) if len(row) > 22 and row[22] else False
+    expected_valid_days = (
+        int(row[23]) if len(row) > 23 and row[23] is not None else None
+    )
 
     return ProceduralMemory(
         id=str(row[0]),
@@ -116,6 +119,7 @@ def row_to_procedural(row: tuple[object, ...]) -> ProceduralMemory:
         created_at=parse_dt(str(row[20])),
         updated_at=parse_dt(str(row[21])),
         is_user_locked=is_locked,
+        expected_valid_days=expected_valid_days,
     )
 
 

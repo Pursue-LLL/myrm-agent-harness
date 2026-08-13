@@ -5,7 +5,6 @@ from __future__ import annotations
 from myrm_agent_harness.toolkits.memory._internal.storage import delete_by_type as _delete_by_type
 from myrm_agent_harness.toolkits.memory._manager.shared import (
     AnyMemory,
-    ArchivalResult,
     BackupMetadata,
     BackupResult,
     ConsolidationConfig,
@@ -94,102 +93,6 @@ class MemoryManagerListingMaintenanceMixin:
             count_memories_func=self.count_memories,
             list_memories_func=lambda memory_type, limit: self.list_memories(memory_type, limit=limit),
         )
-
-    async def archive_memories_auto(self) -> ArchivalResult:
-        """Automatically archive old, rarely-accessed memories.
-
-        Uses configured archival strategy to find and archive eligible memories.
-        Improves search performance by reducing active corpus size.
-
-        Returns:
-            Archival operation result with statistics
-
-        Raises:
-            ValueError: If vector store not configured
-        """
-        from myrm_agent_harness.toolkits.memory.archival import (
-            ArchivalResult,
-            TimeBasedArchivalStrategy,
-            archive_memories,
-            find_archival_candidates,
-        )
-
-        if not self._vector:
-            msg = "Archival requires vector store"
-            raise ValueError(msg)
-
-        if not self._config.archival.enabled:
-            return ArchivalResult(archived_count=0, candidates=[], duration_ms=0.0)
-
-        strategy = self._config.archival.archival_strategy or TimeBasedArchivalStrategy(
-            min_age_days=self._config.archival.min_age_days,
-            max_access_count=self._config.archival.max_access_count,
-            max_importance=self._config.archival.max_importance,
-        )
-
-        candidates = await find_archival_candidates(
-            vector=self._vector,
-            strategy=strategy,
-            limit=self._config.archival.batch_size,
-            namespaces=self._namespaces,
-        )
-
-        if not candidates:
-            return ArchivalResult(archived_count=0, candidates=[], duration_ms=0.0)
-
-        return await archive_memories(candidates=candidates, vector=self._vector)
-
-    async def search_archived(self, query: str, memory_type: MemoryType, *, limit: int = 10) -> list[VectorDocument]:
-        """Search archived memories (historical data access).
-
-        Args:
-            query: Search query
-            memory_type: Memory type to search
-            limit: Maximum results
-
-        Returns:
-            List of archived memory documents
-
-        Raises:
-            ValueError: If vector/embedding not configured
-        """
-        from myrm_agent_harness.toolkits.memory._internal.embedder import embed_single
-        from myrm_agent_harness.toolkits.memory.archival import search_archived_memories
-
-        if not self._vector or not self._embedding:
-            msg = "Archival search requires vector store and embedding"
-            raise ValueError(msg)
-
-        query_vec = await embed_single(query, self._embedding, self._cache)
-
-        return await search_archived_memories(
-            query_vector=query_vec,
-            memory_type=memory_type,
-            vector=self._vector,
-            limit=limit,
-            namespaces=self._namespaces,
-        )
-
-    async def unarchive_memories(self, memory_ids: list[str], memory_type: MemoryType) -> int:
-        """Restore archived memories to active collections.
-
-        Args:
-            memory_ids: Memory IDs to restore
-            memory_type: Memory type
-
-        Returns:
-            Number of memories restored
-
-        Raises:
-            ValueError: If vector store not configured
-        """
-        from myrm_agent_harness.toolkits.memory.archival import unarchive_memories
-
-        if not self._vector:
-            msg = "Unarchival requires vector store"
-            raise ValueError(msg)
-
-        return await unarchive_memories(memory_ids=memory_ids, memory_type=memory_type, vector=self._vector)
 
     async def create_backup(self, strategy: MemoryBackupStrategy, description: str | None = None) -> BackupResult:
         """Create a complete memory backup using provided strategy.

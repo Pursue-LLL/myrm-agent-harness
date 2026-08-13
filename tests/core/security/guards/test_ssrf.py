@@ -21,7 +21,9 @@ from myrm_agent_harness.core.security.guards.url_allowlist import URLAllowlistGu
 def mock_getaddrinfo(ip: str):
     """Create a mock for asyncio.get_running_loop().getaddrinfo."""
     mock_loop = AsyncMock()
-    mock_loop.getaddrinfo.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))]
+    mock_loop.getaddrinfo.return_value = [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))
+    ]
     return patch("asyncio.get_running_loop", return_value=mock_loop)
 
 
@@ -34,7 +36,9 @@ class TestSSRFShield:
         assert is_internal_ip("10.0.0.1") is True
         assert is_internal_ip("172.16.0.1") is True
         assert is_internal_ip("169.254.169.254") is True
-        assert is_internal_ip("0.0.0.0") is True  # noqa: S104  # IP string assertion, not a bind
+        assert (
+            is_internal_ip("0.0.0.0") is True
+        )  # noqa: S104  # IP string assertion, not a bind
         assert is_internal_ip("::1") is True
 
         assert is_internal_ip("8.8.8.8") is False
@@ -57,7 +61,9 @@ class TestSSRFShield:
             assert safe_url == "https://8.8.8.8/search?q=test"
             assert headers == {"Host": "google.com"}
             mock_loop = mock_loop_patch.return_value
-            mock_loop.getaddrinfo.assert_called_once_with("google.com", None, proto=socket.IPPROTO_TCP)
+            mock_loop.getaddrinfo.assert_called_once_with(
+                "google.com", None, proto=socket.IPPROTO_TCP
+            )
 
     @pytest.mark.asyncio
     async def test_validate_external_url_with_port(self):
@@ -69,14 +75,23 @@ class TestSSRFShield:
 
     @pytest.mark.asyncio
     async def test_blocks_internal_ip(self):
-        with mock_getaddrinfo("192.168.1.100"), pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
+        with (
+            mock_getaddrinfo("192.168.1.100"),
+            pytest.raises(
+                SSRFSecurityError, match="Access to internal network is blocked"
+            ),
+        ):
             await async_pin_url("http://192.168.1.100/admin")
 
     @pytest.mark.asyncio
     async def test_blocks_internal_ip_records_audit(self):
-        with mock_getaddrinfo("192.168.1.100"), patch(
-            "myrm_agent_harness.core.security.guards.ssrf.record_decision"
-        ) as mock_audit, pytest.raises(SSRFSecurityError):
+        with (
+            mock_getaddrinfo("192.168.1.100"),
+            patch(
+                "myrm_agent_harness.core.security.guards.ssrf.record_decision"
+            ) as mock_audit,
+            pytest.raises(SSRFSecurityError),
+        ):
             await async_pin_url("http://192.168.1.100/admin")
 
         mock_audit.assert_called_once()
@@ -84,7 +99,12 @@ class TestSSRFShield:
 
     @pytest.mark.asyncio
     async def test_blocks_dns_rebinding(self):
-        with mock_getaddrinfo("127.0.0.1"), pytest.raises(SSRFSecurityError, match="Access to internal network is blocked"):
+        with (
+            mock_getaddrinfo("127.0.0.1"),
+            pytest.raises(
+                SSRFSecurityError, match="Access to internal network is blocked"
+            ),
+        ):
             await async_pin_url("http://evil-domain.com/flushall")
 
     @pytest.mark.asyncio
@@ -123,7 +143,10 @@ class TestCheckUrlAndResolve:
     def test_check_url_allows_internal_hostname_in_allowlist(self):
         from myrm_agent_harness.core.security.guards.ssrf import check_url
 
-        verdict = check_url("http://my-internal-nas.example:9000/data", allowed_internal_hosts=frozenset({"my-internal-nas.example"}))
+        verdict = check_url(
+            "http://my-internal-nas.example:9000/data",
+            allowed_internal_hosts=frozenset({"my-internal-nas.example"}),
+        )
         assert verdict.allowed is True
 
     def test_check_url_blocks_internal_ip_literal(self):
@@ -148,10 +171,15 @@ class TestCheckUrlAndResolve:
     def test_resolve_allows_allowlisted_host(self):
         from myrm_agent_harness.core.security.guards.ssrf import resolve_and_check
 
-        verdict = resolve_and_check("nas.internal", allowed_internal_hosts=frozenset({"nas.internal"}))
+        verdict = resolve_and_check(
+            "nas.internal", allowed_internal_hosts=frozenset({"nas.internal"})
+        )
         assert verdict.allowed is True
 
-    @patch("myrm_agent_harness.core.security.guards.ssrf.socket.getaddrinfo", side_effect=socket.gaierror("nxdomain"))
+    @patch(
+        "myrm_agent_harness.core.security.guards.ssrf.socket.getaddrinfo",
+        side_effect=socket.gaierror("nxdomain"),
+    )
     def test_resolve_dns_failure(self, _mock):
         from myrm_agent_harness.core.security.guards.ssrf import resolve_and_check
 
@@ -163,7 +191,9 @@ class TestCheckUrlAndResolve:
     def test_resolve_blocks_internal_resolved_ip(self, mock_gai):
         from myrm_agent_harness.core.security.guards.ssrf import resolve_and_check
 
-        mock_gai.return_value = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.16.3.9", 0))]
+        mock_gai.return_value = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("172.16.3.9", 0))
+        ]
         verdict = resolve_and_check("attacker.example")
         assert verdict.allowed is False
         assert "resolves to private/internal IP" in verdict.reason
@@ -178,7 +208,6 @@ class TestCheckUrlAndResolve:
         ]
         verdict = resolve_and_check("public.example")
         assert verdict.allowed is True
-
 
     def test_check_url_allows_public_domain(self):
         from myrm_agent_harness.core.security.guards.ssrf import check_url
@@ -213,8 +242,10 @@ class TestURLAllowlistGuard:
 
     @pytest.mark.asyncio
     async def test_allowlist_guard_blocks_unauthorized_domain(self):
-        with mock_getaddrinfo("8.8.8.8"), URLAllowlistGuard.apply(["api.github.com"]), pytest.raises(
-            SSRFSecurityError, match=r"Access to evil\.com is blocked"
+        with (
+            mock_getaddrinfo("8.8.8.8"),
+            URLAllowlistGuard.apply(["api.github.com"]),
+            pytest.raises(SSRFSecurityError, match=r"Access to evil\.com is blocked"),
         ):
             await async_pin_url("https://evil.com/log")
 
@@ -263,7 +294,9 @@ class TestValidateUrlForSSRF:
     def test_validate_dns_resolved_public(self, monkeypatch) -> None:
         monkeypatch.setattr(
             "socket.getaddrinfo",
-            lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0))],
+            lambda *a, **k: [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 0))
+            ],
         )
 
         result = validate_url_for_ssrf("http://good.example/x")
@@ -274,7 +307,9 @@ class TestValidateUrlForSSRF:
     def test_validate_dns_resolved_blocked(self, monkeypatch) -> None:
         monkeypatch.setattr(
             "socket.getaddrinfo",
-            lambda *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0))],
+            lambda *a, **k: [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0))
+            ],
         )
 
         result = validate_url_for_ssrf("http://evil.example/x")
@@ -351,8 +386,11 @@ class TestValidateUrlForSSRF:
         async def fake_resolve(hostname: str) -> SSRFResult:
             return SSRFResult(safe=True, hostname=hostname, resolved_ips=())
 
-        with patch(
-            "myrm_agent_harness.core.security.guards.ssrf._resolve_and_check_async",
-            fake_resolve,
-        ), pytest.raises(SSRFSecurityError, match="DNS resolution failed"):
+        with (
+            patch(
+                "myrm_agent_harness.core.security.guards.ssrf._resolve_and_check_async",
+                fake_resolve,
+            ),
+            pytest.raises(SSRFSecurityError, match="DNS resolution failed"),
+        ):
             await async_pin_url("http://nohost.example/x")

@@ -4,7 +4,7 @@
 belong to the harness Agent runtime package. See ``toolkits/_ARCH.md`` § Naming disambiguation.
 
 Provides MCP tool fetching capabilities:
-- Fetches tools from multiple MCP servers via ``mcp.client.Client`` (SDK 2.x)
+- Fetches tools from multiple MCP servers via ``mcp.ClientSession`` (SDK)
 - Server-prefix isolation: ``mcp__{server}__{tool}`` naming prevents collisions and permission bypass
 - Maintains tool-to-server mapping
 - Supports parallel multi-server tool fetching
@@ -159,7 +159,7 @@ class MCPAgent:
         server_config: MCPServerConfigProtocol,
         http_clients: list[httpx2.AsyncClient] | None = None,
     ) -> object:
-        """Build an SDK v2 ``Client`` target for one-shot tool enumeration.
+        """Build the transport target for one-shot tool enumeration.
 
         - SSE: ``sse_client(url, headers=...)`` — SSE transport accepts ``headers``
           directly (no ``http_client`` param).
@@ -294,7 +294,7 @@ class MCPAgent:
     ) -> list[BaseTool]:
         """Get all available MCP tools from configured servers.
 
-        Each server gets a one-shot ``mcp.client.Client`` connection for tool
+        Each server gets a one-shot ``mcp.ClientSession`` connection for tool
         enumeration.  Multiple servers are fetched in parallel.
         """
         if not mcp_config:

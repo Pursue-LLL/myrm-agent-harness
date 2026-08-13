@@ -256,9 +256,7 @@ def access_roots_from_paths(
     writable: bool = True,
     source: str = "declared",
 ) -> tuple[AccessRoot, ...]:
-    return tuple(
-        AccessRoot(path=p, writable=writable, source=source) for p in paths
-    )
+    return tuple(AccessRoot(path=p, writable=writable, source=source) for p in paths)
 
 
 @dataclass(frozen=True, slots=True)
@@ -480,7 +478,9 @@ class SecurityConfig:
         For trusted local environments where the user accepts all risks.
         Equivalent to disabling the security subsystem.
         """
-        full_rules: PermissionRuleset = (PermissionRule("*", "*", PermissionAction.ALLOW),)
+        full_rules: PermissionRuleset = (
+            PermissionRule("*", "*", PermissionAction.ALLOW),
+        )
         return cls(
             capabilities=frozenset({Capability("*", "*")}),
             ruleset=full_rules,
@@ -531,7 +531,9 @@ class EphemeralUserCredential:
 
 
 # Session-bound user credentials context variable. Managed per coroutine.
-user_credentials_ctx: ContextVar[tuple[EphemeralUserCredential, ...]] = ContextVar("user_credentials_ctx", default=())
+user_credentials_ctx: ContextVar[tuple[EphemeralUserCredential, ...]] = ContextVar(
+    "user_credentials_ctx", default=()
+)
 
 
 @asynccontextmanager
@@ -560,7 +562,9 @@ def propagate_user_credentials(  # noqa: UP047
 
 
 @overload
-def propagate_user_credentials(fn: Callable[_P, _R]) -> Callable[_P, _R]: ...  # noqa: UP047
+def propagate_user_credentials(
+    fn: Callable[_P, _R],
+) -> Callable[_P, _R]: ...  # noqa: UP047
 
 
 def propagate_user_credentials(fn: Callable[_P, _R]) -> Callable[_P, _R]:  # noqa: UP047
@@ -593,7 +597,9 @@ def propagate_user_credentials(fn: Callable[_P, _R]) -> Callable[_P, _R]:  # noq
     return sync_wrapper
 
 
-class ToolClarificationException(Exception):  # noqa: N818  intentional descriptive name (HITL, cross-repo)
+class ToolClarificationException(
+    Exception
+):  # noqa: N818  intentional descriptive name (HITL, cross-repo)
     """Raised when a tool needs human clarification before proceeding.
 
     Used by HITL (Human-in-the-Loop) tools that require the user to

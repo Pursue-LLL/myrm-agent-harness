@@ -672,6 +672,7 @@ class TestManagerResolver:
     def test_factory_accepts_manager_resolver(self, mock_manager):
         def resolver():
             return mock_manager
+
         server = create_memory_mcp_server(
             mock_manager,
             server_name="factory-resolver",

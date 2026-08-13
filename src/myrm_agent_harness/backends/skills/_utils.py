@@ -30,6 +30,7 @@ from myrm_agent_harness.backends.skills.types import (
     SkillContractJudgment,
     SkillContractTrap,
     SkillContractVerification,
+    SkillPermission,
     SkillRequires,
 )
 
@@ -143,6 +144,16 @@ class SkillFrontmatter:
     scope_agent_id: str | None = None
     """Agent ID that owns this skill (for Multi-Agent scoping)."""
 
+    required_permissions: list[SkillPermission] = field(default_factory=list)
+    """Permissions required by this skill, declared in SKILL.md frontmatter as:
+
+      required_permissions:
+        - file_write
+        - shell_exec
+
+    Invalid permission names are skipped with a warning (fail-lenient).
+    """
+
 
 def _parse_frontmatter_yaml(content: str, skill_dir_name: str) -> dict[str, object]:
     """Extract and parse YAML frontmatter from SKILL.md content.
@@ -222,6 +233,7 @@ _KNOWN_FRONTMATTER_FIELDS = frozenset(
         "fallback-for-tool-groups",
         "fallback_for_tool_groups",
         "scope_agent_id",
+        "required_permissions",
     }
 )
 
@@ -704,6 +716,19 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         if raw_scope:
             scope_agent_id = raw_scope
 
+    # required_permissions: optional, list of SkillPermission names.
+    # Invalid names are skipped with a warning so one typo does not disable a skill.
+    required_permissions: list[SkillPermission] = []
+    raw_permissions = parsed.get("required_permissions")
+    for raw in _extract_str_list(raw_permissions):
+        try:
+            required_permissions.append(SkillPermission(raw))
+        except ValueError:
+            logger.warning(
+                f"Skill '{skill_dir_name}' declares unknown required_permission "
+                f"'{raw}' (valid: {', '.join(p.value for p in SkillPermission)})"
+            )
+
     contract = _parse_skill_contract(parsed, skill_dir_name)
 
     return SkillFrontmatter(
@@ -731,6 +756,7 @@ def parse_skill_frontmatter(content: str, skill_dir_name: str) -> SkillFrontmatt
         config_schema=config_schema,
         contract=contract,
         scope_agent_id=scope_agent_id,
+        required_permissions=required_permissions,
     )
 
 

@@ -79,7 +79,11 @@ def convert_mcp_tools(
     for tool in tools:
         tool_name: str = tool.name
         description: str = getattr(tool, "description", "") or ""
-        input_schema: dict[str, Any] = getattr(tool, "input_schema", {}) or {}
+        input_schema: dict[str, Any] = (
+            getattr(tool, "input_schema", None)
+            or getattr(tool, "inputSchema", None)
+            or {}
+        )
         if isinstance(input_schema, str):
             input_schema = json.loads(input_schema)
         if not isinstance(input_schema, dict):

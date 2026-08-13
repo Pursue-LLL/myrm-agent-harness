@@ -114,7 +114,9 @@ class SubagentSpawnMixin:
             except TimeoutError:
                 logger.warning(
                     "[subagent:%s] Hard timeout after %ss (config timeout=%ss)",
-                    task_id, hard_timeout, config.timeout_seconds,
+                    task_id,
+                    hard_timeout,
+                    config.timeout_seconds,
                 )
                 return SubAgentResult(
                     success=False,
@@ -143,16 +145,26 @@ class SubagentSpawnMixin:
     ) -> SubAgentResult:
         import contextlib
 
-        from myrm_agent_harness.agent.skills.evolution.execution.executor_context import ExecutorContextManager
+        from myrm_agent_harness.agent.skills.evolution.execution.executor_context import (
+            ExecutorContextManager,
+        )
         from myrm_agent_harness.agent.sub_agents.types import WorkspacePolicy
-        from myrm_agent_harness.toolkits.code_execution.executors.base import get_executor
-        from myrm_agent_harness.toolkits.code_execution.executors.readonly_proxy import ReadonlyExecutorProxy
+        from myrm_agent_harness.toolkits.code_execution.executors.base import (
+            get_executor,
+        )
+        from myrm_agent_harness.toolkits.code_execution.executors.readonly_proxy import (
+            ReadonlyExecutorProxy,
+        )
 
         context_manager = contextlib.nullcontext()
         if config.workspace_policy == WorkspacePolicy.READ_ONLY_SANDBOX:
             current_executor = get_executor()
-            if current_executor and not isinstance(current_executor, ReadonlyExecutorProxy):
-                context_manager = ExecutorContextManager(ReadonlyExecutorProxy(current_executor))
+            if current_executor and not isinstance(
+                current_executor, ReadonlyExecutorProxy
+            ):
+                context_manager = ExecutorContextManager(
+                    ReadonlyExecutorProxy(current_executor)
+                )
 
         with context_manager:
             return await self._run_subagent_core(
@@ -206,7 +218,9 @@ class SubagentSpawnMixin:
                 resume_command=resume_command,
                 parent_progress_sink=parent_progress_sink,
                 complexity_tier=complexity_tier,
-                on_running_token_usage=lambda usage: self.patch_child_running_token_usage(task_id, usage),
+                on_running_token_usage=lambda usage: self.patch_child_running_token_usage(
+                    task_id, usage
+                ),
                 internal=bool(self._children_internal.get(task_id, False)),
             )
             completed_normally = True
@@ -309,10 +323,14 @@ class SubagentSpawnMixin:
             from .manager import ACTIVE_SUBAGENT_SESSIONS
 
             ACTIVE_SUBAGENT_SESSIONS[task_id] = session_id
-            from myrm_agent_harness.agent.coordination.mailbox import register_active_teammate
+            from myrm_agent_harness.agent.coordination.mailbox import (
+                register_active_teammate,
+            )
 
             workspace_path = str(context.get("workspace_path", "") or "") or None
-            await register_active_teammate(session_id, workspace_path, task_id, agent_type)
+            await register_active_teammate(
+                session_id, workspace_path, task_id, agent_type
+            )
 
         observability_metadata = self._child_observability_metadata(task_id)  # type: ignore[attr-defined]
         budget_payload = observability_metadata.get("budget")
@@ -329,7 +347,9 @@ class SubagentSpawnMixin:
                     description=task_description,
                     role=config.delegation_role.value,
                     control_scope=config.control_scope.value,
-                    budget=to_json_object(budget_payload if isinstance(budget_payload, dict) else None),
+                    budget=to_json_object(
+                        budget_payload if isinstance(budget_payload, dict) else None
+                    ),
                 ),
             )
 
@@ -345,14 +365,19 @@ class SubagentSpawnMixin:
                             "description": task_description,
                             "role": config.delegation_role.value,
                             "control_scope": config.control_scope.value,
-                            "budget": budget_payload if isinstance(budget_payload, dict) else {},
+                            "budget": (
+                                budget_payload
+                                if isinstance(budget_payload, dict)
+                                else {}
+                            ),
                         },
                     }
                 )
 
         if wait:
             done, _pending = await asyncio.wait(
-                {task}, timeout=config.timeout_seconds,
+                {task},
+                timeout=config.timeout_seconds,
             )
             if done:
                 result = task.result()
@@ -376,7 +401,8 @@ class SubagentSpawnMixin:
             if config.timeout_seconds is not None:
                 logger.info(
                     "[subagent:%s] Wait timeout after %ss — agent continues in background",
-                    task_id, config.timeout_seconds,
+                    task_id,
+                    config.timeout_seconds,
                 )
                 return SubAgentResult(
                     success=False,

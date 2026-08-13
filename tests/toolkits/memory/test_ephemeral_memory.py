@@ -117,12 +117,6 @@ class TestReadOnlyMemoryViewWriteDenied:
             await view.correct_memory("mem-1", "corrected")
 
     @pytest.mark.asyncio
-    async def test_archive_memories_auto_denied(self):
-        view = self._make_view()
-        with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
-            await view.archive_memories_auto()
-
-    @pytest.mark.asyncio
     async def test_restore_backup_denied(self):
         view = self._make_view()
         strategy = MagicMock()
@@ -222,12 +216,6 @@ class TestReadOnlyMemoryViewWriteDenied:
         with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
             await view.submit_pending(mem)
 
-    @pytest.mark.asyncio
-    async def test_unarchive_memories_denied(self):
-        view = self._make_view()
-        with pytest.raises(PermissionError, match="READ_ONLY_GLOBAL"):
-            await view.unarchive_memories(["id-1"], MemoryType.SEMANTIC)
-
     def test_set_last_cited_memory_ids_allowed(self):
         view = self._make_view()
         view.set_last_cited_memory_ids(["id-1", "id-2"])
@@ -297,12 +285,6 @@ class TestReadOnlyMemoryViewReadDelegation:
         view, _parent = self._make_view()
         result = await view.count_pending()
         assert result == 0
-
-    @pytest.mark.asyncio
-    async def test_search_archived_returns_empty(self):
-        view, _parent = self._make_view()
-        result = await view.search_archived("query", MemoryType.SEMANTIC)
-        assert result == []
 
     @pytest.mark.asyncio
     async def test_list_memories_delegates(self):

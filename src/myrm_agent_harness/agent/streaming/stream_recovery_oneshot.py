@@ -121,7 +121,7 @@ class OneshotRecoveryMixin:
             " Thinking signature invalid — stripped %d thinking blocks, retrying",
             stripped,
         )
-        await self._emit_recovery_event("thinking_signature_recovery")
+        await self._emit_recovery_event("thinking_signature_recovery", restart=True)
         self.streaming_final_answer = False
         return True
 
@@ -160,7 +160,7 @@ class OneshotRecoveryMixin:
             " Duplicate tool_use id — sanitized tool history (%d messages), retrying",
             len(sanitized),
         )
-        await self._emit_recovery_event("tool_history_recovery")
+        await self._emit_recovery_event("tool_history_recovery", restart=True)
         self.streaming_final_answer = False
         return True
 
@@ -198,7 +198,7 @@ class OneshotRecoveryMixin:
             shrunk,
             max_dim,
         )
-        await self._emit_recovery_event("image_shrink_recovery")
+        await self._emit_recovery_event("image_shrink_recovery", restart=True)
         self.streaming_final_answer = False
         return True
 
@@ -270,7 +270,7 @@ class OneshotRecoveryMixin:
                     converted,
                 )
                 await self._emit_recovery_event(
-                    "vision_fallback_recovery", converted_count=converted
+                    "vision_fallback_recovery", converted_count=converted, restart=True
                 )
                 self.streaming_final_answer = False
                 return True
@@ -310,7 +310,7 @@ class OneshotRecoveryMixin:
             stripped,
         )
         await self._emit_recovery_event(
-            "media_rejected_recovery", stripped_count=stripped
+            "media_rejected_recovery", stripped_count=stripped, restart=True
         )
         self.streaming_final_answer = False
         return True
@@ -356,7 +356,7 @@ class OneshotRecoveryMixin:
         logger.warning(
             " Provider rejected allowed_tools tool_choice — retrying without model-layer hint"
         )
-        await self._emit_recovery_event("allowed_tools_rejected_recovery")
+        await self._emit_recovery_event("allowed_tools_rejected_recovery", restart=True)
         self.streaming_final_answer = False
         return True
 
@@ -386,7 +386,7 @@ class OneshotRecoveryMixin:
             " Long-context tier gate — compressed context (freed %d tokens), retrying",
             saved,
         )
-        await self._emit_recovery_event("long_context_tier_recovery")
+        await self._emit_recovery_event("long_context_tier_recovery", restart=True)
         self.streaming_final_answer = False
         return True
 

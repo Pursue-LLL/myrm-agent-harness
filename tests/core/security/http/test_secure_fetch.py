@@ -35,7 +35,9 @@ async def test_secure_request_blocks_redirect_to_internal() -> None:
         ),
     ):
         transport = httpx.MockTransport(lambda _request: redirect_response)
-        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+        async with httpx.AsyncClient(
+            transport=transport, follow_redirects=False
+        ) as client:
             with pytest.raises(SSRFSecurityError):
                 await secure_request(client, "GET", "https://example.com/start")
 
@@ -65,7 +67,9 @@ async def test_secure_request_follows_safe_redirect() -> None:
         ),
     ):
         transport = httpx.MockTransport(handler)
-        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+        async with httpx.AsyncClient(
+            transport=transport, follow_redirects=False
+        ) as client:
             response = await secure_request(client, "GET", "https://example.com/start")
             assert response.status_code == 200
             assert response.text == "ok"
@@ -98,8 +102,12 @@ async def test_resolve_secure_http_target_returns_pinned_final_hop() -> None:
         ),
     ):
         transport = httpx.MockTransport(handler)
-        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
-            target = await resolve_secure_http_target(client, "https://example.com/start")
+        async with httpx.AsyncClient(
+            transport=transport, follow_redirects=False
+        ) as client:
+            target = await resolve_secure_http_target(
+                client, "https://example.com/start"
+            )
             assert target.logical_url == "https://example.com/final"
             assert target.request_url == "https://5.6.7.8/final"
             assert target.headers["Host"] == "example.com"
@@ -130,8 +138,14 @@ def test_https_pin_extensions_sets_sni_for_pinned_https_ip() -> None:
 
 
 def test_https_pin_extensions_skips_non_ip_and_http() -> None:
-    assert _https_pin_extensions("https://opencode.ai/v1/models", {"Host": "opencode.ai"}) == {}
-    assert _https_pin_extensions("http://93.184.216.34/v1/models", {"Host": "opencode.ai"}) == {}
+    assert (
+        _https_pin_extensions("https://opencode.ai/v1/models", {"Host": "opencode.ai"})
+        == {}
+    )
+    assert (
+        _https_pin_extensions("http://93.184.216.34/v1/models", {"Host": "opencode.ai"})
+        == {}
+    )
     assert _https_pin_extensions("https://93.184.216.34/v1/models", {}) == {}
 
 
@@ -139,20 +153,27 @@ def test_https_pin_extensions_skips_non_ip_and_http() -> None:
 async def test_secure_request_passes_sni_extensions_for_pinned_https_ip() -> None:
     captured_extensions: list[dict[str, object]] = []
 
-    async def _capture_send(request: httpx.Request, **_kwargs: object) -> httpx.Response:
+    async def _capture_send(
+        request: httpx.Request, **_kwargs: object
+    ) -> httpx.Response:
         captured_extensions.append(dict(request.extensions))
         return httpx.Response(200, text="ok", request=request)
 
     with patch(
         "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",
         new=AsyncMock(
-            return_value=("https://93.184.216.34/zen/go/v1/models", {"Host": "opencode.ai"}),
+            return_value=(
+                "https://93.184.216.34/zen/go/v1/models",
+                {"Host": "opencode.ai"},
+            ),
         ),
     ):
         client = AsyncMock()
         client.build_request = httpx.AsyncClient().build_request
         client.send = AsyncMock(side_effect=_capture_send)
-        response = await secure_request(client, "GET", "https://opencode.ai/zen/go/v1/models")
+        response = await secure_request(
+            client, "GET", "https://opencode.ai/zen/go/v1/models"
+        )
         assert response.status_code == 200
         assert len(captured_extensions) == 1
         assert captured_extensions[0]["sni_hostname"] == "opencode.ai"
@@ -175,7 +196,9 @@ async def test_secure_request_raises_when_content_length_exceeds_limit() -> None
         new=AsyncMock(return_value=("https://example.com/", {"Host": "example.com"})),
     ):
         transport = httpx.MockTransport(handler)
-        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+        async with httpx.AsyncClient(
+            transport=transport, follow_redirects=False
+        ) as client:
             with pytest.raises(ContentTooLargeError):
                 await secure_request(
                     client, "GET", "https://example.com", max_content_length=100
@@ -198,7 +221,9 @@ async def test_secure_request_raises_when_stream_exceeds_limit() -> None:
         new=AsyncMock(return_value=("https://example.com/", {"Host": "example.com"})),
     ):
         transport = httpx.MockTransport(handler)
-        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+        async with httpx.AsyncClient(
+            transport=transport, follow_redirects=False
+        ) as client:
             with pytest.raises(ContentTooLargeError):
                 await secure_request(
                     client, "GET", "https://example.com", max_content_length=100
@@ -217,7 +242,9 @@ async def test_secure_request_returns_full_body_without_limit() -> None:
         new=AsyncMock(return_value=("https://example.com/", {"Host": "example.com"})),
     ):
         transport = httpx.MockTransport(handler)
-        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+        async with httpx.AsyncClient(
+            transport=transport, follow_redirects=False
+        ) as client:
             response = await secure_request(
                 client, "GET", "https://example.com", max_content_length=None
             )
@@ -246,7 +273,9 @@ async def test_secure_request_applies_default_cap() -> None:
         new=AsyncMock(return_value=("https://example.com/", {"Host": "example.com"})),
     ):
         transport = httpx.MockTransport(handler)
-        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+        async with httpx.AsyncClient(
+            transport=transport, follow_redirects=False
+        ) as client:
             with pytest.raises(ContentTooLargeError):
                 await secure_request(client, "GET", "https://example.com")
 
@@ -284,7 +313,7 @@ async def test_resolve_target_no_redirects_with_negative_limit() -> None:
                 )
 
 
-@ pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_secure_request_disables_shield_passthrough() -> None:
     """enable_ssrf_shield=False short-circuits DNS pinning entirely."""
     with patch(
@@ -302,7 +331,7 @@ async def test_secure_request_disables_shield_passthrough() -> None:
         mock_pin.assert_not_called()
 
 
-@ pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_secure_request_redirect_downgrades_post_to_get() -> None:
     """301 with a body-capable method downgrades the next hop to GET."""
 
@@ -322,7 +351,9 @@ async def test_secure_request_redirect_downgrades_post_to_get() -> None:
         ),
     ):
         transport = httpx.MockTransport(handler)
-        async with httpx.AsyncClient(transport=transport, follow_redirects=False) as client:
+        async with httpx.AsyncClient(
+            transport=transport, follow_redirects=False
+        ) as client:
             resp = await secure_request(client, "POST", "https://example.com/start")
             assert resp.status_code == 200
             assert resp.text == "done"
@@ -332,7 +363,7 @@ def test_https_pin_extensions_empty_hop_host() -> None:
     assert _https_pin_extensions("https:///bare", {"Host": "example.com"}) == {}
 
 
-@ pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_resolve_target_ssrf_blocked_during_redirect() -> None:
     redirect_response = httpx.Response(
         302,
@@ -354,7 +385,7 @@ async def test_resolve_target_ssrf_blocked_during_redirect() -> None:
                 await resolve_secure_http_target(client, "https://example.com/start")
 
 
-@ pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_resolve_target_too_many_redirects() -> None:
     redirect_response = httpx.Response(
         302,
@@ -373,7 +404,7 @@ async def test_resolve_target_too_many_redirects() -> None:
                 )
 
 
-@ pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_secure_request_too_many_redirects() -> None:
     redirect_response = httpx.Response(
         302,
@@ -392,7 +423,7 @@ async def test_secure_request_too_many_redirects() -> None:
                 )
 
 
-@ pytest.mark.asyncio
+@pytest.mark.asyncio
 async def test_secure_request_no_response_received() -> None:
     with patch(
         "myrm_agent_harness.core.security.http.secure_fetch.async_pin_url",

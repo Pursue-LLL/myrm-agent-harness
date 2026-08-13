@@ -127,6 +127,14 @@ class AgentResponse:
     extra_timings: dict[str, float] = field(default_factory=dict)
     token_usage: dict[str, int] = field(default_factory=dict)
     cost: float = 0.0
+    # ``limit_type`` (e.g. "max_tool_calls") when the engine stopped the run
+    # because a configured budget was exhausted — disclosed so a report never
+    # mistakes a truncated run for a complete answer.
+    limit_reached: str | None = None
+    # Number of tool invocations rejected by a benchmark decontamination
+    # blocklist (blocked host / blocked query). Lets a report disclose that
+    # pollution guards actually engaged during the run.
+    blocked_count: int = 0
 
 
 @dataclass(slots=True)
@@ -168,6 +176,8 @@ class EvalManifest:
     benchmark_mode: bool = False
     judge_model: str = "none"  # LLM judge model used for semantic assertions
     limit: int | None = None  # Reproducible sample size actually applied (None = full run)
+    max_tool_calls: int | None = None  # Benchmark-declared tool-call budget (None = engine default)
+    max_iterations: int | None = None  # Benchmark-declared recursion budget (None = engine default)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -186,6 +196,8 @@ class EvalManifest:
             "benchmark_mode": self.benchmark_mode,
             "judge_model": self.judge_model,
             "limit": self.limit,
+            "max_tool_calls": self.max_tool_calls,
+            "max_iterations": self.max_iterations,
         }
 
 
@@ -310,6 +322,9 @@ class EvalResult:
                     for a in r.case.semantic_assertions
                 ],
                 "tools_called": r.response.tools_called,
+                "tool_call_details": r.response.tool_call_details,
+                "limit_reached": r.response.limit_reached,
+                "blocked_count": r.response.blocked_count,
                 "assertion_passed": r.assertion_passed,
                 "assertion_details": r.assertion_details,
                 "scores": r.scores,

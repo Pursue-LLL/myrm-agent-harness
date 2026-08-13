@@ -81,7 +81,9 @@ _PREFIX_PATTERNS: tuple[str, ...] = (
     r"GR1348941[A-Za-z0-9_\-]{10,}",  # legacy runner registration token
 )
 
-_PREFIX_RE = re.compile(r"(?<![A-Za-z0-9_-])(" + "|".join(_PREFIX_PATTERNS) + r")(?![A-Za-z0-9_-])")
+_PREFIX_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])(" + "|".join(_PREFIX_PATTERNS) + r")(?![A-Za-z0-9_-])"
+)
 
 # Authorization headers — any scheme (Bearer, Basic, Token, Digest, …) plus the
 # bare-credential form, and Proxy-Authorization. The credential token is masked
@@ -94,7 +96,9 @@ _AUTH_HEADER_RE = re.compile(
     re.IGNORECASE,
 )
 
-_PRIVATE_KEY_RE = re.compile(r"-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----")
+_PRIVATE_KEY_RE = re.compile(
+    r"-----BEGIN[A-Z ]*PRIVATE KEY-----[\s\S]*?-----END[A-Z ]*PRIVATE KEY-----"
+)
 
 # ── Contextual patterns (context-based detection) ────────────────
 
@@ -188,7 +192,10 @@ def _key_has_secret_keyword(key: str) -> bool:
     过滤 `secretary`/`tokenizer`/`authored`/`KEYBOARD` 等嵌词误伤——关键词必须
     落在词边界（key 边缘、非字母旁、camelCase/缩写转换处）才算凭据。
     """
-    return any(_is_word_start(key, m.start()) and _is_word_end(key, m.end()) for m in _KEY_KEYWORD_RE.finditer(key))
+    return any(
+        _is_word_start(key, m.start()) and _is_word_end(key, m.end())
+        for m in _KEY_KEYWORD_RE.finditer(key)
+    )
 
 
 # ── Form-urlencoded body（`token=abc&limit=50&page=2`）──────────
@@ -218,7 +225,9 @@ _SENSITIVE_BODY_KEYS = frozenset(
         "key",
     }
 )
-_FORM_BODY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]*=[^&\s]*(?:&[A-Za-z_][A-Za-z0-9_.-]*=[^&\s]*)+$")
+_FORM_BODY_RE = re.compile(
+    r"^[A-Za-z_][A-Za-z0-9_.-]*=[^&\s]*(?:&[A-Za-z_][A-Za-z0-9_.-]*=[^&\s]*)+$"
+)
 
 
 def _redact_form_body(text: str) -> str:
@@ -260,10 +269,13 @@ _JSON_KEY_NAMES = (
     r"refresh_token|auth_token|bearer|secret_value|raw_secret|secret_input|key_material)"
 )
 # JSON 字符串值支持 `\"` 转义引号（`{"password": "my\"secret"}` 整体捕获不截断）。
-_JSON_FIELD_RE = re.compile(rf'("{_JSON_KEY_NAMES}")\s*:\s*"((?:[^"\\\\]|\\.)*)"', re.IGNORECASE)
+_JSON_FIELD_RE = re.compile(
+    rf'("{_JSON_KEY_NAMES}")\s*:\s*"((?:[^"\\\\]|\\.)*)"', re.IGNORECASE
+)
 
 _DB_CONNSTR_RE = re.compile(
-    r"((?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://[^:]+:)([^@]+)(@)", re.IGNORECASE
+    r"((?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp)://[^:]+:)([^@]+)(@)",
+    re.IGNORECASE,
 )
 
 # ── URL Query parameters (OPT-2) ────────────────────────────────
@@ -328,7 +340,9 @@ _JWT_RE = re.compile(r"eyJ[A-Za-z0-9_-]{10,}(?:\.[A-Za-z0-9_=-]{4,}){0,2}")
 # 匹配，再映射回原文对应 span 掩码；仅当 span 内全部为 token-body 或控制
 # 字符时才掩码，避免跨行误伤无关文本。
 _CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f\u200b-\u200f\u2028-\u202f\u2060\ufeff]")
-_TOKEN_BODY_CHARS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-.")
+_TOKEN_BODY_CHARS = frozenset(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-."
+)
 
 
 def _mask_token(token: str) -> str:

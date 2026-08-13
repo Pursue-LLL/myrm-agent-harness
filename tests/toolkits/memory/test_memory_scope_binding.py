@@ -222,3 +222,53 @@ def test_apply_channel_affinity_helper_prefers_current_channel():
     adjusted = apply_channel_affinity([other, current], current_channel_id="telegram")
 
     assert adjusted[0].score < adjusted[1].score
+
+
+@pytest.mark.asyncio
+async def test_unarchive_memory_rejects_cross_agent_doc() -> None:
+    """unarchive must not restore a memory outside the caller's namespaces."""
+    from myrm_agent_harness.toolkits.memory._internal.storage import MemoryNotFoundError
+    from myrm_agent_harness.toolkits.vector.base import VectorDocument
+
+    config = MemoryConfig(embedding_model="test", retrieval=RetrievalConfig())
+    vector = AsyncMock()
+    doc = VectorDocument(
+        id="mem-b",
+        content="B's archived fact",
+        metadata={"user_id": "test_user", "namespaces": ["agent:B"], "status": "archived"},
+    )
+    vector.get = AsyncMock(return_value=[doc])
+
+    manager = MemoryManager(
+        config, user_id="test_user", namespaces=["global", "agent:A"], vector=vector, auto_warmup=False
+    )
+
+    with pytest.raises(MemoryNotFoundError):
+        await manager.unarchive_memory("mem-b")
+
+
+@pytest.mark.asyncio
+async def test_unarchive_memory_accepts_owned_doc() -> None:
+    """A memory inside the caller's namespaces restores normally."""
+    from myrm_agent_harness.toolkits.memory.types import SemanticMemory
+    from myrm_agent_harness.toolkits.vector.base import VectorDocument
+
+    config = MemoryConfig(embedding_model="test", retrieval=RetrievalConfig())
+    vector = AsyncMock()
+    doc = VectorDocument(
+        id="mem-a",
+        content="A's archived fact",
+        metadata={"user_id": "test_user", "namespaces": ["agent:A"], "status": "archived"},
+    )
+    vector.get = AsyncMock(return_value=[doc])
+    vector.upsert = AsyncMock()
+
+    manager = MemoryManager(
+        config, user_id="test_user", namespaces=["global", "agent:A"], vector=vector, auto_warmup=False
+    )
+
+    restored = await manager.unarchive_memory("mem-a")
+
+    assert isinstance(restored, SemanticMemory)
+    assert restored.id == "mem-a"
+    vector.upsert.assert_awaited_once()

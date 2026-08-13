@@ -56,7 +56,10 @@ class TestRedactForLlmLive:
         assert "alice" in out
 
     def test_redact_for_display_stronger_than_llm(self) -> None:
-        args = {"url": "https://api.example.com/v1", "headers": {"Authorization": "Bearer sk-live-abcdef0123456789"}}
+        args = {
+            "url": "https://api.example.com/v1",
+            "headers": {"Authorization": "Bearer sk-live-abcdef0123456789"},
+        }
         llm = redact_for_llm(args)
         display = redact_for_display(args)
         # display 通道对完整值做掩码，必须比 LLM 通道更彻底

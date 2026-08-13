@@ -412,9 +412,7 @@ class TestOneOf:
                         "anyOf": [
                             {
                                 "type": "object",
-                                "properties": {
-                                    "op": {"type": "string", "const": "eq"}
-                                },
+                                "properties": {"op": {"type": "string", "const": "eq"}},
                             },
                             {
                                 "type": "object",
@@ -1031,9 +1029,7 @@ class TestTopLevelComposite:
 
     def test_top_level_no_object_branch_falls_back(self) -> None:
         """Non-object-only branches fall back to a permissive empty schema."""
-        schema = _wrap(
-            {"anyOf": [{"type": "string"}, {"type": "null"}]}
-        )
+        schema = _wrap({"anyOf": [{"type": "string"}, {"type": "null"}]})
         result = _params(normalize_tool_schema(schema))
         assert result["type"] == "object"
         assert result["properties"] == {}
@@ -2121,9 +2117,7 @@ class TestNormalizeTypeArrays:
             normalize_type_arrays,
         )
 
-        result = normalize_type_arrays(
-            {"type": ["string", "null"], "description": "d"}
-        )
+        result = normalize_type_arrays({"type": ["string", "null"], "description": "d"})
         assert result == {"type": "string", "nullable": True, "description": "d"}
 
     def test_multi_non_null_types_anyof_form(self) -> None:
@@ -2209,7 +2203,9 @@ class TestOpenApiComponentsRefs:
         schema = _wrap(
             {
                 "type": "object",
-                "properties": {"field": {"$ref": "#/components/schemas/Foo/properties/bar"}},
+                "properties": {
+                    "field": {"$ref": "#/components/schemas/Foo/properties/bar"}
+                },
                 "components": {
                     "schemas": {
                         "Foo": {

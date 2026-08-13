@@ -169,6 +169,10 @@ _INTERACTION_TIMEOUT_MS = 10_000
 # Post-scroll settle wait before re-measuring, so smooth-scroll animations that
 # started on the wheel events have time to move before a no-op is reported.
 _SCROLL_VERIFY_SETTLE_MS = 120
+# Max humanized wheel steps used to bring an interaction target into the
+# viewport center band before a CAREFUL interaction proceeds. Each step settles,
+# so the bound keeps worst-case latency sane on nested/cross-origin containers.
+_TARGET_SCROLL_MAX_STEPS = 6
 # Walks from elementFromPoint(x, y) up to the document and returns the metrics of
 # the container a wheel event would actually scroll. Only real wheel-scrollable
 # boxes count (overflow auto/scroll, or the document itself), so overflow:visible
@@ -477,6 +481,16 @@ class Interactor:
             except Exception as e:
                 logger.debug(f"Interactor: post-action SPA wait failed/timed out: {e}")
 
+        # CAREFUL-only: bring the target into the viewport center band with the same
+        # humanized wheel stack used by explicit scrolls, instead of Playwright's
+        # implicit one-shot scrollIntoViewIfNeeded (instant JS jump, CDP fingerprint).
+        # Scroll actions own their own positioning, so they are excluded.
+        if self._humanize.enable_bezier_mouse and action not in (
+            "scroll",
+            "scroll_to_bottom",
+        ):
+            await self._ensure_target_in_view(locator)
+
         try:
             if action == "click":
                 if self._humanize.enable_bezier_mouse:
@@ -768,10 +782,19 @@ class Interactor:
         target_x = box["x"] + box["width"] * random.uniform(0.35, 0.65)
         target_y = box["y"] + box["height"] * random.uniform(0.35, 0.65)
 
+        viewport = self._page.viewport_size or {"width": 1280, "height": 720}
+        vw, vh = float(viewport["width"]), float(viewport["height"])
+        # CDP clamps off-viewport mouse coordinates to the viewport edge, so moving
+        # to a target whose center is still outside the viewport would make the
+        # mouse.down/up land on the edge and miss silently. Hand the interaction back
+        # to the native locator action instead: its scrollIntoViewIfNeeded either
+        # scrolls the target in, or fails loudly — never a silent wrong click.
+        if not (0.0 <= target_x <= vw and 0.0 <= target_y <= vh):
+            return False
+
         if self._mouse_x == 0.0 and self._mouse_y == 0.0:
-            viewport = self._page.viewport_size
-            self._mouse_x = float((viewport or {}).get("width", 800)) / 2
-            self._mouse_y = float((viewport or {}).get("height", 600)) / 2
+            self._mouse_x = vw / 2
+            self._mouse_y = vh / 2
 
         await bezier_move(
             self._page, self._mouse_x, self._mouse_y, target_x, target_y, self._humanize
@@ -801,6 +824,73 @@ class Interactor:
             y = min(max(box["y"] + box["height"] / 2, 1.0), vh - 1.0)
             return x, y
         return vw / 2, vh / 2
+
+    async def _target_box(self, locator: Locator) -> dict[str, float] | None:
+        """Viewport box of a ref target, or None when it cannot be measured.
+
+        ``bounding_box`` is a pure geometry read — unlike locator actions it never
+        triggers Playwright's implicit scrollIntoViewIfNeeded — so it is safe to
+        call before deciding whether a humanized scroll is needed.
+        """
+        try:
+            await locator.wait_for(state="visible", timeout=2000)
+            box = await locator.bounding_box(timeout=1000)
+        except Exception:
+            return None
+        if box is None or "y" not in box or "height" not in box:
+            return None
+        return box
+
+    async def _ensure_target_in_view(self, locator: Locator) -> bool:
+        """Bring a CAREFUL interaction target into the viewport center band.
+
+        Replaces Playwright's implicit one-shot ``scrollIntoViewIfNeeded`` (instant
+        JS jump, no wheel events) with the same humanized wheel stack used by
+        explicit scrolls. The target's viewport box is read via ``_target_box``,
+        the gap to the center band is delivered as humanized wheel notches through
+        ``_scroll_deliver``, and the box is re-read each step so nested/cross-origin
+        containers degrade gracefully. Returns True when a wheel scroll happened.
+
+        Best-effort by contract: any failure (page navigating/closed mid-wheel,
+        measure errors, ...) degrades silently to False, because the action itself
+        still runs through its normal path afterwards.
+        """
+        if not self._humanize.enable_bezier_mouse:
+            return False
+        try:
+            zone = self._humanize.scroll_target_zone
+            viewport = self._page.viewport_size or {"width": 1280, "height": 720}
+            vh = float(viewport["height"])
+            zone_lo, zone_hi = vh * zone[0], vh * zone[1]
+
+            box = await self._target_box(locator)
+            if box is None:
+                return False
+            cy = box["y"] + box["height"] / 2
+            if zone_lo <= cy <= zone_hi:
+                return False
+
+            target_x, target_y = await self._scroll_cursor_target(locator)
+            await self._scroll_move_cursor(target_x, target_y)
+
+            moved = False
+            for _ in range(_TARGET_SCROLL_MAX_STEPS):
+                box = await self._target_box(locator)
+                if box is None:
+                    break
+                cy = box["y"] + box["height"] / 2
+                if zone_lo <= cy <= zone_hi:
+                    break
+                target = zone_hi if cy > zone_hi else zone_lo
+                delta = round(cy - target)
+                if delta == 0:
+                    break
+                await self._scroll_deliver(delta)
+                moved = True
+            return moved
+        except Exception as e:
+            logger.debug(f"Interactor: pre-interaction scroll skipped: {e}")
+            return False
 
     async def _scroll_move_cursor(self, x: float, y: float) -> None:
         """Move the mouse to a scroll target (Bézier trajectory in CAREFUL mode)."""

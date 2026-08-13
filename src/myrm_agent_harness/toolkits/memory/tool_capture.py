@@ -175,6 +175,12 @@ class _FailureTracker:
 
 _FAILURE_THRESHOLD = 2
 
+# Auto-generated failure rules are transient warnings, not durable constraints:
+# they carry a short TTL and an origin marker so the context loader can keep
+# them out of the stable prompt layer.
+TOOL_FAILURE_TTL_DAYS = 1
+TOOL_FAILURE_ORIGIN = "tool_failure"
+
 
 class ToolMemoryCaptureHook:
     """Captures tool-scoped rules from user edicts and repeated failures.
@@ -261,6 +267,8 @@ class ToolMemoryCaptureHook:
                 source=RuleSource.AGENT_SELF,
                 language="en",
                 priority=30,
+                expected_valid_days=TOOL_FAILURE_TTL_DAYS,
+                metadata={"origin": TOOL_FAILURE_ORIGIN},
             )
             self._pending_rules.append(rule)
             logger.info(

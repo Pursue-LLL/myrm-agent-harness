@@ -222,7 +222,13 @@ class TestRedactingFormatter:
     def test_formatter_preserves_normal_messages(self) -> None:
         formatter = RedactingFormatter("%(message)s")
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0, msg="Normal log message", args=(), exc_info=None
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="Normal log message",
+            args=(),
+            exc_info=None,
         )
         assert formatter.format(record) == "Normal log message"
 
@@ -256,7 +262,11 @@ class TestP12Optimizations:
 
     def test_opt1_chunk_boundary_pem_split(self) -> None:
         """PEM block spanning a chunk boundary must be redacted."""
-        pem = "-----BEGIN RSA PRIVATE KEY-----\n" + "A" * 2000 + "\n-----END RSA PRIVATE KEY-----"
+        pem = (
+            "-----BEGIN RSA PRIVATE KEY-----\n"
+            + "A" * 2000
+            + "\n-----END RSA PRIVATE KEY-----"
+        )
         pad = 16384 - 50
         large_text = " " * pad + pem + " " * (40000 - pad - len(pem))
         assert len(large_text) > 32768
@@ -268,7 +278,9 @@ class TestP12Optimizations:
         """Tokens in the overlap region must not be redacted twice."""
         token = "ghp_abcdefghijklmnop"
         pad = 16384 - 5
-        large_text = " " * pad + " " + token + " " + " " * (40000 - pad - len(token) - 2)
+        large_text = (
+            " " * pad + " " + token + " " + " " * (40000 - pad - len(token) - 2)
+        )
         assert len(large_text) > 32768
         result = redact_sensitive_text(large_text)
         assert token not in result
@@ -330,7 +342,10 @@ MHcCAQEEIAbcdefg
     @pytest.mark.parametrize(
         "text,secret",
         [
-            ("curl --api-key sk-proj-abcdefghij1234567890", "sk-proj-abcdefghij1234567890"),
+            (
+                "curl --api-key sk-proj-abcdefghij1234567890",
+                "sk-proj-abcdefghij1234567890",
+            ),
             ("run --token ghp_abcdefghijklmnop --verbose", "ghp_abcdefghijklmnop"),
             ('python script.py --api_key "secret123456789012"', "secret123456789012"),
             ("cli --password hunter2hunter2hunter2", "hunter2hunter2hunter2"),
@@ -464,7 +479,9 @@ class TestRedactForDisplay:
         assert "\\u{200D}" in str(result)
 
     def test_combined_invisible_and_secret(self) -> None:
-        args = {"command": "curl\u200b -H 'Authorization: Bearer sk-ant-api03-abcdefghijklmnopqrstuvwxyz'"}
+        args = {
+            "command": "curl\u200b -H 'Authorization: Bearer sk-ant-api03-abcdefghijklmnopqrstuvwxyz'"
+        }
         result = redact_for_display(args)
         assert "\u200b" not in str(result)
         assert "sk-ant-api03-abcdefghijklmnopqrstuvwxyz" not in str(result)
@@ -539,7 +556,9 @@ class TestRedactEngineHardening:
 
     def test_masked_value_not_remasked(self) -> None:
         """双重匹配（`client_secret=` 同时命中 ENV 与 ENV_LOWER）不折叠为 `***`。"""
-        result = redact_sensitive_text("com.example.client_secret=mysecretvalue12345678")
+        result = redact_sensitive_text(
+            "com.example.client_secret=mysecretvalue12345678"
+        )
         assert "mysecretvalue12345678" not in result
         assert "mysecr...5678" in result
         assert "client_secret=***" not in result
@@ -564,7 +583,13 @@ class TestRedactEngineHardening:
 
     def test_url_query_x_api_key_redacted(self) -> None:
         """URL query 连字符凭据参数（`?x-api-key=`/`?api-key=`）必须脱敏。"""
-        for key in ("x-api-key", "api-key", "x-goog-api-key", "x-auth-token", "x-access-token"):
+        for key in (
+            "x-api-key",
+            "api-key",
+            "x-goog-api-key",
+            "x-auth-token",
+            "x-access-token",
+        ):
             text = f"https://api.example.com?{key}=abc123def456ghi789&limit=10"
             result = redact_sensitive_text(text)
             assert "abc123def456ghi789" not in result, f"{key} 泄漏"
@@ -821,9 +846,7 @@ class TestRedactLowerEnv:
 
     def test_lower_env_mixed_with_url_redacted(self) -> None:
         """含 URL 的混合文本中 `db_pw=` 仍脱敏——不再因全局 URL 开关整体放行。"""
-        text = (
-            "host=db.internal\nurl: https://api.example.com/v1/auth\ndb_pw=hunter2\ncurl https://cdn.example.com/a.png"
-        )
+        text = "host=db.internal\nurl: https://api.example.com/v1/auth\ndb_pw=hunter2\ncurl https://cdn.example.com/a.png"
         result = redact_sensitive_text(text)
         assert "hunter2" not in result
         assert "url: https://api.example.com/v1/auth" in result
@@ -1002,7 +1025,10 @@ class TestRedactCoverageBranches:
 
         try:
             set_redact_enabled(False)
-            assert redact_sensitive_text("TOKEN=mysecretvalue12345678") == "TOKEN=mysecretvalue12345678"
+            assert (
+                redact_sensitive_text("TOKEN=mysecretvalue12345678")
+                == "TOKEN=mysecretvalue12345678"
+            )
         finally:
             set_redact_enabled(True)
         result = redact_sensitive_text("TOKEN=mysecretvalue12345678")

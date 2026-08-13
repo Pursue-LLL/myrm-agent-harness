@@ -35,7 +35,9 @@ logger = logging.getLogger(__name__)
 #: Checker signature: (skill_id, permission_type, operation) -> (allowed, reason)
 #: Async checker functions are awaited automatically; sync callables are supported
 #: for sync tool paths.
-PermissionChecker = Callable[[str, str, str], tuple[bool, str] | Awaitable[tuple[bool, str]]]
+PermissionChecker = Callable[
+    [str, str, str], tuple[bool, str] | Awaitable[tuple[bool, str]]
+]
 
 
 class SkillBoundaryProvider(GuardrailProvider):

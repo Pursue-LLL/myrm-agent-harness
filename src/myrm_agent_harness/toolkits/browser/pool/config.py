@@ -296,6 +296,11 @@ class HumanizeConfig:
     scroll_settle_delay: tuple[int, int] = (300, 600)
     scroll_pre_move_delay: tuple[int, int] = (100, 300)
     scroll_reading_pause_chance: float = 0.15
+    # A ref target must sit inside this viewport band (fractions of viewport
+    # height) before a CAREFUL interaction proceeds; otherwise the target is
+    # humanized-wheel scrolled into the band first, replacing Playwright's
+    # implicit one-shot scrollIntoViewIfNeeded (instant JS jump).
+    scroll_target_zone: tuple[float, float] = (0.3, 0.7)
 
     def __post_init__(self) -> None:
         if self.click_delay_min > self.click_delay_max:
@@ -324,6 +329,13 @@ class HumanizeConfig:
             raise ValueError(msg)
         if not 0.0 <= self.scroll_reading_pause_chance <= 1.0:
             msg = f"scroll_reading_pause_chance must be in [0, 1], got {self.scroll_reading_pause_chance}"
+            raise ValueError(msg)
+        zone_lo, zone_hi = self.scroll_target_zone
+        if not 0.0 <= zone_lo < zone_hi <= 1.0:
+            msg = (
+                f"scroll_target_zone ({zone_lo}, {zone_hi}) is invalid: "
+                "require 0.0 <= lo < hi <= 1.0"
+            )
             raise ValueError(msg)
         for name in (
             "scroll_delta_base",

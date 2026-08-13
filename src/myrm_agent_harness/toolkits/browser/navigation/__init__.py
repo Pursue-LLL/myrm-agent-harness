@@ -176,7 +176,9 @@ class Navigator:
             title = await self._page.title()
             final_url = self._page.url
             logger.info(
-                "Navigator: trivial %s: navigation to %s", parsed.scheme, redact_sensitive_text(url)[:80]
+                "Navigator: trivial %s: navigation to %s",
+                parsed.scheme,
+                redact_sensitive_text(url)[:80],
             )
             return title, final_url, 200
 

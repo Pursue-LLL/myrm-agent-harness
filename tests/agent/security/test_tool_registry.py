@@ -78,7 +78,10 @@ class TestResolvePermissionType:
         assert resolve_permission_type("web_search_tool") == "web_search_tool"
         assert resolve_permission_type("memory_search_tool") == "memory_search_tool"
         assert resolve_permission_type("skill_select_tool") == "skill_select_tool"
-        assert resolve_permission_type("request_answer_user_tool") == "request_answer_user_tool"
+        assert (
+            resolve_permission_type("request_answer_user_tool")
+            == "request_answer_user_tool"
+        )
         assert resolve_permission_type("render_ui_tool") == "render_ui_tool"
         assert resolve_permission_type("skill_search_tool") == "skill_search_tool"
 
@@ -113,7 +116,8 @@ class TestResolvePermissionType:
             == "shell_exec"
         )
         assert (
-            resolve_permission_type("bash_process_tool", {"action": "kill"}) == "shell_exec"
+            resolve_permission_type("bash_process_tool", {"action": "kill"})
+            == "shell_exec"
         )
         assert (
             resolve_permission_type("bash_process_tool", {"action": "read_output"})
@@ -127,7 +131,9 @@ class TestResolvePermissionType:
             == "browser_click"
         )
         assert (
-            resolve_permission_type("browser_interact_tool", {"action": "unknown-action"})
+            resolve_permission_type(
+                "browser_interact_tool", {"action": "unknown-action"}
+            )
             == "browser_click"
         )
         assert (
@@ -167,37 +173,69 @@ class TestBrowserToolMapping:
         assert "browser_manage_tool" in BUILTIN_TOOL_NAMES
 
     def test_interact_click_resolves(self):
-        assert resolve_permission_type("browser_interact_tool", {"action": "click"}) == "browser_click"
+        assert (
+            resolve_permission_type("browser_interact_tool", {"action": "click"})
+            == "browser_click"
+        )
 
     def test_interact_fill_resolves(self):
-        assert resolve_permission_type("browser_interact_tool", {"action": "fill"}) == "browser_fill"
+        assert (
+            resolve_permission_type("browser_interact_tool", {"action": "fill"})
+            == "browser_fill"
+        )
 
     def test_interact_type_resolves_to_fill(self):
-        assert resolve_permission_type("browser_interact_tool", {"action": "type"}) == "browser_fill"
+        assert (
+            resolve_permission_type("browser_interact_tool", {"action": "type"})
+            == "browser_fill"
+        )
 
     def test_interact_upload_resolves(self):
-        assert resolve_permission_type("browser_interact_tool", {"action": "upload_file"}) == "browser_upload"
+        assert (
+            resolve_permission_type("browser_interact_tool", {"action": "upload_file"})
+            == "browser_upload"
+        )
 
     def test_interact_hover_resolves_to_click(self):
-        assert resolve_permission_type("browser_interact_tool", {"action": "hover"}) == "browser_click"
+        assert (
+            resolve_permission_type("browser_interact_tool", {"action": "hover"})
+            == "browser_click"
+        )
 
     def test_interact_scroll_resolves(self):
-        assert resolve_permission_type("browser_interact_tool", {"action": "scroll"}) == "browser_scroll"
+        assert (
+            resolve_permission_type("browser_interact_tool", {"action": "scroll"})
+            == "browser_scroll"
+        )
 
     def test_manage_evaluate_resolves(self):
-        assert resolve_permission_type("browser_manage_tool", {"action": "evaluate"}) == "browser_evaluate"
+        assert (
+            resolve_permission_type("browser_manage_tool", {"action": "evaluate"})
+            == "browser_evaluate"
+        )
 
     def test_manage_list_tabs_resolves(self):
-        assert resolve_permission_type("browser_manage_tool", {"action": "list_tabs"}) == "browser_manage"
+        assert (
+            resolve_permission_type("browser_manage_tool", {"action": "list_tabs"})
+            == "browser_manage"
+        )
 
     def test_manage_close_resolves(self):
-        assert resolve_permission_type("browser_manage_tool", {"action": "close"}) == "browser_manage"
+        assert (
+            resolve_permission_type("browser_manage_tool", {"action": "close"})
+            == "browser_manage"
+        )
 
     def test_manage_download_resolves(self):
-        assert resolve_permission_type("browser_manage_tool", {"action": "download_url"}) == "browser_download"
+        assert (
+            resolve_permission_type("browser_manage_tool", {"action": "download_url"})
+            == "browser_download"
+        )
 
     def test_interact_without_input_falls_to_builtin(self):
-        assert resolve_permission_type("browser_interact_tool") == "browser_interact_tool"
+        assert (
+            resolve_permission_type("browser_interact_tool") == "browser_interact_tool"
+        )
 
     def test_manage_without_input_falls_to_builtin(self):
         assert resolve_permission_type("browser_manage_tool") == "browser_manage_tool"
@@ -220,7 +258,9 @@ class TestSafetyMetadata:
         ):
             meta = resolve_safety_metadata(tool)
             assert meta.is_destructive is True, f"{tool} should be destructive"
-            assert meta.is_concurrent_safe is False, f"{tool} should not be concurrent-safe"
+            assert (
+                meta.is_concurrent_safe is False
+            ), f"{tool} should not be concurrent-safe"
             assert meta.is_read_only is False, f"{tool} should not be read-only"
 
     def test_read_tools_declared_safe(self):
@@ -252,7 +292,9 @@ class TestSafetyMetadata:
     def test_all_builtins_have_safety_metadata(self):
         """Every built-in tool must have explicit safety metadata."""
         missing = BUILTIN_TOOL_NAMES - TOOL_SAFETY_METADATA.keys()
-        assert not missing, f"Built-in tools missing TOOL_SAFETY_METADATA: {sorted(missing)}"
+        assert (
+            not missing
+        ), f"Built-in tools missing TOOL_SAFETY_METADATA: {sorted(missing)}"
 
     def test_concurrent_safe_agents(self):
         for tool in ("delegate_task_tool", "subagent_control_tool"):
@@ -266,9 +308,16 @@ class TestSafetyMetadata:
         assert meta.is_read_only is False
 
     def test_stateful_tools_not_concurrent(self):
-        for tool in ("browser_navigate_tool", "browser_interact_tool", "cron_manage_tool", "memory_save_tool"):
+        for tool in (
+            "browser_navigate_tool",
+            "browser_interact_tool",
+            "cron_manage_tool",
+            "memory_save_tool",
+        ):
             meta = resolve_safety_metadata(tool)
-            assert meta.is_concurrent_safe is False, f"{tool} should not be concurrent-safe"
+            assert (
+                meta.is_concurrent_safe is False
+            ), f"{tool} should not be concurrent-safe"
 
     def test_ui_tools_are_safe(self):
         for tool in ("request_answer_user_tool", "render_ui_tool", "skill_select_tool"):
@@ -291,7 +340,9 @@ class TestSafetyMetadata:
         assert a is b
 
     def test_safety_metadata_dataclass_equality(self):
-        assert SafetyMetadata() == SafetyMetadata(is_read_only=False, is_concurrent_safe=False, is_destructive=False)
+        assert SafetyMetadata() == SafetyMetadata(
+            is_read_only=False, is_concurrent_safe=False, is_destructive=False
+        )
 
 
 class TestComputerToolMapping:
@@ -304,16 +355,28 @@ class TestComputerToolMapping:
         assert resolve_permission_type("desktop_interact_tool") == "desktop_control"
 
     def test_desktop_vision_capture_maps_to_desktop_capture(self):
-        assert resolve_permission_type("desktop_vision_tool", {"action": "capture"}) == "desktop_capture"
+        assert (
+            resolve_permission_type("desktop_vision_tool", {"action": "capture"})
+            == "desktop_capture"
+        )
 
     def test_desktop_vision_wait_maps_to_desktop_capture(self):
-        assert resolve_permission_type("desktop_vision_tool", {"action": "wait"}) == "desktop_capture"
+        assert (
+            resolve_permission_type("desktop_vision_tool", {"action": "wait"})
+            == "desktop_capture"
+        )
 
     def test_desktop_vision_click_maps_to_desktop_control(self):
-        assert resolve_permission_type("desktop_vision_tool", {"action": "left_click"}) == "desktop_control"
+        assert (
+            resolve_permission_type("desktop_vision_tool", {"action": "left_click"})
+            == "desktop_control"
+        )
 
     def test_desktop_vision_type_maps_to_desktop_control(self):
-        assert resolve_permission_type("desktop_vision_tool", {"action": "type"}) == "desktop_control"
+        assert (
+            resolve_permission_type("desktop_vision_tool", {"action": "type"})
+            == "desktop_control"
+        )
 
     def test_desktop_vision_without_input_maps_to_desktop_control(self):
         assert resolve_permission_type("desktop_vision_tool") == "desktop_control"
@@ -336,8 +399,14 @@ class TestComputerToolMapping:
 
     def test_desktop_control_in_default_ruleset(self):
         """Verify desktop_control requires ASK permission in default ruleset."""
-        from myrm_agent_harness.agent.security.types import DEFAULT_RULESET, PermissionAction
-        desktop_rules = [r for r in DEFAULT_RULESET if r.permission == "desktop_control"]
+        from myrm_agent_harness.agent.security.types import (
+            DEFAULT_RULESET,
+            PermissionAction,
+        )
+
+        desktop_rules = [
+            r for r in DEFAULT_RULESET if r.permission == "desktop_control"
+        ]
         assert len(desktop_rules) == 1
         assert desktop_rules[0].action == PermissionAction.ASK
 
@@ -346,12 +415,17 @@ class TestComputeCanonicalArgsHash:
     """Tests for compute_canonical_args_hash — stable hashing of tool arguments."""
 
     def test_none_args_returns_none(self):
-        from myrm_agent_harness.agent.security.tool_registry import compute_canonical_args_hash
+        from myrm_agent_harness.agent.security.tool_registry import (
+            compute_canonical_args_hash,
+        )
 
         assert compute_canonical_args_hash("bash_code_execute_tool", None) is None
 
     def test_known_tool_uses_canonical_params(self):
-        from myrm_agent_harness.agent.security.tool_registry import TOOL_CANONICAL_PARAMS, compute_canonical_args_hash
+        from myrm_agent_harness.agent.security.tool_registry import (
+            TOOL_CANONICAL_PARAMS,
+            compute_canonical_args_hash,
+        )
 
         tool_name = next(iter(TOOL_CANONICAL_PARAMS))
         core = TOOL_CANONICAL_PARAMS[tool_name]
@@ -360,10 +434,14 @@ class TestComputeCanonicalArgsHash:
 
         args_core = {k: "val" for k in core}
 
-        assert compute_canonical_args_hash(tool_name, args_full) == compute_canonical_args_hash(tool_name, args_core)
+        assert compute_canonical_args_hash(
+            tool_name, args_full
+        ) == compute_canonical_args_hash(tool_name, args_core)
 
     def test_unknown_tool_hashes_all_args(self):
-        from myrm_agent_harness.agent.security.tool_registry import compute_canonical_args_hash
+        from myrm_agent_harness.agent.security.tool_registry import (
+            compute_canonical_args_hash,
+        )
 
         h1 = compute_canonical_args_hash("unknown_tool", {"a": 1, "b": 2})
         h2 = compute_canonical_args_hash("unknown_tool", {"b": 2, "a": 1})
@@ -371,7 +449,9 @@ class TestComputeCanonicalArgsHash:
         assert len(h1) == 16
 
     def test_different_args_different_hash(self):
-        from myrm_agent_harness.agent.security.tool_registry import compute_canonical_args_hash
+        from myrm_agent_harness.agent.security.tool_registry import (
+            compute_canonical_args_hash,
+        )
 
         h1 = compute_canonical_args_hash("unknown_tool", {"a": 1})
         h2 = compute_canonical_args_hash("unknown_tool", {"a": 2})
@@ -381,7 +461,9 @@ class TestComputeCanonicalArgsHash:
 class TestCheckSafetyCoverage:
     """Tests for _check_safety_coverage — warning for undeclared built-in tools."""
 
-    def test_check_logs_warning_for_missing_tools(self, monkeypatch: pytest.MonkeyPatch):
+    def test_check_logs_warning_for_missing_tools(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
         import io
         import logging
 
@@ -398,7 +480,9 @@ class TestCheckSafetyCoverage:
         log_capture = io.StringIO()
         handler = logging.StreamHandler(log_capture)
         handler.setLevel(logging.WARNING)
-        logger = logging.getLogger("myrm_agent_harness.core.security.tool_registry.safety")
+        logger = logging.getLogger(
+            "myrm_agent_harness.core.security.tool_registry.safety"
+        )
         logger.addHandler(handler)
         try:
             _check_safety_coverage()
@@ -412,12 +496,16 @@ class TestCheckSafetyCoverage:
         import io
         import logging
 
-        from myrm_agent_harness.agent.security.tool_registry import _check_safety_coverage
+        from myrm_agent_harness.agent.security.tool_registry import (
+            _check_safety_coverage,
+        )
 
         log_capture = io.StringIO()
         handler = logging.StreamHandler(log_capture)
         handler.setLevel(logging.WARNING)
-        logger = logging.getLogger("myrm_agent_harness.core.security.tool_registry.safety")
+        logger = logging.getLogger(
+            "myrm_agent_harness.core.security.tool_registry.safety"
+        )
         logger.addHandler(handler)
         try:
             _check_safety_coverage()
@@ -448,23 +536,35 @@ class TestPtcSafetyMetadata:
 
 class TestSanitizeUrlForTaint:
     def test_strips_query_and_fragment(self) -> None:
-        from myrm_agent_harness.core.security.tool_registry import _sanitize_url_for_taint
+        from myrm_agent_harness.core.security.tool_registry import (
+            _sanitize_url_for_taint,
+        )
 
-        assert _sanitize_url_for_taint("https://example.com/a?token=secret#frag") == "https://example.com/a"
+        assert (
+            _sanitize_url_for_taint("https://example.com/a?token=secret#frag")
+            == "https://example.com/a"
+        )
 
     def test_none_returns_none(self) -> None:
-        from myrm_agent_harness.core.security.tool_registry import _sanitize_url_for_taint
+        from myrm_agent_harness.core.security.tool_registry import (
+            _sanitize_url_for_taint,
+        )
 
         assert _sanitize_url_for_taint(None) is None
 
     def test_invalid_url_redacted(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from myrm_agent_harness.core.security.tool_registry import _sanitize_url_for_taint
+        from myrm_agent_harness.core.security.tool_registry import (
+            _sanitize_url_for_taint,
+        )
 
         def _boom(_url: str) -> object:
             raise ValueError("parse fail")
 
         monkeypatch.setattr("urllib.parse.urlparse", _boom)
-        assert _sanitize_url_for_taint("https://example.com/x") == "invalid_or_redacted_url"
+        assert (
+            _sanitize_url_for_taint("https://example.com/x")
+            == "invalid_or_redacted_url"
+        )
 
 
 class TestTaintUrlFromArgs:

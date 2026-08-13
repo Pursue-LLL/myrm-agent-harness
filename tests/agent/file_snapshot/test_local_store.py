@@ -58,7 +58,9 @@ def test_default_path_fallback():
 
 
 @pytest.mark.asyncio
-async def test_take_snapshot_creates_manifest(store: LocalFileSnapshotStore, workspace: Path):
+async def test_take_snapshot_creates_manifest(
+    store: LocalFileSnapshotStore, workspace: Path
+):
     sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     assert sid.startswith("fs_")
 
@@ -70,15 +72,21 @@ async def test_take_snapshot_creates_manifest(store: LocalFileSnapshotStore, wor
 
 
 @pytest.mark.asyncio
-async def test_take_snapshot_copies_files(store: LocalFileSnapshotStore, workspace: Path):
+async def test_take_snapshot_copies_files(
+    store: LocalFileSnapshotStore, workspace: Path
+):
     sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     snap_dir = store._find_snapshot_dir(sid)
     assert (snap_dir / "files" / "main.py").read_text() == "print('main')\n"
-    assert (snap_dir / "files" / "docs" / "readme.txt").read_text() == "readme content\n"
+    assert (
+        snap_dir / "files" / "docs" / "readme.txt"
+    ).read_text() == "readme content\n"
 
 
 @pytest.mark.asyncio
-async def test_take_snapshot_excludes_node_modules(store: LocalFileSnapshotStore, workspace: Path):
+async def test_take_snapshot_excludes_node_modules(
+    store: LocalFileSnapshotStore, workspace: Path
+):
     nm = workspace / "node_modules"
     nm.mkdir()
     (nm / "pkg.js").write_text("module\n")
@@ -89,7 +97,9 @@ async def test_take_snapshot_excludes_node_modules(store: LocalFileSnapshotStore
 
 
 @pytest.mark.asyncio
-async def test_take_snapshot_skips_large_file(store: LocalFileSnapshotStore, workspace: Path):
+async def test_take_snapshot_skips_large_file(
+    store: LocalFileSnapshotStore, workspace: Path
+):
     large = workspace / "huge.bin"
     large.write_bytes(b"\x00" * (11 * 1024 * 1024))  # 11 MB
 
@@ -106,7 +116,9 @@ async def test_take_snapshot_skips_large_file(store: LocalFileSnapshotStore, wor
 @pytest.mark.asyncio
 async def test_list_snapshots(store: LocalFileSnapshotStore, workspace: Path):
     await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "first")
-    sid2 = await store.take_snapshot(str(workspace), SnapshotTrigger.WRITE_FILE, "second")
+    sid2 = await store.take_snapshot(
+        str(workspace), SnapshotTrigger.WRITE_FILE, "second"
+    )
 
     snaps = await store.list_snapshots(str(workspace))
     assert len(snaps) == 2
@@ -137,7 +149,9 @@ async def test_restore_full(store: LocalFileSnapshotStore, workspace: Path):
 
 
 @pytest.mark.asyncio
-async def test_restore_creates_pre_rollback(store: LocalFileSnapshotStore, workspace: Path):
+async def test_restore_creates_pre_rollback(
+    store: LocalFileSnapshotStore, workspace: Path
+):
     sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "baseline")
     (workspace / "main.py").write_text("changed\n")
 
@@ -170,7 +184,9 @@ async def test_restore_not_found(store: LocalFileSnapshotStore):
 
 
 @pytest.mark.asyncio
-async def test_diff_detects_modification(store: LocalFileSnapshotStore, workspace: Path):
+async def test_diff_detects_modification(
+    store: LocalFileSnapshotStore, workspace: Path
+):
     sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "baseline")
     (workspace / "main.py").write_text("changed\n")
 
@@ -192,7 +208,9 @@ async def test_diff_detects_new_file(store: LocalFileSnapshotStore, workspace: P
 
 
 @pytest.mark.asyncio
-async def test_diff_detects_deleted_file(store: LocalFileSnapshotStore, workspace: Path):
+async def test_diff_detects_deleted_file(
+    store: LocalFileSnapshotStore, workspace: Path
+):
     sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "baseline")
     (workspace / "main.py").unlink()
 
@@ -239,13 +257,19 @@ async def test_cleanup_removes_old(store: LocalFileSnapshotStore, workspace: Pat
 
 
 @pytest.mark.asyncio
-async def test_take_snapshot_missing_workspace(store: LocalFileSnapshotStore, tmp_path: Path):
-    sid = await store.take_snapshot(str(tmp_path / "gone"), SnapshotTrigger.MANUAL, "test")
+async def test_take_snapshot_missing_workspace(
+    store: LocalFileSnapshotStore, tmp_path: Path
+):
+    sid = await store.take_snapshot(
+        str(tmp_path / "gone"), SnapshotTrigger.MANUAL, "test"
+    )
     assert sid.startswith("fs_")
 
 
 @pytest.mark.asyncio
-async def test_take_snapshot_with_metadata(store: LocalFileSnapshotStore, workspace: Path):
+async def test_take_snapshot_with_metadata(
+    store: LocalFileSnapshotStore, workspace: Path
+):
     sid = await store.take_snapshot(
         str(workspace), SnapshotTrigger.MANUAL, "test", metadata={"source": "unit"}
     )
@@ -254,7 +278,9 @@ async def test_take_snapshot_with_metadata(store: LocalFileSnapshotStore, worksp
 
 
 @pytest.mark.asyncio
-async def test_take_snapshot_skips_unreadable_file(store: LocalFileSnapshotStore, workspace: Path, monkeypatch):
+async def test_take_snapshot_skips_unreadable_file(
+    store: LocalFileSnapshotStore, workspace: Path, monkeypatch
+):
     import shutil
 
     def fail_copy(src: Path, dst: Path) -> None:
@@ -267,7 +293,9 @@ async def test_take_snapshot_skips_unreadable_file(store: LocalFileSnapshotStore
 
 
 @pytest.mark.asyncio
-async def test_take_snapshot_cleans_partial_on_failure(store: LocalFileSnapshotStore, workspace: Path, monkeypatch):
+async def test_take_snapshot_cleans_partial_on_failure(
+    store: LocalFileSnapshotStore, workspace: Path, monkeypatch
+):
     import shutil
 
     def fail_copy(src: Path, dst: Path) -> None:
@@ -280,7 +308,9 @@ async def test_take_snapshot_cleans_partial_on_failure(store: LocalFileSnapshotS
 
 
 @pytest.mark.asyncio
-async def test_take_snapshot_skips_stat_error(store: LocalFileSnapshotStore, workspace: Path, monkeypatch):
+async def test_take_snapshot_skips_stat_error(
+    store: LocalFileSnapshotStore, workspace: Path, monkeypatch
+):
     """A stat() OSError on a file is tolerated and the file is skipped."""
     (workspace / "broken.bin").write_bytes(b"\x00" * 100)
     real_stat = Path.stat
@@ -310,7 +340,9 @@ async def test_restore_missing_manifest(store: LocalFileSnapshotStore, workspace
 
 
 @pytest.mark.asyncio
-async def test_restore_skips_missing_snapshot_file(store: LocalFileSnapshotStore, workspace: Path):
+async def test_restore_skips_missing_snapshot_file(
+    store: LocalFileSnapshotStore, workspace: Path
+):
     sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
     (store._find_snapshot_dir(sid) / "files" / "main.py").unlink()
     result = await store.restore(sid)
@@ -319,7 +351,9 @@ async def test_restore_skips_missing_snapshot_file(store: LocalFileSnapshotStore
 
 
 @pytest.mark.asyncio
-async def test_restore_error_returns_failure(store: LocalFileSnapshotStore, workspace: Path, monkeypatch):
+async def test_restore_error_returns_failure(
+    store: LocalFileSnapshotStore, workspace: Path, monkeypatch
+):
     import shutil
 
     sid = await store.take_snapshot(str(workspace), SnapshotTrigger.MANUAL, "test")
@@ -357,7 +391,9 @@ async def test_diff_missing_manifest(store: LocalFileSnapshotStore, workspace: P
 
 
 @pytest.mark.asyncio
-async def test_list_snapshots_skips_malformed_entries(store: LocalFileSnapshotStore, workspace: Path):
+async def test_list_snapshots_skips_malformed_entries(
+    store: LocalFileSnapshotStore, workspace: Path
+):
     ws_dir = store._workspace_dir(str(workspace))
     ws_dir.mkdir(parents=True, exist_ok=True)
     (ws_dir / "note.txt").write_text("x")  # file entry, not a dir

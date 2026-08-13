@@ -79,7 +79,10 @@ _API_KEY_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("firecrawl_key", re.compile(r"fc-[a-zA-Z0-9]{32,}")),
     ("browserbase_key", re.compile(r"bb_live_[a-zA-Z0-9]{32,}")),
     # Messaging / E-commerce
-    ("discord_bot_token", re.compile(r"[MN][A-Za-z\d]{14,28}\.[A-Za-z\d_-]{4,7}\.[A-Za-z\d_-]{25,}")),
+    (
+        "discord_bot_token",
+        re.compile(r"[MN][A-Za-z\d]{14,28}\.[A-Za-z\d_-]{4,7}\.[A-Za-z\d_-]{25,}"),
+    ),
     ("shopify_token", re.compile(r"shpat_[a-fA-F0-9]{32}")),
     ("shopify_shared_secret", re.compile(r"shpss_[a-fA-F0-9]{32}")),
 )
@@ -97,21 +100,30 @@ _PEM_BLOCK_RE = re.compile(
 
 _STRUCTURAL_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("jwt_token", re.compile(r"eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]+")),
-    ("pem_private_key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
+    (
+        "pem_private_key",
+        re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+    ),
     (
         "database_url",
-        re.compile(r"(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis(?:s)?|amqps?)://[^:]+:[^@]+@[^\s]+"),
+        re.compile(
+            r"(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis(?:s)?|amqps?)://[^:]+:[^@]+@[^\s]+"
+        ),
     ),
     # Blockchain
     ("ethereum_address", re.compile(r"\b0x[a-fA-F0-9]{40}\b")),
     # Cloud infrastructure
     (
         "azure_storage_key",
-        re.compile(r"DefaultEndpointsProtocol=https;AccountName=[a-z0-9]+;AccountKey=[A-Za-z0-9+/=]{88};"),
+        re.compile(
+            r"DefaultEndpointsProtocol=https;AccountName=[a-z0-9]+;AccountKey=[A-Za-z0-9+/=]{88};"
+        ),
     ),
     (
         "discord_webhook",
-        re.compile(r"https://discord(?:app)?\.com/api/webhooks/\d{17,19}/[A-Za-z0-9_\-]{68}"),
+        re.compile(
+            r"https://discord(?:app)?\.com/api/webhooks/\d{17,19}/[A-Za-z0-9_\-]{68}"
+        ),
     ),
 )
 
@@ -133,12 +145,17 @@ _SENSITIVE_KEY_RE = (
 _MIN_CONTEXT_VALUE_LENGTH = 16
 
 _ENV_PATTERN = re.compile(
-    rf"(?:^|[\s;])(?:export\s+)?\w*{_SENSITIVE_KEY_RE}\s*=\s*['\"]?([^\s'\"#;]+)", re.MULTILINE | re.IGNORECASE
+    rf"(?:^|[\s;])(?:export\s+)?\w*{_SENSITIVE_KEY_RE}\s*=\s*['\"]?([^\s'\"#;]+)",
+    re.MULTILINE | re.IGNORECASE,
 )
 
-_JSON_PATTERN = re.compile(rf"""["']{_SENSITIVE_KEY_RE}["']\s*:\s*["']([^"']{{16,}})["']""", re.IGNORECASE)
+_JSON_PATTERN = re.compile(
+    rf"""["']{_SENSITIVE_KEY_RE}["']\s*:\s*["']([^"']{{16,}})["']""", re.IGNORECASE
+)
 
-_AUTH_HEADER_PATTERN = re.compile(r"Authorization:\s*(?:Bearer|Basic|Token)\s+([a-zA-Z0-9_./+=-]{20,})", re.IGNORECASE)
+_AUTH_HEADER_PATTERN = re.compile(
+    r"Authorization:\s*(?:Bearer|Basic|Token)\s+([a-zA-Z0-9_./+=-]{20,})", re.IGNORECASE
+)
 
 
 _MNEMONIC_PATTERN = re.compile(
@@ -185,7 +202,9 @@ _ENTROPY_MIN_TOKEN_LEN = 24
 _ENTROPY_THRESHOLD = 4.2
 
 _URL_STRIP_RE = re.compile(r"https?://\S+")
-_UUID_STRIP_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
+_UUID_STRIP_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I
+)
 _HEX_HASH_RE = re.compile(r"\b[0-9a-f]{40,}\b")
 _FILE_PATH_RE = re.compile(r"(?:/[\w._-]+){2,}")
 
@@ -206,11 +225,14 @@ def _is_all_hex(s: str) -> bool:
 def _looks_like_base64(s: str) -> bool:
     base64_special = set("+/=")
     return any(c in base64_special for c in s) and all(
-        c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=" for c in s
+        c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+        for c in s
     )
 
 
-def _scan_high_entropy(content: str, already_matched: set[str]) -> list[tuple[str, str]]:
+def _scan_high_entropy(
+    content: str, already_matched: set[str]
+) -> list[tuple[str, str]]:
     """Detect high-entropy tokens that may be unknown credentials.
 
     Returns list of (pattern_name, matched_token) pairs.
@@ -249,7 +271,9 @@ def _scan_high_entropy(content: str, already_matched: set[str]) -> list[tuple[st
 # ---------------------------------------------------------------------------
 # Combined pattern list (prefix + structural)
 # ---------------------------------------------------------------------------
-_ALL_PREFIX_STRUCTURAL: tuple[tuple[str, re.Pattern[str]], ...] = _API_KEY_PATTERNS + _STRUCTURAL_PATTERNS
+_ALL_PREFIX_STRUCTURAL: tuple[tuple[str, re.Pattern[str]], ...] = (
+    _API_KEY_PATTERNS + _STRUCTURAL_PATTERNS
+)
 
 # ---------------------------------------------------------------------------
 # Smart redaction helpers
@@ -266,7 +290,9 @@ def _redact_pem_block(m: re.Match[str]) -> str:
     full = m.group(0)
     begin_line = full.split("\n", 1)[0]
     # Extract key type from BEGIN marker for the label
-    type_match = re.search(r"-----BEGIN ((?:RSA |EC |OPENSSH )?)PRIVATE KEY-----", begin_line)
+    type_match = re.search(
+        r"-----BEGIN ((?:RSA |EC |OPENSSH )?)PRIVATE KEY-----", begin_line
+    )
     key_type = type_match.group(1).strip() if type_match else ""
     type_label = f":{key_type}" if key_type else ""
     return f"[REDACTED:pem_private_key_block{type_label}]"
@@ -303,7 +329,9 @@ def _redact_json_match(m: re.Match[str]) -> str:
 
 def _redact_auth_match(m: re.Match[str]) -> str:
     val = m.group(1)
-    return m.group(0).replace(val, _smart_redact_value("auth_header_credential", val), 1)
+    return m.group(0).replace(
+        val, _smart_redact_value("auth_header_credential", val), 1
+    )
 
 
 def _redact_mnemonic_match(m: re.Match[str]) -> str:
@@ -368,7 +396,9 @@ def redact_leaks(content: str) -> str:
     result = _MNEMONIC_PATTERN.sub(_redact_mnemonic_match, result)
 
     for _, token in _scan_high_entropy(content, _collect_prefix_matches(content)):
-        result = result.replace(token, _smart_redact_value("high_entropy_token", token), 1)
+        result = result.replace(
+            token, _smart_redact_value("high_entropy_token", token), 1
+        )
 
     return result
 
@@ -376,7 +406,9 @@ def redact_leaks(content: str) -> str:
 def log_leaks(matches: list[str], content: str) -> None:
     """Log credential leak detections at WARNING level."""
     snippet = content[:200].replace("\n", " ")
-    logger.warning("[CREDENTIAL_LEAK] patterns=%s snippet=%.200s", ",".join(matches), snippet)
+    logger.warning(
+        "[CREDENTIAL_LEAK] patterns=%s snippet=%.200s", ",".join(matches), snippet
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +425,9 @@ _PASSWORD_KEYWORD_RE = re.compile(
     r"(?i)\b(?:password|passwd|passphrase|pwd|p@ssword|api secret|secret key|master password|"
     r"passcode|pass code|otp|2fa code|2fa|pin|verification code)\b|密码|口令|验证码"
 )
-_PASSWORD_CANDIDATE_RE = re.compile(r"\b(?=[A-Za-z0-9@#$%^&*!?_]*[a-z])(?=[A-Za-z0-9@#$%^&*!?_]*[A-Z@#$%^&*!?_])[A-Za-z0-9@#$%^&*!?_]{6,64}\b")
+_PASSWORD_CANDIDATE_RE = re.compile(
+    r"\b(?=[A-Za-z0-9@#$%^&*!?_]*[a-z])(?=[A-Za-z0-9@#$%^&*!?_]*[A-Z@#$%^&*!?_])[A-Za-z0-9@#$%^&*!?_]{6,64}\b"
+)
 _PASSWORD_ASSIGNMENT_RE = re.compile(
     r"(?i)(?:password|passwd|pwd|passphrase|密码|口令)\s*[:：=]\s*['\"]?[^\s'\";]+|['\"]password['\"]\s*:\s*['\"][^'\"]+['\"]"
 )
@@ -432,7 +466,9 @@ def _find_numeric_credential(text: str) -> str | None:
         return None
 
     def _is_ignored(token: str) -> bool:
-        return bool(_YEAR_TOKEN_RE.fullmatch(token) or _CN_MOBILE_TOKEN_RE.fullmatch(token))
+        return bool(
+            _YEAR_TOKEN_RE.fullmatch(token) or _CN_MOBILE_TOKEN_RE.fullmatch(token)
+        )
 
     def _first_in(lo: int, hi: int) -> str | None:
         for match in _NUMERIC_CREDENTIAL_RE.finditer(text):
@@ -476,4 +512,3 @@ def looks_like_password(text: str) -> str | None:
         return numeric
 
     return None
-

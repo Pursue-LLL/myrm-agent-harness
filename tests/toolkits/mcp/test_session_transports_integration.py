@@ -1,6 +1,6 @@
 """Real-transport end-to-end regression for ``MCPSessionActor``.
 
-Unlike the unit tests (which stub ``mcp.client.Client``), these spin up a *real*
+Unlike the unit tests (which stub ``mcp.ClientSession``), these spin up a *real*
 MCP server and drive the production actor/connection-pool stack over actual
 wire transports:
 
@@ -33,9 +33,9 @@ from myrm_agent_harness.toolkits.mcp.session_actor import MCPSessionActor
 _PROBE_SERVER_SRC = """
 import sys
 
-from mcp.server import MCPServer
+from mcp.server.fastmcp import FastMCP
 
-server = MCPServer("transport-probe")
+server = FastMCP("transport-probe")
 
 
 @server.tool()
@@ -67,9 +67,9 @@ async def _start_http_server() -> tuple[object, str]:
     by the caller so uvicorn never needs to pick a port we cannot observe.
     """
     import uvicorn
-    from mcp.server import MCPServer
+    from mcp.server.fastmcp import FastMCP
 
-    server = MCPServer("transport-probe")
+    server = FastMCP("transport-probe")
 
     @server.tool()
     def echo(text: str) -> str:
@@ -86,7 +86,7 @@ async def _start_http_server() -> tuple[object, str]:
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
 
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
     runner = uvicorn.Server(config)
     serve_task = asyncio.create_task(runner.serve(sockets=[sock]))
     for _ in range(200):

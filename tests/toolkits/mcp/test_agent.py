@@ -416,6 +416,7 @@ async def test_wrap_tools_normal_execution():
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_no_truncation():
     """Output within limit passes through unchanged."""
+
     async def small_output(*_a, **_kw):
         return "short result"
 
@@ -496,6 +497,7 @@ async def test_wrap_tools_output_guard_exact_boundary():
 @pytest.mark.asyncio
 async def test_wrap_tools_output_guard_empty_string():
     """Empty string output passes through without truncation."""
+
     async def empty_output(*_a, **_kw):
         return ""
 
@@ -1261,7 +1263,7 @@ class TestNormalizeMcpResultCoercion:
     def test_structured_content_appended(self) -> None:
         result = CallToolResult(
             content=[TextContent(type="text", text="data")],
-            structured_content={"key": "val"},
+            structuredContent={"key": "val"},
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
@@ -1271,7 +1273,7 @@ class TestNormalizeMcpResultCoercion:
     def test_is_error_collapses_to_error_string(self) -> None:
         result = CallToolResult(
             content=[TextContent(type="text", text="invalid args")],
-            is_error=True,
+            isError=True,
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
@@ -1279,14 +1281,14 @@ class TestNormalizeMcpResultCoercion:
         assert "invalid args" in normalized
 
     def test_is_error_with_structured_details(self) -> None:
-        """Error details in structured_content surface even when text is empty."""
+        """Error details in structuredContent surface even when text is empty."""
         result = CallToolResult(
             content=[TextContent(type="text", text="")],
-            structured_content={
+            structuredContent={
                 "error": "permission denied",
                 "code": 403,
             },
-            is_error=True,
+            isError=True,
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
@@ -1297,8 +1299,8 @@ class TestNormalizeMcpResultCoercion:
         """structured details append to a short text message, not duplicated."""
         result = CallToolResult(
             content=[TextContent(type="text", text="invalid args")],
-            structured_content={"details": "field qty must be > 0, got -5"},
-            is_error=True,
+            structuredContent={"details": "field qty must be > 0, got -5"},
+            isError=True,
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
@@ -1314,8 +1316,8 @@ class TestNormalizeMcpResultCoercion:
                     text='{"error": "oops"}',
                 )
             ],
-            structured_content={"error": "oops"},
-            is_error=True,
+            structuredContent={"error": "oops"},
+            isError=True,
         )
         normalized = normalize_mcp_result(result)
         assert isinstance(normalized, str)
@@ -1452,22 +1454,13 @@ class TestExtractMcpAppMetadata:
         assert extract_mcp_app_metadata({"_meta": {"version": 1}}) is None
 
     def test_ui_without_resource_uri(self) -> None:
-        assert (
-            extract_mcp_app_metadata({"_meta": {"ui": {"height": 300}}})
-            is None
-        )
+        assert extract_mcp_app_metadata({"_meta": {"ui": {"height": 300}}}) is None
 
     def test_empty_resource_uri(self) -> None:
-        assert (
-            extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": ""}}})
-            is None
-        )
+        assert extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": ""}}}) is None
 
     def test_non_string_resource_uri(self) -> None:
-        assert (
-            extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": 123}}})
-            is None
-        )
+        assert extract_mcp_app_metadata({"_meta": {"ui": {"resourceUri": 123}}}) is None
 
     def test_non_dict_meta(self) -> None:
         assert extract_mcp_app_metadata({"_meta": "not a dict"}) is None
@@ -1503,7 +1496,7 @@ class TestEmitMcpAppEvent:
         mock_sink = AsyncMock()
         raw_result = CallToolResult(
             content=[TextContent(type="text", text="txt")],
-            structured_content={"key": "val"},
+            structuredContent={"key": "val"},
             _meta={"ui": {"resourceUri": "ui://a/b"}},
         )
 

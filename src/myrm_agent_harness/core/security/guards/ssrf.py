@@ -28,8 +28,14 @@ from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 
 from myrm_agent_harness.core.security.audit import record_decision
-from myrm_agent_harness.core.security.guards.url_allowlist import SSRFSecurityError, URLAllowlistGuard
-from myrm_agent_harness.utils.url_utils import is_blocked_ip, validate_scheme_and_hostname
+from myrm_agent_harness.core.security.guards.url_allowlist import (
+    SSRFSecurityError,
+    URLAllowlistGuard,
+)
+from myrm_agent_harness.utils.url_utils import (
+    is_blocked_ip,
+    validate_scheme_and_hostname,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +79,9 @@ def is_internal_ip(ip_str: str) -> bool:
     return is_blocked_ip(ip_str)
 
 
-def check_url(url: str, *, allowed_internal_hosts: frozenset[str] = frozenset()) -> SSRFVerdict:
+def check_url(
+    url: str, *, allowed_internal_hosts: frozenset[str] = frozenset()
+) -> SSRFVerdict:
     """Validate a URL for SSRF safety without DNS resolution."""
     hostname, error = validate_scheme_and_hostname(url)
     if hostname is None:
@@ -93,19 +101,27 @@ def check_url(url: str, *, allowed_internal_hosts: frozenset[str] = frozenset())
         return _VERDICT_OK
 
     if is_blocked_ip(hostname):
-        return SSRFVerdict(allowed=False, reason=f"Blocked private/internal IP address: {hostname}")
+        return SSRFVerdict(
+            allowed=False, reason=f"Blocked private/internal IP address: {hostname}"
+        )
     return _VERDICT_OK
 
 
-def resolve_and_check(hostname: str, *, allowed_internal_hosts: frozenset[str] = frozenset()) -> SSRFVerdict:
+def resolve_and_check(
+    hostname: str, *, allowed_internal_hosts: frozenset[str] = frozenset()
+) -> SSRFVerdict:
     """DNS-resolve a hostname synchronously and validate all resolved IPs."""
     if hostname in allowed_internal_hosts:
         return _VERDICT_OK
 
     try:
-        results = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        results = socket.getaddrinfo(
+            hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
+        )
     except socket.gaierror:
-        return SSRFVerdict(allowed=False, reason=f"DNS resolution failed for: {hostname}")
+        return SSRFVerdict(
+            allowed=False, reason=f"DNS resolution failed for: {hostname}"
+        )
 
     for _family, _type, _proto, _canonname, sockaddr in results:
         addr = str(sockaddr[0])
@@ -121,7 +137,11 @@ def _resolve_and_check_sync(hostname: str) -> SSRFResult:
     try:
         addr = ipaddress.ip_address(hostname)
         if is_blocked_ip(addr):
-            return SSRFResult(safe=False, error=f"Blocked IP: {addr} is a non-public IP address", hostname=hostname)
+            return SSRFResult(
+                safe=False,
+                error=f"Blocked IP: {addr} is a non-public IP address",
+                hostname=hostname,
+            )
         return SSRFResult(safe=True, hostname=hostname, resolved_ips=(hostname,))
     except ValueError:
         pass
@@ -129,7 +149,9 @@ def _resolve_and_check_sync(hostname: str) -> SSRFResult:
     try:
         resolved = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
-        return SSRFResult(safe=False, error=f"DNS resolution failed: {hostname}", hostname=hostname)
+        return SSRFResult(
+            safe=False, error=f"DNS resolution failed: {hostname}", hostname=hostname
+        )
 
     ips: list[str] = []
     for _, _, _, _, sockaddr in resolved:
@@ -150,7 +172,11 @@ async def _resolve_and_check_async(hostname: str) -> SSRFResult:
     try:
         addr = ipaddress.ip_address(hostname)
         if is_blocked_ip(addr):
-            return SSRFResult(safe=False, error=f"Blocked IP: {addr} is a non-public IP address", hostname=hostname)
+            return SSRFResult(
+                safe=False,
+                error=f"Blocked IP: {addr} is a non-public IP address",
+                hostname=hostname,
+            )
         return SSRFResult(safe=True, hostname=hostname, resolved_ips=(hostname,))
     except ValueError:
         pass
@@ -159,7 +185,9 @@ async def _resolve_and_check_async(hostname: str) -> SSRFResult:
     try:
         resolved = await loop.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
-        return SSRFResult(safe=False, error=f"DNS resolution failed: {hostname}", hostname=hostname)
+        return SSRFResult(
+            safe=False, error=f"DNS resolution failed: {hostname}", hostname=hostname
+        )
 
     ips: list[str] = []
     for _, _, _, _, sockaddr in resolved:

@@ -237,8 +237,12 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
         # Skip if no files changed since last snapshot (avoids redundant commits)
         if parent:
             try:
-                await self._run_cmd("git", "diff-index", "--cached", "--quiet", parent, env=env)
-                logger.debug("No changes since last snapshot for %s, skipping", working_dir)
+                await self._run_cmd(
+                    "git", "diff-index", "--cached", "--quiet", parent, env=env
+                )
+                logger.debug(
+                    "No changes since last snapshot for %s, skipping", working_dir
+                )
                 return parent
             except RuntimeError:
                 pass  # diff-index returns non-zero when changes exist
@@ -259,7 +263,10 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
         parent_args = ["-p", parent] if parent else []
 
         commit_hash = await self._run_cmd(
-            "git", "commit-tree", tree_hash, *parent_args,
+            "git",
+            "commit-tree",
+            tree_hash,
+            *parent_args,
             env=env,
             stdin_data=commit_msg.encode(),
         )
@@ -270,7 +277,12 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
             update_args.append(parent)
         await self._run_cmd(*update_args, env=env)
         self._touch_project(proj_hash, str(wp))
-        logger.info("Shadow-git snapshot %s for %s (trigger=%s)", commit_hash[:12], working_dir, trigger.value)
+        logger.info(
+            "Shadow-git snapshot %s for %s (trigger=%s)",
+            commit_hash[:12],
+            working_dir,
+            trigger.value,
+        )
 
         await self.maybe_prune()
         return commit_hash
@@ -284,15 +296,30 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
         await self._ensure_initialized()
 
         if not _validate_commit_hash(snapshot_id):
-            return RestoreResult(success=False, snapshot_id=snapshot_id, files_restored=0, error="Invalid snapshot ID")
+            return RestoreResult(
+                success=False,
+                snapshot_id=snapshot_id,
+                files_restored=0,
+                error="Invalid snapshot ID",
+            )
 
         proj_hash, working_dir = await self.find_project_for_commit(snapshot_id)
         if not proj_hash or not working_dir:
-            return RestoreResult(success=False, snapshot_id=snapshot_id, files_restored=0, error="Snapshot not found")
+            return RestoreResult(
+                success=False,
+                snapshot_id=snapshot_id,
+                files_restored=0,
+                error="Snapshot not found",
+            )
 
         wp = Path(working_dir)
         if not wp.exists():
-            return RestoreResult(success=False, snapshot_id=snapshot_id, files_restored=0, error=f"Workspace no longer exists: {working_dir}")
+            return RestoreResult(
+                success=False,
+                snapshot_id=snapshot_id,
+                files_restored=0,
+                error=f"Workspace no longer exists: {working_dir}",
+            )
 
         pre_rollback_id: str | None = None
         try:
@@ -312,12 +339,18 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
                 for f in files:
                     safe = _safe_path(wp, f)
                     rel = str(safe.relative_to(wp))
-                    await self._run_cmd("git", "checkout", snapshot_id, "--", rel, env=env)
+                    await self._run_cmd(
+                        "git", "checkout", snapshot_id, "--", rel, env=env
+                    )
                 restored = len(files)
             else:
                 await self._run_cmd("git", "read-tree", snapshot_id, env=env)
-                await self._run_cmd("git", "checkout-index", "--all", "--force", env=env)
-                ls_output = await self._run_cmd("git", "ls-tree", "-r", "--name-only", snapshot_id, env=env)
+                await self._run_cmd(
+                    "git", "checkout-index", "--all", "--force", env=env
+                )
+                ls_output = await self._run_cmd(
+                    "git", "ls-tree", "-r", "--name-only", snapshot_id, env=env
+                )
                 restored = len(ls_output.splitlines())
 
             return RestoreResult(
@@ -353,10 +386,22 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
             await self._run_cmd("git", "add", "--all", env=env)
             current_tree = await self._run_cmd("git", "write-tree", env=env)
             diff_output = await self._run_cmd(
-                "git", "diff-tree", "-r", "--name-status", snapshot_id, current_tree, env=env,
+                "git",
+                "diff-tree",
+                "-r",
+                "--name-status",
+                snapshot_id,
+                current_tree,
+                env=env,
             )
             numstat_output = await self._run_cmd(
-                "git", "diff-tree", "-r", "--numstat", snapshot_id, current_tree, env=env,
+                "git",
+                "diff-tree",
+                "-r",
+                "--numstat",
+                snapshot_id,
+                current_tree,
+                env=env,
             )
         except RuntimeError as e:
             logger.warning("Diff failed: %s", e)
@@ -383,21 +428,27 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
             if len(parts) != 2:
                 continue
             status, filepath = parts[0].strip(), parts[1].strip()
-            change_type = {"A": "added", "D": "deleted", "M": "modified"}.get(status, "modified")
+            change_type = {"A": "added", "D": "deleted", "M": "modified"}.get(
+                status, "modified"
+            )
             new_size: int | None = None
             if change_type != "deleted":
                 with contextlib.suppress(OSError):
                     new_size = (wp / filepath).stat().st_size
             lines_added, lines_deleted = line_stats.get(filepath, (None, None))
-            changes.append(FileChange(
-                path=filepath,
-                change_type=change_type,
-                new_size=new_size,
-                lines_added=lines_added,
-                lines_deleted=lines_deleted,
-            ))
+            changes.append(
+                FileChange(
+                    path=filepath,
+                    change_type=change_type,
+                    new_size=new_size,
+                    lines_added=lines_added,
+                    lines_deleted=lines_deleted,
+                )
+            )
 
-        return FileDiff(snapshot_id=snapshot_id, changes=changes, total_changes=len(changes))
+        return FileDiff(
+            snapshot_id=snapshot_id, changes=changes, total_changes=len(changes)
+        )
 
     async def list_snapshots(
         self,
@@ -413,7 +464,10 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
 
         try:
             log_output = await self._run_cmd(
-                "git", "log", ref, f"--max-count={limit}",
+                "git",
+                "log",
+                ref,
+                f"--max-count={limit}",
                 "--format=%H%n%ct%n%B%n---END---",
                 env=env,
             )
@@ -451,22 +505,28 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
                     description = line.split(": ", 1)[1] if ": " in line else ""
 
             with contextlib.suppress(RuntimeError):
-                tree_output = await self._run_cmd("git", "ls-tree", "-r", "--name-only", commit_hash, env=env)
+                tree_output = await self._run_cmd(
+                    "git", "ls-tree", "-r", "--name-only", commit_hash, env=env
+                )
                 file_count = len(tree_output.splitlines())
 
-            snapshots.append(FileSnapshotInfo(
-                snapshot_id=commit_hash,
-                working_dir=working_dir,
-                trigger=trigger,
-                created_at=created_at,
-                file_count=file_count,
-                description=description,
-                metadata=meta,
-            ))
+            snapshots.append(
+                FileSnapshotInfo(
+                    snapshot_id=commit_hash,
+                    working_dir=working_dir,
+                    trigger=trigger,
+                    created_at=created_at,
+                    file_count=file_count,
+                    description=description,
+                    metadata=meta,
+                )
+            )
 
         return snapshots
 
-    async def get_snapshot_info(self, snapshot_id: SnapshotId) -> FileSnapshotInfo | None:
+    async def get_snapshot_info(
+        self, snapshot_id: SnapshotId
+    ) -> FileSnapshotInfo | None:
         """Get metadata for a specific snapshot by commit hash."""
         await self._ensure_initialized()
 
@@ -481,7 +541,10 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
 
         try:
             log_output = await self._run_cmd(
-                "git", "log", snapshot_id, "--max-count=1",
+                "git",
+                "log",
+                snapshot_id,
+                "--max-count=1",
                 "--format=%H%n%ct%n%B",
                 env=env,
             )
@@ -544,14 +607,18 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
         ref = self._project_ref(proj_hash)
 
         try:
-            head = (await self._run_cmd("git", "rev-parse", "--verify", ref, env=env)).strip()
+            head = (
+                await self._run_cmd("git", "rev-parse", "--verify", ref, env=env)
+            ).strip()
         except RuntimeError:
             return False
         if head != snapshot_id:
             return False
 
         try:
-            parent = (await self._run_cmd("git", "rev-parse", f"{snapshot_id}^", env=env)).strip()
+            parent = (
+                await self._run_cmd("git", "rev-parse", f"{snapshot_id}^", env=env)
+            ).strip()
         except RuntimeError:
             parent = None
 
@@ -559,9 +626,13 @@ class ShadowGitSnapshotStore(ShadowGitMaintenance):
         # that moved the ref cannot be silently rolled back.
         try:
             if parent:
-                await self._run_cmd("git", "update-ref", ref, parent, snapshot_id, env=env)
+                await self._run_cmd(
+                    "git", "update-ref", ref, parent, snapshot_id, env=env
+                )
             else:
-                await self._run_cmd("git", "update-ref", "-d", ref, snapshot_id, env=env)
+                await self._run_cmd(
+                    "git", "update-ref", "-d", ref, snapshot_id, env=env
+                )
         except RuntimeError:
             return False
         logger.info("Deleted snapshot %s for %s", snapshot_id[:12], working_dir)

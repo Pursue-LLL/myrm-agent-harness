@@ -27,9 +27,13 @@ from myrm_agent_harness.toolkits.memory.types import MemoryScope, SemanticMemory
 from myrm_agent_harness.toolkits.vector.base import SearchResult, VectorDocument
 
 
-def _semantic(content: str, *, ns: list[str], embedding: list[float] | None = None) -> SemanticMemory:
+def _semantic(
+    content: str, *, ns: list[str], embedding: list[float] | None = None
+) -> SemanticMemory:
     return SemanticMemory(
-        content=content, scope=MemoryScope(namespaces=ns), embedding=embedding or [0.5, 0.5]
+        content=content,
+        scope=MemoryScope(namespaces=ns),
+        embedding=embedding or [0.5, 0.5],
     )
 
 
@@ -50,9 +54,15 @@ class ScopeAwareVector:
     def __init__(self) -> None:
         self.docs: dict[str, VectorDocument] = {}
 
-    async def search(self, collection, query_vector, *, limit=10, filters=None, score_threshold=None):
+    async def search(
+        self, collection, query_vector, *, limit=10, filters=None, score_threshold=None
+    ):
         allow = set((filters or {}).get("namespaces", []))
-        hits = [d for d in self.docs.values() if set(d.metadata.get("namespaces", [])) & allow]
+        hits = [
+            d
+            for d in self.docs.values()
+            if set(d.metadata.get("namespaces", [])) & allow
+        ]
         if not hits:
             return []
         return [SearchResult(document=hits[0], score=0.97)]
@@ -89,7 +99,13 @@ async def test_dedup_does_not_suppress_other_agents_memory() -> None:
     store = ScopeAwareVector()
     await store.upsert(
         "semantic",
-        [VectorDocument(id="mem-b", content="User prefers Python over Rust", metadata={"namespaces": ["agent:B"]})],
+        [
+            VectorDocument(
+                id="mem-b",
+                content="User prefers Python over Rust",
+                metadata={"namespaces": ["agent:B"]},
+            )
+        ],
     )
     dedup = _new_deduplicator()
     mem_a = _semantic("User prefers Python over Rust", ns=["agent:A"])
@@ -147,13 +163,20 @@ async def test_apply_update_downgrades_cross_scope_target_to_new() -> None:
     vector = AsyncMock()
     vector.get = AsyncMock(
         return_value=[
-            VectorDocument(id="mem-b", content="old", metadata={"namespaces": ["agent:B"]})
+            VectorDocument(
+                id="mem-b", content="old", metadata={"namespaces": ["agent:B"]}
+            )
         ]
     )
     mem = _semantic("User prefers Python", ns=["agent:A"])
 
     result = await dedup._apply_update(
-        mem, "mem-b", "merged content", DeduplicationDecision.UPDATE_MERGE, vector, _config()
+        mem,
+        "mem-b",
+        "merged content",
+        DeduplicationDecision.UPDATE_MERGE,
+        vector,
+        _config(),
     )
 
     assert result is mem  # downgraded to NEW (create original instead of polluting B)
@@ -166,13 +189,20 @@ async def test_apply_update_allows_same_scope_merge() -> None:
     vector = AsyncMock()
     vector.get = AsyncMock(
         return_value=[
-            VectorDocument(id="mem-a", content="old", metadata={"namespaces": ["agent:A"]})
+            VectorDocument(
+                id="mem-a", content="old", metadata={"namespaces": ["agent:A"]}
+            )
         ]
     )
     mem = _semantic("User prefers Python", ns=["agent:A"])
 
     result = await dedup._apply_update(
-        mem, "mem-a", "merged content", DeduplicationDecision.UPDATE_MERGE, vector, _config()
+        mem,
+        "mem-a",
+        "merged content",
+        DeduplicationDecision.UPDATE_MERGE,
+        vector,
+        _config(),
     )
 
     assert result is not mem
@@ -209,7 +239,9 @@ async def test_hash_cache_still_suppresses_same_scope_duplicate() -> None:
     vector.search = AsyncMock(return_value=[])
     config = _config()
 
-    await dedup.deduplicate_batch([_semantic("Same fact", ns=["agent:A"])], vector, AsyncMock(), config, None)
+    await dedup.deduplicate_batch(
+        [_semantic("Same fact", ns=["agent:A"])], vector, AsyncMock(), config, None
+    )
     out2 = await dedup.deduplicate_batch(
         [_semantic("Same fact", ns=["agent:A"])], vector, AsyncMock(), config, None
     )
@@ -231,7 +263,9 @@ def test_hash_cache_load_drops_legacy_unscooped_keys() -> None:
 # ── R1: write-path fence ──────────────────────────────────────────────
 
 
-def _writer(namespaces: list[str], *, scope_namespaces: list[str] | None = None) -> MemoryWriter:
+def _writer(
+    namespaces: list[str], *, scope_namespaces: list[str] | None = None
+) -> MemoryWriter:
     async def _noop(memory):
         return memory
 
@@ -242,7 +276,11 @@ def _writer(namespaces: list[str], *, scope_namespaces: list[str] | None = None)
     config.security_scan_enabled = False
     return MemoryWriter(
         config=config,
-        scope=MemoryScope(namespaces=scope_namespaces if scope_namespaces is not None else list(namespaces)),
+        scope=MemoryScope(
+            namespaces=(
+                scope_namespaces if scope_namespaces is not None else list(namespaces)
+            )
+        ),
         namespaces=list(namespaces),
         approval_required=False,
         bind_scope_func=lambda m: m,
@@ -344,7 +382,9 @@ async def test_maintenance_dedup_filters_by_namespace() -> None:
 async def test_run_forgetting_filters_by_namespaces() -> None:
     """Vector forgetting must not delete memories outside the caller's scopes."""
     from myrm_agent_harness.toolkits.memory._internal.maintenance import run_forgetting
-    from myrm_agent_harness.toolkits.memory.strategies.forgetting import ForgettingConfig
+    from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
+        ForgettingConfig,
+    )
 
     config = _config()
     config.forgetting = ForgettingConfig()
@@ -355,4 +395,26 @@ async def test_run_forgetting_filters_by_namespaces() -> None:
 
     assert result.forgotten_count == 0
     _, kwargs = vector.scroll.call_args
+    assert kwargs["filters"] == _user_filter(namespaces=["agent:A"])
+
+
+@pytest.mark.asyncio
+async def test_forgetting_relation_counts_stay_inside_namespaces() -> None:
+    """relation_count neighbors must be counted within the caller's scopes only."""
+    from myrm_agent_harness.toolkits.memory._internal.maintenance import (
+        _estimate_relation_counts,
+    )
+
+    vector = AsyncMock()
+    vector.search = AsyncMock(return_value=[])
+    mem = _semantic("fact", ns=["agent:A"])
+
+    await _estimate_relation_counts(
+        [mem],
+        "semantic",
+        vector,
+        namespaces=["agent:A"],
+    )
+
+    _, kwargs = vector.search.call_args
     assert kwargs["filters"] == _user_filter(namespaces=["agent:A"])

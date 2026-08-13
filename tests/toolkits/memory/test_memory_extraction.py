@@ -911,6 +911,32 @@ class TestConcreteMemoryConversion:
         assert isinstance(proc, ProceduralMemory)
         assert proc.tool_rule_priority.value == "normal"
 
+    def test_convert_procedural_with_expected_valid_days(self, default_config):
+        """expected_valid_days propagates through to ProceduralMemory."""
+        from myrm_agent_harness.toolkits.memory.strategies.extractor import (
+            ExtractedMemory,
+        )
+
+        extractor = MemoryExtractor(config=default_config)
+        extracted = [
+            ExtractedMemory(
+                memory_type=MemoryType.PROCEDURAL,
+                content="Temporary constraint",
+                confidence=0.9,
+                importance=0.7,
+                trigger="during migration",
+                action="use fallback",
+                expected_valid_days=30,
+            )
+        ]
+
+        concrete = extractor.to_concrete_memories(extracted)
+
+        assert len(concrete) == 1
+        proc = concrete[0]
+        assert isinstance(proc, ProceduralMemory)
+        assert proc.expected_valid_days == 30
+
     def test_skips_invalid_profile_memory(self, default_config):
         """Test skipping profile memory without required fields."""
         from myrm_agent_harness.toolkits.memory.strategies.extractor import (
