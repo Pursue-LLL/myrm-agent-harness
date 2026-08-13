@@ -65,3 +65,52 @@ async def test_compile_claim_graph_no_docs():
     result = await compile_claim_graph(vector, graph, config)
 
     assert result == 0
+
+
+@pytest.mark.asyncio
+async def test_compile_claim_graph_scoped_to_namespaces():
+    """Claim compilation must restrict its scan to the given namespaces.
+
+    A maintenance pipeline for one agent scope must never compile claims
+    from digests owned by other scopes in the same collection.
+    """
+    config = MemoryConfig(embedding_model="test")
+    vector = AsyncMock()
+    graph = AsyncMock()
+
+    expected_namespaces = ["global:test-user", "agent:test-agent"]
+
+    async def _scroll(*args, **kwargs):
+        seen = kwargs.get("filters", {})
+        assert seen.get("namespaces") == expected_namespaces
+        return [], None
+
+    vector.scroll.side_effect = _scroll
+
+    result = await compile_claim_graph(
+        vector, graph, config, namespaces=expected_namespaces
+    )
+
+    assert result == 0
+    vector.scroll.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_compile_claim_graph_namespaces_none_keeps_unscoped_filter():
+    """namespaces=None (default) must keep the historical unscoped filter."""
+    config = MemoryConfig(embedding_model="test")
+    vector = AsyncMock()
+    graph = AsyncMock()
+
+    seen_filters: dict[str, object] = {}
+
+    async def _scroll(*args, **kwargs):
+        seen_filters.update(kwargs.get("filters", {}))
+        return [], None
+
+    vector.scroll.side_effect = _scroll
+
+    result = await compile_claim_graph(vector, graph, config)
+
+    assert result == 0
+    assert "namespaces" not in seen_filters

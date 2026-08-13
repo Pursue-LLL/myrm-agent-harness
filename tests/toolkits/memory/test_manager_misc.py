@@ -13,6 +13,18 @@ from myrm_agent_harness.toolkits.memory.types import ProceduralMemory
 class TestUpdateMemory:
     """Test update_memory method."""
 
+    def test_update_memory_signature_has_no_namespaces(self) -> None:
+        """update_memory must not accept a namespaces parameter.
+
+        A memory's scope is immutable; the namespaces parameter previously
+        allowed callers to bypass the write scope fence by rebuilding the
+        MemoryScope without _validate_write_scope.
+        """
+        import inspect
+
+        sig = inspect.signature(MemoryManager.update_memory)
+        assert "namespaces" not in sig.parameters
+
     @pytest.mark.asyncio
     async def test_update_memory_not_found_raises_error(self, mock_vector_store, mock_embedding, memory_config):
         """Test updating non-existent memory raises error."""

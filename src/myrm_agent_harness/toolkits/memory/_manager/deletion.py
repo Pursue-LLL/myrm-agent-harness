@@ -109,10 +109,17 @@ class MemoryManagerDeletionMixin:
         return deleted
 
     async def delete_rule(self, rule_id: str, *, allow_pinned: bool = True) -> bool:
-        if not allow_pinned:
-            rule = await self._rel().get_rule(rule_id, namespaces=self._namespaces)
-            if rule is not None and rule.pinned:
-                return False
+        """Delete an owned procedural rule.
+
+        Ownership is enforced via the manager's namespaces so a rule can only
+        be deleted when it lives in the current scope — mirroring the
+        ownership gate already applied to vector memories.
+        """
+        rule = await self._rel().get_rule(rule_id, namespaces=self._namespaces)
+        if rule is None:
+            return False
+        if not allow_pinned and rule.pinned:
+            return False
         return await self._rel().delete_rule(rule_id)
 
     async def delete_memories_by_metadata(

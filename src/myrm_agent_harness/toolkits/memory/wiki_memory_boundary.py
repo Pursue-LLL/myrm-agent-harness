@@ -1,8 +1,7 @@
-"""Compatibility facade for ``toolkits.memory.wiki_memory_boundary``.
+"""Stable import-path facade for ``toolkits.memory.wiki_memory_boundary``.
 
 [POS]
-Stable import-path shim. Re-exports the canonical implementation from
-``agent_surface/wiki_memory_boundary.py`` so legacy callers keep working unchanged.
+Re-exports the canonical implementation from ``agent_surface/wiki_memory_boundary.py``.
 
 [INPUT]
 - myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary (canonical implementation)

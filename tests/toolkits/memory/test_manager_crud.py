@@ -299,8 +299,41 @@ class TestDeleteOperations:
         assert count == 10
 
     @pytest.mark.asyncio
+    async def test_delete_by_type_procedural_scoped_to_namespaces(
+        self, mock_relational_store, memory_config
+    ):
+        """Procedural delete-by-type must be scoped to the manager's namespaces.
+
+        The previous implementation delegated to relational.delete_all(), which
+        wipes every scope's rules (plus profiles/pending_records) from the
+        shared tables. Mirroring delete_memories_by_metadata, rules must be
+        listed with a namespace filter and deleted one by one.
+        """
+        rules = [
+            ProceduralMemory(id="rule-a", content="A", trigger="t", action="a"),
+            ProceduralMemory(id="rule-b", content="B", trigger="t", action="b"),
+        ]
+        mock_relational_store.list_rules.side_effect = [rules, []]
+        mock_relational_store.delete_rule.return_value = True
+
+        manager = MemoryManager(
+            memory_config, user_id="test_user", relational=mock_relational_store
+        )
+
+        count = await manager.delete_by_type(MemoryType.PROCEDURAL)
+
+        assert count == 2
+        mock_relational_store.list_rules.assert_any_call(
+            active_only=False, limit=500, offset=0, namespaces=manager.namespaces
+        )
+        assert mock_relational_store.delete_rule.await_count == 2
+        mock_relational_store.delete_all.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_delete_rule(self, mock_relational_store, memory_config):
-        """Test deleting a procedural rule."""
+        """Test deleting a procedural rule owned by the manager's scope."""
+        existing = ProceduralMemory(id="rule-1", content="Rule", trigger="t", action="a")
+        mock_relational_store.get_rule.return_value = existing
         mock_relational_store.delete_rule.return_value = True
 
         manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
@@ -308,7 +341,20 @@ class TestDeleteOperations:
         result = await manager.delete_rule("rule-1")
 
         assert result is True
+        mock_relational_store.get_rule.assert_called_once_with("rule-1", namespaces=manager.namespaces)
         mock_relational_store.delete_rule.assert_called_once_with("rule-1")
+
+    @pytest.mark.asyncio
+    async def test_delete_rule_rejects_out_of_scope(self, mock_relational_store, memory_config):
+        """Deleting a rule outside the manager's scope must be rejected."""
+        mock_relational_store.get_rule.return_value = None
+
+        manager = MemoryManager(memory_config, user_id="test_user", relational=mock_relational_store)
+
+        result = await manager.delete_rule("rule-other")
+
+        assert result is False
+        mock_relational_store.delete_rule.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_delete_all(self, mock_vector_store, mock_relational_store, mock_embedding, memory_config):

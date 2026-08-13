@@ -58,11 +58,20 @@ def mcp_server(mock_manager):
     return MemoryMCPServer(mock_manager, server_name="test-memory")
 
 
+def _extract_text(result: object) -> str:
+    """Flatten a CallToolResult's text blocks into a single string."""
+    return "".join(
+        str(getattr(block, "text", "")) for block in getattr(result, "content", [])
+    )
+
+
 def _get_tool_fn(server: MemoryMCPServer, name: str):
-    for t in server.mcp._tool_manager.list_tools():
-        if t.name == name:
-            return t.fn
-    raise ValueError(f"Tool {name} not found")
+    """Return an async wrapper dispatching through the SDK ``call_tool``."""
+
+    async def wrapper(**kwargs: object) -> str:
+        return _extract_text(await server.mcp.call_tool(name, dict(kwargs)))
+
+    return wrapper
 
 
 def _make_search_result(
@@ -73,7 +82,7 @@ def _make_search_result(
 
 
 class TestMemoryMCPServerInit:
-    def test_init_creates_fastmcp(self, mcp_server):
+    def test_init_creates_mcp_server(self, mcp_server):
         assert mcp_server.mcp is not None
         assert mcp_server.mcp.name == "test-memory"
 
@@ -81,20 +90,21 @@ class TestMemoryMCPServerInit:
         server = MemoryMCPServer(mock_manager, server_name="custom-name")
         assert server.mcp.name == "custom-name"
 
-    def test_tools_registered(self, mcp_server):
+    @pytest.mark.asyncio
+    async def test_tools_registered(self, mcp_server):
         from myrm_agent_harness.toolkits.memory._memory_agent_tool_descriptions import (
             build_mcp_memory_store_tool_description,
             resolve_memory_manage_tool_description,
         )
 
-        tool_names = [t.name for t in mcp_server.mcp._tool_manager.list_tools()]
+        tool_names = [t.name for t in await mcp_server.mcp.list_tools()]
         assert "memory_recall" in tool_names
         assert "memory_list" in tool_names
         assert "memory_store" in tool_names
         assert "memory_manage" in tool_names
         assert len(tool_names) == 4
 
-        tools_by_name = {t.name: t for t in mcp_server.mcp._tool_manager.list_tools()}
+        tools_by_name = {t.name: t for t in await mcp_server.mcp.list_tools()}
         expected_manage = resolve_memory_manage_tool_description(surface="mcp")
         expected_store = build_mcp_memory_store_tool_description(
             wiki_boundary_in_description=True,

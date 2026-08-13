@@ -104,3 +104,60 @@ async def test_mixed_rules_partitioned_correctly() -> None:
 
     assert len(ctx["agent_instructions"]) == 1
     assert ctx["agent_instructions"][0]["instruction"] == "Follow project conventions"
+
+
+@pytest.mark.asyncio
+async def test_user_locked_tool_failure_rule_kept() -> None:
+    """A user-edited (locked) tool-failure rule graduates into the stable layer.
+
+    Editing an auto-generated failure rule is an explicit endorsement: the rule
+    should steer tool selection like any other user-approved AGENT_SELF instruction.
+    """
+    relational = AsyncMock()
+    relational.list_profiles.return_value = []
+    relational.list_rules.return_value = [
+        ProceduralMemory(
+            content="web_fetch_tool is unstable here, prefer curl retry",
+            trigger="web_fetch_tool repeated failure",
+            action="Use curl retry before web_fetch_tool",
+            tool_name="web_fetch_tool",
+            tool_rule_priority=ToolRulePriority.NORMAL,
+            source=RuleSource.AGENT_SELF,
+            expected_valid_days=1,
+            metadata={"origin": "tool_failure"},
+            is_user_locked=True,
+        )
+    ]
+
+    ctx = await load_context(relational)
+
+    assert ctx["agent_instructions"] == [
+        {"instruction": "Use curl retry before web_fetch_tool", "priority": 0}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_locked_failure_rule_kept_alongside_auto_failure_rule() -> None:
+    """Locked failure rules are promoted while untouched auto rules stay filtered."""
+    relational = AsyncMock()
+    relational.list_profiles.return_value = []
+    relational.list_rules.return_value = [
+        _failure_rule(),
+        ProceduralMemory(
+            content="web_fetch_tool is unstable here, prefer curl retry",
+            trigger="web_fetch_tool repeated failure",
+            action="Use curl retry before web_fetch_tool",
+            tool_name="web_fetch_tool",
+            tool_rule_priority=ToolRulePriority.NORMAL,
+            source=RuleSource.AGENT_SELF,
+            expected_valid_days=1,
+            metadata={"origin": "tool_failure"},
+            is_user_locked=True,
+        ),
+    ]
+
+    ctx = await load_context(relational)
+
+    assert ctx["agent_instructions"] == [
+        {"instruction": "Use curl retry before web_fetch_tool", "priority": 0}
+    ]

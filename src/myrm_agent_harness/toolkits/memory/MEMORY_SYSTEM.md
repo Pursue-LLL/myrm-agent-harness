@@ -164,7 +164,7 @@ myrm_agent_harness/
 >
 > **写入 scope 栅栏**：`write_service` 在 `store`/`store_batch` 绑定 scope 后校验目标 namespaces 必须是当前 writer 允许集合（写 scope `scope.namespaces` + 读范围内共享目标 `global`/`shared:*`）的子集，越界立即 `MemoryError` fail loud，杜绝跨 agent/channel/task 的越权写入。
 >
-> **去重与遗忘作用域安全**：三层去重 Layer 2 候选检索、`dedup_semantics` 兜底、以及 `run_forgetting` 向量遗忘均按内存自身 namespaces 过滤，保证同 scope 内去重/合并/删除，绝不跨 scope 抑制或清理他人记忆；Hash 缓存键绑定 namespaces 防串台；Qdrant 为 `namespaces` payload 建 KEYWORD 索引保证过滤性能。
+> **去重、遗忘、蒸发与编译作用域安全**：三层去重 Layer 2 候选检索、`dedup_semantics` 兜底、`run_forgetting` 向量遗忘、`evaporate_task_digests` 消化蒸发与 `compile_claim_graph` 图谱编译均按内存自身 namespaces 过滤，保证同 scope 内去重/合并/删除/消化/编译，绝不跨 scope 抑制、清理或消费他人记忆；Hash 缓存键绑定 namespaces 防串台；Qdrant 为 `namespaces` payload 建 KEYWORD 索引保证过滤性能。
 >
 > **Façade 编排边界**：`MemoryManager` 负责统一 façade，不再内联 `namespace` 派生、scope 绑定、写入目标裁剪和渠道亲和力重加权，这些纯逻辑统一收敛到 `_internal/scope.py`；扫描、审批路由、分桶、批量去重以及 convenience memory 构造统一收敛到 `_internal/write_service.py`；sanitize、typed recall 路由、RRF 前后编排、graph enrich 与 raw 裁剪统一收敛到 `_internal/search_service.py`；审批流、profile 写入和安全扫描统一收敛到 `_internal/governance_service.py`；health、snapshot 和 maintenance cycle 统一收敛到 `_internal/maintenance_service.py`。
 >
@@ -624,7 +624,7 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 - importance ≥ 0.9 的记忆受保护
 - 最近 7 天内访问过的记忆受保护
 
-作用域安全：`run_forgetting` 的向量 scroll 按当前 manager 的 namespaces 过滤，只清理本 scope 的低保留记忆，绝不跨 agent/channel/task 误删。
+作用域安全：`run_forgetting` 的向量 scroll 按当前 manager 的 namespaces 过滤，只清理本 scope 的低保留记忆，绝不跨 agent/channel/task 误删；`delete_rule`、`delete_memory` 与按类型清空 `delete_by_type` 同样按 namespaces 校验所有权（`get_rule(namespaces=...)`/`_owns_vector_doc`/`list_rules(namespaces)` 分页删除），规则与记忆只能在归属 scope 内被删除，杜绝跨 scope 越权删除。
 
 **ARCHIVE 字段契约**：向量层以 `archived` 布尔 payload 作为归档过滤标准——`_user_filter` 默认 `archived == False`，归档记忆必须同步设置 `archived: True` 才会被常规检索排除。`run_forgetting` ARCHIVE 分支、staleness review REMOVE、`update_memory(status=archived)` 均同步写入 `archived=True`；`unarchive_memory` 恢复时写回 `archived=False`（而非删除字段，避免 Qdrant 对缺失字段的 MatchValue 不匹配导致恢复后记忆从检索消失）。
 
@@ -682,7 +682,7 @@ result = await extractor.extract(messages=messages)
 - `extract_memories_from_conversation` 对 user 消息执行正则预扫描，零 LLM 成本捕获 edicts
 - `ToolMemoryCaptureHook.on_post_tool_failure` 跟踪工具失败次数；达到阈值（≥2 次）时生成 NORMAL 规则，并附带 `metadata.origin="tool_failure"` + `expected_valid_days=1`（24 小时警戒期）
 - `MemorySession.flush()` 调用 `hook.drain_pending()` 将待持久化规则纳入批量写入
-- `storage_context.load_context` 对 `source==AGENT_SELF` 且 `metadata.origin=="tool_failure"` 且 `tool_rule_priority==NORMAL` 的规则**不注入 stable 层**（视为瞬时提醒，仅可通过 `memory_search_tool` 检索）；用户显式保存的 AGENT_SELF 指令、`pattern_discovery` 已确立模式、以及被提升为 CRITICAL/HIGH 的失败规则不受影响
+- `storage_context.load_context` 对 `source==AGENT_SELF` 且 `metadata.origin=="tool_failure"` 且 `tool_rule_priority==NORMAL` 且 `is_user_locked==False` 的规则**不注入 stable 层**（视为瞬时提醒，仅可通过 `memory_search_tool` 检索）；用户显式保存的 AGENT_SELF 指令、`pattern_discovery` 已确立模式、被提升为 CRITICAL/HIGH 的失败规则，以及用户编辑过（`is_user_locked=True`，视为显式认可）的失败规则不受影响
 - `maintenance_rule_forgetting` 对 `expected_valid_days` 已过期的规则直接归档（绕过 retention 评分阈值，避免瞬时失败规则长期残留）
 
 **优先级层级**（`ToolRulePriority`）：

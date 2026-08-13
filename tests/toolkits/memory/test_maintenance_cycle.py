@@ -180,6 +180,52 @@ class TestRunMaintenanceCycle:
         assert upsert_docs[0].metadata["claim_graph_conflict"] == ClaimConflictState.NONE.value
 
     @pytest.mark.asyncio
+    async def test_evaporate_task_digests_scoped_to_namespaces(
+        self, memory_config: MemoryConfig, mock_vector_store: AsyncMock, mock_embedding: AsyncMock
+    ) -> None:
+        """Evaporation must restrict its scan to the manager's namespaces.
+
+        A maintenance pipeline running for one agent scope must never
+        evaporate task digests owned by other scopes in the same collection.
+        """
+        digest_doc = _make_doc(doc_id="digest-scoped-1")
+        digest_doc.metadata["memory_type"] = "episodic"
+        digest_doc.metadata["event_type"] = "task_digest"
+        digest_doc.metadata["memory_tier"] = MemoryTier.L2.value
+        digest_doc.metadata["digest_kind"] = DigestKind.TASK.value
+        digest_doc.metadata["evaporation_state"] = EvaporationState.PENDING.value
+
+        expected_namespaces = ["global:test-user", "agent:test-agent"]
+        seen_namespace_filter: object = None
+
+        async def _scroll(*args, **kwargs):
+            nonlocal seen_namespace_filter
+            filters = kwargs.get("filters", {})
+            if (
+                filters.get("event_type") == "task_digest"
+                and filters.get("evaporation_state") == EvaporationState.PENDING.value
+            ):
+                seen_namespace_filter = filters.get("namespaces")
+                return [digest_doc], None
+            return [], None
+
+        mock_vector_store.scroll.side_effect = _scroll
+        mock_vector_store.count.return_value = 1
+
+        mgr = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            namespaces=expected_namespaces,
+            auto_warmup=False,
+        )
+        report = await mgr.run_maintenance_cycle()
+
+        assert report.digests_evaporated == 1
+        assert seen_namespace_filter == expected_namespaces
+
+    @pytest.mark.asyncio
     async def test_claim_graph_compiled_from_evaporated_digest(
         self,
         memory_config: MemoryConfig,

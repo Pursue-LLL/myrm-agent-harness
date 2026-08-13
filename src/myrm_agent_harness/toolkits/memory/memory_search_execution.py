@@ -1,8 +1,7 @@
-"""Compatibility facade for ``toolkits.memory.memory_search_execution``.
+"""Stable import-path facade for ``toolkits.memory.memory_search_execution``.
 
 [POS]
-Stable import-path shim. Re-exports the canonical implementation from
-``agent_surface/memory_search_execution.py`` so legacy callers keep working unchanged.
+Re-exports the canonical implementation from ``agent_surface/memory_search_execution.py``.
 
 [INPUT]
 - myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution (canonical implementation)

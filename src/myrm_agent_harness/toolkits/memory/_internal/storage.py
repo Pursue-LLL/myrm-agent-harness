@@ -544,7 +544,22 @@ async def delete_by_type(
                 count += 1
         return count
     if memory_type == MemoryType.PROCEDURAL and relational:
-        return await relational.delete_all()
+        count = 0
+        offset = 0
+        while True:
+            rules = await relational.list_rules(
+                active_only=False,
+                limit=500,
+                offset=offset,
+                namespaces=namespaces,
+            )
+            if not rules:
+                break
+            for rule in rules:
+                if await relational.delete_rule(rule.id):
+                    count += 1
+            offset += len(rules)
+        return count
     if memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC) and vector:
         coll = (
             config.semantic_collection

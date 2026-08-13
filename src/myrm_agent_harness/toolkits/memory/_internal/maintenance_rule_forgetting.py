@@ -1,9 +1,8 @@
 """Forgetting orchestration for procedural rules (relational store).
 
-Extracted from ``maintenance.py`` to keep background-maintenance orchestration
-under the file-length ceiling. TTL-expired rules are archived/removed directly
-(bypassing retention-score thresholding), then the remaining rules flow through
-the standard ``ForgettingStrategy``.
+TTL-expired rules are archived/removed directly (bypassing retention-score
+thresholding), then the remaining rules flow through the standard
+``ForgettingStrategy``.
 
 [INPUT]
 - memory.protocols.relational::RelationalStoreProtocol (POS: relational persistence)

@@ -13,7 +13,7 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 | `governance_session.py` | Mixin | Approval workflow and session lifecycle | ✅ |
 | `retrieval_write.py` | Mixin | Store, search (with access tracking), context, tool rules | ✅ |
 | `convenience.py` | Mixin | Profile and typed add helpers | ✅ |
-| `deletion.py` | Mixin | Delete by id, metadata, and type; cascade-cleans derived Claim Graph nodes | ✅ |
+| `deletion.py` | Mixin | Ownership-gated delete by id/metadata/type (vector docs + procedural rules); cascade-cleans derived Claim Graph nodes | ✅ |
 | `listing_maintenance.py` | Mixin | List, health, archive, backup, maintenance | ✅ |
 | `mutations.py` | Mixin | Rate, correct, pin, update | ✅ |
 | `storage.py` | Mixin | Backend accessors and private store paths | ✅ |

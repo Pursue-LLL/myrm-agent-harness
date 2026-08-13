@@ -2,7 +2,7 @@
 
 [INPUT]
 - memory.protocols.relational::RelationalStoreProtocol (POS: relational persistence)
-- memory.types::{ProfileEntry, ProceduralMemory, RuleSource} (POS: memory data models)
+- memory.types::{ProfileEntry, ProceduralMemory, RuleSource, TOOL_FAILURE_ORIGIN, ToolRulePriority} (POS: memory data models)
 
 [OUTPUT]
 - load_context: Loads profile, rules, and working state for agent prompt
@@ -109,11 +109,14 @@ async def load_context(
                         if (
                             origin == TOOL_FAILURE_ORIGIN
                             and r.tool_rule_priority == ToolRulePriority.NORMAL
+                            and not r.is_user_locked
                         ):
                             # Auto-generated failure rules are transient advisories:
                             # keep them out of the stable prompt layer so a momentary
                             # tool failure cannot permanently steer tool selection.
                             # They remain recallable via memory_search_tool.
+                            # User-edited (locked) rules are explicitly endorsed, so
+                            # they graduate into the stable layer.
                             continue
                         agent_instrs.append({"instruction": r.action, "priority": r.priority})
                     else:

@@ -1,13 +1,13 @@
 """Integration tests for MemoryMCPServer memory_list tool.
 
-Exercises the FULL pipeline from FastMCP tool_manager.call_tool through
+Exercises the FULL pipeline from MCPServer.call_tool through
 MemoryMCPServer tool functions into real MemoryManager methods — no
-mocking of MCP protocol, FastMCP parameter parsing, or MemoryManager
+mocking of MCP protocol, MCPServer parameter parsing, or MemoryManager
 logic. Only the underlying storage backends (vector/relational) are
 mocked, as they are external infrastructure dependencies.
 
 Tests cover:
-- Tool registration and discovery via FastMCP
+- Tool registration and discovery via MCPServer
 - Overview mode: stats + preview for all categories
 - Category mode: paginated listing with real MemoryManager.list_memories
 - Error handling: invalid category, empty results, pagination bounds
@@ -15,7 +15,7 @@ Tests cover:
 - Budget truncation for large content
 - Drift defense footer presence
 - Knowledge listing credential redaction in tool output
-- memory_store preference ack redaction via full FastMCP call_tool pipeline
+- memory_store preference ack redaction via full MCPServer call_tool pipeline
 """
 
 from __future__ import annotations
@@ -98,19 +98,33 @@ def mcp_server(_stores):
     return MemoryMCPServer(manager)
 
 
+async def _call_tool(
+    server: MemoryMCPServer,
+    name: str,
+    args: dict[str, object],
+    context: object = None,
+) -> str:
+    """Dispatch through the SDK ``call_tool`` and flatten text content."""
+    result = await server.mcp.call_tool(name, args, context)
+    return "".join(
+        str(getattr(block, "text", "")) for block in getattr(result, "content", [])
+    )
+
+
 @pytest.fixture()
 def _mock_ctx():
-    """Mock MCP Context for ToolManager.call_tool (SDK 2.0 requirement)."""
+    """Mock MCP Context passed through MCPServer.call_tool."""
     ctx = MagicMock()
     ctx.request_id = "test-req-001"
     return ctx
 
 
 class TestMCPToolRegistration:
-    """Verify FastMCP correctly registers all 4 memory tools."""
+    """Verify MCPServer correctly registers all 4 memory tools."""
 
-    def test_four_tools_registered(self, mcp_server: MemoryMCPServer):
-        tools = mcp_server.mcp._tool_manager.list_tools()
+    @pytest.mark.asyncio
+    async def test_four_tools_registered(self, mcp_server: MemoryMCPServer):
+        tools = await mcp_server.mcp.list_tools()
         names = {t.name for t in tools}
         assert names == {
             "memory_recall",
@@ -119,10 +133,11 @@ class TestMCPToolRegistration:
             "memory_manage",
         }
 
-    def test_memory_list_has_parameters(self, mcp_server: MemoryMCPServer):
-        tools = mcp_server.mcp._tool_manager.list_tools()
+    @pytest.mark.asyncio
+    async def test_memory_list_has_parameters(self, mcp_server: MemoryMCPServer):
+        tools = await mcp_server.mcp.list_tools()
         list_tool = next(t for t in tools if t.name == "memory_list")
-        props = list_tool.parameters.get("properties", {})
+        props = list_tool.input_schema.get("properties", {})
         assert "category" in props
         assert "page" in props
         assert "page_size" in props
@@ -136,8 +151,7 @@ class TestMemoryListOverviewIntegration:
     async def test_overview_returns_all_categories(
         self, mcp_server: MemoryMCPServer, _mock_ctx
     ):
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {}, _mock_ctx)
+        result = await _call_tool(mcp_server, "memory_list", {}, _mock_ctx)
         assert "Memory Overview" in result
         assert "knowledge" in result.lower()
         assert "preference" in result.lower()
@@ -151,16 +165,14 @@ class TestMemoryListOverviewIntegration:
         relational.count_profiles.return_value = 5
         relational.count_rules.return_value = 3
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {}, _mock_ctx)
+        result = await _call_tool(mcp_server, "memory_list", {}, _mock_ctx)
         assert "10" in result or "preference" in result
 
     @pytest.mark.asyncio
     async def test_overview_includes_drift_defense(
         self, mcp_server: MemoryMCPServer, _mock_ctx
     ):
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {}, _mock_ctx)
+        result = await _call_tool(mcp_server, "memory_list", {}, _mock_ctx)
         assert "memory_manage" in result
 
 
@@ -176,8 +188,9 @@ class TestMemoryListCategoryIntegration:
         vector.scroll.return_value = (docs, None)
         vector.count.return_value = 3
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "knowledge"}, _mock_ctx)
+        result = await _call_tool(
+            mcp_server, "memory_list", {"category": "knowledge"}, _mock_ctx
+        )
         assert "Knowledge fact 0" in result
         assert "Knowledge fact 1" in result
         assert "Knowledge fact 2" in result
@@ -192,8 +205,9 @@ class TestMemoryListCategoryIntegration:
         vector.scroll.return_value = (docs, None)
         vector.count.return_value = 1
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "knowledge"}, _mock_ctx)
+        result = await _call_tool(
+            mcp_server, "memory_list", {"category": "knowledge"}, _mock_ctx
+        )
         assert secret not in result
         assert "Stored key" in result
 
@@ -206,8 +220,8 @@ class TestMemoryListCategoryIntegration:
         docs = [_make_vector_doc(f"p{i}", f"Page two item {i}") for i in range(5)]
         vector.scroll.return_value = (docs, None)
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool(
+        result = await _call_tool(
+            mcp_server,
             "memory_list",
             {"category": "knowledge", "page": 2, "page_size": 5},
             _mock_ctx,
@@ -218,9 +232,8 @@ class TestMemoryListCategoryIntegration:
     async def test_invalid_category_returns_error(
         self, mcp_server: MemoryMCPServer, _mock_ctx
     ):
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool(
-            "memory_list", {"category": "nonexistent_cat"}, _mock_ctx
+        result = await _call_tool(
+            mcp_server, "memory_list", {"category": "nonexistent_cat"}, _mock_ctx
         )
         assert "invalid category" in result.lower()
 
@@ -232,8 +245,9 @@ class TestMemoryListCategoryIntegration:
         vector.count.return_value = 0
         vector.scroll.return_value = ([], None)
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "knowledge"}, _mock_ctx)
+        result = await _call_tool(
+            mcp_server, "memory_list", {"category": "knowledge"}, _mock_ctx
+        )
         assert "0 items" in result or "empty" in result.lower() or "No" in result
 
     @pytest.mark.asyncio
@@ -245,8 +259,8 @@ class TestMemoryListCategoryIntegration:
         docs = [_make_vector_doc("a1", "Archived item")]
         vector.scroll.return_value = (docs, None)
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool(
+        result = await _call_tool(
+            mcp_server,
             "memory_list",
             {
                 "category": "knowledge",
@@ -265,9 +279,11 @@ class TestMemoryListCategoryIntegration:
         docs = [_make_vector_doc(f"c{i}", f"Clamped {i}") for i in range(50)]
         vector.scroll.return_value = (docs, None)
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool(
-            "memory_list", {"category": "knowledge", "page_size": 999}, _mock_ctx
+        result = await _call_tool(
+            mcp_server,
+            "memory_list",
+            {"category": "knowledge", "page_size": 999},
+            _mock_ctx,
         )
         assert "Clamped" in result
 
@@ -280,8 +296,9 @@ class TestMemoryListCategoryIntegration:
         docs = [_make_vector_doc("d1", "Drift test")]
         vector.scroll.return_value = (docs, None)
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "knowledge"}, _mock_ctx)
+        result = await _call_tool(
+            mcp_server, "memory_list", {"category": "knowledge"}, _mock_ctx
+        )
         assert "memory_manage" in result
 
 
@@ -296,9 +313,8 @@ class TestMemoryListEdgeCases:
         vector.count.return_value = 3
         vector.scroll.return_value = ([], None)
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool(
-            "memory_list", {"category": "knowledge", "page": 100}, _mock_ctx
+        result = await _call_tool(
+            mcp_server, "memory_list", {"category": "knowledge", "page": 100}, _mock_ctx
         )
         assert (
             "beyond" in result.lower()
@@ -316,9 +332,11 @@ class TestMemoryListEdgeCases:
         docs = [_make_vector_doc(f"h{i}", huge_content) for i in range(5)]
         vector.scroll.return_value = (docs, None)
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool(
-            "memory_list", {"category": "knowledge", "page_size": 5}, _mock_ctx
+        result = await _call_tool(
+            mcp_server,
+            "memory_list",
+            {"category": "knowledge", "page_size": 5},
+            _mock_ctx,
         )
         assert "h0" in result or "list_budget" in result or len(result) < 150000
 
@@ -336,9 +354,8 @@ class TestMemoryListEdgeCases:
         relational.list_profiles.return_value = profiles
         relational.count_profiles.return_value = 2
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool(
-            "memory_list", {"category": "preference"}, _mock_ctx
+        result = await _call_tool(
+            mcp_server, "memory_list", {"category": "preference"}, _mock_ctx
         )
         assert "color_0" in result or "blue_0" in result
 
@@ -360,16 +377,17 @@ class TestMemoryListEdgeCases:
         relational.list_rules.return_value = rules
         relational.count_rules.return_value = 1
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool("memory_list", {"category": "rule"}, _mock_ctx)
+        result = await _call_tool(
+            mcp_server, "memory_list", {"category": "rule"}, _mock_ctx
+        )
         assert "Always greet" in result
 
 
 class TestMemoryStoreIntegration:
-    """FastMCP memory_store → MemoryManager.set_profile_attribute → ack formatting."""
+    """MCPServer memory_store → MemoryManager.set_profile_attribute → ack formatting."""
 
     @pytest.mark.asyncio
-    async def test_store_preference_ack_redacts_credentials_via_fastmcp(
+    async def test_store_preference_ack_redacts_credentials_via_mcpserver(
         self, mcp_server: MemoryMCPServer, _stores, _mock_ctx
     ) -> None:
         secret = "sk-proj-abcdefghij1234567890"
@@ -377,8 +395,8 @@ class TestMemoryStoreIntegration:
         relational.set_profile = AsyncMock(return_value=None)
         relational.pending_exists = AsyncMock(return_value=False)
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool(
+        result = await _call_tool(
+            mcp_server,
             "memory_store",
             {
                 "category": "preference",
@@ -410,8 +428,8 @@ class TestMemoryStoreIntegration:
             "myrm_agent_harness.core.security.execution_policy.suspend_execution",
             return_value={"decision": "reject"},
         ):
-            tm = mcp_server.mcp._tool_manager
-            result = await tm.call_tool(
+            result = await _call_tool(
+                mcp_server,
                 "memory_store",
                 {"category": "knowledge", "content": poison},
                 _mock_ctx,
@@ -438,8 +456,8 @@ class TestMemoryStoreIntegration:
                 "edited_payload": {"content": "User prefers concise summaries."},
             },
         ):
-            tm = mcp_server.mcp._tool_manager
-            result = await tm.call_tool(
+            result = await _call_tool(
+                mcp_server,
                 "memory_store",
                 {"category": "knowledge", "content": poison},
                 _mock_ctx,
@@ -459,8 +477,8 @@ class TestMemoryStoreIntegration:
         secret = "sk-ant-abcdefghijklmnopqrstuvwxyz123456"
         vector, _, _ = _stores
 
-        tm = mcp_server.mcp._tool_manager
-        result = await tm.call_tool(
+        result = await _call_tool(
+            mcp_server,
             "memory_store",
             {"category": "knowledge", "content": f"the production token is {secret}"},
             _mock_ctx,
@@ -488,8 +506,8 @@ class TestMemoryStoreIntegration:
             "myrm_agent_harness.core.security.execution_policy.suspend_execution",
             return_value={"decision": "reject"},
         ):
-            tm = mcp_server.mcp._tool_manager
-            result = await tm.call_tool(
+            result = await _call_tool(
+                mcp_server,
                 "memory_store",
                 {
                     "category": "rule",

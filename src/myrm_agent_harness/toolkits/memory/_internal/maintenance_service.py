@@ -224,13 +224,18 @@ class MaintenanceService:
                     logger.warning("Maintenance blob GC failed: %s", exc)
 
                 try:
-                    digests_evaporated = await evaporate_task_digests(self._vector, self._config)
+                    digests_evaporated = await evaporate_task_digests(
+                        self._vector, self._config, namespaces=self._namespaces,
+                    )
                 except Exception as exc:
                     logger.warning("Maintenance digest evaporation failed: %s", exc)
 
                 if self._graph is not None:
                     try:
-                        claims_compiled = await compile_claim_graph(self._vector, self._graph, self._config)
+                        claims_compiled = await compile_claim_graph(
+                            self._vector, self._graph, self._config,
+                            namespaces=self._namespaces,
+                        )
                     except Exception as exc:
                         logger.warning("Maintenance claim graph compilation failed: %s", exc)
 

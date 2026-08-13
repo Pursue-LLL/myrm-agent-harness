@@ -1,8 +1,7 @@
-"""Compatibility facade for ``toolkits.memory.memory_recall_budget``.
+"""Stable import-path facade for ``toolkits.memory.memory_recall_budget``.
 
 [POS]
-Stable import-path shim. Re-exports the canonical implementation from
-``agent_surface/memory_recall_budget.py`` so legacy callers keep working unchanged.
+Re-exports the canonical implementation from ``agent_surface/memory_recall_budget.py``.
 
 [INPUT]
 - myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_budget (canonical implementation)

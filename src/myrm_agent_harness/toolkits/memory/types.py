@@ -115,11 +115,7 @@ TOOL_FAILURE_TTL_DAYS = 1
 
 
 class MemoryStatus(StrEnum):
-    """Unified status for all memory types.
-
-    Replaces the legacy ProceduralMemory.is_active bool and
-    metadata["archived"] hack with a single type-safe enum.
-    """
+    """Unified lifecycle status for all memory types."""
 
     ACTIVE = "active"
     DISABLED = "disabled"

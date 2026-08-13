@@ -16,6 +16,7 @@
 - bump_access_counts: async access count update
 - enrich_with_graph: re-export from maintenance_enrichment
 - compile_claim_graph: re-export from maintenance_claim_compile
+- forget_procedural_rules: procedural rule forgetting (delegated to maintenance_rule_forgetting)
 - evaporate_task_digests: task digest evaporation
 - sweep_orphaned_blobs: orphaned BLOB garbage collection
 - _search_claim_graph: alias of search_claim_graph for internal/tests
@@ -40,6 +41,9 @@ from myrm_agent_harness.toolkits.memory._internal.maintenance_claim_support impo
 )
 from myrm_agent_harness.toolkits.memory._internal.maintenance_enrichment import (
     enrich_with_graph,  # noqa: F401 — re-export
+)
+from myrm_agent_harness.toolkits.memory._internal.maintenance_rule_forgetting import (
+    forget_procedural_rules,
 )
 from myrm_agent_harness.toolkits.memory._internal.storage import (
     _user_filter,
@@ -223,7 +227,7 @@ async def run_forgetting(
                 )
 
         if relational is not None:
-            await _forget_procedural_rules(
+            await forget_procedural_rules(
                 relational, strategy, fg_cfg, result, namespaces
             )
 
@@ -242,25 +246,11 @@ async def run_forgetting(
     return result
 
 
-async def _forget_procedural_rules(
-    relational: RelationalStoreProtocol,
-    strategy: ForgettingStrategy,
-    fg_cfg: ForgettingConfig,
-    result: ForgettingResult,
-    namespaces: list[str] | None,
-) -> None:
-    """Apply forgetting strategy to ProceduralMemory stored in relational DB."""
-    from myrm_agent_harness.toolkits.memory._internal.maintenance_rule_forgetting import (
-        forget_procedural_rules,
-    )
-
-    await forget_procedural_rules(relational, strategy, fg_cfg, result, namespaces)
-
-
 async def evaporate_task_digests(
     vector: VectorStoreProtocol,
     config: MemoryConfig,
     *,
+    namespaces: list[str] | None = None,
     limit: int = 100,
 ) -> int:
     """Advance pending task digests from L2 pending state to evaporated state.
@@ -268,8 +258,11 @@ async def evaporate_task_digests(
     This is the minimal lifecycle hook for future L3 compilation. It does not
     build a claim graph yet; it only marks digests as consumed by the
     maintenance pipeline so later compilers can process incrementally.
+
+    Namespaces restrict the scan so the maintenance pipeline never touches
+    task digests owned by other agent scopes sharing the same collection.
     """
-    filters = _user_filter()
+    filters = _user_filter(namespaces=namespaces)
     filters["event_type"] = "task_digest"
     filters["evaporation_state"] = EvaporationState.PENDING.value
 

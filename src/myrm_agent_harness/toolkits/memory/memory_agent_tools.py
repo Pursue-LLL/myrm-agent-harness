@@ -1,8 +1,7 @@
-"""Compatibility facade for ``toolkits.memory.memory_agent_tools``.
+"""Stable import-path facade for ``toolkits.memory.memory_agent_tools``.
 
 [POS]
-Stable import-path shim. Re-exports the canonical implementation from
-``agent_surface/memory_agent_tools.py`` so legacy callers keep working unchanged.
+Re-exports the canonical implementation from ``agent_surface/memory_agent_tools.py``.
 
 [INPUT]
 - myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools (canonical implementation)

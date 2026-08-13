@@ -46,10 +46,16 @@ async def compile_claim_graph(
     graph: GraphStoreProtocol,
     config: MemoryConfig,
     *,
+    namespaces: list[str] | None = None,
     limit: int = 100,
 ) -> int:
-    """Compile evaporated L2 digests into minimal L3 claim/evidence nodes."""
-    filters = _user_filter()
+    """Compile evaporated L2 digests into minimal L3 claim/evidence nodes.
+
+    Namespaces restrict the scan so claims are only compiled from digests
+    owned by the current agent scope, never from other scopes sharing the
+    same collection.
+    """
+    filters = _user_filter(namespaces=namespaces)
     filters["event_type"] = "task_digest"
     filters["evaporation_state"] = EvaporationState.EVAPORATED.value
     filters["claim_graph_state"] = ClaimGraphState.PENDING.value

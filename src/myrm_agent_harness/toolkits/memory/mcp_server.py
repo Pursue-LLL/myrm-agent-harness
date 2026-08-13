@@ -1,8 +1,7 @@
-"""Compatibility facade for ``toolkits.memory.mcp_server``.
+"""Stable import-path facade for ``toolkits.memory.mcp_server``.
 
 [POS]
-Stable import-path shim. Re-exports the canonical implementation from
-``agent_surface/mcp_server.py`` so legacy callers keep working unchanged.
+Re-exports the canonical implementation from ``agent_surface/mcp_server.py``.
 
 [INPUT]
 - myrm_agent_harness.toolkits.memory.agent_surface.mcp_server (canonical implementation)

@@ -15,7 +15,6 @@ from myrm_agent_harness.toolkits.memory._manager.shared import (
     MemorySnapshot,
     MemoryType,
     RestoreResult,
-    VectorDocument,
     count_by_type,
     datetime,
     list_by_type,

@@ -1,8 +1,7 @@
-"""Compatibility facade for ``toolkits.memory.memory_recall_formatting``.
+"""Stable import-path facade for ``toolkits.memory.memory_recall_formatting``.
 
 [POS]
-Stable import-path shim. Re-exports the canonical implementation from
-``agent_surface/memory_recall_formatting.py`` so legacy callers keep working unchanged.
+Re-exports the canonical implementation from ``agent_surface/memory_recall_formatting.py``.
 
 [INPUT]
 - myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting (canonical implementation)
