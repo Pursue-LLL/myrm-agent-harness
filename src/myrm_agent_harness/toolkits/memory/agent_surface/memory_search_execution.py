@@ -82,7 +82,7 @@ async def _run_with_timeout[T](
         logger.warning(
             "%s search timed out after %.1fs; failing open",
             corpus,
-            timeout_seconds,
+            timeout_seconds or 0.0,
         )
         return None
 

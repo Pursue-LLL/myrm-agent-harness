@@ -1314,7 +1314,7 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 
 ### 权限类型级治理白名单
 
-`TOOL_PERMISSION_MAP` 产生的权限类型若无 `DEFAULT_RULESET` 明确规则，必须在 `RULESET_COVERAGE_WHITELIST` 声明（理由同上），否则治理门禁 fail-closed。门禁同时做**双向一致性**校验：若某白名单权限后来被加入 `DEFAULT_RULESET`（stale 死条目）或不再被任何 `TOOL_PERMISSION_MAP` 值引用（orphan 孤儿声明），门禁同样报错，避免治理报表自相矛盾（测量衰减）：
+`TOOL_PERMISSION_MAP` 产生的权限类型若无 `DEFAULT_RULESET` 明确规则，必须在 `RULESET_COVERAGE_WHITELIST` 声明（理由同上），否则治理门禁 fail-closed。门禁同时做**双向一致性**校验：若某白名单权限后来被加入 `DEFAULT_RULESET`（stale 死条目）或不再被任何 `TOOL_PERMISSION_MAP` 值引用（orphan 孤儿声明），门禁同样报错，避免治理报表自相矛盾（测量衰减）。`--json` 覆盖矩阵的 `permission_type_coverage` 遍历 `TOOL_PERMISSION_MAP` 全部值与白名单声明的并集，每个权限类型标注 `has_ruleset_rule` / `whitelist_reason` / `whitelist_orphan`，使 stale/ orphan 矛盾状态对审计报表**可见**（而非从矩阵中消失）：
 
 | 权限类型 | 放行理由 |
 |---------|---------|

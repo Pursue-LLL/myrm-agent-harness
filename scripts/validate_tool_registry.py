@@ -337,8 +337,9 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
             perm: {
                 "has_ruleset_rule": perm in ruleset_permissions,
                 "whitelist_reason": RULESET_COVERAGE_WHITELIST.get(perm),
+                "whitelist_orphan": perm not in mapped_permissions,
             }
-            for perm in sorted(set(TOOL_PERMISSION_MAP.values()))
+            for perm in sorted(mapped_permissions | set(RULESET_COVERAGE_WHITELIST))
         },
     }
     return errors, coverage_matrix

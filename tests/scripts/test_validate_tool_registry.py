@@ -698,7 +698,10 @@ def test_governance_coverage_matrix_contains_audit_fields() -> None:
     _, matrix = cli._check_governance_coverage()
     assert isinstance(matrix["registered_builtin_tools"], list)
     assert isinstance(matrix["external_tools"], list)
-    assert isinstance(matrix["permission_type_coverage"], dict)
+    ptc = matrix["permission_type_coverage"]  # type: ignore[index]
+    assert isinstance(ptc, dict)
+    for meta in ptc.values():
+        assert set(meta) == {"has_ruleset_rule", "whitelist_reason", "whitelist_orphan"}
     assert matrix["tool_coverage"]["cron_manage_tool"] == {  # type: ignore[index]
         "permission": "cron_manage",
         "dynamic_resolved": False,
@@ -706,6 +709,30 @@ def test_governance_coverage_matrix_contains_audit_fields() -> None:
         "explicit_mcp_fallback": False,
         "safety_declared": True,
         "canonical_params": ["action", "job_id", "name_filter"],
+    }
+
+
+def test_governance_coverage_matrix_reflects_orphan_entry() -> None:
+    """An orphan whitelist declaration must stay visible in the audit matrix
+    (whitelist_orphan=True) instead of silently disappearing from it."""
+    import scripts.validate_tool_registry as cli
+
+    registry = _governance_registry()
+    original = registry.RULESET_COVERAGE_WHITELIST
+    registry.RULESET_COVERAGE_WHITELIST = {
+        **original,
+        "phantom_permission": "read_only",
+    }
+    try:
+        errors, matrix = cli._check_governance_coverage()
+    finally:
+        registry.RULESET_COVERAGE_WHITELIST = original
+    assert any("phantom_permission" in e and "orphan declaration" in e for e in errors)
+    entry = matrix["permission_type_coverage"]["phantom_permission"]  # type: ignore[index]
+    assert entry == {
+        "has_ruleset_rule": False,
+        "whitelist_reason": "read_only",
+        "whitelist_orphan": True,
     }
 
 
