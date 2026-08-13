@@ -7,7 +7,7 @@ ACP Runtime backends — unified interface for ACP, SDK, and CLI agents.
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | ACP Runtime backends — unified interface for ACP, SDK, and CLI agents. | — |
+| __init__.py | Package | ACP Runtime backends — unified interface for ACP, SDK, and CLI agents. | ✅ |
 | _base.py | Internal | Base class for RuntimeBackend implementations — timeout control, truncation, error handling with process cleanup on timeout/failure. | ✅ |
 | _parser.py | Internal | Shared NDJSON event parsers for CLI and SDK runtimes. | ✅ |
 | _spawn_hints.py | Internal | Bare CLI spawn failure hints for CliRuntime error messages. | ✅ |
