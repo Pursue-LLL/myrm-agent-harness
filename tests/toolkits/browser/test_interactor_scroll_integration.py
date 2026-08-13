@@ -240,10 +240,14 @@ async def test_careful_click_same_origin_iframe_real(
     """CAREFUL click on a target inside a same-origin iframe wheels the iframe body."""
     page, ctx = await _open_page(browser, _IFRAME_PAGE)
     try:
-        interactor = _interactor(page, HumanizeMode.CAREFUL)
-        result = await interactor.interact("click", "e0")
+        interactor = Interactor(
+            page,
+            {"f1_e0": RefInfo(role="button", name="Deep", nth=0)},
+            humanize=HumanizeConfig.from_mode(HumanizeMode.CAREFUL),
+        )
+        result = await interactor.interact("click", "f1_e0")
 
-        assert "Clicked e0" in result, result
+        assert "Clicked f1_e0" in result, result
         clicked = await page.evaluate(
             "document.getElementById('f').contentDocument"
             ".getElementById('deep').dataset.clicked"

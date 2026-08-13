@@ -160,11 +160,11 @@ myrm_agent_harness/
 
 > **时间约定**：所有 `datetime` 字段（`created_at`、`updated_at`、`last_accessed_at` 等）统一使用 **UTC timezone-aware** datetime（`datetime.now(UTC)`）。模型默认值、业务逻辑和测试均遵循此约定。
 >
-> **作用域约定**：所有 `BaseMemory` 均携带 `MemoryScope`。向量层会持久化 `primary_namespace/namespaces/channel_id/...` 元数据，检索时按当前 manager 的 `namespaces` 过滤，同时保留跨渠道可召回能力。`AgentMemoryPolicy` 允许把“读哪些 namespace”和“写入哪个 scope”正式配置化，例如只读 `global` 共享知识，同时把新记忆仅写入 `task` namespace。
+> **作用域约定**：所有 `BaseMemory` 均携带 `MemoryScope`。向量层会持久化 `primary_namespace/namespaces/channel_id/...` 元数据，检索时按 `primary_namespace ∈ 当前 manager.namespaces` **精确过滤**（Qdrant 对单值字段的 MatchAny 即 IN 语义，与关系层 `primary_namespace IN (...)` 和图谱层逐 namespace 检索同语义），杜绝仅共享 `global` 广播命名空间的其他 agent 记忆串入本 scope，同时保留跨渠道可召回能力。`AgentMemoryPolicy` 允许把“读哪些 namespace”和“写入哪个 scope”正式配置化，例如只读 `global` 共享知识，同时把新记忆仅写入 `task` namespace。
 >
 > **写入 scope 栅栏**：`write_service` 在 `store`/`store_batch` 绑定 scope 后校验目标 namespaces 必须是当前 writer 允许集合（写 scope `scope.namespaces` + 读范围内共享目标 `global`/`shared:*`）的子集，越界立即 `MemoryError` fail loud，杜绝跨 agent/channel/task 的越权写入。
 >
-> **去重、遗忘、蒸发与编译作用域安全**：三层去重 Layer 2 候选检索、`dedup_semantics` 兜底、`run_forgetting` 向量遗忘、`evaporate_task_digests` 消化蒸发与 `compile_claim_graph` 图谱编译均按内存自身 namespaces 过滤，保证同 scope 内去重/合并/删除/消化/编译，绝不跨 scope 抑制、清理或消费他人记忆；Hash 缓存键绑定 namespaces 防串台；Qdrant 为 `namespaces` payload 建 KEYWORD 索引保证过滤性能。
+> **去重、遗忘、蒸发与编译作用域安全**：三层去重 Layer 2 候选检索、`dedup_semantics` 兜底、`run_forgetting` 向量遗忘、`evaporate_task_digests` 消化蒸发与 `compile_claim_graph` 图谱编译均按 `primary_namespace ∈ 内存自身 namespaces` **精确过滤**（`_user_filter` 中央函数），保证同 scope 内去重/合并/删除/消化/编译，绝不跨 scope 抑制、清理或消费他人记忆；Hash 缓存键绑定 namespaces 防串台；Qdrant 为 `primary_namespace`/`namespaces` payload 建 KEYWORD 索引保证过滤性能。
 >
 > **Façade 编排边界**：`MemoryManager` 负责统一 façade，不再内联 `namespace` 派生、scope 绑定、写入目标裁剪和渠道亲和力重加权，这些纯逻辑统一收敛到 `_internal/scope.py`；扫描、审批路由、分桶、批量去重以及 convenience memory 构造统一收敛到 `_internal/write_service.py`；sanitize、typed recall 路由、RRF 前后编排、graph enrich 与 raw 裁剪统一收敛到 `_internal/search_service.py`；审批流、profile 写入和安全扫描统一收敛到 `_internal/governance_service.py`；health、snapshot 和 maintenance cycle 统一收敛到 `_internal/maintenance_service.py`。
 >
@@ -176,7 +176,7 @@ myrm_agent_harness/
 >
 > **显式变更语义**：`task_digest` 现在允许额外提供 `**Change Kind**: support|contradict|supersede|constrain|none`。当该字段存在时，Claim 编译会优先使用它判定图关系；只有缺失时才回退到关键词和 token overlap 规则。这样可以减少“迁移/替代/约束变化”被误判成普通 polarity 冲突。
 >
-> **Claim 一等检索对象**：`Claim` 节点在 recall 阶段会被恢复成正式的 `ClaimMemory(memory_type='claim')`，不再伪装成 `SemanticMemory`。Recall 会先按当前 manager 的 `namespaces` 过滤 Claim，再叠加 freshness / contradiction / channel affinity 排序。这保证了事实层和编译知识层的类型边界清晰，也避免 L3 compiled knowledge 重新变成串台源。
+> **Claim 一等检索对象**：`Claim` 节点在 recall 阶段会被恢复成正式的 `ClaimMemory(memory_type='claim')`，不再伪装成 `SemanticMemory`。Recall 会先按 `primary_namespace` 逐 namespace **精确过滤**当前 manager 可见的 Claim，再叠加 freshness / contradiction / channel affinity 排序。这保证了事实层和编译知识层的类型边界清晰，也避免 L3 compiled knowledge 重新变成串台源。
 >
 > **Digest Recall 隐藏规则**：`task_digest` 属于 L2 编译原料，不属于用户侧普通 recall 对象。搜索编排会在普通 recall 阶段主动隐藏 `event_type='task_digest'` 的 episodic 结果，避免“原始 digest + 编译后 claim”同时进入模型上下文，浪费 token 并打乱知识层次。
 >
@@ -593,7 +593,7 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 - 合并追踪：`merge_count` 和 `merge_history` 记录演化历史
 - Metadata 合并：UPDATE_REPLACE 全替换 / UPDATE_MERGE 合并覆盖；tags 去重合并；source 字段始终更新为最新来源
 - 失败降级：LLM 失败时默认为 NEW（避免丢失）
-- 作用域栅栏：Layer 2 候选检索按记忆自身 `scope.namespaces` 过滤（仅召回同 scope 候选）；`_apply_update` 拒绝跨 scope 的 merge/replace 并降级为 NEW；Hash 缓存键绑定 namespaces（`namespaces|hash`），同内容写入不同 scope 互不抑制，旧格式键加载时自动废弃
+- 作用域栅栏：Layer 2 候选检索按 `primary_namespace ∈ 记忆自身 scope.namespaces` 精确过滤（仅召回同 scope 候选，仅共享 `global` 广播的他人记忆不进入候选）；`_apply_update` 拒绝跨 scope 的 merge/replace 并降级为 NEW；Hash 缓存键绑定 namespaces（`namespaces|hash`），同内容写入不同 scope 互不抑制，旧格式键加载时自动废弃
 
 ### 7.2 遗忘策略 (`strategies/forgetting.py`)
 
@@ -624,7 +624,7 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 - importance ≥ 0.9 的记忆受保护
 - 最近 7 天内访问过的记忆受保护
 
-作用域安全：`run_forgetting` 的向量 scroll 按当前 manager 的 namespaces 过滤，只清理本 scope 的低保留记忆，绝不跨 agent/channel/task 误删；`delete_rule`、`delete_memory` 与按类型清空 `delete_by_type` 同样按 namespaces 校验所有权（`get_rule(namespaces=...)`/`_owns_vector_doc`/`list_rules(namespaces)` 分页删除），规则与记忆只能在归属 scope 内被删除，杜绝跨 scope 越权删除；`delete_by_type(EPISODIC)` 删除前先收集本 scope 的 episodic id、删除后逐条级联清理 Claim Graph 派生节点，与单条删除的 `_cascade_clean_derived_graph_nodes` 对称，避免批量清空后图谱残留引用已删 task digest 的悬垂节点。
+作用域安全：`run_forgetting` 的向量 scroll 按 `primary_namespace ∈ 当前 manager.namespaces` 精确过滤，只清理本 scope 的低保留记忆，绝不跨 agent/channel/task 误删（仅共享 `global` 广播命名空间的其他 agent 记忆不会进入扫描）；`delete_rule`、`delete_memory` 与按类型清空 `delete_by_type` 同样校验所有权（`get_rule(namespaces=...)`/`_owns_vector_doc` 按 `primary_namespace` 主判定、缺失时按 namespaces 交集兜底/`list_rules(namespaces)` 分页删除），规则与记忆只能在归属 scope 内被删除，杜绝跨 scope 越权删除；`delete_by_type(EPISODIC)` 删除前先收集本 scope 的 episodic id、删除后逐条级联清理 Claim Graph 派生节点，与单条删除的 `_cascade_clean_derived_graph_nodes` 对称，避免批量清空后图谱残留引用已删 task digest 的悬垂节点。
 
 **ARCHIVE 字段契约**：向量层以 `archived` 布尔 payload 作为归档过滤标准——`_user_filter` 默认 `archived == False`，归档记忆必须同步设置 `archived: True` 才会被常规检索排除。`run_forgetting` ARCHIVE 分支、staleness review REMOVE、`update_memory(status=archived)` 均同步写入 `archived=True`；`unarchive_memory` 恢复时写回 `archived=False`（而非删除字段，避免 Qdrant 对缺失字段的 MatchValue 不匹配导致恢复后记忆从检索消失）。
 

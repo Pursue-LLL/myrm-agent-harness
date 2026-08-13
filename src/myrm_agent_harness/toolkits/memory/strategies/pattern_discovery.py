@@ -474,7 +474,10 @@ async def get_recent_patterns(manager: MemoryManager, limit: int = 5) -> list[st
         docs, _ = await vector.scroll(
             manager._config.episodic_collection,
             limit=limit,
-            filters={"event_type": "pattern_discovery"},
+            filters={
+                "event_type": "pattern_discovery",
+                "primary_namespace": manager.namespaces,
+            },
         )
         return [d.content for d in docs if d.content]
     except Exception:

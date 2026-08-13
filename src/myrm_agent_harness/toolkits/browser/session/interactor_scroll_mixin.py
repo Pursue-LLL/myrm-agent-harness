@@ -203,7 +203,7 @@ class ScrollHumanizeMixin:
         out); real visibility is decided by the rendered-state probe instead.
         """
         try:
-            await locator.wait_for(state="attached", timeout=2000)
+            await locator.wait_for(state="attached", timeout=5000)
             box = await locator.bounding_box(timeout=1000)
         except Exception:
             return None
@@ -220,11 +220,11 @@ class ScrollHumanizeMixin:
         in the top frame, and — when invisible — the nearest wheel-scrollable
         ancestor with the exact wheel delta that centers the target in it.
         Returns None on any measure error so callers degrade silently. The wait
-        is on ``attached`` only: visibility is decided by the probe itself, since
+        is on         ``attached`` only: visibility is decided by the probe itself, since
         patchright's ``visible`` semantics reject iframe-clipped targets.
         """
         try:
-            await locator.wait_for(state="attached", timeout=2000)
+            await locator.wait_for(state="attached", timeout=5000)
             return await locator.evaluate(_TARGET_PROBE_JS)
         except Exception:
             return None

@@ -554,7 +554,10 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
 
     async def _bezier_move_to(self, locator: Locator) -> bool:
         """Move mouse to the locator via Bézier curve. Returns True if move succeeded."""
-        await locator.wait_for(state="visible", timeout=_INTERACTION_TIMEOUT_MS)
+        # "attached" not "visible": patchright's visible semantics reject elements
+        # clipped by an iframe viewport even after they were scrolled into it, and
+        # the off-viewport check below is the real reachability gate anyway.
+        await locator.wait_for(state="attached", timeout=_INTERACTION_TIMEOUT_MS)
         box = await locator.bounding_box(timeout=_INTERACTION_TIMEOUT_MS)
         if box is None:
             return False

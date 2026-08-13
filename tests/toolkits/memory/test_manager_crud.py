@@ -420,6 +420,68 @@ class TestDeleteOperations:
         mock_relational_store.delete_rule.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_delete_memory_rejects_cross_agent_shared_global_doc(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        """A foreign agent's memory that shares only the ``global`` broadcast
+        namespace must not be deletable from another agent's manager.
+
+        Production records carry ``namespaces`` including ``global``, so an
+        ownership check that intersects that list would let agent B delete
+        agent A's memory. Ownership now keys on ``primary_namespace`` exactly.
+        """
+        from myrm_agent_harness.toolkits.memory.protocols.vector import VectorDocument
+
+        foreign_doc = VectorDocument(
+            id="mem-a",
+            content="agent A secret",
+            vector=[0.1] * 4,
+            metadata={
+                "user_id": "test_user",
+                "primary_namespace": "agent:a",
+                "namespaces": ["global", "agent:a"],
+            },
+        )
+        mock_vector_store.get.return_value = [foreign_doc]
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            namespaces=["global", "agent:b"],
+        )
+
+        count = await manager.delete_memory("test_collection", ["mem-a"])
+
+        assert count == 0
+        mock_vector_store.delete.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_delete_by_type_uses_primary_namespace_filter(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        """Bulk type clears must filter on ``primary_namespace`` exactly so the
+        wipe cannot cross into another agent's memories via ``global``."""
+        mock_vector_store.delete_by_filter.return_value = 3
+
+        manager = MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            namespaces=["global", "agent:b"],
+        )
+
+        count = await manager.delete_by_type(MemoryType.SEMANTIC)
+
+        assert count == 3
+        mock_vector_store.delete_by_filter.assert_awaited_once()
+        assert mock_vector_store.delete_by_filter.await_args.args[1][
+            "primary_namespace"
+        ] == ["global", "agent:b"]
+
+    @pytest.mark.asyncio
     async def test_delete_all(self, mock_vector_store, mock_relational_store, mock_embedding, memory_config):
         """Test deleting all memories for a user."""
         mock_relational_store.delete_all.return_value = 5

@@ -12,16 +12,21 @@ Run with: pytest -m integration tests/toolkits/browser/session/test_web_vitals_i
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
+from patchright.async_api import async_playwright
 
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
-from myrm_agent_harness.toolkits.browser.session.web_vitals import WebVitalsCollector
+from myrm_agent_harness.toolkits.browser.session.web_vitals import (
+    WebVitalsCollector,
+    WebVitalsReport,
+)
 
 _PAGE_HTML = """<!DOCTYPE html>
 <html>
@@ -42,6 +47,24 @@ _PAGE_HTML = """<!DOCTYPE html>
 </html>
 """
 
+# SPA-style page: content is inserted by JS ~1s after load, so an immediate
+# collection sees no LCP yet and the collector's single retry must pick it up.
+_SPA_HTML = """<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<script>
+  setTimeout(function () {
+    var d = document.createElement('div');
+    d.style.cssText = 'font-size:4rem;font-weight:bold;padding:24px;';
+    d.textContent = 'SPA rendered hero content';
+    document.body.appendChild(d);
+  }, 1000);
+</script>
+</body>
+</html>
+"""
+
 # Minimal 1x1 transparent PNG.
 _PNG_BYTES = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
@@ -58,6 +81,14 @@ class _PageHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(_PNG_BYTES)))
             self.end_headers()
             self.wfile.write(_PNG_BYTES)
+            return
+        if self.path == "/spa":
+            body = _SPA_HTML.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
         body = _PAGE_HTML.encode()
         self.send_response(200)
@@ -85,16 +116,24 @@ def page_server() -> str:
 @pytest.mark.integration
 @pytest.mark.slow
 @pytest.mark.asyncio
-async def test_collect_real_page_full_metrics(
-    browser_context, page_server: str
-) -> None:
-    """Collector runs the injected JS in a real page and grades the readings."""
-    page = await browser_context.new_page()
-    try:
-        await page.goto(page_server, wait_until="load")
-        report = await WebVitalsCollector().collect(page, page_server)
-    finally:
-        await page.close()
+async def test_collect_real_page_full_metrics(page_server: str) -> None:
+    """Collector runs the injected JS in a real page and grades the readings.
+
+    The browser is launched and torn down inside the test with an explicit
+    timeout so a slow startup cannot hang the whole session.
+    """
+
+    async def _run() -> WebVitalsReport:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            try:
+                page = await browser.new_page()
+                await page.goto(page_server, wait_until="load")
+                return await WebVitalsCollector().collect(page, page_server)
+            finally:
+                await browser.close()
+
+    report = await asyncio.wait_for(_run(), timeout=120)
 
     assert report.url == page_server
     # NavigationTiming is always present after a real navigation.
@@ -119,21 +158,89 @@ async def test_collect_real_page_full_metrics(
 @pytest.mark.asyncio
 async def test_session_get_web_vitals_real_chain(page_server: str) -> None:
     """Agent-facing chain: navigate a real BrowserSession and read the report."""
-    pool = GlobalBrowserPool(max_browsers=1)
-    await pool.warmup(browsers=1, pages_per_context=1)
-    session = BrowserSession(
-        pool, ContextType.AGENT, allow_private_networks=True
-    )
-    try:
-        tab_id = await session.new_tab(page_server)
-        assert tab_id.startswith("tab")
-        await session.wait_for_load()
-        text = await session.get_web_vitals()
-    finally:
-        await session.close()
-        await pool.shutdown()
+
+    async def _run() -> str:
+        pool = GlobalBrowserPool(max_browsers=1)
+        session: BrowserSession | None = None
+        try:
+            await pool.warmup(browsers=1, pages_per_context=1)
+            session = BrowserSession(
+                pool, ContextType.AGENT, allow_private_networks=True
+            )
+            tab_id = await session.new_tab(page_server)
+            assert tab_id.startswith("tab")
+            await session.wait_for_load()
+            return await session.get_web_vitals()
+        finally:
+            if session is not None:
+                await session.close()
+            await pool.shutdown()
+
+    text = await asyncio.wait_for(_run(), timeout=180)
 
     assert "Web Vitals for" in text
     assert "TTFB" in text and "LCP" in text and "FCP" in text
     assert "slow.png" in text
-    assert "Rating" in text or "good" in text or "poor" in text
+    assert "good" in text or "needs-improvement" in text or "poor" in text
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_spa_late_lcp_triggers_retry(page_server: str) -> None:
+    """SPA content lands ~1s after load: the first snapshot has no LCP and the
+    collector's retry must capture the finalized LCP on the second attempt."""
+    spa_url = page_server + "spa"
+
+    async def _run() -> WebVitalsReport:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            try:
+                page = await browser.new_page()
+                await page.goto(spa_url, wait_until="load")
+                return await WebVitalsCollector().collect(page, spa_url)
+            finally:
+                await browser.close()
+
+    report = await asyncio.wait_for(_run(), timeout=120)
+
+    # The retry path ran and the late-rendered hero became the LCP element.
+    assert report.url == spa_url
+    assert report.lcp_ms is not None and report.lcp_ms > 0
+    # The SPA start is still measurable even though no content painted yet.
+    assert report.ttfb_ms is not None
+    assert "Web Vitals for" in report.to_text()
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_manage_tool_web_vitals_action_real_chain(page_server: str) -> None:
+    """Full agent-facing path: invoke browser_manage_tool('web_vitals') against
+    a real BrowserSession, exactly as the LLM would call it."""
+
+    async def _run() -> str:
+        pool = GlobalBrowserPool(max_browsers=1)
+        session: BrowserSession | None = None
+        try:
+            await pool.warmup(browsers=1, pages_per_context=1)
+            session = BrowserSession(
+                pool, ContextType.AGENT, allow_private_networks=True
+            )
+            from myrm_agent_harness.toolkits.browser.tools import create_browser_tools
+
+            tools = create_browser_tools(session)
+            manage_tool = next(t for t in tools if t.name == "browser_manage_tool")
+            await session.new_tab(page_server)
+            await session.wait_for_load()
+            return str(await manage_tool.ainvoke({"action": "web_vitals"}))
+        finally:
+            if session is not None:
+                await session.close()
+            await pool.shutdown()
+
+    text = await asyncio.wait_for(_run(), timeout=180)
+
+    assert "Web Vitals for" in text
+    assert "LCP" in text and "TTFB" in text and "FCP" in text
+    assert "slow.png" in text
