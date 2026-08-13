@@ -19,14 +19,20 @@ Tab lifecycle manager. Responsibilities:
 6. Tab-level snapshot URL management (get/update_snapshot_url)
 7. Origin-based tab routing (find_tab_by_origin)
 8. Domain-aware tab listing (list_tabs_with_info)
+9. Optional async lifecycle callbacks so owners keep per-page state consistent on
+   every path: `on_tab_closed` fires per closed page (explicit close, LRU eviction,
+   popup close); `on_tab_created` fires per popup page captured outside create_tab.
 
 Single responsibility: only manages tab lifecycle and tab-level metadata; does not handle navigation, snapshot, interaction, or other business logic.
 """
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -66,6 +72,8 @@ class TabController:
         browser_pool: GlobalBrowserPool,
         context_type: ContextType,
         context_kwargs: dict[str, object] | None = None,
+        on_tab_closed: Callable[[Page], Awaitable[None]] | None = None,
+        on_tab_created: Callable[[Page], Awaitable[None]] | None = None,
     ):
         """Initialize TabController.
 
@@ -73,10 +81,17 @@ class TabController:
             browser_pool: Global browser pool for page acquisition/release.
             context_type: Default context type (CRAWL/AGENT/STEALTH).
             context_kwargs: Extra BrowserContext parameters (e.g. recording config).
+            on_tab_closed: Optional async callback invoked with the closed page
+                (used by BrowserSession to clear per-page device emulation).
+            on_tab_created: Optional async callback invoked with a new page
+                created outside ``create_tab`` (e.g. popups), used by
+                BrowserSession to inherit the active device profile.
         """
         self._pool = browser_pool
         self._context_type = context_type
         self._context_kwargs = context_kwargs
+        self._on_tab_closed = on_tab_closed
+        self._on_tab_created = on_tab_created
         self._tabs: dict[str, TabHandle] = {}
         self._active_tab_id: str | None = None
         self._tab_counter = 0
@@ -137,6 +152,8 @@ class TabController:
         else:
             await self._pool.release_page(handle.page, handle.context_key)
 
+        await self._notify_tab_closed(handle.page)
+
         if self._active_tab_id == tab_id:
             if handle.parent_tab_id and handle.parent_tab_id in self._tabs:
                 self._active_tab_id = handle.parent_tab_id
@@ -185,6 +202,20 @@ class TabController:
         if self._active_tab_id is None:
             raise RuntimeError("No active tab")
         return self._active_tab_id
+
+    def get_page(self, tab_id: str) -> Page:
+        """Return the Page bound to a tab.
+
+        Args:
+            tab_id: Target tab ID.
+
+        Raises:
+            ValueError: If the tab does not exist.
+        """
+        handle = self._tabs.get(tab_id)
+        if handle is None:
+            raise ValueError(f"Tab not found: {tab_id}")
+        return handle.page
 
     def find_tab_by_origin(self, origin: str) -> TabHandle | None:
         """Find an existing tab whose current URL shares the same origin.
@@ -319,6 +350,10 @@ class TabController:
         popup_page.on("close", lambda: self._on_popup_close(tab_id))
         self.attach_popup_listener(popup_page)
 
+        if self._on_tab_created is not None:
+            with contextlib.suppress(Exception):
+                await self._on_tab_created(popup_page)
+
         logger.warning(
             "TabController: captured popup %s (parent=%s, total=%d)",
             tab_id, parent_tab_id, len(self._tabs),
@@ -332,6 +367,11 @@ class TabController:
         handle = self._tabs.pop(tab_id)
         self._popup_attached_pages.discard(id(handle.page))
 
+        if self._on_tab_closed is not None:
+            # Popup close is a synchronous page event; run the async cleanup as
+            # a background task so the closing flow is never blocked.
+            asyncio.create_task(self._safe_notify(handle.page))
+
         if self._active_tab_id == tab_id:
             if handle.parent_tab_id and handle.parent_tab_id in self._tabs:
                 self._active_tab_id = handle.parent_tab_id
@@ -342,6 +382,17 @@ class TabController:
             "TabController: popup %s closed, switched to %s (remaining=%d)",
             tab_id, self._active_tab_id, len(self._tabs),
         )
+
+    async def _safe_notify(self, page: Page) -> None:
+        """Run the tab-closed callback, never letting observer errors escape."""
+        if self._on_tab_closed is None:
+            return
+        with contextlib.suppress(Exception):
+            await self._on_tab_closed(page)
+
+    async def _notify_tab_closed(self, page: Page) -> None:
+        """Invoke the tab-closed callback after the page leaves the tab map."""
+        await self._safe_notify(page)
 
     async def _evict_lru(self) -> None:
         """Evict the least-recently-used non-active tab."""

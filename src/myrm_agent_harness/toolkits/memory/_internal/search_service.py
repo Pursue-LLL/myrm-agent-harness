@@ -56,6 +56,16 @@ logger = logging.getLogger(__name__)
 FTS5SearcherFunc = Callable[[str, int], Awaitable[list[MemorySearchResult]]]
 
 
+def _deadline_remaining(deadline: float) -> float:
+    """Seconds left before ``deadline``, floored at zero.
+
+    Lets every network-touching retrieval stage (embed / collect / graph) share one
+    wall-clock budget, so partial results collected before the deadline survive while
+    the whole pipeline still returns in bounded time.
+    """
+    return max(0.0, deadline - perf_counter())
+
+
 def _log_background_task_failure(task: asyncio.Task[object]) -> None:
     if task.cancelled():
         return
@@ -160,40 +170,66 @@ class MemorySearchService:
         )
 
         with metrics.track_search(searched_types=tracked_types, current_chat_id=current_chat_id) as tracker:
+            degraded = False
+            deadline = perf_counter() + runtime_config.retrieval.timeout_seconds
+            embedding_required = self._embedding is not None and any(
+                memory_type in (MemoryType.SEMANTIC, MemoryType.EPISODIC, MemoryType.CONVERSATION)
+                for memory_type in search_types
+            )
             embed_start = perf_counter()
-            query_vector = await self._embed_query_if_needed(sanitized_query, search_types)
+            query_vector = None
+            if embedding_required:
+                try:
+                    query_vector = await asyncio.wait_for(
+                        self._embed_query_if_needed(sanitized_query, search_types),
+                        timeout=_deadline_remaining(deadline),
+                    )
+                except TimeoutError:
+                    degraded = True
+                    get_search_metrics().record_degradation("timeout")
+                    logger.warning(
+                        "Memory query embedding timed out after %.1fs; continuing with local-only recall",
+                        runtime_config.retrieval.timeout_seconds,
+                    )
             steps.append(
                 MemoryTraceStep(
                     phase="embed",
-                    status="success" if query_vector is not None else "skipped",
+                    status="success" if query_vector is not None else "skipped" if not embedding_required else "warning",
                     title="query_embedding",
                     summary="Dense query vector prepared when vector-backed memory types are searched.",
                     duration_ms=_elapsed_ms(embed_start),
                     input_count=1,
                     output_count=1 if query_vector is not None else 0,
+                    metadata={"degraded": True, "kind": "timeout"} if degraded and query_vector is None else {},
                 )
             )
             collect_start = perf_counter()
-            result_lists = await self._collect_result_lists(
+            result_lists, collect_degraded = await self._collect_result_lists(
                 query=sanitized_query,
                 memory_types=search_types,
                 limit=limit,
                 include_raw=include_raw,
                 config=runtime_config,
                 query_vector=query_vector,
+                deadline=deadline,
                 since=since,
                 until=until,
             )
+            degraded = degraded or collect_degraded
             candidate_count = sum(len(result_list) for result_list in result_lists)
             steps.append(
                 MemoryTraceStep(
                     phase="collect",
+                    status="warning" if collect_degraded else "success",
                     title="candidate_collect",
                     summary="Candidate memories collected from configured stores.",
                     duration_ms=_elapsed_ms(collect_start),
                     input_count=len(search_types),
                     output_count=candidate_count,
-                    metadata={"result_lists": len(result_lists)},
+                    metadata={
+                        "result_lists": len(result_lists),
+                        **({"degraded": True, "kind": "timeout"} if collect_degraded else {}),
+                    },
                 )
             )
             rank_start = perf_counter()
@@ -219,24 +255,39 @@ class MemorySearchService:
             )
             if self._graph is not None and claim_requested:
                 graph_start = perf_counter()
-                final = await enrich_with_graph(
-                    final,
-                    sanitized_query,
-                    limit,
-                    self._graph,
-                    self._vector,
-                    runtime_config,
-                    current_channel_id=self._current_channel_id,
-                    namespaces=self._namespaces,
-                )
+                graph_degraded = False
+                try:
+                    final = await asyncio.wait_for(
+                        enrich_with_graph(
+                            final,
+                            sanitized_query,
+                            limit,
+                            self._graph,
+                            self._vector,
+                            runtime_config,
+                            current_channel_id=self._current_channel_id,
+                            namespaces=self._namespaces,
+                        ),
+                        timeout=_deadline_remaining(deadline),
+                    )
+                except TimeoutError:
+                    graph_degraded = True
+                    degraded = True
+                    get_search_metrics().record_degradation("timeout")
+                    logger.warning(
+                        "Memory claim graph enrichment timed out after %.1fs; skipping graph results",
+                        runtime_config.retrieval.timeout_seconds,
+                    )
                 steps.append(
                     MemoryTraceStep(
                         phase="graph",
+                        status="warning" if graph_degraded else "success",
                         title="graph_enrich",
                         summary="Claim graph enrichment applied to retrieval candidates.",
                         duration_ms=_elapsed_ms(graph_start),
                         input_count=candidate_count,
                         output_count=len(final),
+                        metadata={"degraded": True, "kind": "timeout"} if graph_degraded else {},
                     )
                 )
             else:
@@ -258,6 +309,7 @@ class MemorySearchService:
             query_preview=sanitized_query[:180],
             occurred_at=datetime.now(UTC),
             result_count=len(final),
+            degraded=degraded,
             steps=[
                 *steps,
                 MemoryTraceStep(
@@ -304,9 +356,16 @@ class MemorySearchService:
         include_raw: bool,
         config: MemoryConfig,
         query_vector: list[float] | None,
+        deadline: float,
         since: datetime | None = None,
         until: datetime | None = None,
-    ) -> list[list[MemorySearchResult]]:
+    ) -> tuple[list[list[MemorySearchResult]], bool]:
+        """Fan out per-type store searches and collect results under one deadline.
+
+        Returns ``(result_lists, degraded)``. Store tasks that outlive the shared
+        wall-clock deadline are cancelled and whatever already completed is kept, so a
+        hanging remote store degrades recall instead of blocking the agent turn.
+        """
         tasks: list[asyncio.Task[list[MemorySearchResult]]] = []
         for memory_type in memory_types:
             self._append_type_search_tasks(
@@ -339,16 +398,43 @@ class MemorySearchService:
                 )
             )
 
-        raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+        if not tasks:
+            return [], False
+
+        done, pending = await asyncio.wait(
+            tasks,
+            timeout=_deadline_remaining(deadline),
+            return_when=asyncio.ALL_COMPLETED,
+        )
+        degraded = False
+        if pending:
+            degraded = True
+            timeout_seconds = self._config.retrieval.timeout_seconds
+            for task in pending:
+                task.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+            get_search_metrics().record_degradation("timeout")
+            logger.warning(
+                "Memory search collect timed out after %.1fs; returning %d/%d completed store results",
+                timeout_seconds,
+                len(done),
+                len(tasks),
+            )
+
         result_lists: list[list[MemorySearchResult]] = []
-        for result in raw_results:
-            if isinstance(result, BaseException):
-                logger.warning("Memory search error: %s", result)
-            elif isinstance(result, list) and result:
+        for task in done:
+            try:
+                result = task.result()
+            except BaseException as exc:
+                degraded = True
+                get_search_metrics().record_degradation("error")
+                logger.warning("Memory search error: %s", exc)
+                continue
+            if isinstance(result, list) and result:
                 filtered = self._filter_results(result)
                 if filtered:
                     result_lists.append(apply_channel_affinity(filtered, current_channel_id=self._current_channel_id))
-        return result_lists
+        return result_lists, degraded
 
     @staticmethod
     def _filter_results(results: list[MemorySearchResult]) -> list[MemorySearchResult]:

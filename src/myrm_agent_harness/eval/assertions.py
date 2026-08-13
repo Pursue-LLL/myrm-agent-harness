@@ -324,11 +324,11 @@ def evaluate_state_assertions(
                 "None": None,
             }
             try:
-                result = eval(
+                result = eval(  # noqa: S307 — eval-assert DSL, builtins stripped
                     assertion.expected,
                     {"__builtins__": safe_builtins},
                     {"output": actual_output},
-                )  # noqa: S307  # eval-assert DSL, builtins stripped
+                )  # eval-assert DSL, builtins stripped
                 if not result:
                     return (
                         False,

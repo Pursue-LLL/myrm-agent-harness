@@ -1,15 +1,15 @@
-"""ARIA snapshottext'ssemantic diff(ref prefixnormalizeafterlinelevelfor).
+"""Semantic line-level diff for ARIA snapshot text.
 
-implementationtype: `SnapshotDiffEngine`.and `SnapshotManager` coordinatemaintainsbaselineandgenerates diff output.
+Normalizes ref prefixes (e.g. ``e3:``) before comparing so that unchanged
+ARIA content is folded, while interactive element additions/removals are
+reported explicitly. Keeps a baseline of the previous snapshot tree.
 
 [INPUT]
 - toolkits.browser.snapshot::RefInfo (POS: browser_snapshot tool for ARIA tree capture.)
 
 [OUTPUT]
-- SnapshotDiffEngine: maintainssnapshottextbaselineandgeneratesnormalizeresulti...
-
-[POS]
-ARIA snapshottext'ssemantic diff(ref prefixnormalizeafterlinelevelfor).
+- SnapshotDiffEngine: maintains the snapshot text baseline and generates
+  normalized, line-level diff output.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ _MAX_UNCHANGED_DISPLAY = 10
 
 
 class SnapshotDiffEngine:
-    """maintainssnapshottextbaselineandgeneratesnormalizeresultinglinelevel diff."""
+    """Maintains the snapshot text baseline and generates normalized line-level diffs."""
 
     def __init__(self) -> None:
         self._prev_normalized: list[str] = []

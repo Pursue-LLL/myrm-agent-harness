@@ -562,9 +562,9 @@ def propagate_user_credentials(  # noqa: UP047
 
 
 @overload
-def propagate_user_credentials(
+def propagate_user_credentials(  # noqa: UP047
     fn: Callable[_P, _R],
-) -> Callable[_P, _R]: ...  # noqa: UP047
+) -> Callable[_P, _R]: ...
 
 
 def propagate_user_credentials(fn: Callable[_P, _R]) -> Callable[_P, _R]:  # noqa: UP047
@@ -597,9 +597,9 @@ def propagate_user_credentials(fn: Callable[_P, _R]) -> Callable[_P, _R]:  # noq
     return sync_wrapper
 
 
-class ToolClarificationException(
+class ToolClarificationError(
     Exception
-):  # noqa: N818  intentional descriptive name (HITL, cross-repo)
+):
     """Raised when a tool needs human clarification before proceeding.
 
     Used by HITL (Human-in-the-Loop) tools that require the user to

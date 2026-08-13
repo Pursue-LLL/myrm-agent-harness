@@ -3,6 +3,16 @@
 Provides a fast, spatial-locality-based fallback when strict locators fail.
 Uses BBox coordinates and local JS evaluation for O(1) performance.
 Implements Semantic Veto to prevent dangerous mis-clicks.
+
+[INPUT]
+- .aria_types::CURSOR_ROLES, RefInfo (POS: ARIA type system for snapshot)
+- patchright.async_api::Frame, FrameLocator, Locator, Page (POS: browser driver)
+
+[OUTPUT]
+- SelfHealer: locator self-healing with Semantic Veto
+
+[POS]
+Locator self-healing fallback layer for snapshot interaction.
 """
 
 import logging

@@ -22,7 +22,6 @@ from myrm_agent_harness.toolkits.web_fetch.engine.types import (
     BackgroundTask,
     CachedDocument,
 )
-from myrm_agent_harness.toolkits.web_fetch.fetchers.protocols import FetchResult
 
 
 def _engine(tmpdir: str, **kwargs) -> FetchEngine:
@@ -261,7 +260,7 @@ class TestCacheMixinBranches:
             with patch.object(
                 engine,
                 "_crawl_with_degradation",
-                new=AsyncMock(side_effect=asyncio.TimeoutError("timeout")),
+                new=AsyncMock(side_effect=TimeoutError("timeout")),
             ):
                 await engine._background_revalidate(PLAIN_URL, "k", cached)
 

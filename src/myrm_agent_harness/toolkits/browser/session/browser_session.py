@@ -86,6 +86,7 @@ from .browser_session_persistence_mixin import BrowserSessionPersistenceMixin
 from .browser_session_recording_mixin import BrowserSessionRecordingMixin
 from .browser_session_view_mixin import BrowserSessionViewMixin
 from .console_logger import ConsoleLogger
+from .device_emulator import DeviceEmulator
 from .dialog_manager import DialogManager, DialogPolicy
 from .download_manager import DownloadConfig, DownloadManager, DownloadResult
 from .extractor import Extractor
@@ -98,7 +99,6 @@ from .snapshot_manager import SnapshotManager, SnapshotResult
 from .structured_extractor import StructuredExtractor
 from .tab_controller import TabController
 from .vision_verifier import VisionVerifier
-from .device_emulator import DeviceEmulator
 from .web_vitals import WebVitalsCollector
 
 if TYPE_CHECKING:
@@ -210,7 +210,19 @@ class BrowserSession(
             context_kwargs["domain_blocklist"] = domain_blocklist
         if download_config is not None:
             context_kwargs["accept_downloads"] = True
-        self._tab_controller = TabController(browser_pool, context_type, context_kwargs if context_kwargs else None)
+        self._device_emulator = DeviceEmulator()
+        self._tab_controller = TabController(
+            browser_pool,
+            context_type,
+            context_kwargs if context_kwargs else None,
+            # Clear per-page device emulation when a tab leaves the session
+            # through any path (close/evict/popup-close), not just explicit
+            # close_tab, so pool-recycled pages never keep mobile overrides.
+            on_tab_closed=self._device_emulator.forget_page,
+            # Popups (target=_blank/OAuth) also inherit the active device so
+            # tab-level emulation stays consistent across every creation path.
+            on_tab_created=self._device_emulator.reapply,
+        )
         self._navigator: Navigator | None = None
         self._snapshot_manager: SnapshotManager | None = None
         self._interactor: Interactor | None = None
@@ -218,7 +230,6 @@ class BrowserSession(
         self._network_logger = NetworkLogger()
         self._network_intelligence = NetworkIntelligence()
         self._web_vitals = WebVitalsCollector()
-        self._device_emulator = DeviceEmulator()
         self._console_logger = ConsoleLogger()
         self._persistence: SessionPersistence | None = SessionPersistence(session_vault) if session_vault else None
         self._recording_manager: RecordingManager | None = None
@@ -552,7 +563,7 @@ class BrowserSession(
 
     @property
     def stats(self) -> dict[str, object]:
-        """GetStatisticsinformation
+        """Get statistics information.
 
         Returns:
             Statistics information Dict, Contains:

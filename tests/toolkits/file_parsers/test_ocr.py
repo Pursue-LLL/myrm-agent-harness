@@ -1,7 +1,6 @@
 """Tests for the OCRParser (PaddleOCR 2.x/3.x compatible)."""
 
 import sys
-import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

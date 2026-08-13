@@ -47,9 +47,13 @@ class FakePage:
     def __init__(self, cdp: FakeCDP, ua: str = "Mozilla/5.0 (Macintosh) DefaultUA") -> None:
         self.context = FakeContext(cdp)
         self._ua = ua
+        self.closed = False
 
     async def evaluate(self, expression: str) -> str:
         return self._ua
+
+    def is_closed(self) -> bool:
+        return self.closed
 
 
 class FakeRegistry:
@@ -163,16 +167,20 @@ class TestReset:
         assert cdp.sent[2][1]["enabled"] is False
 
     @pytest.mark.asyncio
-    async def test_reset_without_prior_emulation_uses_default_ua(
+    async def test_reset_without_prior_emulation_preserves_ua(
         self, cdp: FakeCDP, page: FakePage
     ) -> None:
-        """Reset with no prior emulation falls back to the browser default UA."""
+        """Reset with no prior emulation leaves the context UA untouched."""
         emulator = DeviceEmulator(_registry())
 
         result = await emulator.reset(page)  # type: ignore[arg-type]
 
         assert "Restored desktop viewport" in result
-        assert cdp.sent[1][1] == {"userAgent": ""}
+        methods = [method for method, _ in cdp.sent]
+        assert methods == [
+            "Emulation.clearDeviceMetricsOverride",
+            "Emulation.setTouchEmulationEnabled",
+        ]
 
     @pytest.mark.asyncio
     async def test_emulate_desktop_aliases_reset(
@@ -220,14 +228,14 @@ class TestCdpSessionLifecycle:
     async def test_detach_releases_cdp_session(
         self, cdp: FakeCDP, page: FakePage
     ) -> None:
-        """detach() detaches the CDP session (called on session close)."""
+        """detach() detaches the CDP session and clears session state."""
         emulator = DeviceEmulator(_registry())
         await emulator.emulate("iPhone 15 Pro", page)  # type: ignore[arg-type]
 
         await emulator.detach()
 
         assert cdp.detach_calls == 1
-        assert emulator.active_device == "iPhone 15 Pro"
+        assert emulator.active_device is None
 
     @pytest.mark.asyncio
     async def test_list_devices_delegates_to_registry(self) -> None:
@@ -235,3 +243,121 @@ class TestCdpSessionLifecycle:
         emulator = DeviceEmulator(_registry())
 
         assert emulator.list_devices() == ["iPhone 15 Pro", "Pixel 8"]
+
+
+class TestSessionConsistency:
+    @pytest.mark.asyncio
+    async def test_reset_clears_every_injected_page(
+        self, cdp: FakeCDP, page: FakePage
+    ) -> None:
+        """Reset clears overrides on ALL emulated pages, not just the active one."""
+        page_b = FakePage(cdp, ua="Mozilla/5.0 (Pixel) PageBUA")
+        emulator = DeviceEmulator(_registry())
+
+        await emulator.emulate("iPhone 15 Pro", page)  # type: ignore[arg-type]
+        await emulator.emulate("Pixel 8", page_b)  # type: ignore[arg-type]
+        cdp.sent.clear()
+
+        result = await emulator.reset(page)  # type: ignore[arg-type]
+
+        assert "Restored desktop viewport" in result
+        assert emulator.active_device is None
+        # Each page gets its own clear triple (2 pages = 6 commands).
+        methods = [method for method, _ in cdp.sent]
+        assert methods == [
+            "Emulation.clearDeviceMetricsOverride",
+            "Network.setUserAgentOverride",
+            "Emulation.setTouchEmulationEnabled",
+            "Emulation.clearDeviceMetricsOverride",
+            "Network.setUserAgentOverride",
+            "Emulation.setTouchEmulationEnabled",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_reset_skips_closed_page(
+        self, cdp: FakeCDP, page: FakePage
+    ) -> None:
+        """Reset ignores a page that was closed, without raising."""
+        page_b = FakePage(cdp, ua="Mozilla/5.0 (Pixel) PageBUA")
+        emulator = DeviceEmulator(_registry())
+        await emulator.emulate("iPhone 15 Pro", page)  # type: ignore[arg-type]
+        await emulator.emulate("Pixel 8", page_b)  # type: ignore[arg-type]
+        page_b.closed = True
+
+        result = await emulator.reset(page)  # type: ignore[arg-type]
+
+        assert "Restored desktop viewport" in result
+        # Only the live page receives clear commands.
+        methods = [method for method, _ in cdp.sent]
+        assert methods.count("Emulation.clearDeviceMetricsOverride") == 1
+
+    @pytest.mark.asyncio
+    async def test_reapply_applies_active_profile_to_new_page(
+        self, cdp: FakeCDP, page: FakePage
+    ) -> None:
+        """reapply() injects the active device profile into a new tab."""
+        new_page = FakePage(cdp, ua="Mozilla/5.0 (Blank) NewTabUA")
+        emulator = DeviceEmulator(_registry())
+        await emulator.emulate("iPhone 15 Pro", page)  # type: ignore[arg-type]
+        cdp.sent.clear()
+
+        await emulator.reapply(new_page)  # type: ignore[arg-type]
+
+        methods = [method for method, _ in cdp.sent]
+        assert "Emulation.setDeviceMetricsOverride" in methods
+        assert cdp.sent[0][1]["width"] == 393
+        # Session state still reflects the active device.
+        assert emulator.active_device == "iPhone 15 Pro"
+
+    @pytest.mark.asyncio
+    async def test_reapply_noop_when_no_active_device(
+        self, cdp: FakeCDP, page: FakePage
+    ) -> None:
+        """reapply() is a no-op when no device is currently emulated."""
+        emulator = DeviceEmulator(_registry())
+
+        await emulator.reapply(page)  # type: ignore[arg-type]
+
+        assert cdp.sent == []
+
+    @pytest.mark.asyncio
+    async def test_forget_page_clears_single_page_state(
+        self, cdp: FakeCDP, page: FakePage
+    ) -> None:
+        """forget_page() clears one page's emulation and drops it from tracking."""
+        page_b = FakePage(cdp, ua="Mozilla/5.0 (Pixel) PageBUA")
+        emulator = DeviceEmulator(_registry())
+        await emulator.emulate("iPhone 15 Pro", page)  # type: ignore[arg-type]
+        await emulator.emulate("Pixel 8", page_b)  # type: ignore[arg-type]
+        cdp.sent.clear()
+
+        await emulator.forget_page(page_b)  # type: ignore[arg-type]
+
+        methods = [method for method, _ in cdp.sent]
+        assert methods.count("Emulation.clearDeviceMetricsOverride") == 1
+        # Remaining tracked page survives; reset clears only the surviving page.
+        cdp.sent.clear()
+        await emulator.reset(page)  # type: ignore[arg-type]
+        assert cdp.sent.count(("Emulation.clearDeviceMetricsOverride", {})) == 1
+
+    @pytest.mark.asyncio
+    async def test_detach_resets_tracking_and_state(
+        self, cdp: FakeCDP, page: FakePage
+    ) -> None:
+        """detach() drops tracking, CDP sessions, and active device/profile."""
+        page_b = FakePage(cdp, ua="Mozilla/5.0 (Pixel) PageBUA")
+        emulator = DeviceEmulator(_registry())
+        await emulator.emulate("iPhone 15 Pro", page)  # type: ignore[arg-type]
+        await emulator.emulate("Pixel 8", page_b)  # type: ignore[arg-type]
+
+        await emulator.detach()
+
+        assert emulator.active_device is None
+        # Tracking was reset: reset clears only the given page, and state stays
+        # desktop afterwards.
+        cdp.sent.clear()
+        result = await emulator.reset(page)  # type: ignore[arg-type]
+        assert "Restored desktop viewport" in result
+        methods = [method for method, _ in cdp.sent]
+        assert methods.count("Emulation.clearDeviceMetricsOverride") == 1
+        assert emulator.active_device is None

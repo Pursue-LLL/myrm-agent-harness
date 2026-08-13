@@ -37,8 +37,8 @@ class TestSSRFShield:
         assert is_internal_ip("172.16.0.1") is True
         assert is_internal_ip("169.254.169.254") is True
         assert (
-            is_internal_ip("0.0.0.0") is True
-        )  # noqa: S104  # IP string assertion, not a bind
+            is_internal_ip("0.0.0.0") is True  # noqa: S104 — string assertion, not a bind
+        )
         assert is_internal_ip("::1") is True
 
         assert is_internal_ip("8.8.8.8") is False
@@ -223,7 +223,6 @@ class TestCheckUrlAndResolve:
 
     @pytest.mark.asyncio
     async def test_async_validate_guard_blocked(self):
-        from myrm_agent_harness.core.security.guards.ssrf import check_url
 
         with URLAllowlistGuard.apply(["api.github.com"]):
             result = await async_validate_url_for_ssrf("https://evil.com/log")

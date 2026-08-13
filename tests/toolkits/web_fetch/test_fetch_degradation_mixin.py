@@ -269,7 +269,7 @@ class TestCrawlWithDegradation:
     async def test_stealth_start_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             engine = _make_engine(tmp)
-            http, browser, stealth = _stub_fetchers(engine)
+            _http, _browser, stealth = _stub_fetchers(engine)
             engine._router = SimpleNamespace(
                 select=lambda url: SimpleNamespace(fetcher_type=FetcherType.STEALTH),
                 report_result=lambda *a, **k: None,
@@ -291,7 +291,7 @@ class TestCrawlWithDegradation:
     async def test_stealth_fail_then_browser_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             engine = _make_engine(tmp)
-            http, browser, stealth = _stub_fetchers(engine)
+            _http, browser, stealth = _stub_fetchers(engine)
             engine._router = SimpleNamespace(
                 select=lambda url: SimpleNamespace(fetcher_type=FetcherType.STEALTH),
                 report_result=lambda *a, **k: None,
@@ -301,7 +301,7 @@ class TestCrawlWithDegradation:
             browser.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, result = await engine._crawl_with_degradation(
+            doc, _result = await engine._crawl_with_degradation(
                 "http://example.com/page"
             )
 
@@ -312,7 +312,7 @@ class TestCrawlWithDegradation:
     async def test_stealth_and_browser_fail_then_escalation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             engine = _make_engine(tmp)
-            http, browser, stealth = _stub_fetchers(engine)
+            _http, browser, stealth = _stub_fetchers(engine)
             engine._router = SimpleNamespace(
                 select=lambda url: SimpleNamespace(fetcher_type=FetcherType.STEALTH),
                 report_result=lambda *a, **k: None,
@@ -346,7 +346,7 @@ class TestCrawlWithDegradation:
     async def test_browser_start_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             engine = _make_engine(tmp)
-            http, browser, stealth = _stub_fetchers(engine)
+            _http, browser, _stealth = _stub_fetchers(engine)
             engine._router = SimpleNamespace(
                 select=lambda url: SimpleNamespace(fetcher_type=FetcherType.BROWSER),
                 report_result=lambda *a, **k: None,
@@ -355,7 +355,7 @@ class TestCrawlWithDegradation:
             browser.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, result = await engine._crawl_with_degradation(
+            doc, _result = await engine._crawl_with_degradation(
                 "http://example.com/page"
             )
 
@@ -370,7 +370,7 @@ class TestCrawlWithDegradation:
             http.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc()
 
-            doc, result = await engine._crawl_with_degradation(
+            doc, _result = await engine._crawl_with_degradation(
                 "http://example.com/page"
             )
 
@@ -385,7 +385,7 @@ class TestCrawlWithDegradation:
             http, browser, stealth = _stub_fetchers(engine)
             http.fetch.return_value = _http_result("", status=404)
 
-            doc, result = await engine._crawl_with_degradation(
+            doc, _result = await engine._crawl_with_degradation(
                 "http://example.com/page"
             )
 
@@ -474,7 +474,7 @@ class TestEscalationMixin:
             )
             engine.set_escalation_providers([provider])
 
-            doc, result = await engine._try_escalation(
+            doc, _result = await engine._try_escalation(
                 "http://example.com/page", max_chars=10
             )
 
@@ -501,7 +501,7 @@ class TestEscalationMixin:
             )
             engine.set_escalation_providers([provider])
 
-            doc, result = await engine._try_escalation("http://example.com/page")
+            doc, _result = await engine._try_escalation("http://example.com/page")
 
             assert doc is not None
             assert doc.metadata.get("escalation_provider") == "reader4"
@@ -638,7 +638,7 @@ class TestFetchMixinRemaining:
                     new=lambda html: True,
                 ),
             ):
-                doc, degradable, _, _, _, result = await engine._try_fetch_and_process(
+                doc, degradable, _, _, _, _result = await engine._try_fetch_and_process(
                     "https://mp.weixin.qq.com/s/abc123", FetcherType.HTTP
                 )
 
@@ -671,7 +671,7 @@ class TestFetchMixinRemaining:
     async def test_stealth_ladder_escalation_returns_none(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             engine = _make_engine(tmp)
-            http, browser, stealth = _stub_fetchers(engine)
+            _http, browser, stealth = _stub_fetchers(engine)
             engine._router = SimpleNamespace(
                 select=lambda url: SimpleNamespace(fetcher_type=FetcherType.STEALTH),
                 report_result=lambda *a, **k: None,
@@ -693,7 +693,7 @@ class TestFetchMixinRemaining:
     async def test_browser_ladder_stealth_fallback_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             engine = _make_engine(tmp)
-            http, browser, stealth = _stub_fetchers(engine)
+            _http, browser, stealth = _stub_fetchers(engine)
             engine._router = SimpleNamespace(
                 select=lambda url: SimpleNamespace(fetcher_type=FetcherType.BROWSER),
                 report_result=lambda *a, **k: None,
@@ -703,7 +703,7 @@ class TestFetchMixinRemaining:
             stealth.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc("stealth")
 
-            doc, result = await engine._crawl_with_degradation(
+            doc, _result = await engine._crawl_with_degradation(
                 "http://example.com/page"
             )
 
@@ -721,7 +721,7 @@ class TestFetchMixinRemaining:
             stealth.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc("stealth final")
 
-            doc, result = await engine._crawl_with_degradation(
+            doc, _result = await engine._crawl_with_degradation(
                 "http://example.com/page"
             )
 
@@ -770,7 +770,7 @@ class TestLadderRemainingBranches:
         """BROWSER + STEALTH both fail, remote escalation returns markdown doc."""
         with tempfile.TemporaryDirectory() as tmp:
             engine = _make_engine(tmp)
-            http, browser, stealth = _stub_fetchers(engine)
+            _http, browser, stealth = _stub_fetchers(engine)
             engine._router = SimpleNamespace(
                 select=lambda url: SimpleNamespace(fetcher_type=FetcherType.BROWSER),
                 report_result=lambda *a, **k: None,
@@ -807,12 +807,12 @@ class TestLadderRemainingBranches:
         """HTTP degradable, then BROWSER tier succeeds."""
         with tempfile.TemporaryDirectory() as tmp:
             engine = _make_engine(tmp)
-            http, browser, stealth = _stub_fetchers(engine)
+            http, browser, _stealth = _stub_fetchers(engine)
             http.fetch.return_value = None
             browser.fetch.return_value = _http_result(RICH_HTML)
             engine._pipeline.process.return_value = _doc("browser final")
 
-            doc, result = await engine._crawl_with_degradation(
+            doc, _result = await engine._crawl_with_degradation(
                 "http://example.com/page"
             )
 
@@ -825,7 +825,7 @@ class TestLadderRemainingBranches:
         """BROWSER + STEALTH fail and escalation unavailable => return last result."""
         with tempfile.TemporaryDirectory() as tmp:
             engine = _make_engine(tmp)
-            http, browser, stealth = _stub_fetchers(engine)
+            _http, browser, stealth = _stub_fetchers(engine)
             engine._router = SimpleNamespace(
                 select=lambda url: SimpleNamespace(fetcher_type=FetcherType.BROWSER),
                 report_result=lambda *a, **k: None,
@@ -866,7 +866,7 @@ class TestLadderRemainingBranches:
                 )
             ]
 
-            doc, result = await engine._crawl_with_degradation(
+            doc, _result = await engine._crawl_with_degradation(
                 "http://example.com/page"
             )
 
@@ -909,7 +909,7 @@ class TestLadderRemainingBranches:
                 ),
             ]
 
-            doc, result = await engine._crawl_with_degradation(
+            doc, _result = await engine._crawl_with_degradation(
                 "http://example.com/page"
             )
 

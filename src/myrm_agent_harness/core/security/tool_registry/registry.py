@@ -53,6 +53,8 @@ declaration improves transparency and self-documentation.
 - TOOL_CANONICAL_PARAMS: tool name → core parameter list
 - TOOL_SAFETY_METADATA: tool name → safety attributes (opt-in whitelist)
 - AUTO_APPROVED_BUILTIN_TOOLS: built-in tool → governance approval reason (audit declaration)
+- EXPLICIT_MCP_FALLBACK_TOOLS: built-in tools that intentionally keep mcp_invoke fallback (audit declaration)
+- DYNAMICALLY_RESOLVED_TOOL_NAMES: built-in tools resolved by resolve_permission_type() sub-action branches (audit declaration)
 - AUTO_APPROVE_REASONS: valid governance reason categories
 - RULESET_COVERAGE_WHITELIST: permission type → governance approval reason (no DEFAULT_RULESET rule)
 - resolve_permission_type(): tool name → permission type (with dynamic sub-action and MCP fallback)
@@ -127,6 +129,24 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "complete_goal_tool",
         "ask_question_tool",
         "bash_process_tool",
+        "browser_ask_human_tool",
+        "request_directory_tool",
+        "kanban_show",
+        "kanban_complete",
+        "kanban_block",
+        "kanban_heartbeat",
+        "kanban_comment",
+        "kanban_attach",
+        "kanban_add_task",
+        "kanban_list_tasks",
+        "kanban_unblock",
+        "kanban_cancel_task",
+        "kanban_retry_task",
+        "wiki_ingest_tool",
+        "wiki_query_tool",
+        "wiki_apply_tool",
+        "wiki_compile_tool",
+        "wiki_maintain_tool",
     }
 )
 
@@ -157,19 +177,67 @@ AUTO_APPROVE_REASONS: frozenset[str] = frozenset(
 
 AUTO_APPROVED_BUILTIN_TOOLS: dict[str, str] = {
     "ask_question_tool": "user_visible",  # interactive clarification, user sees every question
+    "browser_ask_human_tool": "user_visible",  # in-page HITL prompt (2FA/CAPTCHA), user sees every prompt
     "complete_goal_tool": "internal",  # goal-state marking signal
+    "kanban_add_task": "user_visible",  # kanban task creation, user opt-in + board UI
+    "kanban_attach": "user_visible",  # attach files/notes to kanban task
+    "kanban_block": "user_visible",  # mark task blocked
+    "kanban_cancel_task": "user_visible",  # cancel running kanban task
+    "kanban_comment": "user_visible",  # progress comments on kanban task
+    "kanban_complete": "user_visible",  # mark task done
+    "kanban_heartbeat": "user_visible",  # keep-alive heartbeat for long-running task
+    "kanban_list_tasks": "read_only",  # list kanban tasks, pure read
+    "kanban_retry_task": "user_visible",  # retry failed kanban task
+    "kanban_show": "read_only",  # show kanban task detail, pure read
+    "kanban_unblock": "user_visible",  # unblock kanban task
     "memory_manage_tool": "user_visible",  # memory housekeeping, user-visible + audited
     "memory_save_tool": "user_visible",  # memory writes, user-visible + scan-audited
     "memory_search_tool": "read_only",
     "render_ui_tool": "display",
     "request_answer_user_tool": "internal",  # answer-phase gating signal
+    "request_directory_tool": "user_visible",  # user-driven directory access grant
     "skill_market_tool": "user_visible",  # skill install from market, trust-scanned + user-visible
     "skill_search_tool": "read_only",
     "skill_select_tool": "read_only",
     "todo_write": "display",  # progress plan UI
     "update_ui_data_tool": "display",
     "web_search_tool": "read_only",
+    "wiki_apply_tool": "user_visible",  # apply compiled wiki entry into store
+    "wiki_compile_tool": "user_visible",  # compile draft sources into wiki entry
+    "wiki_ingest_tool": "user_visible",  # ingest external content into wiki
+    "wiki_maintain_tool": "user_visible",  # wiki maintenance pass
+    "wiki_query_tool": "read_only",  # wiki retrieval, pure read
 }
+
+# Built-in tools that intentionally keep the `mcp_invoke` fallback (runtime ASK)
+# instead of being promoted to their own name (runtime ALLOW). These tools have
+# real external side effects or high blast radius, so they must NOT be added to
+# BUILTIN_TOOL_NAMES — doing so would silently flip their runtime baseline to
+# ALLOW. The governance gate (scripts/validate_tool_registry.py) treats this set
+# as a valid third governance state, so it does not flag them as uncovered.
+EXPLICIT_MCP_FALLBACK_TOOLS: frozenset[str] = frozenset(
+    {
+        "browser_execute_script_tool",  # arbitrary JS execution — keep ASK (plus in-tool HITL for privileged APIs)
+        "send_teammate_message_tool",  # cross-agent message dispatch — external side effect, keep ASK
+    }
+)
+
+# Built-in tools whose permission type is resolved dynamically by
+# ``resolve_permission_type()`` (sub-action → fine-grained permission), so they
+# are intentionally absent from ``TOOL_PERMISSION_MAP``. SSOT consumed by the
+# governance gate (scripts/validate_tool_registry.py) — the gate must not
+# re-declare its own copy, otherwise the two lists drift and a removed dynamic
+# branch would be silently treated as still-governed (ASK → baseline ALLOW).
+DYNAMICALLY_RESOLVED_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "bash_process_tool",
+        "browser_interact_tool",
+        "browser_manage_tool",
+        "desktop_snapshot_tool",
+        "desktop_interact_tool",
+        "desktop_vision_tool",
+    }
+)
 
 # Permission types resolved by TOOL_PERMISSION_MAP that have no explicit rule in
 # DEFAULT_RULESET and therefore fall back to the baseline ALLOW. Declared here so
@@ -608,6 +676,33 @@ TOOL_SAFETY_METADATA: dict[str, SafetyMetadata] = {
     "request_directory_tool": SafetyMetadata(
         is_read_only=True, is_concurrent_safe=False, is_idempotent=True
     ),
+    # kanban worker/orchestrator tools — stateful board mutations, serialized by store lock
+    "kanban_show": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "kanban_list_tasks": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=True, is_idempotent=True
+    ),
+    "kanban_add_task": SafetyMetadata(),
+    "kanban_attach": SafetyMetadata(),
+    "kanban_block": SafetyMetadata(),
+    "kanban_cancel_task": SafetyMetadata(),
+    "kanban_comment": SafetyMetadata(),
+    "kanban_complete": SafetyMetadata(),
+    "kanban_heartbeat": SafetyMetadata(),
+    "kanban_retry_task": SafetyMetadata(),
+    "kanban_unblock": SafetyMetadata(),
+    # wiki knowledge-base tools — query read-only; mutations stateful
+    "wiki_query_tool": SafetyMetadata(is_read_only=True, is_concurrent_safe=True, is_idempotent=True),
+    "wiki_apply_tool": SafetyMetadata(),
+    "wiki_compile_tool": SafetyMetadata(),
+    "wiki_ingest_tool": SafetyMetadata(),
+    "wiki_maintain_tool": SafetyMetadata(),
+    # browser HITL prompt — user-visible, no side effects beyond asking
+    "browser_ask_human_tool": SafetyMetadata(
+        is_read_only=True, is_concurrent_safe=False, is_idempotent=True
+    ),
+    # explicit mcp_invoke fallback tools — declared for module-load gate transparency
+    "browser_execute_script_tool": SafetyMetadata(),
+    "send_teammate_message_tool": SafetyMetadata(),
 }
 
 

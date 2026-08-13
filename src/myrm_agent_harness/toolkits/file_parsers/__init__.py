@@ -18,7 +18,7 @@ Provides parsers for various file formats:
 - pptx::PptxParser (POS: PowerPoint document parser)
 - pdf::PDFPlumberParser (POS: PDF parser using pdfplumber)
 - pdf_content_extractor::PDFExtractConfig, PDFExtractResult, PDFImageContent, extract_pdf_content (POS: PDF content extraction)
-- pdf_smart::SmartPDFParser (POS: PDF parser adapter over the smart extraction orchestrator with OCR fallback)
+- pdf_smart::SmartPDFParser (POS: PDF parser adapter over the smart extraction orchestrator. Returns plain text with tables rendered inline; scanned PDFs (sparse text layer) are OCR'd so text-only consumers (@-mentions, wiki imports, web downloads) read them too)
 - text::TextParser (POS: plain text and Markdown parser)
 - ipynb::IpynbParser (POS: Jupyter Notebook parser)
 - legacy::LegacyFormatParser (POS: OLE2 legacy format parser with soffice conversion)

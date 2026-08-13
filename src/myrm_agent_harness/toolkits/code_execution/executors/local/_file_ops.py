@@ -19,13 +19,11 @@ from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from myrm_agent_harness.infra.atomic_write import async_atomic_write
-
-logger = logging.getLogger(__name__)
-
-
 from myrm_agent_harness.toolkits.code_execution.interceptor import (
     trigger_destructive_action_hook,
-)  # noqa: E402
+)
+
+logger = logging.getLogger(__name__)
 
 
 def _current_session_id() -> str | None:

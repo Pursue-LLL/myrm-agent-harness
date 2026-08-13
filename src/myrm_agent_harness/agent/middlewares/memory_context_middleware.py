@@ -38,6 +38,7 @@ Memory context injection middleware bridging MemoryManager snapshots into the mo
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, cast
@@ -57,6 +58,16 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 
 logger = logging.getLogger(__name__)
+
+
+def _retrieval_timeout_seconds(manager: object) -> float:
+    """Wall-clock ceiling for memory-context loading, from manager config or default."""
+    config = getattr(manager, "_config", None)
+    retrieval = getattr(config, "retrieval", None)
+    timeout = getattr(retrieval, "timeout_seconds", None)
+    if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and timeout > 0:
+        return float(timeout)
+    return 10.0
 
 
 def _set_memory_injection_status(
@@ -212,12 +223,21 @@ class MemoryContextMiddleware(AgentMiddleware):
                 state_extra["memory_brief_snapshot_id"] = snapshot_id.strip()
         else:
             try:
-                static_result = await manager.get_context(
-                    include_profile=True,
-                    include_rules=True,
-                    include_agent_instructions=True,
-                )
+                async with asyncio.timeout(_retrieval_timeout_seconds(manager)):
+                    static_result = await manager.get_context(
+                        include_profile=True,
+                        include_rules=True,
+                        include_agent_instructions=True,
+                    )
                 learned_result = {}
+            except TimeoutError:
+                logger.warning("Memory context load timed out; skipping memory injection")
+                _set_memory_injection_status(
+                    manager,
+                    state="not_applied",
+                    reason="load_timeout",
+                )
+                return await handler(request)
             except Exception as e:
                 logger.warning("Failed to load memory context: %s", e)
                 _set_memory_injection_status(

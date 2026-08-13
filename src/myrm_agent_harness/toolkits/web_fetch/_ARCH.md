@@ -11,7 +11,8 @@ Layered single-page web fetch engine with L1 HTTP / L2 Browser / L3 Stealth fall
 | __init__.py | Package | Entry point. Re-exports FetchEngine, result types, and global instance. | ✅ |
 | engine/ | Core | FetchEngine sub-package — tiered fetcher pool (base + cache/fetch/escalation mixins + shared types). See `engine/_ARCH.md`. | ✅ |
 | pipeline.py | Core | ContentPipeline — HTML to clean Markdown conversion. | ✅ |
-| web_fetch_agent_tools.py | Core | LangChain @tool factory for fetch_full_content / fetch_and_extract. | ✅ |
+| web_fetch_agent_tools.py | Core | LangChain @tool factory for fetch_full_content / fetch_and_extract. Accepts `blocked_hostnames` (host hits raise `ToolError` with `error_category=ToolErrorCategory.BENCHMARK_BLOCKED`) and `description_locale` (locale-aware LLM description). | ✅ |
+| _web_fetch_tool_description.py | Core | LLM-visible `web_fetch_tool` description SSOT (English + Chinese; locale via `is_chinese`; extract-mode aware). Imported by `web_fetch_agent_tools.py` and static tests. | ✅ |
 | spill.py | Util | UECD wrapper — head/tail preview + evicted persist for fetch_full_content. | ✅ |
 | content_sanitize.py | Util | Strip base64 image blobs from fetched markdown before model delivery. | ✅ |
 | url_normalizer.py | Util | URL normalization for de-duplication. | ✅ |

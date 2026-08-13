@@ -39,10 +39,10 @@ from typing import Literal
 
 from myrm_agent_harness.core.hooks.types import HookResult
 from myrm_agent_harness.toolkits.memory.types import (
-    ProceduralMemory,
-    RuleSource,
     TOOL_FAILURE_ORIGIN,
     TOOL_FAILURE_TTL_DAYS,
+    ProceduralMemory,
+    RuleSource,
     ToolRulePriority,
 )
 

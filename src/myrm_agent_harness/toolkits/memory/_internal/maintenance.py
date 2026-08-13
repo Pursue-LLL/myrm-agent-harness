@@ -80,7 +80,6 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
         ForgettingConfig,
         ForgettingResult,
-        ForgettingStrategy,
     )
 
 logger = logging.getLogger(__name__)

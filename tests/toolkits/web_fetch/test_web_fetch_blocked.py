@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from myrm_agent_harness.agent.errors import ToolErrorCategory
 from myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools import (
     create_web_fetch_tool,
 )
@@ -92,6 +93,6 @@ async def test_block_error_text() -> None:
         )
     except ToolError as exc:
         assert "URL blocked" in str(exc)
-        assert exc.error_category == "benchmark_blocked"
+        assert exc.error_category == ToolErrorCategory.BENCHMARK_BLOCKED.value
     else:  # pragma: no cover
         pytest.fail("expected ToolError")

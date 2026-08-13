@@ -24,7 +24,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `tool_registry_config.py` | 辅助 | Tool registry 扫描配置 | ✅ |
 | `tool_registry_engine.py` | 辅助 | Tool registry 扫描引擎 | ✅ |
 | `tool_registry_models.py` | 辅助 | Tool registry 数据模型 | ✅ |
-| `validate_tool_registry.py` | 辅助 | Tool registry CI 校验（注册一致性 + 治理覆盖门禁：工具级白名单 / 权限类型矩阵 / safety / canonical 参数；`--json` 输出覆盖矩阵） | ✅ |
+| `validate_tool_registry.py` | 辅助 | Tool registry CI 校验（注册一致性 + 治理覆盖门禁：遍历注册内置全集 / 权限类型矩阵 / EXPLICIT_MCP_FALLBACK 第三态 / DYNAMICALLY_RESOLVED_TOOL_NAMES SSOT 消费 / BUILTIN↔注册双向一致性 / EXTERNAL server-managed 标注 / safety / canonical 参数；`--json` 输出覆盖矩阵） | ✅ |
 | `validate_arch_inventory.py` | 辅助 | `_ARCH.md` 文件清单表格 vs 同级 `.py` 一致性校验（仅解析表格行） | ✅ |
 | `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + IOP 头 baseline 门禁（`fractal_header_baseline.txt`） | ✅ |
 | `check_file_line_limit.py` | 辅助 | 单文件行数 baseline 门禁（>500 行须登记且不可增长）；`--incremental` 仅扫描 git 变更文件（pre-commit），无 git 时回退全量 | ✅ |

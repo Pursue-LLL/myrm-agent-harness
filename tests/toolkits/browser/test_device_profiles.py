@@ -31,9 +31,26 @@ class TestResolveDevice:
         assert resolve_device("") is None
         assert resolve_device("   ") is None
 
+    def test_resolve_landscape_swaps_viewport(self) -> None:
+        """A ' landscape' suffix swaps the layout viewport to landscape."""
+        portrait = resolve_device("iPhone 15 Pro")
+        landscape = resolve_device("iPhone 15 Pro landscape")
+        assert landscape is not None
+        assert landscape.viewport == (659, 393)
+        assert landscape.user_agent == portrait.user_agent
+        assert landscape.device_scale_factor == portrait.device_scale_factor
+        assert landscape.is_mobile is True
+        assert landscape.has_touch is True
+
+    def test_resolve_landscape_case_insensitive_and_partial(self) -> None:
+        """Landscape suffix works with any casing and partial device names."""
+        assert resolve_device("iphone 15 pro LANDSCAPE").viewport == (659, 393)
+        assert resolve_device("Pixel landscape").viewport is not None
+        assert resolve_device("landscape") is None
+
     def test_resolve_all_entries_are_valid_configs(self) -> None:
         """Every registry entry is a fully-populated mobile config."""
-        for name, config in MOBILE_DEVICES.items():
+        for config in MOBILE_DEVICES.values():
             assert config.user_agent
             assert config.viewport is not None
             assert config.viewport[0] > 0 and config.viewport[1] > 0

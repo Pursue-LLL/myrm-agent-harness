@@ -230,15 +230,16 @@ class CrashWatchdogMixin:
                     try:
                         await asyncio.wait_for(page.evaluate("1"), timeout=2.0)
                         return True
-                    except (
-                        TimeoutError,
-                        RuntimeError,
-                        OSError,
-                        asyncio.CancelledError,
-                        TypeError,
-                    ):
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        # Any probe failure — TimeoutError, TargetClosedError,
+                        # PlaywrightError, protocol/OS errors — means this page
+                        # cannot answer; try the next pooled page.
                         continue
-        except (TimeoutError, RuntimeError, OSError, asyncio.CancelledError, TypeError):
+        except asyncio.CancelledError:
+            raise
+        except Exception:
             return False
         return not probed
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
@@ -371,6 +372,11 @@ def test_main_incremental_filters_to_changed_files(
     monkeypatch.setattr(
         cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0}
     )
+    # The governance gate compares string layer names against the real
+    # `load_registered_layers()` contract; the stubbed `_TOOL_LAYERS` above holds
+    # `ToolLayer` enum values, so isolate governance here — this test only
+    # exercises the incremental file filter (governance has dedicated tests).
+    monkeypatch.setattr(cli, "_check_governance_coverage", lambda: ([], {}))
     monkeypatch.setattr(cli.sys, "argv", ["validate_tool_registry.py", "--incremental"])
     rc = cli.main()
     out, _ = capsys.readouterr()
@@ -466,10 +472,8 @@ def test_main_generate_docs_rewrites_existing_marker_block(
 # ---------------------------------------------------------------------------
 
 
-def _governance_registry() -> "ModuleType":
+def _governance_registry() -> ModuleType:
     """Return the live tool_registry module so tests can monkeypatch constants."""
-    from types import ModuleType
-
     from myrm_agent_harness.core.security import tool_registry
 
     assert isinstance(tool_registry, ModuleType)
@@ -484,7 +488,10 @@ def test_governance_coverage_passes_on_clean_metadata() -> None:
     tool_coverage = matrix["tool_coverage"]
     for tool, meta in tool_coverage.items():  # type: ignore[union-attr]
         assert (
-            meta["permission"] or meta["dynamic_resolved"] or meta["auto_approved_reason"]
+            meta["permission"]
+            or meta["dynamic_resolved"]
+            or meta["auto_approved_reason"]
+            or meta["explicit_mcp_fallback"]
         ), f"{tool} is governance-uncovered"
 
 
@@ -507,17 +514,68 @@ def test_governance_coverage_all_permission_types_ruled_or_whitelisted() -> None
 def test_governance_coverage_flags_uncovered_builtin_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A new built-in tool with no mapping/dynamic branch/declaration must fail."""
+    """A newly registered built-in tool with no mapping/dynamic branch/declaration
+    must fail, even if it is absent from BUILTIN_TOOL_NAMES (the gate iterates
+    the full registered built-in universe, not a static whitelist)."""
+    import scripts.validate_tool_registry as cli
+
+    original = cli.load_registered_layers()
+    monkeypatch.setattr(
+        cli,
+        "load_registered_layers",
+        lambda: {**original, "silent_new_tool": "EXTENDED"},
+    )
+    errors, _ = cli._check_governance_coverage()
+    assert any("silent_new_tool" in e and "fail-closed" in e for e in errors)
+
+
+def test_governance_coverage_flags_unregistered_builtin_ghost(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A BUILTIN_TOOL_NAMES entry absent from the registered universe must fail
+    the upward-blindness drift check (governance declarations lose their anchor)."""
     import scripts.validate_tool_registry as cli
 
     registry = _governance_registry()
     original = registry.BUILTIN_TOOL_NAMES
-    registry.BUILTIN_TOOL_NAMES = frozenset(original | {"silent_new_tool"})
+    registry.BUILTIN_TOOL_NAMES = frozenset(original | {"phantom_registered_tool"})
     try:
         errors, _ = cli._check_governance_coverage()
     finally:
         registry.BUILTIN_TOOL_NAMES = original
-    assert any("silent_new_tool" in e and "fail-closed" in e for e in errors)
+    assert any(
+        "phantom_registered_tool" in e and "not registered in _TOOL_LAYERS" in e
+        for e in errors
+    )
+
+
+def test_governance_coverage_explicit_mcp_fallback_legal() -> None:
+    """EXPLICIT_MCP_FALLBACK_TOOLS entries are a valid third governance state and
+    must never overlap BUILTIN_TOOL_NAMES (that would flip runtime baseline)."""
+    import scripts.validate_tool_registry as cli
+    from myrm_agent_harness.core.security.tool_registry import (
+        BUILTIN_TOOL_NAMES,
+        EXPLICIT_MCP_FALLBACK_TOOLS,
+    )
+
+    errors, matrix = cli._check_governance_coverage()
+    assert errors == []
+    assert not (BUILTIN_TOOL_NAMES & EXPLICIT_MCP_FALLBACK_TOOLS)
+    for tool in EXPLICIT_MCP_FALLBACK_TOOLS:
+        meta = matrix["tool_coverage"][tool]  # type: ignore[index]
+        assert meta["explicit_mcp_fallback"] is True
+
+
+def test_governance_coverage_external_tools_annotated_server_managed() -> None:
+    """EXTERNAL tools are server-vendor tools; the harness gate annotates them
+    as server_managed instead of forcing a harness governance declaration."""
+    import scripts.validate_tool_registry as cli
+
+    errors, matrix = cli._check_governance_coverage()
+    assert errors == []
+    assert "external_tools" in matrix
+    for tool in matrix["external_tools"]:  # type: ignore[union-attr]
+        assert tool not in matrix["tool_coverage"]  # type: ignore[index]
 
 
 def test_governance_coverage_flags_invalid_approve_reason(
@@ -594,15 +652,33 @@ def test_governance_coverage_matrix_contains_audit_fields() -> None:
     import scripts.validate_tool_registry as cli
 
     _, matrix = cli._check_governance_coverage()
-    assert isinstance(matrix["builtin_tools"], list)
+    assert isinstance(matrix["registered_builtin_tools"], list)
+    assert isinstance(matrix["external_tools"], list)
     assert isinstance(matrix["permission_type_coverage"], dict)
     assert matrix["tool_coverage"]["cron_manage_tool"] == {  # type: ignore[index]
         "permission": "cron_manage",
         "dynamic_resolved": False,
         "auto_approved_reason": None,
+        "explicit_mcp_fallback": False,
         "safety_declared": True,
         "canonical_params": ["action", "job_id", "name_filter"],
     }
+
+
+def test_governance_coverage_consumes_registry_dynamic_ssot() -> None:
+    """The gate must reference DYNAMICALLY_RESOLVED_TOOL_NAMES from the registry
+    SSOT — it must not keep a local duplicate that can drift (P2)."""
+    import scripts.validate_tool_registry as cli
+
+    from myrm_agent_harness.core.security.tool_registry import (
+        DYNAMICALLY_RESOLVED_TOOL_NAMES,
+    )
+
+    assert not hasattr(cli, "_DYNAMICALLY_RESOLVED_TOOLS")
+    for tool in DYNAMICALLY_RESOLVED_TOOL_NAMES:
+        _, matrix = cli._check_governance_coverage()
+        meta = matrix["tool_coverage"][tool]  # type: ignore[index]
+        assert meta["dynamic_resolved"] is True, f"{tool} should be dynamic-resolved"
 
 
 def test_main_fails_and_prints_on_governance_errors(

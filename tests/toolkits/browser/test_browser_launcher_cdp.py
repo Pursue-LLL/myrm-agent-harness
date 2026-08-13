@@ -586,6 +586,43 @@ class TestLifecycleTickExternalBrowser:
 
         await pool.shutdown()
 
+    @pytest.mark.asyncio
+    async def test_lifecycle_tick_target_closed_error_treated_as_dead(
+        self,
+    ) -> None:
+        """patchright TargetClosedError (Error subclass) must not escape the probe.
+
+        Regression: _check_browser_alive's exception list must cover all
+        patchright Error subclasses, otherwise a page that was closed while
+        still pooled crashes the whole lifecycle tick via asyncio.gather.
+        """
+        from patchright._impl._errors import TargetClosedError
+
+        pool = GlobalBrowserPool(max_browsers=2)
+
+        browser = _mock_browser()
+        browser.on = MagicMock()
+        browser.close = AsyncMock()
+        inst = BrowserInstance(browser=browser, is_managed=True)
+        inst.load = 1
+        page = MagicMock()
+        page.evaluate = AsyncMock(side_effect=TargetClosedError("Page closed"))
+        page_pool = MagicMock()
+        page_pool._busy = {page}
+        page_pool._idle = []
+        inst.page_pools = {"agent": page_pool}
+        pool._browsers.append(inst)
+        pool._current_pages_in_use = 1
+
+        initial_crash_count = pool._crash_count_browser
+
+        await pool._lifecycle_tick()
+
+        assert pool._crash_count_browser == initial_crash_count + 1
+        assert inst not in pool._browsers
+
+        await pool.shutdown()
+
 
 # ---------------------------------------------------------------------------
 # CircuitBreaker.record_failure with URL

@@ -83,7 +83,8 @@ class OCRParser(FileParser):
             return self._engine
 
         try:
-            from paddleocr import PaddleOCR, __version__ as paddleocr_version
+            from paddleocr import PaddleOCR
+            from paddleocr import __version__ as paddleocr_version
         except ImportError as e:
             raise ImportError("paddleocr is required for OCRParser. Install with: uv add paddleocr paddlepaddle") from e
 
@@ -234,7 +235,9 @@ class OCRParser(FileParser):
             bbox = raw_poly.tolist() if hasattr(raw_poly, "tolist") else raw_poly
             lines.append(OCRLine(text=text, confidence=confidence, bbox=bbox))
 
-        avg_confidence = sum(l.confidence for l in lines) / len(lines) if lines else 0.0
+        avg_confidence = (
+            sum(line.confidence for line in lines) / len(lines) if lines else 0.0
+        )
         return OCRResult(
             text="\n".join(line.text for line in lines),
             lines=lines,

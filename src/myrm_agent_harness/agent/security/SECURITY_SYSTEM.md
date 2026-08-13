@@ -1255,7 +1255,7 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 
 以下内置工具不在 `TOOL_PERMISSION_MAP` 中，`resolve_permission_type()` 回退为工具名本身，命中 `DEFAULT_RULESET` 的 `("*", "*", ALLOW)` 基线。为满足 fail-closed 治理，每个此类工具必须在 `AUTO_APPROVED_BUILTIN_TOOLS`（`core/security/tool_registry/registry.py`）中显式声明放行理由（`AUTO_APPROVE_REASONS` 之一）。声明是审计元数据，不改变运行时权限解析。
 
-`scripts/validate_tool_registry.py` 的治理门禁强制校验：新增内置工具若未映射、未动态解析、未声明（或声明了非内置工具、理由非法），CI 直接失败——杜绝「静默绕过治理」。覆盖矩阵可通过 `--json` 输出。
+`scripts/validate_tool_registry.py` 的治理门禁强制校验，遍历源为**注册的内置工具全集**（`_TOOL_LAYERS` 的 CORE/COMMON/EXTENDED 层，而非静态 `BUILTIN_TOOL_NAMES` 白名单）：新增内置工具若未映射、未动态解析（其名字不在 `DYNAMICALLY_RESOLVED_TOOL_NAMES`——该集合是 `resolve_permission_type()` 子动作分支的**单一事实源**，SSOT 位于 `registry.py`，门禁仅消费引用、不得自建副本，防止名单漂移导致删除分支后静默回退 ALLOW）、未声明、未显式声明为 `EXPLICIT_MCP_FALLBACK_TOOLS`（或声明了非内置工具、理由非法），CI 直接失败——杜绝「静默绕过治理」。同时执行 **BUILTIN↔注册双向一致性**：`BUILTIN_TOOL_NAMES` 必须 ⊆ 注册内置全集（防声明失去锚点），且不得与 `EXPLICIT_MCP_FALLBACK_TOOLS` 重叠（加入 BUILTIN 会把运行时基线翻转为 ALLOW，与刻意保留 ASK 兜底矛盾）。EXTERNAL 层工具为 server 供应商工具，由 server 层治理，门禁仅标注为 `server_managed`，不强制声明。覆盖矩阵可通过 `--json` 输出。safety 模块加载 gate（`core/security/tool_registry/safety.py`）的检查口径与门禁一致（`BUILTIN_TOOL_NAMES ∪ EXPLICIT_MCP_FALLBACK_TOOLS`），确保新增 EXPLICIT 兜底工具不会缺少 `TOOL_SAFETY_METADATA` 声明。
 
 | 理由 | 含义 |
 |------|------|
@@ -1280,8 +1280,37 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 | `render_ui_tool` | display |
 | `update_ui_data_tool` | display |
 | `todo_write` | display |
+| `browser_ask_human_tool` | user_visible |
+| `request_directory_tool` | user_visible |
+| `kanban_show` | read_only |
+| `kanban_list_tasks` | read_only |
+| `kanban_add_task` | user_visible |
+| `kanban_attach` | user_visible |
+| `kanban_block` | user_visible |
+| `kanban_cancel_task` | user_visible |
+| `kanban_comment` | user_visible |
+| `kanban_complete` | user_visible |
+| `kanban_heartbeat` | user_visible |
+| `kanban_retry_task` | user_visible |
+| `kanban_unblock` | user_visible |
+| `wiki_query_tool` | read_only |
+| `wiki_apply_tool` | user_visible |
+| `wiki_compile_tool` | user_visible |
+| `wiki_ingest_tool` | user_visible |
+| `wiki_maintain_tool` | user_visible |
 
 `browser_interact_tool` / `browser_manage_tool` / `bash_process_tool` / `desktop_*` 由 `resolve_permission_type()` 动态解析（子 action 映射到细粒度权限），不在 `AUTO_APPROVED_BUILTIN_TOOLS` 声明。
+
+### 刻意保留 mcp_invoke 兜底的工具（显式声明）
+
+`EXPLICIT_MCP_FALLBACK_TOOLS`（`core/security/tool_registry/registry.py`）声明了一组名字已知、但**刻意不晋升为自身工具名**（那会翻转为 ALLOW 基线）的内置工具。它们保留 `mcp_invoke=ASK` 兜底，因为它们有真实外部副作用或高爆炸半径：
+
+| 工具名 | 保留 ASK 的理由 |
+|--------|-----------------|
+| `browser_execute_script_tool` | 任意 JS 执行——保持 ASK（特权 API 另有工具内 HITL） |
+| `send_teammate_message_tool` | 跨 Agent 消息派发——外部副作用，保持 ASK |
+
+门禁将本集合视为合法的第三治理状态，不会把它们标记为未覆盖。
 
 ### 权限类型级治理白名单
 
@@ -1310,7 +1339,7 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 
 ### MCP 工具兜底
 
-未知工具名（不在 `BUILTIN_TOOL_NAMES` 中）自动映射为 `mcp_invoke`。MCP 工具名称是动态的，无法预先注册，统一归类为需要审批的 MCP 调用。
+未知工具名（不在 `BUILTIN_TOOL_NAMES` 中）自动映射为 `mcp_invoke`。MCP 工具名称是动态的，无法预先注册，统一归类为需要审批的 MCP 调用。另外，`EXPLICIT_MCP_FALLBACK_TOOLS` 中的内置工具（名字已知但刻意不晋升）同样保持 `mcp_invoke` 兜底——它们因外部副作用/高爆炸半径而要求运行时 ASK，见上文「刻意保留 mcp_invoke 兜底的工具」。
 
 ### 安全元数据解析 — 三级 Fallback
 

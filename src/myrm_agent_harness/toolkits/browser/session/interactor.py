@@ -35,7 +35,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-import time
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
@@ -168,6 +167,62 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                     pass
         return self._page
 
+    async def _assert_not_password_field(self, locator: Locator, verb: str) -> None:
+        """Refuse plain-text input into a password field.
+
+        A ref locator may resolve to a password input; typing or filling plain
+        text there would leak the secret into snapshots and logs. Agents must
+        use the dedicated ``fill_credential`` action instead. ``verb`` reads
+        naturally in the raised error ("typing" / "filling").
+        """
+        try:
+            input_type = await locator.get_attribute("type", timeout=1000)
+        except Exception:
+            return
+        if input_type and input_type.lower() == "password":
+            raise ValueError(
+                "SecurityError: Plain text "
+                f"{verb} into a password field is strictly forbidden. "
+                "You MUST use the 'fill_credential' action and provide the "
+                "credential label instead of the plain text password."
+            )
+
+    async def _dialog_block_hint(self, error_msg: str) -> str | None:
+        """Return a desktop-tool switch hint when an OS dialog is blocking.
+
+        TargetClosedError / Timeout often mean a native OS dialog (file picker,
+        permission prompt) blocks the browser process. Only inject the hint after
+        actually confirming a blocking dialog exists, so a regular timeout is not
+        misreported. Returns None when no dialog is detected (the caller re-raises).
+        """
+        try:
+            from myrm_agent_harness.toolkits.computer_use.session import (
+                create_computer_session,
+            )
+            from myrm_agent_harness.toolkits.computer_use.types import (
+                KNOWN_BROWSER_NAMES,
+                ComputerUseConfig,
+            )
+
+            cu_session = create_computer_session(ComputerUseConfig())
+            has_dialog = await cu_session.backend.has_blocking_dialog(
+                list(KNOWN_BROWSER_NAMES)
+            )
+        except Exception:
+            has_dialog = False
+
+        if not has_dialog:
+            logger.warning(f"Browser interaction failed (no OS dialog detected): {error_msg}")
+            return None
+
+        logger.warning(f"Browser interaction failed and OS dialog detected: {error_msg}")
+        return (
+            f"Interaction failed: {error_msg}\n\n"
+            "[CRITICAL WARNING: A native OS dialog (e.g., File Upload, Permission Request) "
+            "is currently blocking the browser. Playwright CANNOT interact with native OS dialogs. "
+            "You MUST switch to 'desktop_snapshot' and 'desktop_interact_tool' immediately to handle it.]"
+        )
+
     async def interact(self, action: str, ref: str, text: str = "") -> str:
         """Execute an element interaction.
 
@@ -289,22 +344,7 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                 return f"Double-clicked {ref}{healed_msg}"
 
             elif action == "type":
-                is_password = False
-                try:
-                    input_type = await locator.get_attribute("type", timeout=1000)
-                    if input_type and input_type.lower() == "password":
-                        is_password = True
-                except Exception:
-                    pass
-
-                if is_password:
-                    raise ValueError(
-                        "SecurityError: Plain text typing into a password field is strictly forbidden. "
-                        "You MUST use the 'fill_credential' action and provide the credential label "
-                        "instead of the plain text password."
-                    )
-
-                display_text = text
+                await self._assert_not_password_field(locator, "typing")
 
                 delay_per_char = type_delay(self._humanize)
                 typing_timeout = max(
@@ -312,29 +352,14 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                 )
                 await locator.type(text, delay=delay_per_char, timeout=typing_timeout)
                 await _wait_after_action()
-                return f"Typed '{display_text}' into {ref}{healed_msg}"
+                return f"Typed '{text}' into {ref}{healed_msg}"
 
             elif action == "fill":
-                is_password = False
-                try:
-                    input_type = await locator.get_attribute("type", timeout=1000)
-                    if input_type and input_type.lower() == "password":
-                        is_password = True
-                except Exception:
-                    pass
-
-                if is_password:
-                    raise ValueError(
-                        "SecurityError: Plain text filling into a password field is strictly forbidden. "
-                        "You MUST use the 'fill_credential' action and provide the credential label "
-                        "instead of the plain text password."
-                    )
-
-                display_text = text
+                await self._assert_not_password_field(locator, "filling")
 
                 await locator.fill(text, timeout=_INTERACTION_TIMEOUT_MS)
                 await _wait_after_action()
-                return f"Filled {ref} with '{display_text}'{healed_msg}"
+                return f"Filled {ref} with '{text}'{healed_msg}"
 
             elif action == "fill_credential":
                 from myrm_agent_harness.core.security.credential_vault import (
@@ -402,77 +427,8 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                 )
 
             elif action == "scroll_to_bottom":
-                params = _parse_scroll_params(text)
-                max_steps = params["max_steps"]
-                delay_ms = params["delay_ms"]
-                stable_count = params["stable_count"]
-
-                start_time = time.monotonic()
-                target_x, target_y = await self._scroll_cursor_target(locator)
-                await self._scroll_move_cursor(target_x, target_y)
-                viewport_h = await self._page.evaluate("window.innerHeight")
-                if viewport_h <= 0:
-                    viewport_h = 800
-
-                state = await self._scroll_measure(target_x, target_y)
-                if state["height"] <= state["client"] + 1:
-                    elapsed = round(time.monotonic() - start_time, 1)
-                    return (
-                        f"Scrolled 0 steps ({elapsed}s). "
-                        f"Height: {state['height']}→{state['height']}px. "
-                        f"Status: completed (no scrollable overflow){healed_msg}"
-                    )
-                prev_top = state["top"]
-                prev_height = state["height"]
-                start_height = prev_height
-                stable = 0
-                steps = 0
-                repositioned = False
-                stuck = False
-
-                while steps < max_steps:
-                    await self._scroll_deliver(viewport_h)
-                    await asyncio.sleep(delay_ms / 1000.0)
-                    state = await self._scroll_measure(target_x, target_y)
-                    steps += 1
-
-                    moved = state["top"] != prev_top
-                    grew = state["height"] > prev_height
-                    if moved or grew:
-                        stable = 0
-                        prev_top = state["top"]
-                        prev_height = state["height"]
-                        continue
-
-                    can_scroll = state["height"] > state["client"] + state["top"] + 1
-                    if can_scroll and not repositioned:
-                        # Wheel hit a container that no longer responds — retarget once.
-                        target_x, target_y = await self._scroll_cursor_target(locator)
-                        await self._scroll_move_cursor(target_x, target_y)
-                        prev_top = state["top"]
-                        prev_height = state["height"]
-                        repositioned = True
-                        continue
-
-                    if can_scroll:
-                        stuck = True
-                        break
-
-                    stable += 1
-                    if stable >= stable_count:
-                        break
-
-                elapsed = round(time.monotonic() - start_time, 1)
-                if stuck:
-                    status = "stuck"
-                elif stable >= stable_count:
-                    status = "completed"
-                else:
-                    status = "max_reached"
-                return (
-                    f"Scrolled {steps} steps ({elapsed}s). "
-                    f"Height: {start_height}\u2192{state['height']}px. "
-                    f"Status: {status}{healed_msg}"
+                return await self._scroll_to_bottom_loop(
+                    locator, _parse_scroll_params(text), healed_msg
                 )
 
             elif action == "upload_file":
@@ -513,43 +469,11 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                 or "Target closed" in error_msg
                 or "Timeout" in error_msg
             ):
-                # This often happens when a native OS dialog (like a file picker or permission prompt)
-                # blocks the browser process, causing Playwright to timeout or lose the target.
-
-                # Check if there is ACTUALLY a dialog before injecting the hint to avoid hallucination
-                has_dialog = False
-                try:
-                    from myrm_agent_harness.toolkits.computer_use.session import (
-                        create_computer_session,
-                    )
-                    from myrm_agent_harness.toolkits.computer_use.types import (
-                        KNOWN_BROWSER_NAMES,
-                        ComputerUseConfig,
-                    )
-
-                    cu_session = create_computer_session(ComputerUseConfig())
-                    has_dialog = await cu_session.backend.has_blocking_dialog(
-                        list(KNOWN_BROWSER_NAMES)
-                    )
-                except Exception:
-                    pass
-
-                if has_dialog:
-                    logger.warning(
-                        f"Browser interaction failed and OS dialog detected: {e}"
-                    )
-                    return (
-                        f"Interaction failed: {error_msg}\n\n"
-                        "[CRITICAL WARNING: A native OS dialog (e.g., File Upload, Permission Request) "
-                        "is currently blocking the browser. Playwright CANNOT interact with native OS dialogs. "
-                        "You MUST switch to 'desktop_snapshot' and 'desktop_interact_tool' immediately to handle it.]"
-                    )
-                else:
-                    # If no dialog is detected, it's just a regular timeout/error.
-                    # Don't inject the hint to avoid confusing the agent.
-                    logger.warning(
-                        f"Browser interaction failed (no OS dialog detected): {e}"
-                    )
+                # A native OS dialog (file picker / permission prompt) blocks the
+                # browser process, so Playwright times out or loses the target.
+                hint = await self._dialog_block_hint(error_msg)
+                if hint is not None:
+                    return hint
             raise
 
     async def _bezier_move_to(self, locator: Locator) -> bool:

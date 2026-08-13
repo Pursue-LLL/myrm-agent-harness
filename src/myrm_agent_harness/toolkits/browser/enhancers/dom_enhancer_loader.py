@@ -2,6 +2,15 @@
 
 Provides a script that enhances DOM by exposing React/Vue interactive elements
 and injecting SPA stability detection.
+
+[INPUT]
+- dom_enhancer.js (bundled asset in same directory)
+
+[OUTPUT]
+- get_dom_enhancer_script(): Load and return the dom_enhancer.js script content.
+
+[POS]
+DOM enhancer script loader. Bundles and serves the JS enhancer to page init.
 """
 
 from __future__ import annotations

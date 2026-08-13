@@ -69,7 +69,6 @@ class TestRedactForLlmLive:
 
 class TestRedactingFormatterLive:
     def test_formatter_redacts_log_records(self) -> None:
-        handler = logging.Handler()
         record = logging.LogRecord(
             name="test",
             level=logging.INFO,

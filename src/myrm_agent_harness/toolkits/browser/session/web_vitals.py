@@ -54,7 +54,7 @@ _COLLECT_JS = r"""
     try {
       const res = performance.getEntriesByType('resource');
       res.sort((a, b) => (b.duration || 0) - (a.duration || 0));
-      out.resources = res.slice(0, %d).map(r => ({
+      out.resources = res.slice(0, __MAX_SLOW_RESOURCES__).map(r => ({
         name: r.name, duration: Math.round(r.duration || 0),
         size: r.transferSize || 0, type: r.initiatorType || ''
       }));
@@ -108,7 +108,7 @@ _COLLECT_JS = r"""
   // timer collects every observer's buffered snapshot before resolving.
   setTimeout(finish, 120);
 })
-""" % _MAX_SLOW_RESOURCES
+""".replace("__MAX_SLOW_RESOURCES__", str(_MAX_SLOW_RESOURCES))
 
 
 def rate_metric(value: float | None, thresholds: tuple[float, float]) -> str:

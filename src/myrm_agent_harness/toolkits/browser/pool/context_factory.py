@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_TIMEOUT_MS = 30000  # globaldefaulttimeout, overridesall page operation(evaluate/click/goto etc.)
+_DEFAULT_TIMEOUT_MS = 30000  # global default timeout, overrides all page operations (evaluate/click/goto etc.)
 _STEALTH_TYPE = "stealth"  # ContextType.STEALTH.value — avoid circular import
 
 _DEFAULT_CONTEXT_OPTIONS: dict[str, object] = {

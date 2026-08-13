@@ -87,6 +87,9 @@ class BrowserSessionNavigationMixin:
             launch_mode_preference=self._launch_mode_preference,
         )
         await self._initialize_components()
+        # Keep mobile emulation session-consistent: a new tab inherits the
+        # active device profile (no-op when desktop is emulated).
+        await self._device_emulator.reapply(self._tab_controller.get_active_page())
 
         if url:
             await self.navigate(url)
@@ -537,9 +540,16 @@ class BrowserSessionNavigationMixin:
                 self._dialog_manager.detach(page)
             except RuntimeError:
                 pass
+        # Clear device emulation state bound to the closing page so pool-
+        # recycled pages never keep stale mobile overrides.
+        closing_page = self._tab_controller.get_page(tab_id)
+        await self._device_emulator.forget_page(closing_page)
         await self._tab_controller.close_tab(tab_id)
         if self._tab_controller.list_tabs():
             await self._initialize_components()
+            # Keep mobile emulation session-consistent: the new active tab
+            # inherits the active device profile (no-op when desktop is emulated).
+            await self._device_emulator.reapply(self._tab_controller.get_active_page())
         else:
             self._navigator = None
             self._snapshot_manager = None
@@ -548,12 +558,18 @@ class BrowserSessionNavigationMixin:
             self._network_logger.stop_capture()
             self._console_logger.stop_capture()
             await self._network_intelligence.detach()
+            # No tabs remain: drop device emulation state so a fresh tab
+            # starts from native desktop instead of inheriting stale overrides.
+            await self._device_emulator.detach()
         return f"Closed tab {tab_id}"
 
     async def switch_tab(self, tab_id: str) -> str:
         """Switch active Tab and rebind Navigator / Snapshot / Interactor / Extract etc. Component."""
         await self._tab_controller.switch_tab(tab_id)
         await self._initialize_components()
+        # Keep mobile emulation session-consistent: the newly activated tab
+        # inherits the active device profile (no-op when desktop is emulated).
+        await self._device_emulator.reapply(self._tab_controller.get_active_page())
         return f"Switched to tab {tab_id}"
 
     @staticmethod

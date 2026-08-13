@@ -65,5 +65,8 @@ class ToolErrorCategory(StrEnum):
     SIGNAL_TERMINATED = "signal_terminated"
     NONZERO_EXIT = "nonzero_exit"
 
+    # --- Benchmark decontamination (web tool content policy) ---
+    BENCHMARK_BLOCKED = "benchmark_blocked"
+
 
 __all__ = ["ToolErrorCategory"]

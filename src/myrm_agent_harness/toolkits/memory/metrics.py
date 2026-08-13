@@ -58,6 +58,8 @@ class SearchSnapshot:
     cross_session_hits: int
     total_sourced_hits: int
     cross_session_hit_rate: float
+    degradation_timeout_count: int
+    degradation_error_count: int
 
 
 class SearchMetrics:
@@ -76,10 +78,14 @@ class SearchMetrics:
 
     __slots__ = (
         "_cross_session_hits",
+        "_degradation_error_count",
+        "_degradation_timeout_count",
         "_latencies_ms",
         "_latency_max_stored",
         "_lock",
         "_otel_assistant_reference_query_count",
+        "_otel_degradation_error_total",
+        "_otel_degradation_timeout_total",
         "_otel_keyword_boost_count",
         "_otel_latency_ms",
         "_otel_preference_boost_count",
@@ -116,6 +122,8 @@ class SearchMetrics:
         self._type_searches: dict[str, int] = defaultdict(int)
         self._cross_session_hits = 0
         self._total_sourced_hits = 0
+        self._degradation_timeout_count = 0
+        self._degradation_error_count = 0
 
         self._otel_search_total: Counter | None = None
         self._otel_zero_result_total: Counter | None = None
@@ -127,6 +135,8 @@ class SearchMetrics:
         self._otel_keyword_boost_count: Counter | None = None
         self._otel_temporal_boost_count: Counter | None = None
         self._otel_preference_boost_count: Counter | None = None
+        self._otel_degradation_timeout_total: Counter | None = None
+        self._otel_degradation_error_total: Counter | None = None
         self._init_otel_instruments()
 
     def _init_otel_instruments(self) -> None:
@@ -176,6 +186,14 @@ class SearchMetrics:
             self._otel_preference_boost_count = meter.create_counter(
                 "memory_preference_boost_total",
                 description="Total results boosted by preference strength (MemPalace ResultBooster)",
+            )
+            self._otel_degradation_timeout_total = meter.create_counter(
+                "memory_search_degradation_timeout_total",
+                description="Memory searches degraded by wall-clock timeout",
+            )
+            self._otel_degradation_error_total = meter.create_counter(
+                "memory_search_degradation_error_total",
+                description="Memory searches degraded by a backing-store error",
             )
         except Exception:
             logger.debug("OTEL instruments not available, metrics will be in-memory only")
@@ -298,6 +316,8 @@ class SearchMetrics:
                 cross_session_hits=cs_hits,
                 total_sourced_hits=sourced,
                 cross_session_hit_rate=round(cs_rate, 4),
+                degradation_timeout_count=self._degradation_timeout_count,
+                degradation_error_count=self._degradation_error_count,
             )
 
     def reset(self) -> None:
@@ -315,6 +335,25 @@ class SearchMetrics:
             self._type_searches.clear()
             self._cross_session_hits = 0
             self._total_sourced_hits = 0
+            self._degradation_timeout_count = 0
+            self._degradation_error_count = 0
+
+    def record_degradation(self, kind: str) -> None:
+        """Record a degraded retrieval (``timeout`` or ``error``) for observability.
+
+        Degraded searches are counted separately from ordinary zero-result searches
+        so consumers can tell a genuine empty recall apart from a store failure.
+        """
+        with self._lock:
+            if kind == "timeout":
+                self._degradation_timeout_count += 1
+            elif kind == "error":
+                self._degradation_error_count += 1
+        with suppress(Exception):
+            if kind == "timeout" and self._otel_degradation_timeout_total:
+                self._otel_degradation_timeout_total.add(1)
+            elif kind == "error" and self._otel_degradation_error_total:
+                self._otel_degradation_error_total.add(1)
 
     def record_assistant_reference_query(self) -> None:
         """Record assistant-reference query detection (MemPalace Two-Pass)."""

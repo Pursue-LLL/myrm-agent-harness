@@ -586,3 +586,44 @@ class TestTaintUrlFromArgs:
         assert _taint_url_from_args({"url": 12345}) is None
         assert _taint_url_from_args({"u": "https://example.com"}) is None
         assert _taint_url_from_args({}) is None
+
+
+class TestGovernanceSsoT:
+    def test_dynamically_resolved_ssot_exported(self) -> None:
+        """P2: the dynamic-resolver tool set is a single SSOT in registry.py,
+        exported through the facade — the gate must consume it, never re-declare."""
+        from myrm_agent_harness.core.security.tool_registry import (
+            DYNAMICALLY_RESOLVED_TOOL_NAMES,
+        )
+        from myrm_agent_harness.core.security.tool_registry.registry import (
+            DYNAMICALLY_RESOLVED_TOOL_NAMES as _REGISTRY_SSOT,
+        )
+
+        assert DYNAMICALLY_RESOLVED_TOOL_NAMES == _REGISTRY_SSOT
+        assert "desktop_vision_tool" in DYNAMICALLY_RESOLVED_TOOL_NAMES
+        assert "browser_interact_tool" in DYNAMICALLY_RESOLVED_TOOL_NAMES
+
+    def test_dynamic_set_subset_of_builtins(self) -> None:
+        """Dynamic-resolver tools are built-in tools (or have a static
+        TOOL_PERMISSION_MAP fallback for actions without fine-grained mapping)."""
+        from myrm_agent_harness.core.security.tool_registry import (
+            BUILTIN_TOOL_NAMES,
+            DYNAMICALLY_RESOLVED_TOOL_NAMES,
+        )
+
+        outside = DYNAMICALLY_RESOLVED_TOOL_NAMES - BUILTIN_TOOL_NAMES
+        assert not outside, f"dynamic tools outside BUILTIN_TOOL_NAMES: {outside}"
+
+    def test_safety_coverage_includes_explicit_fallback_tools(self) -> None:
+        """P1: check_safety_coverage() must mirror the governance gate scope
+        (BUILTIN | EXPLICIT_MCP_FALLBACK_TOOLS) so a new EXPLICIT fallback tool
+        cannot ship without TOOL_SAFETY_METADATA."""
+        from myrm_agent_harness.core.security.tool_registry import (
+            BUILTIN_TOOL_NAMES,
+            EXPLICIT_MCP_FALLBACK_TOOLS,
+            TOOL_SAFETY_METADATA,
+        )
+
+        safety_required = BUILTIN_TOOL_NAMES | EXPLICIT_MCP_FALLBACK_TOOLS
+        missing = safety_required - TOOL_SAFETY_METADATA.keys()
+        assert not missing, f"tools missing TOOL_SAFETY_METADATA: {sorted(missing)}"

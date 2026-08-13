@@ -1,7 +1,7 @@
 """Smart PDF parser with OCR fallback for scanned documents.
 
 [INPUT]
-- pdf_content_extractor::extract_pdf_content (POS: Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page render fallback) strategy; scanned PDFs (sparse text) get best-effort OCR fallback via PaddleOCR so text-only consumers still get readable text. Supports Table Encapsulation to prevent RAG chunking from splitting tables, using L0 summaries to ensure retrieval accuracy.)
+- pdf_content_extractor::extract_pdf_content (POS: Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page render fallback) strategy. Scanned PDFs (sparse text layer) are additionally OCR'd via the optional PaddleOCR parser so text-only consumers (RAG ingestion, non-vision models) still get readable text. Supports Table Encapsulation to prevent RAG chunking from splitting tables, using L0 summaries to ensure retrieval accuracy.)
 - base::FileParser (POS: File parser base classes and data structures)
 
 [OUTPUT]
@@ -31,7 +31,7 @@ class SmartPDFParser(FileParser):
     disabled because this parser targets text output only.
     """
 
-    _SUPPORTED_EXTENSIONS = [".pdf"]
+    _SUPPORTED_EXTENSIONS: tuple[str, ...] = (".pdf",)
 
     def __init__(self, config: PDFExtractConfig | None = None) -> None:
         self._config = config or PDFExtractConfig(

@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.retriever.sufficiency import SufficiencyConfig
     from myrm_agent_harness.toolkits.web_search.engine import SearchServiceConfig
 
+from myrm_agent_harness.agent.errors import ToolErrorCategory
 from myrm_agent_harness.toolkits.web_search._web_search_tool_description import (
     resolve_web_search_tool_description,
 )
@@ -123,7 +124,7 @@ def create_web_search_tool(
                         user_hint="The query is excluded from search for this run. Rephrase it without the blocked terms.",
                         error_code="BENCHMARK_BLOCKED_QUERY",
                         diagnostic_info={
-                            "error_category": "benchmark_blocked",
+                            "error_category": ToolErrorCategory.BENCHMARK_BLOCKED.value,
                             "query": q,
                         },
                     )

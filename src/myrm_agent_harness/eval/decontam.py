@@ -5,8 +5,7 @@
 
 [OUTPUT]
 - HUGGINGFACE_DOMAINS: domain patterns for Hugging Face (hf.co / huggingface.co)
-- is_huggingface_url(url): True when a URL targets a Hugging Face host
-- query_targets_huggingface(query): True when a search query names Hugging Face
+- HUGGINGFACE_QUERY_MARKERS: substrings a search query may use to name HF
 - normalize_answer(text): canonical text used by the exact-match judge pre-pass
 
 [POS]
@@ -22,7 +21,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from urllib.parse import urlparse
 
 # Pattern set in DomainAllowlist/DomainBlocklist form (wildcard suffix).
 HUGGINGFACE_DOMAINS: tuple[str, ...] = (
@@ -33,46 +31,12 @@ HUGGINGFACE_DOMAINS: tuple[str, ...] = (
 )
 
 # Substrings a search query may use to name Hugging Face resources.
-_HF_QUERY_MARKERS: tuple[str, ...] = (
+# Consumed by the business layer to build benchmark-mode search blocklists.
+HUGGINGFACE_QUERY_MARKERS: tuple[str, ...] = (
     "huggingface",
     "hf.co",
     "hugging face",
 )
-
-# Public alias so callers (e.g. benchmark-mode search blocklists) can install
-# the exact same markers as ``query_targets_huggingface`` without duplicating
-# them or reaching into the private constant.
-HUGGINGFACE_QUERY_MARKERS: tuple[str, ...] = _HF_QUERY_MARKERS
-
-
-def is_huggingface_url(url: str) -> bool:
-    """Return True when *url* targets a Hugging Face host.
-
-    Covers ``huggingface.co`` and its short alias ``hf.co`` including any
-    subdomain (e.g. ``huggingface.co/datasets/...``).
-    """
-    hostname = (urlparse(url).hostname or "").lower()
-    if not hostname:
-        return False
-    for pattern in HUGGINGFACE_DOMAINS:
-        if pattern.startswith("*."):
-            suffix = pattern[1:]  # ".huggingface.co"
-            bare = pattern[2:]  # "huggingface.co"
-            if hostname == bare or hostname.endswith(suffix):
-                return True
-        elif hostname == pattern:
-            return True
-    return False
-
-
-def query_targets_huggingface(query: str) -> bool:
-    """Return True when a search query names Hugging Face.
-
-    Detects explicit resource references (``huggingface``, ``hf.co``) in the
-    query text so the eval policy can reject the search before it runs.
-    """
-    lowered = query.lower()
-    return any(marker in lowered for marker in _HF_QUERY_MARKERS)
 
 
 def normalize_answer(text: str) -> str:

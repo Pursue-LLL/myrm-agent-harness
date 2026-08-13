@@ -137,16 +137,10 @@ def _load_registry_metadata_keys() -> set[str]:
 
 
 # Built-in tools covered by resolve_permission_type() dynamic sub-action branches.
-_DYNAMICALLY_RESOLVED_TOOLS: frozenset[str] = frozenset(
-    {
-        "bash_process_tool",
-        "browser_interact_tool",
-        "browser_manage_tool",
-        "desktop_snapshot_tool",
-        "desktop_interact_tool",
-        "desktop_vision_tool",
-    }
-)
+# SSOT lives in tool_registry registry.py — this file must only consume it, never
+# re-declare its own copy (a duplicate list would drift and silently flip a
+# removed dynamic branch back to the ALLOW baseline).
+# NOTE: consume via the lazy import inside _check_governance_coverage().
 
 # Management/delegation/scheduling tools that must declare TOOL_CANONICAL_PARAMS
 # so allow-always hashing stays precise (full-arg hashing would break matching).
@@ -166,15 +160,24 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
 
     Fail-closed rules (mirrors the runtime ``resolve_permission_type`` fallback):
 
-    1. Every built-in tool must be covered by an explicit ``TOOL_PERMISSION_MAP``
-       entry, a dynamic resolver branch, or an ``AUTO_APPROVED_BUILTIN_TOOLS``
-       declaration with a reason from ``AUTO_APPROVE_REASONS``.
+    1. Every registered harness built-in tool (``_TOOL_LAYERS`` CORE/COMMON/
+       EXTENDED) must be covered by an explicit ``TOOL_PERMISSION_MAP`` entry,
+       a dynamic resolver branch, an ``AUTO_APPROVED_BUILTIN_TOOLS`` declaration
+       with a reason from ``AUTO_APPROVE_REASONS``, or an
+       ``EXPLICIT_MCP_FALLBACK_TOOLS`` declaration (intentional mcp_invoke=ASK).
+       EXTERNAL tools are server-vendor tools governed by the server layer and
+       are only annotated as ``server_managed`` — the harness gate does not
+       force a declaration on them.
     2. Every permission type produced by ``TOOL_PERMISSION_MAP`` must have an
        explicit ``DEFAULT_RULESET`` rule or a ``RULESET_COVERAGE_WHITELIST``
        declaration.
     3. Every built-in tool must declare ``TOOL_SAFETY_METADATA``.
     4. Management/delegation/scheduling tools must declare
        ``TOOL_CANONICAL_PARAMS``.
+    5. ``BUILTIN_TOOL_NAMES`` must be a subset of the registered built-in
+       universe and ``EXPLICIT_MCP_FALLBACK_TOOLS`` must not overlap
+       ``BUILTIN_TOOL_NAMES`` (adding a fallback tool to BUILTIN would flip its
+       runtime baseline to ALLOW — a governance contradiction).
 
     Returns ``(errors, coverage_matrix)``; the matrix is a machine-readable
     per-tool / per-permission-type audit table for ``--json`` output.
@@ -183,6 +186,8 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
         AUTO_APPROVED_BUILTIN_TOOLS,
         AUTO_APPROVE_REASONS,
         BUILTIN_TOOL_NAMES,
+        DYNAMICALLY_RESOLVED_TOOL_NAMES,
+        EXPLICIT_MCP_FALLBACK_TOOLS,
         RULESET_COVERAGE_WHITELIST,
         TOOL_CANONICAL_PARAMS,
         TOOL_PERMISSION_MAP,
@@ -192,37 +197,74 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
 
     errors: list[str] = []
 
-    uncovered_tools: list[str] = []
-    ghost_declarations: list[str] = []
-    invalid_reasons: list[str] = []
-    for tool in sorted(BUILTIN_TOOL_NAMES):
-        if tool in TOOL_PERMISSION_MAP or tool in _DYNAMICALLY_RESOLVED_TOOLS:
-            continue
-        reason = AUTO_APPROVED_BUILTIN_TOOLS.get(tool)
-        if reason is None:
-            uncovered_tools.append(tool)
+    registered = load_registered_layers()
+    builtin_registered = {
+        name
+        for name, layer in registered.items()
+        if layer in ("CORE", "COMMON", "EXTENDED")
+    }
+    external_registered = {
+        name for name, layer in registered.items() if layer == "EXTERNAL"
+    }
 
-    for tool, reason in sorted(AUTO_APPROVED_BUILTIN_TOOLS.items()):
+    uncovered_tools: list[str] = []
+    for tool in sorted(builtin_registered):
+        if (
+            tool in TOOL_PERMISSION_MAP
+            or tool in DYNAMICALLY_RESOLVED_TOOL_NAMES
+            or tool in AUTO_APPROVED_BUILTIN_TOOLS
+            or tool in EXPLICIT_MCP_FALLBACK_TOOLS
+        ):
+            continue
+        uncovered_tools.append(tool)
+
+    ghost_declarations: list[str] = []
+    for tool in sorted(AUTO_APPROVED_BUILTIN_TOOLS):
         if tool not in BUILTIN_TOOL_NAMES:
             ghost_declarations.append(tool)
+    for tool in sorted(EXPLICIT_MCP_FALLBACK_TOOLS):
+        if tool not in builtin_registered:
+            ghost_declarations.append(f"EXPLICIT_MCP_FALLBACK_TOOLS:{tool}")
+
+    invalid_reasons: list[str] = []
+    for tool, reason in sorted(AUTO_APPROVED_BUILTIN_TOOLS.items()):
         if reason not in AUTO_APPROVE_REASONS:
             invalid_reasons.append(f"{tool}={reason!r}")
 
     if uncovered_tools:
         errors.append(
-            "Built-in tool(s) without permission mapping, dynamic resolution, or "
-            "AUTO_APPROVED_BUILTIN_TOOLS declaration (governance fail-closed): "
+            "Registered built-in tool(s) without permission mapping, dynamic "
+            "resolution, AUTO_APPROVED_BUILTIN_TOOLS, or EXPLICIT_MCP_FALLBACK_TOOLS "
+            "declaration (governance fail-closed): "
             + ", ".join(uncovered_tools)
         )
     if ghost_declarations:
         errors.append(
-            "AUTO_APPROVED_BUILTIN_TOOLS declaration(s) for non-built-in tool(s): "
+            "AUTO_APPROVED_BUILTIN_TOOLS / EXPLICIT_MCP_FALLBACK_TOOLS declaration(s) "
+            "for unregistered or non-built-in tool(s): "
             + ", ".join(ghost_declarations)
         )
     if invalid_reasons:
         errors.append(
             "AUTO_APPROVED_BUILTIN_TOOLS reason(s) not in AUTO_APPROVE_REASONS: "
             + ", ".join(invalid_reasons)
+        )
+
+    unregistered_builtins = sorted(BUILTIN_TOOL_NAMES - builtin_registered)
+    if unregistered_builtins:
+        errors.append(
+            "BUILTIN_TOOL_NAMES tool(s) not registered in _TOOL_LAYERS "
+            "(CORE/COMMON/EXTENDED) — governance declarations lose their anchor "
+            "(upward-blindness drift): "
+            + ", ".join(unregistered_builtins)
+        )
+    overlap_fallbacks = sorted(BUILTIN_TOOL_NAMES & EXPLICIT_MCP_FALLBACK_TOOLS)
+    if overlap_fallbacks:
+        errors.append(
+            "Tool(s) in both BUILTIN_TOOL_NAMES and EXPLICIT_MCP_FALLBACK_TOOLS — "
+            "BUILTIN membership flips runtime baseline to ALLOW, contradicting the "
+            "intentional mcp_invoke fallback: "
+            + ", ".join(overlap_fallbacks)
         )
 
     ruleset_permissions = {rule.permission for rule in DEFAULT_RULESET}
@@ -239,7 +281,8 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
                 "AUTO_APPROVE_REASONS."
             )
 
-    missing_safety = sorted(BUILTIN_TOOL_NAMES - TOOL_SAFETY_METADATA.keys())
+    safety_required = BUILTIN_TOOL_NAMES | EXPLICIT_MCP_FALLBACK_TOOLS
+    missing_safety = sorted(safety_required - TOOL_SAFETY_METADATA.keys())
     if missing_safety:
         errors.append(
             "Built-in tool(s) missing TOOL_SAFETY_METADATA (fail-closed defaults): "
@@ -259,16 +302,18 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
         )
 
     coverage_matrix: dict[str, object] = {
-        "builtin_tools": sorted(BUILTIN_TOOL_NAMES),
+        "registered_builtin_tools": sorted(builtin_registered),
+        "external_tools": sorted(external_registered),
         "tool_coverage": {
             tool: {
                 "permission": TOOL_PERMISSION_MAP.get(tool),
-                "dynamic_resolved": tool in _DYNAMICALLY_RESOLVED_TOOLS,
+                "dynamic_resolved": tool in DYNAMICALLY_RESOLVED_TOOL_NAMES,
                 "auto_approved_reason": AUTO_APPROVED_BUILTIN_TOOLS.get(tool),
+                "explicit_mcp_fallback": tool in EXPLICIT_MCP_FALLBACK_TOOLS,
                 "safety_declared": tool in TOOL_SAFETY_METADATA,
                 "canonical_params": TOOL_CANONICAL_PARAMS.get(tool, []),
             }
-            for tool in sorted(BUILTIN_TOOL_NAMES)
+            for tool in sorted(builtin_registered)
         },
         "permission_type_coverage": {
             perm: {
@@ -708,8 +753,10 @@ def main() -> int:
                 print(f"  - {err}")
             print(
                 "  Fix: register the tool in TOOL_PERMISSION_MAP, add a dynamic "
-                "resolver branch, or declare it in AUTO_APPROVED_BUILTIN_TOOLS / "
-                "RULESET_COVERAGE_WHITELIST with a valid AUTO_APPROVE_REASONS value."
+                "resolver branch, declare it in AUTO_APPROVED_BUILTIN_TOOLS / "
+                "RULESET_COVERAGE_WHITELIST with a valid AUTO_APPROVE_REASONS value, "
+                "or declare it in EXPLICIT_MCP_FALLBACK_TOOLS to intentionally keep "
+                "the mcp_invoke=ASK runtime baseline."
             )
 
     return 1 if fail else 0

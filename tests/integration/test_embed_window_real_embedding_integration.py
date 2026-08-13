@@ -23,8 +23,8 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from unittest.mock import AsyncMock
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -65,7 +65,7 @@ class _LocalEmbeddingHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802 (http.server base class naming)
+    def do_GET(self) -> None:
         if self.path.rstrip("/") == "/v1/models":
             self._send_json(
                 {"object": "list", "data": [{"id": _MODEL, "object": "model"}]}
@@ -73,7 +73,7 @@ class _LocalEmbeddingHandler(BaseHTTPRequestHandler):
             return
         self._send_json({"error": "not found"}, status=404)
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", 0) or 0)
         raw = self.rfile.read(length) or b"{}"
         try:
@@ -109,7 +109,7 @@ class _LocalEmbeddingHandler(BaseHTTPRequestHandler):
         seed = hashlib.sha256(text.encode("utf-8")).hexdigest()
         vector: list[float] = []
         for i in range(_LocalEmbeddingHandler._dimension):
-            digest = hashlib.sha256(f"{seed}:{i}".encode("utf-8")).hexdigest()
+            digest = hashlib.sha256(f"{seed}:{i}".encode()).hexdigest()
             vector.append(round(int(digest[:8], 16) / 0xFFFFFFFF * 2.0 - 1.0, 6))
         return vector
 
@@ -122,7 +122,7 @@ class _LocalEmbeddingServer:
         self._server: HTTPServer | None = None
         self._thread: threading.Thread | None = None
 
-    def __enter__(self) -> "_LocalEmbeddingServer":
+    def __enter__(self) -> _LocalEmbeddingServer:
         self._server = HTTPServer(("127.0.0.1", 0), _LocalEmbeddingHandler)
         self.base_url = f"http://127.0.0.1:{self._server.server_address[1]}/v1"
         self._thread = threading.Thread(

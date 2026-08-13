@@ -4,7 +4,7 @@
 - (none)
 
 [OUTPUT]
-- detect_cursor_interactive: detect cursor:pointer etc.caninteractionelement
+- detect_cursor_interactive: Detect cursor:pointer etc. interactive elements
 - collect_bboxes: Collect bounding boxes for all elements in ARIA tree (Lay...
 
 [POS]
@@ -24,13 +24,13 @@ logger = logging.getLogger(__name__)
 
 
 async def detect_cursor_interactive(frame: Page | Frame) -> list[dict[str, str]]:
-    """detect cursor:pointer etc.caninteractionelement
+    """Detect elements that show a cursor:pointer (interactive) style.
 
     Args:
         frame: Page or Frame instance
 
     Returns:
-        elementlist,format:[{name, role}]
+        Element list, format: [{name, role}]
     """
     from .observer_scripts import CURSOR_DETECT_SCRIPT
 

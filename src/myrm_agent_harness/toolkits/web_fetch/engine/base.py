@@ -57,10 +57,14 @@ from myrm_agent_harness.utils.lru_cache import LRUCache
 from ..extractors.bilibili_extractor import extract_bilibili_subtitle, is_bilibili_url
 from ..extractors.weixin_extractor import (
     extract_weixin_article as extract_weixin_article,
+)
+from ..extractors.weixin_extractor import (
     is_weixin_article_url,
 )
 from ..extractors.youtube_extractor import (
     extract_youtube_transcript as extract_youtube_transcript,
+)
+from ..extractors.youtube_extractor import (
     is_youtube_url,
 )
 from ..fetchers.browser_fetcher import BrowserFetcher

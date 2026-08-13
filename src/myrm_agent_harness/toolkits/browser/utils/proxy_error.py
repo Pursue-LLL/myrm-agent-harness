@@ -1,4 +1,16 @@
-"""Utilities for detecting proxy and network errors."""
+"""Utilities for detecting proxy and network errors.
+
+[INPUT]
+- (none — self-contained regex patterns)
+
+[OUTPUT]
+- PROXY_ERROR_PATTERNS: regex patterns for proxy/tunnel/network failures
+- is_proxy_error(): detect proxy/network errors in exceptions or strings
+- is_blocked_response(): detect IP-blocked responses (403/CAPTCHA signatures)
+
+[POS]
+Proxy and network error detection utilities.
+"""
 
 import re
 from typing import Any

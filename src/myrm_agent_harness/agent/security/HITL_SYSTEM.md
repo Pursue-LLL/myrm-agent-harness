@@ -15,7 +15,7 @@
 - ✅ 双渠道一致性（Web + IM共享同一逻辑）
 
 ### 2. 工具纠错与断点续传 (Tool-Error Clarification)
-复用上述底层通道，当长链条任务中的任一工具抛出 `ToolClarificationException` 时，不再让大模型盲目重试，而是直接抛出 `action_type="tool_clarification"` 的挂起事件。
+复用上述底层通道，当长链条任务中的任一工具抛出 `ToolClarificationError` 时，不再让大模型盲目重试，而是直接抛出 `action_type="tool_clarification"` 的挂起事件。
 **用户体验**：
 - 前端会弹出 JSON/文本表单卡片，明确告知错误原因（如：“查无此人”）。
 - 用户补齐正确参数后，流程直接唤醒挂起的工具节点，带着最新参数无损恢复（Resume）并执行。

@@ -10,6 +10,7 @@ preserving the flat-module import surface for all consumers.
 
 [OUTPUT]
 - BUILTIN_TOOL_NAMES / TOOL_SAFETY_METADATA — tool safety SSOT
+- TOOL_PERMISSION_MAP / AUTO_APPROVED_BUILTIN_TOOLS / EXPLICIT_MCP_FALLBACK_TOOLS / DYNAMICALLY_RESOLVED_TOOL_NAMES / RULESET_COVERAGE_WHITELIST — governance audit declarations
 - SafetyMetadata / MCPAnnotations / resolve_safety_metadata / resolve_permission_type
 - register_ptc_safety_metadata / get_ptc_safety_metadata / compute_canonical_args_hash
 - check_safety_coverage / _check_safety_coverage — module-load safety gate
@@ -20,9 +21,11 @@ from .registry import (
     _FAIL_CLOSED_DEFAULTS,
     _PTC_SAFETY_METADATA,
     _PTC_TOOL_FLAT_INDEX,
-    AUTO_APPROVED_BUILTIN_TOOLS,
     AUTO_APPROVE_REASONS,
+    AUTO_APPROVED_BUILTIN_TOOLS,
     BUILTIN_TOOL_NAMES,
+    DYNAMICALLY_RESOLVED_TOOL_NAMES,
+    EXPLICIT_MCP_FALLBACK_TOOLS,
     RULESET_COVERAGE_WHITELIST,
     TOOL_CANONICAL_PARAMS,
     TOOL_GROUP_MAP,
@@ -46,6 +49,8 @@ __all__ = [
     "AUTO_APPROVED_BUILTIN_TOOLS",
     "AUTO_APPROVE_REASONS",
     "BUILTIN_TOOL_NAMES",
+    "DYNAMICALLY_RESOLVED_TOOL_NAMES",
+    "EXPLICIT_MCP_FALLBACK_TOOLS",
     "RULESET_COVERAGE_WHITELIST",
     "TOOL_CANONICAL_PARAMS",
     "TOOL_GROUP_MAP",

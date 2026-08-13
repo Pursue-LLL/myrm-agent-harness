@@ -24,6 +24,7 @@ import asyncio
 import contextlib
 import logging
 import random
+import time
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.browser.pool.config import HumanizeMode
@@ -44,10 +45,6 @@ logger = logging.getLogger(__name__)
 # Post-scroll settle wait before re-measuring, so smooth-scroll animations that
 # started on the wheel events have time to move before a no-op is reported.
 _SCROLL_VERIFY_SETTLE_MS = 120
-# Max humanized wheel steps used to bring an interaction target into the
-# viewport center band before a CAREFUL interaction proceeds. Each step settles,
-# so the bound keeps worst-case latency sane on nested/cross-origin containers.
-_TARGET_SCROLL_MAX_STEPS = 6
 # Walks from elementFromPoint(x, y) up to the document and returns the metrics of
 # the container a wheel event would actually scroll. Only real wheel-scrollable
 # boxes count (overflow auto/scroll, or the document itself), so overflow:visible
@@ -81,62 +78,6 @@ _SCROLL_MEASURE_JS = (
     "    node = node.parentElement;"
     "  }"
     "  return { top: doc.scrollTop, height: doc.scrollHeight, client: doc.clientHeight };"
-    "})"
-)
-
-# Runs inside the target's own frame (main page or same-origin iframe) and reads
-# its *rendered* state: bounding box in frame-local coords, whether the target is
-# actually visible to the user (elementFromPoint hit-test — a target clipped by a
-# nested scroll container or an iframe viewport reads as invisible even though its
-# geometry lies inside the page viewport), whether the probe ran in the top frame,
-# and — when invisible — the nearest wheel-scrollable ancestor plus the exact wheel
-# delta that centers the target in it. The delta is computed from frame-local
-# relative positions, so it is origin-independent and works across iframes.
-_TARGET_PROBE_JS = (
-    "((el) => {"
-    "  const r = el.getBoundingClientRect();"
-    "  const cx = r.x + r.width / 2;"
-    "  const cy = r.y + r.height / 2;"
-    "  const hit = document.elementFromPoint(cx, cy);"
-    "  const visible = !!hit && (hit === el || el.contains(hit));"
-    "  const out = {"
-    "    x: r.x, y: r.y, width: r.width, height: r.height,"
-    "    visible,"
-    "    is_top: window === window.top,"
-    "    container: null,"
-    "  };"
-    "  const doc = document.scrollingElement || document.documentElement;"
-    "  const isScrollable = (n) => {"
-    "    if (n === doc) return n.scrollHeight > n.clientHeight + 1;"
-    "    if (!(n instanceof Element) || n.scrollHeight <= n.clientHeight + 1) return false;"
-    "    const s = getComputedStyle(n);"
-    "    return s.overflowY === 'auto' || s.overflowY === 'scroll' || s.overflowY === 'overlay';"
-    "  };"
-    "  let node = el.parentElement;"
-    "  while (node) {"
-    "    if (isScrollable(node)) {"
-    "      const cb = node.getBoundingClientRect();"
-    "      /* Document-relative top of the target inside the container's content:"
-    "         for a scroller div, r.top - cb.top is the on-screen offset and needs"
-    "         scrollTop added; for the document element the layout rect itself"
-    "         shifts with the scroll (cb.top === -scrollTop), so it already yields"
-    "         the document-relative position and must NOT be added again. */"
-    "      const targetTop = r.top - cb.top + (node === doc ? 0 : node.scrollTop);"
-    "      const desiredScroll = targetTop + r.height / 2 - node.clientHeight / 2;"
-    "      out.container = {"
-    "        left: cb.left, top: cb.top,"
-    "        /* client* is the *visible* box: for the document element the"
-    "           layout rect grows with the content, which would place the wheel"
-    "           dispatch point outside the frame's visible area. */"
-    "        width: node.clientWidth, height: node.clientHeight,"
-    "        is_doc: node === doc,"
-    "        delta: Math.round(desiredScroll - node.scrollTop),"
-    "      };"
-    "      break;"
-    "    }"
-    "    node = node.parentElement;"
-    "  }"
-    "  return out;"
     "})"
 )
 
@@ -383,6 +324,92 @@ class ScrollHumanizeMixin:
         if delta < 0 and after["top"] <= 0:
             return " (already at the top)"
         return " (no visible movement; smooth-scroll or blocked wheel)"
+
+    async def _scroll_to_bottom_loop(
+        self,
+        locator: Locator,
+        params: dict[str, int],
+        healed_msg: str,
+    ) -> str:
+        """Scroll a target container to its bottom with humanized wheel bursts.
+
+        Progress is measured on the real wheel-scrollable container under the
+        cursor: each iteration wheels one viewport height, then re-measures.
+        Stalls are handled honestly — the container is retargeted once when a
+        wheel lands on a no-longer-responsive box, and reported as ``stuck``
+        rather than a false success. Returns a humanized status summary.
+        """
+        max_steps = params["max_steps"]
+        delay_ms = params["delay_ms"]
+        stable_count = params["stable_count"]
+
+        start_time = time.monotonic()
+        target_x, target_y = await self._scroll_cursor_target(locator)
+        await self._scroll_move_cursor(target_x, target_y)
+        viewport_h = await self._page.evaluate("window.innerHeight")
+        if viewport_h <= 0:
+            viewport_h = 800
+
+        state = await self._scroll_measure(target_x, target_y)
+        if state["height"] <= state["client"] + 1:
+            elapsed = round(time.monotonic() - start_time, 1)
+            return (
+                f"Scrolled 0 steps ({elapsed}s). "
+                f"Height: {state['height']}\u2192{state['height']}px. "
+                f"Status: completed (no scrollable overflow){healed_msg}"
+            )
+        prev_top = state["top"]
+        prev_height = state["height"]
+        start_height = prev_height
+        stable = 0
+        steps = 0
+        repositioned = False
+        stuck = False
+
+        while steps < max_steps:
+            await self._scroll_deliver(viewport_h)
+            await asyncio.sleep(delay_ms / 1000.0)
+            state = await self._scroll_measure(target_x, target_y)
+            steps += 1
+
+            moved = state["top"] != prev_top
+            grew = state["height"] > prev_height
+            if moved or grew:
+                stable = 0
+                prev_top = state["top"]
+                prev_height = state["height"]
+                continue
+
+            can_scroll = state["height"] > state["client"] + state["top"] + 1
+            if can_scroll and not repositioned:
+                # Wheel hit a container that no longer responds — retarget once.
+                target_x, target_y = await self._scroll_cursor_target(locator)
+                await self._scroll_move_cursor(target_x, target_y)
+                prev_top = state["top"]
+                prev_height = state["height"]
+                repositioned = True
+                continue
+
+            if can_scroll:
+                stuck = True
+                break
+
+            stable += 1
+            if stable >= stable_count:
+                break
+
+        elapsed = round(time.monotonic() - start_time, 1)
+        if stuck:
+            status = "stuck"
+        elif stable >= stable_count:
+            status = "completed"
+        else:
+            status = "max_reached"
+        return (
+            f"Scrolled {steps} steps ({elapsed}s). "
+            f"Height: {start_height}\u2192{state['height']}px. "
+            f"Status: {status}{healed_msg}"
+        )
 
     async def _scroll_deliver(self, delta: int) -> None:
         """Deliver a relative scroll with mode-appropriate humanization.

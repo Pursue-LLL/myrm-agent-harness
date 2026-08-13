@@ -8,6 +8,8 @@ Contains:
 - toolkits.retriever.reranker.factory::RerankerConfig
 - toolkits.retriever.sufficiency (POS: Retrieval Sufficiency Guard)
 - toolkits.web_fetch.spill::maybe_spill_web_fetch_content
+- toolkits.web_fetch._web_fetch_tool_description::resolve_web_fetch_tool_description
+- agent.errors.tool_error_category::ToolErrorCategory
 - utils.errors::ToolError
 
 [OUTPUT]
@@ -31,47 +33,11 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.retriever.reranker.factory import RerankerConfig
     from myrm_agent_harness.toolkits.retriever.sufficiency import SufficiencyConfig
 
+from myrm_agent_harness.agent.errors import ToolErrorCategory
+from myrm_agent_harness.toolkits.web_fetch._web_fetch_tool_description import (
+    resolve_web_fetch_tool_description,
+)
 from myrm_agent_harness.utils.errors import ToolError
-
-_EXTRACT_SECTION = """
-### fetch_and_extract
-
-Retrieve **relevant content snippets** from known webpages (single or multiple URLs).
-
-**Use cases:**
-- Retrieve relevant info from webpages that can answer user questions; use this operation in most cases
-
-**Parameters:**
-- urls: Known and real target webpage URL list, no fabrication allowed
-- questions: Query list, must be rewritten according to "query rewriting rules"
-- operation: "fetch_and_extract"
-
-**Query rewriting rules:**
-- Generate 1-5 queries centered on user intent
-- **Language alignment**: Query language should match target webpage language when possible
-"""
-
-_FULL_CONTENT_WITH_EXTRACT = """
-### fetch_full_content
-
-Get the **full content** of known webpages (single or multiple URLs).
-
-**Use cases:**
-- User explicitly requests full page content
-- Need to summarize or analyze the entire webpage
-
-**Parameters:**
-- urls: Known webpage URL list
-- operation: "fetch_full_content"
-"""
-
-_FULL_CONTENT_ONLY = """
-Get full content from known webpage URLs (Markdown format). Supports single or multiple URLs.
-
-**Parameters:**
-- urls: Known and real target webpage URL list, no fabrication allowed
-- operation: "fetch_full_content"
-"""
 
 
 def create_web_fetch_tool(
@@ -84,6 +50,7 @@ def create_web_fetch_tool(
     sufficiency_llm_config: LLMConfig | None = None,
     model_preview_chars: int | None = None,
     blocked_hostnames: tuple[str, ...] | None = None,
+    description_locale: str | None = None,
 ):
     """Create web fetch meta-tool.
 
@@ -91,21 +58,16 @@ def create_web_fetch_tool(
     wildcard patterns). When set, URLs whose host matches a pattern are
     rejected before fetching — a generic content policy hook callers can use
     for benchmark decontamination or domain filtering. None disables it.
+
+    ``description_locale`` selects the LLM-facing tool description locale
+    (default English).
     """
     enable_extract = reranker_config is not None and embedding_config is not None
-    if enable_extract:
-        sections = _EXTRACT_SECTION + _FULL_CONTENT_WITH_EXTRACT
-        default_op = "fetch_and_extract"
-    else:
-        sections = _FULL_CONTENT_ONLY
-        default_op = "fetch_full_content"
+    default_op = "fetch_and_extract" if enable_extract else "fetch_full_content"
 
-    tool_description = f"""web_fetch_tool extracts detailed content from specific webpage URLs.
-{sections}
-For read-only content retrieval (articles, docs, blog posts), always prefer this tool over browser_navigate — it's faster, cheaper, and handles JS rendering internally.
-WeChat Official Account article links (mp.weixin.qq.com/s/...) are supported via fetch_full_content; use the real article URL the user provided.
-For JS-heavy or interactive pages (clicking, filling forms, scrolling), use browser tools. For many pages, call web_fetch with multiple URLs.
-""".strip()
+    tool_description = resolve_web_fetch_tool_description(
+        enable_extract, description_locale
+    )
 
     preview_budget = model_preview_chars
 
@@ -149,7 +111,7 @@ For JS-heavy or interactive pages (clicking, filling forms, scrolling), use brow
                         user_hint="The URL host is excluded from fetching. Use a different URL.",
                         error_code="BENCHMARK_BLOCKED_HOST",
                         diagnostic_info={
-                            "error_category": "benchmark_blocked",
+                            "error_category": ToolErrorCategory.BENCHMARK_BLOCKED.value,
                             "hostname": hostname,
                         },
                     )

@@ -570,6 +570,114 @@ async def test_on_popup_close_non_active_popup() -> None:
     assert popup_id not in tc._tabs
 
 
+@pytest.mark.asyncio
+async def test_on_tab_created_called_on_popup_capture() -> None:
+    """Popup capture invokes the on_tab_created callback with the popup page."""
+    tc = _make_mock_tc()
+    await _add_mock_tab(tc)
+    on_tab_created = AsyncMock()
+    tc._on_tab_created = on_tab_created
+
+    popup_page = _make_mock_page()
+    await tc._on_popup(popup_page)
+
+    on_tab_created.assert_awaited_once_with(popup_page)
+
+
+@pytest.mark.asyncio
+async def test_on_tab_created_error_is_contained() -> None:
+    """A raising on_tab_created callback never breaks popup capture."""
+    tc = _make_mock_tc()
+    await _add_mock_tab(tc)
+
+    async def boom(page: object) -> None:
+        raise RuntimeError("observer exploded")
+
+    tc._on_tab_created = boom
+
+    popup_page = _make_mock_page()
+    await tc._on_popup(popup_page)
+
+    assert tc.get_active_tab_id() in tc._tabs
+
+
+@pytest.mark.asyncio
+async def test_on_tab_closed_called_on_close() -> None:
+    """close_tab invokes the on_tab_closed callback with the closed page."""
+    pool = MagicMock()
+    pool.release_page = AsyncMock()
+    on_tab_closed = AsyncMock()
+    tc = TabController(pool, ContextType.CRAWL, on_tab_closed=on_tab_closed)
+    page = _make_mock_page()
+    tab_id = f"tab{tc._tab_counter}"
+    tc._tab_counter += 1
+    handle = TabHandle(page=page, tab_id=tab_id, context_key="default")
+    tc._tabs[tab_id] = handle
+    tc._active_tab_id = tab_id
+
+    await tc.close_tab(tab_id)
+
+    on_tab_closed.assert_awaited_once_with(page)
+
+
+@pytest.mark.asyncio
+async def test_on_tab_closed_called_on_popup_close_event() -> None:
+    """Popup close events invoke the on_tab_closed callback with the closed page."""
+    tc = _make_mock_tc()
+    await _add_mock_tab(tc)
+    on_tab_closed = AsyncMock()
+    tc._on_tab_closed = on_tab_closed
+
+    popup_page = _make_mock_page()
+    await tc._on_popup(popup_page)
+    popup_id = tc.get_active_tab_id()
+
+    tc._on_popup_close(popup_id)
+    await asyncio.sleep(0)  # let the background cleanup task run
+
+    on_tab_closed.assert_awaited_once_with(popup_page)
+
+
+@pytest.mark.asyncio
+async def test_on_tab_closed_called_on_lru_eviction() -> None:
+    """LRU eviction (via _evict_lru) invokes the callback for the evicted page."""
+    tc = _make_mock_tc()
+    first_page = tc._tabs[(await _add_mock_tab(tc))].page
+    on_tab_closed = AsyncMock()
+    tc._on_tab_closed = on_tab_closed
+
+    for _ in range(9):
+        await _add_mock_tab(tc)
+    assert len(tc._tabs) == 10
+
+    await tc._evict_lru()  # evicts the least-recently-used non-active tab
+
+    assert len(tc._tabs) == 9
+    on_tab_closed.assert_awaited_once_with(first_page)
+
+
+@pytest.mark.asyncio
+async def test_on_tab_closed_error_is_contained() -> None:
+    """A raising on_tab_closed callback never breaks close_tab."""
+    pool = MagicMock()
+    pool.release_page = AsyncMock()
+
+    async def boom(page: object) -> None:
+        raise RuntimeError("observer exploded")
+
+    tc = TabController(pool, ContextType.CRAWL, on_tab_closed=boom)
+    page = _make_mock_page()
+    tab_id = f"tab{tc._tab_counter}"
+    tc._tab_counter += 1
+    handle = TabHandle(page=page, tab_id=tab_id, context_key="default")
+    tc._tabs[tab_id] = handle
+    tc._active_tab_id = tab_id
+
+    await tc.close_tab(tab_id)
+
+    assert tab_id not in tc._tabs
+
+
 # =============================================================================
 # Integration: real browser popup via window.open()
 # =============================================================================

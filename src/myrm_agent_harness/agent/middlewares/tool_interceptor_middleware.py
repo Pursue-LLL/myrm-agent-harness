@@ -326,7 +326,7 @@ async def _tool_interceptor_middleware_inner(
                 )
                 break
             except Exception as e:
-                if type(e).__name__ == "ToolClarificationException":
+                if type(e).__name__ == "ToolClarificationError":
                     from langgraph.types import interrupt
 
                     payload = {

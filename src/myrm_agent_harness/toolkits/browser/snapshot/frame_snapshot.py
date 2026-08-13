@@ -356,7 +356,7 @@ class FrameState:
 
     @property
     def stats(self) -> dict[str, object]:
-        """GetStatisticsinformation"""
+        """Frame snapshot statistics (update counts and cache hit rate)."""
         return {
             "total_updates": self._total_updates,
             "incremental_updates": self._incremental_updates,

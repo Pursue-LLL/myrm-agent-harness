@@ -602,9 +602,6 @@ class TestPdfOcrFallback:
         """Sparse PDF: OCR text replaces the sparse text layer; strategy stays 'image'."""
         from unittest.mock import AsyncMock
 
-        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
-            _ocr_rendered_pages_async,
-        )
 
         pdf_path = _make_sparse_pdf()
         try:

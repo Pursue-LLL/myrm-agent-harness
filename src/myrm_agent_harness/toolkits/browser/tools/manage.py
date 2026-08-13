@@ -47,7 +47,8 @@ def create_manage_tool(session: BrowserSession):
             default="",
             description="Required for: JS expression (evaluate), tab_id (switch_tab/close_tab), "
             "URL (new_tab/download_url), 'WIDTHxHEIGHT' (resize), "
-            "device name (emulate, e.g. 'iPhone 15 Pro', 'Pixel 8', or 'desktop'), "
+            "device name (emulate, e.g. 'iPhone 15 Pro', 'Pixel 8', "
+            "'iPhone 15 Pro landscape', or 'desktop'), "
             "'accept'/'dismiss[:prompt]' (dialog_response), "
             "'smart'/'auto_accept'/'auto_dismiss'/'wait_for_agent' (dialog_policy), "
             "domain or 'domain:label' (save_session), domain (restore_session/delete_session), "
@@ -128,6 +129,7 @@ def create_manage_tool(session: BrowserSession):
                     return (
                         "Error: 'value' must be a device name "
                         f"(e.g. 'iPhone 15 Pro', 'Pixel 8') or 'desktop'. "
+                        "Append ' landscape' for landscape orientation. "
                         f"Available: {available}"
                     )
                 return mark_untrusted(await session.emulate_device(value.strip()))

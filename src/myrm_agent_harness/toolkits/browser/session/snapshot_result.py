@@ -4,7 +4,7 @@
 - toolkits.browser.snapshot::RefInfo, (POS: browser_snapshot tool for ARIA tree capture.)
 
 [OUTPUT]
-- SnapshotResult: snapshotresult
+- SnapshotResult: immutable snapshot result type (aria_tree, refs, meta).
 
 [POS]
 Immutable snapshot result type for browser ARIA snapshots.
@@ -21,10 +21,10 @@ from myrm_agent_harness.toolkits.browser.snapshot import RefInfo, SnapshotMeta
 
 @dataclass(frozen=True)
 class SnapshotResult:
-    """snapshotresult
+    """Immutable snapshot result for one browser ARIA snapshot.
 
-    containsenhanceresulting ARIA tree, refs mapsandmetadata.
-    immutabledatastructure, guaranteessnapshotdata'scomplete.
+    Contains the enhanced ARIA tree, the refs maps, and metadata in an
+    immutable data structure, guaranteeing the snapshot data is complete.
     Supports tuple-style unpacking as ``aria_tree, metadata = result``.
     """
 

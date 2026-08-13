@@ -173,6 +173,10 @@ class RetrievalConfig:
         preference_boost_weight: Preference boost weight (multiplicative factor, applied to preference_strength)
         source_diversity_weight: Source diversity penalty weight for MMR session diversification
         min_relevance_score: Absolute minimum RRF score threshold (anti-hallucination hard cutoff)
+        timeout_seconds: Wall-clock ceiling for one retrieval pipeline. When a backing
+            store (remote embedding/vector) hangs, the collect stage returns whatever
+            completed first and the whole pipeline is cut at this budget, failing open
+            instead of blocking the agent turn indefinitely.
     """
 
     rrf_k: int = 60
@@ -225,6 +229,11 @@ class RetrievalConfig:
     Set to 0.0 to disable. Default 0.35 is conservative for BGE-M3 embeddings."""
     enable_intent_recognition: bool = True
     intent_recognizer: QueryIntentRecognizer | None = None
+    timeout_seconds: float = 10.0
+    """Wall-clock ceiling (seconds) for the full retrieval pipeline and its
+    candidate-collect stage. Aligned with CoPaw's 10s memory fallback; remote
+    embedding/vector providers that hang past this budget are cut with partial
+    results retained and the search marked as degraded (fail-open)."""
 
 
 @dataclass(frozen=True, slots=True)

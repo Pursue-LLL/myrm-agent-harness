@@ -14,11 +14,13 @@ Static device descriptor registry curated from the patchright (Playwright)
 mobile emulation needs: UA string, layout viewport, device pixel ratio, mobile
 flag, and touch flag. Resolving a device returns a reusable ``EmulationConfig``
 so both context creation (``to_playwright_kwargs``) and runtime CDP injection
-share the same source of truth. Zero runtime dependency on a live browser.
+share the same source of truth. A ``" landscape"`` suffix swaps the layout
+viewport to landscape orientation. Zero runtime dependency on a live browser.
 """
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Final
 
 from .emulation import EmulationConfig
@@ -115,9 +117,12 @@ def resolve_device(name: str) -> EmulationConfig | None:
 
     Exact names (case-insensitive) are matched first; if no exact match, a
     case-insensitive substring match is tried (e.g. "iphone" → "iPhone 15 Pro").
+    A ``" landscape"`` suffix (case-insensitive) swaps the layout viewport to
+    landscape orientation (e.g. "iPhone 15 Pro landscape" → 659x393).
 
     Args:
-        name: Device name from ``list_device_names``.
+        name: Device name from ``list_device_names``, optionally suffixed
+            with ``" landscape"``.
 
     Returns:
         Matching EmulationConfig, or ``None`` when the device is unknown.
@@ -127,16 +132,29 @@ def resolve_device(name: str) -> EmulationConfig | None:
         return None
 
     lowered = name.strip().lower()
+    landscape = False
+    if lowered.endswith(" landscape"):
+        landscape = True
+        lowered = lowered[: -len(" landscape")].strip()
+
     for device_name, config in MOBILE_DEVICES.items():
         if device_name.lower() == lowered:
-            return config
+            return _orient(config, landscape)
 
     # Case-insensitive contains match as a convenience (e.g. "iphone").
     for device_name, config in MOBILE_DEVICES.items():
         if lowered in device_name.lower():
-            return config
+            return _orient(config, landscape)
 
     return None
+
+
+def _orient(config: EmulationConfig, landscape: bool) -> EmulationConfig:
+    """Swap the layout viewport to landscape when requested."""
+    if not landscape or config.viewport is None:
+        return config
+    width, height = config.viewport
+    return replace(config, viewport=(height, width))
 
 
 def list_device_names() -> list[str]:

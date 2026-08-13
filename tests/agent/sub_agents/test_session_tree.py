@@ -172,7 +172,6 @@ def test_list_active_children_from_registry_merges_completed_results() -> None:
 
 def test_list_active_children_from_registry_completed_other_session_ignored() -> None:
     chat_uuid = "completed-456"
-    session_id = f"chat_{chat_uuid}"
     COMPLETED_SUBAGENT_RESULTS["task-other"] = (
         "chat_other-session",
         1000.0,

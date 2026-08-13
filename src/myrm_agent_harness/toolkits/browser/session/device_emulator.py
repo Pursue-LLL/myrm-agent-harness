@@ -6,16 +6,18 @@
 - pool.device_profiles::resolve_device, list_device_names (POS: curated mobile device profile registry)
 
 [OUTPUT]
-- DeviceEmulator: runtime CDP mobile device emulation (per-page, idempotent)
+- DeviceEmulator: runtime CDP mobile device emulation (session-consistent, per-page idempotent)
 
 [POS]
-Applies mobile-device simulation to a live page via CDP without recreating
+Applies mobile-device simulation to live pages via CDP without recreating
 the browser context: ``Emulation.setDeviceMetricsOverride`` (layout viewport +
 device pixel ratio + mobile flag), ``Network.setUserAgentOverride`` (mobile UA)
-and ``Emulation.setTouchEmulationEnabled`` (touch events). ``desktop`` restores
-the browser's native desktop behavior by clearing all three overrides; the UA
-captured before the first emulation is restored rather than the browser default,
-so context-level UA configuration survives a reset.
+and ``Emulation.setTouchEmulationEnabled`` (touch events). Emulation is
+session-consistent: every injected page is tracked, tabs created or activated
+inherit the active profile via ``reapply``, and ``desktop`` clears every
+tracked page so no tab silently keeps mobile overrides. The UA captured before
+the first emulation is restored rather than the browser default, so context-
+level UA configuration survives a reset.
 
 The page must be re-navigated after a switch for the new viewport to drive a
 full re-layout; the returned message tells the agent exactly that. Every
@@ -61,13 +63,14 @@ class _BuiltinRegistry:
 
 
 class DeviceEmulator:
-    """Runtime CDP device emulation for the active browser page."""
+    """Runtime CDP device emulation, consistent across the session's tabs."""
 
     def __init__(self, registry: DeviceRegistry | None = None) -> None:
         self._registry: DeviceRegistry = registry or _BuiltinRegistry()
-        self._cdp_session: CDPSession | None = None
-        self._bound_page: Page | None = None
+        self._cdp_sessions: dict[Page, CDPSession] = {}
+        self._injected_pages: set[Page] = set()
         self._active_device: str | None = None
+        self._active_profile: EmulationConfig | None = None
         self._baseline_ua: str | None = None
 
     @property
@@ -99,11 +102,11 @@ class DeviceEmulator:
             )
 
         try:
-            cdp = await self._ensure_cdp(page)
             if self._baseline_ua is None:
                 self._baseline_ua = await page.evaluate("navigator.userAgent")
-            await self._apply(cdp, profile)
+            await self._apply(page, profile)
             self._active_device = device
+            self._active_profile = profile
             return (
                 f"Emulated '{device}' ({profile.viewport[0]}x{profile.viewport[1]} "
                 f"@ {profile.device_scale_factor}x, mobile UA + touch). "
@@ -111,61 +114,108 @@ class DeviceEmulator:
             )
         except Exception as exc:
             logger.warning("DeviceEmulator: emulation failed for '%s': %s", device, exc)
-            await self._detach()
+            await self._discard_session(page)
+            # Keep the page tracked: a mid-sequence failure may have partially
+            # injected overrides, so a later reset must still be able to clean it.
             return f"Device emulation failed: {exc}"
 
+    async def reapply(self, page: Page) -> None:
+        """Re-apply the active device profile to a fresh tab (tab inheritance).
+
+        No-op when no device is currently emulated or the target page already
+        carries emulation. Called when a tab is created so new tabs inherit the
+        active profile, while pages emulated independently keep their own
+        device.
+        """
+        profile = self._active_profile
+        if profile is None or page in self._injected_pages:
+            return
+        try:
+            await self._apply(page, profile)
+        except Exception as exc:
+            logger.warning("DeviceEmulator: failed to re-apply emulation: %s", exc)
+            await self._discard_session(page)
+
     async def reset(self, page: Page) -> str:
-        """Restore the browser's native desktop behavior on the page.
+        """Restore the browser's native desktop behavior on every tracked page.
+
+        Args:
+            page: Active page (included even when not previously tracked).
 
         Returns:
             Confirmation message.
 
         """
-        try:
-            cdp = await self._ensure_cdp(page)
-            await cdp.send("Emulation.clearDeviceMetricsOverride")
-            # CDP has no Network.clearUserAgentOverride; restore the UA captured
-            # before the first emulation (or the browser default if none was set).
-            await cdp.send(
-                "Network.setUserAgentOverride",
-                {"userAgent": self._baseline_ua or ""},
-            )
-            await cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
-            self._active_device = None
-            self._baseline_ua = None
-            return "Restored desktop viewport (cleared device emulation)."
-        except Exception as exc:
-            logger.warning("DeviceEmulator: reset failed: %s", exc)
-            await self._detach()
-            return f"Failed to restore desktop viewport: {exc}"
+        self._injected_pages.add(page)
+        errors: list[str] = []
+        for tracked in list(self._injected_pages):
+            try:
+                await self._clear(tracked)
+            except Exception as exc:
+                logger.warning("DeviceEmulator: reset failed on a page: %s", exc)
+                errors.append(str(exc))
+        self._injected_pages.clear()
+        self._active_device = None
+        self._active_profile = None
+        self._baseline_ua = None
+        if errors:
+            return f"Failed to restore desktop viewport: {'; '.join(errors)}"
+        return "Restored desktop viewport (cleared device emulation)."
 
     def list_devices(self) -> list[str]:
         """Return the sorted list of emulatable device names."""
         return self._registry.list_names()
 
     async def detach(self) -> None:
-        """Release the CDP session (called when the owning session closes)."""
-        await self._detach()
+        """Release all CDP sessions and clear emulation state.
+
+        Called when the owning session closes or restarts; the session is
+        rebuilt from scratch, so all tracked pages and the active profile
+        are dropped.
+        """
+        for cdp in list(self._cdp_sessions.values()):
+            with contextlib.suppress(Exception):
+                await cdp.detach()
+        self._cdp_sessions.clear()
+        self._injected_pages.clear()
+        self._active_device = None
+        self._active_profile = None
+        self._baseline_ua = None
+
+    async def forget_page(self, page: Page) -> None:
+        """Clear a closing page's emulation and release its CDP session.
+
+        Called when a tab is closed so no pool-recycled page keeps stale
+        mobile overrides, and so `active_device` stays truthful.
+        """
+        if page in self._injected_pages and not page.is_closed():
+            try:
+                await self._clear(page)
+            except Exception as exc:
+                logger.warning("DeviceEmulator: failed to clear page on close: %s", exc)
+        self._injected_pages.discard(page)
+        await self._discard_session(page)
 
     async def _ensure_cdp(self, page: Page) -> CDPSession:
-        """Return a CDP session bound to the page, re-creating if stale."""
-        if self._cdp_session is not None and self._bound_page is page:
-            return self._cdp_session
-        await self._detach()
+        """Return the CDP session bound to the page, creating one if missing."""
+        cdp = self._cdp_sessions.get(page)
+        if cdp is not None:
+            return cdp
         cdp = await page.context.new_cdp_session(page)
-        self._cdp_session = cdp
-        self._bound_page = page
+        self._cdp_sessions[page] = cdp
         return cdp
 
-    async def _detach(self) -> None:
-        if self._cdp_session is not None:
+    async def _discard_session(self, page: Page) -> None:
+        cdp = self._cdp_sessions.pop(page, None)
+        if cdp is not None:
             with contextlib.suppress(Exception):
-                await self._cdp_session.detach()
-        self._cdp_session = None
-        self._bound_page = None
+                await cdp.detach()
 
-    @staticmethod
-    async def _apply(cdp: CDPSession, profile: EmulationConfig) -> None:
+    async def _apply(self, page: Page, profile: EmulationConfig) -> None:
+        # Track the page before injecting so a mid-sequence CDP failure still
+        # leaves it registered for later reset cleanup.
+        self._injected_pages.add(page)
+        cdp = await self._ensure_cdp(page)
         width, height = profile.viewport
         await cdp.send(
             "Emulation.setDeviceMetricsOverride",
@@ -184,3 +234,20 @@ class DeviceEmulator:
             "Emulation.setTouchEmulationEnabled",
             {"enabled": bool(profile.has_touch)},
         )
+
+    async def _clear(self, page: Page) -> None:
+        if page.is_closed():
+            self._injected_pages.discard(page)
+            return
+        cdp = await self._ensure_cdp(page)
+        await cdp.send("Emulation.clearDeviceMetricsOverride")
+        # CDP has no Network.clearUserAgentOverride; restore the UA captured
+        # before the first emulation. When never emulated, leave the UA intact
+        # so a context-level custom UA is preserved.
+        if self._baseline_ua is not None:
+            await cdp.send(
+                "Network.setUserAgentOverride",
+                {"userAgent": self._baseline_ua},
+            )
+        await cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
+        self._injected_pages.discard(page)

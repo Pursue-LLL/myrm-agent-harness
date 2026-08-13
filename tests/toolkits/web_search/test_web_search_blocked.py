@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from myrm_agent_harness.agent.errors import ToolErrorCategory
 from myrm_agent_harness.toolkits.web_search.web_search_agent_tools import (
     create_web_search_tool,
 )
@@ -67,7 +68,7 @@ async def test_block_error_text() -> None:
         await tool.ainvoke({"questions": ["search hf.co rows"], "reason": ""})
     except ToolError as exc:
         assert "Search query blocked" in str(exc)
-        assert exc.error_category == "benchmark_blocked"
+        assert exc.error_category == ToolErrorCategory.BENCHMARK_BLOCKED.value
     else:  # pragma: no cover
         pytest.fail("expected ToolError")
 

@@ -693,12 +693,14 @@ Loop Guard 与 Completion Guard 为兜底；正常路径由 Turn1 工具描述�
 通过 `browser_manage_tool` 的 `emulate` action 在**运行时**将当前页面切换为移动设备视图，无需重建浏览器上下文：
 
 **核心能力**：
-- **精选设备集**：`pool/device_profiles.py` 内置主流设备（iPhone 15 Pro / iPhone 13 / iPhone SE / Pixel 8 / Pixel 7 / Galaxy S24 / iPad Pro 11 / Nexus 7），每项含完整五维参数（UA / 布局视口 / devicePixelRatio / is_mobile / has_touch），与上下文创建共享同一 `EmulationConfig` 数据源
+- **精选设备集**：`pool/device_profiles.py` 内置主流设备（iPhone 15 Pro / iPhone 13 / iPhone SE / Pixel 8 / Pixel 7 / Galaxy S24 / iPad Pro 11 / Nexus 7），每项含完整五维参数（UA / 布局视口 / devicePixelRatio / is_mobile / has_touch），与上下文创建共享同一 `EmulationConfig` 数据源；设备名追加 `" landscape"` 后缀可切换横屏布局视口
 - **运行时三连注入**：`session/device_emulator.py` 通过 CDP 执行 `Emulation.setDeviceMetricsOverride` + `Network.setUserAgentOverride` + `Emulation.setTouchEmulationEnabled`，**无需重建 Context**，比竞品（仅静态上下文配置）更灵活
+- **会话一致性**：会话级跟踪所有已注入页面；`new_tab` / `switch_tab` / `close_tab` 后新激活标签页自动继承当前设备（`reapply`），`emulate("desktop")` 一次性清除**全部**标签页的移动覆盖，不会残留陈旧移动状态；`close_tab` 同步清理该页面的覆盖与 CDP 会话，LRU 淘汰 / popup 关闭等**所有**页面退出路径也通过 `TabController.on_tab_closed` 回调清理（pool 复用的页面绝不继承陈旧移动覆盖），popup（target=_blank / OAuth）新页面通过 `on_tab_created` 回调继承当前设备，关闭**最后一个**标签页时全量重置设备状态，新标签页从原生桌面开始
+- **基线 UA 还原**：注入前捕获原始 UA，`desktop` 恢复时还原上下文级 UA 而非浏览器默认值
 - **桌面恢复**：`emulate("desktop")` 清除全部覆盖项，还原原生桌面行为
 - **优雅降级**：不支持 CDP 的引擎（如 Camoufox/Firefox）注入失败时返回清晰错误，不崩溃会话
 
-**使用方式**：`browser_manage_tool(action="emulate", value="iPhone 15 Pro")`，切换后需重新导航页面以触发完整移动布局重排。**典型场景**：移动端落地页测试、移动端站点内容采集、移动端竞品分析。
+**使用方式**：`browser_manage_tool(action="emulate", value="iPhone 15 Pro")` 或横屏 `value="iPhone 15 Pro landscape"`，切换后需重新导航页面以触发完整移动布局重排。**典型场景**：移动端落地页测试、移动端站点内容采集、移动端竞品分析。
 
 ---
 
@@ -1123,7 +1125,7 @@ browser/
 │   ├── browser_launcher.py (~525 行) — BrowserLauncher（Chromium + Camoufox 启动前 sanitize_env + Zero-config Chromium 自动安装 with CDN mirror fallback + Camoufox 指纹持久化 + 损坏自愈）
 │   ├── context_factory.py (156 行) — ContextFactory（Context 工厂）
 │   ├── emulation.py — 浏览器环境仿真配置（含移动设备五维字段）
-│   ├── device_profiles.py — 精选移动设备 profile 注册表
+│   ├── device_profiles.py — 精选移动设备 profile 注册表（含 landscape 横屏视口）
 │   └── page_pool.py (195 行) — PagePool
 ├── diff/
 │   ├── types.py — ComparisonResult Protocol + FastComparisonResult + AccurateComparisonResult
@@ -1160,7 +1162,7 @@ browser/
 │   ├── network_intelligence.py — CDP 懒加载 API 响应体检索
 │   ├── network_logger.py — 网络请求日志
 │   ├── web_vitals.py — 一次性 Core Web Vitals 采集与分级建议
-│   ├── device_emulator.py — 运行时 CDP 移动设备仿真（三连注入 + desktop 恢复 + DeviceRegistry 协议）
+│   ├── device_emulator.py — 运行时 CDP 移动设备仿真（三连注入 + 会话一致性 + DeviceRegistry 协议）
 │   ├── vision_verifier.py — 三层视觉验证
 │   ├── dialog_manager.py — JS dialog 生命周期
 │   ├── download_manager.py — 文件下载

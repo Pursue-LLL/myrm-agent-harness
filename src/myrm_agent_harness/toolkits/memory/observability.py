@@ -124,6 +124,7 @@ class MemoryRetrievalTrace(BaseModel):
     query_preview: str
     occurred_at: datetime
     result_count: int = 0
+    degraded: bool = False
     correlation_id: str | None = None
     steps: list[MemoryTraceStep] = Field(default_factory=list)
 
