@@ -9,6 +9,8 @@ Covers the current roadmap deliverables against a real Chromium page:
 - O-A: on a locked-scroll page (body overflow hidden) a CAREFUL click on an
   off-viewport target never silently misses — it either lands via the native
   fallback or fails loudly.
+- Edge cases: negative-delta upward scroll, scroll_to_bottom no-overflow early
+  exit, and the DEFAULT-mode off-viewport click path (no R1 regression).
 
 The interaction path (wheel events, Bézier mouse, locator actions) is never mocked;
 only the in-memory page harness (set_content) is local.
