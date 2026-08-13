@@ -223,11 +223,12 @@ EXPLICIT_MCP_FALLBACK_TOOLS: frozenset[str] = frozenset(
 )
 
 # Built-in tools whose permission type is resolved dynamically by
-# ``resolve_permission_type()`` (sub-action → fine-grained permission), so they
-# are intentionally absent from ``TOOL_PERMISSION_MAP``. SSOT consumed by the
-# governance gate (scripts/validate_tool_registry.py) — the gate must not
-# re-declare its own copy, otherwise the two lists drift and a removed dynamic
-# branch would be silently treated as still-governed (ASK → baseline ALLOW).
+# ``resolve_permission_type()`` (sub-action → fine-grained permission). They may
+# also carry a TOOL_PERMISSION_MAP entry as a static fallback for sub-actions
+# without fine-grained mapping. SSOT consumed by the governance gate
+# (scripts/validate_tool_registry.py) — the gate must not re-declare its own
+# copy, otherwise the two lists drift and a removed dynamic branch would be
+# silently treated as still-governed (ASK → baseline ALLOW).
 DYNAMICALLY_RESOLVED_TOOL_NAMES: frozenset[str] = frozenset(
     {
         "bash_process_tool",

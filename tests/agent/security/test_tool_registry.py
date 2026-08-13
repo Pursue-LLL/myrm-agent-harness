@@ -590,8 +590,8 @@ class TestTaintUrlFromArgs:
 
 class TestGovernanceSsoT:
     def test_dynamically_resolved_ssot_exported(self) -> None:
-        """P2: the dynamic-resolver tool set is a single SSOT in registry.py,
-        exported through the facade — the gate must consume it, never re-declare."""
+        """The dynamic-resolver tool set is a single SSOT in registry.py,
+        exported through the facade — the gate consumes it, never re-declares."""
         from myrm_agent_harness.core.security.tool_registry import (
             DYNAMICALLY_RESOLVED_TOOL_NAMES,
         )
@@ -604,8 +604,7 @@ class TestGovernanceSsoT:
         assert "browser_interact_tool" in DYNAMICALLY_RESOLVED_TOOL_NAMES
 
     def test_dynamic_set_subset_of_builtins(self) -> None:
-        """Dynamic-resolver tools are built-in tools (or have a static
-        TOOL_PERMISSION_MAP fallback for actions without fine-grained mapping)."""
+        """Every dynamic-resolver tool is a registered built-in tool."""
         from myrm_agent_harness.core.security.tool_registry import (
             BUILTIN_TOOL_NAMES,
             DYNAMICALLY_RESOLVED_TOOL_NAMES,
@@ -615,7 +614,7 @@ class TestGovernanceSsoT:
         assert not outside, f"dynamic tools outside BUILTIN_TOOL_NAMES: {outside}"
 
     def test_safety_coverage_includes_explicit_fallback_tools(self) -> None:
-        """P1: check_safety_coverage() must mirror the governance gate scope
+        """check_safety_coverage() mirrors the governance gate scope
         (BUILTIN | EXPLICIT_MCP_FALLBACK_TOOLS) so a new EXPLICIT fallback tool
         cannot ship without TOOL_SAFETY_METADATA."""
         from myrm_agent_harness.core.security.tool_registry import (

@@ -43,6 +43,7 @@ from myrm_agent_harness.toolkits.memory.agent_surface.memory_recall_formatting i
     parse_time_bound as _parse_time_bound,
 )
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
+    _run_with_timeout,
     search_memory_corpus,
     search_sessions_corpus,
     search_wiki_corpus,
@@ -69,10 +70,18 @@ async def _search_web_corpus(
     backends: MemorySearchBackends,
     query: str,
     limit: int,
+    *,
+    timeout_seconds: float | None,
 ) -> str:
     if backends.query_web_corpus is None:
         return "Web corpus search is not available."
-    result = await backends.query_web_corpus(query, limit)
+    result = await _run_with_timeout(
+        backends.query_web_corpus(query, limit),
+        timeout_seconds,
+        corpus="Web",
+    )
+    if result is None:
+        return "Web corpus search timed out. Try a more specific query or retry."
     return result.strip() or "No matching web pages found in local corpus."
 
 
@@ -247,7 +256,11 @@ def create_memory_tools(
                 )
                 sections.append(f"## Memory\n{memory_text}")
             elif target == "wiki":
-                wiki_text = await search_wiki_corpus(backends, query)
+                wiki_text = await search_wiki_corpus(
+                    backends,
+                    query,
+                    timeout_seconds=manager._config.retrieval.timeout_seconds,
+                )
                 sections.append(f"## Wiki\n{wiki_text}")
             elif target == "sessions":
                 if expand_message_id and not expand_conversation_id:
@@ -260,10 +273,16 @@ def create_memory_tools(
                     until=parsed_until,
                     expand_conversation_id=expand_conversation_id,
                     expand_message_id=expand_message_id,
+                    timeout_seconds=manager._config.retrieval.timeout_seconds,
                 )
                 sections.append(f"## Sessions\n{session_text}")
             elif target == "web":
-                web_text = await _search_web_corpus(backends, query, recall_limit)
+                web_text = await _search_web_corpus(
+                    backends,
+                    query,
+                    recall_limit,
+                    timeout_seconds=manager._config.retrieval.timeout_seconds,
+                )
                 sections.append(f"## Web\n{web_text}")
 
         if len(sections) == 1 and corpus != "all":

@@ -28,14 +28,13 @@ from myrm_agent_harness.toolkits.browser.exceptions import (
     ClickTargetUnreachableError,
 )
 from myrm_agent_harness.toolkits.browser.session.humanize import (
+    INTERACTION_TIMEOUT_MS,
     bezier_move,
     click_delay,
 )
 
 if TYPE_CHECKING:
     from patchright.async_api import Locator
-
-_INTERACTION_TIMEOUT_MS = 10_000
 
 
 class ClickInteractMixin:
@@ -46,8 +45,8 @@ class ClickInteractMixin:
         # "attached" not "visible": patchright's visible semantics reject elements
         # clipped by an iframe viewport even after they were scrolled into it, and
         # the off-viewport check below is the real reachability gate anyway.
-        await locator.wait_for(state="attached", timeout=_INTERACTION_TIMEOUT_MS)
-        box = await locator.bounding_box(timeout=_INTERACTION_TIMEOUT_MS)
+        await locator.wait_for(state="attached", timeout=INTERACTION_TIMEOUT_MS)
+        box = await locator.bounding_box(timeout=INTERACTION_TIMEOUT_MS)
         if box is None:
             return False
 
@@ -103,7 +102,7 @@ class ClickInteractMixin:
         if not await self._bezier_move_to(locator):
             await self._guard_native_click(locator)
             delay = click_delay(self._humanize)
-            await locator.click(delay=delay, timeout=_INTERACTION_TIMEOUT_MS)
+            await locator.click(delay=delay, timeout=INTERACTION_TIMEOUT_MS)
             return f"Clicked {ref}{healed_msg}"
 
         delay_ms = click_delay(self._humanize)

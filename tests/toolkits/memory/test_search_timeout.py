@@ -165,8 +165,6 @@ class TestDegradationMetrics:
         self, mock_relational_store, fast_timeout_config
     ) -> None:
         """A collect timeout must be observable through the global search metrics."""
-        from myrm_agent_harness.toolkits.memory.metrics import get_search_metrics
-
         metrics = get_search_metrics()
         before = metrics.snapshot().degradation_timeout_count
 
@@ -182,3 +180,74 @@ class TestDegradationMetrics:
         )
 
         assert metrics.snapshot().degradation_timeout_count == before + 1
+
+
+class TestWikiSessionsCorpusTimeout:
+    """memory_search_tool wiki/sessions branches must share the same wall-clock
+    fail-open guarantee as the memory corpus (Art45 recall timeout DoD)."""
+
+    @pytest.mark.asyncio
+    async def test_wiki_corpus_hang_fails_open_with_notice(self) -> None:
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
+            search_wiki_corpus,
+        )
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
+            MemorySearchBackends,
+        )
+
+        backends = MemorySearchBackends(
+            query_wiki=AsyncMock(side_effect=_hang_forever)
+        )
+        text = await search_wiki_corpus(backends, "query", timeout_seconds=0.05)
+
+        assert "timed out" in text.lower()
+        assert "retry" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_sessions_corpus_hang_fails_open_with_notice(self) -> None:
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
+            search_sessions_corpus,
+        )
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
+            MemorySearchBackends,
+        )
+
+        provider = AsyncMock()
+        provider.search.side_effect = _hang_forever
+        backends = MemorySearchBackends(conversation_provider=provider)
+        text = await search_sessions_corpus(
+            backends,
+            query="q",
+            limit=5,
+            since=None,
+            until=None,
+            timeout_seconds=0.05,
+        )
+
+        assert "timed out" in text.lower()
+        assert "retry" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_web_corpus_hang_fails_open_with_notice(self) -> None:
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
+            _search_web_corpus,
+        )
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
+            MemorySearchBackends,
+        )
+
+        backends = MemorySearchBackends(
+            query_web_corpus=AsyncMock(side_effect=_hang_forever)
+        )
+        text = await _search_web_corpus(
+            backends, "query", 5, timeout_seconds=0.05
+        )
+
+        assert "timed out" in text.lower()
+        assert "retry" in text.lower()

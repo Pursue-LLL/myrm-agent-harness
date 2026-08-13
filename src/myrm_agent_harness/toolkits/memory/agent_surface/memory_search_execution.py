@@ -13,8 +13,10 @@ Runtime execution layer for memory_search_tool corpus routing and formatting.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+from collections.abc import Awaitable
 from datetime import datetime
 
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_citations import (
@@ -61,6 +63,28 @@ from myrm_agent_harness.toolkits.memory.types import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+async def _run_with_timeout[T](
+    coro: Awaitable[T],
+    timeout_seconds: float | None,
+    *,
+    corpus: str,
+) -> T | None:
+    """Await a corpus backend under a wall-clock ceiling; None signals a timeout.
+
+    Every memory_search_tool corpus path funnels through this helper so new
+    corpora inherit the recall timeout guarantee without per-corpus boilerplate.
+    """
+    try:
+        return await asyncio.wait_for(coro, timeout=timeout_seconds)
+    except TimeoutError:
+        logger.warning(
+            "%s search timed out after %.1fs; failing open",
+            corpus,
+            timeout_seconds,
+        )
+        return None
 
 _CODE_PATH_PATTERN = re.compile(
     r"(\/[a-zA-Z0-9_\-\.]+)+\/?|[a-zA-Z0-9_\-\.]+\.(py|ts|tsx|js|jsx|json|yaml|yml|md|rs|go|java|c|cpp|h|hpp)"
@@ -232,6 +256,8 @@ async def search_memory_corpus(
 async def search_wiki_corpus(
     backends: MemorySearchBackends,
     query: str,
+    *,
+    timeout_seconds: float | None = None,
 ) -> str:
     if backends.query_wiki is None:
         return "Wiki search is not available."
@@ -240,7 +266,13 @@ async def search_wiki_corpus(
         build_wiki_query_sources,
     )
 
-    result = await backends.query_wiki(query)
+    result = await _run_with_timeout(
+        backends.query_wiki(query),
+        timeout_seconds,
+        corpus="Wiki",
+    )
+    if result is None:
+        return "Wiki search timed out. Try a more specific query or retry."
     sources = build_wiki_query_sources(result, structure=backends.wiki_structure)
     if sources:
         indexed_sources: list[dict[str, object]] = []
@@ -270,6 +302,7 @@ async def search_sessions_corpus(
     expand_conversation_id: str | None = None,
     expand_message_id: str | None = None,
     expand_window: int = 5,
+    timeout_seconds: float | None = None,
 ) -> str:
     provider = backends.conversation_provider
     if provider is None:
@@ -290,5 +323,11 @@ async def search_sessions_corpus(
         expand_message_id=expand_message_id,
         expand_window=expand_window,
     )
-    response = await provider.search(request)
+    response = await _run_with_timeout(
+        provider.search(request),
+        timeout_seconds,
+        corpus="Conversation",
+    )
+    if response is None:
+        return "Conversation history search timed out. Try a more specific query or retry."
     return await format_conversation_search_response(response)

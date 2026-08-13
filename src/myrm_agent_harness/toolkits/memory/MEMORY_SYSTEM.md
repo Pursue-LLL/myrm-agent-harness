@@ -541,6 +541,14 @@ final = semantic^w0 × recency^w1 × frequency^w2 × importance^w3 × preference
 
 **BM25 自动降级**：当用户记忆总量超过 `bm25_max_corpus_size`（默认 5000）时，自动禁用 BM25 通道以保证性能，回退到纯 Vector 检索。
 
+**检索超时 fail-open**（`RetrievalConfig.timeout_seconds`，默认 10s）：
+
+- 一次检索全流程（embed → collect → rank → graph）共享一个 wall-clock deadline；远端 embedding/vector store 挂起时在预算内被切断，而非无限阻塞 agent turn。
+- collect 阶段用 `asyncio.wait(timeout, ALL_COMPLETED)`：已完成的 store 结果保留，超时未完成的 store 任务取消并标记降级（partial recall，非全失败）。
+- embed / claim graph 阶段各自用 `asyncio.wait_for` 走同一 deadline，超时则跳过该阶段继续后续（fail-open）。
+- 降级可观测：`MemoryRetrievalTrace.degraded` 顶层标记 + `SearchMetrics.record_degradation(timeout|error)` 独立计数（与普通 0 结果区分）+ 各阶段 `status="warning"`。
+- 注入侧一致化：`memory_context_middleware` 加载静态上下文同样套 wall-clock 超时，超时返回 `not_applied/load_timeout`，不阻塞首轮 LLM 调用。
+
 ### 5.4 EmbeddingCache（双层缓存）
 
 ```
@@ -777,6 +785,8 @@ tools = create_memory_tools(manager=manager)
 - **Settings 文案**（Server FE）：Knowledge / Second Brain / External sources 描述中说明 Wiki 存长文、Memory 存短事实。
 
 `memory_search_tool` 的 `limit` 在 memory corpus 下收敛到 `1..15`；sessions corpus 下收敛到 `1..8`。空查询或 `*` 在 `corpus=sessions` 时表示浏览最近会话。wiki/sessions corpus 由 Server policy 控制，runtime 无法扩 scope。
+
+**检索墙钟超时（fail-open）**：`memory_search_tool` 各 corpus 共用 `RetrievalConfig.timeout_seconds`（默认 10s）作为检索墙钟上限——memory corpus 在 `_internal/search_service.py` 内部分配给 embedding / collection / graph enrichment 三阶段共享 deadline；wiki/sessions/web corpus 统一经 `agent_surface/memory_search_execution.py::_run_with_timeout` 以 `asyncio.wait_for` 截止（web 在 `memory_agent_tools.py` 复用同一 helper）。任一 corpus 超时均 fail-open：返回降级提示而非阻塞 Agent turn（测试见 `tests/toolkits/memory/test_search_timeout.py`）。
 
 **Memory MCP HTTP**（`agent_surface/mcp_server.py`）：对外暴露 `memory_recall` / `memory_list` / `memory_store` / `memory_manage` 四工具；**`memory_manage` 与 `memory_store` 描述** import `agent_surface/_memory_agent_tool_descriptions` SSOT（`surface=mcp` 工具名映射；store 含 wiki boundary 文案）；wiki 启用时 `memory_store` 运行时硬拒 document-like 内容（与 GUI `memory_save_tool` 一致，server middleware 传 ContextVar）。recall/list 仍为 MCP 专用 inline 描述。
 

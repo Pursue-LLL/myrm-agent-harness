@@ -2051,7 +2051,7 @@ async def test_bezier_move_to_initializes_mouse_position(
     locator.bounding_box.return_value = {"x": 400, "y": 300, "width": 100, "height": 60}
 
     with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.bezier_move",
+        "myrm_agent_harness.toolkits.browser.session.interactor_click_mixin.bezier_move",
         new_callable=AsyncMock,
     ) as mock_bezier:
         assert await interactor._bezier_move_to(locator) is True

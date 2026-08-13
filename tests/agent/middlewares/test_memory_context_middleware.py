@@ -7,6 +7,7 @@ ContextVar integration, and awrap_model_call injection semantics.
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1313,6 +1314,40 @@ class TestScopeBoundary:
         stable, _ = _format_memory_context(ctx, _EMPTY_LEARNED)
         assert stable is not None
         assert "> **Scope Boundary**:" in stable
+
+
+class TestMemoryLoadTimeout:
+    """Memory context load wall-clock timeout fails open with not_applied/load_timeout."""
+
+    @pytest.fixture()
+    def _inject_fn(self):
+        return _get_raw_inject_fn()
+
+    @pytest.mark.asyncio
+    async def test_timeout_fails_open_not_applied(self, _inject_fn):
+        handler = AsyncMock()
+        req = _make_request()
+
+        async def _hanging_get_context(**kwargs):
+            await asyncio.sleep(0.5)
+            return {}
+
+        mock_manager = MagicMock()
+        mock_manager.recall_mode = RecallMode.HYBRID
+        mock_manager.get_context = _hanging_get_context
+        mock_manager._config.retrieval.timeout_seconds = 0.05
+
+        with patch(
+            "myrm_agent_harness.agent.skill_agent.context.get_memory_manager",
+            return_value=mock_manager,
+        ):
+            await _inject_fn(req, handler)
+
+        handler.assert_awaited_once_with(req)
+        assert get_memory_runtime_injection() == {
+            "state": "not_applied",
+            "reason": "load_timeout",
+        }
 
 
 if __name__ == "__main__":

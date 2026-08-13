@@ -1,8 +1,10 @@
 """Memory search quality metrics — lightweight, thread-safe counters.
 
 Tracks retrieval effectiveness: zero-result rate, score distribution,
-latency, and per-type hit rates. Designed for production diagnostics
-without impacting search performance.
+latency, per-type hit rates, and degraded-retrieval counters (wall-clock
+timeouts / backing-store errors, recorded separately from genuine empty
+recalls). Designed for production diagnostics without impacting search
+performance.
 
 Dual-channel architecture:
 - In-memory snapshot for real-time diagnostics (SearchSnapshot)

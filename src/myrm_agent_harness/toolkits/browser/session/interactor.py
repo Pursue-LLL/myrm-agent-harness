@@ -6,8 +6,10 @@
 - snapshot::resolve_locator (POS: rebuild Locator from RefInfo)
 - exceptions::RefNotFoundError (POS: structured ref-not-found exception)
 - pool.config::HumanizeConfig (POS: interaction humanization config)
-- session.humanize::click_delay, type_delay, bezier_move (POS: humanized delay and Bézier mouse helpers)
+- session.humanize::click_delay, type_delay (POS: humanized delay helpers)
+- session.interactor_click_mixin::ClickInteractMixin (POS: Bézier-mouse click trajectory + reachability guard)
 - session.interactor_scroll_mixin::ScrollHumanizeMixin (POS: humanized wheel-input scrolling behaviors)
+- session.interactor_scroll_targeting_mixin::ScrollTargetingMixin (POS: CAREFUL pre-interaction target centering)
 - session.interactor_coord_mixin::CoordInteractMixin (POS: coordinate-based Visual Mode interactions)
 - session.ref_metrics::RefNotFoundMetrics, RefDiagnosticsMixin (POS: ref failure statistics + diagnosis behaviors)
 
@@ -22,32 +24,32 @@ Element interaction manager. Responsibilities:
 4. Ref failure diagnosis (URL change detection + smart suggestion generation + context refs sampling)
 5. Failure monitoring (failure rate, hot refs, hot actions statistics + periodic log output)
 
-Ref interaction dispatch and Bézier clicks live here; humanized scrolling
-(wheel-burst delivery, honest reporting, pre-interaction target centering) and
-coordinate interactions (interact_at) are provided by ScrollHumanizeMixin and
-CoordInteractMixin respectively. Single responsibility: only handles element
+Ref interaction dispatch lives here; humanized scrolling (wheel-burst delivery,
+honest reporting, scroll_to_bottom progress loop), CAREFUL pre-interaction target
+centering, Bézier-mouse click trajectory, coordinate interactions (interact_at),
+and ref-failure diagnosis are provided by ScrollHumanizeMixin,
+ScrollTargetingMixin, ClickInteractMixin, CoordInteractMixin, and
+RefDiagnosticsMixin respectively. Single responsibility: only handles element
 interaction logic; does not handle navigation, snapshot, extraction, etc.
 Tab-level URL state is managed by TabController.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import random
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
-from myrm_agent_harness.toolkits.browser.exceptions import (
-    ClickTargetUnreachableError,
-    RefNotFoundError,
-)
+from myrm_agent_harness.toolkits.browser.exceptions import RefNotFoundError
 from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig
 from myrm_agent_harness.toolkits.browser.session.humanize import (
-    bezier_move,
+    INTERACTION_TIMEOUT_MS,
     click_delay,
     type_delay,
+)
+from myrm_agent_harness.toolkits.browser.session.interactor_click_mixin import (
+    ClickInteractMixin,
 )
 from myrm_agent_harness.toolkits.browser.session.interactor_coord_mixin import (
     CoordInteractMixin,
@@ -55,6 +57,9 @@ from myrm_agent_harness.toolkits.browser.session.interactor_coord_mixin import (
 from myrm_agent_harness.toolkits.browser.session.interactor_scroll_mixin import (
     ScrollHumanizeMixin,
     _parse_scroll_params,
+)
+from myrm_agent_harness.toolkits.browser.session.interactor_scroll_targeting_mixin import (
+    ScrollTargetingMixin,
 )
 from myrm_agent_harness.toolkits.browser.session.ref_metrics import (
     RefDiagnosticsMixin,
@@ -68,9 +73,6 @@ if TYPE_CHECKING:
     from myrm_agent_harness.toolkits.browser.snapshot import RefInfo
 
 logger = logging.getLogger(__name__)
-
-
-_INTERACTION_TIMEOUT_MS = 10_000
 _VALID_ACTIONS = frozenset(
     {
         "click",
@@ -92,7 +94,13 @@ _VALID_ACTIONS = frozenset(
 )
 
 
-class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
+class Interactor(
+    ScrollHumanizeMixin,
+    ScrollTargetingMixin,
+    CoordInteractMixin,
+    ClickInteractMixin,
+    RefDiagnosticsMixin,
+):
     """Element interaction manager — single responsibility.
 
     Responsibilities:
@@ -103,10 +111,11 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
     5. Failure monitoring (failure rate, hot refs/actions statistics + periodic log output)
 
     Scrolling (wheel-burst inertial delivery, honest reporting, CAREFUL
-    pre-interaction target centering), coordinate interactions (interact_at),
-    and ref-failure diagnosis (`_get_context_refs`/`_log_metrics_if_needed`)
-    are inherited from ScrollHumanizeMixin, CoordInteractMixin, and
-    RefDiagnosticsMixin.
+    pre-interaction target centering), Bézier-mouse click trajectory, coordinate
+    interactions (interact_at), and ref-failure diagnosis
+    (`_get_context_refs`/`_log_metrics_if_needed`) are inherited from
+    ScrollHumanizeMixin, ScrollTargetingMixin, CoordInteractMixin,
+    ClickInteractMixin, and RefDiagnosticsMixin.
 
     Not responsible for: navigation, snapshot generation, content extraction, etc.
     """
@@ -332,14 +341,14 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                     result_msg = await self._bezier_click(locator, ref, healed_msg)
                 else:
                     delay = click_delay(self._humanize)
-                    await locator.click(delay=delay, timeout=_INTERACTION_TIMEOUT_MS)
+                    await locator.click(delay=delay, timeout=INTERACTION_TIMEOUT_MS)
                     result_msg = f"Clicked {ref}{healed_msg}"
                 await _wait_after_action()
                 return result_msg
 
             elif action == "dblclick":
                 delay = click_delay(self._humanize)
-                await locator.dblclick(delay=delay, timeout=_INTERACTION_TIMEOUT_MS)
+                await locator.dblclick(delay=delay, timeout=INTERACTION_TIMEOUT_MS)
                 await _wait_after_action()
                 return f"Double-clicked {ref}{healed_msg}"
 
@@ -348,7 +357,7 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
 
                 delay_per_char = type_delay(self._humanize)
                 typing_timeout = max(
-                    _INTERACTION_TIMEOUT_MS, len(text) * delay_per_char + 5000
+                    INTERACTION_TIMEOUT_MS, len(text) * delay_per_char + 5000
                 )
                 await locator.type(text, delay=delay_per_char, timeout=typing_timeout)
                 await _wait_after_action()
@@ -357,7 +366,7 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
             elif action == "fill":
                 await self._assert_not_password_field(locator, "filling")
 
-                await locator.fill(text, timeout=_INTERACTION_TIMEOUT_MS)
+                await locator.fill(text, timeout=INTERACTION_TIMEOUT_MS)
                 await _wait_after_action()
                 return f"Filled {ref} with '{text}'{healed_msg}"
 
@@ -381,25 +390,25 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                         f"Failed to retrieve credential for label '{text}': {e}"
                     ) from e
 
-                await locator.fill(secret_text, timeout=_INTERACTION_TIMEOUT_MS)
+                await locator.fill(secret_text, timeout=INTERACTION_TIMEOUT_MS)
                 await _wait_after_action()
                 return f"Filled credential '{text}' into {ref}{healed_msg} [CREDENTIAL_FILLED]"
 
             elif action == "press":
-                await locator.press(text, timeout=_INTERACTION_TIMEOUT_MS)
+                await locator.press(text, timeout=INTERACTION_TIMEOUT_MS)
                 await _wait_after_action()
                 return f"Pressed '{text}' on {ref}{healed_msg}"
 
             elif action == "hover":
                 if self._humanize.enable_bezier_mouse:
                     if not await self._bezier_move_to(locator):
-                        await locator.hover(timeout=_INTERACTION_TIMEOUT_MS)
+                        await locator.hover(timeout=INTERACTION_TIMEOUT_MS)
                 else:
-                    await locator.hover(timeout=_INTERACTION_TIMEOUT_MS)
+                    await locator.hover(timeout=INTERACTION_TIMEOUT_MS)
                 return f"Hovered over {ref}{healed_msg}"
 
             elif action == "focus":
-                await locator.focus(timeout=_INTERACTION_TIMEOUT_MS)
+                await locator.focus(timeout=INTERACTION_TIMEOUT_MS)
                 return f"Focused {ref}{healed_msg}"
 
             elif action == "select":
@@ -409,7 +418,7 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                 values: str | list[str] = (
                     [v.strip() for v in text.split(";")] if ";" in text else text
                 )
-                await locator.select_option(values, timeout=_INTERACTION_TIMEOUT_MS)
+                await locator.select_option(values, timeout=INTERACTION_TIMEOUT_MS)
                 return f"Selected '{text}' in {ref}{healed_msg}"
 
             elif action == "scroll":
@@ -432,7 +441,7 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                 )
 
             elif action == "upload_file":
-                await locator.set_input_files(text, timeout=_INTERACTION_TIMEOUT_MS)
+                await locator.set_input_files(text, timeout=INTERACTION_TIMEOUT_MS)
                 return f"Uploaded file to {ref}: {text}{healed_msg}"
 
             elif action == "drag":
@@ -453,11 +462,11 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                 return f"Dragged {ref} to ({x}, {y}){healed_msg}"
 
             elif action == "check":
-                await locator.check(timeout=_INTERACTION_TIMEOUT_MS)
+                await locator.check(timeout=INTERACTION_TIMEOUT_MS)
                 return f"Checked {ref}{healed_msg}"
 
             elif action == "uncheck":
-                await locator.uncheck(timeout=_INTERACTION_TIMEOUT_MS)
+                await locator.uncheck(timeout=INTERACTION_TIMEOUT_MS)
                 return f"Unchecked {ref}{healed_msg}"
 
             return f"Unknown action: {action}"
@@ -475,75 +484,3 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
                 if hint is not None:
                     return hint
             raise
-
-    async def _bezier_move_to(self, locator: Locator) -> bool:
-        """Move mouse to the locator via Bézier curve. Returns True if move succeeded."""
-        # "attached" not "visible": patchright's visible semantics reject elements
-        # clipped by an iframe viewport even after they were scrolled into it, and
-        # the off-viewport check below is the real reachability gate anyway.
-        await locator.wait_for(state="attached", timeout=_INTERACTION_TIMEOUT_MS)
-        box = await locator.bounding_box(timeout=_INTERACTION_TIMEOUT_MS)
-        if box is None:
-            return False
-
-        target_x = box["x"] + box["width"] * random.uniform(0.35, 0.65)
-        target_y = box["y"] + box["height"] * random.uniform(0.35, 0.65)
-
-        viewport = self._page.viewport_size or {"width": 1280, "height": 720}
-        vw, vh = float(viewport["width"]), float(viewport["height"])
-        # CDP clamps off-viewport mouse coordinates to the viewport edge, so moving
-        # to a target whose center is still outside the viewport would make the
-        # mouse.down/up land on the edge and miss silently. Hand the interaction back
-        # to the native locator action instead: its scrollIntoViewIfNeeded either
-        # scrolls the target in, or fails loudly — never a silent wrong click.
-        if not (0.0 <= target_x <= vw and 0.0 <= target_y <= vh):
-            return False
-
-        if self._mouse_x == 0.0 and self._mouse_y == 0.0:
-            self._mouse_x = vw / 2
-            self._mouse_y = vh / 2
-
-        await bezier_move(
-            self._page, self._mouse_x, self._mouse_y, target_x, target_y, self._humanize
-        )
-        self._mouse_x, self._mouse_y = target_x, target_y
-        return True
-
-    async def _guard_native_click(self, locator: Locator) -> None:
-        """Refuse a native click that could only silently miss.
-
-        After the humanized pre-scroll, an off-viewport target with no
-        wheel-scrollable ancestor (e.g. body overflow:hidden) cannot be brought
-        in — the native locator.click would clamp the pointer to the viewport
-        edge and report success while hitting nothing. Fail loudly instead.
-        Targets with a scroll path, or targets the probe cannot measure, still
-        fall through to the native click (its scrollIntoViewIfNeeded can help).
-        """
-        probe = await self._target_probe(locator)
-        if probe is None:
-            return
-        if not probe["visible"] and not probe.get("container"):
-            raise ClickTargetUnreachableError(
-                "Click target is outside the viewport and no scrollable "
-                "container exists to bring it in (locked scroll). Refusing to "
-                "click at the viewport edge."
-            )
-
-    async def _bezier_click(self, locator: Locator, ref: str, healed_msg: str) -> str:
-        """Click with Bézier mouse trajectory (CAREFUL mode only).
-
-        Uses low-level mouse API to preserve the Bézier path that locator.click()
-        would overwrite with an instantaneous move.
-        """
-        if not await self._bezier_move_to(locator):
-            await self._guard_native_click(locator)
-            delay = click_delay(self._humanize)
-            await locator.click(delay=delay, timeout=_INTERACTION_TIMEOUT_MS)
-            return f"Clicked {ref}{healed_msg}"
-
-        delay_ms = click_delay(self._humanize)
-        await self._page.mouse.down()
-        await asyncio.sleep(delay_ms / 1000.0)
-        await self._page.mouse.up()
-
-        return f"Clicked {ref}{healed_msg}"

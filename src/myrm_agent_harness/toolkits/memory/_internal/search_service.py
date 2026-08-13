@@ -7,11 +7,13 @@
 - memory.retriever::MemoryRetriever (POS: RRF retriever for memory search)
 
 [OUTPUT]
-- MemorySearchService: Search-side orchestrator (query cleanup, type routing, RRF fusion, graph enrichment, retrieval trace)
+- MemorySearchService: Search-side orchestrator (query cleanup, type routing, RRF fusion, graph enrichment, bounded-time retrieval with wall-clock timeout fail-open, retrieval trace)
 
 [POS]
 Search-side orchestration for memory retrieval. Handles query cleanup, type routing,
-RRF fusion, graph enrichment, and business-neutral retrieval trace emission. Not part of the public API.
+RRF fusion, graph enrichment, bounded retrieval (wall-clock deadline, partial-result
+collect, degradation observability), and business-neutral retrieval trace emission.
+Not part of the public API.
 """
 
 from __future__ import annotations

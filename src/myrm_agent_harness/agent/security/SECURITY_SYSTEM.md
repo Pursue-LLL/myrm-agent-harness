@@ -1255,7 +1255,7 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 
 以下内置工具不在 `TOOL_PERMISSION_MAP` 中，`resolve_permission_type()` 回退为工具名本身，命中 `DEFAULT_RULESET` 的 `("*", "*", ALLOW)` 基线。为满足 fail-closed 治理，每个此类工具必须在 `AUTO_APPROVED_BUILTIN_TOOLS`（`core/security/tool_registry/registry.py`）中显式声明放行理由（`AUTO_APPROVE_REASONS` 之一）。声明是审计元数据，不改变运行时权限解析。
 
-`scripts/validate_tool_registry.py` 的治理门禁强制校验，遍历源为**注册的内置工具全集**（`_TOOL_LAYERS` 的 CORE/COMMON/EXTENDED 层，而非静态 `BUILTIN_TOOL_NAMES` 白名单）：新增内置工具若未映射、未动态解析（其名字不在 `DYNAMICALLY_RESOLVED_TOOL_NAMES`——该集合是 `resolve_permission_type()` 子动作分支的**单一事实源**，SSOT 位于 `registry.py`，门禁仅消费引用、不得自建副本，防止名单漂移导致删除分支后静默回退 ALLOW）、未声明、未显式声明为 `EXPLICIT_MCP_FALLBACK_TOOLS`（或声明了非内置工具、理由非法），CI 直接失败——杜绝「静默绕过治理」。同时执行 **BUILTIN↔注册双向一致性**：`BUILTIN_TOOL_NAMES` 必须 ⊆ 注册内置全集（防声明失去锚点），且不得与 `EXPLICIT_MCP_FALLBACK_TOOLS` 重叠（加入 BUILTIN 会把运行时基线翻转为 ALLOW，与刻意保留 ASK 兜底矛盾）。EXTERNAL 层工具为 server 供应商工具，由 server 层治理，门禁仅标注为 `server_managed`，不强制声明。覆盖矩阵可通过 `--json` 输出。safety 模块加载 gate（`core/security/tool_registry/safety.py`）的检查口径与门禁一致（`BUILTIN_TOOL_NAMES ∪ EXPLICIT_MCP_FALLBACK_TOOLS`），确保新增 EXPLICIT 兜底工具不会缺少 `TOOL_SAFETY_METADATA` 声明。
+`scripts/validate_tool_registry.py` 的治理门禁强制校验，遍历源为**注册的内置工具全集**（`_TOOL_LAYERS` 的 CORE/COMMON/EXTENDED 层，而非静态 `BUILTIN_TOOL_NAMES` 白名单）：新增内置工具若未映射、未动态解析（其名字不在 `DYNAMICALLY_RESOLVED_TOOL_NAMES`——该集合是 `resolve_permission_type()` 子动作分支的**单一事实源**，SSOT 位于 `registry.py`，门禁仅消费引用、不得自建副本，防止名单漂移导致删除分支后静默回退 ALLOW）、未声明、未显式声明为 `EXPLICIT_MCP_FALLBACK_TOOLS`（或声明了非内置工具、理由非法），CI 直接失败——杜绝「静默绕过治理」。同时执行 **BUILTIN↔注册双向一致性**：`BUILTIN_TOOL_NAMES` 必须 ⊆ 注册内置全集（防声明失去锚点），且不得与 `EXPLICIT_MCP_FALLBACK_TOOLS` 重叠（加入 BUILTIN 会把运行时基线翻转为 ALLOW，与刻意保留 ASK 兜底矛盾）。EXTERNAL 层工具为 server 供应商工具，由 server 层治理，门禁仅标注为 `server_managed`，不强制声明。覆盖矩阵可通过 `--json` 输出。safety 模块加载 gate（`core/security/tool_registry/safety.py`）的检查口径与门禁一致（`BUILTIN_TOOL_NAMES ∪ EXPLICIT_MCP_FALLBACK_TOOLS`），确保新增 EXPLICIT 兜底工具不会缺少 `TOOL_SAFETY_METADATA` 声明。权限类型级白名单同样受**双向一致性**约束（见下文「权限类型级治理白名单」）：`RULESET_COVERAGE_WHITELIST` 声明若已被 `DEFAULT_RULESET` 覆盖（stale）或无任何 `TOOL_PERMISSION_MAP` 引用（orphan），CI 失败，防止治理报表自相矛盾（测量衰减）。
 
 | 理由 | 含义 |
 |------|------|
@@ -1314,7 +1314,7 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 
 ### 权限类型级治理白名单
 
-`TOOL_PERMISSION_MAP` 产生的权限类型若无 `DEFAULT_RULESET` 明确规则，必须在 `RULESET_COVERAGE_WHITELIST` 声明（理由同上），否则治理门禁 fail-closed：
+`TOOL_PERMISSION_MAP` 产生的权限类型若无 `DEFAULT_RULESET` 明确规则，必须在 `RULESET_COVERAGE_WHITELIST` 声明（理由同上），否则治理门禁 fail-closed。门禁同时做**双向一致性**校验：若某白名单权限后来被加入 `DEFAULT_RULESET`（stale 死条目）或不再被任何 `TOOL_PERMISSION_MAP` 值引用（orphan 孤儿声明），门禁同样报错，避免治理报表自相矛盾（测量衰减）：
 
 | 权限类型 | 放行理由 |
 |---------|---------|

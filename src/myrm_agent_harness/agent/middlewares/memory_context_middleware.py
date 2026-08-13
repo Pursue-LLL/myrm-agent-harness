@@ -46,7 +46,7 @@ from typing import TYPE_CHECKING, cast
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.toolkits.memory.config import RecallMode
+from myrm_agent_harness.toolkits.memory.config import RecallMode, RetrievalConfig
 
 from .memory_context_format import (
     _format_memory_context,
@@ -59,6 +59,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_LOAD_TIMEOUT_SECONDS = RetrievalConfig().timeout_seconds
+
 
 def _retrieval_timeout_seconds(manager: object) -> float:
     """Wall-clock ceiling for memory-context loading, from manager config or default."""
@@ -67,7 +69,7 @@ def _retrieval_timeout_seconds(manager: object) -> float:
     timeout = getattr(retrieval, "timeout_seconds", None)
     if isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and timeout > 0:
         return float(timeout)
-    return 10.0
+    return _DEFAULT_LOAD_TIMEOUT_SECONDS
 
 
 def _set_memory_injection_status(

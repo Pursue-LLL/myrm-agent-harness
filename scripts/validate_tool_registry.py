@@ -136,12 +136,6 @@ def _load_registry_metadata_keys() -> set[str]:
     return keys
 
 
-# Built-in tools covered by resolve_permission_type() dynamic sub-action branches.
-# SSOT lives in tool_registry registry.py — this file must only consume it, never
-# re-declare its own copy (a duplicate list would drift and silently flip a
-# removed dynamic branch back to the ALLOW baseline).
-# NOTE: consume via the lazy import inside _check_governance_coverage().
-
 # Management/delegation/scheduling tools that must declare TOOL_CANONICAL_PARAMS
 # so allow-always hashing stays precise (full-arg hashing would break matching).
 _CANONICAL_REQUIRED_TOOLS: frozenset[str] = frozenset(
@@ -162,7 +156,10 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
 
     1. Every registered harness built-in tool (``_TOOL_LAYERS`` CORE/COMMON/
        EXTENDED) must be covered by an explicit ``TOOL_PERMISSION_MAP`` entry,
-       a dynamic resolver branch, an ``AUTO_APPROVED_BUILTIN_TOOLS`` declaration
+       a dynamic resolver branch (membership in
+       ``DYNAMICALLY_RESOLVED_TOOL_NAMES``, the SSOT for
+       ``resolve_permission_type()`` sub-action branches), an
+       ``AUTO_APPROVED_BUILTIN_TOOLS`` declaration
        with a reason from ``AUTO_APPROVE_REASONS``, or an
        ``EXPLICIT_MCP_FALLBACK_TOOLS`` declaration (intentional mcp_invoke=ASK).
        EXTERNAL tools are server-vendor tools governed by the server layer and
@@ -170,7 +167,9 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
        force a declaration on them.
     2. Every permission type produced by ``TOOL_PERMISSION_MAP`` must have an
        explicit ``DEFAULT_RULESET`` rule or a ``RULESET_COVERAGE_WHITELIST``
-       declaration.
+       declaration; conversely a whitelist entry must not be covered by a
+       ``DEFAULT_RULESET`` rule (stale declaration) nor orphaned from
+       ``TOOL_PERMISSION_MAP`` — whitelist semantics stay bidirectional.
     3. Every built-in tool must declare ``TOOL_SAFETY_METADATA``.
     4. Management/delegation/scheduling tools must declare
        ``TOOL_CANONICAL_PARAMS``.
@@ -268,7 +267,8 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
         )
 
     ruleset_permissions = {rule.permission for rule in DEFAULT_RULESET}
-    for perm in sorted(set(TOOL_PERMISSION_MAP.values()) - ruleset_permissions):
+    mapped_permissions = set(TOOL_PERMISSION_MAP.values())
+    for perm in sorted(mapped_permissions - ruleset_permissions):
         reason = RULESET_COVERAGE_WHITELIST.get(perm)
         if reason is None:
             errors.append(
@@ -280,6 +280,24 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
                 f"RULESET_COVERAGE_WHITELIST reason for {perm!r} not in "
                 "AUTO_APPROVE_REASONS."
             )
+    # Bidirectional symmetry: a whitelist declaration claims "this permission
+    # type intentionally has no DEFAULT_RULESET rule". If a rule now exists or
+    # no tool maps to the permission, the declaration is stale and the audit
+    # matrix would report contradictory state — flag it instead of drifting.
+    stale_whitelist = sorted(set(RULESET_COVERAGE_WHITELIST) & ruleset_permissions)
+    if stale_whitelist:
+        errors.append(
+            "RULESET_COVERAGE_WHITELIST declaration(s) now covered by "
+            "DEFAULT_RULESET (stale whitelist entry, remove it): "
+            + ", ".join(stale_whitelist)
+        )
+    orphan_whitelist = sorted(set(RULESET_COVERAGE_WHITELIST) - mapped_permissions)
+    if orphan_whitelist:
+        errors.append(
+            "RULESET_COVERAGE_WHITELIST declaration(s) not produced by any "
+            "TOOL_PERMISSION_MAP value (orphan declaration, remove it): "
+            + ", ".join(orphan_whitelist)
+        )
 
     safety_required = BUILTIN_TOOL_NAMES | EXPLICIT_MCP_FALLBACK_TOOLS
     missing_safety = sorted(safety_required - TOOL_SAFETY_METADATA.keys())

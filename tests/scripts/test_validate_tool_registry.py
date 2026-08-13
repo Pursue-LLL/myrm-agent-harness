@@ -631,6 +631,50 @@ def test_governance_coverage_flags_uncovered_permission_type(
     assert any("'browser_read'" in e and "no DEFAULT_RULESET rule" in e for e in errors)
 
 
+def test_governance_coverage_flags_stale_whitelist_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A whitelist declaration whose permission now has a DEFAULT_RULESET rule
+    is stale — the audit matrix would report contradictory state."""
+    import scripts.validate_tool_registry as cli
+
+    registry = _governance_registry()
+    original = registry.RULESET_COVERAGE_WHITELIST
+    registry.RULESET_COVERAGE_WHITELIST = {
+        **original,
+        "code_interpreter": "read_only",  # already has a DEFAULT_RULESET rule
+    }
+    try:
+        errors, _ = cli._check_governance_coverage()
+    finally:
+        registry.RULESET_COVERAGE_WHITELIST = original
+    assert any(
+        "code_interpreter" in e and "stale whitelist entry" in e for e in errors
+    )
+
+
+def test_governance_coverage_flags_orphan_whitelist_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A whitelist declaration not produced by any TOOL_PERMISSION_MAP value
+    is an orphan declaration with no governance anchor."""
+    import scripts.validate_tool_registry as cli
+
+    registry = _governance_registry()
+    original = registry.RULESET_COVERAGE_WHITELIST
+    registry.RULESET_COVERAGE_WHITELIST = {
+        **original,
+        "phantom_permission": "read_only",
+    }
+    try:
+        errors, _ = cli._check_governance_coverage()
+    finally:
+        registry.RULESET_COVERAGE_WHITELIST = original
+    assert any(
+        "phantom_permission" in e and "orphan declaration" in e for e in errors
+    )
+
+
 def test_governance_coverage_flags_missing_canonical_params(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -667,7 +711,7 @@ def test_governance_coverage_matrix_contains_audit_fields() -> None:
 
 def test_governance_coverage_consumes_registry_dynamic_ssot() -> None:
     """The gate must reference DYNAMICALLY_RESOLVED_TOOL_NAMES from the registry
-    SSOT — it must not keep a local duplicate that can drift (P2)."""
+    SSOT — it must not keep a local duplicate that can drift."""
     import scripts.validate_tool_registry as cli
 
     from myrm_agent_harness.core.security.tool_registry import (
@@ -675,8 +719,8 @@ def test_governance_coverage_consumes_registry_dynamic_ssot() -> None:
     )
 
     assert not hasattr(cli, "_DYNAMICALLY_RESOLVED_TOOLS")
+    _, matrix = cli._check_governance_coverage()
     for tool in DYNAMICALLY_RESOLVED_TOOL_NAMES:
-        _, matrix = cli._check_governance_coverage()
         meta = matrix["tool_coverage"][tool]  # type: ignore[index]
         assert meta["dynamic_resolved"] is True, f"{tool} should be dynamic-resolved"
 

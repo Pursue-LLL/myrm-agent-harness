@@ -2,12 +2,13 @@
 
 [INPUT]
 - tool_registry::BUILTIN_TOOL_NAMES, TOOL_SAFETY_METADATA (POS: built-in tool safety SSOT)
+- tool_registry::EXPLICIT_MCP_FALLBACK_TOOLS (POS: built-in tools that keep mcp_invoke fallback)
 
 [OUTPUT]
 - check_safety_coverage(): warn when built-in tools lack explicit safety metadata
 
 [POS]
-Module-load gate: warn when built-in tools lack explicit TOOL_SAFETY_METADATA entries.
+Module-load gate: warn when built-in tools (BUILTIN_TOOL_NAMES ∪ EXPLICIT_MCP_FALLBACK_TOOLS) lack explicit TOOL_SAFETY_METADATA entries.
 """
 
 from __future__ import annotations

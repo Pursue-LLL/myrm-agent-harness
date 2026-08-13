@@ -4,6 +4,7 @@
 - pool.config::HumanizeConfig, HumanizeMode (POS: interaction humanization config)
 
 [OUTPUT]
+- INTERACTION_TIMEOUT_MS: shared default timeout for element interactions (ms)
 - click_delay: compute humanized click delay (ms)
 - type_delay: compute humanized typing delay (ms)
 - bezier_move: move mouse along a cubic Bézier curve with wobble and overshoot
@@ -15,9 +16,10 @@
 [POS]
 Pure helper module for humanized browser interaction. Provides delay calculation
 (uniform for FAST, Gaussian for DEFAULT/CAREFUL), Bézier mouse trajectory generation
-(cubic curve with ease-in-out, wobble, burst pauses, and overshoot), and wheel-burst
+(cubic curve with ease-in-out, wobble, burst pauses, and overshoot), wheel-burst
 scroll humanization (small wheel events with inertia-like gaps and a burst-group
-pause rhythm). All pauses use asyncio.sleep so the humanize stack emits no CDP wait
+pause rhythm), and the shared interaction timeout used across the interaction
+stack. All pauses use asyncio.sleep so the humanize stack emits no CDP wait
 commands.
 """
 
@@ -32,6 +34,10 @@ from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig, Huma
 
 if TYPE_CHECKING:
     from patchright.async_api import Page
+
+# Shared default timeout (ms) for element interactions (click/type/fill/...).
+# The single source of truth for the interaction stack; mixins import it here.
+INTERACTION_TIMEOUT_MS = 10_000
 
 
 def _humanized_delay(
