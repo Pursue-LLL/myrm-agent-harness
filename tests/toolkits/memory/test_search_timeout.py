@@ -502,6 +502,121 @@ class TestMemorySearchToolCorpusBranches:
         assert "## Sessions" in text
         assert "## Web" in text
 
+    @pytest.mark.asyncio
+    async def test_all_corpora_partial_timeout_keeps_survivors(
+        self, fast_timeout_config
+    ) -> None:
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
+            MemorySearchBackends,
+            MemorySearchPolicy,
+        )
+
+        backends = MemorySearchBackends(
+            query_wiki=AsyncMock(side_effect=_hang_forever),
+            query_web_corpus=AsyncMock(return_value="Web result."),
+        )
+        tool = self._build_tool(
+            self._manager(fast_timeout_config),
+            policy=MemorySearchPolicy(allow_wiki=True, allow_web=True),
+            backends=backends,
+        )
+
+        text = await tool.ainvoke({"query": "q", "corpus": "all"})
+
+        assert "Wiki search timed out" in text
+        assert "## Web" in text
+        assert "Web result." in text
+
+    @pytest.mark.asyncio
+    async def test_web_corpus_unavailable_when_backend_missing(
+        self, fast_timeout_config
+    ) -> None:
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
+            MemorySearchBackends,
+            MemorySearchPolicy,
+        )
+
+        tool = self._build_tool(
+            self._manager(fast_timeout_config),
+            policy=MemorySearchPolicy(allow_web=True),
+            backends=MemorySearchBackends(),
+        )
+
+        text = await tool.ainvoke({"query": "q", "corpus": "web"})
+
+        assert "Web corpus search is not available." in text
+
+    @pytest.mark.asyncio
+    async def test_wiki_corpus_no_timeout_when_disabled(self, fast_timeout_config) -> None:
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
+            search_wiki_corpus,
+        )
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
+            MemorySearchBackends,
+        )
+        from myrm_agent_harness.toolkits.wiki.core.types import QueryResult
+
+        backends = MemorySearchBackends(
+            query_wiki=AsyncMock(
+                return_value=QueryResult(
+                    question="q", answer="Slow wiki answer.", related_articles=[]
+                )
+            )
+        )
+
+        text = await search_wiki_corpus(backends, "q", timeout_seconds=None)
+
+        assert "Slow wiki answer." in text
+
+    @pytest.mark.asyncio
+    async def test_stale_memory_with_code_path_emits_critical_notice(self) -> None:
+        from datetime import UTC, datetime, timedelta
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
+            search_memory_corpus,
+        )
+        from myrm_agent_harness.toolkits.memory.types import (
+            MemorySearchResult,
+            MemoryType,
+            SemanticMemory,
+        )
+
+        old = datetime.now(UTC) - timedelta(days=30)
+        stale = SemanticMemory(
+            id="stale-1",
+            content="Login flow lives in /Users/dev/server/auth/login.py",
+            created_at=old,
+            updated_at=old,
+        )
+        manager = AsyncMock()
+        manager.search = AsyncMock(
+            return_value=[
+                MemorySearchResult(
+                    memory=stale, score=0.9, memory_type=MemoryType.SEMANTIC
+                )
+            ]
+        )
+        manager.active_session = None
+        manager.last_retrieval_trace = None
+        manager.set_last_cited_memory_ids = AsyncMock()
+
+        text = await search_memory_corpus(
+            manager,
+            query="login flow",
+            category_to_type={"knowledge": MemoryType.SEMANTIC},
+            categories=None,
+            limit=5,
+            since=None,
+            until=None,
+        )
+
+        assert "CRITICAL: Outdated memory referencing potential paths" in text
+
 
 class TestMemorySaveManageBranches:
     """Boundary guards of memory_save_tool / memory_manage_tool.
