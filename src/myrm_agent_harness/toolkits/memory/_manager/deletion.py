@@ -593,7 +593,7 @@ class MemoryManagerDeletionMixin:
             if not is_archived:
                 raise MemoryError(f"Memory {memory_id} is not archived")
             doc.metadata["status"] = "active"
-            doc.metadata.pop("archived", None)
+            doc.metadata["archived"] = False
             doc.metadata.pop("archived_at", None)
             doc.metadata.pop("archive_reason", None)
             await self._vector.upsert(coll, [doc])

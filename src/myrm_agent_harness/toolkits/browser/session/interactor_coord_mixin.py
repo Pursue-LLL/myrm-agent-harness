@@ -22,16 +22,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
 
 from myrm_agent_harness.toolkits.browser.session.humanize import (
     bezier_move,
     click_delay,
     type_delay,
 )
-
-if TYPE_CHECKING:
-    from patchright.async_api import Page
 
 logger = logging.getLogger(__name__)
 

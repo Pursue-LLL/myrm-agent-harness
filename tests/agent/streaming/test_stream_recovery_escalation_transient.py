@@ -507,3 +507,25 @@ class TestHandleEmptyResponse:
 
         result = await executor._handle_empty_response(collected, retries=0)
         assert result is False
+
+    @pytest.mark.asyncio
+    async def test_empty_response_emits_restart_recovery_event(self, ctx):
+        """Recovery re-runs the turn from scratch → STATUS event carries restart."""
+        executor = _make_executor(ctx)
+        collected = [
+            HumanMessage(content="Hello"),
+            AIMessage(content=""),
+        ]
+
+        result = await executor._handle_empty_response(collected, retries=0)
+
+        assert result is True
+        status_events = [
+            e
+            for e in executor._compactor.events
+            if isinstance(e, dict) and e.get("type") == AgentEventType.STATUS.value
+        ]
+        assert any(
+            e.get("step_key") == "empty_response_recovery" and e.get("restart") is True
+            for e in status_events
+        )

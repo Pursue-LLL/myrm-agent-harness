@@ -203,6 +203,7 @@ async def run_forgetting(
                     if doc is None:
                         continue
                     doc.metadata["status"] = "archived"
+                    doc.metadata["archived"] = True
                     doc.metadata["archived_at"] = now_iso
                     doc.metadata["archive_reason"] = (
                         f"retention={score.total_score:.3f}"

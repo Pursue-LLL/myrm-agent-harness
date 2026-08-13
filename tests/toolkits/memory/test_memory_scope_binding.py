@@ -272,3 +272,6 @@ async def test_unarchive_memory_accepts_owned_doc() -> None:
     assert isinstance(restored, SemanticMemory)
     assert restored.id == "mem-a"
     vector.upsert.assert_awaited_once()
+    upserted_doc = vector.upsert.call_args[0][1][0]
+    assert upserted_doc.metadata["status"] == "active"
+    assert upserted_doc.metadata["archived"] is False

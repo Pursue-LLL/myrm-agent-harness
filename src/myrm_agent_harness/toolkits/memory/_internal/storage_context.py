@@ -20,11 +20,11 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.memory.tool_capture import TOOL_FAILURE_ORIGIN
 from myrm_agent_harness.toolkits.memory.types import (
     ProceduralMemory,
     ProfileEntry,
     RuleSource,
+    TOOL_FAILURE_ORIGIN,
     ToolRulePriority,
 )
 

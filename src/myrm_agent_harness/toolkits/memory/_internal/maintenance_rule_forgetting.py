@@ -61,7 +61,10 @@ async def forget_procedural_rules(
 
     rules = [r for r in rules if not r.is_user_locked]
 
-    expired = ttl_expired(rules)
+    # CRITICAL rules encode user-mandated behavior and must never be TTL-archived:
+    # they flow through retention scoring with the importance floor below.
+    non_critical = [r for r in rules if r.tool_rule_priority != ToolRulePriority.CRITICAL]
+    expired = ttl_expired(non_critical)
     if expired:
         expired_ids = {r.id for r in expired}
         rules = [r for r in rules if r.id not in expired_ids]

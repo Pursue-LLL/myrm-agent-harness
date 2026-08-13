@@ -28,14 +28,15 @@ import pytest
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 from myrm_agent_harness.toolkits.mcp.connection_manager import MCPConnectionManager
 from myrm_agent_harness.toolkits.mcp.session_actor import MCPSessionActor
+from tests.support.sse_shutdown_flag import reset_sse_shutdown_flag
 
 # A minimal real MCP server exposing echo/add over the requested transport.
 _PROBE_SERVER_SRC = """
 import sys
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-server = FastMCP("transport-probe")
+server = MCPServer("transport-probe")
 
 
 @server.tool()
@@ -67,9 +68,9 @@ async def _start_http_server() -> tuple[object, str]:
     by the caller so uvicorn never needs to pick a port we cannot observe.
     """
     import uvicorn
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
-    server = FastMCP("transport-probe")
+    server = MCPServer("transport-probe")
 
     @server.tool()
     def echo(text: str) -> str:
@@ -86,7 +87,7 @@ async def _start_http_server() -> tuple[object, str]:
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
 
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
     runner = uvicorn.Server(config)
     serve_task = asyncio.create_task(runner.serve(sockets=[sock]))
     for _ in range(200):
@@ -99,6 +100,7 @@ async def _start_http_server() -> tuple[object, str]:
         runner.should_exit = True
         with suppress(Exception):
             await serve_task
+        await reset_sse_shutdown_flag()
 
     return teardown, f"http://127.0.0.1:{port}/mcp"
 
@@ -124,9 +126,7 @@ async def test_streamable_http_real_server_full_lifecycle(
         manager = await MCPConnectionManager.get_instance()
         try:
             conn = await manager.get_connection([cfg])
-            assert "echo:hello" in str(
-                await conn.call("httpprobe", "echo", {"text": "hello"})
-            )
+            assert "echo:hello" in str(await conn.call("httpprobe", "echo", {"text": "hello"}))
             assert "5" in str(await conn.call("httpprobe", "add", {"a": 2, "b": 3}))
         finally:
             await manager.stop()
@@ -135,9 +135,7 @@ async def test_streamable_http_real_server_full_lifecycle(
 
 
 @pytest.mark.asyncio
-async def test_stdio_real_server_full_lifecycle(
-    tmp_path, _reset_manager: object
-) -> None:
+async def test_stdio_real_server_full_lifecycle(tmp_path, _reset_manager: object) -> None:
     """A real stdio server served through the pool (full lifecycle).
 
     Extends the existing session-reuse proof with list_tools + call_tool
@@ -205,9 +203,7 @@ async def test_http_client_closed_when_target_build_fails(
         )
         with suppress(Exception):
             await actor.start()
-        assert (
-            actor._http_client is None
-        ), "transport HTTP client leaked after failed target build"
+        assert actor._http_client is None, "transport HTTP client leaked after failed target build"
     finally:
         monkeypatch.setattr(MCPSessionActor, "_build_client_target", real_build)
 
@@ -245,9 +241,7 @@ async def test_http_client_closed_when_reconnect_target_build_fails(
 
     # Fast reconnect cycle so the test finishes in seconds instead of the
     # production backoff cap (8s per attempt).
-    monkeypatch.setattr(
-        MCPSessionActor, "_reconnect_backoff", staticmethod(lambda attempt: 1.0)
-    )
+    monkeypatch.setattr(MCPSessionActor, "_reconnect_backoff", staticmethod(lambda attempt: 1.0))
     monkeypatch.setattr(MCPSessionActor, "_build_client_target", flaky_build)
 
     teardown, url = await _start_http_server()
@@ -278,9 +272,7 @@ async def test_http_client_closed_when_reconnect_target_build_fails(
             # The assertion must run *before* close(): close() itself releases
             # the transport client, which would mask a leak on the reconnect
             # exit path this test targets.
-            assert (
-                actor._http_client is None
-            ), "transport HTTP client leaked after reconnect target build failure"
+            assert actor._http_client is None, "transport HTTP client leaked after reconnect target build failure"
         finally:
             await actor.close()
     finally:

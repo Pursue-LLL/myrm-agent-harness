@@ -5,7 +5,7 @@ import pytest
 from myrm_agent_harness.toolkits.browser.enhancers.dom_enhancer_loader import (
     get_dom_enhancer_script,
 )
-from myrm_agent_harness.toolkits.browser.session.interactor import RefNotFoundMetrics
+from myrm_agent_harness.toolkits.browser.session.ref_metrics import RefNotFoundMetrics
 from myrm_agent_harness.toolkits.browser.wait import (
     WaitMetrics,
     WaitStrategy,

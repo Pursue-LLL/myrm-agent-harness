@@ -1175,7 +1175,7 @@ async def test_interact_invalid_action(interactor: Interactor) -> None:
 
 
 def test_metrics_empty():
-    from myrm_agent_harness.toolkits.browser.session.interactor import (
+    from myrm_agent_harness.toolkits.browser.session.ref_metrics import (
         RefNotFoundMetrics,
     )
 
@@ -1189,7 +1189,7 @@ def test_metrics_empty():
 
 
 def test_metrics_caching():
-    from myrm_agent_harness.toolkits.browser.session.interactor import (
+    from myrm_agent_harness.toolkits.browser.session.ref_metrics import (
         RefNotFoundMetrics,
     )
 
@@ -1226,7 +1226,7 @@ def test_get_context_refs_limit():
 def test_metrics_property():
     page = AsyncMock(spec=Page)
     interactor = Interactor(page, {})
-    from myrm_agent_harness.toolkits.browser.session.interactor import (
+    from myrm_agent_harness.toolkits.browser.session.ref_metrics import (
         RefNotFoundMetrics,
     )
 
@@ -1239,7 +1239,7 @@ def test_log_metrics_if_needed():
     interactor._metrics.total_interactions = 100
     interactor._metrics.total_failures = 1
     with patch(
-        "myrm_agent_harness.toolkits.browser.session.interactor.logger.info"
+        "myrm_agent_harness.toolkits.browser.session.ref_metrics.logger.info"
     ) as mock_info:
         interactor._log_metrics_if_needed()
         mock_info.assert_called_once()

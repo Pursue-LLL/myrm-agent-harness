@@ -608,6 +608,12 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 - `importance_score`：记忆重要性（0-1）
 - `relation_score`：向量邻居数近似（sim > 0.8），零额外写入
 
+**Procedural 规则 TTL 归档**（`_internal/maintenance_rule_forgetting.py`）：
+
+- `expected_valid_days` 已过期的规则（如自动生成的 `tool_failure` 失败告警，TTL=1 天）**直接归档**，绕过 retention 评分阈值——过期即失效，无需等待衰减
+- 过期判断：`created_at + expected_valid_days` ≤ 当前时间；无 `expected_valid_days` 的规则（如用户 edicts、CRITICAL 规则）不参与 TTL 归档，继续走 retention 评分
+- `is_user_locked` 规则跳过 TTL 归档（用户手动保留）
+
 保护规则（优先级从高到低）：
 
 - `pinned=True` 的记忆无条件豁免（用户标记保护）：
@@ -619,6 +625,8 @@ retention = 0.35 × time_score + 0.25 × access_score + 0.15 × importance_score
 - 最近 7 天内访问过的记忆受保护
 
 作用域安全：`run_forgetting` 的向量 scroll 按当前 manager 的 namespaces 过滤，只清理本 scope 的低保留记忆，绝不跨 agent/channel/task 误删。
+
+**ARCHIVE 字段契约**：向量层以 `archived` 布尔 payload 作为归档过滤标准——`_user_filter` 默认 `archived == False`，归档记忆必须同步设置 `archived: True` 才会被常规检索排除。`run_forgetting` ARCHIVE 分支、staleness review REMOVE、`update_memory(status=archived)` 均同步写入 `archived=True`；`unarchive_memory` 恢复时写回 `archived=False`（而非删除字段，避免 Qdrant 对缺失字段的 MatchValue 不匹配导致恢复后记忆从检索消失）。
 
 ### 7.2.1 Staleness Review (`strategies/staleness_review.py`)
 
@@ -674,7 +682,7 @@ result = await extractor.extract(messages=messages)
 - `extract_memories_from_conversation` 对 user 消息执行正则预扫描，零 LLM 成本捕获 edicts
 - `ToolMemoryCaptureHook.on_post_tool_failure` 跟踪工具失败次数；达到阈值（≥2 次）时生成 NORMAL 规则，并附带 `metadata.origin="tool_failure"` + `expected_valid_days=1`（24 小时警戒期）
 - `MemorySession.flush()` 调用 `hook.drain_pending()` 将待持久化规则纳入批量写入
-- `storage_context.load_context` 对 `source==AGENT_SELF` 且 `metadata.origin=="tool_failure"` 且非 CRITICAL/HIGH 的规则**不注入 stable 层**（视为瞬时提醒，仅可通过 `memory_search_tool` 检索）；用户显式保存的 AGENT_SELF 指令与 `pattern_discovery` 已确立模式不受影响
+- `storage_context.load_context` 对 `source==AGENT_SELF` 且 `metadata.origin=="tool_failure"` 且 `tool_rule_priority==NORMAL` 的规则**不注入 stable 层**（视为瞬时提醒，仅可通过 `memory_search_tool` 检索）；用户显式保存的 AGENT_SELF 指令、`pattern_discovery` 已确立模式、以及被提升为 CRITICAL/HIGH 的失败规则不受影响
 - `maintenance_rule_forgetting` 对 `expected_valid_days` 已过期的规则直接归档（绕过 retention 评分阈值，避免瞬时失败规则长期残留）
 
 **优先级层级**（`ToolRulePriority`）：

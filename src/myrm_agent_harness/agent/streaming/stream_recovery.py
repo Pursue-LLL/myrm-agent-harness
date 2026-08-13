@@ -746,6 +746,7 @@ class StreamRecoveryMixin(
             max_empty_retries,
         )
 
+        await self._emit_recovery_event("empty_response_recovery", restart=True)
         return True
 
 

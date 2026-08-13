@@ -26,12 +26,13 @@ from myrm_agent_harness.agent.meta_tools.file_ops.strategies.mcp_strategy import
 from myrm_agent_harness.agent.skills.mcp.core_generator import MCPSkillGenerator
 from myrm_agent_harness.toolkits.mcp.config import MCPConfig
 from myrm_agent_harness.toolkits.mcp.connection_manager import MCPConnectionManager
+from tests.support.sse_shutdown_flag import reset_sse_shutdown_flag
 
 
 def _make_server_app():
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
-    server = FastMCP("live-skill-probe")
+    server = MCPServer("live-skill-probe")
 
     @server.tool()
     def echo(text: str) -> str:
@@ -74,6 +75,7 @@ async def _start_live_server() -> tuple[object, str]:
         runner.should_exit = True
         with suppress(Exception):
             await serve_task
+        await reset_sse_shutdown_flag()
 
     return teardown, f"http://127.0.0.1:{port}/mcp"
 
@@ -103,18 +105,14 @@ async def test_skill_gen_live_chain_prompt_fixes(_reset_manager: object) -> None
 
         # --- Build SkillMetadata from the real tools ---
         generator = MCPSkillGenerator()
-        skill_meta = generator._create_skill_metadata(
-            "livesrv", tools, user_description="live skill probe"
-        )
+        skill_meta = generator._create_skill_metadata("livesrv", tools, user_description="live skill probe")
         assert skill_meta.is_mcp_skill is True
         assert len(skill_meta.mcp.tools) == 4
 
         # --- Level 2 SKILL.md: prompt fix B (conditional timeout) ---
         content = generator.generate_skill_content(skill_meta)
         assert "Usage Guide" in content  # 4 tools > threshold 3
-        assert (
-            "If a tool doc declares a `timeout` parameter, set `timeout=120`" in content
-        )
+        assert "If a tool doc declares a `timeout` parameter, set `timeout=120`" in content
         assert "Always set" not in content
 
         # --- Level 3 doc via MCPFileSystemStrategy: prompt fix A ---

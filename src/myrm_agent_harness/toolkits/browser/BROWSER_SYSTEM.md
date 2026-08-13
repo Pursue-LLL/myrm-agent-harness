@@ -1120,7 +1120,10 @@ browser/
 │   ├── browser_session_recording_mixin.py — trace/HAR 录制控制
 │   ├── tab_controller.py — TabController
 │   ├── snapshot_manager.py — SnapshotManager（委托 FrameRegistry）
-│   ├── interactor.py — Interactor（15 ref 操作 + 7 坐标操作 via interact_at）
+│   ├── interactor.py — Interactor（15 ref 操作分发 + 失败诊断 + 贝塞尔点击；诊断继承自 RefDiagnosticsMixin）
+│   ├── interactor_scroll_mixin.py — 滚轮拟人化滚动（ScrollHumanizeMixin + _parse_scroll_params）
+│   ├── interactor_coord_mixin.py — 坐标交互（interact_at，7 操作）
+│   ├── ref_metrics.py — ref 失败统计与诊断行为（RefNotFoundMetrics + RefDiagnosticsMixin）
 │   ├── extractor.py — Extractor
 │   ├── structured_extractor.py — LLM + JSON Schema 结构化提取
 │   ├── page_analyzer.py — 两阶段快照架构

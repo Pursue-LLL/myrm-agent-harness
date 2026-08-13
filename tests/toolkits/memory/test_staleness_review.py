@@ -381,3 +381,61 @@ class TestStalenessReviewer:
         assert result.extended_count == 1
         assert result.extended_updates[0] == ("m-3", 90)
         assert result.kept_count == 1
+
+
+class TestStalenessArchiveFieldSync:
+    """Staleness REMOVE archiving must set the `archived` payload flag so
+    `_user_filter` (archived == False) excludes it from regular retrieval."""
+
+    @pytest.mark.asyncio
+    async def test_remove_archives_with_archived_flag(self) -> None:
+        from myrm_agent_harness.toolkits.memory._internal.maintenance_service import (
+            MaintenanceService,
+        )
+        from myrm_agent_harness.toolkits.memory.config import MemoryConfig
+
+        config = MemoryConfig(embedding_model="test")
+        vector = AsyncMock()
+        service = MaintenanceService(config=config, vector=vector, graph=None)
+
+        llm_response = json.dumps([
+            {"id": "m-1", "action": "remove", "reason": "outdated"},
+            {"id": "m-2", "action": "keep", "reason": "ok"},
+            {"id": "m-3", "action": "keep", "reason": "ok"},
+        ])
+        llm = AsyncMock(return_value=llm_response)
+
+        from myrm_agent_harness.toolkits.vector.base import VectorDocument
+
+        def _get_doc(coll: str, ids: list[str]) -> list[VectorDocument]:
+            if ids and ids[0] == "m-1":
+                return [VectorDocument(
+                    id="m-1",
+                    content="old",
+                    metadata={"archived": False, "status": "active"},
+                )]
+            return []
+
+        vector.get = AsyncMock(side_effect=_get_doc)
+        vector.upsert = AsyncMock()
+
+        memories = [
+            _make_semantic(mem_id="m-1", days_old=200, expected_valid_days=30),
+            _make_semantic(mem_id="m-2", days_old=60, expected_valid_days=30),
+            _make_semantic(mem_id="m-3", days_old=60, expected_valid_days=30),
+        ]
+
+        reviewed, removed, extended = await service._run_staleness_review(memories, llm)
+
+        assert reviewed == 3
+        assert removed == 1
+        assert extended == 0
+        vector.upsert.assert_awaited()
+        archive_upserts = [
+            args[0][1][0]
+            for args in vector.upsert.await_args_list
+            if args[0][1][0].id == "m-1"
+        ]
+        assert len(archive_upserts) == 1
+        assert archive_upserts[0].metadata["status"] == "archived"
+        assert archive_upserts[0].metadata["archived"] is True

@@ -43,6 +43,7 @@ class TestWebSearchDescriptionBaseline:
             search_service_cfg=SearchServiceConfig(
                 search_service="tavily", api_key="test-key"
             ),
+            description_locale="zh-CN",
         )
         description = tool.description or ""
         assert "Query 改写规则" in description

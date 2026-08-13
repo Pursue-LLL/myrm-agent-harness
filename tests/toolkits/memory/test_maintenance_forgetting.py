@@ -11,7 +11,11 @@ from myrm_agent_harness.toolkits.memory.strategies.forgetting import (
     ForgettingMode,
     ForgettingStrategy,
 )
-from myrm_agent_harness.toolkits.memory.types import ProceduralMemory, SemanticMemory
+from myrm_agent_harness.toolkits.memory.types import (
+    ProceduralMemory,
+    SemanticMemory,
+    ToolRulePriority,
+)
 
 
 @pytest.mark.asyncio
@@ -56,6 +60,7 @@ async def test_run_forgetting_archive_mode():
     vector.upsert.assert_called_once()
     upserted_docs = vector.upsert.call_args[0][1]
     assert upserted_docs[0].metadata["status"] == "archived"
+    assert upserted_docs[0].metadata["archived"] is True
 
 @pytest.mark.asyncio
 async def test_run_forgetting_delete_graph_error():
@@ -217,3 +222,39 @@ async def test_run_forgetting_ttl_expired_not_sent_through_retention() -> None:
     assert result.archived_count == 1
     # All calls receive empty lists: the TTL-expired rule never reaches retention scoring.
     mock_select.assert_called_with([], {})
+
+
+@pytest.mark.asyncio
+async def test_run_forgetting_ttl_skips_critical_rules() -> None:
+    """CRITICAL rules with expired expected_valid_days are never TTL-archived.
+
+    User-mandated behavior encoded as CRITICAL priority flows through retention
+    scoring (importance floor) instead of being archived on TTL expiry.
+    """
+    config = MemoryConfig(
+        embedding_model="test",
+        forgetting=ForgettingConfig(mode=ForgettingMode.ARCHIVE, max_forget_per_run=10),
+    )
+    vector = AsyncMock()
+    vector.scroll.side_effect = [([], None), ([], None)]
+    relational = AsyncMock()
+    critical_expired = ProceduralMemory(
+        id="critical-expired",
+        content="user mandate",
+        trigger="deploy",
+        action="always dry-run first",
+        tool_rule_priority=ToolRulePriority.CRITICAL,
+        expected_valid_days=1,
+        created_at=datetime.now(UTC) - timedelta(days=5),
+    )
+    relational.list_rules.return_value = [critical_expired]
+
+    with patch(
+        "myrm_agent_harness.toolkits.memory.strategies.forgetting.ForgettingStrategy.select_candidates"
+    ) as mock_select:
+        mock_select.return_value = []
+        result = await run_forgetting(vector, config, relational=relational)
+
+    assert result.archived_count == 0
+    assert result.forgotten_count == 0
+    relational.update_rule.assert_not_awaited()

@@ -383,6 +383,7 @@ class MaintenanceService:
                 try:
                     await _update_metadata(mid, {
                         "status": MemoryStatus.ARCHIVED.value,
+                        "archived": True,
                         "archive_reason": "staleness_review",
                     })
                 except Exception as exc:

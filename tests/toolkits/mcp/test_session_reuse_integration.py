@@ -25,9 +25,9 @@ from pathlib import Path
 # Record one line per process launch — the spawn counter.
 Path(sys.argv[1]).open("a", encoding="utf-8").write("spawn\\n")
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-server = FastMCP("spawn-probe")
+server = MCPServer("spawn-probe")
 
 
 @server.tool()

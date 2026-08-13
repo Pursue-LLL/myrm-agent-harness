@@ -504,7 +504,14 @@ class MCPSessionActor:
                         async with ClientSession(
                             read, write, **client_kwargs  # type: ignore[arg-type]
                         ) as client:
-                            init_result = await client.initialize()
+                            # ``initialize`` must not hang forever on a server
+                            # whose SSE response never completes (the transport
+                            # accepts the POST but the stream stalls); bound it
+                            # by the same connect budget as tool enumeration so
+                            # a stuck handshake fails over to the retry path
+                            # instead of blocking the whole owner task.
+                            async with asyncio.timeout(self._connect_timeout):
+                                init_result = await client.initialize()
                             async with asyncio.timeout(self._connect_timeout):
                                 raw_tools = convert_mcp_tools(
                                     list((await client.list_tools()).tools),

@@ -213,7 +213,7 @@ class StreamTruncationRecoveryMixin:
             tool_truncation_retries + 1,
             self._MAX_TOOL_TRUNCATION_RETRIES,
         )
-        await self._emit_truncation_warning("tool_call_retry", locale)
+        await self._emit_truncation_warning("tool_call_retry", locale, restart=True)
         return True
 
     def _boost_output_tokens(self, retries: int) -> None:
@@ -255,8 +255,19 @@ class StreamTruncationRecoveryMixin:
             max_tokens = raw if isinstance(raw, int) and raw > 0 else None
         return max_tokens
 
-    async def _emit_truncation_warning(self, truncation_type: str, locale: str) -> None:
-        """Emit a STATUS event with optional i18n diagnostic for truncation."""
+    async def _emit_truncation_warning(
+        self,
+        truncation_type: str,
+        locale: str,
+        restart: bool = False,
+    ) -> None:
+        """Emit a STATUS event with optional i18n diagnostic for truncation.
+
+        ``restart=True`` marks recovery paths that discard the truncated output and
+        re-run the turn from scratch (tool-call truncation retry), so the consumer
+        drops any draft streamed before the truncation. Continuation and warning-only
+        paths leave it False.
+        """
         try:
             from myrm_agent_harness.agent.errors.diagnostics import LLMErrorDiagnostic
 
@@ -279,6 +290,8 @@ class StreamTruncationRecoveryMixin:
             "tool_name": None,
             "messageId": self._ctx.message_id,
         }
+        if restart:
+            event["restart"] = True
         if diagnostic_dict:
             event["diagnostic_result"] = diagnostic_dict
 

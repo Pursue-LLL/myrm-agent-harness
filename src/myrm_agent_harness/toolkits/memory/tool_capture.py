@@ -17,7 +17,7 @@ scope isolation, and prompt injection).
 
 [INPUT]
 - agent.hooks.types::HookResult, PostToolUsePayload, PostToolUseFailurePayload
-- toolkits.memory.types::ProceduralMemory, ToolRulePriority, RuleSource
+- toolkits.memory.types::ProceduralMemory, ToolRulePriority, RuleSource, TOOL_FAILURE_ORIGIN, TOOL_FAILURE_TTL_DAYS
 
 [OUTPUT]
 - ToolMemoryCaptureHook: Async hook for POST_TOOL_USE_FAILURE
@@ -41,6 +41,8 @@ from myrm_agent_harness.core.hooks.types import HookResult
 from myrm_agent_harness.toolkits.memory.types import (
     ProceduralMemory,
     RuleSource,
+    TOOL_FAILURE_ORIGIN,
+    TOOL_FAILURE_TTL_DAYS,
     ToolRulePriority,
 )
 
@@ -174,12 +176,6 @@ class _FailureTracker:
 # ── Hook implementation ──────────────────────────────────────────────
 
 _FAILURE_THRESHOLD = 2
-
-# Auto-generated failure rules are transient warnings, not durable constraints:
-# they carry a short TTL and an origin marker so the context loader can keep
-# them out of the stable prompt layer.
-TOOL_FAILURE_TTL_DAYS = 1
-TOOL_FAILURE_ORIGIN = "tool_failure"
 
 
 class ToolMemoryCaptureHook:

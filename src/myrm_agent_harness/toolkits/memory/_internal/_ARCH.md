@@ -22,7 +22,7 @@ Internal implementation details — not part of the public API.
 | scope.py | Core | Scope helper functions. Handles namespace derivation, MemoryScope binding, write target trimming, namespace validation, and channel affinity. | ✅ |
 | search_service.py | Core | Search-side orchestration for memory retrieval. Handles query cleanup, type routing, hybrid candidate collection, ranking, graph enrichment, compact output budgeting, access-count background updates, and business-neutral retrieval trace emission. | ✅ |
 | storage.py | Core | Internal storage facade. Embedding helpers, store/CRUD operations, and re-exports from submodules. | ✅ |
-| storage_context.py | Core | Context loading for agent prompt (profile, rules, working state). | ✅ |
+| storage_context.py | Core | Context loading for agent prompt (profile, rules, working state). Filters NORMAL-priority tool-failure rules out of the stable layer. | ✅ |
 | storage_conversation.py | Core | Conversation memory storage with dual-embedding (Qdrant named vectors). | ✅ |
 | storage_converters.py | Core | Document ↔ Schema converters and shared metadata helpers (scope, lifecycle, filter). | ✅ |
 | storage_search.py | Core | Search operations: vector similarity, BM25 keyword, profile/procedural text, dual-channel conversation search with RRF fusion. | ✅ |

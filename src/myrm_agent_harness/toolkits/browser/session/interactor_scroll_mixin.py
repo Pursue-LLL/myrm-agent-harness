@@ -26,7 +26,7 @@ import logging
 import random
 from typing import TYPE_CHECKING
 
-from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig, HumanizeMode
+from myrm_agent_harness.toolkits.browser.pool.config import HumanizeMode
 from myrm_agent_harness.toolkits.browser.session.humanize import (
     bezier_move,
     scroll_burst_break_ms,

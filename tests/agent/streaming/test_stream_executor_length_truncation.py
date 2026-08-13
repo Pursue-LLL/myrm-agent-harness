@@ -97,6 +97,7 @@ async def test_tool_call_truncated_triggers_retry(mock_context):
     events = executor._compactor.events
     assert len(events) == 1
     assert events[0]["step_key"] == "tool_call_retry"
+    assert events[0].get("restart") is True
 
 
 @pytest.mark.asyncio
@@ -325,6 +326,7 @@ async def test_tool_calls_with_reasoning_prioritizes_tool_call(mock_context):
     events = executor._compactor.events
     assert len(events) == 1
     assert events[0]["step_key"] == "tool_call_retry"
+    assert events[0].get("restart") is True
 
 
 @pytest.mark.asyncio
@@ -352,6 +354,7 @@ async def test_tool_calls_with_content(mock_context):
     events = executor._compactor.events
     assert len(events) == 1
     assert events[0]["step_key"] == "tool_call_retry"
+    assert events[0].get("restart") is True
 
 
 @pytest.mark.asyncio
@@ -411,6 +414,7 @@ async def test_picks_last_ai_message(mock_context):
     events = executor._compactor.events
     assert len(events) == 1
     assert events[0]["step_key"] == "tool_call_retry"
+    assert events[0].get("restart") is True
 
 
 @pytest.mark.asyncio
