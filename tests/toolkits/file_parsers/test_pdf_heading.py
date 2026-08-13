@@ -552,9 +552,10 @@ class TestPDFPlumberParserIntegration:
         result = detect_headings_by_font(pdf, loose_config)
         assert len(result) >= 1
 
-    def test_get_parser_returns_auto_heading_mode(self):
-        """Default parser from get_parser uses heading_detection='auto'."""
-        from myrm_agent_harness.toolkits.file_parsers import get_parser
+    def test_get_parser_returns_smart_pdf_parser(self):
+        """Default parser from get_parser is SmartPDFParser (text + OCR fallback)."""
+        from myrm_agent_harness.toolkits.file_parsers import SmartPDFParser, get_parser
 
         parser = get_parser("document.pdf")
-        assert parser._heading_detection == "auto"
+        assert isinstance(parser, SmartPDFParser)
+        assert parser.supported_extensions == [".pdf"]

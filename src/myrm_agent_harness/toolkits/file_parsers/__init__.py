@@ -18,6 +18,7 @@ Provides parsers for various file formats:
 - pptx::PptxParser (POS: PowerPoint document parser)
 - pdf::PDFPlumberParser (POS: PDF parser using pdfplumber)
 - pdf_content_extractor::PDFExtractConfig, PDFExtractResult, PDFImageContent, extract_pdf_content (POS: PDF content extraction)
+- pdf_smart::SmartPDFParser (POS: PDF parser adapter over the smart extraction orchestrator with OCR fallback)
 - text::TextParser (POS: plain text and Markdown parser)
 - ipynb::IpynbParser (POS: Jupyter Notebook parser)
 - legacy::LegacyFormatParser (POS: OLE2 legacy format parser with soffice conversion)
@@ -27,6 +28,7 @@ Provides parsers for various file formats:
 - LegacyFormatParser: OLE2 legacy format parser with soffice auto-conversion
 - PDFParseResult, PDFTable: PDF-specific result models
 - PDFExtractConfig, PDFExtractResult, PDFImageContent, extract_pdf_content: PDF extraction utilities
+- SmartPDFParser: PDF parser with text/table extraction + OCR fallback (default for get_parser(".pdf"))
 - parse_file(): auto-detect file type and parse
 
 [POS]
@@ -67,6 +69,7 @@ from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
     PDFImageContent,
     extract_pdf_content,
 )
+from myrm_agent_harness.toolkits.file_parsers.pdf_smart import SmartPDFParser
 from myrm_agent_harness.toolkits.file_parsers.pptx import PptxParser
 from myrm_agent_harness.toolkits.file_parsers.rtf_parser import RtfParser
 from myrm_agent_harness.toolkits.file_parsers.text import TextParser
@@ -87,6 +90,7 @@ __all__ = [
     "PDFPlumberParser",
     "PDFTable",
     "PptxParser",
+    "SmartPDFParser",
     "TextParser",
     "extract_pdf_content",
     "get_file_type",
@@ -206,10 +210,7 @@ class LegacyFormatParser(FileParser):
 
 # ====================== Parser Registry ======================
 
-_DEFAULT_PDF_PARSER = PDFPlumberParser(
-    extract_tables=True,
-    parallel=False,
-)
+_DEFAULT_PDF_PARSER = SmartPDFParser()
 
 _FAST_PDF_PARSER = PDFPlumberParser(
     extract_tables=False,
