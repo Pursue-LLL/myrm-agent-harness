@@ -35,8 +35,8 @@ repos:
 
       - id: harness-line-limit-check
         name: Harness File Line Limit
-        entry: python scripts/check_file_line_limit.py
+        entry: python scripts/check_file_line_limit.py --incremental
         language: system
         pass_filenames: false
         always_run: true
-        description: "Reject .py files exceeding the 500-line cap or their baseline allowance"
+        description: "Reject .py files exceeding the 500-line cap or their baseline allowance (incremental: changed files only)"

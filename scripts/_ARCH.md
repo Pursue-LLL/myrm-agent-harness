@@ -27,7 +27,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `validate_tool_registry.py` | 辅助 | Tool registry CI 校验 | ✅ |
 | `validate_arch_inventory.py` | 辅助 | `_ARCH.md` 文件清单表格 vs 同级 `.py` 一致性校验（仅解析表格行） | ✅ |
 | `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + IOP 头 baseline 门禁（`fractal_header_baseline.txt`） | ✅ |
-| `check_file_line_limit.py` | 辅助 | 单文件行数 baseline 门禁（>500 行须登记且不可增长） | ✅ |
+| `check_file_line_limit.py` | 辅助 | 单文件行数 baseline 门禁（>500 行须登记且不可增长）；`--incremental` 仅扫描 git 变更文件（pre-commit），无 git 时回退全量 | ✅ |
 | `file_line_baseline.txt` | 辅助 | legacy 大文件 grandfather 清单：允许 >500 行但不得超过登记行数；拆分至 ≤500 后移除 | — |
 | `fractal_header_baseline.txt` | 辅助 | 允许暂缺 IOP 头的 legacy 路径清单（相对 `src/`）；新文件不得加入 | — |
 | `detect_blocking_io.py` | 辅助 | 阻塞 I/O 检测 | ✅ |
@@ -42,6 +42,7 @@ python scripts/boundary_check.py --fix          # 自动注释违规 import
 python scripts/check_fractal_docs.py            # 目录 _ARCH 覆盖
 python scripts/check_fractal_docs.py --strict-headers --header-baseline scripts/fractal_header_baseline.txt --no-stub
 python scripts/check_file_line_limit.py --baseline scripts/file_line_baseline.txt
+python scripts/check_file_line_limit.py --incremental  # pre-commit: changed files only
 python scripts/validate_arch_inventory.py --root src/myrm_agent_harness
 ```
 

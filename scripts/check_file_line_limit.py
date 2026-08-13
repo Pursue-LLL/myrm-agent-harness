@@ -8,6 +8,7 @@ Run (from myrm-agent-harness root)::
 
     uv run python scripts/check_file_line_limit.py
     uv run python scripts/check_file_line_limit.py --baseline scripts/file_line_baseline.txt
+    uv run python scripts/check_file_line_limit.py --incremental  # pre-commit: changed files only
 
 Exit codes:
     0  OK
@@ -19,6 +20,11 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.boundary_engine import get_changed_harness_files  # noqa: E402
 
 _DEFAULT_MAX_LINES = 500
 _PRUNE = frozenset({"__pycache__", ".mypy_cache", ".pytest_cache", ".ruff_cache"})
@@ -51,12 +57,26 @@ def _iter_py_files(package_root: Path) -> list[Path]:
     return files
 
 
-def check(package_root: Path, baseline_path: Path | None, max_lines: int) -> list[str]:
+def check(
+    package_root: Path,
+    baseline_path: Path | None,
+    max_lines: int,
+    files: list[Path] | None = None,
+) -> list[str]:
+    """Return line-limit violations for the given files (default: all package files).
+
+    ``files`` is the incremental scope used by pre-commit; when None the whole
+    package is scanned (CI/full mode). Relative paths are resolved against
+    ``package_root.parent`` so baselines stay stable either way.
+    """
     errors: list[str] = []
     baseline = _load_baseline(baseline_path) if baseline_path is not None else {}
     src_parent = package_root.parent
+    targets = files if files is not None else _iter_py_files(package_root)
 
-    for py_file in _iter_py_files(package_root):
+    for py_file in targets:
+        if not py_file.exists():
+            continue
         rel = str(py_file.relative_to(src_parent))
         line_count = _count_lines(py_file)
         if rel in baseline:
@@ -82,18 +102,36 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--package-root", type=Path, default=default_root)
     parser.add_argument("--baseline", type=Path, default=default_baseline)
     parser.add_argument("--max-lines", type=int, default=_DEFAULT_MAX_LINES)
+    parser.add_argument(
+        "--incremental",
+        action="store_true",
+        help="Only check .py files changed in git (for pre-commit hooks)",
+    )
     args = parser.parse_args(argv)
 
-    errors = check(args.package_root.resolve(), args.baseline.resolve(), args.max_lines)
+    package_root = args.package_root.resolve()
+    baseline_path = args.baseline.resolve()
+    files: list[Path] | None = None
+    if args.incremental:
+        changed = get_changed_harness_files(package_root)
+        if changed is not None:
+            files = sorted(changed)
+            if not files:
+                print("OK (no harness files changed).")
+                return 0
+        # git unavailable → fall back to full scan below (files stays None)
+
+    errors = check(package_root, baseline_path, args.max_lines, files=files)
     if errors:
         print("ERROR: File line limit violations:", file=sys.stderr)
         for err in errors:
             print(f"  - {err}", file=sys.stderr)
         return 1
     scope = f"max {args.max_lines} lines"
-    if args.baseline.is_file():
-        scope += f" + baseline {args.baseline.name}"
-    print(f"OK ({scope}).")
+    if baseline_path.is_file():
+        scope += f" + baseline {baseline_path.name}"
+    mode = "incremental" if args.incremental else "full"
+    print(f"OK ({scope}, {mode}).")
     return 0
 
 
