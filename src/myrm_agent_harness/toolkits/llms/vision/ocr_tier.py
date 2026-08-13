@@ -1,7 +1,7 @@
 """OCR tier failover for vision pipeline.
 
 [INPUT]
-myrm_agent_harness.toolkits.file_parsers.ocr::OCRParser (POS: PaddleOCR file parser)
+myrm_agent_harness.toolkits.file_parsers.ocr::OCRParser (POS: OCR file parser. Extracts text from images using PaddleOCR with lazy import, graceful degradation when the dependency is not installed, and 2.x/3.x engine compatibility (PaddleX unified inference API in 3.x).)
 myrm_agent_harness.toolkits.llms.vision.fallback_engine::FileExecutor (POS: Sandbox byte reader protocol)
 
 [OUTPUT]

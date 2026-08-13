@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -44,8 +44,12 @@ class FakeContext:
 
 
 class FakePage:
-    def __init__(self, cdp: FakeCDP) -> None:
+    def __init__(self, cdp: FakeCDP, ua: str = "Mozilla/5.0 (Macintosh) DefaultUA") -> None:
         self.context = FakeContext(cdp)
+        self._ua = ua
+
+    async def evaluate(self, expression: str) -> str:
+        return self._ua
 
 
 class FakeRegistry:
@@ -139,7 +143,7 @@ class TestReset:
     async def test_reset_clears_overrides(
         self, cdp: FakeCDP, page: FakePage
     ) -> None:
-        """Reset clears all three overrides and resets active device."""
+        """Reset clears all three overrides and restores the baseline UA."""
         emulator = DeviceEmulator(_registry())
         await emulator.emulate("iPhone 15 Pro", page)  # type: ignore[arg-type]
         cdp.sent.clear()
@@ -154,8 +158,21 @@ class TestReset:
             "Network.setUserAgentOverride",
             "Emulation.setTouchEmulationEnabled",
         ]
-        assert cdp.sent[1][1] == {"userAgent": ""}
+        # Baseline UA captured before emulation is restored (not empty string).
+        assert cdp.sent[1][1] == {"userAgent": "Mozilla/5.0 (Macintosh) DefaultUA"}
         assert cdp.sent[2][1]["enabled"] is False
+
+    @pytest.mark.asyncio
+    async def test_reset_without_prior_emulation_uses_default_ua(
+        self, cdp: FakeCDP, page: FakePage
+    ) -> None:
+        """Reset with no prior emulation falls back to the browser default UA."""
+        emulator = DeviceEmulator(_registry())
+
+        result = await emulator.reset(page)  # type: ignore[arg-type]
+
+        assert "Restored desktop viewport" in result
+        assert cdp.sent[1][1] == {"userAgent": ""}
 
     @pytest.mark.asyncio
     async def test_emulate_desktop_aliases_reset(

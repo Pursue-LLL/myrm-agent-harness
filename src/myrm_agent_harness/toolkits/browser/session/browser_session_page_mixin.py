@@ -109,7 +109,8 @@ class BrowserSessionPageMixin:
         """Emulate a mobile device (UA/viewport/DPR/touch) on the active page.
 
         Delegates to the session-level DeviceEmulator which holds the CDP
-        session lifecycle; see ``device_emulator.py`` for available devices.
+        session lifecycle; the available device names come from the curated
+        registry in ``pool/device_profiles.py``.
         """
         await self._ensure_components()
         page = self._tab_controller.get_active_page()

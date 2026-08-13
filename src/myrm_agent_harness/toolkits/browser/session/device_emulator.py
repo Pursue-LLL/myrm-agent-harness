@@ -2,8 +2,8 @@
 
 [INPUT]
 - patchright.async_api::CDPSession, Page (POS: Chrome DevTools Protocol session)
-- pool.emulation::EmulationConfig (POS: resolved device dimensions)
-- pool.device_profiles::resolve_device, list_device_names (POS: device registry)
+- pool.emulation::EmulationConfig (POS: browser environment emulation config with type safety and parameter validation)
+- pool.device_profiles::resolve_device, list_device_names (POS: curated mobile device profile registry)
 
 [OUTPUT]
 - DeviceEmulator: runtime CDP mobile device emulation (per-page, idempotent)
@@ -13,7 +13,9 @@ Applies mobile-device simulation to a live page via CDP without recreating
 the browser context: ``Emulation.setDeviceMetricsOverride`` (layout viewport +
 device pixel ratio + mobile flag), ``Network.setUserAgentOverride`` (mobile UA)
 and ``Emulation.setTouchEmulationEnabled`` (touch events). ``desktop`` restores
-the browser's native desktop behavior by clearing all three overrides.
+the browser's native desktop behavior by clearing all three overrides; the UA
+captured before the first emulation is restored rather than the browser default,
+so context-level UA configuration survives a reset.
 
 The page must be re-navigated after a switch for the new viewport to drive a
 full re-layout; the returned message tells the agent exactly that. Every
@@ -66,6 +68,7 @@ class DeviceEmulator:
         self._cdp_session: CDPSession | None = None
         self._bound_page: Page | None = None
         self._active_device: str | None = None
+        self._baseline_ua: str | None = None
 
     @property
     def active_device(self) -> str | None:
@@ -97,6 +100,8 @@ class DeviceEmulator:
 
         try:
             cdp = await self._ensure_cdp(page)
+            if self._baseline_ua is None:
+                self._baseline_ua = await page.evaluate("navigator.userAgent")
             await self._apply(cdp, profile)
             self._active_device = device
             return (
@@ -106,8 +111,7 @@ class DeviceEmulator:
             )
         except Exception as exc:
             logger.warning("DeviceEmulator: emulation failed for '%s': %s", device, exc)
-            self._cdp_session = None
-            self._bound_page = None
+            await self._detach()
             return f"Device emulation failed: {exc}"
 
     async def reset(self, page: Page) -> str:
@@ -120,16 +124,19 @@ class DeviceEmulator:
         try:
             cdp = await self._ensure_cdp(page)
             await cdp.send("Emulation.clearDeviceMetricsOverride")
-            # CDP has no Network.clearUserAgentOverride; an empty userAgent
-            # restores the browser's default UA (verified on real Chromium).
-            await cdp.send("Network.setUserAgentOverride", {"userAgent": ""})
+            # CDP has no Network.clearUserAgentOverride; restore the UA captured
+            # before the first emulation (or the browser default if none was set).
+            await cdp.send(
+                "Network.setUserAgentOverride",
+                {"userAgent": self._baseline_ua or ""},
+            )
             await cdp.send("Emulation.setTouchEmulationEnabled", {"enabled": False})
             self._active_device = None
+            self._baseline_ua = None
             return "Restored desktop viewport (cleared device emulation)."
         except Exception as exc:
             logger.warning("DeviceEmulator: reset failed: %s", exc)
-            self._cdp_session = None
-            self._bound_page = None
+            await self._detach()
             return f"Failed to restore desktop viewport: {exc}"
 
     def list_devices(self) -> list[str]:

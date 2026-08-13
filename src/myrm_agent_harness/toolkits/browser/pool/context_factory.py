@@ -4,7 +4,7 @@
 [INPUT]
 - patchright.async_api::Browser (POS: Patchright browser instance)
 - patchright.async_api::BrowserContext (POS: Patchright browser context)
-- .emulation::EmulationConfig (POS: environment emulation config)
+- .emulation::EmulationConfig (POS: browser environment emulation config with type safety and parameter validation)
 - .config::ResourceBlockConfig (POS: resource blocking config)
 - domain_filter::DomainAllowlist, install_domain_filter (POS: domain filtering and resource blocking)
 - .stealth::get_stealth_script (POS: stealth anti-detection JS script loader)

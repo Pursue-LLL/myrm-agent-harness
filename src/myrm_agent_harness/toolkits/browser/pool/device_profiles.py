@@ -1,7 +1,7 @@
 """Curated mobile device profiles for browser device emulation.
 
 [INPUT]
-- .emulation::EmulationConfig (POS: device dimensions carried as emulation config)
+- .emulation::EmulationConfig (POS: browser environment emulation config with type safety and parameter validation)
 
 [OUTPUT]
 - MOBILE_DEVICES: curated mainstream device profile registry

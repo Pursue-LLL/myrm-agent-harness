@@ -8,9 +8,10 @@
 - EmulationConfig: Type-safe configuration for browser environment emulation
 
 [POS]
-Browser environment emulation configuration with type safety and parameter validation.
-Provides dataclass-based configuration for geolocation, timezone, locale, permissions,
-color scheme, and offline mode. Converts to Playwright new_context parameters.
+Browser environment emulation configuration with type safety and parameter
+validation. Covers geolocation/timezone/locale/permissions/color scheme/offline
+plus mobile device dimensions (viewport/user_agent/device_scale_factor/is_mobile/
+has_touch); converts to Playwright new_context parameters.
 """
 
 from __future__ import annotations
@@ -39,6 +40,15 @@ class EmulationConfig:
 
         # Offline mode
         EmulationConfig(offline=True)
+
+        # Mobile device emulation (iPhone-class: 393x659 @3x, touch)
+        EmulationConfig(
+            viewport=(393, 659),
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)",
+            device_scale_factor=3.0,
+            is_mobile=True,
+            has_touch=True,
+        )
 
     """
 
