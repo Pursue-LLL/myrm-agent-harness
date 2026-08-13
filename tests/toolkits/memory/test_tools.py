@@ -1299,3 +1299,171 @@ class TestSearchDescriptionConditionalization:
         tool = self._get_search_tool(allow_web=False)
         desc_lower = tool.description.lower()
         assert "web" not in desc_lower
+
+
+class TestMemorySaveSessionBuffer:
+    """memory_save_tool writes land in the active session buffer when present.
+
+    These are the non-persist paths: the agent save during an active conversation
+    buffers knowledge/event/rule/instruction and routes preference through the
+    session's set_profile, avoiding a per-save round-trip to the store.
+    """
+
+    def _make_manager(self, mock_vector_store, mock_embedding, memory_config, **kw):
+        from myrm_agent_harness.toolkits.memory.manager import MemoryManager
+
+        return MemoryManager(
+            memory_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            relational=AsyncMock(),
+            **kw,
+        )
+
+    def _save_tool(self, manager):
+        return next(
+            t for t in create_memory_tools(manager) if t.name == "memory_save_tool"
+        )
+
+    @pytest.mark.asyncio
+    async def test_save_knowledge_buffers_to_session(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        manager.begin_session(chat_id="chat-1")
+
+        result = await self._save_tool(manager).ainvoke(
+            {"content": "fact", "category": "knowledge"}
+        )
+
+        assert "buffered" in result
+        assert manager.active_session is not None
+        assert manager.active_session.buffer_size == 1
+
+    @pytest.mark.asyncio
+    async def test_save_knowledge_duplicate_buffered(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        manager.begin_session(chat_id="chat-1")
+        tool = self._save_tool(manager)
+
+        await tool.ainvoke({"content": "dup fact", "category": "knowledge"})
+        result = await tool.ainvoke({"content": "dup fact", "category": "knowledge"})
+
+        assert "duplicate detected" in result
+
+    @pytest.mark.asyncio
+    async def test_save_event_buffers_to_session(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        manager.begin_session(chat_id="chat-1")
+
+        result = await self._save_tool(manager).ainvoke(
+            {"content": "happened", "category": "event"}
+        )
+
+        assert "buffered" in result
+        assert manager.active_session.buffer_size == 1
+
+    @pytest.mark.asyncio
+    async def test_save_preference_buffers_via_session_profile(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        manager.begin_session(chat_id="chat-1")
+
+        result = await self._save_tool(manager).ainvoke(
+            {
+                "content": "dark",
+                "category": "preference",
+                "preference_key": "theme",
+            }
+        )
+
+        assert "theme" in result
+
+    @pytest.mark.asyncio
+    async def test_save_rule_buffers_to_session(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        manager.begin_session(chat_id="chat-1")
+
+        result = await self._save_tool(manager).ainvoke(
+            {
+                "content": "always x",
+                "category": "rule",
+                "rule_trigger": "always",
+            }
+        )
+
+        assert "buffered" in result
+        assert manager.active_session.buffer_size == 1
+
+    @pytest.mark.asyncio
+    async def test_save_event_duplicate_buffered(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        manager.begin_session(chat_id="chat-1")
+        tool = self._save_tool(manager)
+
+        await tool.ainvoke({"content": "dup event", "category": "event"})
+        result = await tool.ainvoke({"content": "dup event", "category": "event"})
+
+        assert "duplicate detected" in result
+
+    @pytest.mark.asyncio
+    async def test_save_rule_duplicate_buffered(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        manager.begin_session(chat_id="chat-1")
+        tool = self._save_tool(manager)
+
+        await tool.ainvoke(
+            {
+                "content": "always y",
+                "category": "rule",
+                "rule_trigger": "always",
+            }
+        )
+        result = await tool.ainvoke(
+            {
+                "content": "always y",
+                "category": "rule",
+                "rule_trigger": "always",
+            }
+        )
+
+        assert "duplicate detected" in result
+
+    @pytest.mark.asyncio
+    async def test_save_instruction_buffers_to_session(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        manager.begin_session(chat_id="chat-1")
+
+        result = await self._save_tool(manager).ainvoke(
+            {"content": "be concise", "category": "instruction"}
+        )
+
+        assert "buffered" in result
+        assert manager.active_session.buffer_size == 1
+
+    @pytest.mark.asyncio
+    async def test_save_instruction_duplicate_buffered(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        manager = self._make_manager(mock_vector_store, mock_embedding, memory_config)
+        manager.begin_session(chat_id="chat-1")
+        tool = self._save_tool(manager)
+
+        await tool.ainvoke({"content": "be terse", "category": "instruction"})
+        result = await tool.ainvoke({"content": "be terse", "category": "instruction"})
+
+        assert "duplicate detected" in result

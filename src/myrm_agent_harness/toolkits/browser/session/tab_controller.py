@@ -96,6 +96,7 @@ class TabController:
         self._active_tab_id: str | None = None
         self._tab_counter = 0
         self._popup_attached_pages: set[int] = set()
+        self._popup_close_tasks: set[asyncio.Task] = set()
 
     async def create_tab(
         self,
@@ -369,8 +370,11 @@ class TabController:
 
         if self._on_tab_closed is not None:
             # Popup close is a synchronous page event; run the async cleanup as
-            # a background task so the closing flow is never blocked.
-            asyncio.create_task(self._safe_notify(handle.page))
+            # a background task so the closing flow is never blocked. Keep a
+            # strong reference so the task is not garbage-collected mid-flight.
+            task = asyncio.create_task(self._safe_notify(handle.page))
+            self._popup_close_tasks.add(task)
+            task.add_done_callback(self._popup_close_tasks.discard)
 
         if self._active_tab_id == tab_id:
             if handle.parent_tab_id and handle.parent_tab_id in self._tabs:
