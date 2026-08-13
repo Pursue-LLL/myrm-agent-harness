@@ -191,6 +191,32 @@ class TestProcessRawResultV3:
         assert result.text == "real"
         assert len(result.lines) == 1
 
+    def test_paddlex_numpy_polys_converted_to_list(self):
+        """PaddleX dt_polys entries (numpy arrays) are exposed as plain lists (2.x parity)."""
+        import numpy as np
+
+        parser = OCRParser()
+        raw = [
+            {
+                "rec_texts": ["boxed"],
+                "rec_scores": [0.9],
+                "dt_polys": [np.array([[0, 0], [10, 0], [10, 10], [0, 10]])],
+            }
+        ]
+        result = parser._process_raw_result(raw)
+
+        assert result.lines[0].bbox == [[0, 0], [10, 0], [10, 10], [0, 10]]
+        assert isinstance(result.lines[0].bbox, list)
+
+    def test_paddlex_missing_poly_keeps_bbox_none(self):
+        """When dt_polys is shorter than rec_texts, bbox falls back to None."""
+        parser = OCRParser()
+        raw = [{"rec_texts": ["no poly"], "rec_scores": [0.9], "dt_polys": []}]
+        result = parser._process_raw_result(raw)
+
+        assert result.text == "no poly"
+        assert result.lines[0].bbox is None
+
 
 class TestParseBytesAndParse:
     """Public parse entry points."""

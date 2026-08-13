@@ -71,7 +71,7 @@ def build_qdrant_filter(filters: FilterDict | None) -> Filter | None:
             conditions.append(HasIdCondition(has_id=value))
         elif key == "id" and isinstance(value, dict) and value.get("$in") is not None:
             conditions.append(HasIdCondition(has_id=value["$in"]))
-        elif key == "id" and isinstance(value, (str, int)):
+        elif key == "id" and (isinstance(value, str) or type(value) is int):
             conditions.append(HasIdCondition(has_id=[value]))  # type: ignore[arg-type]
         elif isinstance(value, dict):
             if "not" in value:

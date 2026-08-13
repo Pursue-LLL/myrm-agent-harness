@@ -314,7 +314,7 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "memory_save_tool": ["content", "tags"],
     "memory_search_tool": ["query"],
     "memory_manage_tool": ["action"],
-    "skill_select_tool": ["skill_ids"],
+    "skill_select_tool": ["skill_names"],
     "skill_market_tool": ["action", "skill_id"],
     "skill_manage_tool": ["action", "name"],
     "skill_search_tool": ["query"],

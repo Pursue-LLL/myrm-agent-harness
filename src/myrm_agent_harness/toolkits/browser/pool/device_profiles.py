@@ -113,9 +113,11 @@ DEFAULT_MOBILE_DEVICE: Final[str] = "iPhone 15 Pro"
 def resolve_device(name: str) -> EmulationConfig | None:
     """Resolve a device name into an EmulationConfig.
 
+    Exact names (case-insensitive) are matched first; if no exact match, a
+    case-insensitive substring match is tried (e.g. "iphone" → "iPhone 15 Pro").
+
     Args:
-        name: Device name from ``list_device_names`` (case-insensitive
-            partial match preferred for exact names).
+        name: Device name from ``list_device_names``.
 
     Returns:
         Matching EmulationConfig, or ``None`` when the device is unknown.

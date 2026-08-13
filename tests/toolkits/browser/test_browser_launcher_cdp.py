@@ -29,7 +29,9 @@ def _mock_browser(contexts: int = 0) -> MagicMock:
     return browser
 
 
-def _inst_with_unresponsive_page(pool: GlobalBrowserPool, is_managed: bool) -> BrowserInstance:
+def _inst_with_unresponsive_page(
+    pool: GlobalBrowserPool, is_managed: bool
+) -> BrowserInstance:
     """BrowserInstance whose only pooled page fails every liveness probe.
 
     patchright exposes Browser.version/contexts as cached properties, so the
@@ -91,7 +93,9 @@ class TestBrowserLauncherInit:
         assert launcher._launch_mode == LaunchMode.LAUNCH
 
     def test_custom_launch_mode(self) -> None:
-        launcher = _make_launcher(launch_mode=LaunchMode.CONNECT, cdp_endpoint="http://host:1234")
+        launcher = _make_launcher(
+            launch_mode=LaunchMode.CONNECT, cdp_endpoint="http://host:1234"
+        )
         assert launcher._launch_mode == LaunchMode.CONNECT
         assert launcher._cdp_endpoint == "http://host:1234"
 
@@ -143,9 +147,13 @@ class TestProbeCdp:
             "myrm_agent_harness.toolkits.browser.pool.chrome_discovery.probe_cdp_endpoint",
             return_value=True,
         ) as mock_probe:
-            result = await launcher._probe_cdp("ws://127.0.0.1:9222/devtools/browser/abc")
+            result = await launcher._probe_cdp(
+                "ws://127.0.0.1:9222/devtools/browser/abc"
+            )
             assert result is True
-            mock_probe.assert_called_once_with("ws://127.0.0.1:9222/devtools/browser/abc")
+            mock_probe.assert_called_once_with(
+                "ws://127.0.0.1:9222/devtools/browser/abc"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +183,9 @@ class TestConnectExisting:
         launcher = _make_launcher(launch_mode=LaunchMode.CONNECT)
 
         mock_pw = MagicMock()
-        mock_pw.chromium.connect_over_cdp = AsyncMock(side_effect=ConnectionError("refused"))
+        mock_pw.chromium.connect_over_cdp = AsyncMock(
+            side_effect=ConnectionError("refused")
+        )
         launcher._playwright = mock_pw
 
         with pytest.raises(BrowserLaunchError, match="after 3 attempts"):
@@ -212,7 +222,9 @@ class TestCreateBrowserRouting:
         launcher = _make_launcher(launch_mode=LaunchMode.LAUNCH)
         expected = BrowserInstance(browser=_mock_browser(), is_managed=True)
 
-        with patch.object(launcher, "_launch_new_browser", AsyncMock(return_value=expected)) as mock_launch:
+        with patch.object(
+            launcher, "_launch_new_browser", AsyncMock(return_value=expected)
+        ) as mock_launch:
             result = await launcher.create_browser()
 
             mock_launch.assert_awaited_once()
@@ -224,8 +236,12 @@ class TestCreateBrowserRouting:
         expected = BrowserInstance(browser=_mock_browser(), is_managed=False)
 
         with (
-            patch.object(launcher, "_discover_local_chrome", AsyncMock(return_value=None)),
-            patch.object(launcher, "_connect_existing", AsyncMock(return_value=expected)) as mock_connect,
+            patch.object(
+                launcher, "_discover_local_chrome", AsyncMock(return_value=None)
+            ),
+            patch.object(
+                launcher, "_connect_existing", AsyncMock(return_value=expected)
+            ) as mock_connect,
         ):
             result = await launcher.create_browser()
 
@@ -239,7 +255,9 @@ class TestCreateBrowserRouting:
 
         with (
             patch.object(launcher, "_probe_cdp", AsyncMock(return_value=True)),
-            patch.object(launcher, "_connect_existing", AsyncMock(return_value=expected)) as mock_connect,
+            patch.object(
+                launcher, "_connect_existing", AsyncMock(return_value=expected)
+            ) as mock_connect,
             patch.object(launcher, "_launch_new_browser", AsyncMock()) as mock_launch,
         ):
             result = await launcher.create_browser()
@@ -256,7 +274,9 @@ class TestCreateBrowserRouting:
         with (
             patch.object(launcher, "_probe_cdp", AsyncMock(return_value=False)),
             patch.object(launcher, "_connect_existing", AsyncMock()) as mock_connect,
-            patch.object(launcher, "_launch_new_browser", AsyncMock(return_value=expected)) as mock_launch,
+            patch.object(
+                launcher, "_launch_new_browser", AsyncMock(return_value=expected)
+            ) as mock_launch,
         ):
             result = await launcher.create_browser()
 
@@ -271,8 +291,14 @@ class TestCreateBrowserRouting:
 
         with (
             patch.object(launcher, "_probe_cdp", AsyncMock(return_value=True)),
-            patch.object(launcher, "_connect_existing", AsyncMock(side_effect=Exception("connect err"))),
-            patch.object(launcher, "_launch_new_browser", AsyncMock(return_value=expected)) as mock_launch,
+            patch.object(
+                launcher,
+                "_connect_existing",
+                AsyncMock(side_effect=Exception("connect err")),
+            ),
+            patch.object(
+                launcher, "_launch_new_browser", AsyncMock(return_value=expected)
+            ) as mock_launch,
         ):
             result = await launcher.create_browser()
 
@@ -287,7 +313,9 @@ class TestCreateBrowserRouting:
 
 class TestCrashWatchdogExternalBrowser:
     @pytest.mark.asyncio
-    async def test_external_browser_disconnect_does_not_increment_crash_count(self) -> None:
+    async def test_external_browser_disconnect_does_not_increment_crash_count(
+        self,
+    ) -> None:
         pool = GlobalBrowserPool(max_browsers=2)
 
         mock_browser = _mock_browser()
@@ -367,7 +395,9 @@ class TestPoolStatsExternalFields:
     async def test_stats_includes_launch_mode(self) -> None:
         import dataclasses
 
-        config = dataclasses.replace(BrowserConfig.minimal(), launch_mode=LaunchMode.AUTO)
+        config = dataclasses.replace(
+            BrowserConfig.minimal(), launch_mode=LaunchMode.AUTO
+        )
         pool = GlobalBrowserPool(max_browsers=2, config=config)
 
         stats = pool.stats
@@ -415,7 +445,9 @@ class TestPoolHealthExternalFields:
     async def test_health_includes_pool_with_launch_mode(self) -> None:
         import dataclasses
 
-        config = dataclasses.replace(BrowserConfig.minimal(), launch_mode=LaunchMode.AUTO)
+        config = dataclasses.replace(
+            BrowserConfig.minimal(), launch_mode=LaunchMode.AUTO
+        )
         pool = GlobalBrowserPool(max_browsers=2, config=config)
 
         health = await pool.health()
@@ -469,7 +501,9 @@ class TestLifecycleTickExternalBrowser:
         await pool.shutdown()
 
     @pytest.mark.asyncio
-    async def test_lifecycle_tick_managed_unresponsive_increments_crash_count(self) -> None:
+    async def test_lifecycle_tick_managed_unresponsive_increments_crash_count(
+        self,
+    ) -> None:
         pool = GlobalBrowserPool(max_browsers=2)
 
         inst = _inst_with_unresponsive_page(pool, is_managed=True)
@@ -484,7 +518,9 @@ class TestLifecycleTickExternalBrowser:
         await pool.shutdown()
 
     @pytest.mark.asyncio
-    async def test_lifecycle_tick_external_unresponsive_no_circuit_breaker(self) -> None:
+    async def test_lifecycle_tick_external_unresponsive_no_circuit_breaker(
+        self,
+    ) -> None:
         config = BrowserConfig.defensive()
         pool = GlobalBrowserPool(max_browsers=2, config=config)
 
@@ -558,14 +594,18 @@ class TestLifecycleTickExternalBrowser:
 
 class TestCircuitBreakerRecordFailure:
     def test_record_failure_no_url_uses_global_domain(self) -> None:
-        from myrm_agent_harness.toolkits.browser.pool.circuit_breaker import CircuitBreaker
+        from myrm_agent_harness.toolkits.browser.pool.circuit_breaker import (
+            CircuitBreaker,
+        )
 
         cb = CircuitBreaker(failure_threshold=5)
         cb.record_failure()
         assert cb._failure_counts[cb._GLOBAL_CRASH_DOMAIN] == 1
 
     def test_record_failure_with_url_uses_domain(self) -> None:
-        from myrm_agent_harness.toolkits.browser.pool.circuit_breaker import CircuitBreaker
+        from myrm_agent_harness.toolkits.browser.pool.circuit_breaker import (
+            CircuitBreaker,
+        )
 
         cb = CircuitBreaker(failure_threshold=5)
         cb.record_failure("http://example.com/page")

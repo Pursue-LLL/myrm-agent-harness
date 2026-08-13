@@ -229,13 +229,10 @@ class OCRParser(FileParser):
             confidence = scores[idx] if idx < len(scores) else 0.0
             if confidence < self._confidence_threshold:
                 continue
-            lines.append(
-                OCRLine(
-                    text=text,
-                    confidence=confidence,
-                    bbox=polys[idx] if idx < len(polys) and isinstance(polys[idx], list) else None,
-                )
-            )
+            raw_poly = polys[idx] if idx < len(polys) else None
+            # PaddleX dt_polys entries are numpy arrays; expose plain lists (2.x parity).
+            bbox = raw_poly.tolist() if hasattr(raw_poly, "tolist") else raw_poly
+            lines.append(OCRLine(text=text, confidence=confidence, bbox=bbox))
 
         avg_confidence = sum(l.confidence for l in lines) / len(lines) if lines else 0.0
         return OCRResult(

@@ -1,7 +1,7 @@
 """
 [INPUT]
 file_path: str (Path to PDF)
-PDFExtractConfig: Configuration (max_pages, min_text_chars, table_format, ocr_pages)
+PDFExtractConfig: Configuration (max_pages, min_text_chars, table_format, ocr_pages, ocr_lang)
 
 [OUTPUT]
 extract_pdf_content: High-level PDF parsing orchestrator (Text + Hybrid Images + Table Capsules + OCR)
@@ -51,6 +51,7 @@ class PDFExtractConfig:
     extract_embedded_images: bool = True  # Enable structural embedded extraction
     table_format: Literal["inline", "placeholder"] = "placeholder"  # Default to placeholder for anti-fragmentation
     ocr_pages: int = 30  # Max pages OCR'd for scanned PDFs (0 disables OCR fallback)
+    ocr_lang: str = "ch"  # PaddleOCR language ('en', 'japan', 'korean', ...); 'ch' covers Chinese + English
 
 
 @dataclass
@@ -241,8 +242,11 @@ async def extract_pdf_content(
     else:
         # Text sparse -> Scanned PDF
         strategy = "image"
+        # Render only the OCR window (all pages when OCR is disabled, e.g. vision-only
+        # consumers) so large scans stay bounded in time/memory and render/OCR ranges match.
+        render_limit = min(cfg.max_pages, cfg.ocr_pages) if cfg.ocr_pages > 0 else cfg.max_pages
         try:
-            raw_images = await asyncio.to_thread(_render_pages_sync, file_path, cfg.max_pages, cfg.max_pixels)
+            raw_images = await asyncio.to_thread(_render_pages_sync, file_path, render_limit, cfg.max_pixels)
         except (ImportError, TypeError):
             logger.warning("pypdfium2 not available, returning sparse text only.")
             strategy = "text"
@@ -250,7 +254,7 @@ async def extract_pdf_content(
         # OCR fallback for scanned PDFs (best-effort; PaddleOCR optional).
         # Keeps sparse text intact when OCR is unavailable or every page fails.
         if raw_images and cfg.ocr_pages > 0:
-            ocr_text = await _ocr_rendered_pages_async(raw_images, cfg.ocr_pages)
+            ocr_text = await _ocr_rendered_pages_async(raw_images, cfg.ocr_pages, lang=cfg.ocr_lang)
             if ocr_text.strip():
                 text = ocr_text
 

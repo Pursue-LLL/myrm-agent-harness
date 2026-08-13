@@ -301,12 +301,16 @@ class ScrollHumanizeMixin:
                 # via the delta between the target's Playwright box (main-page)
                 # and its frame-local box returned by the probe.
                 c_cx = cx + (
-                    container["left"] + container["width"] / 2
-                    - probe["x"] - probe["width"] / 2
+                    container["left"]
+                    + container["width"] / 2
+                    - probe["x"]
+                    - probe["width"] / 2
                 )
                 c_cy = cy + (
-                    container["top"] + container["height"] / 2
-                    - probe["y"] - probe["height"] / 2
+                    container["top"]
+                    + container["height"] / 2
+                    - probe["y"]
+                    - probe["height"] / 2
                 )
                 await self._scroll_move_cursor(
                     min(max(c_cx, 1.0), vw - 1.0), min(max(c_cy, 1.0), vh - 1.0)

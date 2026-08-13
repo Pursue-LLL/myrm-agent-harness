@@ -102,6 +102,11 @@ class TestPDFExtractConfig:
         config = PDFExtractConfig()
         assert config.ocr_pages == 30
 
+    def test_default_ocr_lang(self):
+        """OCR language defaults to 'ch' (covers Chinese + English)."""
+        config = PDFExtractConfig()
+        assert config.ocr_lang == "ch"
+
     def test_default_result_has_parsed_pages(self):
         result = PDFExtractResult()
         assert result.parsed_pages == 0
@@ -789,3 +794,101 @@ class TestPdfOcrFallback:
 
         assert result == ""
         assert mock_parse.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_ocr_lang_passed_to_parser(self):
+        """ocr_lang is forwarded to the OCRParser constructor."""
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _ocr_rendered_pages_async,
+        )
+
+        images = [PDFImageContent(data=base64.b64encode(b"page-1").decode("ascii"))]
+        with patch(
+            "myrm_agent_harness.toolkits.file_parsers.ocr.OCRParser"
+        ) as mock_parser_cls:
+            instance = mock_parser_cls.return_value
+            instance.parse_bytes = AsyncMock(return_value="日本語テキスト")
+            result = await _ocr_rendered_pages_async(images, ocr_pages=30, lang="japan")
+
+        assert "日本語テキスト" in result
+        assert mock_parser_cls.call_args.kwargs["lang"] == "japan"
+
+    @pytest.mark.asyncio
+    async def test_sparse_pdf_render_limited_to_ocr_window(self):
+        """Scanned PDFs render only min(max_pages, ocr_pages) pages."""
+        from unittest.mock import AsyncMock
+
+        pdf_path = _make_sparse_pdf()
+        try:
+            with (
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    new_callable=AsyncMock,
+                ) as mock_ocr,
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    return_value=[PDFImageContent(data="aGVsbG8=")],
+                ) as mock_render,
+            ):
+                mock_ocr.return_value = "[Page 1]\nscanned text"
+                config = PDFExtractConfig(min_text_chars=200, max_pages=500, ocr_pages=30)
+                result = await extract_pdf_content(str(pdf_path), config)
+
+            assert result.strategy == "image"
+            assert mock_render.call_args.args[1] == 30  # min(500, 30)
+        finally:
+            pdf_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_sparse_pdf_ocr_disabled_renders_full_max_pages(self):
+        """ocr_pages=0 keeps full rendering so vision-only consumers still get page images."""
+        from unittest.mock import AsyncMock
+
+        pdf_path = _make_sparse_pdf()
+        try:
+            with (
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    new_callable=AsyncMock,
+                ) as mock_ocr,
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    return_value=[PDFImageContent(data="aGVsbG8=")],
+                ) as mock_render,
+            ):
+                config = PDFExtractConfig(min_text_chars=200, max_pages=50, ocr_pages=0)
+                result = await extract_pdf_content(str(pdf_path), config)
+
+            assert result.strategy == "image"
+            assert mock_render.call_args.args[1] == 50  # fall back to max_pages
+            mock_ocr.assert_not_awaited()
+        finally:
+            pdf_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_sparse_pdf_forwards_ocr_lang_from_config(self):
+        """extract_pdf_content passes PDFExtractConfig.ocr_lang to the OCR helper."""
+        from unittest.mock import AsyncMock
+
+        pdf_path = _make_sparse_pdf()
+        try:
+            with (
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    new_callable=AsyncMock,
+                ) as mock_ocr,
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    return_value=[PDFImageContent(data="aGVsbG8=")],
+                ),
+            ):
+                mock_ocr.return_value = "[Page 1]\njapanese text"
+                config = PDFExtractConfig(min_text_chars=200, ocr_lang="japan")
+                result = await extract_pdf_content(str(pdf_path), config)
+
+            assert result.strategy == "image"
+            assert mock_ocr.await_args.kwargs["lang"] == "japan"
+        finally:
+            pdf_path.unlink(missing_ok=True)

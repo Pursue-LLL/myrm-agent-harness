@@ -742,7 +742,14 @@ async def test_ensure_target_in_view_visible_in_nested_container_breaks(
         y=601,
         width=100,
         height=40,
-        container={"left": 21, "top": 0, "width": 300, "height": 120, "is_doc": False, "delta": 0},
+        container={
+            "left": 21,
+            "top": 0,
+            "width": 300,
+            "height": 120,
+            "is_doc": False,
+            "delta": 0,
+        },
     )
     mock_page.mouse.wheel = AsyncMock()
 
@@ -771,7 +778,14 @@ async def test_ensure_target_in_view_visible_in_iframe_breaks(
         y=55,
         width=100,
         height=40,
-        container={"left": 0, "top": 0, "width": 400, "height": 150, "is_doc": True, "delta": 0},
+        container={
+            "left": 0,
+            "top": 0,
+            "width": 400,
+            "height": 150,
+            "is_doc": True,
+            "delta": 0,
+        },
     )
     mock_page.mouse.wheel = AsyncMock()
 
@@ -786,7 +800,11 @@ async def test_interact_click_careful_pre_scrolls(mock_page: Any) -> None:
     """CAREFUL click on an off-band target humanized-wheels it into view first."""
     refs = {
         "e0": RefInfo(
-            role="button", name="Click Me", nth=None, bbox={"x": 100, "y": 50}, position="center-center"
+            role="button",
+            name="Click Me",
+            nth=None,
+            bbox={"x": 100, "y": 50},
+            position="center-center",
         )
     }
     interactor = _careful_interactor(mock_page, refs)
@@ -840,7 +858,11 @@ async def test_interact_click_careful_locked_scroll_falls_back(mock_page: Any) -
     """
     refs = {
         "e0": RefInfo(
-            role="button", name="Click Me", nth=None, bbox={"x": 100, "y": 50}, position="center-center"
+            role="button",
+            name="Click Me",
+            nth=None,
+            bbox={"x": 100, "y": 50},
+            position="center-center",
         )
     }
     interactor = _careful_interactor(mock_page, refs)
@@ -882,7 +904,11 @@ async def test_interact_click_careful_unreachable_target_raises(
     """A target with no scroll path fails loudly instead of clicking at the edge."""
     refs = {
         "e0": RefInfo(
-            role="button", name="Click Me", nth=None, bbox={"x": 100, "y": 50}, position="center-center"
+            role="button",
+            name="Click Me",
+            nth=None,
+            bbox={"x": 100, "y": 50},
+            position="center-center",
         )
     }
     interactor = _careful_interactor(mock_page, refs)
@@ -1822,10 +1848,13 @@ async def test_interact_fill_credential_vault_error(mock_page: Any) -> None:
         "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator"
     ) as mock_resolve:
         mock_resolve.return_value = AsyncMock()
-        with patch(
-            "myrm_agent_harness.core.security.credential_vault.CredentialVault.get_password",
-            side_effect=Exception("vault locked"),
-        ), pytest.raises(ValueError, match="Failed to retrieve credential"):
+        with (
+            patch(
+                "myrm_agent_harness.core.security.credential_vault.CredentialVault.get_password",
+                side_effect=Exception("vault locked"),
+            ),
+            pytest.raises(ValueError, match="Failed to retrieve credential"),
+        ):
             await interactor.interact("fill_credential", "e0", "github-personal")
 
 
@@ -1848,7 +1877,8 @@ async def test_interact_dialog_check_failure_falls_back(
         ),
         patch(
             "myrm_agent_harness.toolkits.browser.session.interactor.logger.warning"
-        ) as mock_warn,pytest.raises(Exception, match="Timeout")
+        ) as mock_warn,
+        pytest.raises(Exception, match="Timeout"),
     ):
         await interactor.interact("click", "e0", "")
 
@@ -1961,7 +1991,15 @@ async def test_ensure_target_in_view_delta_zero_breaks(
         "height": 100,
     }
     locator.evaluate.return_value = _probe(
-        y=454.4, container={"left": 0, "top": 0, "width": 1280, "height": 720, "is_doc": True, "delta": 0}
+        y=454.4,
+        container={
+            "left": 0,
+            "top": 0,
+            "width": 1280,
+            "height": 720,
+            "is_doc": True,
+            "delta": 0,
+        },
     )
     mock_page.mouse.wheel = AsyncMock()
 
@@ -1995,9 +2033,7 @@ async def test_scroll_noop_reason_smooth_scroll_settles(mock_page: Any) -> None:
 async def test_scroll_deliver_zero_delta_noop(mock_page: Any) -> None:
     """Zero delta emits no wheel events in any mode."""
     for mode in (HumanizeMode.FAST, HumanizeMode.DEFAULT, HumanizeMode.CAREFUL):
-        interactor = Interactor(
-            mock_page, {}, humanize=HumanizeConfig.from_mode(mode)
-        )
+        interactor = Interactor(mock_page, {}, humanize=HumanizeConfig.from_mode(mode))
         mock_page.mouse.wheel = AsyncMock()
         await interactor._scroll_deliver(0)
         mock_page.mouse.wheel.assert_not_called()

@@ -104,3 +104,12 @@ def test_build_qdrant_filter_id_plain_mixed_with_field_filter():
     assert isinstance(f.must[1], HasIdCondition)
     assert f.must[1].has_id == ["m1"]
 
+def test_build_qdrant_filter_id_bool_not_has_id():
+    # bool is a valid FilterDict scalar but never a point id; it must fall
+    # through to the generic match instead of raising a HasIdCondition error.
+    from qdrant_client.models import MatchValue
+    f = build_qdrant_filter({"id": True})
+    assert len(f.must) == 1
+    assert f.must[0].key == "id"
+    assert isinstance(f.must[0].match, MatchValue)
+

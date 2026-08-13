@@ -657,7 +657,7 @@ def test_canonical_params_completed_for_management_tools() -> None:
     assert TOOL_CANONICAL_PARAMS["subagent_control_tool"] == ["action", "task_id"]
     assert TOOL_CANONICAL_PARAMS["skill_manage_tool"] == ["action", "name"]
     assert TOOL_CANONICAL_PARAMS["skill_market_tool"] == ["action", "skill_id"]
-    assert TOOL_CANONICAL_PARAMS["skill_select_tool"] == ["skill_ids"]
+    assert TOOL_CANONICAL_PARAMS["skill_select_tool"] == ["skill_names"]
     assert TOOL_CANONICAL_PARAMS["todo_write"] == ["merge"]
     assert TOOL_CANONICAL_PARAMS["update_ui_data_tool"] == ["surface_id"]
     for control_signal in (
