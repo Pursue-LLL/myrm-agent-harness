@@ -5,6 +5,8 @@ deadline, partial results are retained, and the search is marked degraded instea
 of blocking the agent turn indefinitely.
 """
 
+from __future__ import annotations
+
 import asyncio
 
 import pytest
@@ -47,7 +49,11 @@ class TestRetrievalTimeoutConfig:
 class TestCollectPartialResults:
     @pytest.mark.asyncio
     async def test_hanging_store_keeps_fast_results_and_marks_degraded(
-        self, mock_relational_store, mock_vector_store, mock_embedding, fast_timeout_config
+        self,
+        mock_relational_store,
+        mock_vector_store,
+        mock_embedding,
+        fast_timeout_config,
     ) -> None:
         """A hanging semantic search degrades recall but keeps the fast profile results."""
         from myrm_agent_harness.toolkits.memory.types import ProfileEntry
@@ -69,7 +75,10 @@ class TestCollectPartialResults:
         )
 
         results = await manager.search(
-            "timezone", memory_types=[MemoryType.PROFILE, MemoryType.SEMANTIC], limit=10, use_rrf=False
+            "timezone",
+            memory_types=[MemoryType.PROFILE, MemoryType.SEMANTIC],
+            limit=10,
+            use_rrf=False,
         )
 
         assert len(results) == 1
@@ -197,9 +206,7 @@ class TestWikiSessionsCorpusTimeout:
             MemorySearchBackends,
         )
 
-        backends = MemorySearchBackends(
-            query_wiki=AsyncMock(side_effect=_hang_forever)
-        )
+        backends = MemorySearchBackends(query_wiki=AsyncMock(side_effect=_hang_forever))
         text = await search_wiki_corpus(backends, "query", timeout_seconds=0.05)
 
         assert "timed out" in text.lower()
@@ -245,9 +252,7 @@ class TestWikiSessionsCorpusTimeout:
         backends = MemorySearchBackends(
             query_web_corpus=AsyncMock(side_effect=_hang_forever)
         )
-        text = await _search_web_corpus(
-            backends, "query", 5, timeout_seconds=0.05
-        )
+        text = await _search_web_corpus(backends, "query", 5, timeout_seconds=0.05)
 
         assert "timed out" in text.lower()
         assert "retry" in text.lower()
@@ -281,7 +286,9 @@ class TestMemorySearchToolCorpusBranches:
             search_policy=policy or MemorySearchPolicy(),
             search_backends=backends or MemorySearchBackends(),
         )
-        return next(t for t in tools if getattr(t, "name", None) == "memory_search_tool")
+        return next(
+            t for t in tools if getattr(t, "name", None) == "memory_search_tool"
+        )
 
     @staticmethod
     def _manager(fast_timeout_config: MemoryConfig) -> MemoryManager:
@@ -368,9 +375,7 @@ class TestMemorySearchToolCorpusBranches:
             MemorySearchPolicy,
         )
 
-        backends = MemorySearchBackends(
-            query_web_corpus=AsyncMock(return_value="   ")
-        )
+        backends = MemorySearchBackends(query_web_corpus=AsyncMock(return_value="   "))
         tool = self._build_tool(
             self._manager(fast_timeout_config),
             policy=MemorySearchPolicy(allow_web=True),
@@ -394,7 +399,16 @@ class TestMemorySearchToolCorpusBranches:
         assert "profile_key lookup is only supported for corpus=memory." in text
 
     @pytest.mark.asyncio
-    async def test_all_corpora_disabled_returns_no_corpora(self, fast_timeout_config) -> None:
+    async def test_all_corpora_disabled_returns_no_corpora(
+        self, fast_timeout_config, monkeypatch
+    ) -> None:
+        import myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools as tools_mod
+
+        monkeypatch.setattr(
+            tools_mod,
+            "resolve_search_corpora",
+            lambda corpus, policy: ([], None),
+        )
         tool = self._build_tool(self._manager(fast_timeout_config))
 
         text = await tool.ainvoke({"query": "q", "corpus": "all"})

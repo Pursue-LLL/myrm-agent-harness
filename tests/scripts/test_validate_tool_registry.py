@@ -566,6 +566,52 @@ def test_governance_coverage_explicit_mcp_fallback_legal() -> None:
         assert meta["explicit_mcp_fallback"] is True
 
 
+def test_governance_coverage_flags_builtin_fallback_overlap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tool in both BUILTIN_TOOL_NAMES and EXPLICIT_MCP_FALLBACK_TOOLS must
+    fail: BUILTIN membership flips the runtime baseline to ALLOW, contradicting
+    the intentional mcp_invoke fallback."""
+    import scripts.validate_tool_registry as cli
+
+    registry = _governance_registry()
+    original = registry.BUILTIN_TOOL_NAMES
+    registry.BUILTIN_TOOL_NAMES = frozenset(
+        original | registry.EXPLICIT_MCP_FALLBACK_TOOLS
+    )
+    try:
+        errors, _ = cli._check_governance_coverage()
+    finally:
+        registry.BUILTIN_TOOL_NAMES = original
+    assert any(
+        "both BUILTIN_TOOL_NAMES and EXPLICIT_MCP_FALLBACK_TOOLS" in e
+        for e in errors
+    )
+
+
+def test_governance_coverage_flags_invalid_whitelist_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A RULESET_COVERAGE_WHITELIST declaration with a reason outside
+    AUTO_APPROVE_REASONS must fail (distinct from the AUTO_APPROVED_BUILTIN_TOOLS
+    reason gate)."""
+    import scripts.validate_tool_registry as cli
+
+    registry = _governance_registry()
+    original = registry.RULESET_COVERAGE_WHITELIST
+    registry.RULESET_COVERAGE_WHITELIST = {
+        **original,
+        "browser_read": "not_a_valid_reason",
+    }
+    try:
+        errors, _ = cli._check_governance_coverage()
+    finally:
+        registry.RULESET_COVERAGE_WHITELIST = original
+    assert any(
+        "browser_read" in e and "not in AUTO_APPROVE_REASONS" in e for e in errors
+    )
+
+
 def test_governance_coverage_external_tools_annotated_server_managed() -> None:
     """EXTERNAL tools are server-vendor tools; the harness gate annotates them
     as server_managed instead of forcing a harness governance declaration."""
