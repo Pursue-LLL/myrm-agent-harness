@@ -110,8 +110,9 @@ def create_web_search_tool(
         from myrm_agent_harness.toolkits.web_search.engine import WebSearchTools
 
         if blocked_terms:
+            lowered_terms = tuple(term.lower() for term in blocked_terms)
             for q in questions:
-                if any(term in q.lower() for term in blocked_terms):
+                if any(term in q.lower() for term in lowered_terms):
                     raise ToolError(
                         f"Search query blocked: {q}",
                         user_hint="The query is excluded from search for this run. Rephrase it without the blocked terms.",

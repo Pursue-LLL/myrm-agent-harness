@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
-from langchain_core.tools import ToolException
 
 from myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools import (
     create_web_fetch_tool,
 )
+from myrm_agent_harness.utils.errors import ToolError
 
 HF_BLOCKLIST = ("huggingface.co", "*.huggingface.co", "hf.co", "*.hf.co")
 
@@ -19,7 +21,7 @@ def _make_tool() -> object:
 @pytest.mark.asyncio
 async def test_blocked_hf_host_rejected_before_fetch() -> None:
     tool = _make_tool()
-    with pytest.raises(ToolException):
+    with pytest.raises(ToolError) as exc_info:
         await tool.ainvoke(
             {
                 "urls": ["https://huggingface.co/datasets/leak"],
@@ -27,12 +29,13 @@ async def test_blocked_hf_host_rejected_before_fetch() -> None:
                 "reason": "decontamination probe",
             }
         )
+    assert exc_info.value.error_code == "BENCHMARK_BLOCKED_HOST"
 
 
 @pytest.mark.asyncio
 async def test_blocked_short_alias_rejected() -> None:
     tool = _make_tool()
-    with pytest.raises(ToolException):
+    with pytest.raises(ToolError):
         await tool.ainvoke(
             {
                 "urls": ["https://hf.co/models/x"],
@@ -45,7 +48,7 @@ async def test_blocked_short_alias_rejected() -> None:
 @pytest.mark.asyncio
 async def test_blocked_subdomain_rejected() -> None:
     tool = _make_tool()
-    with pytest.raises(ToolException):
+    with pytest.raises(ToolError):
         await tool.ainvoke(
             {
                 "urls": ["https://datasets-server.huggingface.co/rows"],
@@ -63,9 +66,7 @@ async def test_clean_url_reaches_fetch_stage() -> None:
     # _fetch_full_content means the blocklist let the URL through.
     import myrm_agent_harness.toolkits.web_fetch.web_fetch_agent_tools as mod
 
-    with __import__("unittest.mock").patch.object(
-        mod, "_fetch_full_content"
-    ) as mock_fetch:
+    with patch.object(mod, "_fetch_full_content") as mock_fetch:
         mock_fetch.return_value = {"content": "ok", "metadata": {}}
         result = await tool.ainvoke(
             {
@@ -89,7 +90,8 @@ async def test_block_error_text() -> None:
                 "reason": "",
             }
         )
-    except ToolException as exc:
+    except ToolError as exc:
         assert "URL blocked" in str(exc)
+        assert exc.error_category == "benchmark_blocked"
     else:  # pragma: no cover
-        pytest.fail("expected ToolException")
+        pytest.fail("expected ToolError")
