@@ -833,6 +833,9 @@ def test_main_json_emits_governance_coverage(
     assert "governance_errors" in payload
     assert payload["governance_errors"] == []
     assert "tool_coverage" in payload["governance_coverage"]
+    ptc = payload["governance_coverage"]["permission_type_coverage"]
+    for meta in ptc.values():
+        assert {"has_ruleset_rule", "whitelist_reason", "whitelist_orphan"} <= set(meta)
 
 
 def test_canonical_params_completed_for_management_tools() -> None:

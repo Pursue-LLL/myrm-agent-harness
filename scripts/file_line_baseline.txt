@@ -2,7 +2,7 @@
 # CI: check_file_line_limit.py --baseline this file
 # Files listed here may exceed 500 lines; line count must not grow.
 # Remove entries after splitting below 500 lines.
-# TOTAL: 128 files
+# TOTAL: 127 files
 myrm_agent_harness/agent/_internals/memory_extraction.py	503
 myrm_agent_harness/agent/background_worker/idle_tasks.py	562
 myrm_agent_harness/agent/context_management/strategies/compactor/compactor.py	507
@@ -88,7 +88,6 @@ myrm_agent_harness/toolkits/browser/pool/browser_launcher.py	553
 myrm_agent_harness/toolkits/browser/pool/browser_pool.py	753
 myrm_agent_harness/toolkits/browser/pool/config.py	626
 myrm_agent_harness/toolkits/browser/session/extractor.py	577
-myrm_agent_harness/toolkits/browser/session/interactor.py	1123
 myrm_agent_harness/toolkits/code_execution/executors/local/executor.py	586
 myrm_agent_harness/toolkits/code_execution/security/safe_command_configs/git.py	556
 myrm_agent_harness/toolkits/code_execution/security/shell_command_analyzer.py	502

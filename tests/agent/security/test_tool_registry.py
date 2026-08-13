@@ -410,6 +410,19 @@ class TestComputerToolMapping:
         assert len(desktop_rules) == 1
         assert desktop_rules[0].action == PermissionAction.ASK
 
+    def test_explicit_mcp_fallback_tools_keep_ask_baseline(self):
+        """EXPLICIT_MCP_FALLBACK_TOOLS must resolve to mcp_invoke (ASK baseline)
+        at runtime and must not gain a TOOL_PERMISSION_MAP entry — a map entry
+        could flip them to ALLOW and defeat the intentional fallback."""
+        from myrm_agent_harness.core.security.tool_registry import (
+            EXPLICIT_MCP_FALLBACK_TOOLS,
+        )
+
+        assert EXPLICIT_MCP_FALLBACK_TOOLS, "declaration set must not be empty"
+        for tool in EXPLICIT_MCP_FALLBACK_TOOLS:
+            assert tool not in TOOL_PERMISSION_MAP
+            assert resolve_permission_type(tool) == "mcp_invoke"
+
 
 class TestComputeCanonicalArgsHash:
     """Tests for compute_canonical_args_hash — stable hashing of tool arguments."""
