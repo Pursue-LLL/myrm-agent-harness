@@ -7,8 +7,8 @@ Isolated portable toolchain manager for external CLI agents (Node.js download, n
 
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
-| __init__.py | Package | Re-exports ToolchainManager | — |
-| manager.py | Core | ToolchainManager — download, install, resolve CLI binaries under `~/.myrm-agent/toolchains` | — |
+| __init__.py | Package | Re-exports TOOLCHAIN_BASE_DIR and IsolatedToolchainManager | — |
+| manager.py | Core | IsolatedToolchainManager — download portable envs, install/resolve CLI binaries under `~/.myrm-agent/toolchains` | ✅ |
 
 ## Module Dependencies
 
