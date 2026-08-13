@@ -55,7 +55,7 @@ async def create_embedded_store(
     is_memory = path == ":memory:"
     if is_memory:
         data_path = Path(":memory:")
-        cache_key = "memory_fallback"
+        cache_key = ":memory:"
     else:
         data_path = Path(path).resolve()
         cache_key = str(data_path)
@@ -75,11 +75,13 @@ async def create_embedded_store(
             actual_path = str(data_path) if not is_memory else ":memory:"
             logger.info("Qdrant EMBEDDED mode initialized: %s", actual_path)
         except Exception as e:
-            # Fallback to in-memory if filesystem fails
+            # Fallback to in-memory if filesystem fails.
+            # Derive the cache key from the original path so fallback stores of
+            # different base_paths never share one in-memory Qdrant instance.
             logger.error(f" Failed to initialize Qdrant at {data_path}: {e}. Falling back to :memory:")
             client = QdrantClient(path=":memory:")
             actual_path = ":memory:"
-            cache_key = "memory_fallback"
+            cache_key = f"{cache_key}:memory_fallback"
 
         config = VectorStoreConfig(
             mode=DeploymentMode.EMBEDDED,
@@ -123,10 +125,18 @@ async def evict_embedded_store(path: str) -> None:
     Embedded stores are cached per path for process lifetime; callers that
     provision a throwaway volume (e.g. isolated evaluation runs) must evict it
     when done so the underlying QdrantClient and its file handles are released.
+
+    A store that fell back to in-memory is keyed by ``f"{resolved}:memory_fallback"``;
+    probe both the regular key and the fallback key so eviction works either way.
     """
-    cache_key = "memory_fallback" if path == ":memory:" else str(Path(path).resolve())
+    resolved = str(Path(path).resolve()) if path != ":memory:" else ":memory:"
+    candidate_keys = [resolved, f"{resolved}:memory_fallback"]
     async with _embedded_lock:
-        store = _embedded_clients.pop(cache_key, None)
+        store = None
+        for key in candidate_keys:
+            store = _embedded_clients.pop(key, None)
+            if store is not None:
+                break
     if store is None:
         return
     try:

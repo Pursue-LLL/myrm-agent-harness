@@ -46,6 +46,87 @@ async def test_singleton_per_path(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_memory_fallback_isolated_per_path(tmp_path):
+    """不同 base_path 的 fallback 必须隔离，不能共享同一内存 store。
+
+    回归：fallback 统一 cache_key 为 "memory_fallback" 导致多个不可写路径
+    共享同一个 in-memory Qdrant 实例（数据串写），且 evict 无法按原路径清理。
+    """
+    from unittest.mock import MagicMock, patch
+
+    from myrm_agent_harness.toolkits.vector.qdrant.factory import (
+        _embedded_clients,
+        evict_embedded_store,
+    )
+
+    def fake_client(path: str, **kwargs: object) -> object:
+        if path == ":memory:":
+            return MagicMock()
+        raise OSError("unwritable")
+
+    path_a = tmp_path / "a" / "vector_store"
+    path_b = tmp_path / "b" / "vector_store"
+
+    with patch("qdrant_client.QdrantClient", side_effect=fake_client):
+        store_a = await create_embedded_store(path=str(path_a))
+        store_b = await create_embedded_store(path=str(path_b))
+
+    # 两个不可写路径 fallback 后必须是相互独立的实例，绝不共享同一内存 store。
+    assert store_a is not store_b
+
+    key_a = f"{str(path_a.resolve())}:memory_fallback"
+    key_b = f"{str(path_b.resolve())}:memory_fallback"
+    assert key_a in _embedded_clients
+    assert key_b in _embedded_clients
+
+    # 通过原始路径 evict 必须能命中各自的 fallback store。
+    await evict_embedded_store(str(path_a))
+    assert key_a not in _embedded_clients
+    assert key_b in _embedded_clients
+
+    await evict_embedded_store(str(path_b))
+    assert key_b not in _embedded_clients
+    await store_a.hard_close()
+    await store_b.hard_close()
+
+
+@pytest.mark.asyncio
+async def test_explicit_memory_does_not_share_fallback_key(tmp_path):
+    """显式 :memory: 与 fallback store 不得共用 cache_key。
+
+    回归：显式 ":memory:" 与不可写路径 fallback 此前共用 "memory_fallback"，
+    测试用的内存 store 会被 fallback 数据污染。
+    """
+    from unittest.mock import MagicMock, patch
+
+    from myrm_agent_harness.toolkits.vector.qdrant.factory import (
+        _embedded_clients,
+        evict_embedded_store,
+    )
+
+    def fake_client(path: str, **kwargs: object) -> object:
+        if path == ":memory:":
+            return MagicMock()
+        raise OSError("unwritable")
+
+    bad_path = tmp_path / "bad" / "vector_store"
+
+    with patch("qdrant_client.QdrantClient", side_effect=fake_client):
+        store_mem = await create_embedded_store(path=":memory:")
+        store_fb = await create_embedded_store(path=str(bad_path))
+
+    assert store_mem is not store_fb
+    assert ":memory:" in _embedded_clients
+    assert f"{str(bad_path.resolve())}:memory_fallback" in _embedded_clients
+
+    await evict_embedded_store(":memory:")
+    assert ":memory:" not in _embedded_clients
+    await store_mem.hard_close()
+    await evict_embedded_store(str(bad_path))
+    await store_fb.hard_close()
+
+
+@pytest.mark.asyncio
 async def test_evict_embedded_store_releases_singleton(tmp_path):
     path = str(tmp_path / "evict_me")
     store1 = await create_embedded_store(path=path)
