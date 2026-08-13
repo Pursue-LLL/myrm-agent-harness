@@ -24,12 +24,11 @@
 ║  server.py                    ║  RuntimeBackend Protocol       ║
 ║  bridge.py                    ║  ├─ AcpRuntime + AcpCallback   ║
 ║  event_translator.py          ║  ├─ SdkRuntime                 ║
-║  _default_factory.py          ║  └─ CliRuntime                 ║
-║  __main__.py (根)             ║  RuntimePool                   ║
+║  __main__.py (根)             ║  └─ CliRuntime                 ║
 ╠═══════════════════════════════╩═══════════════════════════════╣
-║                    横切关注点                                   ║
-║  types.py · EventBus · PermissionManager                      ║
-║  BackendDetector · HealthMonitor                               ║
+║                    横切关注点 (core/)                          ║
+║  types.py · core/EventBus · core/PermissionManager           ║
+║  core/BackendDetector · core/HealthMonitor                    ║
 ╚═══════════════════════════════════════════════════════════════╝
 ```
 
@@ -348,7 +347,7 @@ acp/
     └── manager.py          # ToolchainManager
 ```
 
-`tools/acp_delegate/delegate_tool.py` 通过 `RuntimePool` 发起委托，汇总 `USAGE_UPDATE` 事件的 token 消耗并推送至前端。`runtime/_parser.py` 提供 `CliRuntime` 和 `SdkRuntime` 共享的 NDJSON 事件解析逻辑（tool_use / tool_result / usage / error / thinking）。`cli_runtime.py` 支持 Codex CLI 两种输出格式：新格式（`item.started/completed` + `turn.completed/failed`，含 `command_execution`、`file_change`、`reasoning` 工具事件映射）和 legacy 格式（`{"id","msg"}` envelope 解包）。
+`toolkits/acp/acp_agent_tools.py` 通过 `RuntimePool` 发起委托，汇总 `USAGE_UPDATE` 事件的 token 消耗并推送至前端。`runtime/_parser.py` 提供 `CliRuntime` 和 `SdkRuntime` 共享的 NDJSON 事件解析逻辑（tool_use / tool_result / usage / error / thinking）。`cli_runtime.py` 支持 Codex CLI 两种输出格式：新格式（`item.started/completed` + `turn.completed/failed`，含 `command_execution`、`file_change`、`reasoning` 工具事件映射）和 legacy 格式（`{"id","msg"}` envelope 解包）。
 
 ---
 

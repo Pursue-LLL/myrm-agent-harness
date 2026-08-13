@@ -9,6 +9,8 @@ session management, tool execution, and permission callbacks internally.
 
 [INPUT]
 - toolkits.acp.types::AcpError, AcpErrorCode, BackendCapabilities (POS: ACP runtime type definitions layer. Provides all ACP-related core abstractions and data structures, serving as the foundation for the entire ACP module.)
+- toolkits.acp.runtime._base::BaseRuntime, build_safe_env (POS: Base class for RuntimeBackend implementations)
+- toolkits.acp.runtime._parser::parse_json_line, parse_tool_use, parse_tool_result, parse_thinking, parse_error, parse_usage (POS: Shared NDJSON event parsers for CLI and SDK runtimes)
 - toolkits.code_execution.utils.workspace_path::WorkspacePathResolver (POS: Workspace path resolver with intelligent auto-detection.)
 
 [OUTPUT]
@@ -203,18 +205,14 @@ class SdkRuntime(BaseRuntime):
         """Parse a single NDJSON line from the SDK bridge output."""
         data = parse_json_line(line)
         if data is None:
-            return create_event(
-                RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n"
-            )
+            return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=line + "\n")
 
         event_type = data.get("type", "")
 
         if event_type in ("text", "assistant", "content_block_delta"):
             content = data.get("text", data.get("content", ""))
             if isinstance(content, str) and content:
-                return create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content=content
-                )
+                return create_event(RuntimeEventType.TEXT_DELTA, session_id, content=content)
 
         if event_type == "thinking":
             return parse_thinking(data, session_id)

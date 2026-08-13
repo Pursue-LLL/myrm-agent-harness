@@ -5,7 +5,8 @@ common installation paths, and npm global. Maintains process-wide caches
 for versioned and non-versioned detection results to avoid repeated scans.
 
 [INPUT]
-- (none)
+- myrm_agent_harness.toolkits.acp.toolchains::TOOLCHAIN_BASE_DIR (POS: isolated toolchain base dir)
+- myrm_agent_harness.toolkits.acp.auth.credential_store::CredentialState (POS: credential state detection) [TYPE_CHECKING]
 
 [OUTPUT]
 - DetectedBackend: A detected CLI backend with its path and version.
@@ -27,14 +28,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
+from myrm_agent_harness.toolkits.acp.toolchains import TOOLCHAIN_BASE_DIR
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from myrm_agent_harness.toolkits.acp.auth.credential_store import CredentialState
 
 logger = logging.getLogger(__name__)
-
-from myrm_agent_harness.toolkits.acp.toolchains import TOOLCHAIN_BASE_DIR  # noqa: E402
 
 _KNOWN_BACKENDS = ("claude", "codex", "gemini")
 

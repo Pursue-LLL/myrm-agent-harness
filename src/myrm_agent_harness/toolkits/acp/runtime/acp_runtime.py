@@ -63,9 +63,7 @@ class AcpRuntime(BaseRuntime):
         self._conn: ClientSideConnection | None = None
         self._process: Process | None = None
         self._session_id: str | None = None
-        self._ctx_manager: (
-            AbstractAsyncContextManager[tuple[ClientSideConnection, Process]] | None
-        ) = None
+        self._ctx_manager: AbstractAsyncContextManager[tuple[ClientSideConnection, Process]] | None = None
         self._handler: AcpCallbackHandler | None = None
         self._event_bus = event_bus
 
@@ -122,9 +120,7 @@ class AcpRuntime(BaseRuntime):
             except asyncio.CancelledError:
                 pass
             except Exception:
-                logger.error(
-                    "acp_prompt_task_failed name=%s", self._name, exc_info=True
-                )
+                logger.error("acp_prompt_task_failed name=%s", self._name, exc_info=True)
                 # Re-raise so the failure surfaces as an ERROR event and the
                 # BaseRuntime cleans up the process, matching CliRuntime and
                 # SdkRuntime behavior instead of degrading to a silent DONE.
@@ -167,9 +163,7 @@ class AcpRuntime(BaseRuntime):
             try:
                 await self._conn.close_session(session_id=self._session_id)
             except Exception:
-                logger.debug(
-                    "acp_close_session_failed name=%s", self._name, exc_info=True
-                )
+                logger.debug("acp_close_session_failed name=%s", self._name, exc_info=True)
 
         if self._ctx_manager is not None:
             try:
@@ -181,9 +175,7 @@ class AcpRuntime(BaseRuntime):
                 try:
                     await self._conn.close()
                 except Exception:
-                    logger.debug(
-                        "acp_close_conn_failed name=%s", self._name, exc_info=True
-                    )
+                    logger.debug("acp_close_conn_failed name=%s", self._name, exc_info=True)
             if self._process is not None:
                 with contextlib.suppress(ProcessLookupError):
                     self._process.terminate()
@@ -257,9 +249,7 @@ class AcpRuntime(BaseRuntime):
         )
         logger.info("acp_runtime_connected name=%s pid=%s", self._name, process.pid)
 
-    async def _create_session(
-        self, *, mcp_servers: list[McpServerConfig] | None = None
-    ) -> None:
+    async def _create_session(self, *, mcp_servers: list[McpServerConfig] | None = None) -> None:
         """Create a new ACP session."""
         if self._conn is None:
             msg = "Cannot create session: connection not established"
@@ -297,10 +287,7 @@ def _mcp_configs_to_acp_stdio(
             name=server.name,
             command=server.command,
             args=list(server.args),
-            env=[
-                EnvVariable(name=key, value=value)
-                for key, value in sorted((server.env or {}).items())
-            ],
+            env=[EnvVariable(name=key, value=value) for key, value in sorted((server.env or {}).items())],
         )
         for server in mcp_servers
     ]

@@ -5,6 +5,8 @@ Gemini CLI, and any CLI tool that outputs newline-delimited JSON events.
 
 [INPUT]
 - toolkits.acp.types::AcpError, AcpErrorCode, BackendCapabilities (POS: ACP runtime type definitions layer. Provides all ACP-related core abstractions and data structures, serving as the foundation for the entire ACP module.)
+- toolkits.acp.runtime._base::BaseRuntime, build_safe_env (POS: Base class for RuntimeBackend implementations)
+- toolkits.acp.runtime._parser::parse_json_line, parse_tool_use, parse_tool_result, parse_thinking, parse_error, parse_usage, parse_codex_item_event, unwrap_codex_envelope, extract_text_from_event (POS: Shared NDJSON event parsers for CLI and SDK runtimes)
 - toolkits.code_execution.utils.workspace_path::WorkspacePathResolver (POS: Workspace path resolver with intelligent auto-detection.)
 
 [OUTPUT]
