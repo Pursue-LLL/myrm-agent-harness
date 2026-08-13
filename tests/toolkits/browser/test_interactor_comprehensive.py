@@ -9,10 +9,10 @@ import pytest
 
 from myrm_agent_harness.toolkits.browser.exceptions import RefNotFoundError
 from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig, HumanizeMode
-from myrm_agent_harness.toolkits.browser.session.interactor import (
-    Interactor,
-    _parse_scroll_params,
+from myrm_agent_harness.toolkits.browser.session.interactor import Interactor
+from myrm_agent_harness.toolkits.browser.session.interactor_scroll_mixin import (
     _SCROLL_MEASURE_JS,
+    _parse_scroll_params,
 )
 from myrm_agent_harness.toolkits.browser.snapshot import RefInfo
 
