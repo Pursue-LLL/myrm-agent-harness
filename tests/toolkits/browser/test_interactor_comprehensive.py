@@ -7,7 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.browser.exceptions import RefNotFoundError
+from myrm_agent_harness.toolkits.browser.exceptions import (
+    ClickTargetUnreachableError,
+    RefNotFoundError,
+)
 from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig, HumanizeMode
 from myrm_agent_harness.toolkits.browser.session.interactor import Interactor
 from myrm_agent_harness.toolkits.browser.session.interactor_scroll_mixin import (
@@ -673,20 +676,38 @@ async def test_ensure_target_in_view_scrolls_nested_container(
         "width": 100,
         "height": 40,
     }
-    locator.evaluate.return_value = _probe(
-        visible=False,
-        y=601,
-        width=100,
-        height=40,
-        container={
-            "left": 21,
-            "top": 0,
-            "width": 300,
-            "height": 120,
-            "is_doc": False,
-            "delta": 561,
-        },
-    )
+    locator.evaluate.side_effect = [
+        _probe(
+            visible=False,
+            x=21,
+            y=601,
+            width=100,
+            height=40,
+            container={
+                "left": 21,
+                "top": 0,
+                "width": 300,
+                "height": 120,
+                "is_doc": False,
+                "delta": 561,
+            },
+        ),
+        _probe(
+            visible=True,
+            x=21,
+            y=601,
+            width=100,
+            height=40,
+            container={
+                "left": 21,
+                "top": 0,
+                "width": 300,
+                "height": 120,
+                "is_doc": False,
+                "delta": 0,
+            },
+        ),
+    ]
     mock_page.mouse.wheel = AsyncMock()
 
     with (
@@ -699,8 +720,8 @@ async def test_ensure_target_in_view_scrolls_nested_container(
     mock_deliver.assert_awaited_once_with(561)
     # wheel dispatch lands inside the scroller (its center), not on the target
     args, _kwargs = mock_move.await_args
-    assert args[0] == 171.0  # 21+10 + (21+150) - (21+50) = 171
-    assert args[1] == 61.0  # 621 + (0+60) - (601+20) = 60 → 61? assert below
+    assert args[0] == 171.0  # cx 71 + (container cx 171 - probe cx 71) = 171
+    assert args[1] == 60.0  # cy 621 + (container cy 60 - probe cy 621) = 60
 
 
 @pytest.mark.asyncio
@@ -780,6 +801,12 @@ async def test_interact_click_careful_pre_scrolls(mock_page: Any) -> None:
         {"x": 100, "y": 400, "width": 200, "height": 100},  # cy = 450 in zone
         {"x": 100, "y": 400, "width": 200, "height": 100},  # inside viewport
     ]
+    locator.evaluate.side_effect = [
+        _probe(visible=False, y=1800, container=_doc_container(1490)),
+        _probe(visible=False, y=1800, container=_doc_container(1490)),
+        _probe(visible=False, y=1800, container=_doc_container(1490)),
+        _probe(y=400, container=_doc_container(0)),
+    ]
     mock_page.mouse = MagicMock()
     mock_page.mouse.move = AsyncMock()
     mock_page.mouse.wheel = AsyncMock()
@@ -824,6 +851,9 @@ async def test_interact_click_careful_locked_scroll_falls_back(mock_page: Any) -
         "width": 200,
         "height": 100,
     }  # cy = 1850 > zone_hi = 504; box never moves (scroll locked)
+    locator.evaluate.return_value = _probe(
+        visible=False, y=1800, container=_doc_container(1490)
+    )
     mock_page.mouse = MagicMock()
     mock_page.mouse.move = AsyncMock()
     mock_page.mouse.wheel = AsyncMock()
@@ -843,6 +873,44 @@ async def test_interact_click_careful_locked_scroll_falls_back(mock_page: Any) -
     locator.click.assert_awaited_once()  # native fallback path
     mock_page.mouse.down.assert_not_called()
     mock_page.mouse.up.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_interact_click_careful_unreachable_target_raises(
+    mock_page: Any,
+) -> None:
+    """A target with no scroll path fails loudly instead of clicking at the edge."""
+    refs = {
+        "e0": RefInfo(
+            role="button", name="Click Me", nth=None, bbox={"x": 100, "y": 50}, position="center-center"
+        )
+    }
+    interactor = _careful_interactor(mock_page, refs)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {
+        "x": 100,
+        "y": 1800,
+        "width": 200,
+        "height": 100,
+    }  # off-viewport, never moves (scroll locked)
+    locator.evaluate.return_value = _probe(visible=False, y=1800, container=None)
+    mock_page.mouse = MagicMock()
+    mock_page.mouse.move = AsyncMock()
+    mock_page.mouse.wheel = AsyncMock()
+    mock_page.mouse.down = AsyncMock()
+    mock_page.mouse.up = AsyncMock()
+
+    with (
+        patch(
+            "myrm_agent_harness.toolkits.browser.session.interactor.resolve_locator",
+            return_value=locator,
+        ),
+        patch("random.random", return_value=0.5),
+        pytest.raises(ClickTargetUnreachableError),
+    ):
+        await interactor.interact("click", "e0")
+
+    locator.click.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -1757,9 +1825,8 @@ async def test_interact_fill_credential_vault_error(mock_page: Any) -> None:
         with patch(
             "myrm_agent_harness.core.security.credential_vault.CredentialVault.get_password",
             side_effect=Exception("vault locked"),
-        ):
-            with pytest.raises(ValueError, match="Failed to retrieve credential"):
-                await interactor.interact("fill_credential", "e0", "github-personal")
+        ), pytest.raises(ValueError, match="Failed to retrieve credential"):
+            await interactor.interact("fill_credential", "e0", "github-personal")
 
 
 @pytest.mark.asyncio
@@ -1781,10 +1848,9 @@ async def test_interact_dialog_check_failure_falls_back(
         ),
         patch(
             "myrm_agent_harness.toolkits.browser.session.interactor.logger.warning"
-        ) as mock_warn,
+        ) as mock_warn,pytest.raises(Exception, match="Timeout")
     ):
-        with pytest.raises(Exception, match="Timeout"):
-            await interactor.interact("click", "e0", "")
+        await interactor.interact("click", "e0", "")
 
     # Falls through to the "no OS dialog detected" branch, still warns, then re-raises.
     assert mock_warn.call_count == 1
@@ -1859,16 +1925,25 @@ async def test_target_box_wait_failure_returns_none(
 async def test_ensure_target_in_view_box_disappears_mid_scroll(
     mock_page: Any, refs_map: dict[str, RefInfo]
 ) -> None:
-    """The target vanishes mid-scroll: degrade to False, no crash."""
+    """The target vanishes mid-scroll: report the scroll that already happened."""
     interactor = _careful_interactor(mock_page, refs_map)
     locator = AsyncMock()
     off_zone = {"x": 100, "y": 1800, "width": 200, "height": 100}
-    # 186 initial check → off-zone; 193 cursor target → same box;
-    # 198 loop re-check → None → break
-    locator.bounding_box.side_effect = [off_zone, off_zone, None]
+    # first loop re-check box (below) + probe (invisible → container wheel),
+    # then loop re-check box → None → break
+    locator.bounding_box.side_effect = [off_zone, None]
+    locator.evaluate.return_value = _probe(
+        visible=False, y=1800, container=_doc_container(1490)
+    )
     mock_page.mouse.wheel = AsyncMock()
 
-    assert await interactor._ensure_target_in_view(locator) is False
+    with (
+        patch.object(interactor, "_scroll_deliver", new=AsyncMock()),
+        patch("random.random", return_value=0.5),
+    ):
+        moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is True  # one wheel delivery already happened
 
 
 @pytest.mark.asyncio
@@ -1885,6 +1960,9 @@ async def test_ensure_target_in_view_delta_zero_breaks(
         "width": 200,
         "height": 100,
     }
+    locator.evaluate.return_value = _probe(
+        y=454.4, container={"left": 0, "top": 0, "width": 1280, "height": 720, "is_doc": True, "delta": 0}
+    )
     mock_page.mouse.wheel = AsyncMock()
 
     assert await interactor._ensure_target_in_view(locator) is False

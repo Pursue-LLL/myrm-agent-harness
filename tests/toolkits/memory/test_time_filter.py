@@ -139,7 +139,7 @@ class TestUserFilter:
     def test_time_filter_with_namespaces(self):
         since = datetime(2026, 4, 1, tzinfo=UTC)
         f = _user_filter(namespaces=["ns1"], since=since)
-        assert f["namespaces"] == ["ns1"]
+        assert f["primary_namespace"] == ["ns1"]
         assert "created_at" in f
 
     def test_time_filter_preserves_archived_exclusion(self):

@@ -69,10 +69,17 @@ def _user_filter(
 
     Centralizes archived-exclusion and time-range filtering so every
     query path uses the same logic.
+
+    The namespace filter targets ``primary_namespace`` with an exact IN
+    semantic (Qdrant MatchAny against the single-value field), mirroring the
+    relational store's ``primary_namespace IN (...)`` and the Claim Graph's
+    per-namespace lookups. Filtering the multi-value ``namespaces`` list would
+    match any document sharing a broadcast namespace (e.g. ``global``) and
+    leak one agent's memories into another agent's reads and deletions.
     """
     f: FilterDict = {"archived": False}
     if namespaces:
-        f["namespaces"] = namespaces
+        f["primary_namespace"] = namespaces
     if include_archived:
         del f["archived"]
     if since is not None or until is not None:

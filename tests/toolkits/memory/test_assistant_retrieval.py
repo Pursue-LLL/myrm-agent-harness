@@ -223,4 +223,4 @@ async def test_two_pass_with_namespaces(mock_vector_store, mock_config):
     assert len(results) == 1
     call_args_list = mock_vector_store.search.call_args_list
     pass1_filters = call_args_list[0][1]["filters"]
-    assert pass1_filters["namespaces"] == ["global", "shared:alpha"]
+    assert pass1_filters["primary_namespace"] == ["global", "shared:alpha"]

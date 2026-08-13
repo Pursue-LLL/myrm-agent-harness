@@ -49,7 +49,7 @@ def _new_deduplicator() -> SmartDeduplicator:
 
 
 class ScopeAwareVector:
-    """Minimal vector store honoring the ``namespaces`` filter key."""
+    """Minimal vector store honoring the ``primary_namespace`` filter key."""
 
     def __init__(self) -> None:
         self.docs: dict[str, VectorDocument] = {}
@@ -57,11 +57,11 @@ class ScopeAwareVector:
     async def search(
         self, collection, query_vector, *, limit=10, filters=None, score_threshold=None
     ):
-        allow = set((filters or {}).get("namespaces", []))
+        allow = set((filters or {}).get("primary_namespace", []))
         hits = [
             d
             for d in self.docs.values()
-            if set(d.metadata.get("namespaces", [])) & allow
+            if d.metadata.get("primary_namespace") in allow
         ]
         if not hits:
             return []
@@ -103,7 +103,10 @@ async def test_dedup_does_not_suppress_other_agents_memory() -> None:
             VectorDocument(
                 id="mem-b",
                 content="User prefers Python over Rust",
-                metadata={"namespaces": ["agent:B"]},
+                metadata={
+                    "primary_namespace": "agent:B",
+                    "namespaces": ["global", "agent:B"],
+                },
             )
         ],
     )
@@ -113,6 +116,38 @@ async def test_dedup_does_not_suppress_other_agents_memory() -> None:
     out = await dedup.deduplicate_batch([mem_a], store, AsyncMock(), _config(), None)
 
     assert len(out) == 1  # NEW — created in agent A's own scope
+
+
+@pytest.mark.asyncio
+async def test_dedup_cross_agent_shared_global_does_not_leak_candidates() -> None:
+    """A foreign agent's record that merely shares the ``global`` broadcast
+    namespace must never become a dedup candidate (P0 cross-agent fence).
+
+    Production records carry ``namespaces`` including ``global``, so a loose
+    intersect on that list would let agent B match agent A's memory. The
+    filter keys on ``primary_namespace`` exactly, so the match fails and the
+    new memory is kept instead of being suppressed or merged into A.
+    """
+    store = ScopeAwareVector()
+    await store.upsert(
+        "semantic",
+        [
+            VectorDocument(
+                id="mem-a",
+                content="User prefers Python over Rust",
+                metadata={
+                    "primary_namespace": "agent:A",
+                    "namespaces": ["global", "agent:A"],
+                },
+            )
+        ],
+    )
+    dedup = _new_deduplicator()
+    mem_b = _semantic("User prefers Python over Rust", ns=["global", "agent:B"])
+
+    out = await dedup.deduplicate_batch([mem_b], store, AsyncMock(), _config(), None)
+
+    assert len(out) == 1  # kept as NEW — agent A's memory is invisible to agent B
 
 
 @pytest.mark.asyncio
@@ -128,7 +163,7 @@ async def test_dedup_global_memory_does_not_restrict_candidates() -> None:
     assert len(out) == 1
     _, kwargs = vector.search.call_args
     assert kwargs["filters"] == _user_filter()
-    assert "namespaces" not in kwargs["filters"]
+    assert "primary_namespace" not in kwargs["filters"]
 
 
 @pytest.mark.asyncio
@@ -164,7 +199,12 @@ async def test_apply_update_downgrades_cross_scope_target_to_new() -> None:
     vector.get = AsyncMock(
         return_value=[
             VectorDocument(
-                id="mem-b", content="old", metadata={"namespaces": ["agent:B"]}
+                id="mem-b",
+                content="old",
+                metadata={
+                    "primary_namespace": "agent:B",
+                    "namespaces": ["global", "agent:B"],
+                },
             )
         ]
     )
@@ -190,7 +230,12 @@ async def test_apply_update_allows_same_scope_merge() -> None:
     vector.get = AsyncMock(
         return_value=[
             VectorDocument(
-                id="mem-a", content="old", metadata={"namespaces": ["agent:A"]}
+                id="mem-a",
+                content="old",
+                metadata={
+                    "primary_namespace": "agent:A",
+                    "namespaces": ["global", "agent:A"],
+                },
             )
         ]
     )

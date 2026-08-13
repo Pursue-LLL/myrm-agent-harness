@@ -108,7 +108,7 @@ class TestContextLoading:
         pref_dict.pop("created_at")
         assert pref_dict == {"id": "pref-1", "content": "User prefers concise answers", "type": "explicit"}
         assert mock_relational_store.list_rules.await_args.kwargs["namespaces"] == ["global"]
-        assert mock_vector_store.scroll.await_args.kwargs["filters"]["namespaces"] == ["global"]
+        assert mock_vector_store.scroll.await_args.kwargs["filters"]["primary_namespace"] == ["global"]
 
 
 class TestConvenienceMethods:

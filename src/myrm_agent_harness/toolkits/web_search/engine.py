@@ -146,8 +146,9 @@ class WebSearchTools:
                 policy hook callers can use for benchmark decontamination (e.g. Hugging Face hosts).
                 None disables it.
 
-        Raises:
-            ValueError: When all queries return 0 results
+        Returns:
+            (sources_metadata, formatted_context). May be empty when every result is filtered out
+            by the hostname blocklist — callers treat that as "no usable results", not an error.
         """
         from myrm_agent_harness.toolkits.web_search.intent_optimizer import (
             SearchIntent,

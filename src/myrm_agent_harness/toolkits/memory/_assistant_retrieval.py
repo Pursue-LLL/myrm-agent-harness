@@ -99,7 +99,7 @@ async def search_conversation_two_pass(
         "archived": False,
     }
     if namespaces:
-        filters["namespaces"] = namespaces
+        filters["primary_namespace"] = namespaces
     if since is not None or until is not None:
         time_range: dict[str, str] = {}
         if since is not None:

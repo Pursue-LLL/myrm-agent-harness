@@ -205,7 +205,7 @@ class TestRunMaintenanceCycle:
                 filters.get("event_type") == "task_digest"
                 and filters.get("evaporation_state") == EvaporationState.PENDING.value
             ):
-                seen_namespace_filter = filters.get("namespaces")
+                seen_namespace_filter = filters.get("primary_namespace")
                 return [digest_doc], None
             return [], None
 

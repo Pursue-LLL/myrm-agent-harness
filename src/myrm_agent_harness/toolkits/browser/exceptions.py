@@ -14,9 +14,10 @@ Architecture:
     │   ├── BrowserTimeoutError
     │   ├── BrowserNetworkError
     │   └── BrowserClosedError
-    ├── BrowserToolError
+    ├──     BrowserToolError
     │   ├── ToolExecutionError
     │   ├── ToolConfigurationError
+    │   ├── ClickTargetUnreachableError
     │   └── RefNotFoundError
     └── AriaError
         ├── AriaAcquisitionError
@@ -438,6 +439,17 @@ class ToolConfigurationError(BrowserToolError):
 
     Raised when tool parameters are invalid or missing required fields,
     preventing tool execution from starting.
+    """
+
+
+class ClickTargetUnreachableError(BrowserToolError):
+    """An interaction target cannot be brought into the viewport at all.
+
+    Raised when humanized pre-scrolling failed and the target has no
+    wheel-scrollable ancestor (e.g. a locked-scroll page with body overflow
+    hidden), so even the native scrollIntoViewIfNeeded fallback would clamp the
+    pointer to the viewport edge and silently miss. Prefer a loud error over a
+    click that reports success while hitting nothing.
     """
 
 

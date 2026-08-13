@@ -40,7 +40,10 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from myrm_agent_harness.core.security.redact import redact_sensitive_text
-from myrm_agent_harness.toolkits.browser.exceptions import RefNotFoundError
+from myrm_agent_harness.toolkits.browser.exceptions import (
+    ClickTargetUnreachableError,
+    RefNotFoundError,
+)
 from myrm_agent_harness.toolkits.browser.pool.config import HumanizeConfig
 from myrm_agent_harness.toolkits.browser.session.humanize import (
     bezier_move,
@@ -579,6 +582,26 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
         self._mouse_x, self._mouse_y = target_x, target_y
         return True
 
+    async def _guard_native_click(self, locator: Locator) -> None:
+        """Refuse a native click that could only silently miss.
+
+        After the humanized pre-scroll, an off-viewport target with no
+        wheel-scrollable ancestor (e.g. body overflow:hidden) cannot be brought
+        in — the native locator.click would clamp the pointer to the viewport
+        edge and report success while hitting nothing. Fail loudly instead.
+        Targets with a scroll path, or targets the probe cannot measure, still
+        fall through to the native click (its scrollIntoViewIfNeeded can help).
+        """
+        probe = await self._target_probe(locator)
+        if probe is None:
+            return
+        if not probe["visible"] and not probe.get("container"):
+            raise ClickTargetUnreachableError(
+                "Click target is outside the viewport and no scrollable "
+                "container exists to bring it in (locked scroll). Refusing to "
+                "click at the viewport edge."
+            )
+
     async def _bezier_click(self, locator: Locator, ref: str, healed_msg: str) -> str:
         """Click with Bézier mouse trajectory (CAREFUL mode only).
 
@@ -586,6 +609,7 @@ class Interactor(ScrollHumanizeMixin, CoordInteractMixin, RefDiagnosticsMixin):
         would overwrite with an instantaneous move.
         """
         if not await self._bezier_move_to(locator):
+            await self._guard_native_click(locator)
             delay = click_delay(self._humanize)
             await locator.click(delay=delay, timeout=_INTERACTION_TIMEOUT_MS)
             return f"Clicked {ref}{healed_msg}"

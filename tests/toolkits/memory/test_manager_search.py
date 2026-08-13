@@ -156,7 +156,7 @@ class TestSearchOperations:
 
         await manager.search("scoped", memory_types=[MemoryType.SEMANTIC], limit=5)
 
-        assert mock_vector_store.search.call_args.kwargs["filters"]["namespaces"] == manager.namespaces
+        assert mock_vector_store.search.call_args.kwargs["filters"]["primary_namespace"] == manager.namespaces
 
     @pytest.mark.asyncio
     async def test_search_semantic_uses_policy_read_namespaces(self, mock_vector_store, mock_embedding, memory_config):
@@ -177,7 +177,7 @@ class TestSearchOperations:
 
         await manager.search("scoped", memory_types=[MemoryType.SEMANTIC], limit=5)
 
-        assert mock_vector_store.search.call_args.kwargs["filters"]["namespaces"] == [
+        assert mock_vector_store.search.call_args.kwargs["filters"]["primary_namespace"] == [
             "global",
             "agent:planner",
         ]

@@ -493,7 +493,14 @@ async def _fetch_incremental_memories(
             (cfg.episodic_collection, doc_to_episodic),
         ):
             try:
-                docs, _ = await v.scroll(collection, limit=scroll_limit, filters={"user_id": manager.user_id})
+                docs, _ = await v.scroll(
+                    collection,
+                    limit=scroll_limit,
+                    filters={
+                        "user_id": manager.user_id,
+                        "primary_namespace": manager.namespaces,
+                    },
+                )
                 for doc in docs:
                     mem = converter(doc)
                     if hasattr(mem, "event_type") and mem.event_type == "consolidation":

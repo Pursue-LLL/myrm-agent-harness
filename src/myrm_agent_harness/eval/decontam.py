@@ -80,9 +80,21 @@ def normalize_answer(text: str) -> str:
 
     Lowercases, collapses whitespace and strips punctuation so trivially
     equivalent spellings (case, spacing, trailing marks) short-circuit the
-    LLM judge. Non-empty guard is the caller's responsibility — an empty
-    normalized string must never be treated as a match.
+    LLM judge. Decimal numbers keep their magnitude semantics: ``42.5`` never
+    collides with ``425`` (the point is preserved as a separator), whole-number
+    forms like ``42.0`` fold to ``42``, and trailing zeros (``42.50``,
+    ``3.140``) collapse. Non-empty guard is the caller's responsibility — an
+    empty normalized string must never be treated as a match.
     """
     normalized = unicodedata.normalize("NFKC", text)
+    # Fold trailing zeros after a decimal point (42.50 -> 42.5, 3.140 -> 3.14)
+    # before the point itself is treated as punctuation.
+    normalized = re.sub(r"(\d\.\d*?)0+(?=\D|$)", r"\1", normalized)
+    # Fold whole-number decimals (42.0 -> 42.); the trailing point is then
+    # stripped by the punctuation pass below.
+    normalized = re.sub(r"(?<=\d)\.0+(?=\D|$)", "", normalized)
+    # Preserve decimal-point semantics (42.5 -> "42 dot 5") so a decimal never
+    # collapses into an integer of a different magnitude.
+    normalized = re.sub(r"(?<=\d)\.(?=\d)", " dot ", normalized)
     normalized = re.sub(r"[^\w\s]", "", normalized, flags=re.UNICODE)
     return " ".join(normalized.lower().split())

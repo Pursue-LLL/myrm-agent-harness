@@ -197,10 +197,13 @@ class ScrollHumanizeMixin:
 
         ``bounding_box`` is a pure geometry read — unlike locator actions it never
         triggers Playwright's implicit scrollIntoViewIfNeeded — so it is safe to
-        call before deciding whether a humanized scroll is needed.
+        call before deciding whether a humanized scroll is needed. The wait uses
+        ``attached`` rather than ``visible`` because visibility semantics vary by
+        context (an iframe-clipped element reads invisible even when it is laid
+        out); real visibility is decided by the rendered-state probe instead.
         """
         try:
-            await locator.wait_for(state="visible", timeout=2000)
+            await locator.wait_for(state="attached", timeout=2000)
             box = await locator.bounding_box(timeout=1000)
         except Exception:
             return None
@@ -216,10 +219,12 @@ class ScrollHumanizeMixin:
         containers or iframe viewports read as invisible), whether the probe ran
         in the top frame, and — when invisible — the nearest wheel-scrollable
         ancestor with the exact wheel delta that centers the target in it.
-        Returns None on any measure error so callers degrade silently.
+        Returns None on any measure error so callers degrade silently. The wait
+        is on ``attached`` only: visibility is decided by the probe itself, since
+        patchright's ``visible`` semantics reject iframe-clipped targets.
         """
         try:
-            await locator.wait_for(state="visible", timeout=2000)
+            await locator.wait_for(state="attached", timeout=2000)
             return await locator.evaluate(_TARGET_PROBE_JS)
         except Exception:
             return None

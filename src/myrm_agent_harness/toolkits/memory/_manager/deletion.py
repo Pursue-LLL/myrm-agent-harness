@@ -573,12 +573,14 @@ class MemoryManagerDeletionMixin:
         stored_uid = doc.metadata.get("user_id")
         if stored_uid and stored_uid != self._user_id:
             return False
+        primary_namespace = doc.metadata.get("primary_namespace")
+        if primary_namespace:
+            return primary_namespace in self._namespaces
         raw_namespaces = doc.metadata.get("namespaces")
         if isinstance(raw_namespaces, list) and raw_namespaces:
             namespaces = {value for value in raw_namespaces if isinstance(value, str)}
             return bool(namespaces.intersection(self._namespaces))
-        primary_namespace = doc.metadata.get("primary_namespace")
-        return not primary_namespace or primary_namespace in self._namespaces
+        return True
 
     async def unarchive_memory(self, memory_id: str) -> SemanticMemory | EpisodicMemory:
         """Restore an archived memory to active status."""

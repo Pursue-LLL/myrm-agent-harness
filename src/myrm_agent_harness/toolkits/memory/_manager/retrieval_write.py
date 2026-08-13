@@ -121,7 +121,7 @@ class MemoryManagerRetrievalWriteMixin:
                 self._vector.scroll(
                     self._config.semantic_collection,
                     limit=200,
-                    filters={"archived": False, "namespaces": self._namespaces},
+                    filters={"archived": False, "primary_namespace": self._namespaces},
                 )
             )
             if self._vector and not use_stability
