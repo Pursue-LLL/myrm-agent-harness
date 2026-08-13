@@ -109,9 +109,7 @@ class TestBuildSafeEnv:
 
     def test_strips_explicit_keys(self) -> None:
         base = {"MY_SECRET": "val", "KEEP_ME": "yes"}
-        cfg = RuntimeConfig(
-            backend_type="acp", command="test", strip_env_keys=["MY_SECRET"]
-        )
+        cfg = RuntimeConfig(backend_type="acp", command="test", strip_env_keys=["MY_SECRET"])
         env = build_safe_env(cfg, base)
         assert "MY_SECRET" not in env
         assert env["KEEP_ME"] == "yes"
@@ -133,9 +131,7 @@ class TestBuildSafeEnv:
         # subscription mode (default) forces the CLI onto its login session by dropping
         # any injected provider secret, so a stale key can't silently bill the user.
         base = {"OPENAI_API_KEY": "old-key"}
-        cfg = RuntimeConfig(
-            backend_type="acp", command="test", env={"OPENAI_API_KEY": "new-key"}
-        )
+        cfg = RuntimeConfig(backend_type="acp", command="test", env={"OPENAI_API_KEY": "new-key"})
         env = build_safe_env(cfg, base)
         assert "OPENAI_API_KEY" not in env
 
@@ -197,9 +193,7 @@ class TestEventBus:
     async def test_event_type_filter(self) -> None:
         bus = EventBus()
         errors: list[RuntimeEvent] = []
-        bus.subscribe(
-            callback=lambda e: errors.append(e), event_type=RuntimeEventType.ERROR
-        )
+        bus.subscribe(callback=lambda e: errors.append(e), event_type=RuntimeEventType.ERROR)
         await bus.emit(create_event(RuntimeEventType.TEXT_DELTA, "s1", content="hi"))
         await bus.emit(create_event(RuntimeEventType.ERROR, "s1", error="fail"))
         assert len(errors) == 1
@@ -269,14 +263,8 @@ class TestDefaultPermissionManager:
     @pytest.mark.asyncio
     async def test_allowlist_wildcard(self) -> None:
         pm = DefaultPermissionManager(mode="safe", allowed_tools=["Bash(npm run *)"])
-        assert (
-            await pm.check("Bash", {"command": "npm run test"}, "s1")
-            == PermissionDecision.ALLOW_ONCE
-        )
-        assert (
-            await pm.check("Bash", {"command": "rm -rf /"}, "s1")
-            == PermissionDecision.DENY_ONCE
-        )
+        assert await pm.check("Bash", {"command": "npm run test"}, "s1") == PermissionDecision.ALLOW_ONCE
+        assert await pm.check("Bash", {"command": "rm -rf /"}, "s1") == PermissionDecision.DENY_ONCE
 
     @pytest.mark.asyncio
     async def test_session_approval_cache(self) -> None:
@@ -310,9 +298,7 @@ class TestAcpCallbackHandlerPermission:
             {"kind": "reject_once", "optionId": "reject_once"},
         ]
 
-        result = await handler.request_permission(
-            options, "test-session", {"name": "Write", "path": "/tmp"}
-        )
+        result = await handler.request_permission(options, "test-session", {"name": "Write", "path": "/tmp"})
 
         assert result == {"outcome": {"outcome": "selected", "optionId": "allow_once"}}
         assert len(received) == 1
@@ -331,9 +317,7 @@ class TestAcpCallbackHandlerPermission:
             {"kind": "allow_once", "optionId": "allow_once"},
             {"kind": "reject_once", "optionId": "reject_once"},
         ]
-        result = await handler.request_permission(
-            options, "test-session", {"name": "Write", "path": "/tmp"}
-        )
+        result = await handler.request_permission(options, "test-session", {"name": "Write", "path": "/tmp"})
 
         assert result["outcome"]["outcome"] == "selected"
         assert result["outcome"]["optionId"] == "reject_once"
@@ -347,9 +331,7 @@ class TestAcpCallbackHandlerPermission:
             "test-session",
         )
         options = [{"kind": "allow_once", "optionId": "allow_once"}]
-        result = await handler.request_permission(
-            options, "test-session", {"name": "Write", "path": "/tmp"}
-        )
+        result = await handler.request_permission(options, "test-session", {"name": "Write", "path": "/tmp"})
 
         assert result["outcome"]["outcome"] == "cancelled"
 
@@ -376,13 +358,9 @@ class TestRuntimePool:
             return not self.closed
 
         async def run_turn(self, prompt: str, session_id: str, *, mcp_servers=None):
-            yield create_event(
-                RuntimeEventType.STATUS_UPDATE, session_id, status="starting"
-            )
+            yield create_event(RuntimeEventType.STATUS_UPDATE, session_id, status="starting")
             yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content=prompt)
-            yield create_event(
-                RuntimeEventType.DONE, session_id, stop_reason="end_turn"
-            )
+            yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
 
         async def cancel(self, session_id: str) -> None:
             return None
@@ -459,12 +437,7 @@ class TestRuntimePool:
         backend = self._DummyRuntimeBackend("claude")
 
         with patch.object(pool, "get", return_value=backend):
-            events = [
-                e
-                async for e in pool.run_turn(
-                    "claude", "task", session_id="s-1", mode="oneshot"
-                )
-            ]
+            events = [e async for e in pool.run_turn("claude", "task", session_id="s-1", mode="oneshot")]
 
         assert len(events) == 3
         assert backend.closed
@@ -498,9 +471,7 @@ class TestRuntimePool:
 class TestBaseRuntime:
     @pytest.mark.asyncio
     async def test_get_info(self) -> None:
-        rt = BaseRuntime(
-            "test-rt", RuntimeConfig(backend_type="acp", command="test"), "acp"
-        )
+        rt = BaseRuntime("test-rt", RuntimeConfig(backend_type="acp", command="test"), "acp")
         info = await rt.get_info()
         assert info.name == "test-rt"
         assert info.backend_type == "acp"
@@ -508,31 +479,23 @@ class TestBaseRuntime:
 
     @pytest.mark.asyncio
     async def test_close_sets_alive_false(self) -> None:
-        rt = BaseRuntime(
-            "test-rt", RuntimeConfig(backend_type="acp", command="test"), "acp"
-        )
+        rt = BaseRuntime("test-rt", RuntimeConfig(backend_type="acp", command="test"), "acp")
         rt._alive = True
         await rt.close()
         assert rt.is_alive is False
 
     @pytest.mark.asyncio
     async def test_cancel_suppresses_errors(self) -> None:
-        rt = BaseRuntime(
-            "test-rt", RuntimeConfig(backend_type="acp", command="test"), "acp"
-        )
+        rt = BaseRuntime("test-rt", RuntimeConfig(backend_type="acp", command="test"), "acp")
         await rt.cancel("s1")
 
     @pytest.mark.asyncio
     async def test_resume_returns_false(self) -> None:
-        rt = BaseRuntime(
-            "test-rt", RuntimeConfig(backend_type="acp", command="test"), "acp"
-        )
+        rt = BaseRuntime("test-rt", RuntimeConfig(backend_type="acp", command="test"), "acp")
         assert await rt.resume("s1") is False
 
     def test_capabilities_default(self) -> None:
-        rt = BaseRuntime(
-            "test-rt", RuntimeConfig(backend_type="acp", command="test"), "acp"
-        )
+        rt = BaseRuntime("test-rt", RuntimeConfig(backend_type="acp", command="test"), "acp")
         caps = rt.capabilities
         assert caps.supports_resume is False
         assert caps.supports_streaming is True
@@ -640,9 +603,7 @@ class TestAcpCallbackHandlerFileOps:
     @pytest.mark.asyncio
     async def test_read_text_file_outside_cwd(self, tmp_path: Path) -> None:
         handler = AcpCallbackHandler(
-            RuntimeConfig(
-                backend_type="acp", command="dummy", cwd=str(tmp_path / "sub")
-            ),
+            RuntimeConfig(backend_type="acp", command="dummy", cwd=str(tmp_path / "sub")),
             "s1",
         )
         result = await handler.read_text_file("/etc/passwd", "s1")
@@ -684,9 +645,7 @@ class TestAcpCallbackHandlerFileOps:
             ),
             "s1",
         )
-        result = await handler.write_text_file(
-            "content", str(tmp_path / "out.txt"), "s1"
-        )
+        result = await handler.write_text_file("content", str(tmp_path / "out.txt"), "s1")
         assert result is None
 
     @pytest.mark.asyncio
@@ -702,6 +661,105 @@ class TestAcpCallbackHandlerFileOps:
         )
         result = await handler.write_text_file("content", "/tmp/evil.txt", "s1")
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_write_text_file_parent_mkdir_failure(self, tmp_path: Path) -> None:
+        handler = AcpCallbackHandler(
+            RuntimeConfig(
+                backend_type="acp",
+                command="dummy",
+                cwd=str(tmp_path),
+                permission_mode="allow_all",
+            ),
+            "s1",
+        )
+        # A path whose parent is an existing file forces mkdir → FileExistsError/OSError.
+        blocker = tmp_path / "blocker"
+        blocker.write_text("i am a file")
+        target = blocker / "sub" / "out.txt"
+        result = await handler.write_text_file("content", str(target), "s1")
+        assert result is None
+
+
+class TestAcpCallbackHelpers:
+    """Pure helper boundaries: text extraction, safe-path resolution, option lookup."""
+
+    def test_extract_text_content_none(self) -> None:
+        from myrm_agent_harness.toolkits.acp.runtime import acp_callback as mod
+
+        assert mod._extract_text_content(None) is None
+
+    def test_extract_text_content_non_text_type(self) -> None:
+        from myrm_agent_harness.toolkits.acp.runtime import acp_callback as mod
+
+        class _Other:
+            type = "image"
+
+        assert mod._extract_text_content(_Other()) is None
+
+    def test_extract_text_content_text_no_text_field(self) -> None:
+        from myrm_agent_harness.toolkits.acp.runtime import acp_callback as mod
+
+        class _Text:
+            type = "text"
+
+        assert mod._extract_text_content(_Text()) is None
+
+    def test_resolve_safe_path_inside_cwd(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.acp.runtime import acp_callback as mod
+
+        resolved = mod._resolve_safe_path("sub/file.txt", str(tmp_path))
+        assert resolved is not None
+        assert str(resolved).startswith(str(tmp_path))
+
+    def test_resolve_safe_path_escape_returns_none(self, tmp_path: Path) -> None:
+        from myrm_agent_harness.toolkits.acp.runtime import acp_callback as mod
+
+        assert mod._resolve_safe_path("../evil.txt", str(tmp_path)) is None
+        assert mod._resolve_safe_path("/etc/passwd", str(tmp_path)) is None
+
+    def test_resolve_safe_path_oserror_returns_none(self, tmp_path: Path, monkeypatch) -> None:
+        from myrm_agent_harness.toolkits.acp.runtime import acp_callback as mod
+
+        class _BoomPath(Path):
+            def resolve(self, strict: bool = False) -> Path:
+                raise OSError("too many symlinks")
+
+        with monkeypatch.context() as m:
+            # Force Path(...) inside _resolve_safe_path to hit OSError via resolve.
+            m.setattr("myrm_agent_harness.toolkits.acp.runtime.acp_callback.Path", _BoomPath)
+            assert mod._resolve_safe_path("file.txt", str(tmp_path)) is None
+
+    def test_find_option_non_dict_option(self) -> None:
+        from myrm_agent_harness.toolkits.acp.runtime import acp_callback as mod
+
+        assert mod._find_option([object()], ("allow_once",)) is None
+        assert mod._find_option([], ("allow_once",)) is None
+
+    def test_decision_to_option_allow_always(self) -> None:
+        options = [
+            {"kind": "allow_once", "optionId": "allow_once"},
+            {"kind": "allow_always", "optionId": "allow_always"},
+            {"kind": "reject_once", "optionId": "reject_once"},
+            {"kind": "reject_always", "optionId": "reject_always"},
+        ]
+        # _find_option returns the first option whose kind is in the decision's
+        # accepted set, in list order (ACP does not guarantee option ordering).
+        assert AcpCallbackHandler._decision_to_option(options, PermissionDecision.ALLOW_ALWAYS) == "allow_once"
+        assert AcpCallbackHandler._decision_to_option(options, PermissionDecision.DENY_ALWAYS) == "reject_once"
+
+    def test_decision_to_option_prefers_primary_kind(self) -> None:
+        # allow_always listed first → the primary kind wins.
+        options = [
+            {"kind": "allow_always", "optionId": "allow_always"},
+            {"kind": "allow_once", "optionId": "allow_once"},
+        ]
+        assert AcpCallbackHandler._decision_to_option(options, PermissionDecision.ALLOW_ALWAYS) == "allow_always"
+
+    def test_decision_to_option_unmappable_returns_none(self) -> None:
+        # Decision wants allow_always but only reject options exist → None (invalid).
+        options = [{"kind": "reject_once", "optionId": "reject_once"}]
+        assert AcpCallbackHandler._decision_to_option(options, PermissionDecision.ALLOW_ALWAYS) is None
 
 
 class TestAcpCallbackHandlerPermissionModes:
@@ -734,9 +792,7 @@ class TestAcpCallbackHandlerPermissionModes:
     @pytest.mark.asyncio
     async def test_bypass_mode(self) -> None:
         handler = AcpCallbackHandler(
-            RuntimeConfig(
-                backend_type="acp", command="dummy", permission_mode="bypass"
-            ),
+            RuntimeConfig(backend_type="acp", command="dummy", permission_mode="bypass"),
             "s1",
         )
         options = [{"kind": "allow_always", "optionId": "allow_always"}]
@@ -746,9 +802,7 @@ class TestAcpCallbackHandlerPermissionModes:
     @pytest.mark.asyncio
     async def test_allow_all_mode(self) -> None:
         handler = AcpCallbackHandler(
-            RuntimeConfig(
-                backend_type="acp", command="dummy", permission_mode="allow_all"
-            ),
+            RuntimeConfig(backend_type="acp", command="dummy", permission_mode="allow_all"),
             "s1",
         )
         options = [
@@ -807,12 +861,8 @@ class TestEventBusEdgeCases:
             session_id="s1",
         )
         await bus.emit(create_event(RuntimeEventType.ERROR, "s1", error="match"))
-        await bus.emit(
-            create_event(RuntimeEventType.ERROR, "s2", error="wrong session")
-        )
-        await bus.emit(
-            create_event(RuntimeEventType.TEXT_DELTA, "s1", content="wrong type")
-        )
+        await bus.emit(create_event(RuntimeEventType.ERROR, "s2", error="wrong session"))
+        await bus.emit(create_event(RuntimeEventType.TEXT_DELTA, "s1", content="wrong type"))
         assert len(matched) == 1
         assert matched[0].data["error"] == "match"
 
@@ -823,9 +873,7 @@ class TestEventBusEdgeCases:
         r2: list[RuntimeEvent] = []
         bus.subscribe(callback=lambda e: r1.append(e))
         bus.subscribe(callback=lambda e: r2.append(e))
-        await bus.emit(
-            create_event(RuntimeEventType.TEXT_DELTA, "s1", content="broadcast")
-        )
+        await bus.emit(create_event(RuntimeEventType.TEXT_DELTA, "s1", content="broadcast"))
         assert len(r1) == 1
         assert len(r2) == 1
 
@@ -854,10 +902,7 @@ class TestPermissionManagerEdgeCases:
     @pytest.mark.asyncio
     async def test_allowlist_empty_pattern(self) -> None:
         pm = DefaultPermissionManager(mode="safe", allowed_tools=["Bash()"])
-        assert (
-            await pm.check("Bash", {"command": "anything"}, "s1")
-            == PermissionDecision.ALLOW_ONCE
-        )
+        assert await pm.check("Bash", {"command": "anything"}, "s1") == PermissionDecision.ALLOW_ONCE
 
     @pytest.mark.asyncio
     async def test_allowlist_no_match(self) -> None:
@@ -918,9 +963,7 @@ class TestRuntimePoolConcurrency:
             await asyncio.sleep(self._delay)
             self.concurrent_count -= 1
             yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="ok")
-            yield create_event(
-                RuntimeEventType.DONE, session_id, stop_reason="end_turn"
-            )
+            yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
 
         async def cancel(self, session_id: str) -> None:
             pass
@@ -941,9 +984,7 @@ class TestRuntimePoolConcurrency:
         backend = self._SlowBackend("a", delay=0.05)
 
         with patch.object(pool, "get", return_value=backend):
-            tasks = [
-                asyncio.create_task(pool.prompt("a", f"task-{i}")) for i in range(4)
-            ]
+            tasks = [asyncio.create_task(pool.prompt("a", f"task-{i}")) for i in range(4)]
             await asyncio.gather(*tasks)
 
         assert backend.max_concurrent <= 2
@@ -975,9 +1016,7 @@ class TestRuntimePoolCancel:
 class TestRuntimePoolGetConfig:
     def test_returns_config(self) -> None:
         pool = RuntimePool()
-        cfg = RuntimeConfig(
-            backend_type="cli", command="claude", max_turns=42, description="test agent"
-        )
+        cfg = RuntimeConfig(backend_type="cli", command="claude", max_turns=42, description="test agent")
         pool.register("claude", cfg)
         assert pool.get_config("claude") is cfg
         assert pool.get_config("claude").max_turns == 42
@@ -1039,13 +1078,9 @@ class TestBaseRuntimeTimeout:
     async def test_timeout_yields_error_event(self) -> None:
         class _SlowRuntime(BaseRuntime):
             async def _do_run_turn(self, prompt, session_id, *, mcp_servers=None):
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="start"
-                )
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="start")
                 await asyncio.sleep(100)
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="never"
-                )
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="never")
 
         rt = _SlowRuntime(
             "slow-rt",
@@ -1067,14 +1102,10 @@ class TestBaseRuntimeTimeout:
     async def test_runtime_exception_yields_error_event(self) -> None:
         class _BrokenRuntime(BaseRuntime):
             async def _do_run_turn(self, prompt, session_id, *, mcp_servers=None):
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="before"
-                )
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="before")
                 raise RuntimeError("kaboom")
 
-        rt = _BrokenRuntime(
-            "broken", RuntimeConfig(backend_type="cli", command="x"), "cli"
-        )
+        rt = _BrokenRuntime("broken", RuntimeConfig(backend_type="cli", command="x"), "cli")
         events: list[RuntimeEvent] = []
         async for e in rt.run_turn("hello", "s1"):
             events.append(e)
@@ -1094,13 +1125,9 @@ class TestBaseRuntimeTimeout:
                 self.cancel_calls: list[str] = []
 
             async def _do_run_turn(self, prompt, session_id, *, mcp_servers=None):
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="start"
-                )
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="start")
                 await asyncio.sleep(100)
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="never"
-                )
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="never")
 
             async def _do_cancel(self, session_id: str) -> None:
                 self.cancel_calls.append(session_id)
@@ -1122,22 +1149,16 @@ class TestBaseRuntimeTimeout:
                 self.cancel_calls: list[str] = []
 
             async def _do_run_turn(self, prompt, session_id, *, mcp_servers=None):
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="before"
-                )
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="before")
                 raise RuntimeError("kaboom")
 
             async def _do_cancel(self, session_id: str) -> None:
                 self.cancel_calls.append(session_id)
 
-        rt = _BrokenRuntime(
-            "broken", RuntimeConfig(backend_type="cli", command="x"), "cli"
-        )
+        rt = _BrokenRuntime("broken", RuntimeConfig(backend_type="cli", command="x"), "cli")
         _ = [e async for e in rt.run_turn("hello", "s1")]
 
-        assert rt.cancel_calls == [
-            "s1"
-        ], "unexpected failure must clean up the spawned process"
+        assert rt.cancel_calls == ["s1"], "unexpected failure must clean up the spawned process"
 
 
 class TestLazyImports:
@@ -1173,6 +1194,45 @@ class TestLazyImports:
         from myrm_agent_harness.toolkits.acp import run_server
 
         assert callable(run_server)
+
+    def test_runtime_package_lazy_base_runtime(self) -> None:
+        import myrm_agent_harness.toolkits.acp.runtime as runtime_pkg
+
+        assert runtime_pkg.BaseRuntime is not None
+        assert hasattr(runtime_pkg.BaseRuntime, "run_turn")
+
+    def test_runtime_package_lazy_runtime_pool(self) -> None:
+        import myrm_agent_harness.toolkits.acp.runtime as runtime_pkg
+
+        assert runtime_pkg.RuntimePool is not None
+
+    def test_runtime_package_unknown_raises(self) -> None:
+        import myrm_agent_harness.toolkits.acp.runtime as runtime_pkg
+
+        with pytest.raises(AttributeError, match="has no attribute"):
+            _ = runtime_pkg.NonExistentThing  # type: ignore[attr-defined]
+
+    def test_server_package_lazy_myrm_acp_server(self) -> None:
+        import myrm_agent_harness.toolkits.acp.server as server_pkg
+
+        assert server_pkg.MyrmAcpServer is not None
+
+    def test_server_package_lazy_run_server(self) -> None:
+        import myrm_agent_harness.toolkits.acp.server as server_pkg
+
+        assert callable(server_pkg.run_server)
+
+    def test_server_package_lazy_agent_bridge(self) -> None:
+        import myrm_agent_harness.toolkits.acp.server as server_pkg
+
+        assert server_pkg.AgentBridge is not None
+        assert server_pkg.AgentFactory is not None
+
+    def test_server_package_unknown_raises(self) -> None:
+        import myrm_agent_harness.toolkits.acp.server as server_pkg
+
+        with pytest.raises(AttributeError, match="has no attribute"):
+            _ = server_pkg.NonExistentThing  # type: ignore[attr-defined]
 
 
 class TestAcpToolsImport:
@@ -1213,21 +1273,11 @@ class TestBaseRuntimeStreamTruncation:
     async def test_truncation_stops_text_but_passes_non_text(self) -> None:
         class _VerboseRuntime(BaseRuntime):
             async def _do_run_turn(self, prompt, session_id, *, mcp_servers=None):
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="x" * 30_000
-                )
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="x" * 30_000
-                )
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="should be dropped"
-                )
-                yield create_event(
-                    RuntimeEventType.TOOL_START, session_id, tool_name="bash"
-                )
-                yield create_event(
-                    RuntimeEventType.DONE, session_id, stop_reason="end_turn"
-                )
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="x" * 30_000)
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="x" * 30_000)
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="should be dropped")
+                yield create_event(RuntimeEventType.TOOL_START, session_id, tool_name="bash")
+                yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
 
         cfg = RuntimeConfig(backend_type="cli", command="x", max_response_chars=50_000)
         rt = _VerboseRuntime("trunc-rt", cfg, "cli")
@@ -1240,23 +1290,17 @@ class TestBaseRuntimeStreamTruncation:
         assert any("[truncated" in e.data.get("content", "") for e in text_events)
         assert RuntimeEventType.TOOL_START in types
         assert RuntimeEventType.DONE in types
-        normal_text = [
-            e for e in text_events if "[truncated" not in e.data.get("content", "")
-        ]
+        normal_text = [e for e in text_events if "[truncated" not in e.data.get("content", "")]
         assert len(normal_text) == 1
 
     @pytest.mark.asyncio
     async def test_cancelled_error_propagated(self) -> None:
         class _CancelledRuntime(BaseRuntime):
             async def _do_run_turn(self, prompt, session_id, *, mcp_servers=None):
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="start"
-                )
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="start")
                 raise asyncio.CancelledError
 
-        rt = _CancelledRuntime(
-            "cancel-rt", RuntimeConfig(backend_type="cli", command="x"), "cli"
-        )
+        rt = _CancelledRuntime("cancel-rt", RuntimeConfig(backend_type="cli", command="x"), "cli")
         with pytest.raises(asyncio.CancelledError):
             async for _ in rt.run_turn("hello", "s1"):
                 pass
@@ -1355,9 +1399,7 @@ class TestParserMissingBranches:
             extract_text_from_event,
         )
 
-        result = extract_text_from_event(
-            {"content": [{"type": "image", "url": "http://example.com"}]}
-        )
+        result = extract_text_from_event({"content": [{"type": "image", "url": "http://example.com"}]})
         assert result is None
 
 
@@ -1408,12 +1450,8 @@ class TestRuntimePoolRunTurnWithoutBus:
                 return True
 
             async def run_turn(self, prompt, session_id, *, mcp_servers=None):
-                yield create_event(
-                    RuntimeEventType.TEXT_DELTA, session_id, content="hi"
-                )
-                yield create_event(
-                    RuntimeEventType.DONE, session_id, stop_reason="end_turn"
-                )
+                yield create_event(RuntimeEventType.TEXT_DELTA, session_id, content="hi")
+                yield create_event(RuntimeEventType.DONE, session_id, stop_reason="end_turn")
 
             async def cancel(self, session_id):
                 pass
@@ -1421,10 +1459,10 @@ class TestRuntimePoolRunTurnWithoutBus:
             async def resume(self, session_id):
                 return False
 
-            async def get_info(self):
+            async def get_info(self) -> BackendInfo:
                 return BackendInfo(name="test")
 
-            async def close(self):
+            async def close(self) -> None:
                 pass
 
         pool._backends["test"] = _SimpleBackend()

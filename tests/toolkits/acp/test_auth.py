@@ -152,6 +152,33 @@ class TestCredentialStore:
         store = CredentialStore({"HOME": str(tmp_path)})
         assert store.is_authenticated("codex") is False
 
+    def test_import_oversized_credential_raises(self, tmp_path) -> None:
+        store = CredentialStore({"HOME": str(tmp_path)})
+        oversized = '{"x": "' + "a" * (300 * 1024) + '"}'
+        with pytest.raises(ValueError, match="exceeds"):
+            store.import_credential("codex", oversized)
+
+    def test_clear_unknown_backend_raises(self, tmp_path) -> None:
+        store = CredentialStore({"HOME": str(tmp_path)})
+        with pytest.raises(ValueError, match="No auth profile"):
+            store.clear("mystery")
+
+    def test_clear_survives_unlink_oserror(self, tmp_path, monkeypatch) -> None:
+        store = CredentialStore({"HOME": str(tmp_path)})
+        store.import_credential("codex", '{"x": 1}')
+
+        real_unlink = tmp_path.__class__.unlink
+
+        def _flaky_unlink(self, *args, **kwargs):
+            if self.name.endswith("auth.json"):
+                raise OSError("permission denied")
+            return real_unlink(self, *args, **kwargs)
+
+        monkeypatch.setattr(tmp_path.__class__, "unlink", _flaky_unlink)
+
+        state = store.clear("codex")
+        assert state.status is AuthStatus.NOT_AUTHENTICATED
+
 
 class TestBuildSafeEnvAuthMode:
     def test_subscription_strips_all_provider_secrets(self) -> None:
@@ -275,3 +302,104 @@ class TestCliLoginSession:
         )
         events = [e async for e in session.run()]
         assert any(e.type is AuthEventType.ERROR for e in events)
+
+    @pytest.mark.asyncio
+    async def test_login_timeout_emits_error(self, tmp_path) -> None:
+        # Never exits: forces the asyncio.timeout path (L139-142).
+        sleepy = "import time; time.sleep(60)"
+        profile = _codex_login_profile(("-c", sleepy))
+        session = CliLoginSession(
+            sys.executable,
+            profile,
+            base_env={**os.environ, "CODEX_HOME": str(tmp_path / ".codex")},
+            timeout_seconds=1,
+        )
+        events = [e async for e in session.run()]
+        assert events[-1].type is AuthEventType.ERROR
+        assert "timed out" in events[-1].message
+
+    @pytest.mark.asyncio
+    async def test_finished_without_credential_emits_error(self, tmp_path) -> None:
+        # Exits 0 but never writes a credential file (L150-153).
+        noop = "pass"
+        profile = _codex_login_profile(("-c", noop))
+        session = CliLoginSession(
+            sys.executable,
+            profile,
+            base_env={**os.environ, "CODEX_HOME": str(tmp_path / ".codex")},
+        )
+        events = [e async for e in session.run()]
+        assert events[-1].type is AuthEventType.ERROR
+        assert "no credential was persisted" in events[-1].message
+
+    @pytest.mark.asyncio
+    async def test_feed_forwards_line_to_stdin(self, tmp_path) -> None:
+        # Reads one stdin line and prints it back; exercises feed() (L157-166).
+        echo_stdin = (
+            "import sys, os, pathlib;"
+            "line = sys.stdin.readline();"
+            "print('received:' + line.strip());"
+            "p = pathlib.Path(os.environ['CODEX_HOME']) / 'auth.json';"
+            "p.parent.mkdir(parents=True, exist_ok=True);"
+            "p.write_text('{\"ok\": true}')"
+        )
+        profile = _codex_login_profile(("-c", echo_stdin))
+        session = CliLoginSession(
+            sys.executable,
+            profile,
+            base_env={**os.environ, "CODEX_HOME": str(tmp_path / ".codex")},
+        )
+        iterator = session.run()
+        first = await anext(iterator)  # STATUS: process spawned, stdin open
+        assert first.type is AuthEventType.STATUS
+        # The child blocks on stdin.readline(); unblock it by feeding a line now.
+        await session.feed("ABCD-EFGH")
+        rest = [e async for e in iterator]
+        events = [first, *rest]
+        assert any(e.type is AuthEventType.SUCCESS for e in events)
+        assert any("received:ABCD-EFGH" in e.message for e in events)
+
+    @pytest.mark.asyncio
+    async def test_feed_after_process_exit_is_noop(self, tmp_path) -> None:
+        profile = _codex_login_profile(("-c", "pass"))
+        session = CliLoginSession(
+            sys.executable,
+            profile,
+            base_env={**os.environ, "CODEX_HOME": str(tmp_path / ".codex")},
+        )
+        _ = [e async for e in session.run()]
+        # Process is gone: feed must not raise (guarded by proc is None / closing stdin).
+        await session.feed("ABCD-EFGH")
+
+    @pytest.mark.asyncio
+    async def test_cancel_terminates_process_group(self, tmp_path) -> None:
+        profile = _codex_login_profile(("-c", "import time; time.sleep(60)"))
+        session = CliLoginSession(
+            sys.executable,
+            profile,
+            base_env={**os.environ, "CODEX_HOME": str(tmp_path / ".codex")},
+        )
+        iterator = session.run()
+        await anext(iterator)  # STATUS event: process spawned
+        await session.cancel()
+        # cancel() is idempotent and safe after termination.
+        await session.cancel()
+
+    @pytest.mark.asyncio
+    async def test_classify_skips_blank_line(self, tmp_path) -> None:
+        # A blank console line must not surface as an event (L175-176).
+        blank_line = (
+            "import sys, os, pathlib;"
+            "print('');"
+            "p = pathlib.Path(os.environ['CODEX_HOME']) / 'auth.json';"
+            "p.parent.mkdir(parents=True, exist_ok=True);"
+            "p.write_text('{\"ok\": true}')"
+        )
+        profile = _codex_login_profile(("-c", blank_line))
+        session = CliLoginSession(
+            sys.executable,
+            profile,
+            base_env={**os.environ, "CODEX_HOME": str(tmp_path / ".codex")},
+        )
+        events = [e async for e in session.run()]
+        assert not any(e.message == "" for e in events)

@@ -89,9 +89,7 @@ class TestBackendDetectorDetect:
     async def test_detect_cache_shared_across_instances(self) -> None:
         d1 = BackendDetector()
         d2 = BackendDetector()
-        with patch.object(
-            BackendDetector, "_find_executable", return_value=None
-        ) as mock_find:
+        with patch.object(BackendDetector, "_find_executable", return_value=None) as mock_find:
             first = await d1.detect(include_version=False)
             second = await d2.detect(include_version=False)
         assert first is second
@@ -108,9 +106,7 @@ class TestBackendDetectorDetect:
             call_count += 1
             return None
 
-        with patch.object(
-            BackendDetector, "_find_executable", side_effect=counting_find
-        ):
+        with patch.object(BackendDetector, "_find_executable", side_effect=counting_find):
             await detector1.detect()
             first_count = call_count
             detector2.invalidate_cache()
@@ -127,9 +123,7 @@ class TestBackendDetectorDetect:
             call_count += 1
             return None
 
-        with patch.object(
-            BackendDetector, "_find_executable", side_effect=counting_find
-        ):
+        with patch.object(BackendDetector, "_find_executable", side_effect=counting_find):
             first = await detector.detect(include_version=False)
             first_count = call_count
             second = await detector.detect(include_version=False, refresh=True)
@@ -148,9 +142,7 @@ class TestBackendDetectorDetect:
             call_count += 1
             return None
 
-        with patch.object(
-            BackendDetector, "_find_executable", side_effect=counting_find
-        ):
+        with patch.object(BackendDetector, "_find_executable", side_effect=counting_find):
             first = await detector.detect(include_version=False)
             first_count = call_count
             second = await detector.detect(include_version=False)
@@ -214,9 +206,7 @@ print(result or "NONE")
                 "myrm_agent_harness.toolkits.acp.core.backend_detector._COMMON_PATHS",
                 (),
             ),
-            patch.object(
-                detector, "_find_npm_global", return_value="/usr/lib/node/claude"
-            ),
+            patch.object(detector, "_find_npm_global", return_value="/usr/lib/node/claude"),
         ):
             result = detector._find_executable("claude")
         assert result == "/usr/lib/node/claude"
@@ -274,9 +264,7 @@ class TestGetVersion:
         mock_proc = AsyncMock()
         mock_proc.communicate = AsyncMock(return_value=(b"", b""))
 
-        async def _raise_timeout(
-            awaitable: object, timeout: float
-        ) -> tuple[bytes, bytes]:
+        async def _raise_timeout(awaitable: object, timeout: float) -> tuple[bytes, bytes]:
             if hasattr(awaitable, "close"):
                 awaitable.close()  # type: ignore[attr-defined]
             raise TimeoutError
@@ -308,3 +296,62 @@ class TestIsExecutable:
         f.touch()
         f.chmod(0o644)
         assert _is_executable(f) is False
+
+
+class TestCacheCrossConversion:
+    """Versioned ↔ non-versioned cache cross-hydration/stripping."""
+
+    @pytest.mark.asyncio
+    async def test_versioned_cache_strips_for_non_versioned(self) -> None:
+        detector = BackendDetector()
+        # detect() calls _find_executable(name) synchronously and _get_version(path) async
+        with (
+            patch.object(detector, "_find_executable", return_value="/usr/bin/claude"),
+            patch.object(detector, "_get_version", new_callable=AsyncMock, return_value="1.2.3"),
+        ):
+            first = await detector.detect(include_version=True)
+            assert first[0].version == "1.2.3"
+            # Non-versioned read from versioned cache → _strip_versions (L98-102)
+            second = await detector.detect(include_version=False)
+        assert second[0].version is None
+        assert second[0].name == "claude"
+
+    @pytest.mark.asyncio
+    async def test_non_versioned_cache_hydrates_for_versioned(self) -> None:
+        detector = BackendDetector()
+        with (
+            patch.object(detector, "_find_executable", return_value="/usr/bin/claude"),
+            patch.object(detector, "_get_version", new_callable=AsyncMock, return_value="4.5.6"),
+        ):
+            first = await detector.detect(include_version=False)
+            assert first[0].version is None
+            # Versioned read from non-versioned cache → _hydrate_versions (L92-96)
+            second = await detector.detect(include_version=True)
+            assert second[0].version == "4.5.6"
+
+
+class TestDetectWithAuth:
+    @pytest.mark.asyncio
+    async def test_detect_with_auth_combines_state(self, tmp_path: Path) -> None:
+        detector = BackendDetector()
+        detector.detect = AsyncMock(  # type: ignore[method-assign]
+            return_value=[DetectedBackend(name="codex", path="/usr/bin/codex")]
+        )
+        env = {"HOME": str(tmp_path)}
+        pairs = await detector.detect_with_auth(env=env)
+        assert len(pairs) == 1
+        backend, state = pairs[0]
+        assert backend.name == "codex"
+        assert state.status.value == "not_authenticated"
+
+    @pytest.mark.asyncio
+    async def test_detect_with_auth_pass_through_kwargs(self, tmp_path: Path) -> None:
+        detector = BackendDetector()
+        mock_detect = AsyncMock(return_value=[DetectedBackend(name="codex", path="/usr/bin/codex")])
+        detector.detect = mock_detect  # type: ignore[method-assign]
+        await detector.detect_with_auth(
+            env={"HOME": str(tmp_path)},
+            include_version=True,
+            refresh=True,
+        )
+        mock_detect.assert_awaited_once_with(include_version=True, refresh=True)
