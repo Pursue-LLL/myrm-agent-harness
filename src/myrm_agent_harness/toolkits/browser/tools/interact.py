@@ -38,7 +38,7 @@ class InteractStep(BaseModel):
     ref: str = Field(description="Element ref from browser_snapshot")
     text: str = Field(
         default="",
-        description="Text/key/path/target ref as required by the action",
+        description="Text/key/path as required by the action (drag uses 'x,y' target coordinates)",
     )
     verify_goal: str | None = Field(
         default=None,
