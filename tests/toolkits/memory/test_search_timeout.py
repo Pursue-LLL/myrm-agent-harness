@@ -11,6 +11,10 @@ import asyncio
 
 import pytest
 
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
+    MemorySearchBackends,
+    MemorySearchPolicy,
+)
 from myrm_agent_harness.toolkits.memory.config import MemoryConfig, RetrievalConfig
 from myrm_agent_harness.toolkits.memory.manager import MemoryManager
 from myrm_agent_harness.toolkits.memory.metrics import SearchMetrics, get_search_metrics
@@ -448,3 +452,134 @@ class TestMemorySearchToolCorpusBranches:
         text = await tool.ainvoke({"query": "q", "corpus": "sessions"})
 
         assert "Conversation history search is not available." in text
+
+    @pytest.mark.asyncio
+    async def test_all_corpora_joins_sections(self, fast_timeout_config) -> None:
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
+            MemorySearchBackends,
+            MemorySearchPolicy,
+        )
+        from myrm_agent_harness.toolkits.memory.conversation_search.types import (
+            ConversationSearchHit,
+            ConversationSearchResponse,
+        )
+        from myrm_agent_harness.toolkits.wiki.core.types import QueryResult
+
+        provider = AsyncMock()
+        provider.search.return_value = ConversationSearchResponse(
+            mode="search",
+            hits=[
+                ConversationSearchHit(
+                    conversation_id="conv-1",
+                    snippet="A conversation hit.",
+                    score=0.8,
+                )
+            ],
+        )
+        backends = MemorySearchBackends(
+            query_wiki=AsyncMock(
+                return_value=QueryResult(
+                    question="q", answer="Wiki answer.", related_articles=[]
+                )
+            ),
+            conversation_provider=provider,
+            query_web_corpus=AsyncMock(return_value="Web result."),
+        )
+        tool = self._build_tool(
+            self._manager(fast_timeout_config),
+            policy=MemorySearchPolicy(
+                allow_wiki=True, allow_sessions=True, allow_web=True
+            ),
+            backends=backends,
+        )
+
+        text = await tool.ainvoke({"query": "q", "corpus": "all"})
+
+        assert "## Memory" in text
+        assert "## Wiki" in text
+        assert "## Sessions" in text
+        assert "## Web" in text
+
+
+class TestMemorySaveManageBranches:
+    """Boundary guards of memory_save_tool / memory_manage_tool.
+
+    Covers unknown-category/action guards and store-availability notices that
+    would otherwise leave the agent surface partially untested.
+    """
+
+    @staticmethod
+    def _tools(fast_timeout_config: MemoryConfig) -> list[object]:
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_agent_tools import (
+            create_memory_tools,
+        )
+
+        manager = MemoryManager(
+            fast_timeout_config,
+            user_id="test_user",
+            auto_warmup=False,
+        )
+        return create_memory_tools(manager)
+
+    @staticmethod
+    def _find(tools: list[object], name: str) -> object:
+        return next(t for t in tools if getattr(t, "name", None) == name)
+
+    @pytest.mark.asyncio
+    async def test_save_unknown_category(self, fast_timeout_config) -> None:
+        save = self._find(self._tools(fast_timeout_config), "memory_save_tool")
+
+        text = await save.coroutine(content="x", category="bogus")
+
+        assert text == "Unknown category: bogus"
+
+    @pytest.mark.asyncio
+    async def test_manage_unknown_category_and_action(
+        self, fast_timeout_config
+    ) -> None:
+        manage = self._find(self._tools(fast_timeout_config), "memory_manage_tool")
+
+        assert (
+            await manage.coroutine(action="update", memory_id="m1", category="bogus")
+            == "Unknown category: bogus"
+        )
+        assert (
+            await manage.coroutine(
+                action="bogus", memory_id="m1", category="knowledge"
+            )
+            == "Unknown action: bogus"
+        )
+
+    @pytest.mark.asyncio
+    async def test_save_not_enabled_guards(self, fast_timeout_config) -> None:
+        save = self._find(self._tools(fast_timeout_config), "memory_save_tool")
+
+        assert "Profile memory is not enabled." in (
+            await save.coroutine(content="x", category="preference", preference_key="k")
+        )
+        assert "Procedural memory is not enabled." in (
+            await save.coroutine(content="x", category="instruction")
+        )
+
+    @pytest.mark.asyncio
+    async def test_manage_not_enabled_guards(self, fast_timeout_config) -> None:
+        manage = self._find(self._tools(fast_timeout_config), "memory_manage_tool")
+
+        assert "knowledge memory is not enabled." in (
+            await manage.coroutine(
+                action="delete", memory_id="m1", category="knowledge"
+            )
+        )
+        assert "Procedural memory is not enabled." in (
+            await manage.coroutine(action="delete", memory_id="m1", category="rule")
+        )
+        assert "Knowledge memory is not enabled." in (
+            await manage.coroutine(
+                action="correct",
+                memory_id="m1",
+                category="knowledge",
+                new_content="c",
+            )
+        )
