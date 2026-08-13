@@ -1,5 +1,15 @@
 """ACP Server — bridges IDE clients to the agent system via ACP protocol.
 
+[INPUT]
+- toolkits.acp.server.server::MyrmAcpServer, run_server (POS: ACP protocol layer) [lazy]
+- toolkits.acp.server.bridge::AgentBridge, AgentFactory (POS: ACP session-to-agent mapping layer) [lazy]
+
+[OUTPUT]
+- MyrmAcpServer: lazy-imported ACP server implementation
+- run_server: lazy-imported ACP server launcher
+- AgentBridge: lazy-imported session-to-agent bridge
+- AgentFactory: lazy-imported agent factory
+
 [POS]
 ACP server direction — IDE clients talk to the hosted agent system over ACP.
 """

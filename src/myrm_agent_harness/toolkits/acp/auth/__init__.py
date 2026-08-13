@@ -8,6 +8,11 @@ mechanisms, all GUI/SaaS-driven by the business layer:
 - interactive login — drive ``<cli> login`` and stream URLs/codes to the user
 - credential import — the universal fallback: persist a credential captured elsewhere
 
+[INPUT]
+- toolkits.acp.auth._profiles::AuthProfile, LoginStrategy, known_backends, profile_for (POS: Authentication profile registry.)
+- toolkits.acp.auth.credential_store::AuthStatus, CredentialState, CredentialStore (POS: Credential persistence and detection.)
+- toolkits.acp.auth.login_session::AuthEvent, AuthEventType, CliLoginSession (POS: CLI login session management.)
+
 [OUTPUT]
 - LoginStrategy, AuthProfile, profile_for, known_backends
 - AuthStatus, CredentialState, CredentialStore

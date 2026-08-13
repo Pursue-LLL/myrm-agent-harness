@@ -3,6 +3,12 @@
 Usage:
     python -m myrm_agent_harness.agent.acp
 
+[INPUT]
+no — standard library only (runpy)
+
+[OUTPUT]
+no — delegates to ``myrm_agent_harness.agent.acp.__main__``
+
 [POS]
 Delegates to ``agent.acp.__main__``.
 """

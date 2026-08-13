@@ -10,6 +10,12 @@ Modules here are consumed via explicit submodule imports (e.g.
 ``from myrm_agent_harness.toolkits.acp.core.event_bus import EventBus``);
 no public symbols are re-exported at this package level.
 
+[INPUT]
+no — package marker only, no runtime imports
+
+[OUTPUT]
+no — no re-exports at this package level
+
 [POS]
 Shared cross-cutting runtime infrastructure for the ACP toolkit (no re-exports).
 """

@@ -6,6 +6,8 @@ and communicates via the standard ACP JSON-RPC protocol over stdin/stdout.
 [INPUT]
 - toolkits.acp.types::BackendCapabilities, BackendStatus, McpServerConfig (POS: ACP runtime type definitions layer. Provides all ACP-related core abstractions and data structures, serving as the foundation for the entire ACP module.)
 - toolkits.acp.core.event_bus::EventBus (POS: ACP event bus layer. Provides decoupled event dispatch mechanism for the Runtime system with session isolation and type filtering.)
+- toolkits.acp.runtime._base::BaseRuntime, build_safe_env (POS: Base class for RuntimeBackend implementations.)
+- toolkits.acp.runtime.acp_callback::AcpCallbackHandler (POS: ACP callback handler for the AcpRuntime backend.)
 - toolkits.code_execution.utils.workspace_path::WorkspacePathResolver (POS: Workspace path resolver with intelligent auto-detection.)
 
 [OUTPUT]

@@ -5,9 +5,13 @@ Gemini CLI, or any other agent that implements the ACP protocol, SDK,
 or CLI interface via the unified RuntimePool.
 
 [INPUT]
-- utils.runtime.progress_sink::ToolProgressSink (POS: ContextVar  Agent SSE  BaseAgent)
-- agent.streaming.types::AgentEventType (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
-- toolkits.code_execution.utils.workspace_path::WorkspacePathResolver (POS: Workspace path resolver with intelligent auto-detection.)
+- myrm_agent_harness.core.events.types::AgentEventType (POS: streaming event types and enums, framework-agnostic)
+- myrm_agent_harness.toolkits.acp.runtime._base::truncate_response (POS: Base class for RuntimeBackend implementations.)
+- myrm_agent_harness.toolkits.acp.types::RuntimeEventType (POS: ACP runtime type definitions layer. Provides all ACP-related core abstractions and data structures, serving as the foundation for the entire ACP module)
+- myrm_agent_harness.utils.runtime.cancellation::get_cancel_token (POS: Cancellation token mechanism. Provides request-level cancellation state management with graceful async cancellation support)
+- myrm_agent_harness.utils.runtime.progress_sink::ToolProgressSink, get_tool_progress_sink (POS: Progress event push mechanism. Tools implicitly obtain a sink via ContextVar to push intermediate progress events to the Agent SSE stream)
+- myrm_agent_harness.toolkits.acp.runtime.pool::RuntimePool (POS: Runtime pool management layer. Provides multi-backend unified management, concurrency control, health monitoring, and config-driven registration — the central dispatcher of the runtime system) [TYPE_CHECKING]
+- myrm_agent_harness.toolkits.code_execution.utils.workspace_path::WorkspacePathResolver (POS: Workspace path resolver with intelligent auto-detection) [lazy]
 
 [OUTPUT]
 - DelegateUsage: Token usage statistics from an external agent delegation.
