@@ -45,6 +45,8 @@ from .reporters import JsonlReporter, MarkdownReporter
 from .runner import EvalRunner
 
 __all__ = [
+    "HUGGINGFACE_DOMAINS",
+    "HUGGINGFACE_QUERY_MARKERS",
     "AgentExecutor",
     "AgentResponse",
     "BenchmarkSpec",
@@ -72,8 +74,6 @@ __all__ = [
     "evaluate_tool_assertions",
     "extract_case_from_trajectory",
     "get_benchmark",
-    "HUGGINGFACE_DOMAINS",
-    "HUGGINGFACE_QUERY_MARKERS",
     "is_huggingface_url",
     "list_benchmarks",
     "load_cases",

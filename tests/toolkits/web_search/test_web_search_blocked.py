@@ -35,8 +35,9 @@ async def test_clean_queries_pass_through() -> None:
     tool = _make_tool(("huggingface",))
     # The blocklist check runs before the real search, so reaching the search
     # layer means the query is allowed. We patch the engine to avoid network.
-    import myrm_agent_harness.toolkits.web_search.engine as engine_mod
     from unittest.mock import patch
+
+    import myrm_agent_harness.toolkits.web_search.engine as engine_mod
 
     with patch.object(
         engine_mod.WebSearchTools, "fast_search_with_questions"

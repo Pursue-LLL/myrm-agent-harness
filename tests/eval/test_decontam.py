@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from myrm_agent_harness.eval import (
     HUGGINGFACE_DOMAINS,
     HUGGINGFACE_QUERY_MARKERS,

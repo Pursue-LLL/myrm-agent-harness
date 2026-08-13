@@ -305,7 +305,7 @@ async def test_interact_at_click_with_bezier(mock_page: Any) -> None:
 
     with (
         patch(
-            "myrm_agent_harness.toolkits.browser.session.interactor.bezier_move",
+            "myrm_agent_harness.toolkits.browser.session.interactor_coord_mixin.bezier_move",
             new_callable=AsyncMock,
         ) as mock_bezier,
         patch(_WAIT_PATCH, new_callable=AsyncMock),
@@ -329,7 +329,7 @@ async def test_interact_at_drag_with_bezier(mock_page: Any) -> None:
 
     with (
         patch(
-            "myrm_agent_harness.toolkits.browser.session.interactor.bezier_move",
+            "myrm_agent_harness.toolkits.browser.session.interactor_coord_mixin.bezier_move",
             new_callable=AsyncMock,
         ) as mock_bezier,
         patch(_WAIT_PATCH, new_callable=AsyncMock),

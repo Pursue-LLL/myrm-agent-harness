@@ -5,8 +5,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
-
 from myrm_agent_harness.eval import (
     AgentResponse,
     BenchmarkSpec,
@@ -85,7 +83,6 @@ class TestMatrixCellDisclosure:
                 blocked_count=1,
             )
         }
-        result = MatrixResult(profile_ids=["p1"], cases=[], per_profile_results={})
         # Build matrix rows manually through get_cell path is not available
         # without turn results; verify the cell serialization directly.
         row = {
@@ -213,8 +210,8 @@ class TestJsonlReporterDisclosure:
         out = tmp_path / "report.jsonl"
         JsonlReporter(out).report(result)
 
-        lines = [json.loads(l) for l in out.read_text().splitlines()]
-        turn_line = next(l for l in lines if l["type"] == "turn")
+        lines = [json.loads(line) for line in out.read_text().splitlines()]
+        turn_line = next(ln for ln in lines if ln["type"] == "turn")
         assert turn_line["limit_reached"] == "max_tool_calls"
         assert turn_line["blocked_count"] == 1
         assert turn_line["tool_call_details"] == [
