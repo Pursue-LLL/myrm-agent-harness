@@ -26,7 +26,7 @@ myrm_agent_harness/agent/sub_agents/types.py	572
 myrm_agent_harness/core/security/detection/leak_detector.py	514
 myrm_agent_harness/eval/assertions.py	556
 myrm_agent_harness/observability/diagnostics/probes.py	574
-myrm_agent_harness/toolkits/browser/session/browser_session.py	582
+myrm_agent_harness/toolkits/browser/session/browser_session.py	584
 myrm_agent_harness/toolkits/browser/session/browser_session_navigation_mixin.py	604
 myrm_agent_harness/toolkits/browser/session_vault/__init__.py	522
 myrm_agent_harness/toolkits/code_execution/session/persistent_session.py	545
@@ -76,7 +76,7 @@ myrm_agent_harness/agent/sub_agents/prompts.py	547
 myrm_agent_harness/backends/skills/_utils.py	807
 myrm_agent_harness/backends/skills/scanning/patterns.py	824
 myrm_agent_harness/backends/skills/scanning/scanner.py	538
-myrm_agent_harness/core/security/tool_registry/registry.py	566
+myrm_agent_harness/core/security/tool_registry/registry.py	632
 myrm_agent_harness/core/security/types.py	608
 myrm_agent_harness/infra/delivery/queue.py	604
 myrm_agent_harness/infra/delivery/storage.py	536
@@ -119,7 +119,7 @@ myrm_agent_harness/toolkits/memory/relational/sqlite_store.py	823
 myrm_agent_harness/toolkits/memory/strategies/consolidation.py	600
 myrm_agent_harness/toolkits/memory/strategies/deduplicator.py	716
 myrm_agent_harness/toolkits/memory/strategies/extractor.py	882
-myrm_agent_harness/toolkits/memory/types.py	556
+myrm_agent_harness/toolkits/memory/types.py	558
 myrm_agent_harness/toolkits/retriever/engine.py	545
 myrm_agent_harness/toolkits/web_fetch/router/adaptive_router.py	657
 myrm_agent_harness/toolkits/web_fetch/router/domain_metrics.py	506
