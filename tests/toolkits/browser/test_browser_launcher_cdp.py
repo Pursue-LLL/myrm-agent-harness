@@ -29,6 +29,31 @@ def _mock_browser(contexts: int = 0) -> MagicMock:
     return browser
 
 
+def _inst_with_unresponsive_page(pool: GlobalBrowserPool, is_managed: bool) -> BrowserInstance:
+    """BrowserInstance whose only pooled page fails every liveness probe.
+
+    patchright exposes Browser.version/contexts as cached properties, so the
+    lifecycle tick probes liveness through page.evaluate; a page that raises
+    makes the browser look dead.
+    """
+    browser = _mock_browser()
+    browser.on = MagicMock()
+    browser.close = AsyncMock()
+
+    inst = BrowserInstance(browser=browser, is_managed=is_managed)
+    inst.load = 1
+    page = MagicMock()
+    page.evaluate = AsyncMock(side_effect=RuntimeError("target closed"))
+    page_pool = MagicMock()
+    page_pool._busy = {page}
+    page_pool._idle = []
+    inst.page_pools = {"agent": page_pool}
+
+    pool._browsers.append(inst)
+    pool._current_pages_in_use = 1
+    return inst
+
+
 def _make_launcher(
     launch_mode: LaunchMode = LaunchMode.LAUNCH,
     cdp_endpoint: str | None = None,
@@ -432,15 +457,7 @@ class TestLifecycleTickExternalBrowser:
     async def test_lifecycle_tick_external_unresponsive_no_crash_count(self) -> None:
         pool = GlobalBrowserPool(max_browsers=2)
 
-        mock_browser = _mock_browser()
-        mock_browser.on = MagicMock()
-        mock_browser.close = AsyncMock()
-        mock_browser.version = AsyncMock(side_effect=TimeoutError("unresponsive"))
-
-        inst = BrowserInstance(browser=mock_browser, is_managed=False)
-        inst.load = 1
-        pool._browsers.append(inst)
-        pool._current_pages_in_use = 1
+        inst = _inst_with_unresponsive_page(pool, is_managed=False)
 
         initial_crash_count = pool._crash_count_browser
 
@@ -455,15 +472,7 @@ class TestLifecycleTickExternalBrowser:
     async def test_lifecycle_tick_managed_unresponsive_increments_crash_count(self) -> None:
         pool = GlobalBrowserPool(max_browsers=2)
 
-        mock_browser = _mock_browser()
-        mock_browser.on = MagicMock()
-        mock_browser.close = AsyncMock()
-        mock_browser.version = AsyncMock(side_effect=TimeoutError("unresponsive"))
-
-        inst = BrowserInstance(browser=mock_browser, is_managed=True)
-        inst.load = 1
-        pool._browsers.append(inst)
-        pool._current_pages_in_use = 1
+        inst = _inst_with_unresponsive_page(pool, is_managed=True)
 
         initial_crash_count = pool._crash_count_browser
 
@@ -479,13 +488,7 @@ class TestLifecycleTickExternalBrowser:
         config = BrowserConfig.defensive()
         pool = GlobalBrowserPool(max_browsers=2, config=config)
 
-        mock_browser = _mock_browser()
-        mock_browser.on = MagicMock()
-        mock_browser.close = AsyncMock()
-        mock_browser.version = AsyncMock(side_effect=TimeoutError("unresponsive"))
-
-        inst = BrowserInstance(browser=mock_browser, is_managed=False)
-        pool._browsers.append(inst)
+        inst = _inst_with_unresponsive_page(pool, is_managed=False)
 
         cb = pool._circuit_breaker
         assert cb is not None
@@ -496,6 +499,54 @@ class TestLifecycleTickExternalBrowser:
 
         assert cb._failure_counts[crash_domain] == initial_failures
         assert inst not in pool._browsers
+
+        await pool.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_lifecycle_tick_healthy_page_kept(self) -> None:
+        pool = GlobalBrowserPool(max_browsers=2)
+
+        browser = _mock_browser()
+        browser.on = MagicMock()
+        browser.close = AsyncMock()
+        inst = BrowserInstance(browser=browser, is_managed=True)
+        inst.load = 1
+        page = MagicMock()
+        page.evaluate = AsyncMock(return_value=1)
+        page_pool = MagicMock()
+        page_pool._busy = {page}
+        page_pool._idle = []
+        inst.page_pools = {"agent": page_pool}
+        pool._browsers.append(inst)
+        pool._current_pages_in_use = 1
+
+        initial_crash_count = pool._crash_count_browser
+
+        await pool._lifecycle_tick()
+
+        assert pool._crash_count_browser == initial_crash_count
+        assert inst in pool._browsers
+
+        await pool.shutdown()
+
+    @pytest.mark.asyncio
+    async def test_lifecycle_tick_browser_without_pages_kept(self) -> None:
+        pool = GlobalBrowserPool(max_browsers=2)
+
+        browser = _mock_browser()
+        browser.on = MagicMock()
+        browser.close = AsyncMock()
+        inst = BrowserInstance(browser=browser, is_managed=True)
+        inst.load = 1
+        pool._browsers.append(inst)
+        pool._current_pages_in_use = 1
+
+        initial_crash_count = pool._crash_count_browser
+
+        await pool._lifecycle_tick()
+
+        assert pool._crash_count_browser == initial_crash_count
+        assert inst in pool._browsers
 
         await pool.shutdown()
 

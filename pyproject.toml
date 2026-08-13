@@ -104,6 +104,11 @@ file-parsers = [
   "openpyxl>=3.1.5",    # Excel 文件读写
   "python-pptx>=1.0.2", # PowerPoint 文档解析
 ]
+# toolkits/file_parsers/ocr.py - 扫描 PDF / 图片 OCR 兜底（PaddleOCR，CJK 原生支持）
+pdf-ocr = [
+  "paddleocr>=3.2.0",   # PaddleOCR 引擎（含检测+识别模型）
+  "paddlepaddle>=3.2.0", # PaddlePaddle 深度学习框架
+]
 # infra/security/signature.py - FastAPI webhook signature verification
 fastapi = [
   "fastapi>=0.141.1",

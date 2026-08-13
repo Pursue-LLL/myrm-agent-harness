@@ -97,6 +97,11 @@ class TestPDFExtractConfig:
         config = PDFExtractConfig()
         assert config.max_pages == 500
 
+    def test_default_ocr_pages(self):
+        """OCR fallback defaults to 30 pages; 0 disables it."""
+        config = PDFExtractConfig()
+        assert config.ocr_pages == 30
+
     def test_default_result_has_parsed_pages(self):
         result = PDFExtractResult()
         assert result.parsed_pages == 0
@@ -130,15 +135,15 @@ class TestExtractPdfContent:
     """Integration tests for the async extraction pipeline."""
 
     @pytest.mark.asyncio
-    async def test_text_rich_pdf_uses_hybrid_strategy(self):
-        """A text-rich PDF should use 'hybrid' strategy by default."""
+    async def test_text_rich_pdf_without_images_uses_text_strategy(self):
+        """A text-rich PDF with no embedded images should report 'text', not 'hybrid'."""
         pdf_path = _make_text_pdf()
         try:
             config = PDFExtractConfig(max_pages=5, extract_embedded_images=True)
             result = await extract_pdf_content(str(pdf_path), config)
 
             assert isinstance(result, PDFExtractResult)
-            assert result.strategy == "hybrid"
+            assert result.strategy == "text"
             assert result.page_count >= 1
             assert result.parsed_pages >= 1
             assert result.parsed_pages <= result.page_count
@@ -372,6 +377,63 @@ class TestBranchCoverage:
         with patch.dict("sys.modules", {"pypdfium2": None}), pytest.raises(ImportError, match="pypdfium2"):
             _render_pages_sync("/fake.pdf", max_pages=5, max_pixels=4_000_000)
 
+    def test_render_pages_scales_down_oversized_pages(self):
+        """Pages exceeding max_pixels are rendered at a down-scaled factor."""
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _render_pages_sync,
+        )
+
+        pil_img = Image.new("RGB", (50, 50), color="white")
+        mock_render = MagicMock()
+        mock_render.to_pil.return_value = pil_img
+
+        mock_page = MagicMock()
+        mock_page.get_size.return_value = (4000, 4000)  # 16M pixels > 4M max_pixels
+        mock_page.render.return_value = mock_render
+
+        mock_pdf = MagicMock()
+        mock_pdf.__len__ = MagicMock(return_value=1)
+        mock_pdf.get_page.return_value = mock_page
+        mock_pdf.close = MagicMock()
+
+        with patch("pypdfium2.PdfDocument", return_value=mock_pdf):
+            result = _render_pages_sync("/fake.pdf", max_pages=5, max_pixels=4_000_000)
+
+        assert len(result) == 1
+        _args, kwargs = mock_page.render.call_args
+        assert kwargs["scale"] < 1.0
+
+    def test_render_pages_skips_failed_page(self):
+        """A page that fails to render is skipped without aborting the batch."""
+        from unittest.mock import MagicMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _render_pages_sync,
+        )
+
+        failed_page = MagicMock()
+        failed_page.get_size.return_value = (100, 100)
+        failed_page.render.side_effect = RuntimeError("render failed")
+
+        pil_img = Image.new("RGB", (50, 50), color="white")
+        mock_render = MagicMock()
+        mock_render.to_pil.return_value = pil_img
+        ok_page = MagicMock()
+        ok_page.get_size.return_value = (100, 100)
+        ok_page.render.return_value = mock_render
+
+        mock_pdf = MagicMock()
+        mock_pdf.__len__ = MagicMock(return_value=2)
+        mock_pdf.get_page.side_effect = [failed_page, ok_page]
+        mock_pdf.close = MagicMock()
+
+        with patch("pypdfium2.PdfDocument", return_value=mock_pdf):
+            result = _render_pages_sync("/fake.pdf", max_pages=5, max_pixels=4_000_000)
+
+        assert len(result) == 1
+
     def test_embedded_images_outer_exception_handling(self):
         """When pdfplumber.open() raises, embedded extraction returns empty list."""
         from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
@@ -520,3 +582,210 @@ class TestBranchCoverage:
             result = _extract_embedded_images_sync("/fake.pdf", max_pages=2)
 
         assert len(result) == 2
+
+
+# ---------------------------------------------------------------------------
+# OCR fallback for scanned PDFs
+# ---------------------------------------------------------------------------
+
+
+class TestPdfOcrFallback:
+    """OCR fallback wiring for scanned (text-sparse) PDFs."""
+
+    @pytest.mark.asyncio
+    async def test_sparse_pdf_ocr_appends_ocr_text(self):
+        """Sparse PDF: OCR text replaces the sparse text layer; strategy stays 'image'."""
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _ocr_rendered_pages_async,
+        )
+
+        pdf_path = _make_sparse_pdf()
+        try:
+            with (
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    new_callable=AsyncMock,
+                ) as mock_ocr,
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    return_value=[PDFImageContent(data="aGVsbG8=")],
+                ),
+            ):
+                mock_ocr.return_value = "[Page 1]\nHello scanned document"
+                config = PDFExtractConfig(min_text_chars=200)
+                result = await extract_pdf_content(str(pdf_path), config)
+
+            assert "[Page 1]" in result.text
+            assert "Hello scanned document" in result.text
+            assert result.strategy == "image"
+            mock_ocr.assert_awaited_once()
+        finally:
+            pdf_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_sparse_pdf_ocr_disabled_when_ocr_pages_zero(self):
+        """ocr_pages=0 disables the OCR fallback entirely."""
+        from unittest.mock import AsyncMock
+
+        pdf_path = _make_sparse_pdf()
+        try:
+            with (
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    new_callable=AsyncMock,
+                ) as mock_ocr,
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    return_value=[PDFImageContent(data="aGVsbG8=")],
+                ),
+            ):
+                config = PDFExtractConfig(min_text_chars=200, ocr_pages=0)
+                result = await extract_pdf_content(str(pdf_path), config)
+
+            assert result.strategy == "image"
+            mock_ocr.assert_not_awaited()
+        finally:
+            pdf_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_sparse_pdf_ocr_empty_result_keeps_sparse_text(self):
+        """Empty OCR output (e.g. PaddleOCR unavailable) preserves sparse text."""
+        from unittest.mock import AsyncMock
+
+        pdf_path = _make_text_pdf(text_content="just a stub")
+        try:
+            with (
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._ocr_rendered_pages_async",
+                    new_callable=AsyncMock,
+                ) as mock_ocr,
+                patch(
+                    "myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor._render_pages_sync",
+                    return_value=[PDFImageContent(data="aGVsbG8=")],
+                ),
+            ):
+                mock_ocr.return_value = ""
+                config = PDFExtractConfig(min_text_chars=200)
+                result = await extract_pdf_content(str(pdf_path), config)
+
+            assert result.strategy == "image"
+            assert "just a stub" in result.text
+        finally:
+            pdf_path.unlink(missing_ok=True)
+
+    @pytest.mark.asyncio
+    async def test_ocr_rendered_pages_concats_pages_with_markers(self):
+        """_ocr_rendered_pages_async joins pages with [Page N] markers."""
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _ocr_rendered_pages_async,
+        )
+
+        images = [
+            PDFImageContent(data=base64.b64encode(b"page-one-png").decode("ascii")),
+            PDFImageContent(data=base64.b64encode(b"page-two-png").decode("ascii")),
+        ]
+        with patch(
+            "myrm_agent_harness.toolkits.file_parsers.ocr.OCRParser.parse_bytes",
+            new_callable=AsyncMock,
+        ) as mock_parse:
+            mock_parse.side_effect = ["page one text", "page two text"]
+            result = await _ocr_rendered_pages_async(images, ocr_pages=30)
+
+        assert "[Page 1]\npage one text" in result
+        assert "[Page 2]\npage two text" in result
+        assert mock_parse.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_ocr_rendered_pages_skips_failed_pages(self):
+        """A failing page is skipped without aborting the remaining pages."""
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _ocr_rendered_pages_async,
+        )
+
+        images = [
+            PDFImageContent(data=base64.b64encode(b"page-1").decode("ascii")),
+            PDFImageContent(data=base64.b64encode(b"page-2").decode("ascii")),
+        ]
+        with patch(
+            "myrm_agent_harness.toolkits.file_parsers.ocr.OCRParser.parse_bytes",
+            new_callable=AsyncMock,
+        ) as mock_parse:
+            mock_parse.side_effect = [RuntimeError("ocr engine failed"), "page two text"]
+            result = await _ocr_rendered_pages_async(images, ocr_pages=30)
+
+        assert "page two text" in result
+        assert "page one" not in result
+
+    @pytest.mark.asyncio
+    async def test_ocr_rendered_pages_respects_page_limit(self):
+        """Only the first ocr_pages pages are OCR'd."""
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _ocr_rendered_pages_async,
+        )
+
+        images = [
+            PDFImageContent(data=base64.b64encode(b"page-1").decode("ascii")),
+            PDFImageContent(data=base64.b64encode(b"page-2").decode("ascii")),
+            PDFImageContent(data=base64.b64encode(b"page-3").decode("ascii")),
+        ]
+        with patch(
+            "myrm_agent_harness.toolkits.file_parsers.ocr.OCRParser.parse_bytes",
+            new_callable=AsyncMock,
+        ) as mock_parse:
+            mock_parse.return_value = "some text"
+            result = await _ocr_rendered_pages_async(images, ocr_pages=2)
+
+        assert mock_parse.await_count == 2
+        assert "[Page 1]" in result
+        assert "[Page 2]" in result
+        assert "[Page 3]" not in result
+
+    @pytest.mark.asyncio
+    async def test_ocr_rendered_pages_skips_blank_pages(self):
+        """Blank OCR output produces no [Page N] marker for that page."""
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _ocr_rendered_pages_async,
+        )
+
+        images = [PDFImageContent(data=base64.b64encode(b"page-1").decode("ascii"))]
+        with patch(
+            "myrm_agent_harness.toolkits.file_parsers.ocr.OCRParser.parse_bytes",
+            new_callable=AsyncMock,
+        ) as mock_parse:
+            mock_parse.return_value = "   \n  "
+            result = await _ocr_rendered_pages_async(images, ocr_pages=30)
+
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_ocr_rendered_pages_stops_on_import_error(self):
+        """PaddleOCR missing aborts the batch early instead of retrying each page."""
+        from unittest.mock import AsyncMock
+
+        from myrm_agent_harness.toolkits.file_parsers.pdf_content_extractor import (
+            _ocr_rendered_pages_async,
+        )
+
+        images = [
+            PDFImageContent(data=base64.b64encode(b"page-1").decode("ascii")),
+            PDFImageContent(data=base64.b64encode(b"page-2").decode("ascii")),
+        ]
+        with patch(
+            "myrm_agent_harness.toolkits.file_parsers.ocr.OCRParser.parse_bytes",
+            new_callable=AsyncMock,
+        ) as mock_parse:
+            mock_parse.side_effect = ImportError("paddleocr is required")
+            result = await _ocr_rendered_pages_async(images, ocr_pages=30)
+
+        assert result == ""
+        assert mock_parse.await_count == 1

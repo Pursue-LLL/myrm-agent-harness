@@ -162,10 +162,12 @@ class ProfileAttributeSnapshot(BaseModel):
 class MemoryScope(BaseModel):
     """Deterministic ownership and session identity for a memory record.
 
-    ``namespaces`` is the search-facing scope list. It is ordered from broader
-    to narrower scopes and is used by the vector layer for namespace-aware
-    retrieval. ``primary_namespace`` is a stable audit label for the memory's
-    effective bucket.
+    ``primary_namespace`` is the authoritative single namespace used by the
+    vector layer for precise scope filtering (exact IN matching against the
+    single-value payload field), so one agent can never match another agent's
+    private memories through a shared broadcast namespace. ``namespaces`` is an
+    ordered broad-to-narrow scope list kept for display and scope
+    reconstruction only; it must not be used for permission filtering.
     """
 
     primary_namespace: str = ""

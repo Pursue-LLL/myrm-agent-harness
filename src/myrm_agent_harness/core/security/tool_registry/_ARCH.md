@@ -14,8 +14,20 @@ preserving the flat-module import surface for all consumers.
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Aggregation facade — re-exports registry + safety public/internal symbols. | ✅ |
-| registry.py | Core | Tool safety SSOT — TOOL_PERMISSION_MAP, BUILTIN_TOOL_NAMES, TOOL_GROUP_MAP/TOOL_TO_GROUP/TOOL_GROUP_NAMES, TOOL_CANONICAL_PARAMS, TOOL_SAFETY_METADATA, SafetyMetadata, MCPAnnotations, resolve_safety_metadata/resolve_permission_type/compute_canonical_args_hash, PTC dynamic registration, module-load safety gate. | ✅ |
+| registry.py | Core | Tool safety SSOT — TOOL_PERMISSION_MAP, BUILTIN_TOOL_NAMES, TOOL_GROUP_MAP/TOOL_TO_GROUP/TOOL_GROUP_NAMES, TOOL_CANONICAL_PARAMS, TOOL_SAFETY_METADATA, AUTO_APPROVED_BUILTIN_TOOLS/AUTO_APPROVE_REASONS/RULESET_COVERAGE_WHITELIST (governance audit declarations), SafetyMetadata, MCPAnnotations, resolve_safety_metadata/resolve_permission_type/compute_canonical_args_hash, PTC dynamic registration, module-load safety gate. | ✅ |
 | safety.py | Core | `check_safety_coverage()` — module-load warning when built-in tools lack TOOL_SAFETY_METADATA entries. | ✅ |
+
+## Governance Coverage Declarations
+
+Built-in tools NOT in `TOOL_PERMISSION_MAP` and NOT covered by a dynamic
+`resolve_permission_type()` branch MUST be declared in
+`AUTO_APPROVED_BUILTIN_TOOLS` with a reason from `AUTO_APPROVE_REASONS`.
+Permission types produced by `TOOL_PERMISSION_MAP` without an explicit
+`DEFAULT_RULESET` rule MUST be declared in `RULESET_COVERAGE_WHITELIST`.
+These declarations are audit metadata consumed by
+`scripts/validate_tool_registry.py` (CI gate); they do not change runtime
+permission resolution. Adding a built-in tool that silently bypasses governance
+fails the CI gate.
 
 ## Key Dependencies
 

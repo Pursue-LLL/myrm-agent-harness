@@ -289,3 +289,68 @@ async def test_careful_click_locked_scroll_never_silent_real(
         )
     finally:
         await browser.release_page(page, ctx)
+
+
+# =============================================================================
+# Edge-case coverage: negative delta / scroll_to_bottom no-op / DEFAULT no-regression
+# =============================================================================
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_scroll_negative_delta_scrolls_up_real(browser: GlobalBrowserPool) -> None:
+    """A negative delta (upward scroll) really moves the page up, not down."""
+    page, ctx = await _open_page(browser, _LONG_PAGE)
+    try:
+        interactor = _interactor(page, HumanizeMode.DEFAULT)
+        await interactor.interact("scroll", "e0", "500")
+        top_before = await page.evaluate("window.scrollY")
+        assert top_before >= 300, f"initial down-scroll did not move: {top_before}"
+
+        result = await interactor.interact("scroll", "e0", "-200")
+        assert "Scrolled -200px" in result, result
+        top_after = await page.evaluate("window.scrollY")
+        assert top_after < top_before, (
+            f"negative delta must scroll up: before={top_before}, after={top_after}"
+        )
+    finally:
+        await browser.release_page(page, ctx)
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_scroll_to_bottom_no_overflow_early_exit_real(
+    browser: GlobalBrowserPool,
+) -> None:
+    """scroll_to_bottom on a non-scrollable page exits immediately with the honest no-op."""
+    page, ctx = await _open_page(browser, _STATIC_PAGE)
+    try:
+        interactor = _interactor(page, HumanizeMode.DEFAULT)
+        result = await interactor.interact("scroll_to_bottom", "e0", "")
+
+        assert "no scrollable overflow" in result, result
+        scroll_y = await page.evaluate("window.scrollY")
+        assert scroll_y == 0
+    finally:
+        await browser.release_page(page, ctx)
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_default_click_off_viewport_lands_real(browser: GlobalBrowserPool) -> None:
+    """DEFAULT click on an off-viewport target still lands via the native path."""
+    page, ctx = await _open_page(browser, _LONG_PAGE)
+    try:
+        interactor = _interactor(page, HumanizeMode.DEFAULT)
+        result = await interactor.interact("click", "e0")
+
+        assert "Clicked e0" in result, result
+        clicked = await page.evaluate(
+            "document.getElementById('deep').dataset.clicked"
+        )
+        assert clicked == "1", "DEFAULT click must still land after R1 changes"
+    finally:
+        await browser.release_page(page, ctx)

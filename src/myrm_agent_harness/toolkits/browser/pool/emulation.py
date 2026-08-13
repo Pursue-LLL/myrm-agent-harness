@@ -69,6 +69,25 @@ class EmulationConfig:
     offline: bool = False
     """Enable offline mode (network disconnected)."""
 
+    viewport: tuple[int, int] | None = None
+    """Viewport size as (width, height) in CSS pixels.
+
+    When set together with ``is_mobile``, applies the device's layout viewport
+    (e.g. iPhone 15 Pro: (393, 659)); otherwise overrides the desktop default.
+    """
+
+    user_agent: str | None = None
+    """Mobile (or custom) User-Agent string sent by the browser context."""
+
+    device_scale_factor: float | None = None
+    """Device pixel ratio (e.g. 3.0 for iPhone, 2.625 for Pixel 8)."""
+
+    is_mobile: bool | None = None
+    """Whether the context emulates a mobile device (affects meta viewport handling)."""
+
+    has_touch: bool | None = None
+    """Whether the context emulates a touch screen (touch event support)."""
+
     def __post_init__(self) -> None:
         """Validate configuration parameters at creation time.
 
@@ -84,6 +103,19 @@ class EmulationConfig:
             if not (-180 <= lon <= 180):
                 msg = f"Longitude must be in [-180, 180], got {lon}"
                 raise ValueError(msg)
+
+        if self.viewport is not None:
+            width, height = self.viewport
+            if width <= 0 or height <= 0:
+                msg = f"Viewport dimensions must be positive, got {self.viewport}"
+                raise ValueError(msg)
+
+        if self.device_scale_factor is not None and self.device_scale_factor <= 0:
+            msg = (
+                "device_scale_factor must be positive, "
+                f"got {self.device_scale_factor}"
+            )
+            raise ValueError(msg)
 
     def to_playwright_kwargs(self) -> dict[str, object]:
         """Convert to Playwright browser.new_context() parameters.
@@ -112,5 +144,21 @@ class EmulationConfig:
 
         if self.offline:
             kwargs["offline"] = True
+
+        if self.viewport is not None:
+            width, height = self.viewport
+            kwargs["viewport"] = {"width": width, "height": height}
+
+        if self.user_agent is not None:
+            kwargs["user_agent"] = self.user_agent
+
+        if self.device_scale_factor is not None:
+            kwargs["device_scale_factor"] = self.device_scale_factor
+
+        if self.is_mobile is not None:
+            kwargs["is_mobile"] = self.is_mobile
+
+        if self.has_touch is not None:
+            kwargs["has_touch"] = self.has_touch
 
         return kwargs

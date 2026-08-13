@@ -48,3 +48,59 @@ def test_build_qdrant_filter_datetime_range():
     assert isinstance(f.must[0].range, DatetimeRange)
     assert f.must[0].range.gte.strftime("%Y-%m-%dT%H:%M:%S") == "2026-01-01T00:00:00"
     assert f.must[0].range.lte is not None
+
+def test_build_qdrant_filter_has_id():
+    from qdrant_client.models import HasIdCondition
+    f = build_qdrant_filter({"id": {"$in": ["m1", "m2"]}})
+    assert len(f.must) == 1
+    assert isinstance(f.must[0], HasIdCondition)
+    assert f.must[0].has_id == ["m1", "m2"]
+
+def test_build_qdrant_filter_id_list_uses_has_id():
+    from qdrant_client.models import HasIdCondition
+    f = build_qdrant_filter({"id": ["m1", "m2"]})
+    assert len(f.must) == 1
+    assert isinstance(f.must[0], HasIdCondition)
+    assert f.must[0].has_id == ["m1", "m2"]
+
+def test_build_qdrant_filter_id_list_mixed_with_field_filter():
+    from qdrant_client.models import HasIdCondition, MatchValue
+    f = build_qdrant_filter({"archived": False, "id": ["m1"]})
+    assert len(f.must) == 2
+    assert f.must[0].key == "archived"
+    assert isinstance(f.must[0].match, MatchValue)
+    assert isinstance(f.must[1], HasIdCondition)
+    assert f.must[1].has_id == ["m1"]
+
+def test_build_qdrant_filter_mixed_with_has_id():
+    from qdrant_client.models import HasIdCondition, MatchValue
+    f = build_qdrant_filter({"archived": False, "id": {"$in": ["m1"]}})
+    assert len(f.must) == 2
+    assert f.must[0].key == "archived"
+    assert isinstance(f.must[0].match, MatchValue)
+    assert isinstance(f.must[1], HasIdCondition)
+    assert f.must[1].has_id == ["m1"]
+
+def test_build_qdrant_filter_id_plain_value_uses_has_id():
+    from qdrant_client.models import HasIdCondition
+    f = build_qdrant_filter({"id": "plain-value"})
+    assert len(f.must) == 1
+    assert isinstance(f.must[0], HasIdCondition)
+    assert f.must[0].has_id == ["plain-value"]
+
+def test_build_qdrant_filter_id_int_value_uses_has_id():
+    from qdrant_client.models import HasIdCondition
+    f = build_qdrant_filter({"id": 42})
+    assert len(f.must) == 1
+    assert isinstance(f.must[0], HasIdCondition)
+    assert f.must[0].has_id == [42]
+
+def test_build_qdrant_filter_id_plain_mixed_with_field_filter():
+    from qdrant_client.models import HasIdCondition, MatchValue
+    f = build_qdrant_filter({"archived": False, "id": "m1"})
+    assert len(f.must) == 2
+    assert f.must[0].key == "archived"
+    assert isinstance(f.must[0].match, MatchValue)
+    assert isinstance(f.must[1], HasIdCondition)
+    assert f.must[1].has_id == ["m1"]
+

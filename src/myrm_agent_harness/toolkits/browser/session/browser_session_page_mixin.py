@@ -105,6 +105,20 @@ class BrowserSessionPageMixin:
         logger.info("BrowserSession: resized viewport to %dx%d", width, height)
         return f"Resized viewport to {width}x{height}"
 
+    async def emulate_device(self, device: str) -> str:
+        """Emulate a mobile device (UA/viewport/DPR/touch) on the active page.
+
+        Delegates to the session-level DeviceEmulator which holds the CDP
+        session lifecycle; see ``device_emulator.py`` for available devices.
+        """
+        await self._ensure_components()
+        page = self._tab_controller.get_active_page()
+        return await self._device_emulator.emulate(device, page)
+
+    def list_emulatable_devices(self) -> list[str]:
+        """Return the sorted list of device names available for emulation."""
+        return self._device_emulator.list_devices()
+
     async def wait_for_load(self) -> str:
         """Wait for page load completion"""
         await self._ensure_components()

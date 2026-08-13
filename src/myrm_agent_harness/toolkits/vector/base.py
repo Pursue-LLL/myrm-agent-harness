@@ -149,6 +149,8 @@ class VectorStore(ABC):
         - IN query: ``{"key": ["val1", "val2"]}``
         - Range query: ``{"key": {"gte": 0, "lte": 100}}``
         - NOT query: ``{"key": {"not": "value"}}``
+        - ``id`` is special: it targets the backend point id (not a payload
+          field) and accepts a single value, a list, or ``{"$in": [...]}``.
 
         Returns:
             Results sorted by similarity (highest first).

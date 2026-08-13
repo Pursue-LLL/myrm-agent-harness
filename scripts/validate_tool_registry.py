@@ -136,6 +136,151 @@ def _load_registry_metadata_keys() -> set[str]:
     return keys
 
 
+# Built-in tools covered by resolve_permission_type() dynamic sub-action branches.
+_DYNAMICALLY_RESOLVED_TOOLS: frozenset[str] = frozenset(
+    {
+        "bash_process_tool",
+        "browser_interact_tool",
+        "browser_manage_tool",
+        "desktop_snapshot_tool",
+        "desktop_interact_tool",
+        "desktop_vision_tool",
+    }
+)
+
+# Management/delegation/scheduling tools that must declare TOOL_CANONICAL_PARAMS
+# so allow-always hashing stays precise (full-arg hashing would break matching).
+_CANONICAL_REQUIRED_TOOLS: frozenset[str] = frozenset(
+    {
+        "cron_manage_tool",
+        "delegate_task_tool",
+        "delegate_to_agent_tool",
+        "skill_manage_tool",
+        "subagent_control_tool",
+    }
+)
+
+
+def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
+    """Validate governance coverage of built-in tools and permission types.
+
+    Fail-closed rules (mirrors the runtime ``resolve_permission_type`` fallback):
+
+    1. Every built-in tool must be covered by an explicit ``TOOL_PERMISSION_MAP``
+       entry, a dynamic resolver branch, or an ``AUTO_APPROVED_BUILTIN_TOOLS``
+       declaration with a reason from ``AUTO_APPROVE_REASONS``.
+    2. Every permission type produced by ``TOOL_PERMISSION_MAP`` must have an
+       explicit ``DEFAULT_RULESET`` rule or a ``RULESET_COVERAGE_WHITELIST``
+       declaration.
+    3. Every built-in tool must declare ``TOOL_SAFETY_METADATA``.
+    4. Management/delegation/scheduling tools must declare
+       ``TOOL_CANONICAL_PARAMS``.
+
+    Returns ``(errors, coverage_matrix)``; the matrix is a machine-readable
+    per-tool / per-permission-type audit table for ``--json`` output.
+    """
+    from myrm_agent_harness.core.security.tool_registry import (
+        AUTO_APPROVED_BUILTIN_TOOLS,
+        AUTO_APPROVE_REASONS,
+        BUILTIN_TOOL_NAMES,
+        RULESET_COVERAGE_WHITELIST,
+        TOOL_CANONICAL_PARAMS,
+        TOOL_PERMISSION_MAP,
+        TOOL_SAFETY_METADATA,
+    )
+    from myrm_agent_harness.core.security.types import DEFAULT_RULESET
+
+    errors: list[str] = []
+
+    uncovered_tools: list[str] = []
+    ghost_declarations: list[str] = []
+    invalid_reasons: list[str] = []
+    for tool in sorted(BUILTIN_TOOL_NAMES):
+        if tool in TOOL_PERMISSION_MAP or tool in _DYNAMICALLY_RESOLVED_TOOLS:
+            continue
+        reason = AUTO_APPROVED_BUILTIN_TOOLS.get(tool)
+        if reason is None:
+            uncovered_tools.append(tool)
+
+    for tool, reason in sorted(AUTO_APPROVED_BUILTIN_TOOLS.items()):
+        if tool not in BUILTIN_TOOL_NAMES:
+            ghost_declarations.append(tool)
+        if reason not in AUTO_APPROVE_REASONS:
+            invalid_reasons.append(f"{tool}={reason!r}")
+
+    if uncovered_tools:
+        errors.append(
+            "Built-in tool(s) without permission mapping, dynamic resolution, or "
+            "AUTO_APPROVED_BUILTIN_TOOLS declaration (governance fail-closed): "
+            + ", ".join(uncovered_tools)
+        )
+    if ghost_declarations:
+        errors.append(
+            "AUTO_APPROVED_BUILTIN_TOOLS declaration(s) for non-built-in tool(s): "
+            + ", ".join(ghost_declarations)
+        )
+    if invalid_reasons:
+        errors.append(
+            "AUTO_APPROVED_BUILTIN_TOOLS reason(s) not in AUTO_APPROVE_REASONS: "
+            + ", ".join(invalid_reasons)
+        )
+
+    ruleset_permissions = {rule.permission for rule in DEFAULT_RULESET}
+    for perm in sorted(set(TOOL_PERMISSION_MAP.values()) - ruleset_permissions):
+        reason = RULESET_COVERAGE_WHITELIST.get(perm)
+        if reason is None:
+            errors.append(
+                f"Permission type {perm!r} has no DEFAULT_RULESET rule and no "
+                "RULESET_COVERAGE_WHITELIST declaration (governance fail-closed)."
+            )
+        elif reason not in AUTO_APPROVE_REASONS:
+            errors.append(
+                f"RULESET_COVERAGE_WHITELIST reason for {perm!r} not in "
+                "AUTO_APPROVE_REASONS."
+            )
+
+    missing_safety = sorted(BUILTIN_TOOL_NAMES - TOOL_SAFETY_METADATA.keys())
+    if missing_safety:
+        errors.append(
+            "Built-in tool(s) missing TOOL_SAFETY_METADATA (fail-closed defaults): "
+            + ", ".join(missing_safety)
+        )
+
+    missing_canonical = sorted(
+        tool
+        for tool in _CANONICAL_REQUIRED_TOOLS
+        if tool not in TOOL_CANONICAL_PARAMS
+    )
+    if missing_canonical:
+        errors.append(
+            "Management/delegation/scheduling tool(s) missing TOOL_CANONICAL_PARAMS "
+            "(allow-always matching falls back to full-arg hashing): "
+            + ", ".join(missing_canonical)
+        )
+
+    coverage_matrix: dict[str, object] = {
+        "builtin_tools": sorted(BUILTIN_TOOL_NAMES),
+        "tool_coverage": {
+            tool: {
+                "permission": TOOL_PERMISSION_MAP.get(tool),
+                "dynamic_resolved": tool in _DYNAMICALLY_RESOLVED_TOOLS,
+                "auto_approved_reason": AUTO_APPROVED_BUILTIN_TOOLS.get(tool),
+                "safety_declared": tool in TOOL_SAFETY_METADATA,
+                "canonical_params": TOOL_CANONICAL_PARAMS.get(tool, []),
+            }
+            for tool in sorted(BUILTIN_TOOL_NAMES)
+        },
+        "permission_type_coverage": {
+            perm: {
+                "has_ruleset_rule": perm in ruleset_permissions,
+                "whitelist_reason": RULESET_COVERAGE_WHITELIST.get(perm),
+            }
+            for perm in sorted(set(TOOL_PERMISSION_MAP.values()))
+        },
+    }
+    return errors, coverage_matrix
+
+
 def _check_default_enabled_product_parity() -> list[str]:
     """Ensure harness DEFAULT_ENABLED_PRODUCT_IDS matches server SSOT."""
     errors: list[str] = []
@@ -143,7 +288,9 @@ def _check_default_enabled_product_parity() -> list[str]:
     if server_path not in sys.path:
         sys.path.insert(0, server_path)
     try:
-        from app.services.agent.builtin_tool_ids import DEFAULT_ENABLED_BUILTIN_TOOLS
+        from app.services.agent.builtin_specs.builtin_tool_ids import (
+            DEFAULT_ENABLED_BUILTIN_TOOLS,
+        )
 
         from myrm_agent_harness.agent.tool_management.tool_catalog import (
             DEFAULT_ENABLED_PRODUCT_IDS,
@@ -467,6 +614,9 @@ def main() -> int:
     # Layer-product gate is cheap (static _TOOL_LAYERS dict) — run in all modes so
     # pre-commit --incremental (.pre-commit-config.yaml) catches layer mistakes too.
     catalog_errors = validate_tool_catalog(load_registered_layers())
+    # Governance coverage is a static metadata comparison — run in all modes so
+    # pre-commit catches new tools that would silently bypass governance.
+    governance_errors, coverage_matrix = _check_governance_coverage()
     parity_errors: list[str] = []
     if not args.incremental:
         parity_errors = _check_default_enabled_product_parity()
@@ -480,6 +630,7 @@ def main() -> int:
         or catalog_invoke_violations
         or catalog_errors
         or parity_errors
+        or governance_errors
     )
 
     if args.json:
@@ -499,6 +650,8 @@ def main() -> int:
                 ]
                 for name, decls in duplicates.items()
             },
+            "governance_errors": governance_errors,
+            "governance_coverage": coverage_matrix,
         }
         print(json.dumps(payload, indent=2))
     else:
@@ -547,6 +700,17 @@ def main() -> int:
             )
             for err in parity_errors:
                 print(f"  - {err}")
+        if governance_errors:
+            print(
+                f"FAIL - {len(governance_errors)} governance coverage issue(s):"
+            )
+            for err in governance_errors:
+                print(f"  - {err}")
+            print(
+                "  Fix: register the tool in TOOL_PERMISSION_MAP, add a dynamic "
+                "resolver branch, or declare it in AUTO_APPROVED_BUILTIN_TOOLS / "
+                "RULESET_COVERAGE_WHITELIST with a valid AUTO_APPROVE_REASONS value."
+            )
 
     return 1 if fail else 0
 

@@ -594,7 +594,7 @@ Object.defineProperty(window, 'RTCPeerConnection', {
 | `browser_snapshot_tool` | ARIA 快照 + iframe + Token 优化 + cursor-interactive | `scope`, `compact`, `selector`, `max_tokens`, `diff`, `cursor_interactive` |
 | `browser_interact_tool` | 15 种交互 + 可选 `steps[]` 批量 | click, dblclick, type, fill, fill_credential, press, hover, focus, select, scroll, scroll_to_bottom, upload_file, drag, check, uncheck；或 `steps[]` 一次调用多步 |
 | `browser_extract_tool` | 文本 + 截图 + 媒体URL + 结构化提取 + diff | text / screenshot / media / diff_fast / diff_accurate + extraction_schema |
-| `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network + Web Vitals | 21 种 action（含 network_detail/network_replay/web_vitals + save/restore/list/delete_session；HITL 用 browser_ask_human_tool，无 wait_for_user） |
+| `browser_manage_tool` | Tab + JS + 历史 + 对话框 + Session + Network + Web Vitals + 移动设备仿真 | 22 种 action（含 network_detail/network_replay/web_vitals/emulate + save/restore/list/delete_session；HITL 用 browser_ask_human_tool，无 wait_for_user） |
 | `browser_execute_script_tool` | **Code-as-Action 批量执行** + AST 特权API门禁 | _(执行 Python 脚本，AST 扫描 page.request/evaluate/context 等特权API → HITL 审批)_ |
 | `browser_ask_human_tool` | **人类接管请求** | _(单一职责，Agent 触发 HITL interrupt + extension 横幅 / managed VNC)_ |
 
@@ -687,6 +687,18 @@ Loop Guard 与 Completion Guard 为兜底；正常路径由 Turn1 工具描述�
 - **环境标注**：报告明确标注「当前网络环境实测」，非实验室模拟
 
 **设计**：单次 `page.evaluate` 读取 buffered PerformanceObserver 历史（LCP/CLS/INP）+ NavigationTiming（FCP/TTFB）+ ResourceTiming，零常驻监听、零生命周期挂钩；SPA 场景 LCP 未定型时自动短等待重试一次；INP 需用户交互才能测量，未交互时明确提示；页面不可测时优雅降级返回提示。
+
+#### 移动设备仿真（DeviceEmulator + device_profiles）
+
+通过 `browser_manage_tool` 的 `emulate` action 在**运行时**将当前页面切换为移动设备视图，无需重建浏览器上下文：
+
+**核心能力**：
+- **精选设备集**：`pool/device_profiles.py` 内置主流设备（iPhone 15 Pro / iPhone 13 / iPhone SE / Pixel 8 / Pixel 7 / Galaxy S24 / iPad Pro 11 / Nexus 7），每项含完整五维参数（UA / 布局视口 / devicePixelRatio / is_mobile / has_touch），与上下文创建共享同一 `EmulationConfig` 数据源
+- **运行时三连注入**：`session/device_emulator.py` 通过 CDP 执行 `Emulation.setDeviceMetricsOverride` + `Network.setUserAgentOverride` + `Emulation.setTouchEmulationEnabled`，**无需重建 Context**，比竞品（仅静态上下文配置）更灵活
+- **桌面恢复**：`emulate("desktop")` 清除全部覆盖项，还原原生桌面行为
+- **优雅降级**：不支持 CDP 的引擎（如 Camoufox/Firefox）注入失败时返回清晰错误，不崩溃会话
+
+**使用方式**：`browser_manage_tool(action="emulate", value="iPhone 15 Pro")`，切换后需重新导航页面以触发完整移动布局重排。**典型场景**：移动端落地页测试、移动端站点内容采集、移动端竞品分析。
 
 ---
 
@@ -1038,6 +1050,7 @@ Manual refresh: GET /webui/desktop/snapshot (tags sourceChatId with foreground c
 | **CAPTCHA 协调（可插拔）** | ✅ | ❌ | ⚠️ CDP 耦合 | ❌ |
 | **Agent 触发人类接管** | ✅ | ❌ | ❌ | ❌ |
 | **web_fetch ↔ browser 双向工具描述引导** | ✅ Dynamic Hints + Loop Guard | ⚠️ browser→web 单向 | ⚠️ web_fetch 单工具描述 | ❌ |
+| **运行时移动设备仿真** | ✅ CDP 三连注入 + 8 款精选设备 | ⚠️ 仅静态 context 配置 | ⚠️ 仅静态 context 配置（`is_mobile`/`has_touch`） | ❌ |
 
 ### 架构对比
 
@@ -1109,6 +1122,8 @@ browser/
 │   ├── browser_pool.py (716 行) — GlobalBrowserPool（全局调度中枢）
 │   ├── browser_launcher.py (~525 行) — BrowserLauncher（Chromium + Camoufox 启动前 sanitize_env + Zero-config Chromium 自动安装 with CDN mirror fallback + Camoufox 指纹持久化 + 损坏自愈）
 │   ├── context_factory.py (156 行) — ContextFactory（Context 工厂）
+│   ├── emulation.py — 浏览器环境仿真配置（含移动设备五维字段）
+│   ├── device_profiles.py — 精选移动设备 profile 注册表
 │   └── page_pool.py (195 行) — PagePool
 ├── diff/
 │   ├── types.py — ComparisonResult Protocol + FastComparisonResult + AccurateComparisonResult
@@ -1127,7 +1142,7 @@ browser/
 ├── session/
 │   ├── browser_session.py — BrowserSession 聚合根（tab/navigate/snapshot/interact/网络/下载）
 │   ├── browser_session_extraction_mixin.py — 内容提取、vision fallback、截图对比
-│   ├── browser_session_page_mixin.py — viewport、dialog、evaluate 等页面级 API
+│   ├── browser_session_page_mixin.py — viewport、dialog、evaluate、emulate_device 等页面级 API
 │   ├── browser_session_persistence_mixin.py — SessionVault 持久化 API
 │   ├── browser_session_recording_mixin.py — trace/HAR 录制控制
 │   ├── tab_controller.py — TabController
@@ -1145,6 +1160,7 @@ browser/
 │   ├── network_intelligence.py — CDP 懒加载 API 响应体检索
 │   ├── network_logger.py — 网络请求日志
 │   ├── web_vitals.py — 一次性 Core Web Vitals 采集与分级建议
+│   ├── device_emulator.py — 运行时 CDP 移动设备仿真（三连注入 + desktop 恢复 + DeviceRegistry 协议）
 │   ├── vision_verifier.py — 三层视觉验证
 │   ├── dialog_manager.py — JS dialog 生命周期
 │   ├── download_manager.py — 文件下载

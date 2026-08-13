@@ -200,14 +200,35 @@ class CrashWatchdogMixin:
 
     @staticmethod
     async def _check_browser_alive(inst: BrowserInstance) -> bool:
+        """Probe the browser over a real CDP round trip.
+
+        patchright exposes ``Browser.version``/``Browser.contexts`` as cached
+        properties rather than methods — calling them (``browser.contexts()``)
+        raises TypeError, and cached property access never sends a CDP request,
+        so neither can detect a dead browser. A genuine liveness check evaluates
+        a trivial expression on a pooled page. A browser without any pooled page
+        is trusted as alive: a real process death is caught synchronously by the
+        L1 'disconnected' event.
+        """
+        probed = False
         try:
-            if callable(getattr(inst.browser, "version", None)):
-                await asyncio.wait_for(inst.browser.version(), timeout=2.0)
-            else:
-                await asyncio.wait_for(inst.browser.contexts(), timeout=2.0)
-            return True
+            for pool in inst.page_pools.values():
+                for page in (*pool._busy, *pool._idle):
+                    probed = True
+                    try:
+                        await asyncio.wait_for(page.evaluate("1"), timeout=2.0)
+                        return True
+                    except (
+                        TimeoutError,
+                        RuntimeError,
+                        OSError,
+                        asyncio.CancelledError,
+                        TypeError,
+                    ):
+                        continue
         except (TimeoutError, RuntimeError, OSError, asyncio.CancelledError, TypeError):
             return False
+        return not probed
 
     @staticmethod
     async def _close_browser_instance(inst: BrowserInstance) -> None:

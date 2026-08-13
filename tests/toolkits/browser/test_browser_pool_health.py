@@ -43,12 +43,16 @@ async def test_health_detects_unresponsive_browsers() -> None:
     mock_browsers = []
     for i in range(3):
         mock_browser = MagicMock()
-        if i == 1:
-            mock_browser.version = AsyncMock(side_effect=TimeoutError("Browser hung"))
-        else:
-            mock_browser.version = AsyncMock(return_value=f"v{i}")
-
         browser_inst = BrowserInstance(browser=mock_browser)
+        page = MagicMock()
+        if i == 1:
+            page.evaluate = AsyncMock(side_effect=TimeoutError("Browser hung"))
+        else:
+            page.evaluate = AsyncMock(return_value=1)
+        page_pool = MagicMock()
+        page_pool._busy = {page}
+        page_pool._idle = []
+        browser_inst.page_pools = {"agent": page_pool}
         mock_browsers.append(browser_inst)
 
     pool._browsers = mock_browsers
@@ -97,14 +101,18 @@ async def test_health_handles_unexpected_exception() -> None:
     mock_browsers = []
     for i in range(3):
         mock_browser = MagicMock()
-        if i == 0:
-            mock_browser.version = AsyncMock(return_value="v1")
-        elif i == 1:
-            mock_browser.version = AsyncMock(side_effect=AttributeError("Code bug"))
-        else:
-            mock_browser.version = AsyncMock(side_effect=MemoryError("OOM"))
-
         browser_inst = BrowserInstance(browser=mock_browser)
+        page = MagicMock()
+        if i == 0:
+            page.evaluate = AsyncMock(return_value=1)
+        elif i == 1:
+            page.evaluate = AsyncMock(side_effect=AttributeError("Code bug"))
+        else:
+            page.evaluate = AsyncMock(side_effect=MemoryError("OOM"))
+        page_pool = MagicMock()
+        page_pool._busy = {page}
+        page_pool._idle = []
+        browser_inst.page_pools = {"agent": page_pool}
         mock_browsers.append(browser_inst)
 
     pool._browsers = mock_browsers

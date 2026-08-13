@@ -98,6 +98,7 @@ from .snapshot_manager import SnapshotManager, SnapshotResult
 from .structured_extractor import StructuredExtractor
 from .tab_controller import TabController
 from .vision_verifier import VisionVerifier
+from .device_emulator import DeviceEmulator
 from .web_vitals import WebVitalsCollector
 
 if TYPE_CHECKING:
@@ -217,6 +218,7 @@ class BrowserSession(
         self._network_logger = NetworkLogger()
         self._network_intelligence = NetworkIntelligence()
         self._web_vitals = WebVitalsCollector()
+        self._device_emulator = DeviceEmulator()
         self._console_logger = ConsoleLogger()
         self._persistence: SessionPersistence | None = SessionPersistence(session_vault) if session_vault else None
         self._recording_manager: RecordingManager | None = None

@@ -5,14 +5,16 @@ and optionally from rendered PDF pages. Supports CJK languages natively.
 
 [INPUT]
 - file_path: str (Path to image file)
+- PDF rendered page bytes via parse_bytes (toolkits/file_parsers/pdf_content_extractor.py)
 
 [OUTPUT]
 - OCRParser: FileParser implementation for image OCR
 - OCRResult: Structured OCR result with text, confidence, and per-line details
 
 [POS]
-OCR file parser. Extracts text from images using PaddleOCR with lazy import
-and graceful degradation when the dependency is not installed.
+OCR file parser. Extracts text from images using PaddleOCR with lazy import,
+graceful degradation when the dependency is not installed, and 2.x/3.x
+engine compatibility (PaddleX unified inference API in 3.x).
 """
 
 from __future__ import annotations
@@ -76,22 +78,36 @@ class OCRParser(FileParser):
         self._engine: object | None = None
 
     def _get_engine(self) -> object:
-        """Lazy-initialize PaddleOCR engine."""
+        """Lazy-initialize PaddleOCR engine (2.x / 3.x compatible)."""
         if self._engine is not None:
             return self._engine
 
         try:
-            from paddleocr import PaddleOCR
+            from paddleocr import PaddleOCR, __version__ as paddleocr_version
         except ImportError as e:
             raise ImportError("paddleocr is required for OCRParser. Install with: uv add paddleocr paddlepaddle") from e
 
-        self._engine = PaddleOCR(
-            use_angle_cls=True,
-            lang=self._lang,
-            use_gpu=self._use_gpu,
-            show_log=False,
+        major = int(paddleocr_version.split(".")[0])
+        if major >= 3:
+            # 3.x: use_textline_orientation / device replace use_angle_cls / use_gpu
+            self._engine = PaddleOCR(
+                use_textline_orientation=True,
+                lang=self._lang,
+                device="gpu" if self._use_gpu else "cpu",
+            )
+        else:
+            self._engine = PaddleOCR(
+                use_angle_cls=True,
+                lang=self._lang,
+                use_gpu=self._use_gpu,
+                show_log=False,
+            )
+        logger.info(
+            "PaddleOCR engine initialized: lang=%s, gpu=%s, v%s",
+            self._lang,
+            self._use_gpu,
+            paddleocr_version,
         )
-        logger.info("PaddleOCR engine initialized: lang=%s, gpu=%s", self._lang, self._use_gpu)
         return self._engine
 
     async def parse_bytes(self, raw: bytes, *, suffix: str = ".png") -> str:
@@ -135,22 +151,37 @@ class OCRParser(FileParser):
         engine = self._get_engine()
 
         try:
-            raw_result = engine.ocr(file_path, cls=True)
+            if self._uses_paddlex_api():
+                raw_result = engine.predict(file_path)
+            else:
+                raw_result = engine.ocr(file_path, cls=True)
         except Exception as e:
             logger.warning("PaddleOCR failed for %s: %s", file_path, e)
             return OCRResult(text="", lines=[], avg_confidence=0.0, engine="paddleocr")
 
         return self._process_raw_result(raw_result)
 
+    def _uses_paddlex_api(self) -> bool:
+        """Detect the loaded engine generation for inference-call compatibility."""
+        from paddleocr import __version__ as paddleocr_version
+
+        return int(paddleocr_version.split(".")[0]) >= 3
+
     def _process_raw_result(self, raw_result: list | None) -> OCRResult:
-        """Process raw PaddleOCR output into structured OCRResult."""
+        """Process raw PaddleOCR output into structured OCRResult (2.x/3.x)."""
         if not raw_result or not raw_result[0]:
             return OCRResult(text="", lines=[], avg_confidence=0.0, engine="paddleocr")
 
+        first = raw_result[0]
+        if isinstance(first, dict) and "rec_texts" in first:
+            # 3.x: PaddleX OCRResult is dict-like with rec_texts/rec_scores/dt_polys
+            return self._process_paddlex_result(first)
+
+        # 2.x: nested list of [bbox, (text, confidence)]
         lines: list[OCRLine] = []
         total_confidence = 0.0
 
-        for item in raw_result[0]:
+        for item in first:
             if not item or len(item) < 2:
                 continue
 
@@ -180,6 +211,35 @@ class OCRParser(FileParser):
 
         return OCRResult(
             text=combined_text,
+            lines=lines,
+            avg_confidence=avg_confidence,
+            engine="paddleocr",
+        )
+
+    def _process_paddlex_result(self, result: dict) -> OCRResult:
+        """Process a PaddleX OCRResult (3.x) into structured OCRResult."""
+        texts = [str(t) for t in (result.get("rec_texts") or [])]
+        scores = [float(s) for s in (result.get("rec_scores") or [])]
+        polys = result.get("dt_polys") or []
+
+        lines: list[OCRLine] = []
+        for idx, text in enumerate(texts):
+            if not text.strip():
+                continue
+            confidence = scores[idx] if idx < len(scores) else 0.0
+            if confidence < self._confidence_threshold:
+                continue
+            lines.append(
+                OCRLine(
+                    text=text,
+                    confidence=confidence,
+                    bbox=polys[idx] if idx < len(polys) and isinstance(polys[idx], list) else None,
+                )
+            )
+
+        avg_confidence = sum(l.confidence for l in lines) / len(lines) if lines else 0.0
+        return OCRResult(
+            text="\n".join(line.text for line in lines),
             lines=lines,
             avg_confidence=avg_confidence,
             engine="paddleocr",

@@ -1,17 +1,19 @@
 """
 [INPUT]
 file_path: str (Path to PDF)
-PDFExtractConfig: Configuration (max_pages, min_text_chars, table_format)
+PDFExtractConfig: Configuration (max_pages, min_text_chars, table_format, ocr_pages)
 
 [OUTPUT]
-extract_pdf_content: High-level PDF parsing orchestrator (Text + Hybrid Images + Table Capsules)
+extract_pdf_content: High-level PDF parsing orchestrator (Text + Hybrid Images + Table Capsules + OCR)
 PDFExtractResult: Unified result container
 
 [POS]
 
 Smart PDF extraction orchestrator. Auto-selects Text/Hybrid(embedded image)/Image(full-page
-render fallback) strategy. Supports Table Encapsulation to prevent RAG chunking from
-splitting tables, using L0 summaries to ensure retrieval accuracy.
+render fallback) strategy. Scanned PDFs (sparse text layer) are additionally OCR'd via the
+optional PaddleOCR parser so text-only consumers (RAG ingestion, non-vision models) still
+get readable text. Supports Table Encapsulation to prevent RAG chunking from splitting
+tables, using L0 summaries to ensure retrieval accuracy.
 """
 
 from __future__ import annotations
@@ -48,6 +50,7 @@ class PDFExtractConfig:
     min_text_chars: int = 200
     extract_embedded_images: bool = True  # Enable structural embedded extraction
     table_format: Literal["inline", "placeholder"] = "placeholder"  # Default to placeholder for anti-fragmentation
+    ocr_pages: int = 30  # Max pages OCR'd for scanned PDFs (0 disables OCR fallback)
 
 
 @dataclass
@@ -179,6 +182,38 @@ def _render_pages_sync(
     return images
 
 
+async def _ocr_rendered_pages_async(
+    images: list[PDFImageContent],
+    ocr_pages: int,
+    lang: str = "ch",
+    confidence_threshold: float = 0.5,
+) -> str:
+    """Best-effort OCR over rendered page images; returns `[Page N]`-marked text.
+
+    PaddleOCR is optional: when unavailable or a page fails, that page is skipped
+    and the caller falls back to its existing behavior. Never raises.
+    """
+    from myrm_agent_harness.toolkits.file_parsers.ocr import OCRParser
+
+    parser = OCRParser(lang=lang, confidence_threshold=confidence_threshold)
+    parts: list[str] = []
+    for idx, img in enumerate(images):
+        if idx >= ocr_pages:
+            break
+        try:
+            raw = base64.b64decode(img.data)
+            page_text = await parser.parse_bytes(raw, suffix=".png")
+        except ImportError:
+            # PaddleOCR unavailable: remaining pages would fail the same way.
+            break
+        except Exception as exc:
+            logger.warning("PDF OCR failed for page %d: %s", idx + 1, exc)
+            continue
+        if page_text.strip():
+            parts.append(f"[Page {idx + 1}]\n{page_text}")
+    return "\n".join(parts)
+
+
 async def extract_pdf_content(
     file_path: str,
     config: PDFExtractConfig | None = None,
@@ -212,6 +247,13 @@ async def extract_pdf_content(
             logger.warning("pypdfium2 not available, returning sparse text only.")
             strategy = "text"
 
+        # OCR fallback for scanned PDFs (best-effort; PaddleOCR optional).
+        # Keeps sparse text intact when OCR is unavailable or every page fails.
+        if raw_images and cfg.ocr_pages > 0:
+            ocr_text = await _ocr_rendered_pages_async(raw_images, cfg.ocr_pages)
+            if ocr_text.strip():
+                text = ocr_text
+
     # Phase 3: Ablation Filter (Smart meaning verification)
     filtered_images: list[PDFImageContent] = []
     trace_dict = {}
@@ -241,6 +283,10 @@ async def extract_pdf_content(
         )
     else:
         logger.warning("No images extracted for PDF %s. Mode: %s", path.name, strategy)
+
+    # Calibrate strategy: "hybrid" only when images actually survived filtering.
+    if strategy == "hybrid" and not filtered_images:
+        strategy = "text"
 
     return PDFExtractResult(
         text=text,

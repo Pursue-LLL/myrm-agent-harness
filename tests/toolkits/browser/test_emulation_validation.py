@@ -48,3 +48,57 @@ class TestEmulationConfigToPlaywrightKwargs:
         config = EmulationConfig(offline=False)
         kwargs = config.to_playwright_kwargs()
         assert "offline" not in kwargs
+
+
+class TestEmulationConfigDeviceValidation:
+    """Tests for mobile device dimension validation"""
+
+    def test_viewport_too_small_raises(self):
+        """Test non-positive viewport raises ValueError"""
+        with pytest.raises(ValueError, match="Viewport dimensions must be positive"):
+            EmulationConfig(viewport=(0, 800))
+        with pytest.raises(ValueError, match="Viewport dimensions must be positive"):
+            EmulationConfig(viewport=(390, -1))
+
+    def test_viewport_valid(self):
+        """Test valid viewport is accepted"""
+        config = EmulationConfig(viewport=(393, 659))
+        assert config.viewport == (393, 659)
+
+    def test_device_scale_factor_non_positive_raises(self):
+        """Test non-positive device_scale_factor raises ValueError"""
+        with pytest.raises(ValueError, match="device_scale_factor must be positive"):
+            EmulationConfig(device_scale_factor=0.0)
+        with pytest.raises(ValueError, match="device_scale_factor must be positive"):
+            EmulationConfig(device_scale_factor=-2.0)
+
+    def test_device_scale_factor_valid(self):
+        """Test valid device_scale_factor is accepted"""
+        config = EmulationConfig(device_scale_factor=3.0)
+        assert config.device_scale_factor == 3.0
+
+    def test_device_fields_to_playwright_kwargs(self):
+        """Test mobile device fields convert to Playwright kwargs"""
+        config = EmulationConfig(
+            viewport=(393, 659),
+            user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)",
+            device_scale_factor=3.0,
+            is_mobile=True,
+            has_touch=True,
+        )
+        kwargs = config.to_playwright_kwargs()
+        assert kwargs["viewport"] == {"width": 393, "height": 659}
+        assert kwargs["user_agent"].startswith("Mozilla/5.0")
+        assert kwargs["device_scale_factor"] == 3.0
+        assert kwargs["is_mobile"] is True
+        assert kwargs["has_touch"] is True
+
+    def test_empty_device_fields_not_in_kwargs(self):
+        """Test unset device fields do not leak into kwargs"""
+        config = EmulationConfig()
+        kwargs = config.to_playwright_kwargs()
+        assert "viewport" not in kwargs
+        assert "user_agent" not in kwargs
+        assert "device_scale_factor" not in kwargs
+        assert "is_mobile" not in kwargs
+        assert "has_touch" not in kwargs

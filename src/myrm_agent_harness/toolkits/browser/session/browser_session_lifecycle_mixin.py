@@ -194,6 +194,7 @@ class BrowserSessionLifecycleMixin:
         self._network_logger.detach_current()
         self._console_logger.detach_current()
         await self._network_intelligence.detach()
+        await self._device_emulator.detach()
 
         if self._auto_restore_domains and self._persistence:
             await self._auto_save_sessions_before_close()

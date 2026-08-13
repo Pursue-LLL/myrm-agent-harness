@@ -868,8 +868,6 @@ _DEFAULT_EXEMPTED_TOOLS = {
     "skill_select_tool",
     "skill_market_tool",
     "skill_search_tool",
-    # Knowledge base (readonly)
-    "knowledge_tool",
     # UI rendering (pure display)
     "render_ui_tool",
     "update_ui_data_tool",
@@ -1253,20 +1251,47 @@ LangChain 工具有具体名称（如 `bash_code_execute_tool`），而安全策
 
 用户可通过 Allowlist 或 YOLO 模式跳过 ASK 审批。自动进化通道（`SkillEvolutionEngine` → server API）不经过 `skill_manage_tool`，不受此规则约束。
 
-### 自动批准的内置工具
+### 自动批准的内置工具（治理审计声明）
 
-以下工具在 `BUILTIN_TOOL_NAMES` 中但不在 `TOOL_PERMISSION_MAP` 中，权限类型为工具名本身，被 `DEFAULT_RULESET` 的 `("*", "*", ALLOW)` 基线规则自动批准：
+以下内置工具不在 `TOOL_PERMISSION_MAP` 中，`resolve_permission_type()` 回退为工具名本身，命中 `DEFAULT_RULESET` 的 `("*", "*", ALLOW)` 基线。为满足 fail-closed 治理，每个此类工具必须在 `AUTO_APPROVED_BUILTIN_TOOLS`（`core/security/tool_registry/registry.py`）中显式声明放行理由（`AUTO_APPROVE_REASONS` 之一）。声明是审计元数据，不改变运行时权限解析。
 
-| 工具名 | 用途 |
-|--------|------|
-| `web_search_tool` | 网络搜索 |
-| `memory_search_tool` / `memory_save_tool` / `memory_manage_tool` | 记忆管理 |
-| `skill_select_tool` / `skill_market_tool` / `skill_search_tool` | 技能系统 |
-| `browser_interact_tool` / `browser_manage_tool` | 浏览器操作（通过动态解析细分权限） |
-| `request_answer_user_tool` | 内部控制工具，触发回答阶段 |
-| `render_ui_tool` | UI 渲染，纯展示 |
-| `update_ui_data_tool` | UI 数据增量更新，纯展示 |
-| `knowledge_tool` | 知识库查询，纯读取 |
+`scripts/validate_tool_registry.py` 的治理门禁强制校验：新增内置工具若未映射、未动态解析、未声明（或声明了非内置工具、理由非法），CI 直接失败——杜绝「静默绕过治理」。覆盖矩阵可通过 `--json` 输出。
+
+| 理由 | 含义 |
+|------|------|
+| `read_only` | 纯读取，无副作用 |
+| `internal` | 框架内部控制信号，不暴露用户数据 |
+| `display` | 面向用户的渲染/进度 UI |
+| `user_visible` | 副作用直接对用户可见且由用户驱动 |
+| `channel_guarded` | 非 Web 渠道被能力围栏拦截 |
+
+| 工具名 | 放行理由 |
+|--------|---------|
+| `web_search_tool` | read_only |
+| `memory_search_tool` | read_only |
+| `memory_save_tool` | user_visible |
+| `memory_manage_tool` | user_visible |
+| `skill_select_tool` | read_only |
+| `skill_search_tool` | read_only |
+| `skill_market_tool` | user_visible |
+| `ask_question_tool` | user_visible |
+| `request_answer_user_tool` | internal |
+| `complete_goal_tool` | internal |
+| `render_ui_tool` | display |
+| `update_ui_data_tool` | display |
+| `todo_write` | display |
+
+`browser_interact_tool` / `browser_manage_tool` / `bash_process_tool` / `desktop_*` 由 `resolve_permission_type()` 动态解析（子 action 映射到细粒度权限），不在 `AUTO_APPROVED_BUILTIN_TOOLS` 声明。
+
+### 权限类型级治理白名单
+
+`TOOL_PERMISSION_MAP` 产生的权限类型若无 `DEFAULT_RULESET` 明确规则，必须在 `RULESET_COVERAGE_WHITELIST` 声明（理由同上），否则治理门禁 fail-closed：
+
+| 权限类型 | 放行理由 |
+|---------|---------|
+| `browser_read` | read_only（`browser_inspect_tool` / `browser_snapshot_tool` / `browser_extract_tool` 纯页面读取） |
+| `desktop_capture` | channel_guarded（桌面截图，仅本地 GUI，IM/定时任务被能力围栏排除） |
+| `net_fetch` | read_only（`web_fetch_tool`，沙箱层 SSRF 防护） |
 
 ### 动态解析
 

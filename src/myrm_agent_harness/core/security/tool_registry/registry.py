@@ -52,6 +52,9 @@ declaration improves transparency and self-documentation.
 - BUILTIN_TOOL_NAMES: all known built-in tool names
 - TOOL_CANONICAL_PARAMS: tool name → core parameter list
 - TOOL_SAFETY_METADATA: tool name → safety attributes (opt-in whitelist)
+- AUTO_APPROVED_BUILTIN_TOOLS: built-in tool → governance approval reason (audit declaration)
+- AUTO_APPROVE_REASONS: valid governance reason categories
+- RULESET_COVERAGE_WHITELIST: permission type → governance approval reason (no DEFAULT_RULESET rule)
 - resolve_permission_type(): tool name → permission type (with dynamic sub-action and MCP fallback)
 - compute_canonical_args_hash(): stable hash for tool arguments (core params only)
 - resolve_safety_metadata(): tool name → SafetyMetadata (fail-closed for undeclared tools)
@@ -126,6 +129,57 @@ BUILTIN_TOOL_NAMES: frozenset[str] = frozenset(
         "bash_process_tool",
     }
 )
+
+# ---------------------------------------------------------------------------
+# Governance coverage — audit declarations for built-in tools.
+#
+# Built-in tools that are NOT in TOOL_PERMISSION_MAP fall through to
+# resolve_permission_type() → their own tool name, which has no explicit rule
+# in DEFAULT_RULESET, so they are approved by the ("*", "*", ALLOW) baseline.
+# This fallback is intentional for the tools declared below. The declaration is
+# audit metadata consumed by the CI governance check
+# (scripts/validate_tool_registry.py): every built-in tool must either be
+# permission-mapped, dynamically resolved, or declared here with a valid
+# reason, so a newly added tool can never silently bypass governance.
+#
+# These declarations do NOT change runtime permission resolution.
+# ---------------------------------------------------------------------------
+
+AUTO_APPROVE_REASONS: frozenset[str] = frozenset(
+    {
+        "read_only",  # pure reads, no side effects
+        "internal",  # framework-internal control signal, no user data exposure
+        "display",  # user-facing rendering / progress UI
+        "user_visible",  # side effects directly visible to and driven by the user
+        "channel_guarded",  # blocked on non-web channels by the capability fence
+    }
+)
+
+AUTO_APPROVED_BUILTIN_TOOLS: dict[str, str] = {
+    "ask_question_tool": "user_visible",  # interactive clarification, user sees every question
+    "complete_goal_tool": "internal",  # goal-state marking signal
+    "memory_manage_tool": "user_visible",  # memory housekeeping, user-visible + audited
+    "memory_save_tool": "user_visible",  # memory writes, user-visible + scan-audited
+    "memory_search_tool": "read_only",
+    "render_ui_tool": "display",
+    "request_answer_user_tool": "internal",  # answer-phase gating signal
+    "skill_market_tool": "user_visible",  # skill install from market, trust-scanned + user-visible
+    "skill_search_tool": "read_only",
+    "skill_select_tool": "read_only",
+    "todo_write": "display",  # progress plan UI
+    "update_ui_data_tool": "display",
+    "web_search_tool": "read_only",
+}
+
+# Permission types resolved by TOOL_PERMISSION_MAP that have no explicit rule in
+# DEFAULT_RULESET and therefore fall back to the baseline ALLOW. Declared here so
+# the governance check can fail-closed when a new permission type is introduced
+# without an explicit ruleset rule or declaration.
+RULESET_COVERAGE_WHITELIST: dict[str, str] = {
+    "browser_read": "read_only",  # browser_inspect/snapshot/extract — pure page reads
+    "desktop_capture": "channel_guarded",  # desktop screenshots — local GUI only, excluded from IM/CRON by capability fence
+    "net_fetch": "read_only",  # web_fetch_tool — SSRF-guarded at the sandbox layer
+}
 
 # ---------------------------------------------------------------------------
 # Tool group mapping — canonical capability-based grouping for SKILL.md
@@ -261,7 +315,9 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     "memory_search_tool": ["query"],
     "memory_manage_tool": ["action"],
     "skill_select_tool": ["skill_ids"],
-    "skill_market_tool": ["query"],
+    "skill_market_tool": ["action", "skill_id"],
+    "skill_manage_tool": ["action", "name"],
+    "skill_search_tool": ["query"],
     "desktop_snapshot_tool": ["scope", "window_title", "include_screenshot"],
     "desktop_interact_tool": ["ref", "action", "text"],
     "desktop_vision_tool": [
@@ -273,6 +329,16 @@ TOOL_CANONICAL_PARAMS: dict[str, list[str]] = {
     ],
     "vision_semantic_tool": ["mode", "paths", "task", "region", "ground_scope"],
     "vision_geometry_tool": ["mode", "paths", "region", "threshold"],
+    "ask_question_tool": [],
+    "complete_goal_tool": [],
+    "cron_manage_tool": ["action", "job_id", "name_filter"],
+    "delegate_task_tool": ["mode", "agent_type"],
+    "delegate_to_agent_tool": ["agent_name"],
+    "render_ui_tool": [],
+    "request_answer_user_tool": [],
+    "subagent_control_tool": ["action", "task_id"],
+    "todo_write": ["merge"],
+    "update_ui_data_tool": ["surface_id"],
 }
 
 

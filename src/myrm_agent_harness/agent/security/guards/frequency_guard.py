@@ -51,8 +51,6 @@ _DEFAULT_EXEMPTED_TOOLS: frozenset[str] = frozenset(
         "skill_select_tool",
         "skill_market_tool",
         "skill_search_tool",
-        # Knowledge base (readonly)
-        "knowledge_tool",
         # UI rendering (pure display)
         "render_ui_tool",
         "update_ui_data_tool",

@@ -45,24 +45,35 @@ def build_qdrant_filter(filters: FilterDict | None) -> Filter | None:
     - Numeric range: ``{"key": {"gte": 0, "lte": 100}}``
     - Datetime range: ``{"key": {"gte": "2026-01-01T00:00:00", "lte": "2026-12-31T..."}}``
     - NOT query: ``{"key": {"not": "value"}}``
+    - Point ID queries (``id`` targets the Qdrant point id, not a payload field):
+      ``{"id": "point-id"}`` or ``{"id": ["point-id-1", "point-id-2"]}`` or
+      ``{"id": {"$in": ["point-id-1", "point-id-2"]}}``
     """
     if not filters:
         return None
 
     from qdrant_client.models import (
+        Condition,
         DatetimeRange,
         FieldCondition,
         Filter,
+        HasIdCondition,
         MatchAny,
         MatchExcept,
         MatchValue,
         Range,
     )
 
-    conditions: list[FieldCondition] = []
+    conditions: list[Condition] = []
 
     for key, value in filters.items():
-        if isinstance(value, dict):
+        if key == "id" and isinstance(value, list):
+            conditions.append(HasIdCondition(has_id=value))
+        elif key == "id" and isinstance(value, dict) and value.get("$in") is not None:
+            conditions.append(HasIdCondition(has_id=value["$in"]))
+        elif key == "id" and isinstance(value, (str, int)):
+            conditions.append(HasIdCondition(has_id=[value]))  # type: ignore[arg-type]
+        elif isinstance(value, dict):
             if "not" in value:
                 conditions.append(
                     FieldCondition(

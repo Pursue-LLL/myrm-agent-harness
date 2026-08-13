@@ -321,3 +321,44 @@ class TestRunSiteTool:
         result = await manage_tool.ainvoke({"action": "list_site_tools"})
         assert "x-com" in result
         assert "get_timeline_posts" in result
+
+
+class TestEmulateAction:
+    @pytest.mark.asyncio
+    async def test_emulate_success(self) -> None:
+        session = MagicMock()
+        session.emulate_device = AsyncMock(
+            return_value="Emulated 'iPhone 15 Pro' (393x659 @ 3.0x, mobile UA + touch)."
+        )
+        tool = create_manage_tool(session)
+
+        result = await tool.ainvoke({"action": "emulate", "value": "iPhone 15 Pro"})
+        assert "Emulated 'iPhone 15 Pro'" in result
+
+    @pytest.mark.asyncio
+    async def test_emulate_empty_value_lists_devices(self) -> None:
+        session = MagicMock()
+        session.list_emulatable_devices = MagicMock(
+            return_value=["iPhone 15 Pro", "Pixel 8"]
+        )
+        tool = create_manage_tool(session)
+
+        result = await tool.ainvoke({"action": "emulate", "value": ""})
+        assert "must be a device name" in result
+        assert "iPhone 15 Pro" in result
+        assert "Pixel 8" in result
+
+    @pytest.mark.asyncio
+    async def test_emulate_unknown_device_message(self) -> None:
+        session = MagicMock()
+        session.list_emulatable_devices = MagicMock(return_value=["iPhone 15 Pro"])
+        session.emulate_device = AsyncMock(
+            return_value=(
+                "Unknown device 'Nokia 3310'. Available devices: iPhone 15 Pro. "
+                "Use 'desktop' to restore the native viewport."
+            )
+        )
+        tool = create_manage_tool(session)
+
+        result = await tool.ainvoke({"action": "emulate", "value": "Nokia 3310"})
+        assert "Unknown device 'Nokia 3310'" in result

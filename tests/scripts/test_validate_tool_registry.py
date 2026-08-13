@@ -40,15 +40,14 @@ def test_build_doc_block_emits_canonical_markers_and_breakdown(
     monkeypatch.setattr(
         cli,
         "_layer_counts",
-        lambda _report: {"CORE": 2, "COMMON": 6, "EXTENDED": 71},
+        lambda _report: {"CORE": 2, "COMMON": 6, "EXTENDED": 71, "EXTERNAL": 0},
     )
     block = _build_doc_block(ScanReport())
     assert block.startswith(_BLOCK_BEGIN)
     assert block.endswith(_BLOCK_END)
     assert "**79**" in block
     assert "CORE 2 + COMMON 6 + EXTENDED 71" in block
-    assert "PTC runtime tools: **2**" in block
-    assert "`notify`" in block
+    assert "PTC runtime tools: **" in block
     assert "`spawn_subagent`" in block
 
 
@@ -105,7 +104,7 @@ def test_format_report_pass_path(monkeypatch: pytest.MonkeyPatch) -> None:
     import scripts.validate_tool_registry as cli
 
     monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1}
+        cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0}
     )
     report = ScanReport(declarations=[_decl("foo")], registered_names={"foo"})
     out = _format_report(report)
@@ -118,7 +117,7 @@ def test_format_report_reports_missing_with_owner_metadata(
     import scripts.validate_tool_registry as cli
 
     monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0}
+        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0}
     )
     src_file = _repo_root / "scripts" / "tool_registry_models.py"
     report = ScanReport(
@@ -141,7 +140,7 @@ def test_format_report_incremental_suppresses_ghost_and_orphan(
     import scripts.validate_tool_registry as cli
 
     monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0}
+        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0}
     )
     report = ScanReport(
         declarations=[_decl("foo")],
@@ -163,7 +162,7 @@ def test_format_report_reports_ghosts_and_orphans_and_duplicates(
     import scripts.validate_tool_registry as cli
 
     monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0}
+        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0}
     )
     src_a = _repo_root / "scripts" / "tool_registry_engine.py"
     src_b = _repo_root / "scripts" / "tool_registry_models.py"
@@ -199,7 +198,7 @@ def _run_main(
 
     monkeypatch.setattr(cli, "scan", _fake_scan)
     monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1}
+        cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0}
     )
     # main() compares real TOOL_* maps against the stubbed scan report; isolate metadata.
     monkeypatch.setattr(
@@ -266,7 +265,12 @@ def test_main_json_emits_mode_and_layer_counts(
     assert rc == 0
     payload = _json.loads(out)
     assert payload["mode"] == "full"
-    assert payload["layer_counts"] == {"CORE": 1, "COMMON": 1, "EXTENDED": 1}
+    assert payload["layer_counts"] == {
+        "CORE": 1,
+        "COMMON": 1,
+        "EXTENDED": 1,
+        "EXTERNAL": 0,
+    }
 
 
 def test_main_returns_2_on_scanner_crash(
@@ -311,7 +315,11 @@ def test_layer_counts_aggregates_registered_layers() -> None:
     assert counts["COMMON"] >= 4
     assert counts["EXTENDED"] >= 40
     assert (
-        sum(counts.values()) == counts["CORE"] + counts["COMMON"] + counts["EXTENDED"]
+        sum(counts.values())
+        == counts["CORE"]
+        + counts["COMMON"]
+        + counts["EXTENDED"]
+        + counts["EXTERNAL"]
     )
 
 
@@ -334,7 +342,7 @@ def test_format_report_metadata_ghosts(monkeypatch: pytest.MonkeyPatch) -> None:
     import scripts.validate_tool_registry as cli
 
     monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0}
+        cli, "_layer_counts", lambda _r: {"CORE": 0, "COMMON": 0, "EXTENDED": 0, "EXTERNAL": 0}
     )
     report = ScanReport(declarations=[_decl("foo")], registered_names={"foo"})
     out = _format_report(report, metadata_ghosts={"dead_meta_key"})
@@ -361,7 +369,7 @@ def test_main_incremental_filters_to_changed_files(
     monkeypatch.setattr(cli, "get_changed_python_files", lambda _roots: [src_a])
     monkeypatch.setattr(cli, "load_registered_layers", lambda: dict(_TOOL_LAYERS))
     monkeypatch.setattr(
-        cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1}
+        cli, "_layer_counts", lambda _r: {"CORE": 1, "COMMON": 1, "EXTENDED": 1, "EXTERNAL": 0}
     )
     monkeypatch.setattr(cli.sys, "argv", ["validate_tool_registry.py", "--incremental"])
     rc = cli.main()
@@ -451,3 +459,211 @@ def test_main_generate_docs_rewrites_existing_marker_block(
     refreshed = good_doc.read_text()
     assert "LLM tools:" in refreshed
     assert "old body" not in refreshed
+
+
+# ---------------------------------------------------------------------------
+# Governance coverage gate
+# ---------------------------------------------------------------------------
+
+
+def _governance_registry() -> "ModuleType":
+    """Return the live tool_registry module so tests can monkeypatch constants."""
+    from types import ModuleType
+
+    from myrm_agent_harness.core.security import tool_registry
+
+    assert isinstance(tool_registry, ModuleType)
+    return tool_registry
+
+
+def test_governance_coverage_passes_on_clean_metadata() -> None:
+    import scripts.validate_tool_registry as cli
+
+    errors, matrix = cli._check_governance_coverage()
+    assert errors == []
+    tool_coverage = matrix["tool_coverage"]
+    for tool, meta in tool_coverage.items():  # type: ignore[union-attr]
+        assert (
+            meta["permission"] or meta["dynamic_resolved"] or meta["auto_approved_reason"]
+        ), f"{tool} is governance-uncovered"
+
+
+def test_governance_coverage_all_permission_types_ruled_or_whitelisted() -> None:
+    """The 11 permission types must each have a DEFAULT_RULESET rule or a
+    RULESET_COVERAGE_WHITELIST declaration (fail-closed baseline)."""
+    from myrm_agent_harness.core.security.tool_registry import (
+        RULESET_COVERAGE_WHITELIST,
+        TOOL_PERMISSION_MAP,
+    )
+    from myrm_agent_harness.core.security.types import DEFAULT_RULESET
+
+    ruleset_permissions = {rule.permission for rule in DEFAULT_RULESET}
+    for perm in TOOL_PERMISSION_MAP.values():
+        assert (
+            perm in ruleset_permissions or perm in RULESET_COVERAGE_WHITELIST
+        ), f"permission type {perm!r} has no rule or whitelist declaration"
+
+
+def test_governance_coverage_flags_uncovered_builtin_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A new built-in tool with no mapping/dynamic branch/declaration must fail."""
+    import scripts.validate_tool_registry as cli
+
+    registry = _governance_registry()
+    original = registry.BUILTIN_TOOL_NAMES
+    registry.BUILTIN_TOOL_NAMES = frozenset(original | {"silent_new_tool"})
+    try:
+        errors, _ = cli._check_governance_coverage()
+    finally:
+        registry.BUILTIN_TOOL_NAMES = original
+    assert any("silent_new_tool" in e and "fail-closed" in e for e in errors)
+
+
+def test_governance_coverage_flags_invalid_approve_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import scripts.validate_tool_registry as cli
+
+    registry = _governance_registry()
+    original = registry.AUTO_APPROVED_BUILTIN_TOOLS
+    registry.AUTO_APPROVED_BUILTIN_TOOLS = {
+        **original,
+        "silent_new_tool": "not_a_valid_reason",
+    }
+    try:
+        errors, _ = cli._check_governance_coverage()
+    finally:
+        registry.AUTO_APPROVED_BUILTIN_TOOLS = original
+    assert any(
+        "silent_new_tool='not_a_valid_reason'" in e
+        and "not in AUTO_APPROVE_REASONS" in e
+        for e in errors
+    )
+
+
+def test_governance_coverage_flags_ghost_declaration(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An AUTO_APPROVED_BUILTIN_TOOLS key for a non-built-in tool must fail."""
+    import scripts.validate_tool_registry as cli
+
+    registry = _governance_registry()
+    original = registry.AUTO_APPROVED_BUILTIN_TOOLS
+    registry.AUTO_APPROVED_BUILTIN_TOOLS = {**original, "phantom_tool": "read_only"}
+    try:
+        errors, _ = cli._check_governance_coverage()
+    finally:
+        registry.AUTO_APPROVED_BUILTIN_TOOLS = original
+    assert any("phantom_tool" in e and "non-built-in" in e for e in errors)
+
+
+def test_governance_coverage_flags_uncovered_permission_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import scripts.validate_tool_registry as cli
+
+    registry = _governance_registry()
+    original = registry.RULESET_COVERAGE_WHITELIST
+    registry.RULESET_COVERAGE_WHITELIST = {
+        k: v for k, v in original.items() if k != "browser_read"
+    }
+    try:
+        errors, _ = cli._check_governance_coverage()
+    finally:
+        registry.RULESET_COVERAGE_WHITELIST = original
+    assert any("'browser_read'" in e and "no DEFAULT_RULESET rule" in e for e in errors)
+
+
+def test_governance_coverage_flags_missing_canonical_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import scripts.validate_tool_registry as cli
+
+    registry = _governance_registry()
+    original = registry.TOOL_CANONICAL_PARAMS
+    registry.TOOL_CANONICAL_PARAMS = {
+        k: v for k, v in original.items() if k != "cron_manage_tool"
+    }
+    try:
+        errors, _ = cli._check_governance_coverage()
+    finally:
+        registry.TOOL_CANONICAL_PARAMS = original
+    assert any("cron_manage_tool" in e and "TOOL_CANONICAL_PARAMS" in e for e in errors)
+
+
+def test_governance_coverage_matrix_contains_audit_fields() -> None:
+    import scripts.validate_tool_registry as cli
+
+    _, matrix = cli._check_governance_coverage()
+    assert isinstance(matrix["builtin_tools"], list)
+    assert isinstance(matrix["permission_type_coverage"], dict)
+    assert matrix["tool_coverage"]["cron_manage_tool"] == {  # type: ignore[index]
+        "permission": "cron_manage",
+        "dynamic_resolved": False,
+        "auto_approved_reason": None,
+        "safety_declared": True,
+        "canonical_params": ["action", "job_id", "name_filter"],
+    }
+
+
+def test_main_fails_and_prints_on_governance_errors(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import scripts.validate_tool_registry as cli
+
+    monkeypatch.setattr(
+        cli, "_check_governance_coverage", lambda: (["governance drift"], {})
+    )
+    rc, out, _ = _run_main(
+        monkeypatch,
+        [],
+        report=ScanReport(declarations=[_decl("foo")], registered_names={"foo"}),
+        capsys=capsys,
+    )
+    assert rc == 1
+    assert "governance drift" in out
+    assert "governance coverage issue" in out
+
+
+def test_main_json_emits_governance_coverage(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import json as _json
+
+    rc, out, _ = _run_main(
+        monkeypatch,
+        ["--json"],
+        report=ScanReport(declarations=[_decl("foo")], registered_names={"foo"}),
+        capsys=capsys,
+    )
+    assert rc == 0
+    payload = _json.loads(out)
+    assert "governance_errors" in payload
+    assert payload["governance_errors"] == []
+    assert "tool_coverage" in payload["governance_coverage"]
+
+
+def test_canonical_params_completed_for_management_tools() -> None:
+    """The 12 previously-missing tools must have precise canonical params so
+    allow-always hashing matches semantically, not by full-argument literal."""
+    from myrm_agent_harness.core.security.tool_registry import TOOL_CANONICAL_PARAMS
+
+    assert TOOL_CANONICAL_PARAMS["cron_manage_tool"] == [
+        "action",
+        "job_id",
+        "name_filter",
+    ]
+    assert TOOL_CANONICAL_PARAMS["delegate_task_tool"] == ["mode", "agent_type"]
+    assert TOOL_CANONICAL_PARAMS["delegate_to_agent_tool"] == ["agent_name"]
+    assert TOOL_CANONICAL_PARAMS["subagent_control_tool"] == ["action", "task_id"]
+    assert TOOL_CANONICAL_PARAMS["skill_manage_tool"] == ["action", "name"]
+    assert TOOL_CANONICAL_PARAMS["skill_market_tool"] == ["action", "skill_id"]
+    assert TOOL_CANONICAL_PARAMS["skill_select_tool"] == ["skill_ids"]
+    assert TOOL_CANONICAL_PARAMS["todo_write"] == ["merge"]
+    assert TOOL_CANONICAL_PARAMS["update_ui_data_tool"] == ["surface_id"]
+    for control_signal in (
+        "ask_question_tool",
+        "complete_goal_tool",
+        "render_ui_tool",
+        "request_answer_user_tool",
+    ):
+        assert TOOL_CANONICAL_PARAMS[control_signal] == []

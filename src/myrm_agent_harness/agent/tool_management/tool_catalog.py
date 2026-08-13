@@ -95,6 +95,7 @@ DEFAULT_ENABLED_PRODUCT_IDS: frozenset[str] = frozenset(
         "web_search",
         "memory",
         "structured_clarify",
+        "render_ui",
     }
 )
 
@@ -111,9 +112,15 @@ CORE_ACTION_TOOL_NAMES: frozenset[str] = frozenset(
     }
 )
 
+# EXTENDED-layer tools that are default-on via their product_id but stay out of the
+# Turn1 eager bind (prompt-cache prefix protection): they are invoked on demand and
+# placed at the prompt tail when used. Keeping them EXTENDED also keeps the initial
+# registration minimal even though the product switch defaults them on.
 EXTENDED_DEFAULT_ON_TOOL_EXCEPTIONS: frozenset[str] = frozenset(
     {
         "ask_question_tool",
+        "render_ui_tool",
+        "update_ui_data_tool",
     }
 )
 

@@ -34,7 +34,7 @@ def create_manage_tool(session: BrowserSession):
     class ManageInput(BaseModel):
         action: str = Field(
             description="Action: close, evaluate, new_tab, switch_tab, list_tabs, close_tab, "
-            "back, forward, save_pdf, resize, wait_for_load, console_log, "
+            "back, forward, save_pdf, resize, emulate, wait_for_load, console_log, "
             "network_log, network_detail, network_replay, web_vitals, "
             "dialog_response, dialog_policy, "
             "save_session, restore_session, list_sessions, delete_session, "
@@ -47,6 +47,7 @@ def create_manage_tool(session: BrowserSession):
             default="",
             description="Required for: JS expression (evaluate), tab_id (switch_tab/close_tab), "
             "URL (new_tab/download_url), 'WIDTHxHEIGHT' (resize), "
+            "device name (emulate, e.g. 'iPhone 15 Pro', 'Pixel 8', or 'desktop'), "
             "'accept'/'dismiss[:prompt]' (dialog_response), "
             "'smart'/'auto_accept'/'auto_dismiss'/'wait_for_agent' (dialog_policy), "
             "domain or 'domain:label' (save_session), domain (restore_session/delete_session), "
@@ -69,7 +70,7 @@ def create_manage_tool(session: BrowserSession):
 
         Tab management: new_tab, switch_tab, list_tabs, close_tab.
         History: back, forward. Evaluation: evaluate. Output: save_pdf, console_log.
-        Control: close, resize, wait_for_load. Dialogs: dialog_response.
+        Control: close, resize, emulate, wait_for_load. Dialogs: dialog_response.
         Sessions: save_session, restore_session, list_sessions, delete_session.
         Recording: trace_start, trace_stop, har_start, har_stop, recording_status.
         Diagnostics: web_vitals (page performance metrics with ratings and fixes).
@@ -121,6 +122,15 @@ def create_manage_tool(session: BrowserSession):
                     return await session.resize(int(w), int(h))
                 except (ValueError, AttributeError):
                     return "Error: value must be 'WIDTHxHEIGHT' (e.g. '1920x1080')"
+            case "emulate":
+                if not value.strip():
+                    available = ", ".join(session.list_emulatable_devices())
+                    return (
+                        "Error: 'value' must be a device name "
+                        f"(e.g. 'iPhone 15 Pro', 'Pixel 8') or 'desktop'. "
+                        f"Available: {available}"
+                    )
+                return mark_untrusted(await session.emulate_device(value.strip()))
             case "wait_for_load":
                 return await session.wait_for_load()
             case "console_log":
@@ -221,7 +231,7 @@ def create_manage_tool(session: BrowserSession):
             case _:
                 return (
                     f"Unknown action '{action}'. Supported: close, evaluate, new_tab, switch_tab, "
-                    "list_tabs, close_tab, back, forward, save_pdf, resize, wait_for_load, "
+                    "list_tabs, close_tab, back, forward, save_pdf, resize, emulate, wait_for_load, "
                     "console_log, network_log, network_detail, network_replay, web_vitals, "
                     "dialog_response, dialog_policy, "
                     "save_session, restore_session, list_sessions, delete_session, "
