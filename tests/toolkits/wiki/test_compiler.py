@@ -228,3 +228,48 @@ async def test_extract_concepts_from_doc_unreadable(
     assert stats.embed_pause_kind == EMBED_WINDOW_VIOLATION
     assert "900" in stats.embed_pause_reason
     assert stats.blocked == 1
+
+
+def _restore_provenance_metadata(existing_content: str, new_content: str) -> str:
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import (
+        _restore_provenance_metadata as restore_fn,
+    )
+
+    return restore_fn(existing_content, new_content)
+
+
+def test_restore_provenance_metadata_backfills_lost_source_chat():
+    existing = (
+        "---\ntype: concept\nsource_chat: chat-abc\ncompound_provenance: chat-compound\n---\n"
+        "## Compiled Truth\nold\n"
+    )
+    new_llm_output = (
+        "---\ntype: concept\n---\n## Compiled Truth\nnew\n## Timeline\n- entry\n"
+    )
+    restored = _restore_provenance_metadata(existing, new_llm_output)
+    assert "source_chat: chat-abc" in restored
+    assert "compound_provenance: chat-compound" in restored
+    assert "## Timeline" in restored
+
+
+def test_restore_provenance_metadata_keeps_existing_authoritative():
+    existing = (
+        "---\ntype: concept\nsource_chat: chat-abc\n---\n## Compiled Truth\nold\n"
+    )
+    new_llm_output = (
+        "---\ntype: concept\nsource_chat: chat-different\n---\n## Compiled Truth\nnew\n"
+    )
+    restored = _restore_provenance_metadata(existing, new_llm_output)
+    assert "source_chat: chat-abc" in restored
+    assert "chat-different" not in restored
+
+
+def test_restore_provenance_metadata_noop_without_existing_provenance():
+    existing = "---\ntype: concept\n---\n## Compiled Truth\nold\n"
+    new_llm_output = "---\ntype: concept\n---\n## Compiled Truth\nnew\n"
+    assert _restore_provenance_metadata(existing, new_llm_output) == new_llm_output
+
+
+def test_restore_provenance_metadata_noop_without_existing_content():
+    new_llm_output = "---\ntype: concept\n---\n## Compiled Truth\nnew\n"
+    assert _restore_provenance_metadata("", new_llm_output) == new_llm_output

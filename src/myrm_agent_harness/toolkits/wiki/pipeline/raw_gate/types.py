@@ -6,7 +6,7 @@ See module docstring.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal
@@ -31,6 +31,7 @@ class RawPublishRequest:
     conflict_policy: RawConflictPolicy = RawConflictPolicy.FAIL
     supersede_reason: str = ""
     replace_source_url: str | None = None
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

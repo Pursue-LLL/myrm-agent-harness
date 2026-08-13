@@ -113,6 +113,7 @@ class SkillAgentReviewMixin:
                         relative_path=relative_path,
                         content=archive_content,
                         conflict_policy=RawConflictPolicy.PUT_IF_ABSENT,
+                        metadata={"source_chat": chat_id},
                     ),
                     caller="chat",
                 )

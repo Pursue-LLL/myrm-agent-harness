@@ -86,6 +86,40 @@ class _BatchExtractOutcome:
     failure_kinds: list[str]
 
 
+_PROVENANCE_METADATA_KEYS = frozenset(
+    {"source_chat", "source_message", "compound_provenance"}
+)
+
+
+def _restore_provenance_metadata(existing_content: str, new_content: str) -> str:
+    """Re-attach provenance metadata lost when the LLM regenerates frontmatter.
+
+    The compile prompt only instructs the model to keep Timeline and append
+    evidence; custom frontmatter fields like ``source_chat`` are not guaranteed
+    to survive regeneration. Existing values are authoritative and win over any
+    model-written ones.
+    """
+    if not existing_content:
+        return new_content
+    from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
+        load_frontmatter_metadata,
+        serialize_frontmatter_block,
+    )
+
+    existing_meta, _ = load_frontmatter_metadata(existing_content)
+    provenance = {
+        key: value
+        for key, value in existing_meta.items()
+        if key in _PROVENANCE_METADATA_KEYS and value is not None
+    }
+    if not provenance:
+        return new_content
+
+    new_meta, new_body = load_frontmatter_metadata(new_content)
+    merged = {**new_meta, **provenance}
+    return serialize_frontmatter_block(merged) + new_body.lstrip("\n")
+
+
 class WikiCompiler:
     """
     LLM-powered wiki compiler (Karpathy architecture).
@@ -826,6 +860,10 @@ class WikiCompiler:
                 concept.name,
                 list(concept.source_files),
                 structure=self._structure,
+            )
+
+            article_content = _restore_provenance_metadata(
+                existing_content, article_content
             )
 
             if self._compile_config.require_approval:

@@ -148,3 +148,146 @@ async def test_publish_raw_put_if_absent(wiki_structure: WikiStructure) -> None:
     )
     assert second.conflict_skipped is True
     assert wiki_structure.get_raw_file_path("archive/query.md").read_text(encoding="utf-8") == "query snapshot"
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_rejects_parent_traversal(wiki_structure: WikiStructure) -> None:
+    with pytest.raises(RawGateError) as exc_info:
+        await publish_raw(
+            wiki_structure,
+            RawPublishRequest(
+                relative_path="../../outside.md",
+                content="# escape\n",
+                conflict_policy=RawConflictPolicy.FAIL,
+            ),
+            caller="agent",
+        )
+    assert exc_info.value.code == "invalid_path"
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_rejects_traversal_in_subfolder(wiki_structure: WikiStructure) -> None:
+    with pytest.raises(RawGateError) as exc_info:
+        await publish_raw(
+            wiki_structure,
+            RawPublishRequest(
+                relative_path="notes/../../etc/cron.d/evil.md",
+                content="# escape\n",
+                conflict_policy=RawConflictPolicy.FAIL,
+            ),
+            caller="agent",
+        )
+    assert exc_info.value.code == "invalid_path"
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_rejects_drive_prefix(wiki_structure: WikiStructure) -> None:
+    with pytest.raises(RawGateError) as exc_info:
+        await publish_raw(
+            wiki_structure,
+            RawPublishRequest(
+                relative_path="C:/outside.md",
+                content="# escape\n",
+                conflict_policy=RawConflictPolicy.FAIL,
+            ),
+            caller="agent",
+        )
+    assert exc_info.value.code == "invalid_path"
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_rejects_backslash_traversal(wiki_structure: WikiStructure) -> None:
+    with pytest.raises(RawGateError) as exc_info:
+        await publish_raw(
+            wiki_structure,
+            RawPublishRequest(
+                relative_path=r"..\..\outside.md",
+                content="# escape\n",
+                conflict_policy=RawConflictPolicy.FAIL,
+            ),
+            caller="agent",
+        )
+    assert exc_info.value.code == "invalid_path"
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_rejects_overlong_path(wiki_structure: WikiStructure) -> None:
+    with pytest.raises(RawGateError) as exc_info:
+        await publish_raw(
+            wiki_structure,
+            RawPublishRequest(
+                relative_path="notes/" + "a" * 300 + ".md",
+                content="# long\n",
+                conflict_policy=RawConflictPolicy.FAIL,
+            ),
+            caller="agent",
+        )
+    assert exc_info.value.code == "invalid_path"
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_injects_metadata_into_frontmatter(
+    wiki_structure: WikiStructure,
+) -> None:
+    result = await publish_raw(
+        wiki_structure,
+        RawPublishRequest(
+            relative_path="notes/metadata.md",
+            content="# Meta\n",
+            conflict_policy=RawConflictPolicy.FAIL,
+            metadata={"source_chat": "chat-abc", "compound_provenance": "auto-archive"},
+        ),
+        caller="agent",
+    )
+    assert result.created is True
+    written = wiki_structure.get_raw_file_path("notes/metadata.md").read_text(encoding="utf-8")
+    assert "source_chat: chat-abc" in written
+    assert "compound_provenance: auto-archive" in written
+    assert "# Meta" in written
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_metadata_merges_into_existing_frontmatter(
+    wiki_structure: WikiStructure,
+) -> None:
+    first = await publish_raw(
+        wiki_structure,
+        RawPublishRequest(
+            relative_path="notes/merge.md",
+            content="# Merge\n",
+            conflict_policy=RawConflictPolicy.FAIL,
+        ),
+        caller="agent",
+    )
+    assert first.created is True
+
+    second = await publish_raw(
+        wiki_structure,
+        RawPublishRequest(
+            relative_path="notes/merge.md",
+            content="# Merge\n",
+            conflict_policy=RawConflictPolicy.SUPERSEDE,
+            supersede_reason="Re-import with provenance",
+            metadata={"source_chat": "chat-xyz"},
+        ),
+        caller="settings",
+    )
+    assert second.superseded is True
+    written = wiki_structure.get_raw_file_path("notes/merge.md").read_text(encoding="utf-8")
+    assert "source_chat: chat-xyz" in written
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_metadata_empty_noop(wiki_structure: WikiStructure) -> None:
+    result = await publish_raw(
+        wiki_structure,
+        RawPublishRequest(
+            relative_path="notes/noop.md",
+            content="# Noop\n",
+            conflict_policy=RawConflictPolicy.FAIL,
+        ),
+        caller="agent",
+    )
+    assert result.created is True
+    written = wiki_structure.get_raw_file_path("notes/noop.md").read_text(encoding="utf-8")
+    assert "source_chat" not in written

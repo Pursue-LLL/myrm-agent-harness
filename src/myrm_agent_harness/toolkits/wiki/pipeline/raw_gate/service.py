@@ -53,10 +53,29 @@ def _vault_lock(base_dir: Path) -> asyncio.Lock:
     return lock
 
 
+_MAX_RELATIVE_PATH_LEN = 260
+
+
 def _normalize_relative_path(relative_path: str) -> str:
     cleaned = relative_path.strip().replace("\\", "/").lstrip("/")
     if not cleaned:
         raise RawGateError("invalid_request", "relative_path is required")
+    if len(cleaned) > _MAX_RELATIVE_PATH_LEN:
+        raise RawGateError(
+            "invalid_path",
+            f"relative_path exceeds maximum length of {_MAX_RELATIVE_PATH_LEN}",
+        )
+    segments = cleaned.split("/")
+    if any(seg == ".." for seg in segments):
+        raise RawGateError(
+            "invalid_path",
+            "relative_path must not contain '..' segments",
+        )
+    if ":" in segments[0]:
+        raise RawGateError(
+            "invalid_path",
+            "relative_path must be a relative path (no drive prefix)",
+        )
     return cleaned
 
 
@@ -115,6 +134,24 @@ def _relative_raw_display(structure: WikiStructure, raw_path: Path) -> str:
         return raw_path.relative_to(structure.raw_dir).as_posix()
     except ValueError:
         return raw_path.name
+
+
+def _inject_metadata_frontmatter(content: str, metadata: dict[str, str]) -> str:
+    """Merge caller-supplied metadata into the raw file YAML frontmatter.
+
+    No-op when metadata is empty. Existing frontmatter keys win over nothing:
+    caller keys are merged on top of existing fields.
+    """
+    if not metadata:
+        return content
+    from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
+        load_frontmatter_metadata,
+        serialize_frontmatter_block,
+    )
+
+    existing, body = load_frontmatter_metadata(content)
+    merged = {**existing, **metadata}
+    return serialize_frontmatter_block(merged) + body.lstrip("\n")
 
 
 def _read_raw_frontmatter_source_url(content: str) -> str | None:
@@ -183,6 +220,9 @@ def _publish_raw_impl(
                 security_blocked=True,
             )
         raise
+
+    if request.metadata:
+        write_content = _inject_metadata_frontmatter(write_content, request.metadata)
 
     new_hash = compute_page_lease_hash(write_content)
 
