@@ -567,7 +567,9 @@ async def test_close_fails_in_flight_call_instead_of_hanging(
     no outer timeout), which hangs the agent mid-turn. Regression test for
     the close() grace-window cancel path.
     """
-    monkeypatch.setattr("myrm_agent_harness.toolkits.mcp.session_actor._CLOSE_TIMEOUT", 0.2)
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.mcp.session_actor._CLOSE_TIMEOUT", 0.2
+    )
     init_calls: list[int] = []
 
     class _HangingTool(_FakeTool):
@@ -610,7 +612,9 @@ async def test_close_fails_in_flight_resource_read_instead_of_hanging(
     owner task when close()'s grace window expires must not leave the caller
     waiting forever.
     """
-    monkeypatch.setattr("myrm_agent_harness.toolkits.mcp.session_actor._CLOSE_TIMEOUT", 0.2)
+    monkeypatch.setattr(
+        "myrm_agent_harness.toolkits.mcp.session_actor._CLOSE_TIMEOUT", 0.2
+    )
     init_calls: list[int] = []
 
     entered = asyncio.Event()

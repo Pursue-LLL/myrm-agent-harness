@@ -658,7 +658,9 @@ class MCPSessionActor:
                     # that is going away, then re-raise to keep cancel semantics.
                     if not item.future.done():
                         item.future.set_exception(
-                            RuntimeError(f"MCP session '{self.server_name}' closed during call")
+                            RuntimeError(
+                                f"MCP session '{self.server_name}' closed during call"
+                            )
                         )
                     raise
                 except (

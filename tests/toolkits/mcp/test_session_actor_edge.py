@@ -152,7 +152,9 @@ def test_build_client_target_streamable_http_with_headers() -> None:
 
 
 def test_build_client_target_streamable_http_plain() -> None:
-    with patch("mcp.client.streamable_http.streamable_http_client") as streamable_client:
+    with patch(
+        "mcp.client.streamable_http.streamable_http_client"
+    ) as streamable_client:
         actor = MCPSessionActor("srv", {"transport": "streamable_http"})
         target = actor._build_client_target(
             {"transport": "streamable_http", "url": "http://x"}
@@ -175,9 +177,7 @@ async def test_elicitation_handler_is_wired_into_client_kwargs() -> None:
     init_calls: list[int] = []
     client_cls, convert = _install_fake_client(init_calls, [_FakeTool("alpha")])
     handler = AsyncMock(return_value="accept")
-    actor = MCPSessionActor(
-        "srv", {"transport": "stdio"}, elicitation_handler=handler
-    )
+    actor = MCPSessionActor("srv", {"transport": "stdio"}, elicitation_handler=handler)
     with _patched(client_cls, convert):
         await actor.start()
         try:
@@ -187,7 +187,9 @@ async def test_elicitation_handler_is_wired_into_client_kwargs() -> None:
 
 
 @pytest.mark.asyncio
-async def test_reconnect_reset_after_stable_serve(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_reconnect_reset_after_stable_serve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A long-stable session earns a fresh reconnect budget after a blip."""
     import myrm_agent_harness.toolkits.mcp.session_actor as sa
 
@@ -215,7 +217,9 @@ async def test_reconnect_reset_after_stable_serve(monkeypatch: pytest.MonkeyPatc
         try:
             with pytest.raises(ConnectionError):
                 await asyncio.wait_for(actor.call("alpha", {"id": "a"}), timeout=5.0)
-            result = await asyncio.wait_for(actor.call("alpha", {"id": "b"}), timeout=5.0)
+            result = await asyncio.wait_for(
+                actor.call("alpha", {"id": "b"}), timeout=5.0
+            )
             assert result == "recovered"
             assert actor.is_healthy() is True
         finally:
@@ -335,16 +339,12 @@ async def test_read_resource_decodes_blob_and_text() -> None:
     assert await actor._read_resource(session, "memory://k") == b"hello"
 
     session.read_resource = AsyncMock(
-        return_value=SimpleNamespace(
-            contents=[SimpleNamespace(blob=None, text="hi")]
-        )
+        return_value=SimpleNamespace(contents=[SimpleNamespace(blob=None, text="hi")])
     )
     assert await actor._read_resource(session, "memory://k") == b"hi"
 
     session.read_resource = AsyncMock(
-        return_value=SimpleNamespace(
-            contents=[SimpleNamespace(blob=None, text=None)]
-        )
+        return_value=SimpleNamespace(contents=[SimpleNamespace(blob=None, text=None)])
     )
     with pytest.raises(RuntimeError, match="no text or blob"):
         await actor._read_resource(session, "memory://k")
@@ -374,7 +374,9 @@ async def test_read_resource_success_via_owner_queue() -> None:
     with _patched(client_cls, convert):
         await actor.start()
         try:
-            data = await asyncio.wait_for(actor.read_resource("memory://k"), timeout=5.0)
+            data = await asyncio.wait_for(
+                actor.read_resource("memory://k"), timeout=5.0
+            )
             assert data == b"hi"
         finally:
             await actor.close()
@@ -399,7 +401,9 @@ async def test_read_resource_transport_break_recovers() -> None:
         try:
             with pytest.raises(ConnectionError):
                 await asyncio.wait_for(actor.read_resource("memory://k"), timeout=5.0)
-            data = await asyncio.wait_for(actor.read_resource("memory://k"), timeout=5.0)
+            data = await asyncio.wait_for(
+                actor.read_resource("memory://k"), timeout=5.0
+            )
             assert data == b"hi"
             assert actor.is_healthy() is True
         finally:

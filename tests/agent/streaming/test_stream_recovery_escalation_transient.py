@@ -17,7 +17,10 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command
 
-from myrm_agent_harness.agent.streaming.stream_executor import StreamContext, StreamExecutor
+from myrm_agent_harness.agent.streaming.stream_executor import (
+    StreamContext,
+    StreamExecutor,
+)
 from myrm_agent_harness.agent.streaming.stream_recovery import (
     _extract_retry_after_ms,
     _is_escalation_marker_message,
@@ -188,8 +191,10 @@ class TestHandleEscalation:
         rebuild_fn.assert_called_once_with(escalation_ctx.escalation_target_llm)
         events = executor._compactor.events
         escalation_events = [
-            e for e in events
-            if isinstance(e, dict) and e.get("type") == AgentEventType.MODEL_ESCALATED.value
+            e
+            for e in events
+            if isinstance(e, dict)
+            and e.get("type") == AgentEventType.MODEL_ESCALATED.value
         ]
         assert len(escalation_events) == 1
         assert escalation_events[0]["data"]["from_model"] == "gpt-4o-mini"
@@ -326,11 +331,14 @@ class TestHandleTransientRetry:
                 new_callable=AsyncMock,
             ),
         ):
-            result = await executor._handle_transient_retry(RuntimeError("rate limited"), 0)
+            result = await executor._handle_transient_retry(
+                RuntimeError("rate limited"), 0
+            )
         assert result is True
         events = executor._compactor.events
         retry_events = [
-            e for e in events
+            e
+            for e in events
             if isinstance(e, dict) and e.get("step_key") == "transient_retry"
         ]
         assert len(retry_events) == 1
@@ -347,7 +355,9 @@ class TestHandleTransientRetry:
             "myrm_agent_harness.agent.streaming.stream_recovery.classify_error",
             return_value=ErrorKind.RATE_LIMIT,
         ):
-            result = await executor._handle_transient_retry(RuntimeError("rate limited"), 15)
+            result = await executor._handle_transient_retry(
+                RuntimeError("rate limited"), 15
+            )
         assert result is False
 
     @pytest.mark.asyncio
@@ -391,7 +401,9 @@ class TestHandleTransientRetry:
                 new_callable=AsyncMock,
             ),
         ):
-            result = await executor._handle_transient_retry(RuntimeError("overloaded"), 0)
+            result = await executor._handle_transient_retry(
+                RuntimeError("overloaded"), 0
+            )
         assert result is True
 
 
@@ -415,8 +427,10 @@ class TestHandleIterationLimit:
         assert result is True
         events = executor._compactor.events
         limit_events = [
-            e for e in events
-            if isinstance(e, dict) and e.get("type") == AgentEventType.ITERATION_LIMIT_REACHED.value
+            e
+            for e in events
+            if isinstance(e, dict)
+            and e.get("type") == AgentEventType.ITERATION_LIMIT_REACHED.value
         ]
         assert len(limit_events) == 1
         assert limit_events[0]["data"]["limit"] == 25

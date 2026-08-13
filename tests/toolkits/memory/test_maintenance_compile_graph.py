@@ -82,7 +82,7 @@ async def test_compile_claim_graph_scoped_to_namespaces():
 
     async def _scroll(*args, **kwargs):
         seen = kwargs.get("filters", {})
-        assert seen.get("namespaces") == expected_namespaces
+        assert seen.get("primary_namespace") == expected_namespaces
         return [], None
 
     vector.scroll.side_effect = _scroll
@@ -113,4 +113,4 @@ async def test_compile_claim_graph_namespaces_none_keeps_unscoped_filter():
     result = await compile_claim_graph(vector, graph, config)
 
     assert result == 0
-    assert "namespaces" not in seen_filters
+    assert "primary_namespace" not in seen_filters

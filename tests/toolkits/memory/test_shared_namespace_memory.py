@@ -116,7 +116,10 @@ async def test_search_semantic_uses_namespace_filter(memory_config: MemoryConfig
     )
 
     filters = vector.search.call_args.kwargs["filters"]
-    assert filters == {"archived": False, "namespaces": ["shared:customer-a", "agent:writer"]}
+    assert filters == {
+        "archived": False,
+        "primary_namespace": ["shared:customer-a", "agent:writer"],
+    }
 
 
 def test_manager_exposes_no_team_sharing_api(memory_config: MemoryConfig) -> None:

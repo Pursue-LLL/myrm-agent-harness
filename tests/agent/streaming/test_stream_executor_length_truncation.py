@@ -5,7 +5,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langchain_core.messages import AIMessage
 
-from myrm_agent_harness.agent.streaming.stream_executor import StreamContext, StreamExecutor
+from myrm_agent_harness.agent.streaming.stream_executor import (
+    StreamContext,
+    StreamExecutor,
+)
 from myrm_agent_harness.agent.types import AgentRunStatistics
 
 
@@ -39,7 +42,9 @@ def mock_context():
 
 
 def _make_executor(ctx: StreamContext) -> StreamExecutor:
-    executor = StreamExecutor(ctx=ctx, fallback_llm=None, rebuild_agent_fn=None, safety_fallback_llm=None)
+    executor = StreamExecutor(
+        ctx=ctx, fallback_llm=None, rebuild_agent_fn=None, safety_fallback_llm=None
+    )
     executor._compactor = DummyCompactor()
     return executor
 
@@ -51,7 +56,9 @@ async def test_thinking_budget_exhausted_detected(mock_context):
 
     ai_msg = AIMessage(
         content="",
-        additional_kwargs={"reasoning_content": "Long reasoning chain that consumed all tokens..."},
+        additional_kwargs={
+            "reasoning_content": "Long reasoning chain that consumed all tokens..."
+        },
     )
     collected_messages = [ai_msg]
 
@@ -80,7 +87,13 @@ async def test_tool_call_truncated_triggers_retry(mock_context):
 
     ai_msg = AIMessage(
         content="",
-        tool_calls=[{"name": "write_file", "args": {"path": "test.py", "content": "truncat"}, "id": "call_1"}],
+        tool_calls=[
+            {
+                "name": "write_file",
+                "args": {"path": "test.py", "content": "truncat"},
+                "id": "call_1",
+            }
+        ],
     )
     collected_messages = [ai_msg]
 
@@ -109,7 +122,13 @@ async def test_tool_call_truncated_exhausted_after_retry(mock_context):
 
     ai_msg = AIMessage(
         content="",
-        tool_calls=[{"name": "write_file", "args": {"path": "test.py", "content": "truncat"}, "id": "call_1"}],
+        tool_calls=[
+            {
+                "name": "write_file",
+                "args": {"path": "test.py", "content": "truncat"},
+                "id": "call_1",
+            }
+        ],
     )
     collected_messages = [ai_msg]
 
@@ -243,7 +262,13 @@ async def test_locale_propagation(mock_context):
 
     ai_msg = AIMessage(
         content="",
-        tool_calls=[{"name": "write_file", "args": {"path": "f.py", "content": "c"}, "id": "call_1"}],
+        tool_calls=[
+            {
+                "name": "write_file",
+                "args": {"path": "f.py", "content": "c"},
+                "id": "call_1",
+            }
+        ],
     )
     collected_messages = [ai_msg]
 
@@ -309,7 +334,13 @@ async def test_tool_calls_with_reasoning_prioritizes_tool_call(mock_context):
     ai_msg = AIMessage(
         content="",
         additional_kwargs={"reasoning_content": "Some reasoning..."},
-        tool_calls=[{"name": "write_file", "args": {"path": "f.py", "content": "c"}, "id": "call_1"}],
+        tool_calls=[
+            {
+                "name": "write_file",
+                "args": {"path": "f.py", "content": "c"},
+                "id": "call_1",
+            }
+        ],
     )
     collected_messages = [ai_msg]
 
@@ -337,7 +368,13 @@ async def test_tool_calls_with_content(mock_context):
 
     ai_msg = AIMessage(
         content="Let me write the file for you.",
-        tool_calls=[{"name": "write_file", "args": {"path": "f.py", "content": "..."}, "id": "call_1"}],
+        tool_calls=[
+            {
+                "name": "write_file",
+                "args": {"path": "f.py", "content": "..."},
+                "id": "call_1",
+            }
+        ],
     )
     collected_messages = [ai_msg]
 
@@ -397,7 +434,13 @@ async def test_picks_last_ai_message(mock_context):
     human = HumanMessage(content="Continue")
     last_ai = AIMessage(
         content="",
-        tool_calls=[{"name": "write_file", "args": {"path": "f.py", "content": "..."}, "id": "call_1"}],
+        tool_calls=[
+            {
+                "name": "write_file",
+                "args": {"path": "f.py", "content": "..."},
+                "id": "call_1",
+            }
+        ],
     )
     collected_messages = [first_ai, human, last_ai]
 
@@ -426,7 +469,13 @@ async def test_diagnostic_failure_still_emits_event(mock_context):
 
     ai_msg = AIMessage(
         content="",
-        tool_calls=[{"name": "write_file", "args": {"path": "f.py", "content": "..."}, "id": "call_1"}],
+        tool_calls=[
+            {
+                "name": "write_file",
+                "args": {"path": "f.py", "content": "..."},
+                "id": "call_1",
+            }
+        ],
     )
     collected_messages = [ai_msg]
 
@@ -561,7 +610,13 @@ async def test_tool_call_retry_skipped_in_command_mode(mock_context):
 
     ai_msg = AIMessage(
         content="",
-        tool_calls=[{"name": "write_file", "args": {"path": "f.py", "content": "c"}, "id": "call_1"}],
+        tool_calls=[
+            {
+                "name": "write_file",
+                "args": {"path": "f.py", "content": "c"},
+                "id": "call_1",
+            }
+        ],
     )
     collected_messages = [ai_msg]
 
@@ -685,7 +740,9 @@ async def test_no_content_no_reasoning_no_tool_calls(mock_context):
 
 def test_has_non_reasoning_content_list_with_strings():
     """_has_non_reasoning_content returns True for list content with non-empty strings."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import StreamTruncationRecoveryMixin
+    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+        StreamTruncationRecoveryMixin,
+    )
 
     msg = MagicMock()
     msg.content = ["hello", "world"]
@@ -697,7 +754,9 @@ def test_has_non_reasoning_content_list_with_strings():
 
 def test_has_non_reasoning_content_list_with_non_thinking_dict():
     """_has_non_reasoning_content returns True for non-thinking dict blocks."""
-    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import StreamTruncationRecoveryMixin
+    from myrm_agent_harness.agent.streaming.stream_recovery_truncation import (
+        StreamTruncationRecoveryMixin,
+    )
 
     msg = MagicMock()
     msg.content = [{"type": "text", "text": "visible"}]
@@ -760,7 +819,13 @@ async def test_tool_call_retry_drops_truncated_ai_message(mock_context):
     human_msg = HumanMessage(content="Write a file")
     ai_msg = AIMessage(
         content="",
-        tool_calls=[{"name": "write_file", "args": {"path": "f.py", "content": "..."}, "id": "call_1"}],
+        tool_calls=[
+            {
+                "name": "write_file",
+                "args": {"path": "f.py", "content": "..."},
+                "id": "call_1",
+            }
+        ],
     )
     collected_messages = [human_msg, ai_msg]
 
