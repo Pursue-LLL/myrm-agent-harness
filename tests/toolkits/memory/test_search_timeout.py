@@ -575,7 +575,7 @@ class TestMemorySearchToolCorpusBranches:
     @pytest.mark.asyncio
     async def test_stale_memory_with_code_path_emits_critical_notice(self) -> None:
         from datetime import UTC, datetime, timedelta
-        from unittest.mock import AsyncMock
+        from unittest.mock import AsyncMock, MagicMock, patch
 
         from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
             search_memory_corpus,
@@ -603,17 +603,21 @@ class TestMemorySearchToolCorpusBranches:
         )
         manager.active_session = None
         manager.last_retrieval_trace = None
-        manager.set_last_cited_memory_ids = AsyncMock()
+        manager.set_last_cited_memory_ids = MagicMock()
 
-        text = await search_memory_corpus(
-            manager,
-            query="login flow",
-            category_to_type={"knowledge": MemoryType.SEMANTIC},
-            categories=None,
-            limit=5,
-            since=None,
-            until=None,
-        )
+        with patch(
+            "myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution.emit_cited_memory_ids",
+            AsyncMock(),
+        ):
+            text = await search_memory_corpus(
+                manager,
+                query="login flow",
+                category_to_type={"knowledge": MemoryType.SEMANTIC},
+                categories=None,
+                limit=5,
+                since=None,
+                until=None,
+            )
 
         assert "CRITICAL: Outdated memory referencing potential paths" in text
 
