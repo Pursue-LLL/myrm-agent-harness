@@ -10,6 +10,7 @@
 - file_search.skill_path_filter::get_disabled_skill_roots, is_under_disabled_skill_root (POS: disabled skill 路径拦截)
 - context_management.infra.evicted_content::normalize_delivery_chat_id (POS: UECD 会话 id 归一化，读写侧对称)
 - utils.vault_read::is_vault_uri, path_base, read_vault_paths_to_parts (POS: vault:// URI 读取)
+|- mcp_read_next_step_hint::append_mcp_docs_next_step_hint (POS: MCP 函数文档批量读取后的下一步操作提示)
 - utils.*_reader (POS: 多模态与文档读取)
 - utils.errors::ToolError (POS: 工具错误类型)
 

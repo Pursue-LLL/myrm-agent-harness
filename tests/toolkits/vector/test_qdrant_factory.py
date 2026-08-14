@@ -266,3 +266,59 @@ async def test_clear_embedded_stores_empties_cache(tmp_path):
 
     await clear_embedded_stores()
     assert _embedded_clients == {}
+
+
+@pytest.mark.asyncio
+async def test_embedded_store_is_persistent(tmp_path):
+    """正常嵌入式 store 必须报告持久化（数据跨重启保留）。"""
+    store = await create_embedded_store(path=str(tmp_path / "persistent"))
+    assert store.is_persistent is True
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_fallback_store_is_ephemeral(tmp_path):
+    """fallback 到 :memory: 的 store 必须报告非持久化（重启丢失）。"""
+    from unittest.mock import MagicMock, patch
+
+    def fake_client(path: str, **kwargs: object) -> object:
+        if path == ":memory:":
+            return MagicMock()
+        raise OSError("unwritable")
+
+    bad_path = tmp_path / "bad" / "vector_store"
+    with patch("qdrant_client.QdrantClient", side_effect=fake_client):
+        store = await create_embedded_store(path=str(bad_path))
+
+    assert store.config.local_path == ":memory:"
+    assert store.is_persistent is False
+    await store.hard_close()
+
+
+@pytest.mark.asyncio
+async def test_fallback_memory_failure_preserves_original_error(tmp_path):
+    """磁盘失败 + 内存 fallback 也失败时，必须保留原始磁盘错误链。
+
+    回归：fallback 的 QdrantClient(:memory:) 抛异常会从 except 块逃逸，
+    原始磁盘错误（__cause__）丢失，调用方只看到误导性的新异常。
+    """
+    from unittest.mock import patch
+
+    real_error = OSError("disk unwritable")
+    mem_error = OSError("memory unavailable")
+
+    def fake_client(path: str, **kwargs: object) -> object:
+        if path == ":memory:":
+            raise mem_error
+        raise real_error
+
+    bad_path = tmp_path / "bad" / "vector_store"
+    with (
+        patch("qdrant_client.QdrantClient", side_effect=fake_client),
+        pytest.raises(RuntimeError, match="in-memory fallback also failed") as exc_info,
+    ):
+        await create_embedded_store(path=str(bad_path))
+
+    # 原始磁盘错误必须是新异常的 __cause__（错误链保留）。
+    assert exc_info.value.__cause__ is real_error
+    assert str(real_error) in str(exc_info.value)

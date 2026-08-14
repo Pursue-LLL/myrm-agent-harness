@@ -9,7 +9,7 @@ Composable `MemoryManager` implementation. External code imports `MemoryManager`
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | `shared.py` | Barrel | Shared imports, errors, background-task logger | — |
-| `core.py` | Mixin | Initialization, properties, backend flags, `on_conflict` callback slot | ✅ |
+| `core.py` | Mixin | Initialization, properties, backend flags, `vector_is_persistent` (exposes underlying vector store persistence — `True` when no vector store or persistent/remote backend, `False` only when embedded degraded to ephemeral `:memory:`), `on_conflict` callback slot | ✅ |
 | `governance_session.py` | Mixin | Approval workflow and session lifecycle | ✅ |
 | `retrieval_write.py` | Mixin | Store, search (with access tracking), context, tool rules | ✅ |
 | `convenience.py` | Mixin | Profile and typed add helpers | ✅ |

@@ -350,56 +350,68 @@ class SkillAgentReviewMixin:
         session_chat_id: str | None = run_chat_id
 
         if memory_manager is not None:
-            session = memory_manager.active_session
-            if session and session.chat_id:
-                session_chat_id = session.chat_id
+            from myrm_agent_harness.agent.skill_agent._privacy_context import (
+                reestablish_privacy_context,
+                teardown_privacy_context,
+            )
+
+            privacy_restored = reestablish_privacy_context(self)
             try:
-                persisted = await memory_manager.end_session()
-                if persisted:
-                    logger.info(
-                        "Memory session flush: %d memories persisted", len(persisted)
+                session = memory_manager.active_session
+                if session and session.chat_id:
+                    session_chat_id = session.chat_id
+                try:
+                    persisted = await memory_manager.end_session()
+                    if persisted:
+                        logger.info(
+                            "Memory session flush: %d memories persisted",
+                            len(persisted),
+                        )
+                except Exception as e:
+                    logger.warning("Memory session flush failed: %s", e)
+
+                if getattr(self, "_enable_memory_auto_extraction", False):
+                    from myrm_agent_harness.agent._internals.memory_extraction import (
+                        auto_extract_memories,
                     )
-            except Exception as e:
-                logger.warning("Memory session flush failed: %s", e)
-
-            if getattr(self, "_enable_memory_auto_extraction", False):
-                from myrm_agent_harness.agent._internals.memory_extraction import (
-                    auto_extract_memories,
-                )
-                from myrm_agent_harness.agent.middlewares._session_context import (
-                    get_privacy_policy,
-                )
-
-                privacy = get_privacy_policy()
-                llm: BaseChatModel = self.llm
-                extraction_llm: BaseChatModel | None = getattr(
-                    self, "_extraction_llm", None
-                )
-                wiki_boundary_enabled = bool(getattr(self, "_wiki_base_dir", None))
-                task = asyncio.create_task(
-                    auto_extract_memories(
-                        query,
-                        chat_history,
-                        memory_manager,
-                        llm,
-                        extraction_llm=extraction_llm,
-                        source_chat_id=session_chat_id,
-                        assistant_reply="".join(assistant_chunks),
-                        deep_scan=privacy.deep_scan,
-                        wiki_boundary_enabled=wiki_boundary_enabled,
-                        lifecycle_observer=getattr(
-                            self, "_extraction_lifecycle_observer", None
-                        ),
+                    from myrm_agent_harness.agent.middlewares._session_context import (
+                        get_privacy_policy,
                     )
-                )
-                track_background_task(task)
 
-            recurrence_summary = self._build_recurrence_summary(query, assistant_chunks)
-            if recurrence_summary:
-                recurrence_task = asyncio.create_task(
-                    memory_manager.check_session_recurrence(recurrence_summary)
+                    privacy = get_privacy_policy()
+                    llm: BaseChatModel = self.llm
+                    extraction_llm: BaseChatModel | None = getattr(
+                        self, "_extraction_llm", None
+                    )
+                    wiki_boundary_enabled = bool(getattr(self, "_wiki_base_dir", None))
+                    task = asyncio.create_task(
+                        auto_extract_memories(
+                            query,
+                            chat_history,
+                            memory_manager,
+                            llm,
+                            extraction_llm=extraction_llm,
+                            source_chat_id=session_chat_id,
+                            assistant_reply="".join(assistant_chunks),
+                            deep_scan=privacy.deep_scan,
+                            wiki_boundary_enabled=wiki_boundary_enabled,
+                            lifecycle_observer=getattr(
+                                self, "_extraction_lifecycle_observer", None
+                            ),
+                        )
+                    )
+                    track_background_task(task)
+
+                recurrence_summary = self._build_recurrence_summary(
+                    query, assistant_chunks
                 )
-                track_background_task(recurrence_task)
+                if recurrence_summary:
+                    recurrence_task = asyncio.create_task(
+                        memory_manager.check_session_recurrence(recurrence_summary)
+                    )
+                    track_background_task(recurrence_task)
+            finally:
+                teardown_privacy_context(privacy_restored)
 
         on_session_cleanup = getattr(self, "_on_session_cleanup", None)
         if on_session_cleanup is not None:

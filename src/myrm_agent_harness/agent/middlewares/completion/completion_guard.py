@@ -34,7 +34,7 @@ persisting across ReAct cycles.
 - langchain_core.tools::tool (POS: tool decorator)
 - agent.middlewares.tool_interceptor_middleware::get_loop_guard (POS: LoopGuard accessor)
 - agent.middlewares.completion.completion_guard_checklist::build_checklist, classify_verification, find_last_successful_verification_command (POS: Verification command classification, checklist generation, and temporal-order verification command extraction for CompletionGuard.)
-- agent.middlewares.completion.completion_guard_external_evidence::build_external_evidence_reason (POS: Freshness-sensitive external evidence gate including MCP PTC bash via skills.mcp_*)
+- agent.middlewares.completion.completion_guard_external_evidence::build_external_evidence_reason (POS: Freshness-sensitive external evidence gate including MCP PTC bash via skills.mcp_* and Direct FC via mcp__{server}__{tool})
 - agent.middlewares.completion.deliverable_write_verifier::check_deliverable_write_claim (POS: Zero-call deliverable write claim detection for CompletionGuard)
 
 [OUTPUT]
@@ -165,8 +165,8 @@ def _completion_check_tool(
             "but no successful evidence-gathering tools were observed in this run.\n"
             f"Reason: {evidence_reason}\n"
             "Before finishing, run at least one successful evidence step (web_search_tool, "
-            "web_fetch_tool, browser evidence tools, or MCP PTC bash via skills.mcp_*), "
-            "then synthesize the answer."
+            "web_fetch_tool, browser evidence tools, MCP PTC bash via skills.mcp_*, "
+            "or a Direct FC MCP tool), then synthesize the answer."
         )
 
     if deliverable_write_reason.strip():

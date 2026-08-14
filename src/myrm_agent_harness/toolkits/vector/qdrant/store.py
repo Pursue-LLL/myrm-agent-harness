@@ -73,6 +73,15 @@ class QdrantVectorStore(VectorStore):
         """Get the deployment mode string."""
         return self._config.mode.value
 
+    @property
+    def is_persistent(self) -> bool:
+        """Whether the store persists data across restarts.
+
+        Embedded stores that fell back to ``:memory:`` are ephemeral and
+        return ``False``; remote and on-disk embedded stores return ``True``.
+        """
+        return self._config.local_path != ":memory:"
+
     async def _with_retry(
         self, operation: object, *args: object, **kwargs: object
     ) -> object:

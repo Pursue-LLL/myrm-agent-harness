@@ -306,7 +306,7 @@ result = SubAgentResult(checkpoint_data={...})
 
 `timeout_seconds` 默认为 `None`（无 wall-clock 超时）。`SubagentConfig.__post_init__` 对输入值进行归一化：`≤ 0` 转为 `None`（等同于 Hermes `child_timeout_seconds: 0` 语义），正值下限强制为 `_MIN_TIMEOUT_SECONDS`（30s），防止配置错误导致无意义超时。子代理通过四层安全网自然结束：
 
-1. **max_turns**（默认 25）：最大迭代次数
+1. **max_turns**（默认 25）：最大迭代次数。子代理的 LangGraph `recursion_limit` 由 `max_turns * 2` 独立决定（`builder.build_child_agent`），**不继承父 agent 的迭代上限**——与 `build_standalone_agent`（编排器路径）语义一致，避免父上限偏低时子代理被提前截断、`max_turns` 配置失效。
 2. **staleness detection**（`stale_after_seconds=300`）：无进度时警告或取消
 3. **budget_tokens**：可选 token 预算上限
 4. **max_cost_usd**：可选费用上限

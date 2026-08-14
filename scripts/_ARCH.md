@@ -26,7 +26,7 @@ Harness 仓维护脚本：框架-业务边界 enforcement、PyPI 发布校验、
 | `tool_registry_models.py` | 辅助 | Tool registry 数据模型 | ✅ |
 | `validate_tool_registry.py` | 辅助 | Tool registry CI 校验（注册一致性 + 治理覆盖门禁：遍历注册内置全集 / 权限类型矩阵 / EXPLICIT_MCP_FALLBACK 第三态 / DYNAMICALLY_RESOLVED_TOOL_NAMES SSOT 消费 / BUILTIN↔注册双向一致性 / RULESET_COVERAGE_WHITELIST 双向一致性（stale+orphan）/ EXTERNAL server-managed 标注 / safety / canonical 参数；`--json` 输出覆盖矩阵，矩阵含 `whitelist_orphan` 标注使 orphan 声明对审计报表可见） | ✅ |
 | `validate_arch_inventory.py` | 辅助 | `_ARCH.md` 文件清单表格 vs 同级 `.py` 一致性校验（仅解析表格行）+ `--md-refs` 全仓反引号路径引用真实性校验（显式相对路径 / 跨仓 alias / harness 模块快捷三态解析，渐退剥离 symbol 后缀；`--root` 仓根或 server 仓等跨仓扫描仅跑 md-refs，不跑表格） | ✅ |
-| `md_ref_validator.py` | 辅助 | md 引用校验核心：`scan_md_refs` / `_extract_md_refs` / `_resolve_md_ref` / 渐退 symbol 剥离 / 白名单（`SKILL_SYSTEM.md` 竞品规划表、`eval/_ARCH.md` 候选决策表、`prebuilt_skills/` 运行时产物），被 `validate_arch_inventory.py` 复用 | ✅ |
+| `md_ref_validator.py` | 辅助 | md 引用校验核心：`scan_md_refs` / `_extract_md_refs` / `_resolve_md_ref` / 渐退 symbol 剥离 / 源码根自动发现（harness `src/myrm_agent_harness`，server `app/`，跨仓快捷引用按被扫描仓识别）/ 白名单（`SKILL_SYSTEM.md` 竞品规划表、`eval/_ARCH.md` 候选决策表、`prebuilt_skills/` 运行时产物），被 `validate_arch_inventory.py` 复用 | ✅ |
 | `check_fractal_docs.py` | 辅助 | 分形 `_ARCH.md` 目录覆盖 + IOP 头 baseline 门禁（`fractal_header_baseline.txt`） | ✅ |
 | `check_file_line_limit.py` | 辅助 | 单文件行数 baseline 门禁（>500 行须登记且不可增长）；`--incremental` 仅扫描 git 变更文件（pre-commit），无 git 时回退全量 | ✅ |
 | `file_line_baseline.txt` | 辅助 | legacy 大文件 grandfather 清单：允许 >500 行但不得超过登记行数；拆分至 ≤500 后移除 | — |

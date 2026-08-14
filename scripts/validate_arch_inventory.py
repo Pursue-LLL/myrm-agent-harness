@@ -8,7 +8,7 @@ Two independent checks:
 2. **markdown path refs** (``--md-refs``) — backtick-wrapped relative paths in
    any ``*.md`` under the scanned root must resolve to a real file/directory.
    Resolution rules live in :mod:`scripts.md_ref_validator` (explicit relatives,
-   cross-repo aliases, and harness module shortcuts).
+   cross-repo aliases, and source-root module shortcuts).
 
 Only parses markdown **table rows** (lines starting with ``|``) in ``_ARCH.md`` —
 prose mentions of ``other_module.py`` are ignored by check 1; check 2 also scans
@@ -37,12 +37,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from md_ref_validator import MdRefReport, scan_md_refs
+from md_ref_validator import _PRUNE_DIR_NAMES, MdRefReport, scan_md_refs
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MONOREPO_ROOT = Path(__file__).resolve().parent.parent.parent
 _TABLE_HEADER_CELLS = frozenset({"File", "Module", "Submodule", "文件"})
-_PRUNE_DIR_NAMES = frozenset({"__pycache__", "node_modules", ".git", ".venv", ".mypy_cache", ".myrm"})
 
 
 @dataclass(frozen=True)

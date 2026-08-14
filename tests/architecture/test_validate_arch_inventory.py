@@ -11,11 +11,13 @@ _repo_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_repo_root))
 
 from scripts.md_ref_validator import (
+    _discover_pkg_root,
     _extract_md_refs,
     _is_verifiable_ref,
     _path_exists,
     _progressive_paths,
     _resolve_md_ref,
+    _resolve_pkg_root,
     scan_md_refs,
 )
 from scripts.validate_arch_inventory import (
@@ -226,6 +228,25 @@ def test_extract_md_refs_captures_table_row_dir(tmp_path: Path) -> None:
 
 
 @pytest.mark.architecture
+def test_extract_md_refs_row_dir_uses_first_cell_only(tmp_path: Path) -> None:
+    """A plain-text first cell must not borrow a later cell's backticked dir."""
+    md = tmp_path / "doc.md"
+    md.write_text(
+        """| 容器构建   | `docker/`        | `../Dockerfile` |
+| 后台任务层 | `app/tasks/`      | 消费 `toolkits/tasks/` |
+""",
+        encoding="utf-8",
+    )
+    refs = _extract_md_refs(md, _TOP_DIRS)
+    # First cell is plain text -> no row_dir; explicit relative and module
+    # shortcut still verified, but neither borrows a later cell's dir.
+    assert refs == [
+        ("../Dockerfile", 1, None),
+        ("toolkits/tasks/", 2, None),
+    ]
+
+
+@pytest.mark.architecture
 def test_progressive_paths_strips_symbol_suffixes() -> None:
     assert _progressive_paths("toolkits/mcp/schema.normalize.canonicalize_schema_for_cache") == [
         "toolkits/mcp/schema.normalize.canonicalize_schema_for_cache",
@@ -267,25 +288,32 @@ def test_resolve_md_ref_local_relative_and_cross_repo(tmp_path: Path) -> None:
     (harness_root / "docs" / "guide.md").write_text("", encoding="utf-8")
 
     md = harness_root / "docs" / "guide.md"
+    pkg = harness_root / "src" / "myrm_agent_harness"
     assert _path_exists(harness_root / "docs", "./guide.md")
-    assert _resolve_md_ref(md, "../pkg/mod.py", None, tmp_path, tmp_path, harness_root)
+    assert _resolve_md_ref(md, "../pkg/mod.py", None, tmp_path, harness_root, pkg)
     # Module shortcut resolution order: md dir -> package root -> tests mirror.
-    assert _resolve_md_ref(md, "agent/errors/classifier.py", None, tmp_path, tmp_path, harness_root)
-    assert not _resolve_md_ref(md, "agent/errors/ghost.py", None, tmp_path, tmp_path, harness_root)
+    assert _resolve_md_ref(md, "agent/errors/classifier.py", None, tmp_path, harness_root, pkg)
+    assert not _resolve_md_ref(md, "agent/errors/ghost.py", None, tmp_path, harness_root, pkg)
     # Table row dir acts as a secondary base: `../Dockerfile` under `docs/docker/`.
-    assert _resolve_md_ref(md, "../Dockerfile", "docker", tmp_path, tmp_path, harness_root)
+    assert _resolve_md_ref(md, "../Dockerfile", "docker", tmp_path, harness_root, pkg)
     # Harness shorthand drops the src/myrm_agent_harness package prefix.
     assert _resolve_md_ref(md, "myrm-agent-harness/agent/errors/classifier.py", None,
-                           tmp_path, tmp_path, harness_root)
+                           tmp_path, harness_root, pkg)
     assert not _resolve_md_ref(md, "myrm-agent-harness/agent/errors/ghost.py", None,
-                               tmp_path, tmp_path, harness_root)
+                               tmp_path, harness_root, pkg)
+    # Cross-repo shortcut with a symbol suffix must fall through to the
+    # progressive candidate (regression: early return skipped it).
+    assert _resolve_md_ref(
+        md, "myrm-agent-harness/agent/errors/classifier.py.attr", None,
+        tmp_path, harness_root, pkg,
+    )
     # Progressive resolution: dotted chain and CamelCase class suffix.
     assert _resolve_md_ref(
         md, "toolkits/mcp/schema.normalize.canonicalize_schema_for_cache", None,
-        tmp_path, tmp_path, harness_root,
+        tmp_path, harness_root, pkg,
     )
     assert _resolve_md_ref(
-        md, "agent/streaming/broadcast/ToolBroadcastBus", None, tmp_path, tmp_path, harness_root,
+        md, "agent/streaming/broadcast/ToolBroadcastBus", None, tmp_path, harness_root, pkg,
     )
 
 
@@ -326,3 +354,76 @@ def test_scan_md_refs_skips_prebuilt_skills(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert scan_md_refs(tmp_path, monorepo_root=tmp_path, repo_root=tmp_path) == []
+
+
+@pytest.mark.architecture
+def test_scan_md_refs_skips_whitelisted_docs(tmp_path: Path) -> None:
+    """Docs in _MD_REF_SKIP_FILES carry planning semantics (e.g. candidate
+    verdict tables); their broken-looking refs must not be reported."""
+    pkg = tmp_path / "src" / "myrm_agent_harness" / "eval"
+    pkg.mkdir(parents=True)
+    (pkg / "_ARCH.md").write_text(
+        "| `toolkits/eval/` | Not an agent-callable domain capability |\n",
+        encoding="utf-8",
+    )
+    assert scan_md_refs(tmp_path, monorepo_root=tmp_path, repo_root=tmp_path) == []
+
+
+@pytest.mark.architecture
+def test_discover_pkg_root_detects_repo_layouts(tmp_path: Path) -> None:
+    harness = tmp_path / "harness"
+    (harness / "src" / "myrm_agent_harness").mkdir(parents=True)
+    assert _discover_pkg_root(harness) == harness / "src" / "myrm_agent_harness"
+    server = tmp_path / "server"
+    (server / "app").mkdir(parents=True)
+    assert _discover_pkg_root(server) == server / "app"
+    # Frontend src/ is not shortcut-scanned (TS refs carry no extension).
+    frontend = tmp_path / "frontend"
+    (frontend / "src").mkdir(parents=True)
+    assert _discover_pkg_root(frontend) is None
+    assert _discover_pkg_root(tmp_path) is None
+    # When the scanned root is itself a package root, it is returned as-is.
+    app_root = tmp_path / "app"
+    app_root.mkdir()
+    assert _discover_pkg_root(app_root) == app_root
+    harness_pkg = tmp_path / "myrm_agent_harness"
+    harness_pkg.mkdir()
+    assert _discover_pkg_root(harness_pkg) == harness_pkg
+
+
+@pytest.mark.architecture
+def test_resolve_pkg_root_prefers_harness_pkg(tmp_path: Path) -> None:
+    harness = tmp_path / "myrm-agent-harness"
+    pkg = harness / "src" / "myrm_agent_harness"
+    pkg.mkdir(parents=True)
+    # Any subtree of the harness repo resolves to the harness package.
+    assert _resolve_pkg_root(pkg / "agent", harness) == pkg
+    assert _resolve_pkg_root(harness, harness) == pkg
+    # A non-harness repo is auto-detected from its own layout.
+    server = tmp_path / "myrm-agent-server"
+    (server / "app").mkdir(parents=True)
+    assert _resolve_pkg_root(server, harness) == server / "app"
+
+
+@pytest.mark.architecture
+def test_scan_md_refs_resolves_server_shortcuts(tmp_path: Path) -> None:
+    """Cross-repo scan: server module shortcuts resolve against app/, comma
+    enumerations are dropped, and genuinely missing paths are reported."""
+    server = tmp_path / "server"
+    (server / "app" / "channels" / "protocols").mkdir(parents=True)
+    (server / "app" / "channels" / "protocols" / "inbound_profile.py").write_text(
+        "x = 1\n", encoding="utf-8"
+    )
+    (server / "app" / "services" / "config").mkdir(parents=True)
+    (server / "app" / "services" / "config" / "health_monitor.py").write_text(
+        "x = 1\n", encoding="utf-8"
+    )
+    (server / "docs").mkdir()
+    (server / "docs" / "guide.md").write_text(
+        "`channels/protocols/inbound_profile.py` and `services/config/health_monitor` exist; "
+        "`channels/ghost.py` broken; `api/voice,stt,tts` is a comma enum.\n",
+        encoding="utf-8",
+    )
+    reports = scan_md_refs(server, monorepo_root=tmp_path, repo_root=tmp_path)
+    assert len(reports) == 1
+    assert reports[0].broken_refs == (("channels/ghost.py", 1),)

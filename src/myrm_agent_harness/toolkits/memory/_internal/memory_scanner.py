@@ -114,7 +114,11 @@ PseudonymizeFn = Callable[[str], str]
 
 
 def set_pii_pseudonymizer(fn: PseudonymizeFn | None) -> None:
-    """Register a PII pseudonymization function (called by agent layer at session start)."""
+    """Register a PII pseudonymization function for the current context.
+
+    Called by the agent layer at session start; stored in a ContextVar so
+    fire-and-forget memory writes inherit it via task context snapshot.
+    """
     _set_core_pii_pseudonymizer(fn)
 
 

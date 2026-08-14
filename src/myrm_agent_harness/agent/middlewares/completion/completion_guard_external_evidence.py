@@ -1,16 +1,18 @@
 """External evidence gate helpers for CompletionGuard.
 
 Detects freshness-sensitive user requests and verifies that the session
-CallRecord window contains successful web/browser/MCP PTC bash evidence
-before allowing completion.
+CallRecord window contains successful web/browser/MCP evidence before
+allowing completion. MCP evidence covers both PTC bash imports
+(``skills.mcp_*``) and Direct FC tool calls (``mcp__{server}__{tool}``).
 
 [INPUT]
 - langchain_core.messages::HumanMessage (POS: human turn content extraction)
 - agent.security.guards.loop_guard::CallRecord (POS: loop guard types)
+- toolkits.mcp.config::is_mcp_tool_name (POS: Direct FC MCP tool-name recognition)
 
 [OUTPUT]
 - build_external_evidence_reason(): block reason when evidence is required but missing
-- has_external_evidence(): True when web/browser or MCP PTC bash evidence exists
+- has_external_evidence(): True when web/browser or MCP evidence exists
 - extract_latest_human_text(): latest non-empty human message text
 
 [POS]
@@ -23,6 +25,8 @@ from __future__ import annotations
 import re
 
 from langchain_core.messages import HumanMessage
+
+from myrm_agent_harness.toolkits.mcp.config import is_mcp_tool_name
 
 _MCP_PTC_BASH_MARKER = "skills.mcp_"
 
@@ -160,9 +164,25 @@ def _bash_mcp_ptc_evidence_succeeded(record: object) -> bool:
     return _MCP_PTC_BASH_MARKER in _bash_command_text(args)
 
 
+def _mcp_direct_evidence_succeeded(record: object) -> bool:
+    """True when a Direct FC MCP tool call succeeded (mcp__{server}__{tool}).
+
+    Small MCP servers (schema <= Direct FC threshold) are bound as first-class
+    tools rather than routed through bash PTC, so their tool name — not a
+    ``skills.mcp_*`` bash import — is the external evidence marker.
+    """
+    tool_name = getattr(record, "tool_name", "")
+    if not is_mcp_tool_name(tool_name):
+        return False
+    success_level = getattr(record, "success_level", None)
+    return getattr(success_level, "name", "") != "FAILURE"
+
+
 def has_external_evidence(records: list[object]) -> bool:
     for record in records:
         if _bash_mcp_ptc_evidence_succeeded(record):
+            return True
+        if _mcp_direct_evidence_succeeded(record):
             return True
         tool_name = getattr(record, "tool_name", "")
         if tool_name not in _EXTERNAL_EVIDENCE_TOOLS:

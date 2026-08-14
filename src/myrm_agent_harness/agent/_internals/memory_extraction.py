@@ -34,7 +34,12 @@ is detected via LLM and pseudonymized through PseudonymStore before persistence.
 Supplements the existing regex-based PII detection in memory_scanner.
 
 **Invocation:** Called by SkillAgent at session end as fire-and-forget background
-task (requires enable_memory_auto_extraction=True).
+task (requires enable_memory_auto_extraction=True). Because the background task
+runs after run-end cleanup cleared the privacy ContextVars, SkillAgent rebuilds
+the security/policy/store context from its persisted SecurityConfig before
+creating the task (see skill_agent/_privacy_context.py
+``reestablish_privacy_context``), so extracted memories get the same PII
+protection as in-run writes.
 
 **Quality filter:** Trivial conversations (short replies or <=3 messages) are
 skipped to save LLM calls, unless correction signals are detected.
@@ -269,6 +274,11 @@ async def _apply_deep_pii_scan(
 
     store = get_pseudonym_store()
     if store is None:
+        logger.warning(
+            "Deep PII scan skipped: PseudonymStore not available in this context "
+            "(expected when the PrivacyPolicy neither enables PSEUDONYMIZE nor "
+            "deep scan)"
+        )
         return memories
 
     texts = [m.content for m in memories]

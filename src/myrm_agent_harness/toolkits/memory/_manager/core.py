@@ -300,6 +300,18 @@ class MemoryManagerCore:
         return self._vector is not None and self._embedding is not None
 
     @property
+    def vector_is_persistent(self) -> bool:
+        """Whether vector memories survive process restarts.
+
+        True when there is no vector store, or the store persists on disk /
+        remotely. False only when the embedded store degraded to an ephemeral
+        ``:memory:`` instance (data is lost on restart).
+        """
+        if self._vector is None:
+            return True
+        return self._vector.is_persistent
+
+    @property
     def has_graph(self) -> bool:
         return self._graph is not None
 

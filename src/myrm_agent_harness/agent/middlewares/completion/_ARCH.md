@@ -14,7 +14,7 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](../MIDDLEWARE_SYSTEM.md)
 | `__init__.py` | Package | Public exports for CompletionGuard and helpers. | — |
 | `completion_guard.py` | Core | Finish gate + Mixed Message Guard + independent sandbox re-run for code tasks. Orchestrates checklist, external evidence, and deliverable write verification. | ✅ |
 | `completion_guard_checklist.py` | Internal | Verification command classification, checklist builder, temporal ordering analysis. | ✅ |
-| `completion_guard_external_evidence.py` | Internal | Freshness-sensitive external evidence gate (web/browser + MCP PTC bash via ``skills.mcp_*``). | ✅ |
+| `completion_guard_external_evidence.py` | Internal | Freshness-sensitive external evidence gate (web/browser + MCP: PTC bash via ``skills.mcp_*`` and Direct FC via ``mcp__{server}__{tool}``). | ✅ |
 | `deliverable_write_verifier.py` | Internal | Zero-call deliverable write claim detection. | ✅ |
 
 ## Key Dependencies

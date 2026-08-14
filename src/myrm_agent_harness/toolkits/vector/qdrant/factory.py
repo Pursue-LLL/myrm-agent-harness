@@ -83,7 +83,13 @@ async def create_embedded_store(
             if cache_key in _embedded_clients:
                 logger.debug("Cache hit for fallback %s", cache_key)
                 return _embedded_clients[cache_key]
-            client = QdrantClient(path=":memory:")
+            try:
+                client = QdrantClient(path=":memory:")
+            except Exception as mem_exc:
+                raise RuntimeError(
+                    f"Failed to initialize Qdrant at {data_path} ({e}); "
+                    f"in-memory fallback also failed ({mem_exc})"
+                ) from e
             actual_path = ":memory:"
 
         config = VectorStoreConfig(

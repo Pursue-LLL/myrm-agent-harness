@@ -9,9 +9,12 @@ a deterministic order:
 2. cross-repo aliases (``myrm-agent-server/...`` etc.) — against the monorepo
    root, with the ``myrm-agent-harness`` shorthand expanded through the
    ``src/myrm_agent_harness/`` package prefix;
-3. module shortcuts whose first segment is a harness top-level module directory
-   (``agent/``, ``toolkits/``, ...) — against the md directory, then the
-   package root ``src/myrm_agent_harness/``, then the ``tests/`` mirror tree.
+3. module shortcuts whose first segment is a top-level module directory of the
+   scanned repo's source root (harness ``agent/``/``toolkits/``..., server
+   ``api/``/``services/``...) — against the md directory, then the package
+   root, then the ``tests/`` mirror tree. The source root is the harness
+   package for harness scans and is auto-detected (``app/``) for
+   ``myrm-agent-server``.
 
 Symbol suffixes (``pkg/mod.attr``, ``path/::member``, trailing CamelCase class
 names) are handled by progressive resolution: the full span is tried first,
@@ -29,9 +32,13 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
 _PKG_REL = "src/myrm_agent_harness"
-_HARNESS_PKG_PREFIX = _PKG_REL
+# Alternate package root names probed for non-harness repos (server: app/).
+# Frontend TS/TSX docs are intentionally not shortcut-scanned: their backtick
+# refs name components/hooks without extensions (``./useMessageQueue``) and
+# cross-repo server paths without a prefix, which this validator cannot resolve
+# reliably; only explicit relatives and aliases apply there.
+_PKG_ROOT_CANDIDATES = ("app",)
 
 # Backtick-wrapped code spans that may carry file paths.
 _MD_REF_RE = re.compile(r"`([^`\n]+)`")
@@ -46,7 +53,7 @@ _MD_SKIP_PREFIXES = (
     "{",  # template/glob braces
     "<",  # angle-bracket refs (e.g. docs-placeholder)
 )
-_MD_SKIP_CHARS = frozenset(" \t*?[]{}<>")
+_MD_SKIP_CHARS = frozenset(" \t*?[]{}<>,")
 _MD_TRAILING_PUNCT = ".,;:!?)]}>'\""
 _FILE_EXTENSIONS = frozenset(
     {".py", ".md", ".ts", ".tsx", ".mjs", ".js", ".cjs", ".sh", ".json", ".yaml", ".yml", ".toml"}
@@ -82,15 +89,37 @@ class MdRefReport:
     broken_refs: tuple[tuple[str, int], ...]  # (unresolved reference, 1-based line)
 
 
-def _top_level_module_dirs(repo_root: Path) -> frozenset[str]:
-    """Top-level package directories under ``src/myrm_agent_harness/``.
+def _discover_pkg_root(root: Path) -> Path | None:
+    """Best-effort source-root detection for a non-harness repo scan.
 
-    These are the prefixes docs use when naming module shortcuts without a
-    ``./`` (``agent/hooks/...``, ``toolkits/errors/...``)."""
-    pkg = repo_root / _PKG_REL
-    if not pkg.is_dir():
-        return frozenset()
-    return frozenset(p.name for p in pkg.iterdir() if p.is_dir())
+    ``myrm-agent-server`` keeps its package under ``app/``; when ``root`` is
+    itself a package root (``app/``, ``myrm_agent_harness/``) it is returned
+    as-is."""
+    if (root / _PKG_REL).is_dir():
+        return root / _PKG_REL
+    for rel in _PKG_ROOT_CANDIDATES:
+        if (root / rel).is_dir():
+            return root / rel
+    if root.name in {"app", "myrm_agent_harness"}:
+        return root
+    return None
+
+
+def _resolve_pkg_root(root: Path, repo_root: Path) -> Path | None:
+    """Package source root for the scanned tree.
+
+    Harness scans (any subtree of ``repo_root``) resolve against the harness
+    package; other repos are detected from the scanned ``root`` itself."""
+    if root.is_relative_to(repo_root):
+        pkg = repo_root / _PKG_REL
+        if pkg.is_dir():
+            return pkg
+    return _discover_pkg_root(root)
+
+
+def _top_level_module_dirs(pkg_root: Path) -> frozenset[str]:
+    """Top-level package directories used as module-shortcut prefixes."""
+    return frozenset(p.name for p in pkg_root.iterdir() if p.is_dir())
 
 
 def _has_env_var_segment(ref: str) -> bool:
@@ -165,9 +194,11 @@ def _extract_md_refs(md_path: Path, top_dirs: frozenset[str]) -> list[tuple[str,
         row_dir: str | None = None
         stripped = line.lstrip()
         if stripped.startswith("|"):
-            first_cell = _MD_REF_RE.search(stripped)
-            if first_cell and first_cell.group(1).strip().endswith("/"):
-                row_dir = first_cell.group(1).strip().rstrip("/")
+            cells = stripped.split("|")
+            if len(cells) >= 2:
+                first_cell = _MD_REF_RE.search(cells[1])
+                if first_cell and first_cell.group(1).strip().endswith("/"):
+                    row_dir = first_cell.group(1).strip().rstrip("/")
         for match in _MD_REF_RE.finditer(line):
             ref = match.group(1).strip()
             if "/" not in ref:
@@ -195,9 +226,9 @@ def _resolve_md_ref(
     md_path: Path,
     ref: str,
     row_dir: str | None,
-    root: Path,
     monorepo_root: Path,
     repo_root: Path,
+    pkg_root: Path | None,
 ) -> bool:
     """Resolve a markdown path ref in the order described by the module docstring.
     Cross-repo refs whose repo dir is absent locally (standalone harness) are
@@ -217,13 +248,15 @@ def _resolve_md_ref(
             rest = cand.split("/", 1)[1]
             if _path_exists(monorepo_root / target_dir, rest):
                 return True
-            if first == "myrm-agent-harness":
-                return _path_exists(monorepo_root / target_dir / _HARNESS_PKG_PREFIX, rest)
+            if first == "myrm-agent-harness" and _path_exists(
+                monorepo_root / target_dir / _PKG_REL, rest
+            ):
+                return True
             continue
         # Module shortcut: md directory -> package root -> tests mirror.
         if _path_exists(md_path.parent, cand):
             return True
-        if _path_exists(repo_root / _PKG_REL, cand):
+        if pkg_root is not None and _path_exists(pkg_root, cand):
             return True
         if _path_exists(repo_root / "tests", cand):
             return True
@@ -233,16 +266,11 @@ def _resolve_md_ref(
 def scan_md_refs(root: Path, monorepo_root: Path, repo_root: Path) -> list[MdRefReport]:
     """Scan ``*.md`` under ``root`` for unresolved path refs.
 
-    Module-shortcut resolution (``agent/hooks/...``) applies only to harness
-    docs: the harness top-level module dirs are derived from ``repo_root`` when
-    ``root`` lives inside it. Cross-repo scans (e.g. ``myrm-agent-server``) fall
-    back to explicit relatives and cross-repo aliases only, since each repo has
-    its own naming conventions."""
-    harness_src = repo_root / _PKG_REL
-    if harness_src.is_dir() and root.is_relative_to(repo_root):
-        top_dirs = _top_level_module_dirs(repo_root)
-    else:
-        top_dirs = frozenset()
+    Module-shortcut resolution (``agent/hooks/...``) applies to harness docs via
+    the harness top-level module dirs; ``myrm-agent-server`` derives its own
+    source root (``app/``) from the scanned ``root``."""
+    pkg_root = _resolve_pkg_root(root, repo_root)
+    top_dirs = _top_level_module_dirs(pkg_root) if pkg_root is not None else frozenset()
     reports: list[MdRefReport] = []
     for md in sorted(root.rglob("*.md")):
         if any(part in _PRUNE_DIR_NAMES for part in md.parts):
@@ -261,7 +289,7 @@ def scan_md_refs(root: Path, monorepo_root: Path, repo_root: Path) -> list[MdRef
         broken = tuple(
             (ref, line_no)
             for ref, line_no, row_dir in refs
-            if not _resolve_md_ref(md, ref, row_dir, root, monorepo_root, repo_root)
+            if not _resolve_md_ref(md, ref, row_dir, monorepo_root, repo_root, pkg_root)
         )
         if broken:
             reports.append(MdRefReport(md_path=md, broken_refs=broken))

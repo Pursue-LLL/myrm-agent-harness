@@ -92,7 +92,15 @@ def _take_workspace_bind_handle() -> object | None:
 
 
 def _init_pseudonym_store(workspace_path: str) -> None:
-    """Initialize PseudonymStore if the privacy policy uses PSEUDONYMIZE."""
+    """Initialize PseudonymStore and the PII closure for the current context.
+
+    Reads the active PrivacyPolicy from the current task context and, when it
+    enables PSEUDONYMIZE or deep PII scan, creates the shared store and registers
+    the regex PII pseudonymizer as a context-local closure (inherited by
+    fire-and-forget memory-write tasks created afterwards). Deep scan needs the
+    store even when S2/S3 use REDACT, because non-structured PII is always
+    pseudonymized through PseudonymStore.
+    """
     from myrm_agent_harness.agent.middlewares._session_context import (
         get_privacy_policy,
         set_pseudonym_store,
@@ -105,6 +113,7 @@ def _init_pseudonym_store(workspace_path: str) -> None:
     needs_store = (
         policy.s2_action == PIIAction.PSEUDONYMIZE
         or policy.s3_action == PIIAction.PSEUDONYMIZE
+        or policy.deep_scan
     )
     if not needs_store:
         return

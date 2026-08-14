@@ -138,3 +138,24 @@ class TestMemoryManagerInitialization:
         assert MemoryType.PROCEDURAL in enabled
         assert MemoryType.SEMANTIC not in enabled
         assert MemoryType.EPISODIC not in enabled
+
+    def test_vector_is_persistent_reflects_store_flag(
+        self, mock_vector_store, mock_embedding, memory_config
+    ):
+        """持久化状态必须透出底层 vector store 的真实能力。
+
+        内存 fallback store（is_persistent=False）时 manager 必须报告非持久化，
+        正常持久化 store 报告 True。
+        """
+        manager = MemoryManager(memory_config, user_id="test_user", vector=mock_vector_store, embedding=mock_embedding)
+
+        mock_vector_store.is_persistent = False
+        assert manager.vector_is_persistent is False
+
+        mock_vector_store.is_persistent = True
+        assert manager.vector_is_persistent is True
+
+    def test_vector_is_persistent_true_without_store(self, mock_embedding, memory_config):
+        """无 vector store 时报告持久化（无降级信号，不误报内存模式）。"""
+        manager = MemoryManager(memory_config, user_id="test_user", embedding=mock_embedding)
+        assert manager.vector_is_persistent is True

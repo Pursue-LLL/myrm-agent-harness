@@ -9,7 +9,7 @@ SSOT for scanning text **before** it is written to durable stores (Memory, Wiki 
 | File | Role | Description | I/O/P |
 | --- | --- | --- | --- |
 | `__init__.py` | Package | Re-exports scan API | — |
-| `content_scan.py` | Core | `scan_persistable_content`, profiles `MEMORY_WRITE` / `WIKI_RAW` / `WIKI_PUBLISH`, `sanitize_display_secrets` | ✅ |
+| `content_scan.py` | Core | `scan_persistable_content`, profiles `MEMORY_WRITE` / `WIKI_RAW` / `WIKI_PUBLISH`, `sanitize_display_secrets`, context-local PII pseudonymizer (ContextVar, inherited by fire-and-forget task snapshots) | ✅ |
 
 ## Profiles
 

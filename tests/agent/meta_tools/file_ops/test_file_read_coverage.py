@@ -48,18 +48,22 @@ async def test_build_multimodal_vision_and_pdf(tmp_path: Path) -> None:
     mock_executor = MagicMock()
     mock_executor.workspace_path = str(tmp_path)
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_image_as_content_blocks",
-        new_callable=AsyncMock,
-        return_value=[{"type": "text", "text": "img block"}],
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_pdf_as_content_blocks",
-        new_callable=AsyncMock,
-        return_value="pdf text",
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_video_as_content_blocks",
-        new_callable=AsyncMock,
-        return_value="video text",
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_image_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value=[{"type": "text", "text": "img block"}],
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_pdf_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="pdf text",
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_video_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="video text",
+        ),
     ):
         blocks = await build_multimodal_result(
             image_paths=[str(img)],
@@ -76,7 +80,9 @@ async def test_build_multimodal_vision_and_pdf(tmp_path: Path) -> None:
             config=_DUMMY_CONFIG,
         )
 
-    texts = [b["text"] for b in blocks if isinstance(b, dict) and b.get("type") == "text"]
+    texts = [
+        b["text"] for b in blocks if isinstance(b, dict) and b.get("type") == "text"
+    ]
     assert any("img block" in t for t in texts)
     assert any("pdf text" in t for t in texts)
     assert any("video text" in t for t in texts)
@@ -147,22 +153,27 @@ async def test_build_multimodal_pdf_list_blocks() -> None:
 async def test_append_media_text_parts_with_executor(tmp_path: Path) -> None:
     mock_executor = MagicMock()
     parts: list[str] = []
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_image_as_content_blocks",
-        new_callable=AsyncMock,
-        return_value="image text",
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_pdf_as_content_blocks",
-        new_callable=AsyncMock,
-        return_value="pdf text",
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_document_as_text",
-        new_callable=AsyncMock,
-        return_value="doc text",
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_video_as_content_blocks",
-        new_callable=AsyncMock,
-        return_value="video text",
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_image_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="image text",
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_pdf_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="pdf text",
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_document_as_text",
+            new_callable=AsyncMock,
+            return_value="doc text",
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_video_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value="video text",
+        ),
     ):
         await append_media_text_parts(
             parts,
@@ -182,17 +193,23 @@ async def test_append_media_text_parts_with_executor(tmp_path: Path) -> None:
 async def test_read_via_service_dispatches_truncation_event() -> None:
     mock_service = MagicMock()
     mock_service.execute = AsyncMock(return_value="long output")
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.FileOperationService",
-        return_value=mock_service,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.truncate_file_output",
-        return_value=("short", True, {"tokens": 1}),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers._dispatch_truncation_event",
-        new_callable=AsyncMock,
-    ) as mock_dispatch:
-        out = await _read_via_service("f.txt", MagicMock(), None, None, config=_DUMMY_CONFIG)
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.FileOperationService",
+            return_value=mock_service,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.truncate_file_output",
+            return_value=("short", True, {"tokens": 1}),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers._dispatch_truncation_event",
+            new_callable=AsyncMock,
+        ) as mock_dispatch,
+    ):
+        out = await _read_via_service(
+            "f.txt", MagicMock(), None, None, config=_DUMMY_CONFIG
+        )
     assert out == "short"
     mock_dispatch.assert_awaited_once()
 
@@ -203,7 +220,9 @@ async def test_dispatch_truncation_event() -> None:
         "myrm_agent_harness.utils.event_utils.dispatch_custom_event",
         new_callable=AsyncMock,
     ) as mock_event:
-        await _dispatch_truncation_event({"k": "v"}, tool="file_read", config=_DUMMY_CONFIG)
+        await _dispatch_truncation_event(
+            {"k": "v"}, tool="file_read", config=_DUMMY_CONFIG
+        )
     mock_event.assert_awaited_once()
 
 
@@ -265,16 +284,20 @@ async def test_file_read_tool_multimodal_with_preserve_context(tmp_path: Path) -
 
     tool = create_file_read_tool()
     ctx = {"supports_vision": True}
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
-        return_value=ctx,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_image_as_content_blocks",
-        new_callable=AsyncMock,
-        return_value=[{"type": "text", "text": "vision ok"}],
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.extract_context_from_runnable_config",
+            return_value=ctx,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_image_as_content_blocks",
+            new_callable=AsyncMock,
+            return_value=[{"type": "text", "text": "vision ok"}],
+        ),
     ):
         result = await tool.ainvoke(
             {"paths": [str(img)], "preserve_in_context": True},
@@ -289,38 +312,49 @@ async def test_file_read_tool_multimodal_with_preserve_context(tmp_path: Path) -
 @pytest.mark.asyncio
 async def test_file_read_tool_raises_tool_error_on_missing_file() -> None:
     tool = create_file_read_tool()
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=MagicMock(workspace_path="/tmp"),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        new_callable=AsyncMock,
-        side_effect=FileNotFoundError("missing"),
-    ), pytest.raises(ToolError, match="missing"):
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=MagicMock(workspace_path="/tmp"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            side_effect=FileNotFoundError("missing"),
+        ),
+        pytest.raises(ToolError, match="missing"),
+    ):
         await tool.ainvoke({"paths": ["missing.txt"]}, config=_DUMMY_CONFIG)
 
 
 @pytest.mark.asyncio
 async def test_file_read_tool_raises_tool_error_on_permission_error() -> None:
     tool = create_file_read_tool()
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=MagicMock(workspace_path="/tmp"),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        new_callable=AsyncMock,
-        side_effect=PermissionError("denied"),
-    ), pytest.raises(ToolError, match="denied"):
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=MagicMock(workspace_path="/tmp"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            side_effect=PermissionError("denied"),
+        ),
+        pytest.raises(ToolError, match="denied"),
+    ):
         await tool.ainvoke({"paths": ["secret.txt"]}, config=_DUMMY_CONFIG)
 
 
 @pytest.mark.asyncio
 async def test_file_read_tool_raises_tool_error_on_unexpected() -> None:
     tool = create_file_read_tool()
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        side_effect=RuntimeError("boom"),
-    ), pytest.raises(ToolError, match="Unexpected error"):
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            side_effect=RuntimeError("boom"),
+        ),
+        pytest.raises(ToolError, match="Unexpected error"),
+    ):
         await tool.ainvoke({"paths": ["x.txt"]}, config=_DUMMY_CONFIG)
 
 
@@ -331,13 +365,16 @@ async def test_file_read_tool_text_preserve_in_context(tmp_path: Path) -> None:
     mock_executor = MagicMock()
     mock_executor.workspace_path = str(tmp_path)
     tool = create_file_read_tool()
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.process_text_paths",
-        new_callable=AsyncMock,
-        return_value=["note body"],
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.process_text_paths",
+            new_callable=AsyncMock,
+            return_value=["note body"],
+        ),
     ):
         result = await tool.ainvoke(
             {"paths": [str(f)], "preserve_in_context": True},
@@ -376,16 +413,19 @@ async def test_file_read_tool_redacts_secrets(tmp_path: Path) -> None:
     mock_executor.read_file_bytes = _read_file_bytes
 
     tool = create_file_read_tool()
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        new_callable=AsyncMock,
-        return_value=[
-            "app.api.key=mysecretvalue12345678",
-            "deploy --api-key=sk-abcdefghijklmnop1234",
-        ],
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            return_value=[
+                "app.api.key=mysecretvalue12345678",
+                "deploy --api-key=sk-abcdefghijklmnop1234",
+            ],
+        ),
     ):
         result = await tool.ainvoke(
             {"paths": [str(f)]},
@@ -523,15 +563,18 @@ async def test_process_text_paths_exception_fallback(tmp_path: Path) -> None:
     mock_executor = MagicMock()
     mock_executor.workspace_path = str(tmp_path)
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_file_preview",
-        new_callable=AsyncMock,
-        side_effect=OSError("read fail"),
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers._read_via_service",
-        new_callable=AsyncMock,
-        return_value="fallback content",
-    ) as mock_service:
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers.read_file_preview",
+            new_callable=AsyncMock,
+            side_effect=OSError("read fail"),
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_handlers._read_via_service",
+            new_callable=AsyncMock,
+            return_value="fallback content",
+        ) as mock_service,
+    ):
         parts = await process_text_paths(
             [str(f)],
             mock_executor,
@@ -549,34 +592,45 @@ async def test_process_text_paths_exception_fallback(tmp_path: Path) -> None:
 async def test_file_read_blocks_disabled_skill_path() -> None:
     tool = create_file_read_tool()
     mock_executor = MagicMock()
-    mock_executor.resolve_path = AsyncMock(return_value="/workspace/skills/off/secret.md")
+    mock_executor.resolve_path = AsyncMock(
+        return_value="/workspace/skills/off/secret.md"
+    )
     config = RunnableConfig(
         configurable={"context": {"disabled_skill_roots": ["/workspace/skills/off"]}},
     )
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), pytest.raises(ToolError, match="blocked"):
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        pytest.raises(ToolError, match="blocked"),
+    ):
         await tool.ainvoke({"paths": ["skills/off/secret.md"]}, config=config)
 
 
 @pytest.mark.asyncio
-async def test_file_read_file_not_found_includes_similar_path_hint(tmp_path: Path) -> None:
+async def test_file_read_file_not_found_includes_similar_path_hint(
+    tmp_path: Path,
+) -> None:
     tool = create_file_read_tool()
     (tmp_path / "readme.md").write_text("hello", encoding="utf-8")
     target = str(tmp_path / "redme.md")
     mock_executor = MagicMock()
     mock_executor.resolve_path = AsyncMock(return_value=target)
 
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        new_callable=AsyncMock,
-        side_effect=FileNotFoundError(f"not found: {target}"),
-    ), pytest.raises(ToolError) as exc_info:
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            side_effect=FileNotFoundError(f"not found: {target}"),
+        ),
+        pytest.raises(ToolError) as exc_info,
+    ):
         await tool.ainvoke({"paths": [target]}, config=_DUMMY_CONFIG)
 
     assert exc_info.value.user_hint is not None
@@ -590,7 +644,9 @@ async def test_file_read_rejects_url_paths_only() -> None:
         "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
         return_value=MagicMock(),
     ):
-        result = await tool.ainvoke({"paths": ["https://example.com/doc"]}, config=_DUMMY_CONFIG)
+        result = await tool.ainvoke(
+            {"paths": ["https://example.com/doc"]}, config=_DUMMY_CONFIG
+        )
     assert isinstance(result, str)
     assert "cannot read URLs" in result
 
@@ -598,10 +654,13 @@ async def test_file_read_rejects_url_paths_only() -> None:
 @pytest.mark.asyncio
 async def test_file_read_raises_value_error_when_no_valid_paths() -> None:
     tool = create_file_read_tool()
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=MagicMock(),
-    ), pytest.raises(ToolError) as exc_info:
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=MagicMock(),
+        ),
+        pytest.raises(ToolError) as exc_info,
+    ):
         await tool.ainvoke({"paths": []}, config=_DUMMY_CONFIG)
     assert exc_info.value.user_hint is not None
     assert "Invalid parameter" in exc_info.value.user_hint
@@ -611,14 +670,18 @@ async def test_file_read_raises_value_error_when_no_valid_paths() -> None:
 async def test_file_read_permission_error_wrapped() -> None:
     tool = create_file_read_tool()
     mock_executor = MagicMock()
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        new_callable=AsyncMock,
-        side_effect=PermissionError("denied"),
-    ), pytest.raises(ToolError) as exc_info:
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            side_effect=PermissionError("denied"),
+        ),
+        pytest.raises(ToolError) as exc_info,
+    ):
         await tool.ainvoke({"paths": ["secret.txt"]}, config=_DUMMY_CONFIG)
     assert exc_info.value.user_hint is not None
     assert "Permission denied" in exc_info.value.user_hint
@@ -632,10 +695,13 @@ async def test_file_read_disabled_path_when_resolve_raises_value_error() -> None
     config = RunnableConfig(
         configurable={"context": {"disabled_skill_roots": ["/workspace/skills/off"]}},
     )
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), pytest.raises(ToolError, match="blocked"):
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        pytest.raises(ToolError, match="blocked"),
+    ):
         await tool.ainvoke(
             {"paths": ["/workspace/skills/off/secret.md"]},
             config=config,
@@ -648,13 +714,16 @@ async def test_file_read_appends_mcp_next_step_hint_for_mcp_doc_batch() -> None:
     hint so the agent continues toward a single bash PTC call."""
     tool = create_file_read_tool()
     mock_executor = MagicMock()
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        new_callable=AsyncMock,
-        return_value=["=== func a ===", "=== func b ==="],
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            return_value=["=== func a ===", "=== func b ==="],
+        ),
     ):
         result = await tool.ainvoke(
             {"paths": ["/mcp/demo_skill/get_a.md", "/mcp/demo_skill/get_b.md"]},
@@ -670,13 +739,16 @@ async def test_file_read_no_hint_for_plain_workspace_paths() -> None:
     """Plain workspace reads must stay untouched by the MCP next-step hint."""
     tool = create_file_read_tool()
     mock_executor = MagicMock()
-    with patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
-        return_value=mock_executor,
-    ), patch(
-        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
-        new_callable=AsyncMock,
-        return_value=["workspace content"],
+    with (
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+            return_value=mock_executor,
+        ),
+        patch(
+            "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+            new_callable=AsyncMock,
+            return_value=["workspace content"],
+        ),
     ):
         result = await tool.ainvoke(
             {"paths": ["src/foo.py"]},
@@ -684,4 +756,3 @@ async def test_file_read_no_hint_for_plain_workspace_paths() -> None:
         )
     assert isinstance(result, str)
     assert "[MCP NEXT STEP]" not in result
-

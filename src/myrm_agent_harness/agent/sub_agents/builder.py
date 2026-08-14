@@ -293,7 +293,10 @@ async def build_child_agent(
         middlewares=middlewares,
         checkpointer=None,
         config=AgentRuntimeConfig(
-            recursion_limit=min(config.max_turns * 2, parent_agent.config.recursion_limit),
+            # Recursion budget is owned by the subagent's max_turns — independent of the
+            # parent's recursion_limit (aligned with build_standalone_agent), so a configured
+            # max_turns is never silently truncated by a lower parent limit.
+            recursion_limit=config.max_turns * 2,
             timeout_seconds=(
                 parent_agent.config.engine_params.timeout_seconds
                 if parent_agent.config.engine_params.timeout_seconds is not None

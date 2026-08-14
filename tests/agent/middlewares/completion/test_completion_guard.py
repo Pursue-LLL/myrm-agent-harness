@@ -1822,3 +1822,86 @@ class TestHasExternalEvidence:
             success_level=SuccessLevel.FULL_SUCCESS,
         )
         assert has_external_evidence([non_command_args]) is False
+
+    def test_requires_evidence_for_citation_and_web_hint_combination(self) -> None:
+        """A request with citation+web hints but no freshness word still requires evidence."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(content="Please summarize with sources from the web."),
+            AIMessage(content="All done."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is not None
+        assert 'external/freshness need' in reason
+
+    def test_no_evidence_required_without_freshness_or_citation_web_hint(self) -> None:
+        """Plain questions must not require external evidence."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(content="Explain how merge sort works."),
+            AIMessage(content="Merge sort is a divide-and-conquer algorithm."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is None
+
+    def test_citation_alone_without_web_hint_requires_no_evidence(self) -> None:
+        """A citation keyword alone (no web hint) must not trigger the gate."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(content="Which sources describe this algorithm?"),
+            AIMessage(content="All done."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is None
+
+    def test_returns_true_for_successful_mcp_direct_fc_tool(self) -> None:
+        """A successful Direct FC MCP tool call (mcp__{server}__{tool}) is external evidence."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="mcp__12306__get_current_date",
+            args_hash="d1",
+            args={},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        assert has_external_evidence([record]) is True
+
+    def test_returns_false_for_failed_mcp_direct_fc_tool(self) -> None:
+        """A failed Direct FC MCP tool call must not count as external evidence."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="mcp__12306__get_current_date",
+            args_hash="d1",
+            args={},
+            success_level=SuccessLevel.FAILURE,
+        )
+        assert has_external_evidence([record]) is False
+
+    def test_returns_false_for_plain_tool_matching_mcp_prefix_only(self) -> None:
+        """A non-MCP tool that merely starts with 'mcp' (no __delimiter) is not evidence."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="mcp_config_tool",
+            args_hash="m1",
+            args={},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        assert has_external_evidence([record]) is False
+

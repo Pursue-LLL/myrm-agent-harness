@@ -170,3 +170,62 @@ def test_sanitize_display_secrets_keeps_short() -> None:
 
     out = sanitize_display_secrets("disk nearly full on /dev/sda1", max_length=240)
     assert out == "disk nearly full on /dev/sda1"
+
+
+def test_pseudonymizer_inherited_by_child_task() -> None:
+    """A child task created after registration must inherit the closure.
+
+    fire-and-forget memory extraction runs in a separate asyncio task, so the
+    PII pseudonymizer must travel through the task context snapshot (ContextVar),
+    otherwise auto-extracted memories are persisted unprotected.
+    """
+
+    async def parent() -> None:
+        from myrm_agent_harness.core.security.persistence.content_scan import (
+            get_pii_pseudonymizer,
+            set_pii_pseudonymizer,
+        )
+
+        set_pii_pseudonymizer(lambda text: text.replace("Alice", "[PSEUDO]"))
+        inherited: list[object | None] = []
+
+        async def child() -> None:
+            inherited.append(get_pii_pseudonymizer())
+
+        task = asyncio.create_task(child())
+        await task
+        assert inherited[0] is not None
+
+    import asyncio
+
+    asyncio.run(parent())
+
+
+def test_pseudonymizer_not_leaked_across_tasks() -> None:
+    """Cleanup in one task must not affect sibling tasks (no global leakage).
+
+    Before the ContextVar conversion a run-end ``set_pii_pseudonymizer(None)``
+    reset the module global and could race fire-and-forget memory writes in a
+    concurrently running session.
+    """
+    import asyncio
+
+    from myrm_agent_harness.core.security.persistence.content_scan import (
+        get_pii_pseudonymizer,
+        set_pii_pseudonymizer,
+    )
+
+    async def main() -> None:
+        observed: list[object | None] = []
+
+        async def sibling() -> None:
+            await asyncio.sleep(0)
+            observed.append(get_pii_pseudonymizer())
+
+        sib_task = asyncio.create_task(sibling())
+        set_pii_pseudonymizer(None)
+        set_pii_pseudonymizer(lambda text: text.replace("Bob", "[PSEUDO]"))
+        await sib_task
+        assert observed[0] is None
+
+    asyncio.run(main())

@@ -212,6 +212,16 @@ class VectorStore(ABC):
 
     # Optional methods with default implementations
 
+    @property
+    def is_persistent(self) -> bool:
+        """Whether stored data survives process restarts.
+
+        Backends backed by ephemeral in-memory storage (e.g. a Qdrant
+        ``:memory:`` fallback) return ``False`` so callers can surface the
+        degraded mode instead of silently treating it as durable storage.
+        """
+        return True
+
     async def health_check(self) -> bool:
         """Check store accessibility. Returns True if healthy."""
         try:

@@ -302,6 +302,7 @@ class TestBuildAgents:
             assert mock_agent.called
             call_kwargs = mock_agent.call_args[1]
             assert "child prompt" in call_kwargs["system_prompt"]
+            assert call_kwargs["config"].recursion_limit == 20  # max_turns * 2
             mock_child._subagent_manager.inherit_runtime_limits.assert_called_once()
             assert (
                 mock_child._subagent_manager.inherit_runtime_limits.call_args[1][
@@ -309,6 +310,23 @@ class TestBuildAgents:
                 ]
                 == 1
             )
+
+    @pytest.mark.asyncio
+    async def test_build_child_agent_recursion_limit_independent_of_parent(self):
+        """Child recursion budget is driven by max_turns alone — never capped by a lower parent limit."""
+        cfg = SubagentConfig(system_prompt="child prompt", max_turns=40)
+        parent = MagicMock()
+        parent.llm = MagicMock()
+        parent.executor = MagicMock()
+        parent.config = MagicMock(recursion_limit=20)
+
+        with patch("myrm_agent_harness.agent.base_agent.BaseAgent") as mock_agent:
+            mock_child = MagicMock()
+            mock_child._subagent_manager.inherit_runtime_limits = MagicMock()
+            mock_agent.return_value = mock_child
+            await build_child_agent(cfg, [], "do something", parent, 0)
+            call_kwargs = mock_agent.call_args[1]
+            assert call_kwargs["config"].recursion_limit == 80  # max_turns * 2, parent ignored
 
     @pytest.mark.asyncio
     async def test_build_child_agent_with_factory(self):
