@@ -29,7 +29,9 @@ def _synthetic_prefix_cache_metrics(
 ) -> dict[str, float]:
     """Deterministic cache-shape probe; it does not claim provider cache performance."""
     cached_chars = 0
-    for previous_message, next_message in zip(previous_invocation, next_invocation, strict=False):
+    for previous_message, next_message in zip(
+        previous_invocation, next_invocation, strict=False
+    ):
         if previous_message != next_message:
             break
         cached_chars += len(str(next_message.content))
@@ -195,7 +197,9 @@ class TestGenerateStructuredSummaryFull:
         assert len(new_messages) >= 1
         invocation_messages = mock_structured.ainvoke.call_args[0][0]
         assert invocation_messages[:-1] == messages
-        assert "Use the preceding conversation messages" in invocation_messages[-1].content
+        assert (
+            "Use the preceding conversation messages" in invocation_messages[-1].content
+        )
 
     @pytest.mark.asyncio
     async def test_full_summary_with_focus_topic(self) -> None:
@@ -484,9 +488,7 @@ class TestInvokeSummaryWithParser:
             _invoke_summary,
         )
 
-        fallback = _FallbackSummaryModel(
-            user_goal="test goal", last_action="done"
-        )
+        fallback = _FallbackSummaryModel(user_goal="test goal", last_action="done")
         mock_parser = MagicMock()
         mock_parser.get_format_instructions.return_value = "format instructions"
         mock_parser.invoke.return_value = fallback
@@ -538,7 +540,9 @@ class TestInvokeSummaryWithParser:
             side_effect=NotImplementedError("no stream — fallback to ainvoke")
         )
 
-        result = await _invoke_summary(mock_llm, mock_structured, None, "prompt", "/dump")
+        result = await _invoke_summary(
+            mock_llm, mock_structured, None, "prompt", "/dump"
+        )
 
         assert isinstance(result, StructuredSummary)
         assert result.user_goal == "完成认证模块"
@@ -554,7 +558,9 @@ class TestInvokeSummaryWithParser:
             AIMessage(content="second"),
         ]
 
-        invocation_messages = _build_summary_invocation_messages("summarize now", prefix)
+        invocation_messages = _build_summary_invocation_messages(
+            "summarize now", prefix
+        )
 
         assert invocation_messages[:-1] == prefix
         assert invocation_messages[-1].content == "summarize now"
@@ -566,8 +572,12 @@ class TestInvokeSummaryWithParser:
             AIMessage(content="source answer " * 200),
         ]
 
-        first_invocation = _build_summary_invocation_messages("summarize with budget 4000", prefix)
-        second_invocation = _build_summary_invocation_messages("summarize with budget 8000", prefix)
+        first_invocation = _build_summary_invocation_messages(
+            "summarize with budget 4000", prefix
+        )
+        second_invocation = _build_summary_invocation_messages(
+            "summarize with budget 8000", prefix
+        )
 
         metrics = _synthetic_prefix_cache_metrics(first_invocation, second_invocation)
 
@@ -591,10 +601,13 @@ class TestSummarizeWithAuditExceptionHandling:
             AIMessage(content="response"),
         ]
 
-        with patch(
-            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.extract_existing_summary",
-            return_value=None,
-        ), pytest.raises(ValueError, match="Failed to generate structured summary"):
+        with (
+            patch(
+                "myrm_agent_harness.agent.context_management.strategies.summary.summarizer.extract_existing_summary",
+                return_value=None,
+            ),
+            pytest.raises(ValueError, match="Failed to generate structured summary"),
+        ):
             await generate_structured_summary(
                 messages=messages, llm=mock_llm, chat_id="c-err"
             )
@@ -639,9 +652,7 @@ class TestSummarizeIncrementalExceptionHandling:
 
     @pytest.mark.asyncio
     async def test_incremental_invoke_failure_raises(self) -> None:
-        existing = StructuredSummary(
-            user_goal="goal", last_action="step1"
-        )
+        existing = StructuredSummary(user_goal="goal", last_action="step1")
         mock_llm = AsyncMock()
         mock_structured = AsyncMock()
         mock_structured.ainvoke.side_effect = RuntimeError("LLM down")
@@ -671,7 +682,9 @@ class TestGetStructuredLlmOrParserFallback:
         )
 
         mock_llm = MagicMock()
-        mock_llm.with_structured_output.side_effect = NotImplementedError("not supported")
+        mock_llm.with_structured_output.side_effect = NotImplementedError(
+            "not supported"
+        )
 
         structured, parser = _get_structured_llm_or_parser(mock_llm)
         assert structured is None
@@ -946,8 +959,7 @@ class TestGuardAuxContext:
 
         mock_llm = MagicMock()
         msgs: list[BaseMessage] = [
-            HumanMessage(content=f"message {i} " + "padding " * 2000)
-            for i in range(20)
+            HumanMessage(content=f"message {i} " + "padding " * 2000) for i in range(20)
         ]
 
         with patch(
@@ -1097,7 +1109,9 @@ class TestSequentialCompactionInvariant:
         )
 
         first = StructuredSummary(user_goal="第一轮目标", completed_actions=["动作1"])
-        second = StructuredSummary(user_goal="第二轮目标", completed_actions=["动作1", "动作2"])
+        second = StructuredSummary(
+            user_goal="第二轮目标", completed_actions=["动作1", "动作2"]
+        )
 
         messages: list[BaseMessage] = [
             SystemMessage(content="system prompt"),
@@ -1120,7 +1134,9 @@ class TestSequentialCompactionInvariant:
             "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._summarize_incremental_with_audit",
             new=AsyncMock(return_value=second),
         ) as mock_incremental:
-            rebuilt2, final = await generate_structured_summary(messages=rebuilt1, llm=llm)
+            rebuilt2, final = await generate_structured_summary(
+                messages=rebuilt1, llm=llm
+            )
 
         # 第二次压缩走真实 extract_existing_summary 提取路径 → 增量模式
         assert mock_incremental.await_count == 1
@@ -1142,7 +1158,9 @@ class TestSequentialCompactionInvariant:
             StructuredSummary(user_goal="旧摘要", completed_actions=["旧动作"])
         )
         s_new = create_summary_message(
-            StructuredSummary(user_goal="新摘要", completed_actions=["旧动作", "新动作"])
+            StructuredSummary(
+                user_goal="新摘要", completed_actions=["旧动作", "新动作"]
+            )
         )
         messages: list[BaseMessage] = [
             SystemMessage(content="system prompt"),
@@ -1159,7 +1177,9 @@ class TestSequentialCompactionInvariant:
             "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._summarize_incremental_with_audit",
             new=AsyncMock(return_value=merged),
         ) as mock_incremental:
-            rebuilt, final = await generate_structured_summary(messages=messages, llm=llm)
+            rebuilt, final = await generate_structured_summary(
+                messages=messages, llm=llm
+            )
 
         assert mock_incremental.await_count == 1
         anchor = mock_incremental.await_args.args[1]
