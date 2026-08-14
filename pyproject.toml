@@ -259,6 +259,13 @@ reportUnnecessaryTypeIgnoreComment = "warning"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Browser integration tests keep a module-scoped async fixture (e.g. GlobalBrowserPool)
+# whose patchright connection binds to the fixture's event loop. With the default
+# "function" test loop scope, tests run on a different loop and cross-loop awaits
+# hang forever. Pin both fixture and test loop scope to "module" so async fixtures
+# and their consuming tests always share the same loop.
+asyncio_default_test_loop_scope = "module"
+asyncio_default_fixture_loop_scope = "module"
 testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-n0 --timeout=300 -m 'not integration and not e2e and not performance'"
