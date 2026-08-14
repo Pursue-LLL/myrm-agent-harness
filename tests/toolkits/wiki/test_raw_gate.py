@@ -291,3 +291,36 @@ async def test_publish_raw_metadata_empty_noop(wiki_structure: WikiStructure) ->
     assert result.created is True
     written = wiki_structure.get_raw_file_path("notes/noop.md").read_text(encoding="utf-8")
     assert "source_chat" not in written
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_metadata_merges_keeps_existing_fields(
+    wiki_structure: WikiStructure,
+) -> None:
+    first = await publish_raw(
+        wiki_structure,
+        RawPublishRequest(
+            relative_path="notes/merge2.md",
+            content="# Merge2\n",
+            conflict_policy=RawConflictPolicy.FAIL,
+            metadata={"source_chat": "chat-old", "source_url": "https://example.com/a"},
+        ),
+        caller="agent",
+    )
+    assert first.created is True
+
+    second = await publish_raw(
+        wiki_structure,
+        RawPublishRequest(
+            relative_path="notes/merge2.md",
+            content="# Merge2\n",
+            conflict_policy=RawConflictPolicy.SUPERSEDE,
+            supersede_reason="Re-import with provenance",
+            metadata={"source_chat": "chat-new"},
+        ),
+        caller="settings",
+    )
+    assert second.superseded is True
+    written = wiki_structure.get_raw_file_path("notes/merge2.md").read_text(encoding="utf-8")
+    assert "source_chat: chat-new" in written
+    assert "https://example.com/a" in written

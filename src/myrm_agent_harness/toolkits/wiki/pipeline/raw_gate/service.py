@@ -136,22 +136,28 @@ def _relative_raw_display(structure: WikiStructure, raw_path: Path) -> str:
         return raw_path.name
 
 
-def _inject_metadata_frontmatter(content: str, metadata: dict[str, str]) -> str:
-    """Merge caller-supplied metadata into the raw file YAML frontmatter.
+def _merge_metadata_frontmatter(
+    existing_content: str | None, new_body: str, metadata: dict[str, str]
+) -> str:
+    """Merge caller-supplied metadata into the frontmatter of a raw write.
 
-    No-op when metadata is empty. Existing frontmatter keys win over nothing:
-    caller keys are merged on top of existing fields.
+    ``existing_content`` (the current on-disk file, when present) provides the
+    frontmatter base so unrelated fields such as ``source_url`` survive re-imports;
+    ``new_body`` is the security-scanned replacement body. Caller metadata wins over
+    the existing frontmatter.
     """
     if not metadata:
-        return content
+        return new_body
     from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
         load_frontmatter_metadata,
         serialize_frontmatter_block,
     )
 
-    existing, body = load_frontmatter_metadata(content)
-    merged = {**existing, **metadata}
-    return serialize_frontmatter_block(merged) + body.lstrip("\n")
+    base_meta: dict[str, object] = {}
+    if existing_content:
+        base_meta, _ = load_frontmatter_metadata(existing_content)
+    merged = {**base_meta, **metadata}
+    return serialize_frontmatter_block(merged) + new_body.lstrip("\n")
 
 
 def _read_raw_frontmatter_source_url(content: str) -> str | None:
@@ -221,12 +227,17 @@ def _publish_raw_impl(
             )
         raise
 
+    created = not raw_path.exists()
+
     if request.metadata:
-        write_content = _inject_metadata_frontmatter(write_content, request.metadata)
+        # Caller metadata is structured provenance (e.g. source_chat), injected after the
+        # content security scan — the scan targets free-text body content, not these keys.
+        existing_content = raw_path.read_text(encoding="utf-8") if not created else None
+        write_content = _merge_metadata_frontmatter(
+            existing_content, write_content, request.metadata
+        )
 
     new_hash = compute_page_lease_hash(write_content)
-
-    created = not raw_path.exists()
     previous_hash: str | None = None
 
     if not created:

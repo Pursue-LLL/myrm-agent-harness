@@ -144,6 +144,16 @@ class TestBrowserSessionEdgeCases:
         session = BrowserSession(browser_pool=mock_browser_pool, context_type=ContextType.AGENT)
 
         mock_page = AsyncMock()
+        # page.on/cdp.on are synchronous event-registration APIs; an AsyncMock
+        # default would turn them into async calls returning un-awaited coroutines
+        # (RuntimeWarning) when get_final_screenshot -> _ensure_components attaches
+        # the network/dialog loggers to the page.
+        mock_page.on = Mock()
+        cdp = Mock()
+        cdp.on = Mock()
+        cdp.send = AsyncMock()
+        mock_page.context = Mock()
+        mock_page.context.new_cdp_session = AsyncMock(return_value=cdp)
         mock_page.screenshot = AsyncMock(return_value=b"screenshot_data")
 
         session._tab_controller = MagicMock()

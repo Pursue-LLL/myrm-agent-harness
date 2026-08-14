@@ -107,13 +107,16 @@ class SkillAgentReviewMixin:
                 chat_id = getattr(config, "chat_id", None) or "unknown"
                 content_hash = hashlib.sha256(archive_content.encode()).hexdigest()[:12]
                 relative_path = f"turn_{chat_id}_{content_hash}.md"
+                # Only attach source_chat when a real conversation id exists; "unknown"
+                # would render a misleading /{unknown} jump target in the concept panel.
+                metadata = {} if chat_id == "unknown" else {"source_chat": chat_id}
                 result = await publish_raw(
                     wiki_structure,
                     RawPublishRequest(
                         relative_path=relative_path,
                         content=archive_content,
                         conflict_policy=RawConflictPolicy.PUT_IF_ABSENT,
-                        metadata={"source_chat": chat_id},
+                        metadata=metadata,
                     ),
                     caller="chat",
                 )

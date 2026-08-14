@@ -7,7 +7,6 @@
 - check_workspace_storage_health: Test read/write permissions and SQLite responsiveness.
 - check_database_health: Verify SQLite database basic connectivity.
 - check_qdrant_health: Check Qdrant vector database reachability.
-- check_system_resources: Monitor CPU and memory usage via psutil.
 - check_tokenizer_health: Verify tokenizer backend and CJK quality gate.
 - check_hook_health: Check hook system registration status and configuration.
 - check_desktop_permissions_health: Probe OS-level Accessibility / Screen Recording for desktop control.
@@ -17,7 +16,6 @@ Health diagnostic probes. Registered into the global diagnostic manager and exec
 by /health/doctor to produce the system health dashboard.
 """
 
-import asyncio
 import logging
 import os
 import sqlite3
@@ -27,11 +25,6 @@ try:
     import httpx
 except ImportError:
     httpx = None
-
-try:
-    import psutil
-except ImportError:
-    psutil = None
 
 from myrm_agent_harness.observability.diagnostics.manager import register_diagnostic
 from myrm_agent_harness.observability.diagnostics.protocols import HealthReport
@@ -300,85 +293,6 @@ async def check_qdrant_health() -> HealthReport:
         )
 
 
-async def check_system_resources() -> HealthReport:
-    """Monitor CPU and memory usage via psutil."""
-    if psutil is None:
-        return HealthReport(
-            component_name="SystemResources",
-            status="warn",
-            message="System resource monitoring is unavailable.",
-            detail="psutil library is missing, cannot perform system resource probe.",
-            fix_suggestion="Install psutil to enable resource monitoring.",
-        )
-
-    try:
-        cpu_percent = await asyncio.to_thread(psutil.cpu_percent, 0.0)
-        memory = psutil.virtual_memory()
-        memory_percent = memory.percent
-        memory_used_gb = memory.used / (1024**3)
-        memory_total_gb = memory.total / (1024**3)
-        stats = f"CPU: {cpu_percent:.1f}%, Memory: {memory_percent:.1f}% ({memory_used_gb:.1f}/{memory_total_gb:.1f}GB)"
-
-        if memory_percent >= 95:
-            return HealthReport(
-                component_name="SystemResources",
-                status="fail",
-                message="System memory is critically low. Performance may be degraded.",
-                detail=stats,
-                fix_suggestion="Close unused applications to free memory.",
-                measured=f"Memory {memory_percent:.1f}%",
-                expected="Memory <95%",
-                cause="Physical memory exhaustion may cause OOM kills or severe swapping.",
-            )
-        if memory_percent > 80:
-            return HealthReport(
-                component_name="SystemResources",
-                status="warn",
-                message="System memory usage is high.",
-                detail=stats,
-                fix_suggestion="Close unused applications to free memory.",
-                measured=f"Memory {memory_percent:.1f}%",
-                expected="Memory <80%",
-                cause="High memory usage may lead to degraded performance under load.",
-            )
-        if cpu_percent >= 95:
-            return HealthReport(
-                component_name="SystemResources",
-                status="fail",
-                message="CPU usage is critically high. Performance may be degraded.",
-                detail=stats,
-                fix_suggestion="Check for resource-intensive processes.",
-                measured=f"CPU {cpu_percent:.1f}%",
-                expected="CPU <95%",
-                cause="CPU saturation will cause request timeouts and agent stalls.",
-            )
-        if cpu_percent > 80:
-            return HealthReport(
-                component_name="SystemResources",
-                status="warn",
-                message="CPU usage is high.",
-                detail=stats,
-                fix_suggestion="Check for resource-intensive processes.",
-                measured=f"CPU {cpu_percent:.1f}%",
-                expected="CPU <80%",
-                cause="Elevated CPU usage may cause latency spikes during peak loads.",
-            )
-        return HealthReport(
-            component_name="SystemResources",
-            status="pass",
-            message="System resources are healthy.",
-            detail=stats,
-        )
-    except Exception as e:
-        return HealthReport(
-            component_name="SystemResources",
-            status="fail",
-            message="System resource check failed.",
-            detail=f"System resource check failed: {e}",
-            fix_suggestion="Check if psutil is properly installed.",
-        )
-
-
 async def check_tokenizer_health() -> HealthReport:
     """Verify tokenizer availability and CJK tokenization quality.
 
@@ -568,7 +482,6 @@ register_diagnostic(check_network_health)
 register_diagnostic(check_workspace_storage_health)
 register_diagnostic(check_database_health)
 register_diagnostic(check_qdrant_health)
-register_diagnostic(check_system_resources)
 register_diagnostic(check_tokenizer_health)
 register_diagnostic(check_hook_health)
 register_diagnostic(check_desktop_permissions_health)

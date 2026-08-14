@@ -231,9 +231,24 @@ async def test_interact_hover_bezier_success(
     cfg = HumanizeConfig.from_mode(HumanizeMode.CAREFUL)
     interactor = Interactor(mock_page, refs_map, humanize=cfg)
 
+    # evaluate feeds _ensure_target_in_view's rendered-state probe: an AsyncMock
+    # default would return an un-awaited coroutine from probe.get(...) and leak a
+    # RuntimeWarning. A real dict makes the probe resolve to "visible, top frame,
+    # inside the center band" so the pre-interaction scroll exits on the first loop.
     mock_locator = AsyncMock()
     mock_locator.bounding_box = AsyncMock(
-        return_value={"x": 100, "y": 50, "width": 80, "height": 30}
+        return_value={"x": 100, "y": 300, "width": 80, "height": 30}
+    )
+    mock_locator.evaluate = AsyncMock(
+        return_value={
+            "x": 100.0,
+            "y": 300.0,
+            "width": 80.0,
+            "height": 30.0,
+            "visible": True,
+            "is_top": True,
+            "container": None,
+        }
     )
     mock_page.mouse = MagicMock()
     mock_page.mouse.move = AsyncMock()
@@ -2058,3 +2073,45 @@ async def test_bezier_move_to_initializes_mouse_position(
 
     start_x, start_y = mock_bezier.await_args.args[1], mock_bezier.await_args.args[2]
     assert (start_x, start_y) == (640.0, 360.0)  # seeded from the viewport center
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_probe_measure_failure_breaks(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A rendered-state probe failure yields None and stops the loop silently."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    locator.bounding_box.return_value = {"x": 100, "y": 600, "width": 200, "height": 100}
+    locator.evaluate.side_effect = Exception("frame navigated")
+
+    assert await interactor._ensure_target_in_view(locator) is False
+
+
+@pytest.mark.asyncio
+async def test_ensure_target_in_view_scrolls_visible_target_into_band(
+    mock_page: Any, refs_map: dict[str, RefInfo]
+) -> None:
+    """A top-frame target outside the center band is wheeled toward the band."""
+    interactor = _careful_interactor(mock_page, refs_map)
+    locator = AsyncMock()
+    # vh=720 → band [216, 504]. First pass: cy=600 (> 504) → wheel; second: cy=400 → stop.
+    locator.bounding_box.side_effect = [
+        {"x": 100, "y": 550, "width": 200, "height": 100},
+        {"x": 100, "y": 350, "width": 200, "height": 100},
+    ]
+    locator.evaluate.side_effect = [
+        _probe(y=550),  # visible, is_top, container=None → band scroll
+        _probe(y=350),
+    ]
+    mock_page.mouse.wheel = AsyncMock()
+
+    with (
+        patch.object(interactor, "_scroll_move_cursor", new=AsyncMock()) as mock_move,
+        patch.object(interactor, "_scroll_deliver", new=AsyncMock()) as mock_deliver,
+    ):
+        moved = await interactor._ensure_target_in_view(locator)
+
+    assert moved is True
+    mock_move.assert_awaited_once()
+    mock_deliver.assert_awaited_once()
