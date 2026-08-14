@@ -72,7 +72,10 @@ OpenAPIServiceConfig (user config)
    (shared with MCP, from `mcp/schema/coerce.py`) on LLM-emitted arguments before
    dispatch — string `"25"` → `int 25`, big-int precision preserved — so strict typed
    APIs never receive stringified numbers. Schema-less specs fall back to the legacy
-   path-only / method-based dispatch.
+   path-only / method-based dispatch. Body parameters declared as primitives/arrays
+   (spec `body` param, `_body`, `request_body`) are sent as the request body directly,
+   never wrapped; query values serialize by type (objects/arrays → compact JSON,
+   booleans → lowercase, scalars → plain string).
 
 7. **Ephemeral User Credentials Propagation**: `OpenAPIExecutor` integrates with
    `user_credentials_ctx` to intercept requests, dynamically override the Bearer token with
