@@ -46,8 +46,10 @@ from .progress_timeout import (
 )
 from .summary_builder import create_summary_message, extract_recent_messages
 from .summary_parser import (
+    _build_summary_from_dict,
     extract_existing_summary,
     extract_messages_after_summary,
+    parse_summary_response,
 )
 from .summary_prompts import (
     FOCUS_TOPIC_SUFFIX,
@@ -137,6 +139,25 @@ def _redact_summary_fields(summary: StructuredSummary) -> StructuredSummary:
     return summary
 
 
+def _coerce_to_structured_summary(
+    response: object, context_dump_path: str = ""
+) -> StructuredSummary:
+    """Normalize ``with_structured_output``/parser output into a ``StructuredSummary``.
+
+    ``with_structured_output`` returns a plain ``dict`` on JSON-mode providers
+    (OpenAI-compatible), a Pydantic model on schema providers, or already a
+    ``StructuredSummary`` dataclass — all three must converge before the rest
+    of the pipeline reads dataclass attributes.
+    """
+    if isinstance(response, StructuredSummary):
+        return response
+    if isinstance(response, _FallbackSummaryModel):
+        return response.to_structured_summary()
+    if isinstance(response, dict):
+        return _build_summary_from_dict(response, context_dump_path=context_dump_path)
+    return parse_summary_response(response, context_dump_path=context_dump_path)
+
+
 async def _invoke_summary(
     llm: BaseChatModel,
     structured_llm: object | None,
@@ -160,8 +181,9 @@ async def _invoke_summary(
     else:
         messages = _build_summary_invocation_messages(prompt, cache_prefix_messages)
         tracker.touch()
-        summary = await structured_llm.ainvoke(messages)  # type: ignore
+        response = await structured_llm.ainvoke(messages)  # type: ignore
         tracker.touch()
+        summary = _coerce_to_structured_summary(response, dump_path)
 
     summary.context_dump_path = dump_path
     summary = _redact_summary_fields(summary)
