@@ -31,6 +31,7 @@ Additional utility:
 - strip_invisible_unicode(): 零宽/不可见 Unicode 字符剥离
 - wrap_untrusted(): 完整 5 层防护，用于外部数据（web/KB/webhook）
 - wrap_tool_output(): 完整 5 层防护，用于工具执行结果
+- extract_wrapped_payload(): 剥离安全边界，返回内部数据（PTC 程序化消费）
 
 [POS]
 Content boundary defense core. Five-layer defense-in-depth (Unicode folding, structural framing strip, marker sanitization, random boundaries, pattern detection) for prompt injection prevention.
@@ -44,6 +45,9 @@ import re
 from secrets import token_hex
 
 logger = logging.getLogger(__name__)
+
+# 剥离 wrap_untrusted 生成的 "Source: <source>\n---" meta 前缀。
+_SOURCE_META_RE = re.compile(r"^Source: [^\n]*\n---\n")
 
 # ---------------------------------------------------------------------------
 # Invisible Unicode stripping — zero-width and invisible codepoints
@@ -362,8 +366,8 @@ def extract_wrapped_payload(text: str) -> str:
         if close_idx == -1:
             continue
         inner = body[:close_idx].rstrip("\n")
-        if "\n---\n" in inner:
-            inner = inner.split("\n---\n", 1)[1]
+        # 仅剥离生成时添加的 "Source: <source>\n---" meta 前缀，避免误切数据正文。
+        inner = _SOURCE_META_RE.sub("", inner, count=1)
         return inner
     return text
 

@@ -19,7 +19,6 @@ Provides automatic crash recovery for GlobalBrowserPool:
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import time
 from typing import TYPE_CHECKING
@@ -242,15 +241,3 @@ class CrashWatchdogMixin:
         except Exception:
             return False
         return not probed
-
-    @staticmethod
-    async def _close_browser_instance(inst: BrowserInstance) -> None:
-        """Gracefully close all resources owned by a BrowserInstance."""
-        for pool in inst.page_pools.values():
-            with contextlib.suppress(Exception):
-                await pool.shutdown()
-        for ctx in inst.contexts.values():
-            with contextlib.suppress(Exception):
-                await ctx.close()
-        with contextlib.suppress(Exception):
-            await inst.browser.close()
