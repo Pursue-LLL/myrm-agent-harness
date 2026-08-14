@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Any, ClassVar
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -328,8 +329,6 @@ class OpenAPIBridge:
     @classmethod
     async def _parse_spec(cls, config: OpenAPIServiceConfig) -> ParsedSpec:
         """Parse spec from URL or inline content with TTL caching."""
-        import time
-
         cache_key = config.spec_url or hash(config.spec_content or "")
         cache_key_str = str(cache_key)
 

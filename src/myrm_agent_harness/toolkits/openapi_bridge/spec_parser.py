@@ -26,10 +26,17 @@ import json
 import logging
 import re
 from typing import Literal
+from urllib.parse import urlparse
 
 import httpx
 import yaml
 from pydantic import BaseModel, Field
+
+from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
+from myrm_agent_harness.core.security.http.secure_fetch import (
+    ContentTooLargeError,
+    secure_get,
+)
 
 from .config import ParsedEndpoint
 from .param_schema import extract_endpoint_params
@@ -82,12 +89,6 @@ async def parse_spec_from_url(url: str, *, timeout: float = 30.0) -> ParsedSpec:
     Raises:
         ValueError: If the spec cannot be fetched or parsed
     """
-    from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
-    from myrm_agent_harness.core.security.http.secure_fetch import (
-        ContentTooLargeError,
-        secure_get,
-    )
-
     try:
         response = await secure_get(url, timeout=timeout)
         response.raise_for_status()
@@ -213,8 +214,6 @@ def _resolve_base_url_3x(spec: dict[str, object], source_url: str) -> str:
             if url:
                 # Handle relative URLs
                 if url.startswith("/") and source_url:
-                    from urllib.parse import urlparse
-
                     parsed = urlparse(source_url)
                     return f"{parsed.scheme}://{parsed.netloc}{url}"
                 return url.rstrip("/")
@@ -229,8 +228,6 @@ def _resolve_base_url_2(spec: dict[str, object], source_url: str) -> str:
 
     if not host:
         if source_url:
-            from urllib.parse import urlparse
-
             parsed = urlparse(source_url)
             return f"{parsed.scheme}://{parsed.netloc}{base_path}".rstrip("/")
         return ""

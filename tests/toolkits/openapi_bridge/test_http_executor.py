@@ -6,6 +6,7 @@ retry logic, response formatting, and auth injection.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -64,7 +65,6 @@ class TestResponseFormatting:
 
     def test_large_json_truncation(self):
         large_obj = {"data": "x" * 10000}
-        import json
 
         response = httpx.Response(
             200,

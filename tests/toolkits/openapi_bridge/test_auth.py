@@ -6,8 +6,9 @@ including OAuth2 token caching behavior.
 
 from __future__ import annotations
 
+import base64
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -83,8 +84,6 @@ class TestBasicAuth:
         assert "Authorization" in headers
         assert headers["Authorization"].startswith("Basic ")
 
-        import base64
-
         encoded = headers["Authorization"].split(" ")[1]
         decoded = base64.b64decode(encoded).decode()
         assert decoded == "admin:secret"
@@ -95,8 +94,6 @@ class TestOAuth2ClientCredentials:
 
     @pytest.mark.asyncio
     async def test_fetches_token(self):
-        from unittest.mock import MagicMock
-
         config = AuthConfig(
             type=AuthType.OAUTH2_CLIENT_CREDENTIALS,
             token_url="https://auth.example.com/token",
@@ -146,8 +143,6 @@ class TestOAuth2ClientCredentials:
 
     @pytest.mark.asyncio
     async def test_refreshes_expired_token(self):
-        from unittest.mock import MagicMock
-
         config = AuthConfig(
             type=AuthType.OAUTH2_CLIENT_CREDENTIALS,
             token_url="https://auth.example.com/token",

@@ -12,6 +12,7 @@ import pytest
 
 from myrm_agent_harness.toolkits.openapi_bridge.spec_parser import (
     parse_spec_from_content,
+    parse_spec_from_url,
 )
 
 OPENAPI_3_SPEC = json.dumps(
@@ -646,18 +647,10 @@ class TestSSRFProtection:
 
     @pytest.mark.asyncio
     async def test_blocks_internal_ip(self):
-        from myrm_agent_harness.toolkits.openapi_bridge.spec_parser import (
-            parse_spec_from_url,
-        )
-
         with pytest.raises(ValueError, match="Blocked by SSRF policy"):
             await parse_spec_from_url("http://169.254.169.254/latest/meta-data/")
 
     @pytest.mark.asyncio
     async def test_blocks_localhost(self):
-        from myrm_agent_harness.toolkits.openapi_bridge.spec_parser import (
-            parse_spec_from_url,
-        )
-
         with pytest.raises(ValueError, match="Blocked by SSRF policy"):
             await parse_spec_from_url("http://127.0.0.1/api/spec")
