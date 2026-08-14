@@ -25,11 +25,11 @@ Unified locking mechanisms for concurrent operations.
   resource id, e.g. one per delivery), so keeping them would let the directory
   grow without bound. Unlinking is safe because coordination is confined to a
   single process with no cross-process window on the same inode. Do **not**
-  switch to "keep the lock file" semantics borrowed from cross-process lock
-  libraries (e.g. CoPaw) — those keep stable inodes precisely because multiple
-  processes may still hold a descriptor to the old inode, which cannot happen
-  here. On Windows, a shared lock degrades to exclusive (`msvcrt.locking` has
-  no shared mode); this is a documented platform limit, not a bug.
+  switch to "keep the lock file" semantics found in cross-process lock
+  libraries — those keep stable inodes precisely because multiple processes may
+  still hold a descriptor to the old inode, which cannot happen here. On
+  Windows, a shared lock degrades to exclusive (`msvcrt.locking` has no shared
+  mode); this is a documented platform limit, not a bug.
 - **Symlink safety**: lock files are opened with `O_NOFOLLOW` (when the
   platform exposes it), so a symlink planted in the lock directory is rejected
   instead of being followed and truncated — protecting arbitrary files the

@@ -174,6 +174,8 @@ def parse_summary_response(
 
 
 def _try_json_load_dict(raw: str) -> dict[str, object] | None:
+    if not isinstance(raw, str):
+        return None
     try:
         val = json.loads(raw)
     except json.JSONDecodeError:

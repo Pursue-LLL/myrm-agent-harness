@@ -1136,6 +1136,33 @@ class TestMixedMessageGuard:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_preserves_skill_market_mutation(self) -> None:
+        """Safety: content + skill_market_tool(install) must NOT be stripped —
+        the install/uninstall actions write the skill library; registry marks it
+        read-only but the actions are effectful, so stripping would silently
+        drop the install."""
+        state = _make_state(
+            [
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "skill_market_tool",
+                            "args": {
+                                "action": "install",
+                                "skill_id": "web-search",
+                                "source": "market",
+                            },
+                        },
+                    ],
+                ),
+            ]
+        )
+        result = await self.guard.aafter_model(state, None)
+        assert result is None
+
+    @pytest.mark.asyncio
     async def test_preserves_mixed_mutation_and_readonly(self) -> None:
         """Safety: content + mix of mutation and read-only tools -> do NOT strip."""
         state = _make_state(

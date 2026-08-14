@@ -640,6 +640,10 @@ class TestParseStructuredSummaryJson:
     def test_invalid_json_returns_none(self) -> None:
         assert parse_structured_summary_json("{not valid json") is None
 
+    def test_non_string_input_returns_none(self) -> None:
+        assert parse_structured_summary_json(None) is None  # type: ignore[arg-type]
+        assert parse_structured_summary_json("") is None
+
     def test_non_dict_json_returns_none(self) -> None:
         assert parse_structured_summary_json("[1, 2, 3]") is None
 

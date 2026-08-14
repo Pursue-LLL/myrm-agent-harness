@@ -139,9 +139,9 @@ class FileLock:
 
         lock_file = self.lock_dir / f"{_sanitize_lock_key(resource_id)}.lock"
 
-        # Open with O_NOFOLLOW so a symlink planted in the lock directory can
-        # never be followed and truncated as an empty lock file. Plain
-        # ``open(..., "w")`` would happily truncate whatever the symlink points
+        # Open with O_NOFOLLOW: a symlink planted in the lock directory is
+        # rejected instead of followed, so it can never be truncated as an
+        # empty lock file. Following a symlink could destroy whatever it points
         # at (e.g. ``~/.env``) — a real data-loss path for a framework-level
         # public API. ``0o600`` keeps the lock file private to the sandbox.
         open_flags = os.O_CREAT | os.O_RDWR
@@ -149,11 +149,11 @@ class FileLock:
             open_flags |= os.O_NOFOLLOW
         try:
             lock_fd = os.open(lock_file, open_flags, 0o600)
+            file_handle = os.fdopen(lock_fd, "w", encoding="utf-8")
         except OSError as e:
             logger.warning("Failed to open lock file for %s: %s", resource_id, e)
             yield False
             return
-        file_handle = os.fdopen(lock_fd, "w", encoding="utf-8")
 
         lock_acquired = False
         try:

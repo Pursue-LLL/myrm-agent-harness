@@ -248,6 +248,9 @@ class SessionPersistence:
         - .github.com matches github.com and api.github.com
         - github.com matches only github.com
 
+        The target may include a port (e.g. ``127.0.0.1:8080``) — the port is
+        stripped before matching because cookie domains never carry a port.
+
         Args:
             cookie_domain: Cookie's domain field.
             target_domain: Target domain to match against.
@@ -257,6 +260,12 @@ class SessionPersistence:
         """
         cookie_domain = cookie_domain.lower().strip()
         target_domain = target_domain.lower().strip()
+
+        # Cookie domains have no port. Strip an IPv4 ``host:port`` suffix;
+        # for bracketed IPv6 (``[::1]:8080``) the port sits after the closing
+        # bracket, which ``rsplit`` on the last colon handles the same way.
+        if ":" in target_domain:
+            target_domain = target_domain.rsplit(":", 1)[0]
 
         if cookie_domain.startswith("."):
             return target_domain.endswith(cookie_domain[1:]) or target_domain == cookie_domain[1:]

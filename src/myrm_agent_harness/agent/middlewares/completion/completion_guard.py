@@ -124,6 +124,7 @@ _MUTATION_TOOLS: frozenset[str] = frozenset(
         "browser_click_tool",
         "browser_type_tool",
         "skill_manage_tool",
+        "skill_market_tool",  # install/uninstall/install_from_url 写入技能库，registry 只读标注但实为变异
         "kanban_manage_tool",
         "cron_manage_tool",
     }

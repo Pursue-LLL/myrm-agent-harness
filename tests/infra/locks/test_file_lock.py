@@ -196,21 +196,21 @@ async def test_close_failure_still_unlinks(tmp_path):
     """An OSError while closing the lock file must still remove the lock file
     so the resource stays re-acquirable."""
     lock = FileLock(tmp_path)
-    real_open = open
 
     class _CloseFailsFile:
-        def __init__(self, handle):
-            self._handle = handle
+        def __init__(self, fd):
+            self._fd = fd
 
         def fileno(self):
-            return self._handle.fileno()
+            return self._fd
 
         def close(self):
+            os.close(self._fd)
             raise OSError("close failed")
 
     with mock.patch(
-        "myrm_agent_harness.infra.locks.file_lock.open",
-        side_effect=lambda path, *a, **kw: _CloseFailsFile(real_open(path, *a, **kw)),
+        "myrm_agent_harness.infra.locks.file_lock.os.fdopen",
+        side_effect=lambda fd, *a, **kw: _CloseFailsFile(fd),
     ):
         async with lock.acquire("res_close_fail") as acquired:
             assert acquired is True

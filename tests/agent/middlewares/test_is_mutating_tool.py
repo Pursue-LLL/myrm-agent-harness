@@ -37,6 +37,9 @@ def test_is_mutating_tool_detects_registry_mutating_tools() -> None:
     assert is_mutating_tool("complete_goal_tool") is True
     assert is_mutating_tool("memory_save_tool") is True
     assert is_mutating_tool("memory_manage_tool") is True
+    # skill_market_tool 的 install/uninstall/install_from_url 写入技能库，
+    # registry 只读标注但实为变异——必须保留，剥离会丢失安装/卸载副作用
+    assert is_mutating_tool("skill_market_tool") is True
 
 
 def test_is_mutating_tool_interaction_ui_carriers_not_effectful() -> None:

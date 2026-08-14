@@ -243,3 +243,11 @@ class TestSessionPersistence:
         """测试 Cookie 域名大小写不敏感"""
         assert SessionPersistence._is_cookie_for_domain("Example.COM", "example.com") is True
         assert SessionPersistence._is_cookie_for_domain(".EXAMPLE.COM", "API.example.com") is True
+
+    def test_is_cookie_for_domain_strips_target_port(self):
+        """Cookie domains never carry a port — a ``host:port`` target must still match."""
+        assert SessionPersistence._is_cookie_for_domain("127.0.0.1", "127.0.0.1:8080") is True
+        assert SessionPersistence._is_cookie_for_domain("127.0.0.1", "127.0.0.1") is True
+        assert SessionPersistence._is_cookie_for_domain(".example.com", "example.com:8443") is True
+        assert SessionPersistence._is_cookie_for_domain(".example.com", "api.example.com:8443") is True
+        assert SessionPersistence._is_cookie_for_domain("127.0.0.1", "127.0.0.2:8080") is False
