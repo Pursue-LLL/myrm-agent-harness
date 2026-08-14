@@ -26,6 +26,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
 from ...strategies.summary.summary_builder import UNVERIFIED_CONTEXT_MARKER
+from ...strategies.summary.summary_parser import is_summary_message
 from ..base import BaseProcessor, ProcessorContext
 
 if TYPE_CHECKING:
@@ -87,9 +88,11 @@ class SessionNotesProcessor(BaseProcessor):
         if was_truncated:
             logger.info("[SessionNotes] Some sections were truncated for length")
 
+        structured_summary = _build_structured_summary(notes)
         summary_message = HumanMessage(
             content=(
-                f"[System note: Session Notes Summary — not user input]\n{UNVERIFIED_CONTEXT_MARKER}\n\n{summary_text}"
+                f"[System note: Session Notes Summary — not user input]\n{UNVERIFIED_CONTEXT_MARKER}\n\n"
+                f"{summary_text}\n\n<!-- SUMMARY_JSON\n{structured_summary.to_json()}\n-->"
             )
         )
 
@@ -99,10 +102,13 @@ class SessionNotesProcessor(BaseProcessor):
         protected_head = extract_protected_head(context.messages)
         keep_start = _calculate_keep_index(context.messages, notes.last_updated_message_idx)
 
-        # Ensure recent messages do not overlap with protected head
-        keep_start = max(keep_start, len(protected_head))
-
-        recent_messages = context.messages[keep_start:]
+        # Deduplicate against protected head and drop stale summary blocks from the kept tail
+        head_ids = {id(m) for m in protected_head}
+        recent_messages = [
+            m
+            for m in context.messages[keep_start:]
+            if id(m) not in head_ids and not is_summary_message(m)
+        ]
 
         context.messages = prepend_pre_compact_message(
             protected_head,
@@ -115,7 +121,7 @@ class SessionNotesProcessor(BaseProcessor):
         saved = original_tokens - new_tokens
         context.tokens_saved += saved
 
-        context.structured_summary = _build_structured_summary(notes)
+        context.structured_summary = structured_summary
 
         from ...infra.cache_break_detector import get_cache_break_detector
 

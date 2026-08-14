@@ -74,5 +74,6 @@ def apply_pre_compact_after_protected_head(
     if get_pre_compact_message(context) is None:
         return messages
     protected_head = extract_protected_head(messages)
-    tail = messages[len(protected_head) :]
+    head_ids = {id(m) for m in protected_head}
+    tail = [m for m in messages if id(m) not in head_ids]
     return prepend_pre_compact_message(protected_head, [], tail, context=context)

@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 import myrm_agent_harness.agent.context_management.pipeline.processors.summarize_processor as _sp
 from myrm_agent_harness.agent.context_management.infra.schemas import StructuredSummary
@@ -228,6 +228,45 @@ class TestSummarizeProcessorShouldProcess:
         result = await processor.process(context)
         assert any("fallback" in m.content.lower() for m in result.messages)
         assert result.metadata.get("summarize_fallback_used") is True
+
+    @pytest.mark.asyncio
+    async def test_fallback_deduplicates_protected_head(self) -> None:
+        """Regression: fallback rebuild must deduplicate messages already in protected head."""
+        summary_block = HumanMessage(
+            content=(
+                "[Previous conversation summary]\n<!-- SUMMARY_JSON\n"
+                '{"user_goal": "g", "active_task": "", "completed_actions": [], "key_findings": [],'
+                ' "errors_and_fixes": [], "files_modified": [], "last_action": ""}\n-->'
+            )
+        )
+        messages = [
+            SystemMessage(content="system prompt " * 50),
+            summary_block,
+            HumanMessage(content="first user instruction " * 200),
+            AIMessage(content="first response " * 200),
+            HumanMessage(content="second user " * 500),
+            AIMessage(content="second response " * 500),
+            HumanMessage(content="third user " * 800),
+            AIMessage(content="third response " * 800),
+        ]
+        processor = SummarizeProcessor()
+        context = ProcessorContext(
+            messages=messages,
+            user_query="test",
+            user_id="test",
+            chat_id="test",
+            llm=None,
+        )
+        result = await processor.process(context)
+
+        ids = [id(m) for m in result.messages]
+        assert len(ids) == len(set(ids)), "fallback rebuild must not duplicate protected-head messages"
+        # Protected head (system + first real user turn) retained exactly once
+        assert messages[0] in result.messages
+        assert messages[2] in result.messages
+        assert messages[3] in result.messages
+        # Stale summary block must not leak into the rebuilt list
+        assert not any("Previous conversation summary" in m.content for m in result.messages if isinstance(m.content, str))
 
     @pytest.mark.asyncio
     @patch(

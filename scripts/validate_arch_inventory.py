@@ -37,7 +37,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from md_ref_validator import _PRUNE_DIR_NAMES, MdRefReport, scan_md_refs
+from md_ref_validator import PRUNE_DIR_NAMES, MdRefReport, scan_md_refs
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MONOREPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -124,7 +124,7 @@ def scan_directory(directory: Path) -> DirReport | None:
 def scan_tree(root: Path) -> list[DirReport]:
     reports: list[DirReport] = []
     for arch in sorted(root.rglob("_ARCH.md")):
-        if any(part in _PRUNE_DIR_NAMES for part in arch.parts):
+        if any(part in PRUNE_DIR_NAMES for part in arch.parts):
             continue
         report = scan_directory(arch.parent)
         if report is not None and report.py_files:

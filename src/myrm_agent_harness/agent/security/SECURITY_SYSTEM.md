@@ -642,7 +642,7 @@ class AllowlistEntry:
 
 **回归测试**（无 Chrome）：
 - `tests/agent/security/test_approval_flow.py::test_pattern_match_checks_command_glob`
-- `tests/agent/middlewares/test_approval_edge_cases.py`（pattern 存入 / 复合 shell skip / `evaluate_tool_batch` auto-approve）
+- `tests/agent/middlewares/approval/test_approval_edge_cases.py`（pattern 存入 / 复合 shell skip / `evaluate_tool_batch` auto-approve）
 - server：`tests/api/security/test_allowlist_api.py`（REST list/delete pattern 粒度）
 - server LIVE：`tests/e2e/test_allowlist_pattern_live_chrome_e2e.py`
 

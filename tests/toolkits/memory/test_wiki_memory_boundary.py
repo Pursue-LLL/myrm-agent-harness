@@ -13,12 +13,18 @@ from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
     looks_like_wiki_document,
     record_wiki_memory_save_rejection,
     reset_wiki_memory_save_rejection_count,
+    wiki_memory_save_rejection_message,
 )
 
 
 def test_looks_like_wiki_document_by_length() -> None:
     assert not looks_like_wiki_document("short fact")
     assert looks_like_wiki_document("a" * WIKI_MEMORY_SAVE_MAX_CHARS)
+
+
+def test_looks_like_wiki_document_empty() -> None:
+    assert not looks_like_wiki_document("")
+    assert not looks_like_wiki_document("   ")
 
 
 def test_looks_like_wiki_document_by_headings() -> None:
@@ -35,6 +41,21 @@ def test_rejection_counter() -> None:
     assert record_wiki_memory_save_rejection() == 1
     assert get_wiki_memory_save_rejection_count() == 1
     reset_wiki_memory_save_rejection_count()
+
+
+def test_rejection_message_mentions_wiki_tool_by_default() -> None:
+    message = wiki_memory_save_rejection_message()
+    assert "Rejected" in message
+    assert "wiki_ingest_tool" in message
+    assert "short durable facts" in message
+
+
+def test_rejection_message_omits_wiki_tool_when_disabled() -> None:
+    message = wiki_memory_save_rejection_message(include_tool_hint=False)
+    assert "Rejected" in message
+    assert "wiki_ingest_tool" not in message
+    assert "wiki" not in message
+    assert "short durable facts" in message
 
 
 def test_filter_drops_long_semantic_when_enabled() -> None:

@@ -329,7 +329,7 @@ and ask for permission or alternative instructions.]
 |---------|------|---------|
 | Allowlist 单元 | `tests/agent/security/test_approval_flow.py` | permission / pattern glob `check()` |
 | Pattern 推导 | `tests/agent/security/test_command_allowlist_pattern.py` | 复合检测、glob 匹配、parity 向量 |
-| Middleware pattern | `tests/agent/middlewares/test_approval_edge_cases.py` | pattern 存入、`evaluate_tool_batch` auto-approve |
+| Middleware pattern | `tests/agent/middlewares/approval/test_approval_edge_cases.py` | pattern 存入、`evaluate_tool_batch` auto-approve |
 | Allowlist REST | `myrm-agent/.../tests/api/security/test_allowlist_api.py` | list/delete `granularity=pattern` |
 | LIVE Chrome E2E | `myrm-agent/.../tests/e2e/test_allowlist_pattern_live_chrome_e2e.py` | 真实模型 bash → pattern → Settings |
 | SHPOIB attach replay | `myrm-agent/.../tests/api/agent/test_shpoib_hitl_attach_replay.py` | collector replay + hitl-probe（无 LLM） |

@@ -38,7 +38,7 @@ persisting across ReAct cycles.
 - agent.middlewares.completion.deliverable_write_verifier::check_deliverable_write_claim (POS: Zero-call deliverable write claim detection for CompletionGuard)
 
 [OUTPUT]
-- CompletionGuard: aafter_model middleware for critical completion verification + independent re-run
+- CompletionGuard: after_model middleware for critical completion verification + independent re-run
 - is_mutating_tool(): SSOT for side-effect tool detection
 - classify_verification(): re-export from completion_guard_checklist
 - reset_completion_guard(): reset session state for new run

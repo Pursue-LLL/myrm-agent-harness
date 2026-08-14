@@ -51,6 +51,14 @@ CI 架构门禁：层边界、分形文档、PyPI wheel 打包不变量、tool r
 | `test_validate_arch_inventory.py` | Gate | `_ARCH.md` 文件表 vs 同级 `.py` 一致性（table-only 解析）；含 agent/ 与全 harness subprocess gate | — |
 | `test_readme_claims.py` | Gate | README 声明与实际代码/性能基准一致性校验 | — |
 | `test_core_dependencies.py` | Gate | core vs optional/dev 分层：4 项 optional-only 包不得回 core；uv.lock core 与 pyproject 对齐 | — |
+| `test_orchestration_registry_parity.py` | Gate | `tool_registry_config` 与 orchestration SSOT 对齐（hook / signal 命名回归） | — |
+| `test_ruff_security_rules.py` | Gate | ruff S（security/bandit）规则保持激活，误报抑制不回归 | — |
+| `test_skill_analyze_tool_removed.py` | Gate | `skill_analyze` Agent tool 包不得存在（Curator GUI 为 SSOT） | — |
+| `test_ssrf_single_source.py` | Gate | SSRF 校验仅允许位于 `core/security/guards`，禁止散落 | — |
+| `test_tool_catalog_product_id.py` | Gate | `tool_catalog` product_id 须派生自已有 group SSOT | — |
+| `test_tool_layer_boundary.py` | Gate | harness 与 external tool 层 SSOT 边界 | — |
+| `test_tool_prompt_placement.py` | Gate | harness tool invoke 规则须留在 tool schema | — |
+| `test_toolkits_llms_media_layout.py` | Gate | LLM 媒体理解归属 `toolkits/llms/`，禁止顶层平铺 | — |
 
 ## 运行
 

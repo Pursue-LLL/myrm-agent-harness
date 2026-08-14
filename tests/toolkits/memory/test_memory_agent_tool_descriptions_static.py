@@ -58,6 +58,29 @@ def test_mcp_surface_maps_gui_tool_names() -> None:
     assert "wiki_ingest_tool" not in store_mcp
 
 
+def test_mcp_surface_zh_never_leaks_gui_wiki_tool() -> None:
+    """Chinese MCP surface must never reference the GUI-only wiki_ingest_tool.
+
+    Covers both the default description and the explicit wiki-enabled safety
+    net (the ZH replacement pair strips the GUI tool reference from the
+    WIKI BOUNDARY fragment).
+    """
+    from myrm_agent_harness.toolkits.memory._memory_agent_tool_descriptions import (
+        build_mcp_memory_store_tool_description,
+    )
+
+    default_zh = build_mcp_memory_store_tool_description(locale="zh")
+    assert "wiki_ingest_tool" not in default_zh
+
+    wiki_enabled_zh = build_mcp_memory_store_tool_description(
+        wiki_boundary_in_description=True,
+        locale="zh",
+    )
+    assert "wiki_ingest_tool" not in wiki_enabled_zh
+    assert "Wiki 边界" in wiki_enabled_zh
+    assert "长文/笔记/参考资料不属于 memory" in wiki_enabled_zh
+
+
 def test_memory_save_core_description_token_budget() -> None:
     for desc in (MEMORY_SAVE_CORE_EN, MEMORY_SAVE_CORE_ZH):
         tokens = get_token_count(desc, encoding_name=PLANNING_ENCODING)

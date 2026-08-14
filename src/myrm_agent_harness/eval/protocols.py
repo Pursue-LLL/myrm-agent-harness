@@ -177,7 +177,7 @@ class EvalManifest:
     judge_model: str = "none"  # LLM judge model used for semantic assertions
     limit: int | None = None  # Reproducible sample size actually applied (None = full run)
     max_tool_calls: int | None = None  # Benchmark-declared tool-call budget (None = engine default)
-    max_iterations: int | None = None  # Benchmark-declared recursion budget (None = engine default)
+    max_iterations: int | None = None  # Benchmark-declared turn budget (None = engine default)
 
     def to_dict(self) -> dict[str, object]:
         return {

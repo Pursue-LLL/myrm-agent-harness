@@ -14,17 +14,21 @@ Processing tiers:
   - Clean: store as-is
 
 [INPUT]
+- core.security.persistence.content_scan::scan_persistable_content (POS: Persistence-scan SSOT — injection / harmful-state / PII-pseudonymize / leak / boundary verdicts.)
+- core.security.persistence.content_scan::set_pii_pseudonymizer (POS: Context-local regex PII pseudonymization closure, inherited by fire-and-forget tasks.)
 
 [OUTPUT]
 - scan_memory_content(): scan text, return ScanVerdict + cleaned text
 - scan_and_clean_memory(): scan AnyMemory, mutate content fields in-place
+- set_pii_pseudonymizer(): register the context-local regex PII closure applied before persistence
 
 [POS]
 Memory write-path security scanner. Scans content, raw_exchange (ConversationMemory),
 and trigger/action (ProceduralMemory) fields. Reuses prompt_guard (9-class injection detection),
 leak_detector (25+ credential patterns + smart masking + password-like heuristic),
 instruction_shape (6-class bilingual instruction-shape detection),
-content_boundary (zero-width character stripping). Tiered processing:
+content_boundary (zero-width character stripping), and the context-local PII
+pseudonymization closure. Tiered processing:
 BLOCKED/REDACTED/WARN/CLEAN. Enforces worst-verdict propagation across fields.
 Used in store/store_batch/update_memory/set_profile paths.
 """

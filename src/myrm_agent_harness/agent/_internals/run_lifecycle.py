@@ -15,6 +15,7 @@ post-processing event emission.
 [OUTPUT]
 - setup_workspace: Create workspace under host ``workspaces_storage_root``, bind executor, set context vars. The storage-root ContextVar undo token is stashed in a ContextVar (not in ``merged_context``) so checkpoints/msgpack never serialize it.
 - cleanup_run: Run-end cleanup: cancel children, reset context vars, col...
+- _init_pseudonym_store: Initialize the context-local PseudonymStore and regex PII closure when the active PrivacyPolicy requires one (``needs_pseudonym_store``); consumed by skill-agent session-end privacy re-establishment.
 - compute_context_budget_snapshot: Compute a lightweight context budget snapshot from token ...
 - post_run_events: Yield post-processing events: artifacts, FILE_MUTATION_FAILED, WORKSPACE_MERGE_FAILED, and MESSAGE_END (upgrade completion_status to warning on workspace merge failure when LLM status is complete).
 - serialize_message: Serialize a LangChain message to a plain dict.
@@ -94,28 +95,23 @@ def _take_workspace_bind_handle() -> object | None:
 def _init_pseudonym_store(workspace_path: str) -> None:
     """Initialize PseudonymStore and the PII closure for the current context.
 
-    Reads the active PrivacyPolicy from the current task context and, when it
-    enables PSEUDONYMIZE or deep PII scan, creates the shared store and registers
-    the regex PII pseudonymizer as a context-local closure (inherited by
-    fire-and-forget memory-write tasks created afterwards). Deep scan needs the
-    store even when S2/S3 use REDACT, because non-structured PII is always
-    pseudonymized through PseudonymStore.
+    Reads the active PrivacyPolicy from the current task context and, when the
+    policy requires a shared store (``needs_pseudonym_store``: S2/S3
+    PSEUDONYMIZE or deep PII scan), creates the store and registers the regex PII
+    pseudonymizer as a context-local closure (inherited by fire-and-forget
+    memory-write tasks created afterwards). Deep scan needs the store even when
+    S2/S3 use REDACT, because non-structured PII is always pseudonymized through
+    PseudonymStore.
     """
     from myrm_agent_harness.agent.middlewares._session_context import (
         get_privacy_policy,
         set_pseudonym_store,
     )
-    from myrm_agent_harness.agent.security.types import PIIAction
 
     policy = get_privacy_policy()
     if not policy.enabled:
         return
-    needs_store = (
-        policy.s2_action == PIIAction.PSEUDONYMIZE
-        or policy.s3_action == PIIAction.PSEUDONYMIZE
-        or policy.deep_scan
-    )
-    if not needs_store:
+    if not policy.needs_pseudonym_store:
         return
 
     from myrm_agent_harness.agent.security.detection.pseudonym_store import (

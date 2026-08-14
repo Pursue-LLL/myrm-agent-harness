@@ -210,6 +210,22 @@ class PrivacyPolicy:
         "id_ed25519",
     )
 
+    @property
+    def needs_pseudonym_store(self) -> bool:
+        """Whether this policy requires a shared PseudonymStore.
+
+        True when S2/S3 enable PSEUDONYMIZE (regex pseudonymization persists
+        through the store) or deep scan is on (LLM-detected non-structured PII is
+        always pseudonymized through the store, even when S2/S3 use REDACT).
+        Single source of truth for every memory-write path that initializes the
+        store.
+        """
+        return (
+            self.s2_action == PIIAction.PSEUDONYMIZE
+            or self.s3_action == PIIAction.PSEUDONYMIZE
+            or self.deep_scan
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class PrivacyRoutingConfig:

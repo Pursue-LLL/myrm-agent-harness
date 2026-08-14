@@ -10,6 +10,7 @@ on:
       - 'tests/architecture/test_tool_registry.py'
       - 'scripts/tool_registry_config.py'
       - 'scripts/tool_registry_engine.py'
+      - 'scripts/tool_registry_models.py'
       - 'scripts/validate_tool_registry.py'
       - '.pre-commit-config.yaml'
 

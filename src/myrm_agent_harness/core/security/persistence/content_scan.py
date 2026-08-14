@@ -1,7 +1,19 @@
 """SSOT for scanning text before persistence (Memory, Wiki raw/publish, display).
 
+[INPUT]
+- core.security.detection.prompt_guard::scan_input (POS: Prompt injection / instruction hijack detection.)
+- core.security.detection.harmful_state_detector::scan_for_harmful_states (POS: Harmful psychological-state pattern detection.)
+- core.security.detection.leak_detector::redact_leaks / scan_for_leaks / looks_like_password (POS: Secret/PII leak detection and redaction.)
+- core.security.detection.instruction_shape::detect_instruction_shapes (POS: Instruction-shape spoofing detection.)
+- core.security.detection.content_boundary::has_invisible_unicode / strip_invisible_unicode (POS: Invisible unicode boundary detection and stripping.)
+
+[OUTPUT]
+- set_pii_pseudonymizer / get_pii_pseudonymizer: Context-local regex PII pseudonymization closure (inherited by fire-and-forget tasks).
+- sanitize_display_secrets: Redact secrets from UI display strings.
+- scan_persistable_content: SSOT persistence scan — injection / harmful-state / PII-pseudonymize / leak / boundary verdicts.
+
 [POS]
-See module docstring.
+Persistence-scan SSOT. Applies the same protection (injection, PII pseudonymization, leak redaction) to every text written to durable storage, with a context-local PII closure so background memory writes keep in-run protection.
 """
 
 from __future__ import annotations

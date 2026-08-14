@@ -5,7 +5,7 @@
 (none — leaf module, no internal dependencies)
 
 [OUTPUT]
-- VectorStore: abstract async vector store interface (CRUD + search + scroll + health)
+- VectorStore: abstract async vector store interface (CRUD + search + scroll + health + persistence introspection)
 - VectorDocument: Pydantic model for documents with optional embedding
 - SearchResult: Pydantic model for similarity search results
 - CollectionInfo: Pydantic model for collection metadata

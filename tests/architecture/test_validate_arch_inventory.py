@@ -357,6 +357,15 @@ def test_scan_md_refs_skips_prebuilt_skills(tmp_path: Path) -> None:
 
 
 @pytest.mark.architecture
+def test_scan_md_refs_prunes_hidden_dirs(tmp_path: Path) -> None:
+    """md refs under pruned dirs (.venv/.git/...) are not scanned."""
+    venv_md = tmp_path / ".venv" / "doc.md"
+    venv_md.parent.mkdir(parents=True)
+    venv_md.write_text("Broken: `./ghost.py`\n", encoding="utf-8")
+    assert scan_md_refs(tmp_path, monorepo_root=tmp_path, repo_root=tmp_path) == []
+
+
+@pytest.mark.architecture
 def test_scan_md_refs_skips_whitelisted_docs(tmp_path: Path) -> None:
     """Docs in _MD_REF_SKIP_FILES carry planning semantics (e.g. candidate
     verdict tables); their broken-looking refs must not be reported."""

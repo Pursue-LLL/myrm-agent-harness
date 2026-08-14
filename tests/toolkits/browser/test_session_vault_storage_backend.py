@@ -215,17 +215,21 @@ class TestSessionVaultEdgeBranches:
     async def test_save_backend_failure(self, tmp_path: Path, vault_key: bytes) -> None:
         backend = FileVaultBackend(tmp_path)
         vault = SessionVault(backend, vault_key)
-        with patch.object(backend, "write", side_effect=OSError("disk full")):
-            with pytest.raises(OSError):
-                await vault.save("example.com", {"cookies": []})
+        with (
+            patch.object(backend, "write", side_effect=OSError("disk full")),
+            pytest.raises(OSError),
+        ):
+            await vault.save("example.com", {"cookies": []})
 
     async def test_encrypt_failure(self, tmp_path: Path, vault_key: bytes) -> None:
         vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
-        with patch.object(
-            type(vault._get_cipher()), "encrypt", side_effect=Exception("cipher boom")
+        with (
+            patch.object(
+                type(vault._get_cipher()), "encrypt", side_effect=Exception("cipher boom")
+            ),
+            pytest.raises(EncryptionError),
         ):
-            with pytest.raises(EncryptionError):
-                await vault.save("example.com", {"cookies": []})
+            await vault.save("example.com", {"cookies": []})
 
     async def test_list_summaries_returns_metadata(
         self, tmp_path: Path, vault_key: bytes
@@ -341,3 +345,15 @@ class TestSessionVaultEdgeBranches:
         await vault.save("alive.com", {"cookies": []})
         assert await vault.cleanup_expired() == 1
         assert "alive.com" in await backend.list_all()
+
+    async def test_cleanup_expired_empty(
+        self, tmp_path: Path, vault_key: bytes
+    ) -> None:
+        vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
+        assert await vault.cleanup_expired() == 0
+
+    def test_cache_evict_one_empty_cache(
+        self, tmp_path: Path, vault_key: bytes
+    ) -> None:
+        vault = SessionVault(FileVaultBackend(tmp_path), vault_key)
+        vault._cache_evict_one()  # no-op on empty cache

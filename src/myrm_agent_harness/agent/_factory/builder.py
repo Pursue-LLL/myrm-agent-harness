@@ -340,7 +340,10 @@ async def create_skill_agent(
         engine_params = EngineParams()
 
     config = AgentRuntimeConfig(
-        recursion_limit=spec.max_iterations,
+        # ``max_iterations`` is a user-facing turn budget: each LangGraph turn
+        # consumes two nodes (model + tools), so it maps to 2x the graph
+        # recursion limit — consistent with subagent builders (max_turns * 2).
+        recursion_limit=spec.max_iterations * 2,
         timeout_seconds=engine_params.timeout_seconds,
         parallel_tool_calls=engine_params.enable_parallel_tool_calls,
         collect_artifacts=collect_artifacts,

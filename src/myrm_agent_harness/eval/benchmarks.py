@@ -50,9 +50,11 @@ class BenchmarkSpec:
             ``benchmark_mode`` (0 = inherit the engine default of 30). Large
             multi-hop suites (e.g. BrowseComp web research) declare a higher
             ceiling so the scored run measures the model, not the limit.
-        max_iterations: Per-run LangGraph recursion budget (0 = inherit the
-            engine default of 50). Mirrors ``max_tool_calls``; both ceilings
-            must be lifted together for long-horizon suites.
+        max_iterations: Per-run turn budget the executor must apply in
+            ``benchmark_mode`` (0 = inherit the engine default of 50 turns;
+            the harness maps each turn to two LangGraph nodes). Mirrors
+            ``max_tool_calls``; both ceilings must be lifted together for
+            long-horizon suites.
         harness: Which harness the official run is graded against —
             ``"myrm"`` (our eval runtime) or ``"official"`` (the publisher's
             own harness). Kept in the spec so an ``"official"`` reference

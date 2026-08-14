@@ -13,7 +13,7 @@ Covers:
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -142,6 +142,7 @@ class TestInstallDomainFilter:
     @pytest.mark.asyncio
     async def test_cdp_audit_registers_page_listener(self):
         ctx = AsyncMock()
+        ctx.on = MagicMock()
         al = DomainAllowlist(patterns=("example.com",))
         await install_domain_filter(ctx, al, enable_cdp_audit=True)
         ctx.on.assert_called_once()

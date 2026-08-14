@@ -373,12 +373,19 @@ class TestApplyDeepPIIScan:
         async def _mock_llm(_s: str, _u: str) -> str:
             raise AssertionError("LLM should not be called when store is None")
 
-        with patch(
-            "myrm_agent_harness.agent.middlewares._session_context.get_pseudonym_store",
-            return_value=None,
+        with (
+            patch(
+                "myrm_agent_harness.agent.middlewares._session_context.get_pseudonym_store",
+                return_value=None,
+            ),
+            patch(
+                "myrm_agent_harness.agent._internals.memory_extraction.logger.warning"
+            ) as mock_warning,
         ):
             result = await _apply_deep_pii_scan([mock_memory], _mock_llm, mock_manager)
             assert result[0].content == "User has severe anxiety disorder"
+        # A missing store is a silent downgrade risk; it must be visible in logs.
+        mock_warning.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_llm_failure_keeps_original(self) -> None:

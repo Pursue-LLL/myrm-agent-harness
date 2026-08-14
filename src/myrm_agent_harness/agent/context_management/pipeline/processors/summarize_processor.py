@@ -463,6 +463,8 @@ class SummarizeProcessor(BaseProcessor):
             * getattr(self.config, "tail_budget_ratio", 0.20)
         )
         recent_messages = extract_recent_messages(context.messages, tail_budget)
+        protected_ids = {id(m) for m in protected_head}
+        recent_messages = [m for m in recent_messages if id(m) not in protected_ids]
         summary_message = create_summary_message(summary, context.chat_id)
 
         context.messages = prepend_pre_compact_message(

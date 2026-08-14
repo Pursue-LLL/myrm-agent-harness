@@ -151,6 +151,9 @@ class AgentRuntimeSpec:
     # --- Runtime Policies ---
     memory_namespaces: list[str] = field(default_factory=list)
     workspace_binding: WorkspaceBinding | None = None
+    # User-facing turn budget (1 turn = 1 LLM tool round); the harness maps it
+    # to ``2 * max_iterations`` LangGraph nodes (each turn consumes model +
+    # tools nodes). Aligned with subagent ``max_turns`` semantics.
     max_iterations: int = 50
     unattended: bool = False
 

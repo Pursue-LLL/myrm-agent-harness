@@ -276,8 +276,7 @@ async def _apply_deep_pii_scan(
     if store is None:
         logger.warning(
             "Deep PII scan skipped: PseudonymStore not available in this context "
-            "(expected when the PrivacyPolicy neither enables PSEUDONYMIZE nor "
-            "deep scan)"
+            "(requires an enabled PrivacyPolicy with PSEUDONYMIZE or deep scan)"
         )
         return memories
 

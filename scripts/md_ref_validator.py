@@ -80,7 +80,7 @@ _MD_REF_SKIP_FILES = frozenset(
         "src/myrm_agent_harness/eval/_ARCH.md",
     }
 )
-_PRUNE_DIR_NAMES = frozenset({"__pycache__", "node_modules", ".git", ".venv", ".mypy_cache", ".myrm"})
+PRUNE_DIR_NAMES = frozenset({"__pycache__", "node_modules", ".git", ".venv", ".mypy_cache", ".myrm"})
 
 
 @dataclass(frozen=True)
@@ -273,7 +273,7 @@ def scan_md_refs(root: Path, monorepo_root: Path, repo_root: Path) -> list[MdRef
     top_dirs = _top_level_module_dirs(pkg_root) if pkg_root is not None else frozenset()
     reports: list[MdRefReport] = []
     for md in sorted(root.rglob("*.md")):
-        if any(part in _PRUNE_DIR_NAMES for part in md.parts):
+        if any(part in PRUNE_DIR_NAMES for part in md.parts):
             continue
         if _MD_SKIP_DIR_NAMES.intersection(md.parts):
             continue

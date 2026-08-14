@@ -15,6 +15,8 @@ ContextVars so they are not owned by any single middleware.
 - get_allowed_domains_map: Get the allowed domains map for the current async context.
 - set_security_config: Set the active SecurityConfig for the current async context.
 - get_security_config: Get the active SecurityConfig for the current async context.
+- get_privacy_policy: Active PrivacyPolicy for the current async context (set via set_security_config, which delegates to core.security.guards.privacy_tracker).
+- set_pseudonym_store / get_pseudonym_store: Context-local PseudonymStore for memory-write PII pseudonymization.
 - set_workspace_root: Set the workspace root for PathPolicy evaluation in the current async context.
 - set_goal_provider / get_goal_provider: Per-run GoalProvider for goal_focus_middleware.
 - set_canary_token / get_canary_token: Session-scoped canary token for output-side injection detection.

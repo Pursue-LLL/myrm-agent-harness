@@ -131,6 +131,33 @@ class TestEnumsAndValues:
         assert policy.s2_action is PIIAction.WARN
         assert policy.s3_action is PIIAction.REDACT
 
+    def test_privacy_policy_needs_pseudonym_store(self) -> None:
+        """needs_pseudonym_store is the single source of truth for store init."""
+        assert PrivacyPolicy().needs_pseudonym_store is False
+
+        pseudonymize = PrivacyPolicy(
+            enabled=True,
+            s2_action=PIIAction.PSEUDONYMIZE,
+            s3_action=PIIAction.REDACT,
+        )
+        assert pseudonymize.needs_pseudonym_store is True
+
+        deep_scan_only = PrivacyPolicy(
+            enabled=True,
+            s2_action=PIIAction.REDACT,
+            s3_action=PIIAction.REDACT,
+            deep_scan=True,
+        )
+        assert deep_scan_only.needs_pseudonym_store is True
+
+        no_store_needed = PrivacyPolicy(
+            enabled=True,
+            s2_action=PIIAction.WARN,
+            s3_action=PIIAction.REDACT,
+            deep_scan=False,
+        )
+        assert no_store_needed.needs_pseudonym_store is False
+
     def test_privacy_routing_config_constructible(self) -> None:
         cfg = PrivacyRoutingConfig()
 

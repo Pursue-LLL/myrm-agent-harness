@@ -567,6 +567,64 @@ class TestSessionNotesProcessor:
         assert result.structured_summary is not None
         assert any("Session Notes Summary" in m.content for m in result.messages if isinstance(m.content, str))
         assert any(UNVERIFIED_CONTEXT_MARKER in m.content for m in result.messages if isinstance(m.content, str))
+        assert any("<!-- SUMMARY_JSON" in m.content for m in result.messages if isinstance(m.content, str))
+
+    @pytest.mark.asyncio()
+    async def test_process_deduplicates_stale_summary_and_head(self, mock_manager: MagicMock) -> None:
+        """Regression: stale summary block + non-contiguous head must not duplicate or accumulate."""
+        from myrm_agent_harness.agent.context_management.pipeline.base import ProcessorContext
+        from myrm_agent_harness.agent.context_management.pipeline.processors.session_notes_processor import (
+            SessionNotesProcessor,
+        )
+
+        mock_manager.notes.last_updated_message_idx = 1
+        stale_summary = HumanMessage(
+            content=(
+                "[Previous conversation summary]\n<!-- SUMMARY_JSON\n"
+                '{"user_goal": "old", "active_task": "", "completed_actions": [], "key_findings": [],'
+                ' "errors_and_fixes": [], "files_modified": [], "last_action": ""}\n-->'
+            )
+        )
+        messages: list[BaseMessage] = [
+            SystemMessage(content="system prompt " * 1000),
+            stale_summary,
+            HumanMessage(content="first user message " * 2000),
+            AIMessage(content="first response " * 2000),
+            HumanMessage(content="middle message " * 5000),
+            AIMessage(content="middle response " * 5000),
+            HumanMessage(content="recent question"),
+            AIMessage(content="recent answer"),
+        ]
+        processor = SessionNotesProcessor(manager=mock_manager, summarize_trigger_threshold=10)
+        context = ProcessorContext(messages=messages, user_query="")
+        result = await processor.process(context)
+
+        ids = [id(m) for m in result.messages]
+        assert len(ids) == len(set(ids)), "rebuilt message list must not contain duplicates"
+        # Stale summary block must not leak into the rebuilt list
+        assert not any("Previous conversation summary" in m.content for m in result.messages if isinstance(m.content, str))
+        # head (system + first user turn) retained exactly once
+        assert messages[0] in result.messages
+        assert messages[2] in result.messages
+        assert messages[3] in result.messages
+        # recent user messages retained once, in order
+        assert messages[4] in result.messages
+        assert messages[5] in result.messages
+
+        # F2b: the embedded SUMMARY_JSON block must be parseable so a later
+        # Summarize run recognizes this summary and upgrades to incremental merge.
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_parser import (
+            extract_existing_summary,
+            is_summary_message,
+        )
+
+        session_notes_block = next(
+            m for m in result.messages if "Session Notes Summary" in m.content
+        )
+        assert is_summary_message(session_notes_block)
+        parsed = extract_existing_summary(result.messages)
+        assert parsed is not None
+        assert parsed.user_goal
 
     @pytest.mark.asyncio()
     async def test_process_falls_through_when_not_ready(self) -> None:
