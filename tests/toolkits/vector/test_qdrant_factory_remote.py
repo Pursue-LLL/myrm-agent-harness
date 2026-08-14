@@ -32,6 +32,7 @@ async def test_qdrant_factory_remote():
         assert store.config.url == "http://localhost:6333"
         assert store.config.api_key == "test_key"
 
+
 @pytest.mark.asyncio
 async def test_qdrant_factory_remote_direct():
     """Test remote Qdrant store creation directly."""
@@ -41,6 +42,7 @@ async def test_qdrant_factory_remote_direct():
 
         assert store.config.mode == DeploymentMode.REMOTE
         assert store.config.url == "http://localhost:6333"
+
 
 @pytest.mark.asyncio
 async def test_qdrant_factory_memory_direct():
@@ -52,6 +54,7 @@ async def test_qdrant_factory_memory_direct():
         assert store.config.mode == DeploymentMode.EMBEDDED
         assert store.config.local_path == ":memory:"
 
+
 @pytest.mark.asyncio
 async def test_qdrant_factory_unknown_mode():
     """Test unknown mode."""
@@ -59,3 +62,22 @@ async def test_qdrant_factory_unknown_mode():
     config.mode = "UNKNOWN"  # Bypass pydantic validation for testing
     with pytest.raises(ValueError):
         await create_vector_store(config)
+
+
+def test_create_remote_store_missing_dependency():
+    """Missing qdrant-client must surface a clear ImportError for remote mode."""
+    import builtins
+    from unittest.mock import patch
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "qdrant_client":
+            raise ImportError("No module named 'qdrant_client'")
+        return real_import(name, *args, **kwargs)
+
+    with (
+        patch("builtins.__import__", side_effect=fake_import),
+        pytest.raises(ImportError, match="qdrant-client is required"),
+    ):
+        create_remote_store(url="http://localhost:6333", api_key="test_key")

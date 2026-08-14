@@ -162,11 +162,7 @@ async def test_memory_fallback_repeat_returns_same_instance(tmp_path):
     # 重复调用同一不可写路径必须命中同一 fallback store（单例语义）。
     assert store1 is store2
     # 只创建了一个 in-memory client，无覆盖泄漏。
-    memory_calls = [
-        call
-        for call in mock_client.call_args_list
-        if call.kwargs.get("path") == ":memory:"
-    ]
+    memory_calls = [call for call in mock_client.call_args_list if call.kwargs.get("path") == ":memory:"]
     assert len(memory_calls) == 1
 
     await evict_embedded_store(str(bad_path))
@@ -203,6 +199,58 @@ async def test_evict_embedded_store_unknown_path_noop():
 
     # Evicting a path with no cached store is a quiet no-op.
     await evict_embedded_store("/no/such/vector/store")
+
+
+@pytest.mark.asyncio
+async def test_evict_embedded_store_close_failure_logged(tmp_path):
+    """hard_close failure during eviction must be caught and logged, not raised."""
+    from unittest.mock import patch
+
+    from myrm_agent_harness.toolkits.vector.qdrant.factory import (
+        _embedded_clients,
+        evict_embedded_store,
+    )
+
+    store = await create_embedded_store(path=str(tmp_path / "fails_on_close"))
+    with patch.object(store, "hard_close", side_effect=RuntimeError("close boom")):
+        # Must not raise; failure is logged as a warning.
+        await evict_embedded_store(str(tmp_path / "fails_on_close"))
+    assert str(tmp_path / "fails_on_close") not in _embedded_clients
+
+
+@pytest.mark.asyncio
+async def test_clear_embedded_stores_close_failure_logged(tmp_path):
+    """hard_close failure during clear must be tolerated via return_exceptions."""
+    from unittest.mock import patch
+
+    from myrm_agent_harness.toolkits.vector.qdrant.factory import (
+        clear_embedded_stores,
+    )
+
+    store = await create_embedded_store(path=str(tmp_path / "clear_fails"))
+    with patch.object(store, "hard_close", side_effect=RuntimeError("close boom")):
+        # Must not raise; failure is aggregated and logged.
+        await clear_embedded_stores()
+
+
+@pytest.mark.asyncio
+async def test_create_embedded_store_missing_dependency():
+    """Missing qdrant-client must surface a clear ImportError."""
+    import builtins
+    from unittest.mock import patch
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "qdrant_client":
+            raise ImportError("No module named 'qdrant_client'")
+        return real_import(name, *args, **kwargs)
+
+    with (
+        patch("builtins.__import__", side_effect=fake_import),
+        pytest.raises(ImportError, match="qdrant-client is required"),
+    ):
+        await create_embedded_store(path="/tmp/vec_missing_dep")
 
 
 @pytest.mark.asyncio
