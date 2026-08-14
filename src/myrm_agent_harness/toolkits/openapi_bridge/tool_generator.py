@@ -8,6 +8,7 @@ with namespace isolation, parameter constraint propagation, and proper descripti
 - .spec_parser::ParsedSpec (POS: parsed spec intermediate representation)
 - .http_executor::OpenAPIExecutor (POS: HTTP request executor)
 - .config::OpenAPIServiceConfig, ParsedEndpoint (POS: configuration models)
+- mcp.schema.coerce::coerce_arguments_by_schema (POS: schema-driven argument coercion)
 
 [OUTPUT]
 - generate_tools: Convert OpenAPIServiceConfig + ParsedSpec into list[BaseTool]
@@ -114,9 +115,9 @@ def _create_tool_for_endpoint(
     method = endpoint.method
     path = endpoint.path
     endpoint_param_schema = endpoint.param_schema
-    # Prefer schema-declared path keys; fall back to the path template regex
-    # for legacy specs without parameter definitions.
-    path_keys = endpoint.path_param_keys or path_params
+    # Prefer schema-declared path keys, always union with the path template
+    # regex so parameters missing from a sloppy spec still route correctly.
+    path_keys = endpoint.path_param_keys | path_params
     query_keys = endpoint.query_param_keys
 
     async def _execute_endpoint(**kwargs: Any) -> str:
