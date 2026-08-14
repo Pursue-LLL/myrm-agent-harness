@@ -32,6 +32,7 @@ import logging
 import math
 import re
 import sys
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -300,8 +301,6 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
                     # reject the first two and float() would silently lose
                     # precision on the last).  Non-integral values under a
                     # "number" expectation still fall through to float().
-                    from decimal import Decimal, InvalidOperation
-
                     try:
                         decimal_value = Decimal(clean_value)
                     except InvalidOperation:
@@ -357,24 +356,26 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
         and not isinstance(value, (list, tuple))
         and not _value_conforms_to_schema_types(schema, value)
     ):
-        looks_like_container = isinstance(value, str) and value.strip().startswith(("[", "{"))
-        length_guarded = isinstance(value, str) and len(value.strip()) > _MAX_JSON_COERCE_LENGTH
+        wrapped_value = _strip_markdown_json(value) if isinstance(value, str) else value
+        looks_like_container = isinstance(wrapped_value, str) and wrapped_value.strip().startswith(("[", "{"))
+        length_guarded = isinstance(wrapped_value, str) and len(wrapped_value.strip()) > _MAX_JSON_COERCE_LENGTH
         if not (looks_like_container and length_guarded):
             if looks_like_container:
                 logger.warning(
                     "coerce_value: value %r looks like a JSON array string but could "
                     "not be parsed — wrapping into a single-element list",
-                    value,
+                    wrapped_value,
                 )
-            value = [value]
+            value = [wrapped_value]
             _bump_schema_coercion_stat("scalar_to_array_wraps")
 
     # Numeric 1/0 ↔ boolean bidirectional coercion. LLMs sometimes emit 1/0
     # for a boolean field (or True/False for a number field) — convert only
     # when the current type is not already accepted by the schema.
-    # Mirrors openclaw validation.ts coercePrimitiveByType.
+    # Mirrors openclaw validation.ts coercePrimitiveByType (which treats any
+    # number — including float forms like 1.0/0.0 — as a boolean candidate).
     if expected_type == "boolean" and not _value_conforms_to_schema_types(schema, value):
-        if isinstance(value, int) and not isinstance(value, bool) and value in (0, 1):
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value in (0, 1):
             value = bool(value)
             _bump_schema_coercion_stat("bool_number_cross_coercions")
     elif expected_type in ("integer", "number") and not _value_conforms_to_schema_types(schema, value):
@@ -405,8 +406,11 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
 def coerce_arguments_by_schema(args_schema: dict[str, Any] | None, kwargs: dict[str, Any]) -> dict[str, Any]:
     """Coerces argument types based on the schema requirements.
 
-    If the schema expects an array, object, boolean, or number, but the LLM provided a string,
-    this attempts to safely parse the string into the expected type. Also strips markdown code blocks.
+    If the schema expects an array, object, boolean, or number, but the LLM
+    provided a string, this attempts to safely parse the string into the
+    expected type. Also strips markdown code blocks. Bare scalars for ``array``
+    schemas wrap into a single-element list; int 0/1 ↔ boolean coercions are
+    applied when the current type isn't already accepted by the schema.
     Recursively descends into objects and arrays to heal nested hallucinations.
     For strict hosts, fills missing required fields with explicit ``None`` only
     when the corresponding property schema allows ``null``.
