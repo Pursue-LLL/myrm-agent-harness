@@ -25,7 +25,7 @@ from myrm_agent_harness.agent.types import AgentRunStatistics
 
 @dataclass
 class _FakeConfig:
-    chat_id: str = "test-chat-001"
+    chat_id: str | None = None
 
 
 class FakeSkillAgent(SkillAgentReviewMixin):
@@ -242,9 +242,8 @@ class TestMaybeArchiveToWiki:
         compiler.enqueue_file = MagicMock()
 
         agent = FakeSkillAgent(wiki_compiler=compiler, wiki_structure=structure)
-        agent.config.chat_id = "review-chat"
         long_reply = ["x" * 600]
-        agent._maybe_archive_to_wiki("query", long_reply)
+        agent._maybe_archive_to_wiki("query", long_reply, chat_id="review-chat")
         await asyncio.sleep(0.2)
 
         turn_files = list(structure.raw_dir.glob("turn_review-chat_*.md"))
@@ -270,14 +269,43 @@ class TestMaybeArchiveToWiki:
         compiler.enqueue_file = MagicMock()
 
         agent = FakeSkillAgent(wiki_compiler=compiler, wiki_structure=structure)
-        agent.config.chat_id = None
-        agent._maybe_archive_to_wiki("query", ["y" * 600])
+        agent._maybe_archive_to_wiki("query", ["y" * 600], chat_id=None)
         await asyncio.sleep(0.2)
 
         turn_files = list(structure.raw_dir.glob("turn_unknown_*.md"))
         assert len(turn_files) == 1
         archived = turn_files[0].read_text(encoding="utf-8")
         assert "source_chat" not in archived
+
+    @pytest.mark.asyncio
+    async def test_cleanup_session_forwards_chat_id_to_archive(
+        self, tmp_path: Path
+    ) -> None:
+        """Session-end cleanup must forward the resolved chat_id into the wiki archive.
+
+        Regression: the archive path read ``config.chat_id``, which does not exist on the
+        frozen ``AgentRuntimeConfig`` in production, so source_chat was never written.
+        """
+        from myrm_agent_harness.toolkits.wiki import (
+            WikiCompiler,
+            WikiConfig,
+            WikiStructure,
+        )
+
+        wiki_dir = tmp_path / "wiki"
+        structure = WikiStructure(wiki_dir)
+        structure.ensure_structure()
+        compiler = WikiCompiler(MagicMock(), structure, WikiConfig())
+        compiler.enqueue_file = MagicMock()
+
+        agent = FakeSkillAgent(wiki_compiler=compiler, wiki_structure=structure)
+        await agent._cleanup_session("query", None, ["z" * 600], run_chat_id="cleanup-chat")
+        await asyncio.sleep(0.2)
+
+        turn_files = list(structure.raw_dir.glob("turn_cleanup-chat_*.md"))
+        assert len(turn_files) == 1
+        archived = turn_files[0].read_text(encoding="utf-8")
+        assert "source_chat: cleanup-chat" in archived
 
 
 # ---------------------------------------------------------------------------

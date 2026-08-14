@@ -76,8 +76,13 @@ class SkillAgentReviewMixin:
         self,
         query: str | list[dict[str, object]] | object,
         assistant_chunks: list[str],
+        chat_id: str | None = None,
     ) -> None:
-        """Archive conversation content to wiki if quality threshold is met (background task)."""
+        """Archive conversation content to wiki if quality threshold is met (background task).
+
+        ``chat_id`` is the conversation identifier used for provenance; callers must pass
+        it explicitly (AgentRuntimeConfig has no chat_id field).
+        """
         wiki_compiler: WikiCompiler | None = getattr(self, "_wiki_compiler", None)
         wiki_structure: WikiStructure | None = getattr(self, "_wiki_structure", None)
         if wiki_compiler is None or wiki_structure is None:
@@ -104,12 +109,14 @@ class SkillAgentReviewMixin:
                 assert wiki_structure is not None
                 assert wiki_compiler is not None
 
-                chat_id = getattr(config, "chat_id", None) or "unknown"
+                resolved_chat_id = chat_id or getattr(config, "chat_id", None) or "unknown"
                 content_hash = hashlib.sha256(archive_content.encode()).hexdigest()[:12]
-                relative_path = f"turn_{chat_id}_{content_hash}.md"
+                relative_path = f"turn_{resolved_chat_id}_{content_hash}.md"
                 # Only attach source_chat when a real conversation id exists; "unknown"
                 # would render a misleading /{unknown} jump target in the concept panel.
-                metadata = {} if chat_id == "unknown" else {"source_chat": chat_id}
+                metadata = (
+                    {} if resolved_chat_id == "unknown" else {"source_chat": resolved_chat_id}
+                )
                 result = await publish_raw(
                     wiki_structure,
                     RawPublishRequest(
@@ -436,7 +443,7 @@ class SkillAgentReviewMixin:
             persist_task = asyncio.create_task(_run_loaded_skills_persist())
             track_background_task(persist_task)
 
-        self._maybe_archive_to_wiki(query, assistant_chunks)
+        self._maybe_archive_to_wiki(query, assistant_chunks, chat_id=session_chat_id)
 
         if self._should_trigger_skill_review(query):
             await self._trigger_background_skill_review(
