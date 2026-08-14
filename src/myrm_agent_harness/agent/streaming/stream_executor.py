@@ -530,6 +530,10 @@ class StreamExecutor(StreamDispatcherMixin, StreamRecoveryMixin):
             "messageId": ctx.message_id,
         }
 
+        # Deterministic fault-side attribution (pure rules, no LLM) — lets the
+        # GUI tell users who owns the failure instead of guessing.
+        error_event["fault_side"] = classify_fault_side(error_kind=error_kind.value).value
+
         if ctx.stats.compression_exhausted:
             error_event["compression_exhausted"] = True
 

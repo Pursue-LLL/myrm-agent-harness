@@ -62,11 +62,15 @@ OpenAPIServiceConfig (user config)
 6. **Schema-driven parameter extraction & coercion**: `spec_parser` merges
    path/query/body parameters (OpenAPI 3.x `parameters` + `requestBody`, Swagger 2.0
    `in: body`) into a per-endpoint JSON Schema (`ParsedEndpoint.param_schema`) with
-   path/query key sets for exact dispatch. `tool_generator` builds the tool's
-   `args_schema` from this schema and runs `coerce_arguments_by_schema` (shared with
-   MCP, from `mcp/schema/coerce.py`) on LLM-emitted arguments before dispatch —
-   string `"25"` → `int 25`, big-int precision preserved — so strict typed APIs never
-   receive stringified numbers. Schema-less specs fall back to the legacy
+   path/query key sets for exact dispatch. Local `$ref` pointers
+   (`#/components/schemas/...`, `#/components/parameters/...`, Swagger 2.0
+   `#/definitions/...`) are resolved inline via `flatten_json_schema` (shared with
+   MCP schema normalization); unresolvable external refs degrade to permissive
+   schemas so strict providers never receive a bare `$ref`. `tool_generator` builds
+   the tool's `args_schema` from this schema and runs `coerce_arguments_by_schema`
+   (shared with MCP, from `mcp/schema/coerce.py`) on LLM-emitted arguments before
+   dispatch — string `"25"` → `int 25`, big-int precision preserved — so strict typed
+   APIs never receive stringified numbers. Schema-less specs fall back to the legacy
    path-only / method-based dispatch.
 
 7. **Ephemeral User Credentials Propagation**: `OpenAPIExecutor` integrates with
