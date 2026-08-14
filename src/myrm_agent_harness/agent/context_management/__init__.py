@@ -76,7 +76,6 @@ from .strategies.compactor import (
     COMPACT_RULES,
     compress_messages_async,
     compress_tool_message_async,
-    should_compress,
 )
 from .strategies.filter import (
     FILTER_TOKEN_THRESHOLD,
@@ -192,8 +191,7 @@ __all__ = [
     "reset_current_chat_id",
     "resolve_cache_ttl_prune_policy",
     "set_current_chat_id",
-    # compactor
-    "should_compress",
+    # filter
     "should_filter",
     # summarizer
     "should_summarize",

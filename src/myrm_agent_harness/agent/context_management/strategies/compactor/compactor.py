@@ -7,12 +7,10 @@ deduplication, priority classification, and token-savings metrics.
 - langchain_core.messages::AIMessage, BaseMessage, ToolMessage (POS: LangChain 消息类型)
 - utils.text_utils::get_token_count (POS: Token 计数工具)
 - schemas::CompactToolCall, ContextConfig, ContextOffloadResult, EvictedToolCall (POS: 上下文配置与数据结构)
-- token_estimation::estimate_messages_tokens (POS: Token 估算)
 - compact_rules::COMPACT_RULES (POS: 压缩规则)
 - message_priority::classify_message_priority (POS: 优先级分类)
 
 [OUTPUT]
-- should_compress(): 判断是否需要压缩(基于 token 阈值)
 - compress_messages_async(): 压缩消息列表(Priority-aware三级策略;注意:Smart fallback在compress_processor层)
 - compress_tool_message_async(): 压缩单个工具消息(可选 ContextCompressOffloadCallback)
 - find_tool_message_pairs(): 基于 tool_call_id 找到完整工具调用对
@@ -33,7 +31,6 @@ from langchain_core.messages.tool import ToolCall
 
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.text_utils import get_token_count
-from myrm_agent_harness.utils.token_estimation import estimate_messages_tokens
 
 from ...infra.message_priority import MessagePriority, classify_message_priority
 from ...infra.schemas import (
@@ -64,23 +61,6 @@ _file_tracking_tasks: set[asyncio.Task[None]] = set()
 # 落盘阈值:工具输出 >= 此值时写入文件,< 此值时纯内存压缩
 # 5000 tokens ≈ 20KB 文本
 OFFLOAD_THRESHOLD_TOKENS = 5000
-
-
-def should_compress(messages: list[BaseMessage], config: ContextConfig | None = None) -> bool:
-    """判断是否需要压缩
-
-    Args:
-        messages: 消息列表
-        config: 上下文配置(可选,默认使用 128k 窗口)
-
-    Returns:
-        是否需要压缩
-    """
-    from ...infra.schemas import DEFAULT_CONTEXT_CONFIG
-
-    cfg = config or DEFAULT_CONTEXT_CONFIG
-    total_tokens = estimate_messages_tokens(messages)
-    return total_tokens >= cfg.compress_threshold
 
 
 def _detect_last_iteration(messages: list[BaseMessage]) -> dict[int, bool]:

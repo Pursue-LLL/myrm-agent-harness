@@ -8,7 +8,7 @@ Priority-aware message compression: four-level strategy (deduplicate → skip-co
 | File | Role | Description |
 |------|------|-------------|
 | `__init__.py` | Package | Re-exports public API. |
-| `compactor.py` | Core | Main orchestrator: `should_compress`, `compress_messages_async`, `compress_tool_message_async`, `find_tool_message_pairs`. |
+| `compactor.py` | Core | Main orchestrator: `compress_messages_async`, `compress_tool_message_async`, `find_tool_message_pairs`. |
 | `compact_rules.py` | Config | Per-tool compression rules (line-based format for easy grep). |
 | `deduplication.py` | Utility | `deduplicate_tool_results` — hash-based duplicate detection. |
 | `integrity_guard.py` | Guard | `ensure_tool_pair_integrity` — guarantees every retained AI tool call has a matching ToolMessage. |

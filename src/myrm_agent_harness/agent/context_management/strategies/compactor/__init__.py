@@ -5,7 +5,6 @@
 
 [OUTPUT]
 - compress_messages_async(): 消息压缩（工具消息对合并）
-- should_compress(): 是否触发压缩
 - deduplicate_tool_results(): 工具结果去重
 
 [POS]
@@ -18,7 +17,6 @@ from .compactor import (
     compress_messages_async,
     compress_tool_message_async,
     find_tool_message_pairs,
-    should_compress,
 )
 from .deduplication import deduplicate_tool_results
 from .integrity_guard import ensure_tool_pair_integrity
@@ -40,5 +38,4 @@ __all__ = [
     "ensure_tool_pair_integrity",
     "find_tool_message_pairs",
     "prepend_pre_compact_message",
-    "should_compress",
 ]
