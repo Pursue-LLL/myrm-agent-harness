@@ -7,9 +7,12 @@ operation ID resolution, and error handling.
 from __future__ import annotations
 
 import json
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
+from myrm_agent_harness.core.security.http.secure_fetch import ContentTooLargeError
 from myrm_agent_harness.toolkits.openapi_bridge.spec_parser import (
     parse_spec_from_content,
     parse_spec_from_url,
@@ -654,3 +657,105 @@ class TestSSRFProtection:
     async def test_blocks_localhost(self):
         with pytest.raises(ValueError, match="Blocked by SSRF policy"):
             await parse_spec_from_url("http://127.0.0.1/api/spec")
+
+
+class TestFetchErrorBranches:
+    """Test parse_spec_from_url error mapping branches."""
+
+    @pytest.mark.asyncio
+    async def test_content_too_large_mapped(self):
+        async def _boom(*args, **kwargs):
+            raise ContentTooLargeError("too big")
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.spec_parser.secure_get",
+            side_effect=_boom,
+        ):
+            with pytest.raises(ValueError, match="Spec too large"):
+                await parse_spec_from_url("https://example.com/spec.json")
+
+    @pytest.mark.asyncio
+    async def test_http_status_error_mapped(self):
+        response = httpx.Response(404, request=httpx.Request("GET", "https://example.com/spec.json"))
+
+        async def _boom(*args, **kwargs):
+            response.raise_for_status()
+            return response
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.spec_parser.secure_get",
+            side_effect=_boom,
+        ):
+            with pytest.raises(ValueError, match="HTTP 404"):
+                await parse_spec_from_url("https://example.com/spec.json")
+
+    @pytest.mark.asyncio
+    async def test_request_error_mapped(self):
+        async def _boom(*args, **kwargs):
+            raise httpx.ConnectError("connection refused", request=httpx.Request("GET", "https://example.com/spec.json"))
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.spec_parser.secure_get",
+            side_effect=_boom,
+        ):
+            with pytest.raises(ValueError, match="Failed to fetch spec"):
+                await parse_spec_from_url("https://example.com/spec.json")
+
+    @pytest.mark.asyncio
+    async def test_success_fetches_and_parses(self):
+        response = httpx.Response(
+            200,
+            json={"openapi": "3.0.3", "info": {"title": "T", "version": "1"}, "paths": {}},
+            request=httpx.Request("GET", "https://example.com/spec.json"),
+        )
+
+        async def _fetch(*args, **kwargs):
+            return response
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.spec_parser.secure_get",
+            side_effect=_fetch,
+        ):
+            spec = await parse_spec_from_url("https://example.com/spec.json")
+        assert spec.title == "T"
+
+
+class TestParseEdgeCases:
+    """Test structural edge cases in spec parsing."""
+
+    def test_json_decode_failure_falls_back_to_yaml(self):
+        # Starts with "{", fails JSON decode, then also fails YAML parse.
+        with pytest.raises(ValueError, match="not valid JSON or YAML"):
+            parse_spec_from_content("{not-valid-json")
+
+    def test_info_not_dict_tolerated(self):
+        spec = parse_spec_from_content(
+            json.dumps(
+                {
+                    "openapi": "3.0.3",
+                    "info": "not-a-dict",
+                    "paths": {"/health": {"get": {"operationId": "health", "responses": {"200": {"description": "OK"}}}}},
+                }
+            )
+        )
+        assert spec.title == "Untitled API"
+        assert len(spec.endpoints) == 1
+
+    def test_paths_not_dict_returns_empty(self):
+        spec = parse_spec_from_content(
+            json.dumps({"openapi": "3.0.3", "info": {"title": "T", "version": "1"}, "paths": "oops"})
+        )
+        assert spec.endpoints == []
+
+    def test_non_dict_path_item_skipped(self):
+        spec = parse_spec_from_content(
+            json.dumps(
+                {
+                    "openapi": "3.0.3",
+                    "info": {"title": "T", "version": "1"},
+                    "paths": {"/bad": "not-a-dict", "/ok": {"get": {"operationId": "ok", "responses": {"200": {"description": "OK"}}}}},
+                }
+            )
+        )
+        assert [ep.operation_id for ep in spec.endpoints] == ["ok"]
+

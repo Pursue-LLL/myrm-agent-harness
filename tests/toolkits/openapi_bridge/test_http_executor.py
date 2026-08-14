@@ -7,11 +7,19 @@ retry logic, response formatting, and auth injection.
 from __future__ import annotations
 
 import json
+import time
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 
+from myrm_agent_harness.core.security.guards.ssrf import SSRFSecurityError
+from myrm_agent_harness.core.security.http.secure_fetch import ContentTooLargeError
+from myrm_agent_harness.core.security.types import (
+    EphemeralUserCredential,
+    with_user_credentials,
+)
 from myrm_agent_harness.toolkits.openapi_bridge.config import AuthConfig, AuthType
 from myrm_agent_harness.toolkits.openapi_bridge.http_executor import OpenAPIExecutor
 
@@ -273,3 +281,268 @@ class TestExecuteRequest:
         await executor.close()
         mock_client.aclose.assert_called_once()
         assert executor._client is None
+
+
+class TestUserCredentialsInjection:
+    """Test ephemeral user credential header injection and refresh paths."""
+
+    @staticmethod
+    def _make_cred(issuer: str, token: str, **kwargs: Any) -> EphemeralUserCredential:
+        return EphemeralUserCredential(issuer=issuer, token=token, **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_credentials_injected_with_issuer_match(self):
+        executor = OpenAPIExecutor(
+            base_url="https://api.example.com",
+            auth_config=AuthConfig(),
+            service_name="github",
+            timeout=10.0,
+        )
+        mock_response = httpx.Response(
+            200,
+            headers={"content-type": "text/plain"},
+            text="ok",
+            request=httpx.Request("GET", "https://api.example.com/repos"),
+        )
+        cred = self._make_cred("github", "user-token")
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_secure_request:
+            async with with_user_credentials((cred,)):
+                await executor.execute(method="GET", path="/repos")
+
+        call_kwargs = mock_secure_request.call_args[1]
+        assert call_kwargs["headers"]["Authorization"] == "Bearer user-token"
+
+    @pytest.mark.asyncio
+    async def test_credentials_injected_when_issuer_in_base_url(self):
+        executor = OpenAPIExecutor(
+            base_url="https://github.com/api",
+            auth_config=AuthConfig(),
+            timeout=10.0,
+        )
+        mock_response = httpx.Response(
+            200,
+            headers={"content-type": "text/plain"},
+            text="ok",
+            request=httpx.Request("GET", "https://github.com/api/x"),
+        )
+        cred = self._make_cred("github", "pat-token")
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_secure_request:
+            async with with_user_credentials((cred,)):
+                await executor.execute(method="GET", path="/x")
+
+        call_kwargs = mock_secure_request.call_args[1]
+        assert call_kwargs["headers"]["Authorization"] == "Bearer pat-token"
+
+    @pytest.mark.asyncio
+    async def test_no_credentials_context_no_injection(self):
+        executor = OpenAPIExecutor(
+            base_url="https://api.example.com",
+            auth_config=AuthConfig(),
+            service_name="github",
+            timeout=10.0,
+        )
+        mock_response = httpx.Response(
+            200,
+            headers={"content-type": "text/plain"},
+            text="ok",
+            request=httpx.Request("GET", "https://api.example.com/repos"),
+        )
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_secure_request:
+            await executor.execute(method="GET", path="/repos")
+
+        call_kwargs = mock_secure_request.call_args[1]
+        assert "Authorization" not in call_kwargs["headers"]
+
+    @pytest.mark.asyncio
+    async def test_expired_credential_triggers_preemptive_refresh(self):
+        async def refresh() -> EphemeralUserCredential:
+            return self._make_cred("github", "refreshed-token")
+
+        executor = OpenAPIExecutor(
+            base_url="https://api.example.com",
+            auth_config=AuthConfig(),
+            service_name="github",
+            timeout=10.0,
+        )
+        mock_response = httpx.Response(
+            200,
+            headers={"content-type": "text/plain"},
+            text="ok",
+            request=httpx.Request("GET", "https://api.example.com/repos"),
+        )
+        cred = self._make_cred("github", "old-token", expires_at=time.time() - 60, refresh_callback=refresh)
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_secure_request:
+            async with with_user_credentials((cred,)):
+                await executor.execute(method="GET", path="/repos")
+
+        call_kwargs = mock_secure_request.call_args[1]
+        assert call_kwargs["headers"]["Authorization"] == "Bearer refreshed-token"
+
+    @pytest.mark.asyncio
+    async def test_refresh_callback_error_keeps_old_token(self):
+        async def refresh() -> EphemeralUserCredential:
+            raise RuntimeError("refresh failed")
+
+        executor = OpenAPIExecutor(
+            base_url="https://api.example.com",
+            auth_config=AuthConfig(),
+            service_name="github",
+            timeout=10.0,
+        )
+        mock_response = httpx.Response(
+            200,
+            headers={"content-type": "text/plain"},
+            text="ok",
+            request=httpx.Request("GET", "https://api.example.com/repos"),
+        )
+        cred = self._make_cred("github", "old-token", expires_at=time.time() - 60, refresh_callback=refresh)
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_secure_request:
+            async with with_user_credentials((cred,)):
+                await executor.execute(method="GET", path="/repos")
+
+        call_kwargs = mock_secure_request.call_args[1]
+        assert call_kwargs["headers"]["Authorization"] == "Bearer old-token"
+
+    @pytest.mark.asyncio
+    async def test_401_triggers_refresh_and_retries(self):
+        async def refresh() -> EphemeralUserCredential:
+            return self._make_cred("github", "new-token")
+
+        executor = OpenAPIExecutor(
+            base_url="https://api.example.com",
+            auth_config=AuthConfig(),
+            service_name="github",
+            timeout=10.0,
+        )
+        request = httpx.Request("GET", "https://api.example.com/repos")
+        unauthorized = httpx.Response(401, headers={}, text="Unauthorized", request=request)
+        success = httpx.Response(
+            200,
+            headers={"content-type": "application/json"},
+            text='{"ok": true}',
+            request=request,
+        )
+        cred = self._make_cred("github", "expired-token", refresh_callback=refresh)
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            side_effect=[unauthorized, success],
+        ) as mock_secure_request:
+            async with with_user_credentials((cred,)):
+                result = await executor.execute(method="GET", path="/repos")
+
+        assert '"ok": true' in result
+        assert mock_secure_request.await_count == 2
+        second_call_headers = mock_secure_request.await_args_list[1].kwargs["headers"]
+        assert second_call_headers["Authorization"] == "Bearer new-token"
+
+    @pytest.mark.asyncio
+    async def test_401_refresh_failure_logs_and_falls_back(self):
+        async def refresh() -> EphemeralUserCredential:
+            raise RuntimeError("refresh exploded")
+
+        executor = OpenAPIExecutor(
+            base_url="https://api.example.com",
+            auth_config=AuthConfig(),
+            service_name="github",
+            timeout=10.0,
+        )
+        request = httpx.Request("GET", "https://api.example.com/repos")
+        unauthorized = httpx.Response(401, headers={}, text="Unauthorized", request=request)
+        cred = self._make_cred("github", "expired-token", refresh_callback=refresh)
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            return_value=unauthorized,
+        ) as mock_secure_request:
+            async with with_user_credentials((cred,)):
+                result = await executor.execute(method="GET", path="/repos")
+
+        assert "Error 401" in result
+        assert mock_secure_request.await_count == 1
+
+
+class TestExecuteExceptions:
+    """Test exception handling in request execution."""
+
+    @pytest.mark.asyncio
+    async def test_ssrf_blocked(self):
+        executor = OpenAPIExecutor(
+            base_url="https://api.example.com",
+            auth_config=AuthConfig(),
+            timeout=10.0,
+        )
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            side_effect=SSRFSecurityError("blocked"),
+        ):
+            result = await executor.execute(method="GET", path="/data")
+
+        assert "Blocked by SSRF policy" in result
+
+    @pytest.mark.asyncio
+    async def test_response_too_large(self):
+        executor = OpenAPIExecutor(
+            base_url="https://api.example.com",
+            auth_config=AuthConfig(),
+            timeout=10.0,
+        )
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.http_executor.secure_request",
+            new_callable=AsyncMock,
+            side_effect=ContentTooLargeError("too big"),
+        ):
+            result = await executor.execute(method="GET", path="/data")
+
+        assert "exceeded the download size limit" in result
+
+
+class TestFormattingEdgeCases:
+    """Test remaining response formatting branches."""
+
+    def test_plain_text_truncated(self):
+        response = httpx.Response(
+            200,
+            headers={"content-type": "text/plain"},
+            text="x" * 5000,
+        )
+        result = OpenAPIExecutor._format_response(response)
+        assert "truncated" in result
+        assert len(result) < 4500
+
+    def test_plain_text_error_response(self):
+        response = httpx.Response(
+            500,
+            headers={"content-type": "text/plain"},
+            text="boom",
+        )
+        result = OpenAPIExecutor._format_response(response)
+        assert result == "Error 500: boom"

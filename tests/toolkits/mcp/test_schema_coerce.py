@@ -168,6 +168,18 @@ def test_coerce_number_huge_exponent_integer_stays_string():
     assert coerced["v"] == "1e100000"
 
 
+def test_coerce_number_invalid_decimal_literal_keeps_string():
+    """Literals that are neither plain ints nor valid Decimals stay untouched.
+
+    "1.2.3" contains "." so it skips the plain-int path; Decimal() rejects it
+    (InvalidOperation) and float() rejects it too — the raw string is preserved.
+    """
+    schema = {"properties": {"v": {"type": "number"}}}
+    for raw in ("1.2.3", "1e.5", "12..5"):
+        coerced = coerce_arguments_by_schema(schema, {"v": raw})
+        assert coerced["v"] == raw, raw
+
+
 def test_coerce_arguments_recursive():
     schema = {
         "properties": {
@@ -691,3 +703,8 @@ def test_prepare_mcp_call_arguments_keeps_required_nullable_null():
     }
     prepared = prepare_mcp_call_arguments({"payload": None}, schema)
     assert prepared == {"payload": None}
+
+
+def test_prepare_mcp_call_arguments_empty_kwargs_passthrough():
+    prepared = prepare_mcp_call_arguments({}, {"type": "object", "properties": {}})
+    assert prepared == {}
