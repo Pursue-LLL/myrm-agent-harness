@@ -235,7 +235,9 @@ def _find_first_irrecoverable(
     errors).  When there is no successful tool call at all, the first error is
     the root cause.
 
-    Returns ``(errors_index, timestamp)`` or ``(None, None)`` when no errors exist.
+    Returns ``(errors_index, timestamp)`` for the first unrecovered error, or
+    ``(None, None)`` when every error was succeeded by a successful tool call
+    (execution recovered) or when no errors exist.
     """
     if not errors:
         return None, None
@@ -251,7 +253,8 @@ def _find_first_irrecoverable(
         ts = err.get("timestamp")
         if isinstance(ts, (int, float)) and ts > last_success_end:
             return idx, float(ts)
-    return len(errors) - 1, float(errors[-1].get("timestamp", 0) or 0)
+    # Every error predates the last successful tool call — each was recovered.
+    return None, None
 
 
 def _process_event(
@@ -343,8 +346,9 @@ def _process_event(
             "error": data.get("error") or data.get("message") or str(data),
             "error_type": data.get("error_type", "unknown"),
         }
-        # Surface deterministic attribution + recovery guidance for the GUI's
-        # post-mortem view (was previously dropped at aggregation time).
+        # Deterministic attribution + recovery guidance for the GUI's post-mortem
+        # view: fault side (who owns the failure), error kind, recovery actions,
+        # and the localized diagnostic payload.
         if fault_side := _str_or_none(data.get("fault_side")):
             error_entry["fault_side"] = fault_side
         if error_kind := _str_or_none(data.get("error_kind")):
@@ -352,6 +356,9 @@ def _process_event(
         recovery_actions = data.get("recovery_actions")
         if isinstance(recovery_actions, list):
             error_entry["recovery_actions"] = recovery_actions
+        diagnostic = data.get("diagnostic_result")
+        if isinstance(diagnostic, dict):
+            error_entry["diagnostic_result"] = diagnostic
         trace.errors.append(error_entry)
 
     elif et == "llm_request":

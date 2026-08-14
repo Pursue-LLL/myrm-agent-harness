@@ -71,7 +71,7 @@ def test_update_gauges() -> None:
     assert dlq_size._value.get() == 10
 
 
-def test_record_llm_metrics() -> None:
+def test_record_llm_cost_and_tokens() -> None:
     before_cost = llm_cost_usd.labels(skill_id="test_skill", model="gpt-4")._value.get()
     before_prompt = llm_tokens.labels(skill_id="test_skill", model="gpt-4", token_type="prompt")._value.get()
     before_completion = llm_tokens.labels(skill_id="test_skill", model="gpt-4", token_type="completion")._value.get()

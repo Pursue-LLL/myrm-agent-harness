@@ -201,6 +201,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
                             tool_call.get("name", "unknown"),
                             "DENY",
                             "Approval rate limit exceeded",
+                            tool_call_id=tool_call.get("id", ""),
                         )
                     pending_approval.clear()
 
@@ -459,6 +460,7 @@ class ToolApprovalMiddleware(AgentMiddleware[Any, Any, Any]):
                     tool_call.get("name", "unknown"),
                     "SUBAGENT_AUTO_DENY",
                     "Autonomous subagent blocked from triggering UI approval flow (missing task_id)",
+                    tool_call_id=tool_call.get("id", ""),
                 )
             else:
                 revised_tool_calls.append(tool_call)

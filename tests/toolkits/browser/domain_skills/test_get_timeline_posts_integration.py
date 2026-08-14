@@ -10,6 +10,9 @@ import json
 
 import pytest
 
+from myrm_agent_harness.core.security.detection.content_boundary import (
+    extract_wrapped_payload,
+)
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.session import BrowserSession
 from myrm_agent_harness.toolkits.browser.tools import create_browser_tools
@@ -44,6 +47,11 @@ def _browser_manage_tool(session: BrowserSession):
     return {tool.name: tool for tool in tools}["browser_manage_tool"]
 
 
+def _parse_posts(result: str) -> list[dict[str, object]]:
+    """Parse run_site_tool JSON output after unwrapping the security envelope."""
+    return json.loads(extract_wrapped_payload(result))
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_run_site_tool_extracts_article_posts(browser_session: BrowserSession) -> None:
@@ -61,9 +69,9 @@ async def test_run_site_tool_extracts_article_posts(browser_session: BrowserSess
     )
 
     assert not result.startswith("Error"), result
-    posts = json.loads(result)
+    posts = _parse_posts(result)
     assert len(posts) >= 2
-    combined = " ".join(post.get("text", "") for post in posts)
+    combined = " ".join(str(post.get("text", "")) for post in posts)
     assert "First X-style timeline post" in combined
     assert "Second X-style timeline post" in combined
 
@@ -84,7 +92,7 @@ async def test_run_site_tool_respects_max_posts(browser_session: BrowserSession)
         }
     )
 
-    posts = json.loads(result)
+    posts = _parse_posts(result)
     assert len(posts) == 1
 
 
@@ -191,9 +199,9 @@ async def test_run_site_tool_fallback_extract_text_without_article_role(
     )
 
     assert not result.startswith("Error"), result
-    posts = json.loads(result)
+    posts = _parse_posts(result)
     assert len(posts) >= 1
-    combined = " ".join(post.get("text", "") for post in posts)
+    combined = " ".join(str(post.get("text", "")) for post in posts)
     assert "Fallback paragraph" in combined
 
 

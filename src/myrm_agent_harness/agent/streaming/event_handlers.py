@@ -26,6 +26,7 @@ from typing import cast
 
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
+from myrm_agent_harness.agent.errors.fault_side import FaultSide
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.toolkits.code_execution.executors.models import (
     scrub_sensitive_info,
@@ -180,6 +181,11 @@ async def _handle_tool_result(
             "error": scrub_sensitive_info(error_content),
             "messageId": message_id,
         }
+
+        # Deterministic fault-side attribution: a ToolMessage with status=error
+        # means the built-in tool itself failed — attribute to HARNESS_TOOL so
+        # the GUI shows who owns the failure.
+        event["fault_side"] = FaultSide.HARNESS_TOOL.value
 
         # Propagate diagnostic metadata for business layer (server) to consume
         if error_category := msg.additional_kwargs.get("error_category"):

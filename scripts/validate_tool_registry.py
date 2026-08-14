@@ -182,8 +182,8 @@ def _check_governance_coverage() -> tuple[list[str], dict[str, object]]:
     per-tool / per-permission-type audit table for ``--json`` output.
     """
     from myrm_agent_harness.core.security.tool_registry import (
-        AUTO_APPROVED_BUILTIN_TOOLS,
         AUTO_APPROVE_REASONS,
+        AUTO_APPROVED_BUILTIN_TOOLS,
         BUILTIN_TOOL_NAMES,
         DYNAMICALLY_RESOLVED_TOOL_NAMES,
         EXPLICIT_MCP_FALLBACK_TOOLS,

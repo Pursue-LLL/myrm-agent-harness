@@ -56,7 +56,7 @@ class MockConfig:
     semantic_collection = "test_semantic"
     episodic_collection = "test_episodic"
 
-    class dedup:
+    class Dedup:
         high_threshold = 0.95
         low_threshold = 0.60
 

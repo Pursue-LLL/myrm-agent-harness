@@ -217,6 +217,39 @@ async def test_emit_fatal_error_with_llm_info(fire_hook_mock, base_ctx):
     ]
     assert len(error_events) == 1
     assert "diagnostic_result" in error_events[0]
+    assert error_events[0].get("fault_side") in {
+        "model",
+        "harness_tool",
+        "harness_pipeline",
+        "env",
+        "grader",
+        "owner",
+        "unknown",
+    }
+
+
+@pytest.mark.asyncio
+@patch("myrm_agent_harness.agent.hooks.executor.fire_hook", new_callable=AsyncMock)
+async def test_emit_fatal_error_attributes_env_fault_side(fire_hook_mock, base_ctx):
+    """Billing-style fatal errors must be attributed to the environment side."""
+    from myrm_agent_harness.toolkits.llms.errors import MyrmLLMError
+
+    executor = _make_executor(base_ctx)
+
+    async def _astream_fatal(*args, **kwargs):
+        raise RuntimeError("Insufficient quota for billing")
+        yield
+
+    base_ctx.agent.astream = _astream_fatal
+
+    with pytest.raises(MyrmLLMError):
+        await executor.execute()
+
+    error_events = [
+        e for e in executor._compactor.events if isinstance(e, dict) and e.get("type") == AgentEventType.ERROR.value
+    ]
+    assert len(error_events) == 1
+    assert error_events[0].get("fault_side") == "env"
 
 
 @pytest.mark.asyncio

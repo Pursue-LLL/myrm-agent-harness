@@ -1,7 +1,6 @@
 """Unit tests for GlobalBrowserPool and PagePool"""
 
 import asyncio
-import shutil
 import signal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -15,9 +14,11 @@ from myrm_agent_harness.toolkits.browser.pool import (
     GlobalBrowserPool,
 )
 from myrm_agent_harness.toolkits.browser.pool.config import LaunchMode
+from tests.toolkits.browser._browser_available import chromium_available
 
-_HAS_CHROMIUM = shutil.which("chromium") is not None or shutil.which("google-chrome") is not None
-requires_browser = pytest.mark.skipif(not _HAS_CHROMIUM, reason="Chromium/Patchright not installed in this environment")
+requires_browser = pytest.mark.skipif(
+    not chromium_available(), reason="Chromium/Patchright not installed in this environment"
+)
 
 
 @pytest.fixture

@@ -637,6 +637,110 @@ class TestEdgeCases:
         assert d["tool_calls"][0]["input_data"] == {"command": "echo hi"}
         assert d["tool_calls"][0]["output_data"] == "hi\n"
 
+
+# ---------------------------------------------------------------------------
+# Instruction lineage: tool_call_id / message_id attribution
+# ---------------------------------------------------------------------------
+
+
+class TestLineageAttribution:
+    @pytest.mark.asyncio
+    async def test_concurrent_same_tool_paired_by_call_id(self) -> None:
+        """Concurrent calls to the same tool must pair by tool_call_id, not FIFO order."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash", tool_call_id="call-a", message_id="msg-1"),
+            _event(3, "tool_start", tool_name="bash", tool_call_id="call-b", message_id="msg-2"),
+            # End events arrive in reversed completion order.
+            _event(4, "tool_end", tool_name="bash", tool_call_id="call-b", duration_ms=200.0),
+            _event(5, "tool_end", tool_name="bash", tool_call_id="call-a", duration_ms=100.0),
+            _event(6, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 2
+        by_id = {tc.tool_call_id: tc for tc in trace.tool_calls}
+        assert by_id["call-a"].sequence == 2
+        assert by_id["call-a"].duration_ms == 100.0
+        assert by_id["call-a"].message_id == "msg-1"
+        assert by_id["call-b"].sequence == 3
+        assert by_id["call-b"].duration_ms == 200.0
+        assert by_id["call-b"].message_id == "msg-2"
+
+    @pytest.mark.asyncio
+    async def test_failure_paired_by_call_id(self) -> None:
+        """tool_failure must consume the pending tool matching its tool_call_id."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash", tool_call_id="call-a", message_id="msg-1"),
+            _event(3, "tool_start", tool_name="bash", tool_call_id="call-b"),
+            _event(4, "tool_failure", tool_name="bash", tool_call_id="call-a", error="boom", duration_ms=30.0),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].tool_call_id == "call-a"
+        assert trace.tool_calls[0].message_id == "msg-1"
+        assert trace.tool_calls[0].error == "boom"
+
+    @pytest.mark.asyncio
+    async def test_to_dict_serializes_lineage_fields(self) -> None:
+        """tool_call_id and message_id survive to_dict serialization."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash", tool_call_id="call-1", message_id="msg-1"),
+            _event(3, "tool_end", tool_name="bash", tool_call_id="call-1", duration_ms=50.0),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        d = trace.to_dict()
+        assert d["tool_calls"][0]["tool_call_id"] == "call-1"
+        assert d["tool_calls"][0]["message_id"] == "msg-1"
+
+    @pytest.mark.asyncio
+    async def test_legacy_events_fall_back_to_fifo(self) -> None:
+        """Events without tool_call_id keep the previous FIFO pairing behavior."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash"),
+            _event(3, "tool_start", tool_name="bash"),
+            _event(4, "tool_end", tool_name="bash", duration_ms=100.0),
+            _event(5, "tool_end", tool_name="bash", duration_ms=200.0),
+            _event(6, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 2
+        assert trace.tool_calls[0].sequence == 2
+        assert trace.tool_calls[0].duration_ms == 100.0
+        assert trace.tool_calls[1].sequence == 3
+        assert trace.tool_calls[1].duration_ms == 200.0
+
+    @pytest.mark.asyncio
+    async def test_call_id_match_wins_over_older_pending(self) -> None:
+        """An id-tagged tool_end must pair with its own call even when an older
+        untagged pending tool of the same name exists."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="web_search"),  # legacy, no id
+            _event(3, "tool_start", tool_name="web_search", tool_call_id="call-9", message_id="msg-9"),
+            _event(4, "tool_end", tool_name="web_search", tool_call_id="call-9", duration_ms=500.0),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].tool_call_id == "call-9"
+        assert trace.tool_calls[0].message_id == "msg-9"
+        assert trace.tool_calls[0].duration_ms == 500.0
+
     @pytest.mark.asyncio
     async def test_token_usage_legacy_end_time_fallback(self) -> None:
         ts = 1700000005.0
@@ -722,3 +826,181 @@ class TestEdgeCases:
         assert lc.end_time == ts + 2
         assert lc.start_time == lc.end_time - 3.0
         assert lc.duration_ms == 3000.0
+
+
+# ---------------------------------------------------------------------------
+# Fault-side attribution & first-irrecoverable
+# ---------------------------------------------------------------------------
+
+
+class TestFaultSideAttribution:
+    @pytest.mark.asyncio
+    async def test_error_event_carries_fault_side(self) -> None:
+        """error events must surface fault_side + error_kind + recovery_actions."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "error",
+                error="rate limit",
+                error_type="MyrmLLMError",
+                error_kind="rate_limit",
+                fault_side="env",
+                recovery_actions=[{"id": "retry", "label": "Retry", "url": "command://retry"}],
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.errors) == 1
+        err = trace.errors[0]
+        assert err["fault_side"] == "env"
+        assert err["error_kind"] == "rate_limit"
+        assert err["recovery_actions"] == [{"id": "retry", "label": "Retry", "url": "command://retry"}]
+
+        d = trace.to_dict()
+        assert d["errors"][0]["fault_side"] == "env"
+
+    @pytest.mark.asyncio
+    async def test_error_without_fault_side_omits_field(self) -> None:
+        """Legacy error events without attribution must not inject fake values."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "error", error="boom", error_type="ValueError"),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.errors) == 1
+        assert "fault_side" not in trace.errors[0]
+
+    @pytest.mark.asyncio
+    async def test_error_event_carries_diagnostic_result(self) -> None:
+        """error events must surface the localized diagnostic (recovery steps)."""
+        events = [
+            _event(1, "session_start"),
+            _event(
+                2,
+                "error",
+                error="billing exhausted",
+                error_type="MyrmLLMError",
+                error_kind="billing",
+                fault_side="env",
+                diagnostic_result={
+                    "error_type": "billing",
+                    "user_message": "Billing limit reached",
+                    "resolution_steps": ["Top up your account", "Retry in a few minutes"],
+                    "locale": "en",
+                },
+            ),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.errors) == 1
+        err = trace.errors[0]
+        assert err["diagnostic_result"] == {
+            "error_type": "billing",
+            "user_message": "Billing limit reached",
+            "resolution_steps": ["Top up your account", "Retry in a few minutes"],
+            "locale": "en",
+        }
+
+        d = trace.to_dict()
+        assert d["errors"][0]["diagnostic_result"]["resolution_steps"][0] == "Top up your account"
+
+    @pytest.mark.asyncio
+    async def test_error_without_diagnostic_omits_field(self) -> None:
+        """error events without a diagnostic payload must not inject one."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "error", error="boom", error_type="ValueError"),
+            _event(3, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.errors) == 1
+        assert "diagnostic_result" not in trace.errors[0]
+
+    @pytest.mark.asyncio
+    async def test_tool_failure_carries_fault_side(self) -> None:
+        """tool_failure events must surface fault_side on the ToolCallRecord."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash", tool_call_id="c1"),
+            _event(3, "tool_failure", tool_name="bash", tool_call_id="c1", error="segfault", fault_side="harness_tool"),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.tool_calls) == 1
+        assert trace.tool_calls[0].fault_side == "harness_tool"
+        assert trace.tool_calls[0].success is False
+
+        d = trace.to_dict()
+        assert d["tool_calls"][0]["fault_side"] == "harness_tool"
+
+
+class TestFirstIrrecoverable:
+    @pytest.mark.asyncio
+    async def test_marks_first_error_in_failure_trace(self) -> None:
+        """The earliest error in a failing trace is the first-irrecoverable point."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "error", error="first", error_type="ValueError"),
+            _event(3, "tool_start", tool_name="bash"),
+            _event(4, "error", error="second", error_type="IOError"),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.first_irrecoverable_index == 0
+        assert trace.first_irrecoverable_timestamp is not None
+        assert trace.errors[0]["timestamp"] == trace.first_irrecoverable_timestamp
+
+        d = trace.to_dict()
+        assert d["first_irrecoverable_index"] == 0
+
+    @pytest.mark.asyncio
+    async def test_recovered_errors_have_no_irrecoverable_point(self) -> None:
+        """Errors succeeded by a successful tool call were recovered — no irrecoverable point."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "error", error="transient", error_type="MyrmLLMError"),
+            _event(3, "tool_start", tool_name="bash"),
+            _event(4, "tool_end", tool_name="bash", duration_ms=100.0),
+            _event(5, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert len(trace.errors) == 1
+        assert trace.first_irrecoverable_index is None
+        assert trace.first_irrecoverable_timestamp is None
+
+        d = trace.to_dict()
+        assert d["first_irrecoverable_index"] is None
+
+    @pytest.mark.asyncio
+    async def test_no_errors_leaves_first_irrecoverable_none(self) -> None:
+        """Successful traces have no irrecoverable point."""
+        events = [
+            _event(1, "session_start"),
+            _event(2, "tool_start", tool_name="bash"),
+            _event(3, "tool_end", tool_name="bash"),
+            _event(4, "session_end"),
+        ]
+        backend = InMemoryBackend({"sess-1": events})
+        trace = await build_trace(backend, "sess-1")
+
+        assert trace.first_irrecoverable_index is None
+        assert trace.first_irrecoverable_timestamp is None
+
+        d = trace.to_dict()
+        assert d["first_irrecoverable_index"] is None

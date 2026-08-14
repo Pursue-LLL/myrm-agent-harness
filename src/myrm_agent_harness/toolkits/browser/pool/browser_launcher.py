@@ -30,6 +30,7 @@ import contextlib
 import json
 import logging
 import os
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -127,11 +128,12 @@ async def _auto_install_chromium() -> bool:
         logger.info("Auto-installing Chromium via patchright (this may take a few minutes)...")
         try:
             env = await asyncio.get_running_loop().run_in_executor(None, _get_install_env)
+            # Invoke via `python -m patchright` so install works regardless of PATH
+            # (the `patchright` CLI may live in a venv bin dir that is not on PATH).
+            install_args = [sys.executable, "-m", "patchright", "install", "chromium"]
             proc = await asyncio.wait_for(
                 asyncio.create_subprocess_exec(
-                    "patchright",
-                    "install",
-                    "chromium",
+                    *install_args,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     env=env,

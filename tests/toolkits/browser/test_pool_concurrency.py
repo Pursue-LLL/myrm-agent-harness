@@ -2,7 +2,6 @@
 
 import asyncio
 import contextlib
-import shutil
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,9 +11,11 @@ from myrm_agent_harness.toolkits.browser.pool.config import (
     BrowserPoolConfig,
     ThrottleMode,
 )
+from tests.toolkits.browser._browser_available import chromium_available
 
-_HAS_CHROMIUM = shutil.which("chromium") is not None or shutil.which("google-chrome") is not None
-requires_browser = pytest.mark.skipif(not _HAS_CHROMIUM, reason="Chromium/Patchright not installed in this environment")
+requires_browser = pytest.mark.skipif(
+    not chromium_available(), reason="Chromium/Patchright not installed in this environment"
+)
 
 pytestmark = [pytest.mark.integration, requires_browser]
 
@@ -142,19 +143,18 @@ class TestNavigatorThrottleIntegration:
         from myrm_agent_harness.toolkits.browser.navigation import Navigator
 
         mock_page = AsyncMock()
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_page.goto = AsyncMock(return_value=mock_response)
-        mock_page.url = "https://example.com"
-        mock_page.evaluate = AsyncMock(return_value={"stable": True, "inflightRequests": 0})
-
         mock_throttle = MagicMock()
         mock_throttle.before_navigate = AsyncMock()
         mock_throttle.record_response = MagicMock()
 
         navigator = Navigator(mock_page, throttle=mock_throttle)
 
-        await navigator.goto("https://example.com")
+        with patch.object(
+            Navigator,
+            "_do_navigate",
+            new=AsyncMock(return_value=("Example Title", "https://example.com", 200)),
+        ):
+            await navigator.goto("https://example.com")
 
         mock_throttle.before_navigate.assert_called_once_with("https://example.com")
         mock_throttle.record_response.assert_called_once_with("https://example.com", True)
@@ -164,16 +164,18 @@ class TestNavigatorThrottleIntegration:
         """Test Navigator records failure on exception"""
         from myrm_agent_harness.toolkits.browser.navigation import Navigator
 
-        mock_page = MagicMock()
-        mock_page.goto = AsyncMock(side_effect=RuntimeError("Navigation failed"))
-
+        mock_page = AsyncMock()
         mock_throttle = MagicMock()
         mock_throttle.before_navigate = AsyncMock()
         mock_throttle.record_response = MagicMock()
 
         navigator = Navigator(mock_page, throttle=mock_throttle)
 
-        with pytest.raises(RuntimeError):
+        with patch.object(
+            Navigator,
+            "_do_navigate",
+            new=AsyncMock(side_effect=RuntimeError("Navigation failed")),
+        ), pytest.raises(RuntimeError):
             await navigator.goto("https://example.com")
 
         mock_throttle.record_response.assert_called_once_with("https://example.com", False)
@@ -184,15 +186,15 @@ class TestNavigatorThrottleIntegration:
         from myrm_agent_harness.toolkits.browser.navigation import Navigator
 
         mock_page = AsyncMock()
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_page.goto = AsyncMock(return_value=mock_response)
-        mock_page.url = "https://example.com"
-        mock_page.evaluate = AsyncMock(return_value={"stable": True, "inflightRequests": 0})
 
         navigator = Navigator(mock_page, throttle=None)
 
-        await navigator.goto("https://example.com")
+        with patch.object(
+            Navigator,
+            "_do_navigate",
+            new=AsyncMock(return_value=("Example Title", "https://example.com", 200)),
+        ):
+            await navigator.goto("https://example.com")
 
 
 class TestBrowserPoolConfigIntegration:
@@ -328,7 +330,6 @@ class TestEndToEndConcurrencyControl:
 class TestBrowserFetcherNavigatorIntegration:
     """Tests for BrowserFetcher using Navigator"""
 
-    @pytest.mark.skip(reason="Network unavailable in test environment")
     @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_browser_fetcher_uses_navigator(self):

@@ -89,6 +89,64 @@ async def test_log_bash_command_execution_with_error() -> None:
     assert event_data["error_message"] == "Operation not permitted"
 
 
+@patch(
+    "myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer.get_current_message_id",
+    return_value="msg-42",
+)
+@pytest.mark.asyncio
+async def test_log_bash_command_execution_includes_message_id(mock_msg_id) -> None:
+    """When a turn-level message id is available, it is attached to the event."""
+    from myrm_agent_harness.agent.meta_tools.bash._executor.event_logging import (
+        log_bash_command_execution,
+    )
+
+    mock_logger = AsyncMock()
+    mock_logger.log = AsyncMock()
+
+    with patch(_PATCH_GET_LOGGER, return_value=mock_logger):
+        await log_bash_command_execution(
+            command="git log --oneline",
+            session_id="test-session",
+            exit_code=0,
+            stdout="abc123",
+            stderr="",
+            duration_ms=40,
+            success=True,
+        )
+
+    event_data = mock_logger.log.call_args[0][1]
+    assert event_data["message_id"] == "msg-42"
+
+
+@patch(
+    "myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer.get_current_message_id",
+    return_value=None,
+)
+@pytest.mark.asyncio
+async def test_log_bash_command_execution_omits_message_id_when_absent(mock_msg_id) -> None:
+    """When no turn message id is active, the event carries no message_id field."""
+    from myrm_agent_harness.agent.meta_tools.bash._executor.event_logging import (
+        log_bash_command_execution,
+    )
+
+    mock_logger = AsyncMock()
+    mock_logger.log = AsyncMock()
+
+    with patch(_PATCH_GET_LOGGER, return_value=mock_logger):
+        await log_bash_command_execution(
+            command="echo hi",
+            session_id="test-session",
+            exit_code=0,
+            stdout="hi",
+            stderr="",
+            duration_ms=5,
+            success=True,
+        )
+
+    event_data = mock_logger.log.call_args[0][1]
+    assert "message_id" not in event_data
+
+
 @pytest.mark.asyncio
 async def test_log_bash_command_execution_exception_safe() -> None:
     """If logging raises, function catches silently (failure-safe)."""

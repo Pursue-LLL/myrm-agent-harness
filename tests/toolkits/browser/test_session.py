@@ -59,7 +59,6 @@ async def test_create_and_close_tab(session: BrowserSession) -> None:
     assert len(tabs) == 1
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_navigate(session: BrowserSession) -> None:
     """测试页面导航"""
@@ -68,7 +67,6 @@ async def test_navigate(session: BrowserSession) -> None:
     assert "status=200" in result
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_snapshot(session: BrowserSession) -> None:
     """测试快照生成"""
@@ -80,7 +78,6 @@ async def test_snapshot(session: BrowserSession) -> None:
     assert metadata["estimated_tokens"] > 0
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_snapshot_diff(session: BrowserSession) -> None:
     """测试快照 diff"""
@@ -93,7 +90,6 @@ async def test_snapshot_diff(session: BrowserSession) -> None:
     assert "--- Snapshot diff ---" in aria_tree2 or "unchanged" in aria_tree2.lower()
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_extract_text(session: BrowserSession) -> None:
     """测试文本提取"""
@@ -104,7 +100,6 @@ async def test_extract_text(session: BrowserSession) -> None:
     assert "example" in text.lower()
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_extract_screenshot(session: BrowserSession) -> None:
     """测试截图提取"""
@@ -114,7 +109,6 @@ async def test_extract_screenshot(session: BrowserSession) -> None:
     assert len(screenshot) > 100
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_switch_tab(session: BrowserSession) -> None:
     """测试 Tab 切换"""
@@ -137,7 +131,6 @@ async def test_switch_tab(session: BrowserSession) -> None:
     assert len(text2) > 0
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_evaluate(session: BrowserSession) -> None:
     """测试 JS 执行"""
@@ -146,7 +139,6 @@ async def test_evaluate(session: BrowserSession) -> None:
     assert "example" in result.lower()
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_go_back_forward(session: BrowserSession) -> None:
     """测试前进后退"""
@@ -166,7 +158,6 @@ async def test_resize(session: BrowserSession) -> None:
     assert "720" in result
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_wait_for_load(session: BrowserSession) -> None:
     """测试等待加载"""
@@ -175,7 +166,6 @@ async def test_wait_for_load(session: BrowserSession) -> None:
     assert "load" in result.lower() or "completed" in result.lower()
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_save_pdf(session: BrowserSession) -> None:
     """测试 PDF 导出"""
@@ -185,7 +175,6 @@ async def test_save_pdf(session: BrowserSession) -> None:
     assert "Saved" in result
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.asyncio
 async def test_session_persistence(session: BrowserSession) -> None:
     """测试会话持久化"""

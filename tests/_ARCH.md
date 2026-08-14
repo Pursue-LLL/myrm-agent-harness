@@ -51,6 +51,30 @@ Real Chromium tests under `tests/toolkits/browser/` must carry `integration` or 
 | CI performance | `.github/workflows/performance.yml` | `tests/performance/ -m performance -n0` |
 | CI browser | `.github/workflows/test.yml` job `browser-integration` | `-n0`, Patchright Chromium |
 
+## Browser integration pitfalls（实测经验，2026-08）
+
+1. **pytest-asyncio loop scope 必须 pin 为 module**：`pyproject.toml` 已全局设置
+   `asyncio_default_test_loop_scope = "module"` + `asyncio_default_fixture_loop_scope = "module"`。
+   Browser 集成测试用 module-scoped async fixture（如 `GlobalBrowserPool.warmup`）持有 patchright
+   连接，其 coroutine 绑定 fixture 所在的 event loop；若测试跑在默认 function-scoped loop 上，
+   跨 loop await 会永久挂起直到 `--timeout=300` 超时。**禁止**用 `--override-ini=asyncio_default_*_loop_scope=function`
+   降级此配置。
+
+2. **`set_content` 会替换 `document.body` 节点但保留 window/document**（`document.write` 语义）。
+   在 `new_tab` 阶段已被安装的 MutationObserver 会悄然观察已脱离文档的旧 body，
+   `getChanges()` 永远返回空。快照链路通过 `ObserverManager.ensure_active()`
+   （`observer_scripts.py` 的 `ensureActive()` 比较 `bodyRef`）在每次 capture 时自愈。
+   测试里若发现 observer 失效，先检查 body 引用是否已变（探针：
+   `window.__savedBody.isConnected === false` 即被替换）。
+
+3. **本地地址测试注意 SSRF guard 与 domain_filter 叠加**：SSRF guard（`navigation/ssrf_guard.py`）
+   会在 `domain_filter` 之前拦截私有网段请求（127.0.0.1 等），返回通用 `ERR_FAILED`。
+   验证 domain_filter 的 allow/block 行为时须在 `BrowserSession` 显式传 `allow_private_networks=True`，
+   并用本地 `ThreadingHTTPServer` 做真实页面源，避免外部网络依赖。
+
+4. **`run_site_tool` 输出经 `mark_untrusted` 包裹**（BROWSER_SYSTEM.md 统一安全出口）。
+   程序化消费必须走 `extract_wrapped_payload()` 解包后再 `json.loads`，不要直接对裸结果解析。
+
 ## Key Dependencies
 
 - `pyproject.toml` `[tool.pytest.ini_options]` markers and `addopts`

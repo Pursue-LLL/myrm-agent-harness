@@ -297,6 +297,137 @@ def test_coerce_arguments_array_from_ast_literal_single_quotes():
     assert coerced["items"] == ["a", "b"]
 
 
+def test_coerce_array_bare_string_wrapped_single_element():
+    """Bare string for an array schema wraps into a single-element list.
+
+    Mirrors hermes-agent: open-weight models emit ``{"urls": "https://a.com"}``
+    when the tool expects ``urls: array<string>``.
+    """
+    schema = {"properties": {"urls": {"type": "array", "items": {"type": "string"}}}}
+    coerced = coerce_arguments_by_schema(schema, {"urls": "https://a.com"})
+    assert coerced["urls"] == ["https://a.com"]
+
+
+def test_coerce_array_bare_int_wrapped_single_element():
+    """Bare non-string scalar for an array schema wraps too."""
+    schema = {"properties": {"nums": {"type": "array", "items": {"type": "integer"}}}}
+    coerced = coerce_arguments_by_schema(schema, {"nums": 5})
+    assert coerced["nums"] == [5]
+
+
+def test_coerce_array_already_list_untouched():
+    """Existing list for an array schema stays as-is."""
+    schema = {"properties": {"nums": {"type": "array", "items": {"type": "integer"}}}}
+    coerced = coerce_arguments_by_schema(schema, {"nums": [1, 2, 3]})
+    assert coerced["nums"] == [1, 2, 3]
+
+
+def test_coerce_array_null_not_wrapped():
+    """None stays None — wrapping [] would hide the model's 'omit' intent."""
+    schema = {"properties": {"urls": {"type": ["array", "null"], "items": {"type": "string"}}}}
+    coerced = coerce_arguments_by_schema(schema, {"urls": None})
+    assert coerced["urls"] is None
+
+
+def test_coerce_array_union_accepting_string_not_wrapped():
+    """Union array|string: a string already satisfies the schema — no wrap."""
+    schema = {"properties": {"value": {"type": ["array", "string"]}}}
+    coerced = coerce_arguments_by_schema(schema, {"value": "single"})
+    assert coerced["value"] == "single"
+
+
+def test_coerce_array_json_array_string_parsed_then_items_coerced():
+    """JSON-encoded array strings still parse; items coerce via items schema."""
+    schema = {"properties": {"items": {"type": "array", "items": {"type": "integer"}}}}
+    coerced = coerce_arguments_by_schema(schema, {"items": "[1, '2']"})
+    assert coerced["items"] == [1, 2]
+
+
+def test_coerce_array_wrapped_item_coerced_by_items_schema():
+    """Wrapped single element is recursively coerced by the items schema."""
+    schema = {"properties": {"counts": {"type": "array", "items": {"type": "integer"}}}}
+    coerced = coerce_arguments_by_schema(schema, {"counts": "3"})
+    assert coerced["counts"] == [3]
+    assert isinstance(coerced["counts"][0], int)
+
+
+def test_coerce_array_markdown_wrapped_failed_container_string():
+    """Markdown-wrapped container strings wrap identically to bare ones.
+
+    The wrapping heuristic must judge the markdown-stripped value, otherwise a
+    ````` ```json [abc ``` ```` value is wrapped without the parse-failure
+    warning that a bare ``[abc`` triggers — inconsistent behavior.
+    """
+    schema = {"properties": {"items": {"type": "array", "items": {"type": "string"}}}}
+    bare = coerce_arguments_by_schema(schema, {"items": "[abc"})
+    markdown = coerce_arguments_by_schema(schema, {"items": "```json\n[abc\n```"})
+    assert bare["items"] == ["[abc"]
+    assert markdown["items"] == ["[abc"]
+    assert bare == markdown
+
+
+def test_coerce_array_markdown_wrapped_valid_json_parsed():
+    """Markdown-wrapped valid JSON arrays still parse to native lists."""
+    schema = {"properties": {"items": {"type": "array", "items": {"type": "string"}}}}
+    coerced = coerce_arguments_by_schema(schema, {"items": "```json\n[\"a\", \"b\"]\n```"})
+    assert coerced["items"] == ["a", "b"]
+
+
+def test_coerce_boolean_from_int_one_zero():
+    """int 1/0 → boolean for boolean schemas (openclaw bidirectional)."""
+    schema = {"properties": {"enabled": {"type": "boolean"}}}
+    assert coerce_arguments_by_schema(schema, {"enabled": 1})["enabled"] is True
+    assert coerce_arguments_by_schema(schema, {"enabled": 0})["enabled"] is False
+
+
+def test_coerce_boolean_from_float_one_zero():
+    """Float forms 1.0/0.0 → boolean, matching openclaw's typeof number check."""
+    schema = {"properties": {"enabled": {"type": "boolean"}}}
+    assert coerce_arguments_by_schema(schema, {"enabled": 1.0})["enabled"] is True
+    assert coerce_arguments_by_schema(schema, {"enabled": 0.0})["enabled"] is False
+
+
+def test_coerce_int_from_boolean():
+    """boolean → int 1/0 for integer/number schemas (openclaw bidirectional)."""
+    schema = {"properties": {"max": {"type": "integer"}, "ratio": {"type": "number"}}}
+    assert coerce_arguments_by_schema(schema, {"max": True, "ratio": False}) == {"max": 1, "ratio": 0}
+
+
+def test_coerce_boolean_int_outside_01_untouched():
+    """int outside {0,1} is never silently converted to boolean."""
+    schema = {"properties": {"enabled": {"type": "boolean"}}}
+    assert coerce_arguments_by_schema(schema, {"enabled": 5})["enabled"] == 5
+
+
+def test_coerce_boolean_union_int_accepted_not_converted():
+    """Union boolean|integer: an int already satisfies the schema — no flip."""
+    schema = {"properties": {"flag": {"type": ["boolean", "integer"]}}}
+    assert coerce_arguments_by_schema(schema, {"flag": 1})["flag"] == 1
+
+
+def test_coerce_boolean_native_bool_untouched():
+    """Native True/False for boolean schemas stays as-is."""
+    schema = {"properties": {"enabled": {"type": "boolean"}}}
+    assert coerce_arguments_by_schema(schema, {"enabled": True})["enabled"] is True
+    assert coerce_arguments_by_schema(schema, {"enabled": False})["enabled"] is False
+
+
+def test_coerce_json_string_over_length_limit_not_parsed():
+    """>64KB JSON container strings skip parsing (CPU/memory DoS guard)."""
+    schema = {"properties": {"payload": {"type": ["object", "null"]}}}
+    huge = "{" + "x" * (64 * 1024 + 10) + "}"
+    coerced = coerce_arguments_by_schema(schema, {"payload": huge})
+    assert coerced["payload"] == huge
+
+
+def test_coerce_array_over_length_not_wrapped():
+    """>64KB container-like strings aren't wrapped into a single-element list."""
+    schema = {"properties": {"items": {"type": "array"}}}
+    huge = "[" + "x" * (64 * 1024 + 10) + "]"
+    coerced = coerce_arguments_by_schema(schema, {"items": huge})
+    assert coerced["items"] == huge
+
+
 def test_coerce_arguments_object_invalid_literal_keeps_string():
     schema = {"properties": {"payload": {"type": "object"}}}
     kwargs = {"payload": "{'x':"}
@@ -511,6 +642,22 @@ def test_schema_coercion_stats_tracks_ast_type_guard_rejection():
     assert coerced["payload"] == "True"
     assert stats["coerce_argument_calls"] >= 1
     assert stats["ast_type_guard_rejections"] >= 1
+
+
+def test_schema_coercion_stats_tracks_array_wrap_and_bool_cross():
+    """New counters: bare-scalar array wraps and 1/0↔boolean cross-coercions."""
+    reset_schema_coercion_stats()
+    coerce_arguments_by_schema(
+        {"properties": {"labels": {"type": "array", "items": {"type": "string"}}}},
+        {"labels": "bug"},
+    )
+    coerce_arguments_by_schema(
+        {"properties": {"enabled": {"type": "boolean"}}},
+        {"enabled": 1},
+    )
+    stats = get_schema_coercion_stats()
+    assert stats["scalar_to_array_wraps"] == 1
+    assert stats["bool_number_cross_coercions"] == 1
 
 
 # ---------------------------------------------------------------------------

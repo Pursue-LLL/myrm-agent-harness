@@ -18,9 +18,11 @@ MUTATION_OBSERVER_SCRIPT = """
   window.__ariaObserver = {
     changes: [],
     observers: [],
+    bodyRef: null,
 
     init: function() {
-      if (this.observers.length > 0) return;
+      if (this.observers.length > 0 && this.bodyRef === document.body) return;
+      this.bodyRef = document.body;
 
       const callback = (mutations) => {
         for (const mutation of mutations) {
@@ -89,6 +91,19 @@ MUTATION_OBSERVER_SCRIPT = """
         if (classes.length > 0) return element.tagName.toLowerCase() + '.' + classes.join('.');
       }
       return element.tagName.toLowerCase();
+    },
+
+    ensureActive: function() {
+      if (this.observers.length > 0 && this.bodyRef === document.body) {
+        return false;
+      }
+      this.changes = [];
+      for (const obs of this.observers) {
+        obs.disconnect();
+      }
+      this.observers = [];
+      this.init();
+      return true;
     },
 
     getChanges: function() {

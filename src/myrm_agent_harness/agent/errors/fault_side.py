@@ -182,6 +182,7 @@ _ENV_DIAGNOSTIC_TYPES: frozenset[str] = frozenset(
         "billing",
         "api_key",
         "model",
+        "custom_model_not_found",
         "timeout",
         "overloaded",
         "custom_endpoint_unreachable",
@@ -192,6 +193,10 @@ _MODEL_DIAGNOSTIC_TYPES: frozenset[str] = frozenset(
     {
         "response_format",
         "format",
+        # Model output truncation (thinking budget / tool-call truncation) is a
+        # model-behavior artifact; the harness retries by extending the window.
+        "thinking_budget_exhausted",
+        "tool_call_truncated",
     }
 )
 

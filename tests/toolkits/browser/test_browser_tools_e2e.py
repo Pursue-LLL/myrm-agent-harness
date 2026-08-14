@@ -60,7 +60,6 @@ async def test_tool_navigate_basic(browser_session: BrowserSession) -> None:
     assert "status" in result.lower()
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.e2e
 @pytest.mark.asyncio
 async def test_tool_navigate_real_site(browser_session: BrowserSession) -> None:

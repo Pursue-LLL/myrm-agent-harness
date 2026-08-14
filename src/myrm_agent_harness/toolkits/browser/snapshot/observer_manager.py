@@ -60,6 +60,43 @@ class ObserverManager:
             self._is_cross_origin = True
             self._installed = False
 
+    async def ensure_active(self) -> bool:
+        """Ensure the observer is watching the current document body.
+
+        Pages can replace ``document.body`` without firing a navigation event
+        (e.g. ``document.write``, SPA full re-render, ``innerHTML`` swap on body).
+        The previously installed MutationObserver keeps watching the detached
+        body and silently reports no changes. This method detects the stale
+        observer, re-installs it onto the live body, and reports the reinstall.
+
+        Returns:
+            True when the observer was installed or re-installed, False when it
+            was already watching the current body.
+        """
+        try:
+            active = await asyncio.wait_for(
+                self._frame.evaluate(
+                    "() => window.__ariaObserver && window.__ariaObserver.ensureActive()"
+                ),
+                timeout=2.0,
+            )
+            if active:
+                self._installed = True
+                return True
+            if not self._installed:
+                await self.install()
+                return True
+            return False
+        except Exception as exc:
+            error = AriaCrossOriginError(
+                "Failed to ensure observer active (likely cross-origin)",
+                cause=exc,
+            )
+            logger.warning(str(error))
+            self._is_cross_origin = True
+            self._installed = False
+            return False
+
     async def get_changes(self) -> list[dict[str, str]]:
         """Get DOM change records.
 

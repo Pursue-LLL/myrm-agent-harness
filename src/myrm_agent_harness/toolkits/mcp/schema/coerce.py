@@ -378,10 +378,13 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
         if isinstance(value, (int, float)) and not isinstance(value, bool) and value in (0, 1):
             value = bool(value)
             _bump_schema_coercion_stat("bool_number_cross_coercions")
-    elif expected_type in ("integer", "number") and not _value_conforms_to_schema_types(schema, value):
-        if isinstance(value, bool):
-            value = int(value)
-            _bump_schema_coercion_stat("bool_number_cross_coercions")
+    elif (
+        expected_type in ("integer", "number")
+        and not _value_conforms_to_schema_types(schema, value)
+        and isinstance(value, bool)
+    ):
+        value = int(value)
+        _bump_schema_coercion_stat("bool_number_cross_coercions")
 
     # Recursive descent for objects
     if _schema_expects_type(schema, "object") and isinstance(value, dict):

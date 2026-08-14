@@ -41,6 +41,7 @@ async def test_str_enum_category_propagates() -> None:
     step_event = events[0]
     assert step_event["type"] == AgentEventType.TASKS_STEPS.value
     assert step_event["status"] == "error"
+    assert step_event["fault_side"] == "harness_tool"
     assert step_event["error_category"] == "permission_denied"
     assert isinstance(step_event["error_category"], str)
     assert step_event["error_hint"] == "Try 'chmod +x' or run in sandbox"

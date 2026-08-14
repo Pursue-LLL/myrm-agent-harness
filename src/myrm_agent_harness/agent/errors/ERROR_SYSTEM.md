@@ -358,6 +358,7 @@ stream_executor.py `_emit_fatal_error`（异常捕获）
     │   - error_kind: str（如 "rate_limit"）
     │   - error_type: str
     │   - failover_reason: str
+    │   - fault_side: str（确定性责任方归因：model | harness_tool | harness_pipeline | env | grader | owner | unknown，由 errors/fault_side.py 纯规则分类，无 LLM 调用）
     │   - diagnostic_result: { error_type, user_message, resolution_steps, locale }（本地化诊断结果）
     │   - recovery_actions: list[str]（本地化恢复动作，可选）
     │   - cooldown_remaining_ms: int（瞬态错误的重试倒计时，可选）
@@ -369,7 +370,7 @@ agentControlEvents.ts（前端消费）
     │ 缺失时 fallback getUserFriendlyError(error_kind, rawError, cooldown_remaining_ms)
     ↓
 ProgressSteps.tsx（UI展示）
-    └ 显示本地化错误消息 + hint提示 + 倒计时
+    └ 显示本地化错误消息 + fault_side badge + hint提示 + 恢复动作 + 倒计时
 ```
 
 ### 核心组件

@@ -48,7 +48,9 @@ def extract_source_chat_id(metadata: dict[str, object] | None) -> str | None:
     return trimmed or None
 
 
-def inherit_source_chat_metadata(parent_metadata: dict[str, object] | None) -> dict[str, object] | None:
+def inherit_source_chat_metadata(
+    parent_metadata: dict[str, object] | None,
+) -> dict[str, object] | None:
     """Build metadata patch copying source_chat_id from a parent task."""
     source_chat_id = extract_source_chat_id(parent_metadata)
     if source_chat_id is None:
@@ -67,7 +69,11 @@ def clear_completion_intent(metadata: dict[str, object]) -> dict[str, object]:
     """Return metadata with completion_intent removed."""
     if KANBAN_COMPLETION_INTENT_KEY not in metadata:
         return metadata
-    return {key: value for key, value in metadata.items() if key != KANBAN_COMPLETION_INTENT_KEY}
+    return {
+        key: value
+        for key, value in metadata.items()
+        if key != KANBAN_COMPLETION_INTENT_KEY
+    }
 
 
 class TaskStatus(StrEnum):
@@ -106,7 +112,9 @@ class TaskStatus(StrEnum):
     ARCHIVED = "archived"
 
 
-_TERMINAL_STATUSES: frozenset[TaskStatus] = frozenset({TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.ARCHIVED})
+_TERMINAL_STATUSES: frozenset[TaskStatus] = frozenset(
+    {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.ARCHIVED}
+)
 
 _ACTIVE_STATUSES: frozenset[TaskStatus] = frozenset(
     {TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.BLOCKED, TaskStatus.IN_REVIEW}
@@ -115,7 +123,9 @@ _ACTIVE_STATUSES: frozenset[TaskStatus] = frozenset(
 # Allowed transitions out of TRIAGE — protects state-machine integrity.
 # TRIAGE → BACKLOG (after specify, if deps unmet) / READY (after specify, no deps) /
 # ARCHIVED (manual discard). Direct TRIAGE → RUNNING etc. is illegal.
-_TRIAGE_ALLOWED_TARGETS: frozenset[TaskStatus] = frozenset({TaskStatus.BACKLOG, TaskStatus.READY, TaskStatus.ARCHIVED})
+_TRIAGE_ALLOWED_TARGETS: frozenset[TaskStatus] = frozenset(
+    {TaskStatus.BACKLOG, TaskStatus.READY, TaskStatus.ARCHIVED}
+)
 
 
 class BlockKind(StrEnum):
@@ -338,14 +348,18 @@ class KanbanTask:
             "extra_skill_ids": self.extra_skill_ids,
             "blocked_reason": self.blocked_reason,
             "block_kind": self.block_kind.value if self.block_kind else None,
-            "scheduled_until": (self.scheduled_until.isoformat() if self.scheduled_until else None),
+            "scheduled_until": (
+                self.scheduled_until.isoformat() if self.scheduled_until else None
+            ),
             "result": self.result,
             "error": self.error,
             "attachments": [a.to_dict() for a in self.attachments],
             "metadata": self.metadata,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
-            "completed_at": (self.completed_at.isoformat() if self.completed_at else None),
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
         }
         if self.last_heartbeat_at:
             data["last_heartbeat_at"] = self.last_heartbeat_at.isoformat()
@@ -515,4 +529,6 @@ class TaskTimeoutError(Exception):
         self.task_id = task_id
         self.elapsed_seconds = elapsed_seconds
         self.limit_seconds = limit_seconds
-        super().__init__(f"Task {task_id[:8]} timed out after {elapsed_seconds:.0f}s (limit {limit_seconds}s)")
+        super().__init__(
+            f"Task {task_id[:8]} timed out after {elapsed_seconds:.0f}s (limit {limit_seconds}s)"
+        )

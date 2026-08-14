@@ -17,10 +17,10 @@ project_root = Path(__file__).parent.parent.parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from myrm_agent_harness.agent.meta_tools.skills.search.engine import SkillSearchEngine
-from tests.agent.meta_tools.skill_search.evaluator import SearchEvaluator
-from tests.agent.meta_tools.skill_search.fixtures import create_comprehensive_mock_skills
-from tests.agent.meta_tools.skill_search.golden_dataset import GOLDEN_DATASET
+from myrm_agent_harness.agent.meta_tools.skills.search.engine import SkillSearchEngine  # noqa: E402
+from tests.agent.meta_tools.skill_search.evaluator import SearchEvaluator  # noqa: E402
+from tests.agent.meta_tools.skill_search.fixtures import create_comprehensive_mock_skills  # noqa: E402
+from tests.agent.meta_tools.skill_search.golden_dataset import GOLDEN_DATASET  # noqa: E402
 
 
 def run_evaluation() -> None:
@@ -59,7 +59,7 @@ def run_evaluation() -> None:
         engine = SkillSearchEngine(skills, enable_query_expansion=enable_expansion)
         evaluator = SearchEvaluator(dataset=dataset)
 
-        result = evaluator.evaluate(lambda q: engine.search_bm25(q, top_k=10))
+        result = evaluator.evaluate(lambda q, engine=engine: engine.search_bm25(q, top_k=10))
         metrics = result.metrics
 
         print("Results:")

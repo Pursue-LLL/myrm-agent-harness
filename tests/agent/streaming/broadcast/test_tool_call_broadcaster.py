@@ -165,6 +165,8 @@ class TestPostToolUseFailure:
         event_data: ToolCallEventData = mock_event_bus.publish.call_args[0][0]
         assert event_data.status == "failed"
         assert "TimeoutError" in (event_data.error or "")
+        assert event_data.fault_side == "harness_tool"
+        assert event_data.to_dict()["fault_side"] == "harness_tool"
 
     @pytest.mark.asyncio
     async def test_logs_tool_failure(self, broadcaster, mock_event_bus, mock_event_logger, _patch_event_bus):

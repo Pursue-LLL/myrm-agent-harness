@@ -75,6 +75,53 @@ class TestSecurityDecisionDataclass:
         assert result["ts"] == 1000.123
 
 
+class TestToolCallIdAndLabels:
+    def test_record_with_tool_call_id(self):
+        reset_audit_log()
+        record_decision("bash", "DENY", "blocked", tool_call_id="call-1")
+        entries = get_audit_entries()
+        assert entries[0].tool_call_id == "call-1"
+
+    def test_record_with_labels(self):
+        reset_audit_log()
+        record_decision("bash", "TAINT_ESCALATE", "session tainted", labels={"dangerous", "shell"})
+        entries = get_audit_entries()
+        assert entries[0].labels == frozenset({"dangerous", "shell"})
+
+    def test_record_with_tuple_labels_normalized(self):
+        reset_audit_log()
+        record_decision("bash", "ALLOW", "ok", labels=("a", "b", "a"))
+        entries = get_audit_entries()
+        assert entries[0].labels == frozenset({"a", "b"})
+
+    def test_labels_default_empty(self):
+        reset_audit_log()
+        record_decision("bash", "ALLOW", "ok")
+        entries = get_audit_entries()
+        assert entries[0].tool_call_id is None
+        assert entries[0].labels == frozenset()
+
+    def test_to_dict_includes_lineage_fields(self):
+        d = SecurityDecision(
+            tool_name="bash",
+            decision="DENY",
+            reason="blocked",
+            tainted=True,
+            tool_call_id="call-9",
+            labels={"shell"},
+            timestamp=1000.1234,
+        )
+        result = d.to_dict()
+        assert result["tool_call_id"] == "call-9"
+        assert result["labels"] == ["shell"]
+
+    def test_to_dict_omits_empty_lineage_fields(self):
+        d = SecurityDecision(tool_name="bash", decision="ALLOW", reason="ok", timestamp=1000.0)
+        result = d.to_dict()
+        assert "tool_call_id" not in result
+        assert "labels" not in result
+
+
 class TestContextVarIsolation:
     @pytest.mark.asyncio
     async def test_isolation_across_tasks(self):

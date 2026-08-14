@@ -1,16 +1,17 @@
 """Comprehensive tests for TabController"""
 
 import asyncio
-import shutil
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from myrm_agent_harness.toolkits.browser.pool import ContextType, GlobalBrowserPool
 from myrm_agent_harness.toolkits.browser.session.tab_controller import TabController, TabHandle
+from tests.toolkits.browser._browser_available import chromium_available
 
-_HAS_CHROMIUM = shutil.which("chromium") is not None or shutil.which("google-chrome") is not None
-requires_browser = pytest.mark.skipif(not _HAS_CHROMIUM, reason="Chromium/Patchright not installed in this environment")
+requires_browser = pytest.mark.skipif(
+    not chromium_available(), reason="Chromium/Patchright not installed in this environment"
+)
 
 
 @pytest.fixture

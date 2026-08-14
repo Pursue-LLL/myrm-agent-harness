@@ -44,19 +44,15 @@ _MAX_SNIPPET_CHARS = 160
 # conservative: only text that looks like an explicit preference/directive is
 # worth surfacing as "dropped". Conversational filler is ignored.
 _CONSTRAINT_KEYWORDS: tuple[str, ...] = (
-    # English
+    # English — 短词覆盖长词的冗余项已剔除（如 "must" 已覆盖 "must not"）。
     "must",
-    "must not",
     "never",
     "always",
     "do not",
     "don't",
-    "please remember",
-    "remember to",
+    "remember",
     "important",
-    "important:",
     "requirement",
-    "requirements",
     "ensure",
     "make sure",
     "should not",
@@ -66,11 +62,8 @@ _CONSTRAINT_KEYWORDS: tuple[str, ...] = (
     "no need to",
     "avoid",
     "prefer",
-    "preference",
     "rule",
-    "rules",
     "constraint",
-    "constraints",
     "key point",
     "note that",
     "caution",
@@ -85,7 +78,6 @@ _CONSTRAINT_KEYWORDS: tuple[str, ...] = (
     "切勿",
     "千万",
     "记住",
-    "请注意",
     "注意",
     "重要",
     "要求",
@@ -95,7 +87,6 @@ _CONSTRAINT_KEYWORDS: tuple[str, ...] = (
     "只能",
     "仅能",
     "确保",
-    "请务必",
     "请记得",
     "前提",
     "限制",
@@ -122,7 +113,14 @@ def contains_constraint_marker(content: str) -> bool:
 
 
 def _role_of(message: object) -> str:
-    """Return a coarse role name for a LangChain message without heavy imports."""
+    """Return a coarse role name for a LangChain message without heavy imports.
+
+    Prefers the canonical ``BaseMessage.type`` attribute (works for every
+    subclass including ``*MessageChunk``); falls back to the class name.
+    """
+    role = getattr(message, "type", None)
+    if isinstance(role, str) and role in ("human", "ai", "system", "tool"):
+        return role
     type_name = type(message).__name__.lower()
     if type_name in ("humanmessage", "aimessage", "systemmessage", "toolmessage"):
         return type_name[:-7]  # human / ai / system / tool

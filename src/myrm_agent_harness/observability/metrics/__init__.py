@@ -12,9 +12,8 @@ prefix names with myrm_ and validate naming conventions.
 - create_histogram — 创建Histogram metric
 
 Submodules:
-- agent_metrics — Agent execution monitoring (run count, errors, duration)
+- agent_metrics — Agent execution monitoring (TTFA, tool execution)
 - goal_metrics — Goal lifecycle monitoring (created, completed, budget_limited, duration, tokens, cost)
-- llm_metrics — LLM calling monitoring (call count, token usage, errors, duration)
 - circuit_breaker_metrics — Circuit breaker state and failure monitoring
 - db_pool_collector — Database connection pool metrics collector
 - security_metrics — Security policy denial and action monitoring
@@ -95,11 +94,11 @@ def create_counter(
 
     Example:
         >>> counter = create_counter(
-        ...     "agent_run_total",
-        ...     "Total number of agent runs",
-        ...     ("agent_type",)
+        ...     "example_events_total",
+        ...     "Total number of events",
+        ...     ("event_type",)
         ... )
-        >>> counter.labels(agent_type="skill").inc()
+        >>> counter.labels(event_type="skill").inc()
     """
     if not PROMETHEUS_AVAILABLE:
         logger.debug("prometheus_client not installed, counter '%s' creation skipped", name)
@@ -168,12 +167,12 @@ def create_histogram(
 
     Example:
         >>> hist = create_histogram(
-        ...     "agent_run_duration_seconds",
-        ...     "Agent run duration in seconds",
-        ...     ("agent_type",)
+        ...     "example_request_duration_seconds",
+        ...     "Request duration in seconds",
+        ...     ("endpoint",)
         ... )
-        >>> with hist.labels(agent_type="skill").time():
-        ...     # agent execution
+        >>> with hist.labels(endpoint="/api").time():
+        ...     # request handling
         ...     pass
     """
     if not PROMETHEUS_AVAILABLE:

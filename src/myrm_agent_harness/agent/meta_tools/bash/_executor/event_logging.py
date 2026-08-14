@@ -41,6 +41,9 @@ async def log_bash_command_execution(
         from myrm_agent_harness.agent.meta_tools.bash._executor.sensitive_parameter_redactor import (
             SensitiveParameterRedactor,
         )
+        from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
+            get_current_message_id,
+        )
         from myrm_agent_harness.agent.middlewares._session_context import (
             get_event_logger,
         )
@@ -63,6 +66,12 @@ async def log_bash_command_execution(
             "command_type": command_type.value,
             "risk_level": risk_level.value,
         }
+
+        # Link the side effect to the active assistant turn so lineage views can
+        # attribute this command to its originating instruction.
+        message_id = get_current_message_id()
+        if message_id:
+            event_data["message_id"] = message_id
 
         if error_message:
             event_data["error_message"] = error_message

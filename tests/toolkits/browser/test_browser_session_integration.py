@@ -150,7 +150,6 @@ async def test_integration_evaluate_js(
     assert "Integration" in result or "Test" in result
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.integration
 @pytest.mark.slow
 @pytest.mark.asyncio
@@ -193,7 +192,6 @@ async def test_integration_save_pdf(
     Path(path).unlink(missing_ok=True)
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.integration
 @pytest.mark.slow
 @pytest.mark.asyncio

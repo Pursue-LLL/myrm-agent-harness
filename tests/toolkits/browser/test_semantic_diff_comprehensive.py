@@ -207,7 +207,6 @@ async def test_diff_with_multiple_changes(browser_session: BrowserSession) -> No
     print(f"Diff:\n{result.aria_tree}")
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.integration
 @pytest.mark.slow
 @pytest.mark.asyncio

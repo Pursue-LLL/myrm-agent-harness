@@ -44,6 +44,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _consume_background_exception(task: asyncio.Task[object]) -> None:
+    """Consume a background task's exception so it doesn't surface as an
+    "exception was never retrieved" warning (e.g. dispatch_custom_event when
+    the page/browser is already closed)."""
+    if not task.cancelled():
+        exc = task.exception()
+        if exc is not None:
+            logger.warning("Background snapshot event dispatch failed: %s", exc)
+
+
 class FrameState:
     """Single-frame state manager.
 
@@ -104,6 +114,23 @@ class FrameState:
 
         if not self._observer.is_installed:
             await self._observer.install()
+
+        # A page can replace document.body without firing navigation (document.write,
+        # SPA full re-render, innerHTML swap). The observer must be re-anchored onto
+        # the live body and the cached tree (from the old document) must be rebuilt.
+        if await self._observer.ensure_active():
+            self._cached_aria_tree = None
+            self._cached_refs = None
+            self._cached_cursor_elements = None
+            return await self._full_update(
+                cursor_interactive=cursor_interactive,
+                selector=selector,
+                scope=scope,
+                compact=compact,
+                max_depth=max_depth,
+                include_bbox=include_bbox,
+                max_tokens=max_tokens,
+            )
 
         if force_full or self._cached_aria_tree is None:
             return await self._full_update(
@@ -252,6 +279,7 @@ class FrameState:
                 )
                 self._bg_tasks.add(warn_task)
                 warn_task.add_done_callback(self._bg_tasks.discard)
+                warn_task.add_done_callback(_consume_background_exception)
             except Exception as e:
                 logger.warning(f"Failed to dispatch truncation event: {e}")
 

@@ -13,6 +13,5 @@ Harness-layer generic metrics utilities for any project using the Myrm framework
 | db_pool_collector.py | Core | Harness-layer generic database connection pool monitor reusable by any Myrm-based project. | ✅ |
 | event_log_metrics.py | Core | Framework-level metrics; myrm-agent-server / UIs can scrape the same myrm_ series. | ✅ |
 | goal_metrics.py | Core | Goal lifecycle Prometheus metrics — 6 counters (created/completed/budget_limited/paused/cancelled/resumed) + 3 histograms (duration/tokens/cost). Recorded by GoalManager at state transitions. | ✅ |
-| llm_metrics.py | Core | Harness-layer generic LLM monitoring metrics reusable by any Myrm-based project. | ✅ |
 | registry.py | Core | Provides standard, built-in metrics collection for the Agent framework. | ✅ |
 | security_metrics.py | Core | Security and policy enforcement metrics, including policy denial tracking. | ✅ |

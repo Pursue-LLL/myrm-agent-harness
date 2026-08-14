@@ -24,9 +24,9 @@ _COMPILED_CORE_PATTERN = re.compile(r"extra == ['\"]compiled-core['\"]")
 def pypi_package_exists(package: str, version: str, *, user_agent: str = "myrm-pypi-index") -> bool:
     """Return True when ``package==version`` is indexed on PyPI."""
     url = f"https://pypi.org/pypi/{package}/{version}/json"
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent})  # noqa: S310
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
             return response.status == 200
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
@@ -37,9 +37,9 @@ def pypi_package_exists(package: str, version: str, *, user_agent: str = "myrm-p
 def release_has_compiled_core_extra(version: str, *, user_agent: str = "myrm-pypi-index") -> bool:
     """Return True when the release wheel exposes the ``compiled-core`` optional extra."""
     url = f"https://pypi.org/pypi/myrm-agent-harness/{version}/json"
-    request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+    request = urllib.request.Request(url, headers={"User-Agent": user_agent})  # noqa: S310
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
+        with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310
             payload = json.loads(response.read())
     except urllib.error.HTTPError as exc:
         if exc.code == 404:

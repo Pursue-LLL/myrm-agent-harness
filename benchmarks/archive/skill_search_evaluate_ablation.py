@@ -42,7 +42,7 @@ def run_ablation_study() -> None:
 
         engine = SkillSearchEngine(skills, enable_query_expansion=enable_expansion)
 
-        results = evaluator.evaluate(lambda q: engine.search_bm25(q, top_k=10))
+        results = evaluator.evaluate(lambda q, engine=engine: engine.search_bm25(q, top_k=10))
 
         mrr = results.metrics["mrr"]
         map_score = results.metrics["map"]
