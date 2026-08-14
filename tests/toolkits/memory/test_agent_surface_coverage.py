@@ -68,10 +68,19 @@ async def test_search_memory_corpus_includes_active_session_buffer() -> None:
 
 @pytest.mark.asyncio
 async def test_search_memory_corpus_empty_results_emit_retrieval_trace() -> None:
+    from datetime import UTC, datetime
+
+    from myrm_agent_harness.toolkits.memory.observability import MemoryRetrievalTrace
+
     manager = AsyncMock()
     manager.search = AsyncMock(return_value=[])
     manager.active_session = None
-    manager.last_retrieval_trace = {"steps": []}
+    manager.last_retrieval_trace = MemoryRetrievalTrace(
+        id="trace-1",
+        query_preview="missing",
+        occurred_at=datetime.now(UTC),
+        degraded=False,
+    )
     manager.set_last_cited_memory_ids = MagicMock()
 
     with patch(
