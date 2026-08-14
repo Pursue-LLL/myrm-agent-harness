@@ -141,7 +141,7 @@ class OneshotRecoveryMixin:
         if reason != FailoverReason.DUPLICATE_TOOL_USE_ID:
             return False
 
-        from myrm_agent_harness.agent.middlewares.tool_history_hygiene import (
+        from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import (
             sanitize_tool_history,
         )
 

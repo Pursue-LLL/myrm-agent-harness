@@ -20,8 +20,8 @@
     │
     ▼
 ┌─────────────────────────────────────────┐
-│ context_pipeline_middleware             │  ← 上下文压缩/摘要链
-│ memory_context_middleware               │  ← 用户记忆注入（编排）
+│ context_pipeline_middleware (context_pipeline/) │  ← 上下文压缩/摘要链
+│ memory_context_middleware (memory_context/)  │  ← 用户记忆注入（编排）
 │   └─ memory_context_format.py         │  ← stable/learned 格式化纯函数
 │ progress_middleware / goal_focus_middleware │  ← todo 焦点 / active goal 提醒
 │ moa_advisor_middleware (opt-in)             │  ← agent 环轻量顾问 fan-out
@@ -31,14 +31,14 @@
 │ subagent_limit / concurrency_limiter    │  ← 委派 fan-out 限制
 │ tool_history_hygiene.py                 │  ← ToolMessage dedup + within/cross-turn tool_call_id re-id
 │ dangling_tool_call_middleware           │  ← 悬空 tool_call 修复
-│ skill_attenuation_middleware            │  ← skill attenuation + runtime intent gating
+│ skill_attenuation_middleware (tooling/)  │  ← skill attenuation + runtime intent gating
 │ filesystem_search_middleware            │  ← glob/grep 注入
-│ tool_interceptor_middleware             │  ← ★ 工具执行主拦截点
+│ tool_interceptor_middleware (tooling/)  │  ← ★ 工具执行主拦截点
 │   └─ tool_executor (timeout/retry)      │
 │   └─ approval/ + approval_interception/ │  ← HITL 审批
 │ completion_guard                        │  ← 完成门控 + 外部证据门控 + 混合消息 guard
 │ rate_limit                              │  ← Provider 429 主动节流
-│ safety_dispatcher / concurrency_router  │  ← 工具并发安全路由
+│ concurrency/ (safety_dispatcher + router)│  ← 工具并发安全路由
 │ debug_logger_middleware (dev)           │
 └─────────────────────────────────────────┘
     │
@@ -54,31 +54,18 @@
 
 | 子目录/文件 | 职责 |
 |-------------|------|
-| `tool_interceptor_middleware.py` | 工具调用唯一编排入口；GraphInterrupt on stuck |
-| `tool_executor.py` | 超时、重试、指数退避 |
-| `_tool_guards.py` / `_tool_helpers.py` | 拦截辅助（无独立 middleware） |
+| `tooling/` | 工具执行子系统：`tool_interceptor_middleware.py`（唯一编排入口；GraphInterrupt on stuck）、`tool_executor.py`（超时、重试、指数退避）、`tool_history_hygiene.py`（within-AIMessage re-id → ToolMessage keep-last dedup → cross-turn re-id；导出 `sanitize_tool_history()`）、`dangling_tool_call_middleware.py`（修复 strict provider 400）、`skill_attenuation_middleware.py`（skill attenuation + runtime intent-aware narrowing via `tool_choice.allowed_tools`）、`_tool_guards.py`/`_tool_helpers.py`（拦截辅助）、`_mutation_verifier.py`（文件变更 per-turn 验证 → SSE）、`_skill_failure_tracking.py`（技能失败事件跟踪）、`_tool_execution_lifecycle.py`（执行生命周期 hook）、`_runtime_tool_governance.py`（回合级工具面收敛 UI intent gate + readonly intent gate）、`_skill_tool_choice.py`（attenuation tool_choice 构建） |
 | `_session_context.py` | Middleware 链共享 ContextVar |
-| `_mutation_verifier.py` | 文件变更 per-turn 验证 → SSE |
-| `_skill_failure_tracking.py` | 技能失败事件跟踪 |
-| `_tool_execution_lifecycle.py` | 工具执行生命周期 hook |
-| `_runtime_tool_governance.py` | 回合级工具面收敛（UI intent gate + readonly intent gate）；空 allowlist → block-all execution SSOT |
 | `approval/` | HITL 审批队列、batch、scheduler、correction_learning |
 | `approval_interception/` | 审批拦截识别与注入 |
 | `guardrails/` | Provider 链 + `GuardrailMiddleware` |
 | `completion/` | 完成验证门子系统：`completion_guard.py`（代码任务完成验证门 + 外部证据缺失门控（web/browser/MCP：PTC bash `skills.mcp_*` 或 Direct FC `mcp__{server}__{tool}`；本地代码任务豁免）；Mixed Message Guard（保留变异调用 `is_mutating_tool` registry fail-closed + 交互/UI 承载工具，仅剥离确定无副作用无交互的只读工具；证据缺失时保留只读 tool_calls 防未核实内容直达用户））、`completion_guard_safety.py`（effectful 工具判定 SSOT，供 Mixed Message Guard 与 server Cron 后验消费） |
-| `context_pipeline_middleware.py` | 桥接 `context_management/pipeline/` |
-| `concurrency_limiter.py` | 按 agent_type Semaphore |
-| `concurrency_router.py` | 智能并发路由（与 safety_dispatcher 协作） |
-| `safety_dispatcher.py` | safe/unsafe 工具并发 vs 串行 |
-| `security_boundary_middleware.py` | 安全边界 |
-| `security_guardrail_middleware.py` | 安全护栏 |
+| `context_pipeline/` | `context_pipeline_middleware.py`（桥接 `context_management/pipeline/`）、`context_pipeline_helpers.py`（压缩意图/cache feedback/schema fingerprint） |
+| `memory_context/` | `memory_context_middleware.py`（记忆上下文注入编排，首轮 LLM 前 idempotent 注入）、`memory_context_format.py`（注入格式化纯函数：stable SystemMessage / learned UNTRUSTED HumanMessage） |
+| `concurrency/` | `concurrency_limiter.py`（按 agent_type Semaphore）、`concurrency_router.py`（智能并发路由：host-serial MCP lane + canonical path + `build_tool_execution_stages`）、`safety_dispatcher.py`（safe→concurrent / unsafe→serial） |
+| `security/` | `security_boundary_middleware.py`（SECURITY_BOUNDARY_SYSTEM_RULES 注入）、`security_guardrail_middleware.py`（八层防御：circuit-breaker cognition / prompt guard / PII / leak / canary / history redact） |
 | `subagent_limit_middleware.py` | 单轮 delegate 上限 |
-| `tool_history_hygiene.py` | within-AIMessage re-id → ToolMessage keep-last dedup → cross-turn AIMessage tool_call_id 确定性 re-id；导出 `sanitize_tool_history()` |
-| `dangling_tool_call_middleware.py` | 修复 strict provider 400 |
-| `skill_attenuation_middleware.py` | Skill attenuation + runtime intent-aware narrowing via `tool_choice.allowed_tools` when provider supports it; capability gate skips model-layer hint on unsupported gateways (e.g. `openai-like/*`); execution SSOT via `check_trust_attenuation`; dynamic tool resolution for ToolNode (no `request.tools` mutation) |
 | `filesystem_search_middleware.py` | 工作区搜索工具注入 |
-| `memory_context_middleware.py` | 记忆上下文注入编排（首轮 LLM 前 idempotent 注入） |
-| `memory_context_format.py` | 记忆注入格式化纯函数（stable SystemMessage / learned UNTRUSTED HumanMessage） |
 | `progress_middleware.py` | 活跃 todo 焦点注入（末位 HumanMessage） |
 | `goal_focus_middleware.py` | ACTIVE goal objective 注入（末位 HumanMessage；跳过 continuation/wrap-up 轮） |
 | `moa_advisor_middleware.py` | Agent 环 MoA 顾问叠加（`moa_overlay_active` + 渐进 SSE `moa_ref_done` + 瞬态 HumanMessage 尾注入 + `privacy_filter` display/full 分流） |

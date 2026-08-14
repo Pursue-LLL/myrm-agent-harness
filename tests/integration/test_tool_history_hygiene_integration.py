@@ -9,10 +9,10 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from myrm_agent_harness.agent.config.llm_safety import normalize_messages
-from myrm_agent_harness.agent.middlewares.dangling_tool_call_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware import (
     repair_dangling_tool_calls,
 )
-from myrm_agent_harness.agent.middlewares.tool_history_hygiene import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import (
     sanitize_tool_history,
 )
 

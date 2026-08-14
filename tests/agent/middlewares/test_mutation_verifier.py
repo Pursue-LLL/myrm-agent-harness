@@ -11,7 +11,7 @@ Covers:
 """
 
 
-from myrm_agent_harness.agent.middlewares._mutation_verifier import (
+from myrm_agent_harness.agent.middlewares.tooling._mutation_verifier import (
     _FILE_MUTATING_TOOLS,
     _MAX_DISPLAY_FILES,
     _extract_path,

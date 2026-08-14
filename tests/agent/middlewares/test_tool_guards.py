@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import ToolMessage
 
-from myrm_agent_harness.agent.middlewares._tool_guards import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
     PreCallResult,
     _emit_loop_guard_event,
 )
@@ -134,15 +134,15 @@ class TestPreCallGuardsEmitEvent:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards._emit_loop_guard_event",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards._emit_loop_guard_event",
                 mock_emit,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.check_estop",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop",
                 return_value=None,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.get_token_tracker",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_token_tracker",
                 return_value=None,
             ),
             patch(
@@ -151,14 +151,14 @@ class TestPreCallGuardsEmitEvent:
                 return_value=mock_hook_result,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards._check_circuit_breaker",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards._check_circuit_breaker",
                 return_value=None,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.record_decision",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.record_decision",
             ),
         ):
-            from myrm_agent_harness.agent.middlewares._tool_guards import (
+            from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
                 run_pre_call_guards,
             )
 
@@ -214,15 +214,15 @@ class TestPreCallGuardsEmitEvent:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards._emit_loop_guard_event",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards._emit_loop_guard_event",
                 mock_emit,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.check_estop",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop",
                 return_value=None,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.get_token_tracker",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_token_tracker",
                 return_value=None,
             ),
             patch(
@@ -231,30 +231,30 @@ class TestPreCallGuardsEmitEvent:
                 return_value=mock_hook_result,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards._check_circuit_breaker",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards._check_circuit_breaker",
                 return_value=None,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.record_decision",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.record_decision",
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.get_frequency_guard",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_frequency_guard",
                 return_value=mock_freq_guard,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.get_steering_token",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_steering_token",
                 return_value=None,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.check_trust_attenuation",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_trust_attenuation",
                 return_value=None,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.check_tool_params_pii",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_params_pii",
                 return_value=None,
             ),
         ):
-            from myrm_agent_harness.agent.middlewares._tool_guards import (
+            from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
                 run_pre_call_guards,
             )
 
@@ -316,21 +316,21 @@ class TestPostCallGuardsEmitEvent:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards._emit_loop_guard_event",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards._emit_loop_guard_event",
                 mock_emit,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.record_decision",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.record_decision",
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.emit_archive_restore_block_status",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.emit_archive_restore_block_status",
                 new_callable=AsyncMock,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.record_mutation_result",
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.record_mutation_result",
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.get_context_budget_guard",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard",
                 return_value=MagicMock(
                     check_and_truncate=MagicMock(
                         return_value=MagicMock(
@@ -340,7 +340,7 @@ class TestPostCallGuardsEmitEvent:
                 ),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.run_content_validation",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.run_content_validation",
                 return_value=None,
             ),
             patch(
@@ -348,7 +348,7 @@ class TestPostCallGuardsEmitEvent:
                 return_value=MagicMock(record_tool_output=MagicMock()),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.check_tool_result_pii",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
                 return_value=(result_msg, "some output"),
             ),
             patch(
@@ -361,7 +361,7 @@ class TestPostCallGuardsEmitEvent:
                 return_value=mock_hook_result,
             ),
         ):
-            from myrm_agent_harness.agent.middlewares._tool_guards import (
+            from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
                 run_post_call_guards,
             )
 
@@ -417,21 +417,21 @@ class TestPostCallGuardsEmitEvent:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards._emit_loop_guard_event",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards._emit_loop_guard_event",
                 mock_emit,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.record_decision",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.record_decision",
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.emit_archive_restore_block_status",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.emit_archive_restore_block_status",
                 new_callable=AsyncMock,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.record_mutation_result",
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.record_mutation_result",
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.get_context_budget_guard",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard",
                 return_value=MagicMock(
                     check_and_truncate=MagicMock(
                         return_value=MagicMock(
@@ -441,7 +441,7 @@ class TestPostCallGuardsEmitEvent:
                 ),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.run_content_validation",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.run_content_validation",
                 return_value=None,
             ),
             patch(
@@ -449,7 +449,7 @@ class TestPostCallGuardsEmitEvent:
                 return_value=MagicMock(record_tool_output=MagicMock()),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.check_tool_result_pii",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
                 return_value=(result_msg, "error: permission denied"),
             ),
             patch(
@@ -462,7 +462,7 @@ class TestPostCallGuardsEmitEvent:
                 return_value=mock_hook_result,
             ),
         ):
-            from myrm_agent_harness.agent.middlewares._tool_guards import (
+            from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
                 run_post_call_guards,
             )
 
@@ -518,21 +518,21 @@ class TestPostCallGuardsEmitEvent:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards._emit_loop_guard_event",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards._emit_loop_guard_event",
                 mock_emit,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.record_decision",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.record_decision",
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.emit_archive_restore_block_status",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.emit_archive_restore_block_status",
                 new_callable=AsyncMock,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.record_mutation_result",
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.record_mutation_result",
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.get_context_budget_guard",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard",
                 return_value=MagicMock(
                     check_and_truncate=MagicMock(
                         return_value=MagicMock(
@@ -542,7 +542,7 @@ class TestPostCallGuardsEmitEvent:
                 ),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.run_content_validation",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.run_content_validation",
                 return_value=None,
             ),
             patch(
@@ -550,7 +550,7 @@ class TestPostCallGuardsEmitEvent:
                 return_value=MagicMock(record_tool_output=MagicMock()),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.check_tool_result_pii",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii",
                 return_value=(result_msg, "success"),
             ),
             patch(
@@ -563,7 +563,7 @@ class TestPostCallGuardsEmitEvent:
                 return_value=mock_hook_result,
             ),
         ):
-            from myrm_agent_harness.agent.middlewares._tool_guards import (
+            from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
                 run_post_call_guards,
             )
 

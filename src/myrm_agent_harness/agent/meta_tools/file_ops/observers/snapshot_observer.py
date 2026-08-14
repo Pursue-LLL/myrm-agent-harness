@@ -380,12 +380,21 @@ class SnapshotObserver(FileOperationObserver):
 
     @staticmethod
     def _schedule_persist(store: SnapshotStore, session_id: str, message_id: str, file_path: str) -> None:
-        """Fire-and-forget disk persistence. Uses CWD as workspace root."""
-        from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
-            WorkspacePathResolver,
-        )
+        """Fire-and-forget disk persistence.
 
-        workspace_root = str(WorkspacePathResolver.resolve_workspace_root())
+        Prefers the context-bound workspace root (set by setup_workspace /
+        restore_context_vars) over CWD probing so snapshots land inside the
+        actual chat workspace instead of the process working directory.
+        """
+        from myrm_agent_harness.core.context_vars import workspace_root_var
+
+        workspace_root = workspace_root_var.get()
+        if not workspace_root:
+            from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
+                WorkspacePathResolver,
+            )
+
+            workspace_root = str(WorkspacePathResolver.resolve_workspace_root())
         try:
             loop = asyncio.get_running_loop()
             task = loop.create_task(store.persist_to_disk(workspace_root, session_id, message_id))

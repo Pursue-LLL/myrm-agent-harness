@@ -14,7 +14,7 @@ import time
 
 import pytest
 
-from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import emit_tool_heartbeat
+from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import emit_tool_heartbeat
 from myrm_agent_harness.utils.runtime.progress_sink import (
     set_tool_progress_sink,
 )

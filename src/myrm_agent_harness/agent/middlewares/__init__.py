@@ -17,9 +17,9 @@
   (POS: Plan-phase HITL: intercept first todo_write plan for user review via interrupt())
 - goal_focus_middleware::goal_focus_middleware (POS: Active goal objective injection)
   (POS: 用户发起轮在末位 HumanMessage 注入 ACTIVE goal objective；continuation/wrap-up 轮跳过)
-- concurrency_limiter::create_concurrency_limiter, (POS: Subagent  Semaphore  SUBAGENT_CONFIGS)
+- concurrency.concurrency_limiter::create_concurrency_limiter, (POS: Subagent  Semaphore  SUBAGENT_CONFIGS)
   (POS: Subagent 并发限制器，根据 agent_type 限制并发)
-- safety_dispatcher::create_safety_dispatcher (POS: TOOL_SAFETY_METADATA  ToolNode  Lock)
+- concurrency.safety_dispatcher::create_safety_dispatcher (POS: TOOL_SAFETY_METADATA  ToolNode  Lock)
   (POS: 工具并发安全分层调度，safe→并发/unsafe→Lock 串行)
 - subagent_limit_middleware::subagent_limit_middleware (POS: Subagent limit middleware. Ensures the LLM cannot spawn more than MAX_CONCURRENT_SUBAGENTS in a single turn.)
   (POS: LLM Fan-out 保护，限制单轮 delegate_task 调用数)
@@ -54,11 +54,11 @@ from myrm_agent_harness.agent.middlewares.completion import (
     CompletionGuard,
     reset_completion_guard,
 )
-from myrm_agent_harness.agent.middlewares.concurrency_limiter import (
+from myrm_agent_harness.agent.middlewares.concurrency.concurrency_limiter import (
     create_concurrency_limiter,
     get_subagent_semaphore,
 )
-from myrm_agent_harness.agent.middlewares.context_pipeline_middleware import (
+from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_middleware import (
     create_context_pipeline_middleware,
 )
 from myrm_agent_harness.agent.middlewares.debug_logger_middleware import (
@@ -78,13 +78,13 @@ from myrm_agent_harness.agent.middlewares.plan_confirm_middleware import (
 )
 from myrm_agent_harness.agent.middlewares.progress_middleware import progress_middleware
 from myrm_agent_harness.agent.middlewares.rate_limit import RateLimitMiddleware
-from myrm_agent_harness.agent.middlewares.safety_dispatcher import (
+from myrm_agent_harness.agent.middlewares.concurrency.safety_dispatcher import (
     create_safety_dispatcher,
 )
 from myrm_agent_harness.agent.middlewares.subagent_limit_middleware import (
     subagent_limit_middleware,
 )
-from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
     notify_loop_guard_compaction,
     reset_loop_guard,
     tool_interceptor_middleware,

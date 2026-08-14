@@ -16,8 +16,8 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_turn_allowed_tool_names,
     set_turn_allowed_tool_names,
 )
-from myrm_agent_harness.agent.middlewares._tool_helpers import check_trust_attenuation
-from myrm_agent_harness.agent.middlewares.skill_attenuation_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import check_trust_attenuation
+from myrm_agent_harness.agent.middlewares.tooling.skill_attenuation_middleware import (
     SkillAttenuationMiddleware,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
@@ -91,7 +91,7 @@ async def test_unsupported_gateway_skips_allowed_tools_but_execution_blocks(
         lambda: None,
     )
     monkeypatch.setattr(
-        "myrm_agent_harness.agent.middlewares.skill_attenuation_middleware.compute_turn_allowed_names",
+        "myrm_agent_harness.agent.middlewares.tooling.skill_attenuation_middleware.compute_turn_allowed_names",
         lambda *_args, **_kwargs: frozenset({"web_search_tool"}),
     )
 

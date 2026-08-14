@@ -4,7 +4,7 @@ Inspired by lime's provider_safety.rs, adapted for LangChain architecture.
 
 [INPUT]
 - langchain_core.messages::BaseMessage (POS: Core message type definitions. All cross-channel communication data structures are defined here; zero I/O, pure data.)
-- agent.middlewares.tool_history_hygiene::sanitize_tool_history (POS: Tool history hygiene middleware. Runs BEFORE dangling_tool_call_middleware.)
+- agent.middlewares.tooling.tool_history_hygiene::sanitize_tool_history (POS: Tool history hygiene middleware. Runs BEFORE dangling_tool_call_middleware.)
 
 [OUTPUT]
 - normalize_messages(): Clean invalid tool calls, orphan responses, and duplicate tool_call_ids
@@ -50,7 +50,7 @@ def normalize_messages(messages: Sequence[BaseMessage]) -> list[BaseMessage]:
     if not messages:
         return []
 
-    from myrm_agent_harness.agent.middlewares.tool_history_hygiene import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import (
         sanitize_tool_history,
     )
 

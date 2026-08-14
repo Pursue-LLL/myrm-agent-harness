@@ -1,6 +1,6 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.agent.middlewares.security_boundary_middleware import SecurityBoundaryMiddleware
+from myrm_agent_harness.agent.middlewares.security.security_boundary_middleware import SecurityBoundaryMiddleware
 from myrm_agent_harness.agent.security.detection.content_boundary import SECURITY_BOUNDARY_SYSTEM_RULES
 
 

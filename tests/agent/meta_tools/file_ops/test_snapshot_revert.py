@@ -512,6 +512,54 @@ class TestRevertService:
         assert len(result.warnings) > 0
 
     @pytest.mark.asyncio
+    async def test_revert_create_with_container_path(self):
+        """Container-abstract snapshot paths (/workspace/...) must map to the real file."""
+        from myrm_agent_harness.core.context_vars import workspace_root_var
+
+        store = SnapshotStore.get()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            local_path = Path(tmpdir) / "created_e2e.txt"
+            local_path.write_text("content", encoding="utf-8")
+            workspace_root_var.set(tmpdir)
+
+            store.record("s1", "m1", FileSnapshot("/workspace/created_e2e.txt", SnapshotOp.CREATE, None))
+            result = await RevertService.revert_message("s1", "m1")
+            assert not local_path.exists()
+            assert "/workspace/created_e2e.txt" in result.reverted_files
+        workspace_root_var.set("")
+
+    @pytest.mark.asyncio
+    async def test_revert_modify_with_container_path(self):
+        from myrm_agent_harness.core.context_vars import workspace_root_var
+
+        store = SnapshotStore.get()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            local_path = Path(tmpdir) / "batch_edit_e2e.txt"
+            local_path.write_text("modified", encoding="utf-8")
+            workspace_root_var.set(tmpdir)
+
+            store.record("s1", "m1", FileSnapshot("/workspace/batch_edit_e2e.txt", SnapshotOp.MODIFY, "original"))
+            result = await RevertService.revert_message("s1", "m1")
+            assert local_path.read_text("utf-8") == "original"
+            assert "/workspace/batch_edit_e2e.txt" in result.reverted_files
+        workspace_root_var.set("")
+
+    @pytest.mark.asyncio
+    async def test_revert_plain_absolute_path_unchanged(self):
+        """Non-container absolute paths must still revert without workspace binding."""
+        store = SnapshotStore.get()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write("modified")
+            path = f.name
+        try:
+            store.record("s1", "m1", FileSnapshot(path, SnapshotOp.MODIFY, "original"))
+            result = await RevertService.revert_message("s1", "m1")
+            assert path in result.reverted_files
+            assert Path(path).read_text("utf-8") == "original"
+        finally:
+            os.remove(path)
+
+    @pytest.mark.asyncio
     async def test_revert_modify_no_original(self):
         """MODIFY snapshot with None original_content should be skipped."""
         store = SnapshotStore.get()

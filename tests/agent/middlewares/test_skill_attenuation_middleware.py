@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_core.messages import HumanMessage
 
-from myrm_agent_harness.agent.middlewares.skill_attenuation_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling.skill_attenuation_middleware import (
     SkillAttenuationMiddleware,
 )
 from myrm_agent_harness.agent.tool_management.registry import ToolRegistry
@@ -45,7 +45,7 @@ async def test_skips_override_when_allowlist_becomes_empty(
         lambda: None,
     )
     monkeypatch.setattr(
-        "myrm_agent_harness.agent.middlewares.skill_attenuation_middleware.compute_turn_allowed_names",
+        "myrm_agent_harness.agent.middlewares.tooling.skill_attenuation_middleware.compute_turn_allowed_names",
         lambda *_args, **_kwargs: None,
     )
 
@@ -78,7 +78,7 @@ async def test_skips_tool_choice_for_block_all_empty_frozenset(
         lambda: None,
     )
     monkeypatch.setattr(
-        "myrm_agent_harness.agent.middlewares.skill_attenuation_middleware.compute_turn_allowed_names",
+        "myrm_agent_harness.agent.middlewares.tooling.skill_attenuation_middleware.compute_turn_allowed_names",
         lambda *_args, **_kwargs: frozenset(),
     )
 
@@ -108,7 +108,7 @@ async def test_applies_allowed_tools_when_restriction_is_non_empty(
         lambda: None,
     )
     monkeypatch.setattr(
-        "myrm_agent_harness.agent.middlewares.skill_attenuation_middleware.compute_turn_allowed_names",
+        "myrm_agent_harness.agent.middlewares.tooling.skill_attenuation_middleware.compute_turn_allowed_names",
         lambda *_args, **_kwargs: frozenset({"web_search_tool"}),
     )
     monkeypatch.setattr(
@@ -148,7 +148,7 @@ async def test_skips_allowed_tools_for_openai_like_models(
         lambda: None,
     )
     monkeypatch.setattr(
-        "myrm_agent_harness.agent.middlewares.skill_attenuation_middleware.compute_turn_allowed_names",
+        "myrm_agent_harness.agent.middlewares.tooling.skill_attenuation_middleware.compute_turn_allowed_names",
         lambda *_args, **_kwargs: frozenset({"web_search_tool"}),
     )
 

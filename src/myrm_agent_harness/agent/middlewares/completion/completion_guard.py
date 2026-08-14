@@ -38,7 +38,7 @@ persisting across ReAct cycles.
 [INPUT]
 - langchain.agents.middleware::AgentMiddleware (POS: LangChain middleware base)
 - langchain_core.tools::tool (POS: tool decorator)
-- agent.middlewares.tool_interceptor_middleware::get_loop_guard (POS: LoopGuard accessor)
+- agent.middlewares.tooling.tool_interceptor_middleware::get_loop_guard (POS: LoopGuard accessor)
 - agent.middlewares.completion.completion_guard_checklist::build_checklist, classify_verification, find_last_successful_verification_command (POS: Verification command classification, checklist generation, and temporal-order verification command extraction for CompletionGuard.)
 - agent.middlewares.completion.completion_guard_external_evidence::build_external_evidence_reason (POS: Freshness-sensitive external evidence gate including MCP PTC bash via skills.mcp_* and Direct FC via mcp__{server}__{tool})
 - agent.middlewares.completion.deliverable_write_verifier::check_deliverable_write_claim (POS: Zero-call deliverable write claim detection for CompletionGuard)
@@ -150,7 +150,7 @@ def _completion_check_tool(
             "or revise the response to remove the false write claim."
         )
 
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         get_loop_guard,
     )
 
@@ -321,7 +321,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                     if not has_non_strippable:
                         # 防假完成：用户请求外部/新鲜数据但会话中尚无成功证据时，
                         # 保留只读工具调用让 Agent 真正获取数据，避免未核实内容直接到达用户。
-                        from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+                        from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
                             get_loop_guard,
                         )
 
@@ -349,7 +349,7 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                         return {"messages": [patched]}
             return None
 
-        from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+        from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
             get_loop_guard,
         )
 

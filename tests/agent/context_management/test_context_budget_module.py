@@ -284,7 +284,7 @@ class TestResolveContextBudgetMetadata:
     ) -> None:
         from unittest.mock import MagicMock
 
-        from myrm_agent_harness.agent.middlewares.context_pipeline_helpers import (
+        from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_helpers import (
             resolve_context_budget_metadata,
         )
         from myrm_agent_harness.utils.token_economics.tracker import (

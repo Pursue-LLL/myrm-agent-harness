@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from myrm_agent_harness.agent.middlewares._tool_helpers import extract_text_content as _extract_text_content
+from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import extract_text_content as _extract_text_content
 
 
 class TestExtractTextContent:

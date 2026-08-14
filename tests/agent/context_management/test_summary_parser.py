@@ -340,6 +340,29 @@ class TestParseSummaryResponse:
         assert result is not None
         assert result.errors_and_fixes == ["KeyError -> 添加默认值"]
 
+    def test_text_format_parses_path_prefix(self) -> None:
+        content = (
+            "[历史摘要]\n"
+            "用户目标: 重构认证模块\n"
+            "路径: /workspace/auth/notes.jsonl\n"
+            "最后操作: 保存笔记\n"
+        )
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.context_dump_path == "/workspace/auth/notes.jsonl"
+
+    def test_text_format_parses_history_log_prefix(self) -> None:
+        content = (
+            "[历史摘要]\n"
+            "用户目标: 分析性能瓶颈\n"
+            "历史日志: /tmp/agent/session.log\n"
+        )
+        msgs = [SystemMessage(content=content)]
+        result = extract_existing_summary(msgs)
+        assert result is not None
+        assert result.context_dump_path == "/tmp/agent/session.log"
+
     def test_parses_handoff_fields_from_json(self) -> None:
         response = """<summary>
         {

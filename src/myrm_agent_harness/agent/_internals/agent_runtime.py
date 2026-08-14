@@ -9,8 +9,8 @@ and helper functions that ``BaseAgent`` delegates to.
 - agent.artifacts::ArtifactContextManager (POS: Provides ArtifactType, ArtifactMappings, is_active_content.)
 - agent.event_log.logger::EventLogger (POS: Integration façade. Injected into BaseAgent via ``event_log_backend`` param. Async-buffered writes ensure zero impact on the event production hot path.)
 - agent.middlewares.completion::CompletionGuard (POS: Finish gate + Mixed Message Guard + independent sandbox re-run for code tasks.)
-- agent.middlewares.security_boundary_middleware::SecurityBoundaryMiddleware (POS: Security boundary middleware.)
-- agent.middlewares.security_guardrail_middleware::SecurityGuardrailMiddleware (POS: Security guardrail middleware.)
+- agent.middlewares.security.security_boundary_middleware::SecurityBoundaryMiddleware (POS: Security boundary middleware.)
+- agent.middlewares.security.security_guardrail_middleware::SecurityGuardrailMiddleware (POS: Security guardrail middleware.)
 - agent.streaming.source_tracker::SourceTracker (POS: BaseAgent  SourceTracker)
 - agent.streaming.stream_executor::STREAM_DONE, (POS: Agent Agent  StreamRecoveryMixin)
 - agent.streaming.types::AgentEventType (POS: Provides ArtifactInfo, infer_language, infer_artifact_type.)
@@ -414,10 +414,13 @@ async def run_agent_loop(
 
         merged_context = await agent_state._setup_workspace(context, message_id)
         merged_context[EFFECTIVE_SECURITY_CONFIG_CONTEXT_KEY] = runtime_security
+        # Propagate the assistant-turn message id through the runnable config so
+        # LangGraph ToolNode context loss can be self-healed by restore_context_vars.
+        merged_context["message_id"] = message_id
         agent_state._last_context = merged_context
         agent_state._init_usage_ledger(merged_context)
 
-        from myrm_agent_harness.agent.middlewares._mutation_verifier import (
+        from myrm_agent_harness.agent.middlewares.tooling._mutation_verifier import (
             reset_mutation_state,
         )
         from myrm_agent_harness.agent.workspace_coordination.merge_warning import (
@@ -905,6 +908,7 @@ async def run_agent_loop(
             merged_context,
             agent_state.config.collect_artifacts,
             agent_state.on_artifacts_ready,
+            tracker=_run_tracker,
         ):
             yield event
 

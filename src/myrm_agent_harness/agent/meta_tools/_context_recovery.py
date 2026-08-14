@@ -63,6 +63,14 @@ def restore_context_vars(context: dict[str, object], executor: object) -> None:
     if delivery_chat_id:
         chat_id_var.set(delivery_chat_id)
 
+    message_id = str(context.get("message_id") or "").strip()
+    if message_id:
+        from myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer import (
+            set_current_message_id,
+        )
+
+        set_current_message_id(message_id)
+
     if _workspace_storage_fs_root.get() is None:
         ws_root = context.get("workspaces_storage_root")
         if ws_root:

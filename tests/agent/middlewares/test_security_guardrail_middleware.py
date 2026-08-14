@@ -11,7 +11,7 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     set_pseudonym_store,
     set_security_config,
 )
-from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
     SecurityGuardrailMiddleware,
 )
 from myrm_agent_harness.agent.security.types import (
@@ -634,7 +634,7 @@ class TestHelperFunctions:
     """Direct tests for _levels_to_process and _apply_pii_actions."""
 
     def test_levels_to_process_s3_with_s2_action(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
             _levels_to_process,
         )
 
@@ -646,7 +646,7 @@ class TestHelperFunctions:
         assert SensitivityLevel.S2 in levels
 
     def test_levels_to_process_s3_with_s2_warn(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
             _levels_to_process,
         )
 
@@ -657,7 +657,7 @@ class TestHelperFunctions:
         assert levels == [SensitivityLevel.S3]
 
     def test_levels_to_process_s2_only(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
             _levels_to_process,
         )
 
@@ -668,7 +668,7 @@ class TestHelperFunctions:
         assert levels == [SensitivityLevel.S2]
 
     def test_apply_pii_actions_block_returns_none(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
             _apply_pii_actions,
         )
 
@@ -679,7 +679,7 @@ class TestHelperFunctions:
         assert result is None
 
     def test_apply_pii_actions_warn_returns_unchanged(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
             _apply_pii_actions,
         )
 
@@ -691,7 +691,7 @@ class TestHelperFunctions:
         assert result == text
 
     def test_apply_pii_actions_redact_removes_pii(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
             _apply_pii_actions,
         )
 

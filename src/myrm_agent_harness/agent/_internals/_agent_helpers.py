@@ -73,7 +73,7 @@ def reset_all_guards(
     from myrm_agent_harness.agent.middlewares.replan_middleware import (
         reset_replan_attempts,
     )
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         reset_loop_guard,
     )
     from myrm_agent_harness.agent.security.audit import reset_audit_log

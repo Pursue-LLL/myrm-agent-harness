@@ -97,7 +97,7 @@ async def test_post_hook_success_no_conversion() -> None:
 @pytest.mark.asyncio
 async def test_token_truncation_for_large_output() -> None:
     """验证大输出场景下的 token 截断。"""
-    from myrm_agent_harness.agent.middlewares._tool_helpers import smart_truncate_output as _smart_truncate_output
+    from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import smart_truncate_output as _smart_truncate_output
 
     # 模拟大文件输出（10000行）
     large_output = "\n".join([f"line {i}: some content here" for i in range(10000)])

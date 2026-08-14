@@ -27,16 +27,16 @@ from myrm_agent_harness.agent.middlewares import (
 )
 from myrm_agent_harness.agent.middlewares.approval import ToolApprovalMiddleware
 from myrm_agent_harness.agent.middlewares.completion import CompletionGuard
-from myrm_agent_harness.agent.middlewares.dangling_tool_call_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling.dangling_tool_call_middleware import (
     dangling_tool_call_middleware,
 )
-from myrm_agent_harness.agent.middlewares.safety_dispatcher import (
+from myrm_agent_harness.agent.middlewares.concurrency.safety_dispatcher import (
     create_safety_dispatcher,
 )
-from myrm_agent_harness.agent.middlewares.security_boundary_middleware import (
+from myrm_agent_harness.agent.middlewares.security.security_boundary_middleware import (
     SecurityBoundaryMiddleware,
 )
-from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
     SecurityGuardrailMiddleware,
 )
 from myrm_agent_harness.agent.middlewares.session_access_middleware import (
@@ -45,7 +45,7 @@ from myrm_agent_harness.agent.middlewares.session_access_middleware import (
 from myrm_agent_harness.agent.middlewares.subagent_limit_middleware import (
     subagent_limit_middleware,
 )
-from myrm_agent_harness.agent.middlewares.tool_history_hygiene import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import (
     tool_history_hygiene_middleware,
 )
 from myrm_agent_harness.agent.streaming.utils import normalize_tool_names
@@ -82,7 +82,7 @@ def build_middlewares(
         progress_middleware,
     )
     from myrm_agent_harness.agent.middlewares.replan_middleware import ReplanMiddleware
-    from myrm_agent_harness.agent.middlewares.skill_attenuation_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.skill_attenuation_middleware import (
         SkillAttenuationMiddleware,
     )
     from myrm_agent_harness.agent.types import EngineParams as _EngineParams

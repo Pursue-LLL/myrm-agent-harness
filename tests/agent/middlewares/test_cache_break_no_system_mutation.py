@@ -126,7 +126,7 @@ class TestSecurityGuardrailCircuitBreaker:
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_injects_human_message(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
             SecurityGuardrailMiddleware,
         )
 
@@ -148,7 +148,7 @@ class TestSecurityGuardrailCircuitBreaker:
         )
 
         with patch(
-            "myrm_agent_harness.agent.middlewares.security_guardrail_middleware.get_terminal_errors"
+            "myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware.get_terminal_errors"
         ) as mock_errors:
             mock_registry = MagicMock()
             mock_registry.get_all.return_value = {"network_blocked"}
@@ -169,7 +169,7 @@ class TestSecurityGuardrailCircuitBreaker:
 
     @pytest.mark.asyncio
     async def test_circuit_breaker_noop_when_no_errors(self) -> None:
-        from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+        from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
             SecurityGuardrailMiddleware,
         )
 
@@ -186,7 +186,7 @@ class TestSecurityGuardrailCircuitBreaker:
         )
 
         with patch(
-            "myrm_agent_harness.agent.middlewares.security_guardrail_middleware.get_terminal_errors"
+            "myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware.get_terminal_errors"
         ) as mock_errors:
             mock_registry = MagicMock()
             mock_registry.get_all.return_value = set()

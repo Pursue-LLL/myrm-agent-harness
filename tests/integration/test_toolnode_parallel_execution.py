@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
-from myrm_agent_harness.agent.middlewares.safety_dispatcher import (
+from myrm_agent_harness.agent.middlewares.concurrency.safety_dispatcher import (
     create_safety_dispatcher,
 )
 from myrm_agent_harness.agent.security.tool_registry import (

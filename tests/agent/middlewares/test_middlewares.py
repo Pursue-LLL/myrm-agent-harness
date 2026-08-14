@@ -10,11 +10,11 @@ import pytest
 from langchain_core.messages import ToolMessage
 
 from myrm_agent_harness.agent.middlewares import ValidationResult, validate_tool_result
-from myrm_agent_harness.agent.middlewares._tool_helpers import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     apply_validation_result,
     format_tool_error,
 )
-from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
     tool_interceptor_middleware,
 )
 from myrm_agent_harness.toolkits.web_search.exceptions import (
@@ -200,7 +200,7 @@ class TestToolInterceptorMiddleware:
     @pytest.fixture(autouse=True)
     def _patch_deps(self) -> Any:
         """Patch external dependencies that are not under test."""
-        from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+        from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
             _loop_guard_var,
         )
         from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
@@ -208,11 +208,11 @@ class TestToolInterceptorMiddleware:
         token = _loop_guard_var.set(LoopGuard())
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.get_steering_token",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_steering_token",
                 return_value=None,
             ) as self.mock_steering,
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_helpers.validate_tool_result",
+                "myrm_agent_harness.agent.middlewares.tooling._tool_helpers.validate_tool_result",
                 return_value=ValidationResult(is_valid=True),
             ) as self.mock_validate,
             patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker") as self.mock_taint,

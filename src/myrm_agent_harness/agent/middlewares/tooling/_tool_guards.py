@@ -12,7 +12,7 @@ detection, steering, trust, PII).  Post-call guards process the result
 - agent.security.guards.frequency_guard (POS: Session-level frequency guard)
 - agent.security.guards.tool_turn_budget_guard (POS: Per-user-turn call budget for high-cost tools)
 - agent.security.audit (POS: Cross-cutting security audit)
-- agent.middlewares._tool_helpers (POS: Stateless helper functions)
+- agent.middlewares.tooling._tool_helpers (POS: Stateless helper functions)
 - agent.middlewares._session_context (POS: Middleware session context)
 - utils.runtime.steering (POS: Steering token management)
 - utils.event_utils (POS: Provides dispatch_custom_event)
@@ -37,7 +37,7 @@ from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategor
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_terminal_errors,
 )
-from myrm_agent_harness.agent.middlewares._tool_helpers import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     apply_validation_result,
     build_hook_failure_result,
     check_tool_params_pii,
@@ -158,7 +158,7 @@ async def run_pre_call_guards(
         set_current_message_id(active_message_id)
 
     if get_loop_guard_fn is None:
-        from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+        from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
             get_loop_guard as get_loop_guard_fn,
         )
 
@@ -471,7 +471,7 @@ async def run_post_call_guards(
 
     await emit_archive_restore_block_status(result_text, tool_name)
 
-    from myrm_agent_harness.agent.middlewares._mutation_verifier import (
+    from myrm_agent_harness.agent.middlewares.tooling._mutation_verifier import (
         record_mutation_result,
     )
 

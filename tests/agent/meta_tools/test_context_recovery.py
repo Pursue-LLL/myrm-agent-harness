@@ -87,6 +87,46 @@ class TestRestoreContextVars:
         mock_normalize.assert_called_once_with("sess-fallback")
         mock_chat_id.set.assert_called_once_with("normalized-chat-id")
 
+    def test_restores_snapshot_message_id(self) -> None:
+        """LangGraph ToolNode context loss must not degrade snapshot keys to msg_<ts>."""
+        executor = MagicMock()
+        context: dict[str, object] = {
+            "chat_id": "chat-abc",
+            "message_id": "r-client-request-1",
+        }
+        with (
+            patch(f"{_EXECUTORS}.set_executor"),
+            patch(f"{_APPROVAL}.set_workspace_root"),
+            patch(f"{_CORE}.workspace_root_var"),
+            patch(f"{_CORE}.chat_id_var"),
+            patch(f"{_STORAGE}._workspace_storage_fs_root") as mock_root,
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer.set_current_message_id"
+            ) as mock_set_msg,
+        ):
+            mock_root.get.return_value = None
+            restore_context_vars(context, executor)
+
+        mock_set_msg.assert_called_once_with("r-client-request-1")
+
+    def test_skips_message_id_when_absent(self) -> None:
+        executor = MagicMock()
+        context: dict[str, object] = {"chat_id": "chat-abc"}
+        with (
+            patch(f"{_EXECUTORS}.set_executor"),
+            patch(f"{_APPROVAL}.set_workspace_root"),
+            patch(f"{_CORE}.workspace_root_var"),
+            patch(f"{_CORE}.chat_id_var"),
+            patch(f"{_STORAGE}._workspace_storage_fs_root") as mock_root,
+            patch(
+                "myrm_agent_harness.agent.meta_tools.file_ops.observers.snapshot_observer.set_current_message_id"
+            ) as mock_set_msg,
+        ):
+            mock_root.get.return_value = None
+            restore_context_vars(context, executor)
+
+        mock_set_msg.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # ensure_executor tests

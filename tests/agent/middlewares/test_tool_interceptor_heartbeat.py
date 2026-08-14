@@ -6,10 +6,10 @@ import pytest
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
-from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
     emit_tool_heartbeat as _emit_tool_heartbeat,
 )
-from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
     _tool_interceptor_middleware_inner,
 )
 from myrm_agent_harness.agent.streaming.types import AgentEventType
@@ -61,13 +61,13 @@ async def test_tool_interceptor_starts_and_cancels_heartbeat():
     async def dummy_handler(req):
         return ToolMessage(content="success", name="test_tool", tool_call_id="call_123")
 
-    with patch("myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_pre_call_guards", return_value=MagicMock()), \
-         patch("myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.execute_with_retry", return_value=ToolMessage(content="success", name="test_tool", tool_call_id="call_123")), \
-         patch("myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_post_call_guards", return_value=ToolMessage(content="success", name="test_tool", tool_call_id="call_123")), \
-         patch("myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.emit_tool_heartbeat") as mock_emit, \
-         patch("myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.push_tool_context"), \
-         patch("myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.pop_tool_context"), \
-         patch("myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_token_tracker", return_value=None):
+    with patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_pre_call_guards", return_value=MagicMock()), \
+         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.execute_with_retry", return_value=ToolMessage(content="success", name="test_tool", tool_call_id="call_123")), \
+         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_post_call_guards", return_value=ToolMessage(content="success", name="test_tool", tool_call_id="call_123")), \
+         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat") as mock_emit, \
+         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.push_tool_context"), \
+         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.pop_tool_context"), \
+         patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker", return_value=None):
 
         # Make _emit_tool_heartbeat an async function that just sleeps forever
         # so it can be cancelled

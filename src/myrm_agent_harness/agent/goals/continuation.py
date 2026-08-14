@@ -277,7 +277,7 @@ async def _maybe_auto_enter_wait_for_background_bash(
     if not hasattr(goal_provider, "enter_wait"):
         return None
 
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import get_loop_guard
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import get_loop_guard
 
     from .wait_background_bash import (
         WAIT_ON_BACKGROUND_JOB_ID_KEY,
@@ -468,7 +468,7 @@ async def check_continuation(
         return _make_decision("suppressed", "No tool calls — paused to prevent spinning", goal)
 
     # 6.5a Sandbox boundary escalation: PAUSE goal if LoopGuard flagged permission probing
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import get_loop_guard as _get_lg
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import get_loop_guard as _get_lg
 
     _lg = _get_lg()
     if _lg.sandbox_boundary_triggered:

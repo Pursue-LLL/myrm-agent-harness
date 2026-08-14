@@ -21,4 +21,4 @@ Two-layer mechanism:
 - `agent.security.detection.prompt_guard` — injection pattern scanning
 - `agent.security.detection.content_boundary` — Unicode sanitization, marker neutralization
 - `agent.middlewares._session_context` — workspace_root ContextVar
-- `agent.middlewares.tool_interceptor_middleware` — POST-CALL integration for tracker
+- `agent.middlewares.tooling.tool_interceptor_middleware` — POST-CALL integration for tracker

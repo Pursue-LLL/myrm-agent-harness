@@ -17,10 +17,10 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from myrm_agent_harness.agent.middlewares.concurrency_limiter import (
+from myrm_agent_harness.agent.middlewares.concurrency.concurrency_limiter import (
     create_concurrency_limiter,
 )
-from myrm_agent_harness.agent.middlewares.safety_dispatcher import (
+from myrm_agent_harness.agent.middlewares.concurrency.safety_dispatcher import (
     create_safety_dispatcher,
 )
 
@@ -286,7 +286,7 @@ class TestConcurrencyLimiterEdgeCases:
     @pytest.mark.asyncio
     async def test_handler_exception_releases_semaphore(self) -> None:
         """Semaphore must be released even when handler raises."""
-        from myrm_agent_harness.agent.middlewares.concurrency_limiter import (
+        from myrm_agent_harness.agent.middlewares.concurrency.concurrency_limiter import (
             get_subagent_semaphore,
         )
         from myrm_agent_harness.agent.sub_agents.registry import SUBAGENT_CONFIGS, register_subagent_configs

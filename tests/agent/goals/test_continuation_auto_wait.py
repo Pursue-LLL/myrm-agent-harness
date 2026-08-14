@@ -6,7 +6,7 @@ import pytest
 
 from myrm_agent_harness.agent.goals.continuation import check_continuation
 from myrm_agent_harness.agent.goals.types import Goal, GoalBudget, GoalStatus
-from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import _loop_guard_var
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import _loop_guard_var
 from myrm_agent_harness.agent.security.guards.loop_guard import CallRecord, LoopGuard
 
 

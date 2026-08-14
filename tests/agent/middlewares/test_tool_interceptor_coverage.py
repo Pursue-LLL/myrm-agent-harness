@@ -4,7 +4,7 @@ import pytest
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
-from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
     _tool_interceptor_middleware_inner,
 )
 
@@ -51,7 +51,7 @@ async def test_tool_interceptor_coverage_estop():
             return_value=MagicMock(blocked=False, updated_input=None),
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.check_estop"
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop"
         ) as mock_estop,
     ):
         mock_estop_state = MagicMock()
@@ -81,11 +81,11 @@ async def test_tool_interceptor_coverage_loop_break():
             return_value=MagicMock(blocked=False, updated_input=None),
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.check_estop",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
         ) as mock_guard,
     ):
 
@@ -121,14 +121,14 @@ async def test_tool_interceptor_coverage_pii_block():
             return_value=MagicMock(blocked=False, updated_input=None),
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.check_estop",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
         ) as mock_guard,
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.check_tool_params_pii",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_params_pii",
             return_value="pii block",
         ),
     ):
@@ -151,7 +151,7 @@ async def test_build_hook_failure_result():
 
     from langchain_core.messages import ToolMessage
 
-    from myrm_agent_harness.agent.middlewares._tool_helpers import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
         build_hook_failure_result as _build_hook_failure_result,
     )
 
@@ -190,7 +190,7 @@ async def test_handle_cancellation():
     import asyncio
     import time
 
-    from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
         handle_cancellation as _handle_cancellation,
     )
 
@@ -213,7 +213,7 @@ async def test_handle_cancellation():
 
 @pytest.mark.asyncio
 async def test_handle_execution_error():
-    from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
         handle_execution_error as _handle_execution_error,
     )
 
@@ -227,7 +227,7 @@ async def test_handle_execution_error():
     async def test_run_post_call_guards():
         from langchain_core.messages import ToolMessage
 
-        from myrm_agent_harness.agent.middlewares._tool_guards import (
+        from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
             run_post_call_guards as _run_post_call_guards,
         )
 
@@ -238,7 +238,7 @@ async def test_handle_execution_error():
         with (
             patch("myrm_agent_harness.agent.hooks.executor.fire_hook") as mock_fire,
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_guards.check_tool_result_pii"
+                "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii"
             ) as mock_pii,
             patch(
                 "myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker"
@@ -275,7 +275,7 @@ async def test_handle_execution_error():
 
 @pytest.mark.asyncio
 async def test_emit_hook_failure_event():
-    from myrm_agent_harness.agent.middlewares._tool_helpers import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
         emit_hook_failure_event as _emit_hook_failure_event,
     )
 
@@ -306,12 +306,12 @@ async def test_emit_hook_failure_event():
         assert mock_sink_inst.emit.call_count == 1
 
     def test_check_circuit_breaker():
-        from myrm_agent_harness.agent.middlewares._tool_guards import (
+        from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
             _check_circuit_breaker,
         )
 
         with patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.get_terminal_errors"
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_terminal_errors"
         ) as mock_cb:
             mock_cb_inst = MagicMock()
             mock_cb_inst.get_all.return_value = {"any": "error"}
@@ -323,7 +323,7 @@ async def test_emit_hook_failure_event():
 
 
 def test_record_skill_execution():
-    from myrm_agent_harness.agent.middlewares._skill_failure_tracking import (
+    from myrm_agent_harness.agent.middlewares.tooling._skill_failure_tracking import (
         track_skill_execution as _track_skill_execution,
     )
 
@@ -358,7 +358,7 @@ def test_record_skill_execution():
 async def test_run_pre_call_guards_blocks():
     from langgraph.prebuilt.tool_node import ToolCallRequest
 
-    from myrm_agent_harness.agent.middlewares._tool_guards import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
         run_pre_call_guards as _run_pre_call_guards,
     )
 
@@ -383,7 +383,7 @@ async def test_run_pre_call_guards_blocks():
 async def test_run_pre_call_guards_updated_input():
     from langgraph.prebuilt.tool_node import ToolCallRequest
 
-    from myrm_agent_harness.agent.middlewares._tool_guards import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
         run_pre_call_guards as _run_pre_call_guards,
     )
 
@@ -397,18 +397,18 @@ async def test_run_pre_call_guards_updated_input():
     with (
         patch("myrm_agent_harness.agent.hooks.executor.fire_hook") as mock_fire,
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards._check_circuit_breaker",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards._check_circuit_breaker",
             return_value=False,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.check_estop",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
         ) as mock_guard,
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.check_tool_params_pii",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_params_pii",
             return_value=None,
         ),
     ):
@@ -431,7 +431,7 @@ async def test_run_pre_call_guards_updated_input():
 
 
 def test_get_loop_guard():
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         _loop_guard_var,
         _session_loop_guards,
         get_loop_guard,
@@ -452,7 +452,7 @@ def test_get_loop_guard():
 
 
 def test_get_loop_guard_reuses_session_registry_when_contextvar_cleared():
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         _loop_guard_var,
         _session_loop_guards,
         get_loop_guard,
@@ -480,7 +480,7 @@ def test_get_loop_guard_reuses_session_registry_when_contextvar_cleared():
 
 
 def test_reset_loop_guard():
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         get_loop_guard,
         reset_loop_guard,
     )
@@ -525,13 +525,13 @@ def test_reset_loop_guard():
     assert len(guard._window) == 0
 
     # Test with no guard in ContextVar or session registry
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         _session_loop_guards,
     )
 
     _session_loop_guards.clear()
     with patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._loop_guard_var"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var"
     ) as mock_var:
         mock_var.get.return_value = None
         reset_loop_guard()
@@ -543,7 +543,7 @@ def test_reset_loop_guard():
 async def test_tool_interceptor_middleware_success():
     from langchain_core.messages import ToolMessage
 
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         tool_interceptor_middleware,
     )
 
@@ -558,11 +558,11 @@ async def test_tool_interceptor_middleware_success():
 
     with (
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._tool_interceptor_middleware_inner",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._tool_interceptor_middleware_inner",
             return_value=result_msg,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._track_skill_execution"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._track_skill_execution"
         ) as mock_track,
         patch(
             "myrm_agent_harness.observability.metrics.registry.metrics_registry"
@@ -596,7 +596,7 @@ async def test_tool_interceptor_middleware_success():
 @pytest.mark.asyncio
 async def test_tool_interceptor_middleware_error():
 
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         tool_interceptor_middleware,
     )
 
@@ -608,11 +608,11 @@ async def test_tool_interceptor_middleware_error():
 
     with (
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._tool_interceptor_middleware_inner",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._tool_interceptor_middleware_inner",
             side_effect=ValueError("test error"),
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._track_skill_execution"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._track_skill_execution"
         ) as mock_track,
         patch(
             "myrm_agent_harness.observability.metrics.registry.metrics_registry"
@@ -639,10 +639,10 @@ async def test_tool_interceptor_middleware_error():
 
 
 def test_check_circuit_breaker_network():
-    from myrm_agent_harness.agent.middlewares._tool_guards import _check_circuit_breaker
+    from myrm_agent_harness.agent.middlewares.tooling._tool_guards import _check_circuit_breaker
 
     with patch(
-        "myrm_agent_harness.agent.middlewares._tool_guards.get_terminal_errors"
+        "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_terminal_errors"
     ) as mock_cb:
         mock_cb_inst = MagicMock()
         mock_cb_inst.get_all.return_value = {"network_blocked": "error"}
@@ -657,10 +657,10 @@ def test_check_circuit_breaker_network():
 
 
 def test_check_circuit_breaker_write():
-    from myrm_agent_harness.agent.middlewares._tool_guards import _check_circuit_breaker
+    from myrm_agent_harness.agent.middlewares.tooling._tool_guards import _check_circuit_breaker
 
     with patch(
-        "myrm_agent_harness.agent.middlewares._tool_guards.get_terminal_errors"
+        "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_terminal_errors"
     ) as mock_cb:
         mock_cb_inst = MagicMock()
         mock_cb_inst.get_all.return_value = {"sandbox_ro": "error"}
@@ -678,7 +678,7 @@ def test_check_circuit_breaker_write():
 async def test_run_post_call_guards_full():
     from langchain_core.messages import ToolMessage
 
-    from myrm_agent_harness.agent.middlewares._tool_guards import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
         run_post_call_guards as _run_post_call_guards,
     )
     from myrm_agent_harness.agent.security.guards.context_budget import BudgetAction
@@ -689,19 +689,19 @@ async def test_run_post_call_guards_full():
     with (
         patch("myrm_agent_harness.agent.hooks.executor.fire_hook") as mock_fire,
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.check_tool_result_pii"
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii"
         ) as mock_pii,
         patch(
             "myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker"
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.get_context_budget_guard"
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard"
         ) as mock_budget,
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.run_content_validation"
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.run_content_validation"
         ) as mock_validation,
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.emit_hook_failure_event"
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.emit_hook_failure_event"
         ),
     ):
 
@@ -726,7 +726,7 @@ async def test_run_post_call_guards_full():
         mock_validation.return_value = MagicMock(reason="poisoned")
 
         with patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.apply_validation_result",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.apply_validation_result",
             return_value=result,
         ):
             mock_guard_inst = MagicMock()
@@ -762,7 +762,7 @@ async def test_run_post_call_guards_full():
 async def test_run_post_call_guards_budget_persisted():
     from langchain_core.messages import ToolMessage
 
-    from myrm_agent_harness.agent.middlewares._tool_guards import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
         run_post_call_guards as _run_post_call_guards,
     )
     from myrm_agent_harness.agent.security.guards.context_budget import BudgetAction
@@ -772,16 +772,16 @@ async def test_run_post_call_guards_budget_persisted():
     with (
         patch("myrm_agent_harness.agent.hooks.executor.fire_hook") as mock_fire,
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.check_tool_result_pii"
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_tool_result_pii"
         ) as mock_pii,
         patch(
             "myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker"
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.get_context_budget_guard"
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.get_context_budget_guard"
         ) as mock_budget,
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.run_content_validation",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.run_content_validation",
             return_value=None,
         ),
         patch(
@@ -836,7 +836,7 @@ async def test_run_post_call_guards_budget_persisted():
 async def test_tool_interceptor_middleware_inner_success():
     from langchain_core.messages import ToolMessage
 
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         _tool_interceptor_middleware_inner,
     )
 
@@ -851,30 +851,30 @@ async def test_tool_interceptor_middleware_inner_success():
 
     with (
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_pre_call_guards"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_pre_call_guards"
         ) as mock_pre,
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.execute_with_retry",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.execute_with_retry",
             return_value=result_msg,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_post_call_guards",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_post_call_guards",
             return_value=result_msg,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.push_tool_context"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.push_tool_context"
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.pop_tool_context"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.pop_tool_context"
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_token_tracker"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker"
         ) as mock_tracker,
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_event_logger"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_event_logger"
         ) as mock_logger,
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.emit_tool_heartbeat"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat"
         ),
     ):
 
@@ -909,7 +909,7 @@ async def test_tool_interceptor_middleware_inner_success():
 async def test_tool_interceptor_middleware_inner_blocked():
     from langchain_core.messages import ToolMessage
 
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         _tool_interceptor_middleware_inner,
     )
 
@@ -923,7 +923,7 @@ async def test_tool_interceptor_middleware_inner_blocked():
         return None
 
     with patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_pre_call_guards"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_pre_call_guards"
     ) as mock_pre:
         mock_pre.return_value = blocked_msg
 
@@ -935,7 +935,7 @@ async def test_tool_interceptor_middleware_inner_blocked():
 async def test_emit_tool_heartbeat():
     import asyncio
 
-    from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
         emit_tool_heartbeat as _emit_tool_heartbeat,
     )
 
@@ -960,7 +960,7 @@ async def test_handle_cancellation_reasons():
     import asyncio
     import time
 
-    from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
         handle_cancellation as _handle_cancellation,
     )
 
@@ -995,7 +995,7 @@ async def test_handle_cancellation_reasons():
 async def test_handle_execution_error_graph_interrupt():
     from langgraph.errors import GraphInterrupt
 
-    from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
         handle_execution_error as _handle_execution_error,
     )
 
@@ -1010,7 +1010,7 @@ async def test_pre_check_tool_stuck_triggers_interrupt_via_pre_call_guards():
     from langgraph.errors import GraphInterrupt
 
     from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
-    from myrm_agent_harness.agent.middlewares._tool_guards import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
         run_pre_call_guards as _run_pre_call_guards,
     )
 
@@ -1033,19 +1033,19 @@ async def test_pre_check_tool_stuck_triggers_interrupt_via_pre_call_guards():
     with (
         patch("myrm_agent_harness.agent.hooks.executor.fire_hook") as mock_hook,
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard",
             return_value=mock_guard,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_token_tracker",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.check_estop",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards._check_circuit_breaker",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards._check_circuit_breaker",
             return_value=None,
         ),
         patch("langgraph.types.interrupt") as mock_interrupt,
@@ -1074,7 +1074,7 @@ async def test_pre_check_tool_stuck_triggers_interrupt_via_pre_call_guards():
 async def test_pre_check_tool_stuck_fallthrough_returns_error_msg():
     """If interrupt() returns in pre_check path, return error ToolMessage."""
     from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
-    from myrm_agent_harness.agent.middlewares._tool_guards import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
         run_pre_call_guards as _run_pre_call_guards,
     )
 
@@ -1095,19 +1095,19 @@ async def test_pre_check_tool_stuck_fallthrough_returns_error_msg():
     with (
         patch("myrm_agent_harness.agent.hooks.executor.fire_hook") as mock_hook,
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard",
             return_value=mock_guard,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_token_tracker",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards.check_estop",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards.check_estop",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares._tool_guards._check_circuit_breaker",
+            "myrm_agent_harness.agent.middlewares.tooling._tool_guards._check_circuit_breaker",
             return_value=None,
         ),
         patch("langgraph.types.interrupt", return_value=None),
@@ -1130,7 +1130,7 @@ async def test_handle_execution_error_tool_stuck_triggers_interrupt():
     from langgraph.errors import GraphInterrupt
 
     from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
-    from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
         handle_execution_error as _handle_execution_error,
     )
 
@@ -1157,7 +1157,7 @@ async def test_handle_execution_error_tool_stuck_triggers_interrupt():
 async def test_handle_execution_error_tool_stuck_fallthrough_if_interrupt_returns():
     """If interrupt() returns (checkpoint mode), _handle_execution_error still returns ToolMessage."""
     from myrm_agent_harness.agent.errors.agent_errors import ToolStuckException
-    from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
         handle_execution_error as _handle_execution_error,
     )
 

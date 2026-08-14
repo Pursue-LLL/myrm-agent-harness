@@ -295,7 +295,7 @@ class TestPostRunEvents:
                 return_value=_async_gen([]),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
         ):
@@ -322,7 +322,7 @@ class TestPostRunEvents:
                 return_value=_async_gen([]),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
         ):
@@ -348,7 +348,7 @@ class TestPostRunEvents:
                 return_value=_async_gen([]),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
         ):
@@ -375,7 +375,7 @@ class TestPostRunEvents:
                 return_value=_async_gen([]),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
         ):
@@ -401,7 +401,7 @@ class TestPostRunEvents:
                 return_value=_async_gen([]),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
         ):
@@ -431,7 +431,7 @@ class TestPostRunEvents:
                 return_value=_async_gen([]),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
         ):
@@ -462,7 +462,7 @@ class TestPostRunEvents:
                 return_value=_async_gen([]),
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.format_mutation_failures",
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
                 return_value=None,
             ),
             patch(f"{_MOD}.get_token_tracker", return_value=None),
@@ -474,6 +474,62 @@ class TestPostRunEvents:
         assert budget["current_tokens"] == 118_000
         assert budget["messages_estimated_tokens"] == 112_000
         assert budget["bound_tools_overhead_tokens"] == 6_000
+
+    @pytest.mark.asyncio
+    async def test_explicit_tracker_injects_token_economics(self) -> None:
+        from myrm_agent_harness.utils.token_economics.tracker import TokenTracker
+
+        stats = AgentRunStatistics()
+        tracker = TokenTracker()
+        tracker.record(
+            {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+            model_name="gpt-4",
+            cost_usd=0.001,
+            cost_status="actual",
+        )
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
+                return_value=_async_gen([]),
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
+                return_value=None,
+            ),
+        ):
+            events = [
+                e
+                async for e in post_run_events(
+                    stats, "msg1", {}, False, None, tracker=tracker
+                )
+            ]
+
+        end_event = events[-1]
+        assert end_event["type"] == AgentEventType.MESSAGE_END.value
+        assert end_event["token_economics"]["call_count"] == 1
+        assert end_event["token_economics"]["total_cost_usd"] == 0.001
+        assert end_event["token_economics"]["usage"]["total_tokens"] == 15
+
+    @pytest.mark.asyncio
+    async def test_no_tracker_omits_token_economics(self) -> None:
+        stats = AgentRunStatistics()
+
+        with (
+            patch(
+                "myrm_agent_harness.agent.streaming.artifact_events.collect_ui_artifacts",
+                return_value=_async_gen([]),
+            ),
+            patch(
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.format_mutation_failures",
+                return_value=None,
+            ),
+            patch(f"{_MOD}.get_token_tracker", return_value=None),
+        ):
+            events = [e async for e in post_run_events(stats, "msg1", {}, False, None)]
+
+        end_event = events[-1]
+        assert "token_economics" not in end_event
 
     """Tests for compute_context_budget_snapshot."""
 

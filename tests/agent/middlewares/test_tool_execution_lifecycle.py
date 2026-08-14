@@ -9,7 +9,7 @@ import pytest
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
-from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
     emit_tool_heartbeat,
     handle_execution_error,
     resolve_dynamic_tool,
@@ -43,7 +43,7 @@ class TestResolveDynamicTool:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_execution_lifecycle.logger"
+                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
             ),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
@@ -73,7 +73,7 @@ class TestResolveDynamicTool:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_execution_lifecycle.logger"
+                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
             ),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
@@ -103,7 +103,7 @@ class TestResolveDynamicTool:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_execution_lifecycle.logger"
+                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
             ),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
@@ -133,7 +133,7 @@ class TestResolveDynamicTool:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_execution_lifecycle.logger"
+                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
             ),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
@@ -157,7 +157,7 @@ class TestResolveDynamicTool:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_execution_lifecycle.logger"
+                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
             ),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
@@ -184,7 +184,7 @@ class TestResolveDynamicTool:
 
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_execution_lifecycle.logger"
+                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
             ),
             patch(
                 "myrm_agent_harness.agent.middlewares._session_context.get_active_resolved_tools",
@@ -216,12 +216,12 @@ class TestHandleExecutionError:
         exc = ToolStuckException("stuck")
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_execution_lifecycle.logger"
+                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
             ),
             patch("langgraph.types.interrupt") as mock_interrupt,
             patch("myrm_agent_harness.agent.hooks.executor.fire_hook", return_value=MagicMock()),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.record_mutation_result"
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.record_mutation_result"
             ),
         ):
             result = await handle_execution_error(exc, "test_tool", "c1", {})
@@ -233,11 +233,11 @@ class TestHandleExecutionError:
         exc = RuntimeError("something broke")
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares._tool_execution_lifecycle.logger"
+                "myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle.logger"
             ),
             patch("myrm_agent_harness.agent.hooks.executor.fire_hook", return_value=MagicMock()),
             patch(
-                "myrm_agent_harness.agent.middlewares._mutation_verifier.record_mutation_result"
+                "myrm_agent_harness.agent.middlewares.tooling._mutation_verifier.record_mutation_result"
             ),
         ):
             result = await handle_execution_error(exc, "test_tool", "c1", {})

@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import ToolMessage
 
-from myrm_agent_harness.agent.middlewares.tool_executor import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_executor import (
     execute_with_retry,
 )
 from myrm_agent_harness.utils.errors import ToolError
@@ -25,8 +25,8 @@ def _make_request(tool_name: str = "my_tool", tool_call_id: str = "tc_1") -> Mag
 def _no_event_logger() -> Any:
     """Patch session context to return no event logger and empty terminal errors."""
     with (
-        patch("myrm_agent_harness.agent.middlewares.tool_executor.get_event_logger", return_value=None),
-        patch("myrm_agent_harness.agent.middlewares.tool_executor.get_terminal_errors", return_value=set()),
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_event_logger", return_value=None),
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_terminal_errors", return_value=set()),
     ):
         yield
 
@@ -53,9 +53,9 @@ class TestExecuteWithRetryTimeout:
             return ToolMessage(content="never", name="t", tool_call_id="id")
 
         with (
-            patch("myrm_agent_harness.agent.middlewares.tool_executor.get_tool_timeout", return_value=0.01),
-            patch("myrm_agent_harness.agent.middlewares.tool_executor._emit_timeout_event", new_callable=AsyncMock),
-            patch("myrm_agent_harness.agent.middlewares.tool_executor._emit_retry_event", new_callable=AsyncMock),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_tool_timeout", return_value=0.01),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_timeout_event", new_callable=AsyncMock),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_retry_event", new_callable=AsyncMock),
         ):
             with pytest.raises(ToolError) as exc_info:
                 await execute_with_retry(
@@ -76,9 +76,9 @@ class TestExecuteWithRetryTimeout:
             return ToolMessage(content="ok", name="t", tool_call_id="id")
 
         with (
-            patch("myrm_agent_harness.agent.middlewares.tool_executor.get_tool_timeout", return_value=0.01),
-            patch("myrm_agent_harness.agent.middlewares.tool_executor._emit_timeout_event", new_callable=AsyncMock),
-            patch("myrm_agent_harness.agent.middlewares.tool_executor._emit_retry_event", new_callable=AsyncMock),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_tool_timeout", return_value=0.01),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_timeout_event", new_callable=AsyncMock),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_retry_event", new_callable=AsyncMock),
         ):
             result = await execute_with_retry(
                 _make_request(), intermittent_handler, "t", "tc_1", allowed_domains=None,
@@ -117,7 +117,7 @@ class TestExecuteWithRetryErrors:
     async def test_retryable_error_retries_then_raises(self) -> None:
         handler = AsyncMock(side_effect=RuntimeError("transient"))
         with (
-            patch("myrm_agent_harness.agent.middlewares.tool_executor.asyncio.sleep", new_callable=AsyncMock),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.asyncio.sleep", new_callable=AsyncMock),
         ):
             with pytest.raises(ToolError) as exc_info:
                 await execute_with_retry(
@@ -138,7 +138,7 @@ class TestExecuteWithRetryErrors:
             return ToolMessage(content="ok", name="t", tool_call_id="id")
 
         with (
-            patch("myrm_agent_harness.agent.middlewares.tool_executor.asyncio.sleep", new_callable=AsyncMock),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.asyncio.sleep", new_callable=AsyncMock),
         ):
             result = await execute_with_retry(
                 _make_request(), intermittent_handler, "search_tool", "tc_1", allowed_domains=None,
@@ -165,11 +165,11 @@ class TestExecuteWithRetryErrors:
             return ToolMessage(content="x", name="t", tool_call_id="id")
 
         with (
-            patch("myrm_agent_harness.agent.middlewares.tool_executor.get_event_logger", return_value=event_logger),
-            patch("myrm_agent_harness.agent.middlewares.tool_executor.get_terminal_errors", return_value=set()),
-            patch("myrm_agent_harness.agent.middlewares.tool_executor.get_tool_timeout", return_value=0.01),
-            patch("myrm_agent_harness.agent.middlewares.tool_executor._emit_timeout_event", new_callable=AsyncMock),
-            patch("myrm_agent_harness.agent.middlewares.tool_executor._emit_retry_event", new_callable=AsyncMock),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_event_logger", return_value=event_logger),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_terminal_errors", return_value=set()),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_tool_timeout", return_value=0.01),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_timeout_event", new_callable=AsyncMock),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor._emit_retry_event", new_callable=AsyncMock),
             pytest.raises(ToolError),
         ):
             await execute_with_retry(_make_request(), slow, "t", "tc_1", allowed_domains=None)
@@ -181,9 +181,9 @@ class TestExecuteWithRetryErrors:
         event_logger = AsyncMock()
         handler = AsyncMock(side_effect=RuntimeError("transient"))
         with (
-            patch("myrm_agent_harness.agent.middlewares.tool_executor.get_event_logger", return_value=event_logger),
-            patch("myrm_agent_harness.agent.middlewares.tool_executor.get_terminal_errors", return_value=set()),
-            patch("myrm_agent_harness.agent.middlewares.tool_executor.asyncio.sleep", new_callable=AsyncMock),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_event_logger", return_value=event_logger),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_terminal_errors", return_value=set()),
+            patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.asyncio.sleep", new_callable=AsyncMock),
             pytest.raises(ToolError),
         ):
             await execute_with_retry(_make_request(), handler, "search", "tc_1", allowed_domains=None)
@@ -198,7 +198,7 @@ class TestExecuteWithRetryErrors:
         )
         handler = AsyncMock(side_effect=err)
         with patch(
-            "myrm_agent_harness.agent.middlewares.tool_executor.get_terminal_errors",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_terminal_errors",
             return_value=terminal_errors,
         ):
             result = await execute_with_retry(
@@ -230,7 +230,7 @@ class TestExecuteWithRetryErrors:
 
     @pytest.mark.asyncio
     async def test_emit_timeout_event_with_sink(self) -> None:
-        from myrm_agent_harness.agent.middlewares.tool_executor import _emit_timeout_event
+        from myrm_agent_harness.agent.middlewares.tooling.tool_executor import _emit_timeout_event
 
         sink = AsyncMock()
         with patch("myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink", return_value=sink):
@@ -239,14 +239,14 @@ class TestExecuteWithRetryErrors:
 
     @pytest.mark.asyncio
     async def test_emit_timeout_event_no_sink(self) -> None:
-        from myrm_agent_harness.agent.middlewares.tool_executor import _emit_timeout_event
+        from myrm_agent_harness.agent.middlewares.tooling.tool_executor import _emit_timeout_event
 
         with patch("myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink", return_value=None):
             await _emit_timeout_event("my_tool", 60.0, 0, 500.0)
 
     @pytest.mark.asyncio
     async def test_emit_timeout_event_exception_handled(self) -> None:
-        from myrm_agent_harness.agent.middlewares.tool_executor import _emit_timeout_event
+        from myrm_agent_harness.agent.middlewares.tooling.tool_executor import _emit_timeout_event
 
         with patch(
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",
@@ -256,7 +256,7 @@ class TestExecuteWithRetryErrors:
 
     @pytest.mark.asyncio
     async def test_emit_retry_event_with_sink(self) -> None:
-        from myrm_agent_harness.agent.middlewares.tool_executor import _emit_retry_event
+        from myrm_agent_harness.agent.middlewares.tooling.tool_executor import _emit_retry_event
 
         sink = AsyncMock()
         with (
@@ -271,14 +271,14 @@ class TestExecuteWithRetryErrors:
 
     @pytest.mark.asyncio
     async def test_emit_retry_event_no_sink(self) -> None:
-        from myrm_agent_harness.agent.middlewares.tool_executor import _emit_retry_event
+        from myrm_agent_harness.agent.middlewares.tooling.tool_executor import _emit_retry_event
 
         with patch("myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink", return_value=None):
             await _emit_retry_event("my_tool", 0, 1.5)
 
     @pytest.mark.asyncio
     async def test_emit_retry_event_exception_handled(self) -> None:
-        from myrm_agent_harness.agent.middlewares.tool_executor import _emit_retry_event
+        from myrm_agent_harness.agent.middlewares.tooling.tool_executor import _emit_retry_event
 
         with patch(
             "myrm_agent_harness.utils.runtime.progress_sink.get_tool_progress_sink",

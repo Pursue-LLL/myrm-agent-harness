@@ -493,6 +493,9 @@ class TestInvokeSummaryWithParser:
 
         mock_llm = AsyncMock()
         mock_llm.ainvoke.return_value = MagicMock(content="parsed content")
+        mock_llm.astream = MagicMock(
+            side_effect=NotImplementedError("no stream — fallback to ainvoke")
+        )
 
         result = await _invoke_summary(mock_llm, None, mock_parser, "prompt", "/dump")
         assert result.user_goal == "test goal"

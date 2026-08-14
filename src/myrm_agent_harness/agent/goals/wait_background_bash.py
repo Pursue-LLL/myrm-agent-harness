@@ -2,7 +2,7 @@
 
 [INPUT]
 - agent.security.guards.loop_guard::CallRecord (POS: tool call window entries)
-- agent.middlewares.tool_interceptor_middleware::get_loop_guard (POS: session LoopGuard)
+- agent.middlewares.tooling.tool_interceptor_middleware::get_loop_guard (POS: session LoopGuard)
 
 [OUTPUT]
 - is_wait_eligible_command: Narrow whitelist for build/test/CI commands

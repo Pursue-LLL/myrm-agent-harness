@@ -2,8 +2,8 @@
 
 [INPUT]
 - agent.tool_management.registry::ToolRegistry (POS: Tool registry)
-- agent.middlewares._skill_tool_choice (POS: Skill attenuation request metadata builder)
-- agent.middlewares._runtime_tool_governance::compute_turn_allowed_names (POS: merged allowlist for model hint + execution enforcement)
+- agent.middlewares.tooling._skill_tool_choice (POS: Skill attenuation request metadata builder)
+- agent.middlewares.tooling._runtime_tool_governance::compute_turn_allowed_names (POS: merged allowlist for model hint + execution enforcement)
 - toolkits.llms.allowed_tools_capability::model_supports_allowed_tools_tool_choice (POS: provider capability gate for cache-safe skill attenuation)
 - langchain.agents.middleware::AgentMiddleware (POS: Middleware base)
 - langgraph.prebuilt.tool_node::ToolCallRequest (POS: Tool execution request for interceptors)
@@ -34,7 +34,7 @@ from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 from langgraph.types import Command
 
-from myrm_agent_harness.agent.middlewares._runtime_tool_governance import (
+from myrm_agent_harness.agent.middlewares.tooling._runtime_tool_governance import (
     compute_turn_allowed_names,
 )
 from myrm_agent_harness.agent.middlewares._session_context import (
@@ -70,7 +70,7 @@ class SkillAttenuationMiddleware(AgentMiddleware[AgentState[object], object, obj
     def _apply_turn_tool_policy(
         self, request: ModelRequest[object]
     ) -> ModelRequest[object]:
-        from myrm_agent_harness.agent.middlewares._skill_tool_choice import (
+        from myrm_agent_harness.agent.middlewares.tooling._skill_tool_choice import (
             build_allowed_tools_tool_choice,
             extract_bound_tool_names,
         )

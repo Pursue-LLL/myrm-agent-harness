@@ -97,7 +97,7 @@ from myrm_agent_harness.agent.context_management.strategies.session_notes.update
 from myrm_agent_harness.agent.context_management.tracking.task_metrics import (
     get_or_create_task_metrics,
 )
-from myrm_agent_harness.agent.middlewares.context_pipeline_helpers import (
+from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_helpers import (
     estimate_request_context_tokens,
     extract_compression_intent,
     extract_tool_names_and_schemas,
@@ -439,7 +439,7 @@ def create_context_pipeline_middleware(
                                 except Exception:
                                     pass
 
-                    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+                    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
                         notify_loop_guard_compaction,
                     )
 

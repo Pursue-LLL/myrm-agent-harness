@@ -30,7 +30,7 @@ from myrm_agent_harness.core.security.tool_registry import (
 )
 
 LOOP_GUARD_PATCH = (
-    "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+    "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
 )
 
 

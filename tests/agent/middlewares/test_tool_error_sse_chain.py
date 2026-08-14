@@ -8,7 +8,7 @@ import pytest
 from langchain_core.messages import ToolMessage
 
 from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
-from myrm_agent_harness.agent.middlewares.tool_executor import execute_with_retry
+from myrm_agent_harness.agent.middlewares.tooling.tool_executor import execute_with_retry
 from myrm_agent_harness.agent.streaming.event_handlers import _handle_tool_result
 from myrm_agent_harness.agent.streaming.types import AgentEventType
 from myrm_agent_harness.utils.errors import ToolError
@@ -31,8 +31,8 @@ async def test_myrm_tools_blocked_reaches_sse_as_guardrail_blocked() -> None:
     handler = AsyncMock(side_effect=err)
 
     with (
-        patch("myrm_agent_harness.agent.middlewares.tool_executor.get_event_logger", return_value=None),
-        patch("myrm_agent_harness.agent.middlewares.tool_executor.get_terminal_errors", return_value=set()),
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_event_logger", return_value=None),
+        patch("myrm_agent_harness.agent.middlewares.tooling.tool_executor.get_terminal_errors", return_value=set()),
     ):
         tool_msg = await execute_with_retry(
             _make_request(),

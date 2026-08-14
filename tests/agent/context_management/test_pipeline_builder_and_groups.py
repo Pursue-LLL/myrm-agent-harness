@@ -18,7 +18,7 @@ from myrm_agent_harness.agent.context_management.pipeline.processors.cache_ttl_p
 from myrm_agent_harness.agent.context_management.strategies.tool_call_groups import (
     build_tool_call_groups,
 )
-from myrm_agent_harness.agent.middlewares.context_pipeline_helpers import (
+from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_helpers import (
     extract_compression_intent,
     extract_tool_names_and_schemas,
 )

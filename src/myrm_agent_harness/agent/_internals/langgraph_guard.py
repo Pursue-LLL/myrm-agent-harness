@@ -214,7 +214,7 @@ def apply_langgraph_tool_args_guard() -> None:
                 )
                 tool_runtimes.append(tool_runtime)
 
-            from myrm_agent_harness.agent.middlewares.concurrency_router import (
+            from myrm_agent_harness.agent.middlewares.concurrency.concurrency_router import (
                 build_tool_execution_stages,
             )
 
@@ -298,7 +298,7 @@ def apply_langgraph_tool_args_guard() -> None:
                 )
                 tool_runtimes.append(tool_runtime)
 
-            from myrm_agent_harness.agent.middlewares.concurrency_router import (
+            from myrm_agent_harness.agent.middlewares.concurrency.concurrency_router import (
                 build_tool_execution_stages,
             )
 

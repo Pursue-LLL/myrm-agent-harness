@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import ToolMessage
 
-from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
     _extract_failure_metadata,
     _get_tool_args,
     _loop_kind_from_exception,
@@ -34,10 +34,10 @@ class TestNotifyLoopGuardCompaction:
         guard._metrics.total_calls = 5
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._loop_guard_var"
+                "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var"
             ) as mock_var,
             patch(
-                "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.logger"
+                "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.logger"
             ),
         ):
             mock_var.get.return_value = guard
@@ -49,10 +49,10 @@ class TestNotifyLoopGuardCompaction:
         guard._metrics.total_calls = 0
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._loop_guard_var"
+                "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var"
             ) as mock_var,
             patch(
-                "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._get_session_loop_guard",
+                "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._get_session_loop_guard",
                 return_value=guard,
             ) as mock_session,
         ):
@@ -64,10 +64,10 @@ class TestNotifyLoopGuardCompaction:
     def test_no_guard_returns(self) -> None:
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._loop_guard_var"
+                "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var"
             ) as mock_var,
             patch(
-                "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._get_session_loop_guard",
+                "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._get_session_loop_guard",
                 return_value=None,
             ),
         ):
@@ -77,7 +77,7 @@ class TestNotifyLoopGuardCompaction:
     def test_lookup_error_returns(self) -> None:
         with (
             patch(
-                "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._loop_guard_var"
+                "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var"
             ) as mock_var,
         ):
             mock_var.get.side_effect = LookupError
@@ -114,7 +114,7 @@ class TestLoopKindFromException:
     def test_stuck_exception_returns_kind(self) -> None:
         exc = type("ToolStuckException", (Exception,), {})("ToolStuckException")
         with patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
         ) as mock_get:
             guard = MagicMock()
             guard.last_detection_kind = "repeated"
@@ -124,7 +124,7 @@ class TestLoopKindFromException:
     def test_stuck_exception_guard_failure_returns_none(self) -> None:
         exc = type("ToolStuckException", (Exception,), {})("ToolStuckException")
         with patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard",
             side_effect=RuntimeError("no guard"),
         ):
             assert _loop_kind_from_exception(exc) is None
@@ -168,21 +168,21 @@ async def test_inner_success_path_with_token_logging() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_pre_call_guards",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_pre_call_guards",
             return_value=pre_result,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_post_call_guards",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_post_call_guards",
             return_value=result,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_token_tracker"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker"
         ) as mock_tracker,
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_event_logger"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_event_logger"
         ) as mock_logger,
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.emit_tool_heartbeat",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat",
             return_value=asyncio.create_task(asyncio.sleep(0)),
         ),
         patch(
@@ -228,23 +228,23 @@ async def test_inner_clarification_approve_continue() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_pre_call_guards",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_pre_call_guards",
             return_value=pre_result,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_post_call_guards",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_post_call_guards",
             return_value=result,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.execute_with_retry",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.execute_with_retry",
             mock_execute,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_token_tracker",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.emit_tool_heartbeat",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat",
             return_value=asyncio.create_task(asyncio.sleep(0)),
         ),
         patch(
@@ -279,23 +279,23 @@ async def test_inner_clarification_edited_payload() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_pre_call_guards",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_pre_call_guards",
             return_value=pre_result,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_post_call_guards",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_post_call_guards",
             return_value=result,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.execute_with_retry",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.execute_with_retry",
             mock_execute,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_token_tracker",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.emit_tool_heartbeat",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat",
             return_value=asyncio.create_task(asyncio.sleep(0)),
         ),
         patch(
@@ -332,19 +332,19 @@ async def test_inner_clarification_rejected_breaks() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_pre_call_guards",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_pre_call_guards",
             return_value=pre_result,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.execute_with_retry",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.execute_with_retry",
             mock_execute,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_token_tracker",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.emit_tool_heartbeat",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat",
             return_value=asyncio.create_task(asyncio.sleep(0)),
         ),
         patch(
@@ -353,7 +353,7 @@ async def test_inner_clarification_rejected_breaks() -> None:
         ),
         patch("langgraph.types.interrupt", return_value={"type": "reject"}),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.handle_execution_error"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.handle_execution_error"
         ) as mock_handle,
     ):
         mock_handle.return_value = ToolMessage(
@@ -384,15 +384,15 @@ async def test_inner_cancelled_error_handled() -> None:
 
     with (
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.run_pre_call_guards",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.run_pre_call_guards",
             return_value=pre_result,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_token_tracker",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_token_tracker",
             return_value=None,
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.emit_tool_heartbeat",
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.emit_tool_heartbeat",
             return_value=asyncio.create_task(asyncio.sleep(0)),
         ),
         patch(
@@ -400,7 +400,7 @@ async def test_inner_cancelled_error_handled() -> None:
             return_value={},
         ),
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.handle_cancellation"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.handle_cancellation"
         ) as mock_handle,
     ):
         mock_handle.return_value = ToolMessage(
@@ -411,13 +411,13 @@ async def test_inner_cancelled_error_handled() -> None:
         mock_handle.assert_called_once()
 
 
-@patch("myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.logger")
+@patch("myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.logger")
 def test_notify_compaction_logs_when_previous_calls(mock_logger: MagicMock) -> None:
     guard = MagicMock()
     guard._metrics.total_calls = 7
     with (
         patch(
-            "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._loop_guard_var"
+            "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var"
         ) as mock_var,
     ):
         mock_var.get.return_value = guard

@@ -69,7 +69,7 @@ class TestAssembleExecutionSummary:
     """Tests for _assemble_execution_summary method."""
 
     @patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
     )
     def test_empty_window(self, mock_get_guard: MagicMock):
         """Empty LoopGuard window produces summary with all-zero/empty fields."""
@@ -92,7 +92,7 @@ class TestAssembleExecutionSummary:
         assert summary.turns_used == 4
 
     @patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
     )
     def test_write_records_deduplicate(self, mock_get_guard: MagicMock):
         """Duplicate file paths are deduplicated."""
@@ -115,7 +115,7 @@ class TestAssembleExecutionSummary:
         assert len(summary.files_modified) == 2
 
     @patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
     )
     def test_write_record_empty_path_ignored(self, mock_get_guard: MagicMock):
         """WRITE records with empty path are not included in files_modified."""
@@ -137,7 +137,7 @@ class TestAssembleExecutionSummary:
         assert summary.files_modified == ("/src/real.py",)
 
     @patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
     )
     def test_browser_records_counted(self, mock_get_guard: MagicMock):
         """BROWSER group records increment browser_checks counter."""
@@ -161,7 +161,7 @@ class TestAssembleExecutionSummary:
         assert summary.verifications == ()
 
     @patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
     )
     def test_verification_success_levels(self, mock_get_guard: MagicMock):
         """Verification records correctly map SuccessLevel to passed boolean."""
@@ -208,7 +208,7 @@ class TestAssembleExecutionSummary:
         assert summary.verifications[3] == {"cmd": "cargo build", "passed": True}
 
     @patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
     )
     def test_verification_none_success_level(self, mock_get_guard: MagicMock):
         """Verification with None success_level is marked as not passed."""
@@ -234,7 +234,7 @@ class TestAssembleExecutionSummary:
         assert summary.verifications[0] == {"cmd": "npm test", "passed": False}
 
     @patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
     )
     def test_mixed_records(self, mock_get_guard: MagicMock):
         """Mixed record types are correctly categorized."""
@@ -267,7 +267,7 @@ class TestAssembleExecutionSummary:
         assert summary.verifications[0]["passed"] is True
 
     @patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
     )
     def test_goal_accounting_fields(self, mock_get_guard: MagicMock):
         """Goal accounting data (tokens, cost, duration, turns) is correctly mapped."""
@@ -291,7 +291,7 @@ class TestAssembleExecutionSummary:
         assert summary.turns_used == 15
 
     @patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
     )
     def test_files_sorted_alphabetically(self, mock_get_guard: MagicMock):
         """files_modified tuple is sorted alphabetically."""
@@ -313,7 +313,7 @@ class TestAssembleExecutionSummary:
         assert summary.files_modified == ("/a/first.py", "/m/middle.py", "/z/last.py")
 
     @patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.get_loop_guard"
     )
     def test_verification_uses_command_or_tool_name(self, mock_get_guard: MagicMock):
         """Verification cmd falls back to tool_name when command arg missing."""

@@ -17,7 +17,7 @@ post-processing event emission.
 - cleanup_run: Run-end cleanup: cancel children, reset context vars, col...
 - _init_pseudonym_store: Initialize the context-local PseudonymStore and regex PII closure when the active PrivacyPolicy requires one (``needs_pseudonym_store``); consumed by skill-agent session-end privacy re-establishment.
 - compute_context_budget_snapshot: Compute a lightweight context budget snapshot from token ...
-- post_run_events: Yield post-processing events: artifacts, FILE_MUTATION_FAILED, WORKSPACE_MERGE_FAILED, and MESSAGE_END (upgrade completion_status to warning on workspace merge failure when LLM status is complete).
+- post_run_events: Yield post-processing events: artifacts, FILE_MUTATION_FAILED, WORKSPACE_MERGE_FAILED, and MESSAGE_END (upgrade completion_status to warning on workspace merge failure when LLM status is complete). Accepts an explicit TokenTracker so `message_end.token_economics` is present even when async-generator resume crosses task boundaries where the ContextVar is invisible.
 - serialize_message: Serialize a LangChain message to a plain dict.
 
 [POS]
@@ -599,8 +599,16 @@ async def post_run_events(
     merged_context: dict[str, object],
     collect_artifacts: bool,
     on_artifacts_ready: object | None,
+    tracker: TokenTracker | None = None,
 ) -> AsyncGenerator[dict[str, object]]:
-    """Yield post-processing events: artifacts and MESSAGE_END."""
+    """Yield post-processing events: artifacts and MESSAGE_END.
+
+    Args:
+        tracker: Explicit token tracker reference. Fall back to ContextVar lookup
+            if None. Explicit reference is preferred because async generators may
+            resume in a different task than the one that initialized the tracker,
+            so the ContextVar is not guaranteed to be visible.
+    """
     if stats.was_cancelled:
         return
 
@@ -628,7 +636,7 @@ async def post_run_events(
         yield event
 
     # File Mutation Verifier — emit failure event before MESSAGE_END
-    from myrm_agent_harness.agent.middlewares._mutation_verifier import (
+    from myrm_agent_harness.agent.middlewares.tooling._mutation_verifier import (
         format_mutation_failures,
     )
 
@@ -672,14 +680,12 @@ async def post_run_events(
         message_end_event["usage"] = usage_dict
 
     try:
-        from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
+        if tracker is None:
+            from myrm_agent_harness.utils.token_economics.tracker import (
+                get_token_tracker,
+            )
 
-        tracker = get_token_tracker()
-        import logging as _lg
-
-        _lg.getLogger("myrm_agent_harness").warning(
-            "[DIAG] post_run_events tracker=%s", type(tracker).__name__ if tracker else None
-        )
+            tracker = get_token_tracker()
         if tracker is not None:
             message_end_event["token_economics"] = tracker.to_dict()
     except Exception:

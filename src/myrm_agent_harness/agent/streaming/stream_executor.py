@@ -30,7 +30,7 @@ from langchain.agents.middleware.types import AgentState
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.types import Command
 
-from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
     reset_loop_guard,
 )
 from myrm_agent_harness.agent.streaming.types import AgentEventType

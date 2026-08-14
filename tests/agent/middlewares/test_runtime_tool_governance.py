@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from myrm_agent_harness.agent.middlewares._runtime_tool_governance import (
+from myrm_agent_harness.agent.middlewares.tooling._runtime_tool_governance import (
     compute_turn_allowed_names,
     derive_runtime_allowed_tools,
     extract_recent_human_text,

@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from myrm_agent_harness.agent.middlewares.concurrency_limiter import create_concurrency_limiter, get_subagent_semaphore
+from myrm_agent_harness.agent.middlewares.concurrency.concurrency_limiter import create_concurrency_limiter, get_subagent_semaphore
 from myrm_agent_harness.agent.sub_agents.registry import SUBAGENT_CONFIGS
 from myrm_agent_harness.agent.sub_agents.types import SubagentConfig
 

@@ -339,7 +339,7 @@ def check_tool_result_pii(
         f"level={classification.level.value} patterns={','.join(classification.patterns)}",
     )
 
-    from myrm_agent_harness.agent.middlewares.security_guardrail_middleware import (
+    from myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware import (
         _apply_pii_actions,
         _levels_to_process,
     )

@@ -200,11 +200,11 @@ async def _revert_single(snap: FileSnapshot, executor: object | None) -> _Single
         return _SingleRevertResult(success=False, warning=f"Cannot revert {snap.path}: not revertible")
 
     try:
-        path = Path(snap.path)
+        path = _resolve_local_path(snap.path)
 
         if snap.operation == SnapshotOp.CREATE:
             if path.is_file():
-                os.remove(snap.path)
+                path.unlink()
                 logger.info("Reverted (deleted created file): %s", snap.path)
             return _SingleRevertResult(success=True)
 
@@ -237,6 +237,32 @@ async def _revert_single(snap: FileSnapshot, executor: object | None) -> _Single
         return _SingleRevertResult(success=False, warning=f"I/O error reverting {snap.path}")
 
 
+def _resolve_local_path(snap_path: str) -> Path:
+    """Resolve a snapshot path to a real local path.
+
+    Snapshots record the container-abstract path (``/workspace/...``) when the
+    executor runs in container path mode. Reverting must operate on the physical
+    file, so container paths are mapped back to the context-bound workspace root.
+    Plain absolute paths are returned unchanged.
+    """
+    from myrm_agent_harness.core.context_vars import workspace_root_var
+    from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import (
+        WorkspacePathResolver,
+    )
+
+    if not WorkspacePathResolver.is_container_path(snap_path):
+        return Path(snap_path)
+
+    workspace_root = workspace_root_var.get()
+    local = WorkspacePathResolver.to_local_path(snap_path, workspace_root or None)
+    if local is None:
+        logger.warning(
+            "Could not map container snapshot path %s to a local path", snap_path
+        )
+        return Path(snap_path)
+    return local
+
+
 def _cleanup_artifact(path: str) -> None:
     """Remove artifact tracking for a reverted file."""
     try:
@@ -254,10 +280,18 @@ def _cleanup_artifact(path: str) -> None:
 
 
 def _schedule_disk_cleanup(store: SnapshotStore, scope: str, session_id: str, message_id: str | None = None) -> None:
-    """Fire-and-forget disk cleanup after revert."""
-    from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
+    """Fire-and-forget disk cleanup after revert.
 
-    workspace_root = str(WorkspacePathResolver.resolve_workspace_root())
+    Prefers the context-bound workspace root so cleanup targets the same
+    directory snapshots were persisted to (chat workspace), not the CWD.
+    """
+    from myrm_agent_harness.core.context_vars import workspace_root_var
+
+    workspace_root = workspace_root_var.get()
+    if not workspace_root:
+        from myrm_agent_harness.toolkits.code_execution.utils.workspace_path import WorkspacePathResolver
+
+        workspace_root = str(WorkspacePathResolver.resolve_workspace_root())
     try:
         loop = asyncio.get_running_loop()
         if scope == "message" and message_id:

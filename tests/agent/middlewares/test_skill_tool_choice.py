@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from myrm_agent_harness.agent.middlewares._skill_tool_choice import (
+from myrm_agent_harness.agent.middlewares.tooling._skill_tool_choice import (
     build_allowed_tools_tool_choice,
     extract_bound_tool_names,
 )

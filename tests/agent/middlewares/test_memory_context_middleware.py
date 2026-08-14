@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from myrm_agent_harness.agent.middlewares.memory_context_format import (
+from myrm_agent_harness.agent.middlewares.memory_context.memory_context_format import (
     _COLD_START_CONTEXT,
     MEMORY_CONTEXT_MARKER,
     MEMORY_UNTRUSTED_OPEN_MARKER,
@@ -22,7 +22,7 @@ from myrm_agent_harness.agent.middlewares.memory_context_format import (
     _has_memory_context,
     _partition_budget_sections,
 )
-from myrm_agent_harness.agent.middlewares.memory_context_middleware import (
+from myrm_agent_harness.agent.middlewares.memory_context.memory_context_middleware import (
     memory_context_middleware,
 )
 from myrm_agent_harness.agent.skill_agent.context import (
@@ -802,7 +802,7 @@ class TestInjectMemoryContext:
                 return_value=mock_manager,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares.memory_context_middleware._format_memory_context",
+                "myrm_agent_harness.agent.middlewares.memory_context.memory_context_middleware._format_memory_context",
                 return_value=(None, None),
             ),
         ):
@@ -1211,7 +1211,7 @@ class TestInjectMemoryContext:
                 return_value=mock_manager,
             ),
             patch(
-                "myrm_agent_harness.agent.middlewares.memory_context_middleware._format_memory_context",
+                "myrm_agent_harness.agent.middlewares.memory_context.memory_context_middleware._format_memory_context",
                 return_value=(
                     "<user_memory_context>stable</user_memory_context>",
                     "untrusted-learned-block",

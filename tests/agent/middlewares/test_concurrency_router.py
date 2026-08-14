@@ -1,6 +1,6 @@
 import pytest
 
-from myrm_agent_harness.agent.middlewares.concurrency_router import (
+from myrm_agent_harness.agent.middlewares.concurrency.concurrency_router import (
     build_tool_execution_stages,
     should_parallelize_tool_batch,
 )
@@ -37,7 +37,7 @@ def mock_safety_metadata(monkeypatch):
             )
         return SafetyMetadata(is_concurrent_safe=False)
 
-    monkeypatch.setattr("myrm_agent_harness.agent.middlewares.concurrency_router.resolve_safety_metadata", fake_resolve)
+    monkeypatch.setattr("myrm_agent_harness.agent.middlewares.concurrency.concurrency_router.resolve_safety_metadata", fake_resolve)
 
 
 def test_should_parallelize_single_call():
@@ -157,7 +157,7 @@ def test_should_not_parallelize_file_id_alias_with_real_path(monkeypatch):
         return path
 
     monkeypatch.setattr(
-        "myrm_agent_harness.agent.middlewares.concurrency_router._resolve_parallel_scope_path",
+        "myrm_agent_harness.agent.middlewares.concurrency.concurrency_router._resolve_parallel_scope_path",
         fake_resolve,
     )
     calls = [

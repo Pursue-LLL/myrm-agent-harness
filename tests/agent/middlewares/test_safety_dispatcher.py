@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from myrm_agent_harness.agent.middlewares.safety_dispatcher import (
+from myrm_agent_harness.agent.middlewares.concurrency.safety_dispatcher import (
     create_safety_dispatcher,
 )
 

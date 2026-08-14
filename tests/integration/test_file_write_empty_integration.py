@@ -16,7 +16,7 @@ from langchain_core.runnables import RunnableConfig
 from myrm_agent_harness.agent.meta_tools.file_ops.file_write_tool import (
     create_file_write_tool,
 )
-from myrm_agent_harness.agent.middlewares._mutation_verifier import (
+from myrm_agent_harness.agent.middlewares.tooling._mutation_verifier import (
     format_mutation_failures,
     reset_mutation_state,
 )
@@ -128,7 +128,7 @@ async def test_nonempty_content_writes_file_on_disk(workspace: Path) -> None:
 @pytest.mark.asyncio
 async def test_empty_write_records_mutation_failure_for_sse(workspace: Path) -> None:
     """ToolError → handle_execution_error → mutation verifier → SSE payload."""
-    from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+    from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
         handle_execution_error,
     )
 

@@ -276,7 +276,7 @@ class StreamContinuationRecoveryMixin:
     def _assemble_execution_summary(self, goal: Goal) -> GoalExecutionSummary:
         """Assemble GoalExecutionSummary from LoopGuard records and Goal accounting."""
         from myrm_agent_harness.agent.goals.types import GoalExecutionSummary
-        from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+        from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
             get_loop_guard,
         )
         from myrm_agent_harness.agent.security.guards.loop_guard import (

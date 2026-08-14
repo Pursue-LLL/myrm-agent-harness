@@ -7,7 +7,7 @@ executions, and structured error / cancellation handling.
 - langgraph.prebuilt.tool_node::ToolCallRequest
 - agent.errors.tool_error_category::ToolErrorCategory (POS: Canonical tool error categories for structured error classification.)
 - agent.middlewares._session_context (POS: active tool registry)
-- agent.middlewares._tool_helpers (POS: error formatting)
+- agent.middlewares.tooling._tool_helpers (POS: error formatting)
 
 [OUTPUT]
 - resolve_dynamic_tool: Resolve ToolNode misses via the active agent ToolRegistry
@@ -30,7 +30,7 @@ from langchain_core.messages import ToolMessage
 from langgraph.prebuilt.tool_node import ToolCallRequest
 
 from myrm_agent_harness.agent.errors.tool_error_category import ToolErrorCategory
-from myrm_agent_harness.agent.middlewares._tool_helpers import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     format_tool_error,
     make_error_msg,
 )
@@ -256,7 +256,7 @@ async def handle_execution_error(
         },
     )
 
-    from myrm_agent_harness.agent.middlewares._mutation_verifier import (
+    from myrm_agent_harness.agent.middlewares.tooling._mutation_verifier import (
         record_mutation_result,
     )
 

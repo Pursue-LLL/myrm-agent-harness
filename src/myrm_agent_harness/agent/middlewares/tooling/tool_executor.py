@@ -4,7 +4,7 @@
 - langchain_core.messages::ToolMessage (POS: Core message type definitions)
 - langgraph.prebuilt.tool_node::ToolCallRequest
 - langgraph.types::Command
-- agent.middlewares._tool_helpers (POS: Stateless helper functions for tool_interceptor_middleware)
+- agent.middlewares.tooling._tool_helpers (POS: Stateless helper functions for tool_interceptor_middleware)
 - agent.middlewares._session_context (POS: Middleware session context)
 - agent.streaming.types::AgentEventType (POS: Agent event type definitions)
 - utils.errors::ToolError (POS: Framework-level tool errors)
@@ -34,7 +34,7 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_event_logger,
     get_terminal_errors,
 )
-from myrm_agent_harness.agent.middlewares._tool_helpers import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     format_tool_error,
     get_tool_timeout,
     is_non_retryable,

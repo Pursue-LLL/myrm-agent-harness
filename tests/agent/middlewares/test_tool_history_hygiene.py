@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 
-from myrm_agent_harness.agent.middlewares.tool_history_hygiene import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_history_hygiene import (
     _dedup_tool_messages,
     _uniquify_cross_turn_tool_call_ids,
     sanitize_tool_history,

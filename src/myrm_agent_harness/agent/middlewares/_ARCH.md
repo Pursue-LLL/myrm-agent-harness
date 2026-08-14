@@ -12,39 +12,20 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 |------|------|-------------|-------|
 | `__init__.py` | Package | Public middleware exports. | ✅ |
 | `_session_context.py` | Internal | Shared ContextVars for the middleware chain. | ✅ |
-| `_mutation_verifier.py` | Internal | Per-turn file mutation verifier → SSE on failure. | ✅ |
-| `_skill_failure_tracking.py` | Internal | Skill failure event tracking for interceptor. | ✅ |
-| `_tool_execution_lifecycle.py` | Internal | Tool execution lifecycle hooks. | ✅ |
-| `_tool_guards.py` | Internal | Guard modules orchestrated by tool_interceptor. | ✅ |
-| `_tool_helpers.py` | Internal | Stateless helpers for tool_interceptor_middleware. | ✅ |
 | `clarification_guard_middleware.py` | Core | Enforces single `ask_question_tool` call per turn; blocks coexisting tool calls with synthetic errors. | ✅ |
-| `concurrency_limiter.py` | Core | Subagent Semaphore by agent_type. | ✅ |
-| `concurrency_router.py` | Core | Smart concurrency routing with safety_dispatcher; host-serial MCP lane awareness (distinct servers may parallelize, same server stays serial) + canonical path identity planning (`realpath`/`normcase`) and precise `file_read_tool.paths[]` conflict modeling (read-read overlap allowed, read-write/write-write isolated). Exposes stage planner for mixed batches (`build_tool_execution_stages`) so runtimes can run parallel-safe subsets while keeping unsafe calls isolated. | ✅ |
-| `context_pipeline_helpers.py` | Internal | Compression intent, cache feedback, schema fingerprint. | ✅ |
-| `context_pipeline_middleware.py` | Core | `create_context_pipeline_middleware` factory. | ✅ |
-| `dangling_tool_call_middleware.py` | Core | Repair malformed tool histories for strict providers: sanitize malformed calls, patch dangling tool_calls, drop orphan ToolMessages; exports `repair_dangling_tool_calls()` for direct LLM invocations (grace-call path). | ✅ |
-| `_skill_tool_choice.py` | Internal | Build OpenAI ``allowed_tools`` tool_choice for skill attenuation (cache-safe). | ✅ |
-| `_runtime_tool_governance.py` | Internal | Per-turn intent-aware tool narrowing (UI + readonly gates) and `compute_turn_allowed_names()` merged allowlist for model hint + execution enforcement. | ✅ |
-| `skill_attenuation_middleware.py` | Core | Skill attenuation via ``tool_choice.allowed_tools`` when provider supports it; skips model-layer hint otherwise; execution SSOT via ContextVar + `check_trust_attenuation`; dynamic tool resolution for ToolNode. Does not mutate `request.tools`. | ✅ |
 | `debug_logger_middleware.py` | Core | Full message list debug logging. | ✅ |
 | `filesystem_search_middleware.py` | Core | Inject glob/grep workspace search tools. | ✅ |
-| `memory_context_middleware.py` | Core | `<user_memory_context>` + scope boundary + untrusted data wrapping；若存在 `memory_brief_snapshot` 则优先复用同源快照，避免预览/执行漂移；并通过 API hooks 记录 `injection` 与 `budget` telemetry（applied/not_applied + source/reason）供 server 透传；未注入时清空 budget telemetry 防止跨轮残留。 | ✅ |
 | `plan_confirm_middleware.py` | Core | Plan-phase HITL: intercept first `todo_write(merge=False)` with 3+ items for user review via `interrupt()`. | ✅ |
-| `memory_context_format.py` | Core | Formatting helpers for memory context injection | ✅ |
 | `progress_middleware.py` | Core | Active todo focus injection into last HumanMessage. | ✅ |
 | `goal_focus_middleware.py` | Core | ACTIVE goal objective injection into last HumanMessage. | ✅ |
 | `moa_advisor_middleware.py` | Core | Agent-loop MoA advisor overlay — ref fan-out, transient HumanMessage tail, skip SSE for budget pressure and insufficient refs (`moa_overlay_skipped`). | ✅ |
 | `rate_limit.py` | Core | Proactive provider 429 throttling. | ✅ |
 | `replan_middleware.py` | Core | Dynamic replan loop on tool errors. | ✅ |
-| `safety_dispatcher.py` | Core | safe→concurrent / unsafe→serial tool routing. | ✅ |
 | `security_boundary_middleware.py` | Core | Security boundary enforcement. | ✅ |
 | `security_guardrail_middleware.py` | Core | Security guardrail enforcement. | ✅ |
 | `session_access_middleware.py` | Core | Inject per-turn HITL session directory access context (`<session-access>` block) before each model call; dedup via marker. | ✅ |
 | `subagent_limit_middleware.py` | Core | Max concurrent subagents per turn. | ✅ |
 | `sync_hook_parity.py` | Internal | `SyncHookParityAdapter` wraps middlewares missing sync `wrap_tool_call`/`wrap_model_call` so sync ToolNode paths don't raise; `apply_sync_hook_parity()` auto-wraps the middleware list. | ✅ |
-| `tool_history_hygiene.py` | Core | Sanitize pipeline: within-AIMessage re-id → ToolMessage dedup (keep-last) → cross-turn re-id; exports `sanitize_tool_history()` for grace-call / oneshot retry. Runs before dangling repair. | ✅ |
-| `tool_executor.py` | Core | Tool execution with timeout/retry/backoff; propagates ``ToolError.error_category`` into ToolMessage for SSE. | ✅ |
-| `tool_interceptor_middleware.py` | Core | Single interception point for all tool calls; `reset_loop_guard(is_resume=True)` preserves error signatures and the CallRecord window (`preserve_call_window`); session-key registry keeps LoopGuard across ContextVar loss after HITL resume. | ✅ |
 
 | Submodule | Description |
 |-----------|-------------|
@@ -52,6 +33,11 @@ Detailed design: [MIDDLEWARE_SYSTEM.md](MIDDLEWARE_SYSTEM.md)
 | `approval/` | HITL approval queue, batch, scheduler. See [approval/_ARCH.md](approval/_ARCH.md). |
 | `approval_interception/` | Approval interception recognizer. See [approval_interception/_ARCH.md](approval_interception/_ARCH.md). |
 | `guardrails/` | Guardrail provider chain + GuardrailMiddleware. See [guardrails/_ARCH.md](guardrails/_ARCH.md). |
+| `tooling/` | Single interception point for all tool calls: interceptor, executor, history hygiene, dangling-call repair, skill attenuation, and their guards/helpers. See [tooling/_ARCH.md](tooling/_ARCH.md). |
+| `context_pipeline/` | Request-time context assembly and budget (compression intent, cache feedback, schema fingerprint). See [context_pipeline/_ARCH.md](context_pipeline/_ARCH.md). |
+| `memory_context/` | User memory injection into model calls (`<user_memory_context>`, scope boundary, untrusted wrapping, telemetry). See [memory_context/_ARCH.md](memory_context/_ARCH.md). |
+| `concurrency/` | Subagent semaphore limits, safe tool dispatch, parallel tool batch routing. See [concurrency/_ARCH.md](concurrency/_ARCH.md). |
+| `security/` | Security enforcement middleware: boundary rules injection + eight-layer guardrail defense. See [security/_ARCH.md](security/_ARCH.md). |
 
 ## Key Dependencies
 

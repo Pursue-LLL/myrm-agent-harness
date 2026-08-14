@@ -20,7 +20,7 @@ from myrm_agent_harness.agent.context_management.pipeline import (
     ProcessorContext,
 )
 from myrm_agent_harness.agent.context_management.pipeline.base import BaseProcessor
-from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
     _loop_guard_var,
 )
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
@@ -106,7 +106,7 @@ async def test_compaction_resets_loop_guard_budget_full_chain():
 
     pipeline = ContextPipeline([_FakeCompressor()])
 
-    from myrm_agent_harness.agent.middlewares.context_pipeline_middleware import (
+    from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_middleware import (
         create_context_pipeline_middleware,
     )
 
@@ -156,7 +156,7 @@ async def test_no_compaction_preserves_loop_guard_budget():
 
     pipeline = ContextPipeline([_NoOpProcessor()])
 
-    from myrm_agent_harness.agent.middlewares.context_pipeline_middleware import (
+    from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_middleware import (
         create_context_pipeline_middleware,
     )
 
@@ -189,7 +189,7 @@ async def test_compaction_then_new_calls_count_from_zero():
 
     pipeline = ContextPipeline([_FakeCompressor()])
 
-    from myrm_agent_harness.agent.middlewares.context_pipeline_middleware import (
+    from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_middleware import (
         create_context_pipeline_middleware,
     )
 
@@ -227,7 +227,7 @@ async def test_compaction_without_loop_guard_in_contextvar():
     """
     from unittest.mock import patch
 
-    from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+    from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
         notify_loop_guard_compaction,
     )
 
@@ -235,7 +235,7 @@ async def test_compaction_without_loop_guard_in_contextvar():
     mock_var.get.side_effect = LookupError("no guard")
 
     with patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware._loop_guard_var",
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware._loop_guard_var",
         mock_var,
     ):
         notify_loop_guard_compaction()
@@ -257,7 +257,7 @@ async def test_integrity_guard_cleared_alongside_loop_guard():
 
     from unittest.mock import patch
 
-    from myrm_agent_harness.agent.middlewares.context_pipeline_middleware import (
+    from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_middleware import (
         create_context_pipeline_middleware,
     )
 
@@ -275,7 +275,7 @@ async def test_integrity_guard_cleared_alongside_loop_guard():
     handler.return_value = MagicMock()
 
     with patch(
-        "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.notify_loop_guard_compaction"
+        "myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware.notify_loop_guard_compaction"
     ) as mock_notify:
         await middleware.awrap_model_call(request, handler)
         mock_notify.assert_called_once()
@@ -288,7 +288,7 @@ async def test_consecutive_compactions_reset_each_time():
 
     pipeline = ContextPipeline([_FakeCompressor()])
 
-    from myrm_agent_harness.agent.middlewares.context_pipeline_middleware import (
+    from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_middleware import (
         create_context_pipeline_middleware,
     )
 
@@ -333,7 +333,7 @@ async def test_compaction_preserves_agent_phase():
 
     pipeline = ContextPipeline([_FakeCompressor()])
 
-    from myrm_agent_harness.agent.middlewares.context_pipeline_middleware import (
+    from myrm_agent_harness.agent.middlewares.context_pipeline.context_pipeline_middleware import (
         create_context_pipeline_middleware,
     )
 

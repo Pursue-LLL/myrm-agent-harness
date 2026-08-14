@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from langchain_core.messages import ToolMessage
 
-from myrm_agent_harness.agent.middlewares._tool_helpers import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_helpers import (
     apply_validation_result,
     check_tool_params_pii,
     check_tool_result_pii,
@@ -298,12 +298,12 @@ class TestCheckTrustAttenuation:
 
 
 class TestCheckToolParamsPii:
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.get_privacy_policy")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.get_privacy_policy")
     def test_disabled_policy(self, mock_policy: MagicMock) -> None:
         mock_policy.return_value = MagicMock(enabled=False)
         assert check_tool_params_pii("tool", {"arg": "val"}) is None
 
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.record_decision")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.record_decision")
     @patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker")
     @patch(
         "myrm_agent_harness.agent.security.guards.privacy_tracker.get_privacy_tracker"
@@ -311,7 +311,7 @@ class TestCheckToolParamsPii:
     @patch(
         "myrm_agent_harness.agent.security.detection.pii_classifier.classify_tool_params"
     )
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.get_privacy_policy")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.get_privacy_policy")
     def test_s3_block(
         self,
         mock_policy: MagicMock,
@@ -338,7 +338,7 @@ class TestCheckToolParamsPii:
     @patch(
         "myrm_agent_harness.agent.security.detection.pii_classifier.classify_tool_params"
     )
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.get_privacy_policy")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.get_privacy_policy")
     def test_s1_no_block(
         self, mock_policy: MagicMock, mock_classify: MagicMock
     ) -> None:
@@ -350,25 +350,25 @@ class TestCheckToolParamsPii:
 
 
 class TestCheckToolResultPii:
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.get_privacy_policy")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.get_privacy_policy")
     def test_disabled_policy(self, mock_policy: MagicMock) -> None:
         mock_policy.return_value = MagicMock(enabled=False)
         msg = ToolMessage(content="ok", name="t", tool_call_id="id")
         _result_msg, text = check_tool_result_pii(msg, "ok", "t")
         assert text == "ok"
 
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.record_decision")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.record_decision")
     @patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker")
     @patch(
         "myrm_agent_harness.agent.security.guards.privacy_tracker.get_privacy_tracker"
     )
     @patch(
-        "myrm_agent_harness.agent.middlewares.security_guardrail_middleware.redact_pii"
+        "myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware.redact_pii"
     )
     @patch(
         "myrm_agent_harness.agent.security.detection.pii_classifier.classify_tool_result"
     )
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.get_privacy_policy")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.get_privacy_policy")
     def test_redaction(
         self,
         mock_policy: MagicMock,
@@ -395,18 +395,18 @@ class TestCheckToolResultPii:
         assert text == "REDACTED_TEXT"
         assert result_msg.content == "REDACTED_TEXT"
 
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.record_decision")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.record_decision")
     @patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker")
     @patch(
         "myrm_agent_harness.agent.security.guards.privacy_tracker.get_privacy_tracker"
     )
     @patch(
-        "myrm_agent_harness.agent.middlewares.security_guardrail_middleware.redact_pii"
+        "myrm_agent_harness.agent.middlewares.security.security_guardrail_middleware.redact_pii"
     )
     @patch(
         "myrm_agent_harness.agent.security.detection.pii_classifier.classify_tool_result"
     )
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.get_privacy_policy")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.get_privacy_policy")
     def test_block_fallback_to_redact(
         self,
         mock_policy: MagicMock,
@@ -433,7 +433,7 @@ class TestCheckToolResultPii:
         _result_msg, text = check_tool_result_pii(msg, "has phone 123", "t")
         assert "has phone 123" not in text, "BLOCK must not leak original text"
 
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.record_decision")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.record_decision")
     @patch("myrm_agent_harness.agent.security.guards.taint_tracker.get_taint_tracker")
     @patch(
         "myrm_agent_harness.agent.security.guards.privacy_tracker.get_privacy_tracker"
@@ -441,7 +441,7 @@ class TestCheckToolResultPii:
     @patch(
         "myrm_agent_harness.agent.security.detection.pii_classifier.classify_tool_result"
     )
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.get_privacy_policy")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.get_privacy_policy")
     def test_s1_returns_unchanged(
         self,
         mock_policy: MagicMock,
@@ -462,15 +462,15 @@ class TestCheckToolResultPii:
 
 class TestRunContentValidation:
     @patch(
-        "myrm_agent_harness.agent.middlewares._tool_helpers.should_apply_validation",
+        "myrm_agent_harness.agent.middlewares.tooling._tool_helpers.should_apply_validation",
         return_value=False,
     )
     def test_not_applicable(self, mock_should: MagicMock) -> None:
         assert run_content_validation("text", "tool") is None
 
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.validate_tool_result")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.validate_tool_result")
     @patch(
-        "myrm_agent_harness.agent.middlewares._tool_helpers.should_apply_validation",
+        "myrm_agent_harness.agent.middlewares.tooling._tool_helpers.should_apply_validation",
         return_value=True,
     )
     def test_valid_result(
@@ -479,9 +479,9 @@ class TestRunContentValidation:
         mock_validate.return_value = MagicMock(is_valid=True)
         assert run_content_validation("text", "tool") is None
 
-    @patch("myrm_agent_harness.agent.middlewares._tool_helpers.validate_tool_result")
+    @patch("myrm_agent_harness.agent.middlewares.tooling._tool_helpers.validate_tool_result")
     @patch(
-        "myrm_agent_harness.agent.middlewares._tool_helpers.should_apply_validation",
+        "myrm_agent_harness.agent.middlewares.tooling._tool_helpers.should_apply_validation",
         return_value=True,
     )
     def test_invalid_result(

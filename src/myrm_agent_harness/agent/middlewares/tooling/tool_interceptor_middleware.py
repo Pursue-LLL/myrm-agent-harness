@@ -23,10 +23,10 @@ POST-CALL:
 12. Verification evidence — tag bash commands containing test/lint/typecheck/build
 
 [INPUT]
-- agent.middlewares._tool_guards (POS: Pre/post-call guard orchestration)
-- agent.middlewares._tool_execution_lifecycle (POS: Tool resolve, heartbeat, error handling)
-- agent.middlewares._skill_failure_tracking (POS: Skill failure telemetry)
-- agent.middlewares.tool_executor (POS: Tool execution engine with timeout/retry/backoff)
+- agent.middlewares.tooling._tool_guards (POS: Pre/post-call guard orchestration)
+- agent.middlewares.tooling._tool_execution_lifecycle (POS: Tool resolve, heartbeat, error handling)
+- agent.middlewares.tooling._skill_failure_tracking (POS: Skill failure telemetry)
+- agent.middlewares.tooling.tool_executor (POS: Tool execution engine with timeout/retry/backoff)
 - agent.middlewares._session_context (POS: Middleware session context)
 
 [OUTPUT]
@@ -59,20 +59,20 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_approval_session,
     get_event_logger,
 )
-from myrm_agent_harness.agent.middlewares._skill_failure_tracking import (
+from myrm_agent_harness.agent.middlewares.tooling._skill_failure_tracking import (
     track_skill_execution as _track_skill_execution,
 )
-from myrm_agent_harness.agent.middlewares._tool_execution_lifecycle import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_execution_lifecycle import (
     emit_tool_heartbeat,
     handle_cancellation,
     handle_execution_error,
     resolve_dynamic_tool,
 )
-from myrm_agent_harness.agent.middlewares._tool_guards import (
+from myrm_agent_harness.agent.middlewares.tooling._tool_guards import (
     run_post_call_guards,
     run_pre_call_guards,
 )
-from myrm_agent_harness.agent.middlewares.tool_executor import execute_with_retry
+from myrm_agent_harness.agent.middlewares.tooling.tool_executor import execute_with_retry
 from myrm_agent_harness.agent.security.guards.loop_guard import LoopGuard
 from myrm_agent_harness.utils.logger_utils import get_agent_logger
 from myrm_agent_harness.utils.token_economics.tracker import (
