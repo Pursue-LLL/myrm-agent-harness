@@ -35,6 +35,7 @@ from collections import defaultdict
 from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
+from typing import Literal
 
 from opentelemetry.metrics import Counter, Histogram
 
@@ -340,7 +341,7 @@ class SearchMetrics:
             self._degradation_timeout_count = 0
             self._degradation_error_count = 0
 
-    def record_degradation(self, kind: str) -> None:
+    def record_degradation(self, kind: Literal["timeout", "error"]) -> None:
         """Record a degraded retrieval (``timeout`` or ``error``) for observability.
 
         Degraded searches are counted separately from ordinary zero-result searches

@@ -10,7 +10,8 @@ with provenance, HITL pending edits, and bottom-up incremental L0/L1 directory s
 | File | Role | Description | I/O/P |
 |------|------|-------------|-------|
 | __init__.py | Package | Init | — |
-| compiler.py | Core | LLM compiler: parallel batch ingestion, compile structure survey + facet seed carry-forward + **index catalog seed for concept extraction**, compile phase tracking, …; post-batch **vault git snapshot** when `enable_version_control` | ✅ |
+| compiler.py | Core | LLM compiler: parallel batch ingestion, compile structure survey + facet seed carry-forward + **index catalog seed for concept extraction**, compile phase tracking, provenance preservation hook-in (see `compiler_provenance.py`), …; post-batch **vault git snapshot** when `enable_version_control` | ✅ |
+| compiler_provenance.py | Core | Compile-time provenance preservation helpers: `restore_provenance_metadata` re-injects `source_chat`/`source_message`/`compound_provenance` after LLM compile; `provenance_from_raw_sources` seeds them from raw files on first compile | ✅ |
 | contradiction_synthesis/ | Core | Cross-concept evolution page synthesis (pairing → LLM verdict → pending) | ✅ |
 | postprocess.py | Core | Post-compilation: backlink generation, metadata persistence with `last_compile_raw_hashes` (preserves `raw_supersede`) | ✅ |
 | cognitive_map/ | Core | OKF index.md, log.md, hot.md, **SCHEMA.md** deterministic writers + refresh service | ✅ |

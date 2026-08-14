@@ -53,6 +53,10 @@ from myrm_agent_harness.toolkits.wiki.core.types import CompileResult, ConceptIn
 
 from .cognitive_map import WikiCognitiveMapService, WikiMapEvent, WikiMapEventType
 from .cognitive_map.schema_writer import read_index_context
+from .compiler_provenance import (
+    provenance_from_raw_sources,
+    restore_provenance_metadata,
+)
 from .contradiction_synthesis import run_contradiction_synthesis_pass
 from .postprocess import generate_backlinks, save_metadata
 from .queue import QueueItem, WikiIngestionQueue
@@ -84,78 +88,6 @@ class _BatchExtractOutcome:
     concepts: list[ConceptInfo]
     success_count: int
     failure_kinds: list[str]
-
-
-_PROVENANCE_METADATA_KEYS = frozenset(
-    {"source_chat", "source_message", "compound_provenance"}
-)
-
-
-def _provenance_from_raw_sources(
-    structure: WikiStructure, source_files: list[str]
-) -> dict[str, str]:
-    """Collect provenance metadata from the raw source files of a concept.
-
-    First-compile path: a brand-new concept article has no existing frontmatter to
-    restore from, but its raw sources (e.g. auto-archived turn files) carry
-    ``source_chat``. Inject it only when all non-empty values agree, so a concept
-    merged from multiple unrelated chats does not get a misleading single link.
-    """
-    from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
-        load_frontmatter_metadata,
-    )
-
-    collected: dict[str, list[str]] = {key: [] for key in _PROVENANCE_METADATA_KEYS}
-    for source in source_files:
-        raw_path = structure.get_raw_file_path(source)
-        if not raw_path.exists():
-            continue
-        try:
-            meta, _ = load_frontmatter_metadata(raw_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError):
-            continue
-        for key in _PROVENANCE_METADATA_KEYS:
-            value = meta.get(key)
-            if value is not None and str(value).strip():
-                collected[key].append(str(value))
-
-    provenance: dict[str, str] = {}
-    for key, values in collected.items():
-        unique = list(dict.fromkeys(values))
-        if len(unique) == 1:
-            provenance[key] = unique[0]
-    return provenance
-
-
-def _restore_provenance_metadata(
-    existing_content: str, new_content: str
-) -> str:
-    """Re-attach provenance metadata lost when the LLM regenerates frontmatter.
-
-    The compile prompt only instructs the model to keep Timeline and append
-    evidence; custom frontmatter fields like ``source_chat`` are not guaranteed
-    to survive regeneration. Existing values are authoritative and win over any
-    model-written ones.
-    """
-    if not existing_content:
-        return new_content
-    from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
-        load_frontmatter_metadata,
-        serialize_frontmatter_block,
-    )
-
-    existing_meta, _ = load_frontmatter_metadata(existing_content)
-    provenance = {
-        key: value
-        for key, value in existing_meta.items()
-        if key in _PROVENANCE_METADATA_KEYS and value is not None
-    }
-    if not provenance:
-        return new_content
-
-    new_meta, new_body = load_frontmatter_metadata(new_content)
-    merged = {**new_meta, **provenance}
-    return serialize_frontmatter_block(merged) + new_body.lstrip("\n")
 
 
 class WikiCompiler:
@@ -904,7 +836,7 @@ class WikiCompiler:
             if not restore_base and concept.source_files:
                 # First compile of a brand-new concept: raw sources (e.g. auto-archived
                 # turns) carry source_chat provenance that would otherwise be lost.
-                source_provenance = _provenance_from_raw_sources(
+                source_provenance = provenance_from_raw_sources(
                     self._structure, list(concept.source_files)
                 )
                 if source_provenance:
@@ -914,7 +846,7 @@ class WikiCompiler:
 
                     restore_base = serialize_frontmatter_block(source_provenance)
 
-            article_content = _restore_provenance_metadata(
+            article_content = restore_provenance_metadata(
                 restore_base, article_content
             )
 

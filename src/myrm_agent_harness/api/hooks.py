@@ -11,7 +11,7 @@
 [OUTPUT]
 - Session, skill-agent context, task intent, memory telemetry（budget/injection）
   and injection contract, memory-extraction, bash-registry, background-job-finish,
-  and privacy-context（policy/pseudonym-store）hook callables for server integration.
+  and privacy-context（policy/pseudonym-store/pseudonymizer）hook callables for server integration.
 
 [POS]
 Public re-export facade. Product code imports hooks here instead of private ``agent._*`` modules.
@@ -73,6 +73,10 @@ from myrm_agent_harness.core.security.guards.privacy_tracker import (
     set_privacy_policy,
 )
 from myrm_agent_harness.agent.streaming.step_builder import build_step_data
+from myrm_agent_harness.core.security.persistence.content_scan import (
+    get_pii_pseudonymizer,
+    set_pii_pseudonymizer,
+)
 from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
     BackgroundJobFinishHandler,
     BackgroundJobFinishResult,
@@ -84,6 +88,28 @@ from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
 def count_running_background_shell_jobs(session_id: str | None = None) -> int:
     """Return the number of running harness background shell jobs."""
     return get_background_registry().count_running(session_id)
+
+
+def install_memory_pseudonymizer(policy: object, store: object) -> object | None:
+    """Install the memory-write PII pseudonymizer for a background task context.
+
+    Uses the same closure builder as the agent-run path so regex-level S2/S3
+    pseudonymization behaves identically for out-of-run persistence (e.g. memory
+    extraction retries). Returns the previously installed pseudonymizer (or None)
+    so the caller can restore it via :func:`restore_memory_pseudonymizer`.
+    """
+    from myrm_agent_harness.agent._internals.run_lifecycle import (
+        _register_pii_pseudonymizer,
+    )
+
+    previous = get_pii_pseudonymizer()
+    _register_pii_pseudonymizer(policy, store)
+    return previous
+
+
+def restore_memory_pseudonymizer(previous: object | None) -> None:
+    """Restore the memory-write PII pseudonymizer captured by install."""
+    set_pii_pseudonymizer(previous)
 
 
 __all__ = [
@@ -112,11 +138,13 @@ __all__ = [
     "get_pseudonym_store",
     "get_task_intent",
     "get_terminal_errors",
+    "install_memory_pseudonymizer",
     "invalidate_permissions",
     "map_store_status_to_shell_task_status",
     "persist_extracted_memories",
     "persist_terminal_state",
     "persist_vault_log_ref",
+    "restore_memory_pseudonymizer",
     "set_approval_user_id",
     "set_global_background_job_finish_handler",
     "set_permission_invalidation_callback",

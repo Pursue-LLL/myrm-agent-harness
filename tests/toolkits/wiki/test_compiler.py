@@ -231,11 +231,11 @@ async def test_extract_concepts_from_doc_unreadable(
 
 
 def _restore_provenance_metadata(existing_content: str, new_content: str) -> str:
-    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import (
-        _restore_provenance_metadata as restore_fn,
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler_provenance import (
+        restore_provenance_metadata,
     )
 
-    return restore_fn(existing_content, new_content)
+    return restore_provenance_metadata(existing_content, new_content)
 
 
 def test_restore_provenance_metadata_backfills_lost_source_chat():
@@ -277,8 +277,8 @@ def test_restore_provenance_metadata_noop_without_existing_content():
 
 def test_provenance_from_raw_sources_single_chat(wiki_structure: WikiStructure):
     """First-compile backfill: raw turn files with one agreeing source_chat."""
-    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import (
-        _provenance_from_raw_sources,
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler_provenance import (
+        provenance_from_raw_sources,
     )
 
     raw_dir = wiki_structure.raw_dir
@@ -289,16 +289,33 @@ def test_provenance_from_raw_sources_single_chat(wiki_structure: WikiStructure):
         "---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8"
     )
 
-    provenance = _provenance_from_raw_sources(
+    provenance = provenance_from_raw_sources(
         wiki_structure, ["turn_chat-a_a.md", "turn_chat-a_b.md"]
+    )
+    assert provenance == {"source_chat": "chat-a"}
+
+
+def test_provenance_from_raw_sources_vault_relative_prefix(wiki_structure: WikiStructure):
+    """source_files derived from vault-relative paths (raw/...) must resolve too."""
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler_provenance import (
+        provenance_from_raw_sources,
+    )
+
+    raw_dir = wiki_structure.raw_dir
+    raw_dir.joinpath("turn_chat-a_a.md").write_text(
+        "---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8"
+    )
+
+    provenance = provenance_from_raw_sources(
+        wiki_structure, ["raw/turn_chat-a_a.md"]
     )
     assert provenance == {"source_chat": "chat-a"}
 
 
 def test_provenance_from_raw_sources_conflicting_chats(wiki_structure: WikiStructure):
     """Multiple unrelated chats must not produce a single misleading source_chat."""
-    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import (
-        _provenance_from_raw_sources,
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler_provenance import (
+        provenance_from_raw_sources,
     )
 
     raw_dir = wiki_structure.raw_dir
@@ -309,7 +326,7 @@ def test_provenance_from_raw_sources_conflicting_chats(wiki_structure: WikiStruc
         "---\nsource_chat: chat-b\n---\n# Turn\n", encoding="utf-8"
     )
 
-    provenance = _provenance_from_raw_sources(
+    provenance = provenance_from_raw_sources(
         wiki_structure, ["turn_chat-a_a.md", "turn_chat-b_b.md"]
     )
     assert provenance == {}
@@ -317,8 +334,8 @@ def test_provenance_from_raw_sources_conflicting_chats(wiki_structure: WikiStruc
 
 def test_provenance_from_raw_sources_missing_file(wiki_structure: WikiStructure):
     """Missing or non-provenance raw files contribute nothing."""
-    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import (
-        _provenance_from_raw_sources,
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler_provenance import (
+        provenance_from_raw_sources,
     )
 
     raw_dir = wiki_structure.raw_dir
@@ -326,5 +343,5 @@ def test_provenance_from_raw_sources_missing_file(wiki_structure: WikiStructure)
         "---\nsource_url: https://example.com\n---\n# Note\n", encoding="utf-8"
     )
 
-    provenance = _provenance_from_raw_sources(wiki_structure, ["note.md", "missing.md"])
+    provenance = provenance_from_raw_sources(wiki_structure, ["note.md", "missing.md"])
     assert provenance == {}

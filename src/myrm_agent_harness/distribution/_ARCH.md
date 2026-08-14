@@ -18,7 +18,7 @@
 
 - 父模块 [`../_ARCH.md`](../_ARCH.md)
 - `harness_packaging/codegen.py`（build-time 写入 `core_ip_manifest.py`）
-- 详见 [`../../harness_packaging/DISTRIBUTION_SYSTEM.md`](../../harness_packaging/DISTRIBUTION_SYSTEM.md)
+- 详见 [`../../../harness_packaging/DISTRIBUTION_SYSTEM.md`](../../../harness_packaging/DISTRIBUTION_SYSTEM.md)
 
 ## 包根 Rule 5
 

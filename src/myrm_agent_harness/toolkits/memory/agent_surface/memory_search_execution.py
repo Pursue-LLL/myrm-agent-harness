@@ -152,6 +152,8 @@ async def search_memory_corpus(
                 tool_name="memory_search_tool",
                 retrieval_trace=manager.last_retrieval_trace,
             )
+            if manager.last_retrieval_trace.degraded:
+                return "Memory search timed out. Try a more specific query or retry."
         return "No relevant memories found."
 
     for result in results:

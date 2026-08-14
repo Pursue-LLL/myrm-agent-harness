@@ -358,13 +358,15 @@ stream_executor.py `_emit_fatal_error`（异常捕获）
     │   - error_kind: str（如 "rate_limit"）
     │   - error_type: str
     │   - failover_reason: str
+    │   - diagnostic_result: { error_type, user_message, resolution_steps, locale }（本地化诊断结果）
+    │   - recovery_actions: list[str]（本地化恢复动作，可选）
     │   - cooldown_remaining_ms: int（瞬态错误的重试倒计时，可选）
     ↓
 SSE推送到前端
     ↓
-messageStreamHandler.ts（前端消费）
-    │ getUserFriendlyError(error_kind, rawError, cooldown_remaining_ms)
-    │ 动态import locales/${locale}.json
+agentControlEvents.ts（前端消费）
+    │ 优先消费 diagnostic_result（user_message + resolution_steps）
+    │ 缺失时 fallback getUserFriendlyError(error_kind, rawError, cooldown_remaining_ms)
     ↓
 ProgressSteps.tsx（UI展示）
     └ 显示本地化错误消息 + hint提示 + 倒计时
@@ -415,11 +417,11 @@ class DiagnosticResult:
 
 #### 支持的语言
 
-前端 locales 提供 5 种语言（`zh`/`zh-TW`/`en`/`ja`/`ko`），`errors` section 含常见错误分类的 message/hint 翻译。
+前端 locales 提供 6 种语言（`de`/`en`/`ja`/`ko`/`zh`/`zh-TW`），`errors` section 含常见错误分类的 message/hint 翻译。
 
 #### 前端消费链路
 
-- `agentControlEvents.ts`：收到 ERROR 事件 → `getUserFriendlyError(error_kind, rawError, cooldown_remaining_ms)`
+- `agentControlEvents.ts`：收到 ERROR 事件 → 优先消费后端 `diagnostic_result`（`user_message` + `resolution_steps`），`diagnostic_result` 缺失时 fallback `getUserFriendlyError(error_kind, rawError, cooldown_remaining_ms)`
 - `streamHelpers.ts` `getUserFriendlyError()`：`concurrency_limit` 特判中英双语消息，其余分类原样返回原始错误
 - `ProgressSteps.tsx`：渲染错误 UI（红色区域 + 重试历史）
 
@@ -431,7 +433,8 @@ export async function getUserFriendlyError(
   _cooldownMs?: number,
 ): Promise<FriendlyError> {
   if (errorKind === 'concurrency_limit') {
-    const isZh = document.documentElement.lang?.startsWith('zh');
+    const isZh =
+      typeof document !== 'undefined' && document.documentElement.lang?.startsWith('zh');
     return {
       message: isZh
         ? '并发会话已达上限，无法接收新请求。请先结束部分运行中的任务后重试。'
@@ -450,6 +453,8 @@ export async function getUserFriendlyError(
   - `error_kind: string`
   - `error_type: string`
   - `failover_reason: string`
+  - `diagnostic_result: { error_type, user_message, resolution_steps, locale }`（本地化诊断结果）
+  - `recovery_actions?: string[]`（本地化恢复动作）
   - `cooldown_remaining_ms?: number`
 
 ### 扩展业务层自定义翻译
@@ -498,6 +503,6 @@ get_locale_manager().register_translations(
 |------|------|
 | `myrm-agent-frontend/src/store/chat/messageStream/streamHelpers.ts` | 前端错误事件消费 + getUserFriendlyError() |
 | `myrm-agent-frontend/src/store/chat/types/agentStream/part1.ts` | `ErrorKind` type + `ErrorStreamEvent` interface 定义 |
-| `myrm-agent-frontend/locales/*.json` | 5种语言翻译文件（zh/zh-TW/en/ja/ko，errors section 含错误分类翻译） |
+| `myrm-agent-frontend/locales/*.json` | 6种语言翻译文件（de/en/ja/ko/zh/zh-TW，errors section 含错误分类翻译） |
 | `myrm-agent-frontend/src/i18n/config.ts` | next-intl配置（支持的locales） |
-| `myrm-agent-frontend/src/components/ui/message-box/progress-steps/ProgressSteps.tsx` | 错误 UI 渲染 |
+| `myrm-agent-frontend/src/components/features/message-box/progress-steps/ProgressSteps.tsx` | 错误 UI 渲染 |

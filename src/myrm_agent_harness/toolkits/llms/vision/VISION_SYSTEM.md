@@ -119,7 +119,7 @@ if not supports_vision and vision_fallback_model_cfg:
 
 ### 5. Frontend Status Display
 
-**MessageBox Component** (`myrm-agent-frontend/src/components/ui/message-box/MessageBox.tsx`):
+**MessageBox Component** (`myrm-agent-frontend/src/components/features/message-box/MessageBox.tsx`):
 - 检查 `message.mediaAnalysisStatus`（统一字段支持 `analyzing_image` / `analyzing_video`）
 - 渲染精美的状态指示器（渐变背景 + 旋转动画 + i18n 文本）
 

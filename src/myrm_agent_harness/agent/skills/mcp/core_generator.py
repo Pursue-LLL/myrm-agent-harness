@@ -49,9 +49,9 @@ Above are only summaries without parameter details. **Get docs first, then call.
 
 **First:** enumerate every MCP function needed to finish the user's request. **Then** batch-read **all** their docs in one `file_read_tool` call. Do NOT use bash/cat. Do NOT start bash until every needed doc is read.
 
-Path: `/mcp/{{skill_name}}/{{function_name}}.md`
+Path: `/mcp/{skill_name}/<function_name>.md`
 
-`{{skill_name}}` is the exact name in the "Skill Name" line above. Do NOT guess or abbreviate parameter names.
+`{skill_name}` is the exact name in the "Skill Name" line above. Do NOT guess or abbreviate parameter names.
 
 ### Step 2: ONE bash via bash_code_execute_tool (CRITICAL)
 
@@ -61,7 +61,7 @@ After Step 1 batch-reads **all** docs needed this turn:
 - **FORBIDDEN**: OBSERVATION-only bash after docs are read; splitting into "probe then fetch" without error
 - **FORBIDDEN**: calling `file_write_tool(...)` inside bash Python — use native tool separately
 
-Import: `from skills.{{skill_name}} import {{func_name}}` (`skills.*` = MCP; `tools.*` = built-in; NOT interchangeable)
+Import: `from skills.{skill_name} import <func_name>` (`skills.*` = MCP; `tools.*` = built-in; NOT interchangeable)
 
 ### Performance Rules (CRITICAL)
 
@@ -215,6 +215,7 @@ class MCPSkillGenerator:
                 available_tools += f", ... ({len(mcp_tools)} total)"
             raise FileNotFoundError(
                 f"Function '{tool_name}' not found in skill '{skill_meta.name}'. "
+                f"Available functions: {available_tools}. "
                 f"Please check the tool name and try again."
             )
 

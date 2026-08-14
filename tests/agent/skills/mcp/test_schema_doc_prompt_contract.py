@@ -36,7 +36,7 @@ def test_mcp_usage_prompt_omits_runtime_noise() -> None:
 
 def test_mcp_skill_usage_template_owns_workflow_sop() -> None:
     """MCP-specific workflow must live in Skill usage template, not bash tool."""
-    assert "/mcp/{{skill_name}}/" in SKILL_USAGE_TEMPLATE
+    assert "/mcp/{skill_name}/<function_name>.md" in SKILL_USAGE_TEMPLATE
     assert "file_read_tool" in SKILL_USAGE_TEMPLATE
     assert "bash_code_execute_tool" in SKILL_USAGE_TEMPLATE
     assert "Scenario B" in SKILL_USAGE_TEMPLATE

@@ -20,7 +20,7 @@ Stable public import surface for external consumers (`myrm-agent-server`, third-
 | types.py | Core | Runtime and streaming DTOs | ✅ |
 | config.py | Core | LLM/Agent configuration types | ✅ |
 | protocols.py | Core | Extension-point Protocol definitions | ✅ |
-| hooks.py | Core | Session / skill-agent / memory / bash integration hooks（含 task intent 与 memory telemetry 只读契约：budget/injection + injection contract；含 privacy 上下文原语：`build_pseudonym_store` / `set_privacy_policy` / `set_pseudonym_store` 供后台任务桥接隐私策略与假名化 store） | ✅ |
+| hooks.py | Core | Session / skill-agent / memory / bash integration hooks（含 task intent 与 memory telemetry 只读契约：budget/injection + injection contract；含 privacy 上下文原语：`build_pseudonym_store` / `set_privacy_policy` / `set_pseudonym_store` / `install_memory_pseudonymizer` / `restore_memory_pseudonymizer` 供后台任务桥接隐私策略、假名化 store 与 regex 假名化闭包） | ✅ |
 | skills.py | Core | Skill frontmatter parse and metadata builders | ✅ |
 | subagents.py | Core | `build_parent_delegatable_toolkit` — public subagent delegation helper for server wiring | ✅ |
 | security.py | Core | `ManagedApprovalPolicy` / `get_process_managed_approval_policy` — process-wide MAP facade for server | ✅ |

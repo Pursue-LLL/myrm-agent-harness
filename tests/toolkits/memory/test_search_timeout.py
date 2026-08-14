@@ -622,6 +622,181 @@ class TestMemorySearchToolCorpusBranches:
         assert "CRITICAL: Outdated memory referencing potential paths" in text
 
 
+class TestMemoryCorpusDegradedNotice:
+    """memory corpus must tell the LLM when recall degraded but found nothing,
+    matching the wiki/sessions corpora fail-open notice contract."""
+
+    @pytest.mark.asyncio
+    async def test_empty_plus_degraded_returns_timeout_notice(self) -> None:
+        from datetime import UTC, datetime
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
+            search_memory_corpus,
+        )
+        from myrm_agent_harness.toolkits.memory.observability import (
+            MemoryRetrievalTrace,
+        )
+        from myrm_agent_harness.toolkits.memory.types import MemoryType
+
+        manager = AsyncMock()
+        manager.search = AsyncMock(return_value=[])
+        manager.active_session = None
+        manager.last_retrieval_trace = MemoryRetrievalTrace(
+            id="trace-1",
+            query_preview="pricing",
+            occurred_at=datetime.now(UTC),
+            degraded=True,
+        )
+        manager.set_last_cited_memory_ids = MagicMock()
+
+        with patch(
+            "myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution.emit_cited_memory_ids",
+            AsyncMock(),
+        ):
+            text = await search_memory_corpus(
+                manager,
+                query="pricing",
+                category_to_type={"knowledge": MemoryType.SEMANTIC},
+                categories=None,
+                limit=5,
+                since=None,
+                until=None,
+            )
+
+        assert "timed out" in text.lower()
+        assert "retry" in text.lower()
+
+    @pytest.mark.asyncio
+    async def test_empty_without_degraded_returns_plain_notice(self) -> None:
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
+            search_memory_corpus,
+        )
+        from myrm_agent_harness.toolkits.memory.types import MemoryType
+
+        manager = AsyncMock()
+        manager.search = AsyncMock(return_value=[])
+        manager.active_session = None
+        manager.last_retrieval_trace = None
+        manager.set_last_cited_memory_ids = MagicMock()
+
+        with patch(
+            "myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution.emit_cited_memory_ids",
+            AsyncMock(),
+        ):
+            text = await search_memory_corpus(
+                manager,
+                query="pricing",
+                category_to_type={"knowledge": MemoryType.SEMANTIC},
+                categories=None,
+                limit=5,
+                since=None,
+                until=None,
+            )
+
+        assert text == "No relevant memories found."
+
+
+class TestGraphEnrichTimeout:
+    """Claim graph enrichment must fail open under the shared wall-clock deadline."""
+
+    @pytest.mark.asyncio
+    async def test_graph_enrich_hang_marks_degraded(
+        self,
+        mock_vector_store,
+        mock_embedding,
+        mock_graph_store,
+        fast_timeout_config,
+    ) -> None:
+        from myrm_agent_harness.toolkits.memory.protocols.vector import (
+            VectorDocument,
+            VectorSearchResult,
+        )
+
+        mock_embedding.embed.return_value = [0.1] * 768
+        mock_vector_store.count.return_value = 1
+        mock_vector_store.search.return_value = [
+            VectorSearchResult(
+                document=VectorDocument(
+                    id="evt-1",
+                    content="Shipped canary rollout.",
+                    vector=[0.1] * 768,
+                    metadata={
+                        "memory_type": "episodic",
+                        "event_type": "user_action",
+                        "importance": 0.5,
+                        "confidence": 1.0,
+                        "access_count": 0,
+                        "namespaces": ["global"],
+                        "primary_namespace": "global",
+                    },
+                ),
+                score=0.9,
+            )
+        ]
+        mock_graph_store.find_nodes.side_effect = _hang_forever
+
+        manager = MemoryManager(
+            fast_timeout_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            graph=mock_graph_store,
+            auto_warmup=False,
+        )
+
+        results = await manager.search(
+            "deploy policy",
+            memory_types=[MemoryType.CLAIM, MemoryType.EPISODIC],
+            limit=10,
+            use_rrf=False,
+        )
+
+        assert manager.last_retrieval_trace is not None
+        assert manager.last_retrieval_trace.degraded is True
+        graph_step = next(
+            step
+            for step in manager.last_retrieval_trace.steps
+            if step.phase == "graph"
+        )
+        assert graph_step.status == "warning"
+        assert len(results) >= 1  # collected candidates survive the graph skip
+
+
+class TestCollectErrorDegradation:
+    """A store task raising mid-collect must degrade recall instead of raising."""
+
+    @pytest.mark.asyncio
+    async def test_store_error_marks_degraded(
+        self, mock_vector_store, mock_embedding, fast_timeout_config
+    ) -> None:
+        metrics = get_search_metrics()
+        before_error = metrics.snapshot().degradation_error_count
+
+        mock_embedding.embed.return_value = [0.1] * 768
+        mock_vector_store.count.return_value = 1
+        mock_vector_store.search.side_effect = RuntimeError("vector backend unavailable")
+
+        manager = MemoryManager(
+            fast_timeout_config,
+            user_id="test_user",
+            vector=mock_vector_store,
+            embedding=mock_embedding,
+            auto_warmup=False,
+        )
+
+        results = await manager.search(
+            "weather", memory_types=[MemoryType.SEMANTIC], limit=10, use_rrf=False
+        )
+
+        assert results == []
+        assert manager.last_retrieval_trace is not None
+        assert manager.last_retrieval_trace.degraded is True
+        assert metrics.snapshot().degradation_error_count == before_error + 1
+
+
 class TestMemorySaveManageBranches:
     """Boundary guards of memory_save_tool / memory_manage_tool.
 
