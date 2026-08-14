@@ -273,3 +273,58 @@ def test_restore_provenance_metadata_noop_without_existing_provenance():
 def test_restore_provenance_metadata_noop_without_existing_content():
     new_llm_output = "---\ntype: concept\n---\n## Compiled Truth\nnew\n"
     assert _restore_provenance_metadata("", new_llm_output) == new_llm_output
+
+
+def test_provenance_from_raw_sources_single_chat(wiki_structure: WikiStructure):
+    """First-compile backfill: raw turn files with one agreeing source_chat."""
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import (
+        _provenance_from_raw_sources,
+    )
+
+    raw_dir = wiki_structure.raw_dir
+    raw_dir.joinpath("turn_chat-a_a.md").write_text(
+        "---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8"
+    )
+    raw_dir.joinpath("turn_chat-a_b.md").write_text(
+        "---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8"
+    )
+
+    provenance = _provenance_from_raw_sources(
+        wiki_structure, ["turn_chat-a_a.md", "turn_chat-a_b.md"]
+    )
+    assert provenance == {"source_chat": "chat-a"}
+
+
+def test_provenance_from_raw_sources_conflicting_chats(wiki_structure: WikiStructure):
+    """Multiple unrelated chats must not produce a single misleading source_chat."""
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import (
+        _provenance_from_raw_sources,
+    )
+
+    raw_dir = wiki_structure.raw_dir
+    raw_dir.joinpath("turn_chat-a_a.md").write_text(
+        "---\nsource_chat: chat-a\n---\n# Turn\n", encoding="utf-8"
+    )
+    raw_dir.joinpath("turn_chat-b_b.md").write_text(
+        "---\nsource_chat: chat-b\n---\n# Turn\n", encoding="utf-8"
+    )
+
+    provenance = _provenance_from_raw_sources(
+        wiki_structure, ["turn_chat-a_a.md", "turn_chat-b_b.md"]
+    )
+    assert provenance == {}
+
+
+def test_provenance_from_raw_sources_missing_file(wiki_structure: WikiStructure):
+    """Missing or non-provenance raw files contribute nothing."""
+    from myrm_agent_harness.toolkits.wiki.pipeline.compiler import (
+        _provenance_from_raw_sources,
+    )
+
+    raw_dir = wiki_structure.raw_dir
+    raw_dir.joinpath("note.md").write_text(
+        "---\nsource_url: https://example.com\n---\n# Note\n", encoding="utf-8"
+    )
+
+    provenance = _provenance_from_raw_sources(wiki_structure, ["note.md", "missing.md"])
+    assert provenance == {}
