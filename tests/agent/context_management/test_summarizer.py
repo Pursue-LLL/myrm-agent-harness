@@ -502,6 +502,52 @@ class TestInvokeSummaryWithParser:
         assert result.context_dump_path == "/dump"
         mock_parser.invoke.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_structured_llm_dict_return_converges(self) -> None:
+        """JSON-mode providers return plain dict — must converge to StructuredSummary.
+
+        Guards the real-LM chain: ``with_structured_output`` on OpenAI-compatible
+        providers returns a dict, and ``_invoke_summary`` previously crashed on
+        ``summary.context_dump_path = ...`` against a dict. Also verifies the
+        full-field mapping (O-3) survives the convergence.
+        """
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
+            _invoke_summary,
+        )
+
+        raw_dict = {
+            "user_goal": "完成认证模块",
+            "active_task": "编写测试",
+            "completed_actions": ["实现JWT", "接入数据库"],
+            "key_findings": ["使用Redis缓存"],
+            "errors_and_fixes": ["修复超时"],
+            "files_modified": ["auth.py", "redis_client.py"],
+            "last_action": "跑测试",
+            "constraints_and_preferences": ["不使用全局变量"],
+            "resolved_questions": ["缓存策略"],
+            "pending_user_asks": ["确认部署环境"],
+            "active_state": "测试阶段",
+            "blocked_items": ["等待密钥"],
+            "next_steps": ["code review", "发布"],
+        }
+        mock_structured = AsyncMock()
+        mock_structured.ainvoke.return_value = raw_dict
+        mock_llm = AsyncMock()
+        mock_llm.with_structured_output = MagicMock(return_value=mock_structured)
+        mock_llm.astream = MagicMock(
+            side_effect=NotImplementedError("no stream — fallback to ainvoke")
+        )
+
+        result = await _invoke_summary(mock_llm, mock_structured, None, "prompt", "/dump")
+
+        assert isinstance(result, StructuredSummary)
+        assert result.user_goal == "完成认证模块"
+        assert result.blocked_items == ["等待密钥"]
+        assert result.next_steps == ["code review", "发布"]
+        assert result.context_dump_path == "/dump"
+        assert result.files_modified == ["auth.py", "redis_client.py"]
+        mock_structured.ainvoke.assert_called_once()
+
     def test_build_summary_invocation_messages_preserves_prefix_order(self) -> None:
         prefix: list[BaseMessage] = [
             HumanMessage(content="first"),
