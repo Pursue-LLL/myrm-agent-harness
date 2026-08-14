@@ -54,6 +54,9 @@ from myrm_agent_harness.toolkits.browser.session.browser_session_persistence_mix
 from myrm_agent_harness.toolkits.browser.session.browser_session_recording_mixin import (
     BrowserSessionRecordingMixin,
 )
+from myrm_agent_harness.toolkits.browser.session.browser_session_view_mixin import (
+    BrowserSessionViewMixin,
+)
 from myrm_agent_harness.toolkits.llms.adapters.chat_model import ChatLiteLLM
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.async_mixin import ChatLiteLLMAsyncMixin
 from myrm_agent_harness.toolkits.llms.adapters.chat_model.message_mixin import ChatLiteLLMMessageMixin
@@ -61,6 +64,7 @@ from myrm_agent_harness.toolkits.llms.adapters.chat_model.sync_mixin import Chat
 
 _EXPECTED_BROWSER_SESSION_MIXIN_MRO: tuple[type[object], ...] = (
     BrowserSession,
+    BrowserSessionViewMixin,
     BrowserSessionPersistenceMixin,
     BrowserSessionRecordingMixin,
     BrowserSessionExtractionMixin,

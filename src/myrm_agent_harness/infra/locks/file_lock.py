@@ -1,36 +1,37 @@
-"""Unified file-based locking with metrics.
+"""Unified file-based locking for intra-sandbox concurrency coordination.
 
-Provides file-based locks using fcntl to prevent race conditions when multiple
-asyncio tasks within the same sandbox access the same resources concurrently.
+Provides fcntl-based locks to prevent race conditions when multiple asyncio
+tasks within the same sandbox access the same resources concurrently.
 
 **Use Case**: Coordinates multiple asyncio tasks in the same process to prevent
 duplicate processing or data corruption.
 
 **Important**: This is for intra-sandbox coordination (multiple asyncio tasks
-in same process), NOT for cross-sandbox locking (sandboxes are isolated).
+in same process), NOT for cross-sandbox locking (sandboxes are isolated) and
+NOT for cross-process locking (the server layer covers that with the
+``filelock`` library).
 
 Lock is automatically released on process crash (OS guarantee).
 
 [INPUT]
+- utils.os_compat (POS: Cross-platform OS compatibility layer)
 
 [OUTPUT]
-- FileLock: File-based lock context manager with metrics
-- LockMetrics: Lock performance metrics
+- FileLock: File-based lock context manager
 - acquire_file_lock: Convenience function for common use cases
 
 [POS]
 Unified file locking implementation. Provides fcntl-based locks for coordinating
-multiple asyncio tasks within the same sandbox process, with built-in metrics
-for monitoring lock contention and performance.
+multiple asyncio tasks within the same sandbox process.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
-import time
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -38,86 +39,33 @@ from myrm_agent_harness.utils import os_compat as fcntl
 
 logger = logging.getLogger(__name__)
 
+# A caller-supplied resource id is sanitized before it becomes part of a lock
+# file name, so it can never escape ``lock_dir`` via path separators or ``..``
+# segments. ``.`` is intentionally excluded: keys never need it (UUIDs use
+# ``-``), and keeping it out prevents hidden lock files and ``..``-like names.
+_LOCK_KEY_MAX_LENGTH = 128
+_LOCK_KEY_SAFE_CHARS = frozenset(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+)
+_LOCK_MODES = frozenset(("exclusive", "shared"))
 
-@dataclass
-class LockMetrics:
-    """Lock performance metrics for monitoring and tuning.
 
-    Tracks lock acquisition success/failure rates and timing to identify
-    contention issues and performance bottlenecks.
+def _sanitize_lock_key(resource_id: str) -> str:
+    """Return a filesystem-safe lock file stem for the given resource id.
 
-    Attributes:
-        lock_attempts: Total number of lock acquisition attempts
-        lock_acquired: Number of successful lock acquisitions
-        lock_failed: Number of failed acquisitions (already locked)
-        lock_errors: Number of errors during lock operations
-        total_wait_time_ms: Cumulative time spent waiting for locks (ms)
-        max_wait_time_ms: Maximum single lock wait time (ms)
+    Replaces every character outside the safe set with ``_`` and bounds the
+    result's length, keeping a readable prefix while guaranteeing the key can
+    never escape the lock directory.
     """
-
-    lock_attempts: int = 0
-    lock_acquired: int = 0
-    lock_failed: int = 0
-    lock_errors: int = 0
-    total_wait_time_ms: float = 0.0
-    max_wait_time_ms: float = 0.0
-
-    def record_attempt(self) -> None:
-        """Record a lock acquisition attempt."""
-        self.lock_attempts += 1
-
-    def record_acquired(self, wait_time_ms: float) -> None:
-        """Record successful lock acquisition.
-
-        Args:
-            wait_time_ms: Time spent waiting for the lock (milliseconds)
-        """
-        self.lock_acquired += 1
-        self.total_wait_time_ms += wait_time_ms
-        self.max_wait_time_ms = max(self.max_wait_time_ms, wait_time_ms)
-
-    def record_failed(self) -> None:
-        """Record failed lock acquisition (already locked)."""
-        self.lock_failed += 1
-
-    def record_error(self) -> None:
-        """Record error during lock operation."""
-        self.lock_errors += 1
-
-    @property
-    def avg_wait_time_ms(self) -> float:
-        """Average lock wait time in milliseconds."""
-        if self.lock_acquired == 0:
-            return 0.0
-        return self.total_wait_time_ms / self.lock_acquired
-
-    @property
-    def success_rate(self) -> float:
-        """Lock acquisition success rate (0.0 - 1.0)."""
-        if self.lock_attempts == 0:
-            return 0.0
-        return self.lock_acquired / self.lock_attempts
-
-    def to_dict(self) -> dict[str, float]:
-        """Export metrics as dictionary for logging/monitoring."""
-        return {
-            "lock_attempts": self.lock_attempts,
-            "lock_acquired": self.lock_acquired,
-            "lock_failed": self.lock_failed,
-            "lock_errors": self.lock_errors,
-            "total_wait_time_ms": self.total_wait_time_ms,
-            "max_wait_time_ms": self.max_wait_time_ms,
-            "avg_wait_time_ms": self.avg_wait_time_ms,
-            "success_rate": self.success_rate,
-        }
+    sanitized = "".join(c if c in _LOCK_KEY_SAFE_CHARS else "_" for c in resource_id)
+    if len(sanitized) > _LOCK_KEY_MAX_LENGTH:
+        digest = hashlib.sha256(resource_id.encode("utf-8")).hexdigest()[:8]
+        sanitized = f"{sanitized[: _LOCK_KEY_MAX_LENGTH - 9]}-{digest}"
+    return sanitized or "_"
 
 
 class FileLock:
-    """File-based lock with metrics tracking.
-
-    Provides fcntl-based locking for coordinating multiple asyncio tasks
-    within the same sandbox process. Supports both blocking and non-blocking
-    modes, shared and exclusive locks, with built-in metrics collection.
+    """File-based lock for coordinating asyncio tasks in the same process.
 
     **Concurrency Model**:
     - Type: asyncio Task coordination (NOT multiprocessing/threading)
@@ -129,31 +77,25 @@ class FileLock:
     - Exclusive (LOCK_EX): Write lock, blocks all other locks
     - Shared (LOCK_SH): Read lock, allows other shared locks
 
-    **Blocking Modes**:
-    - Non-blocking: Returns immediately if lock unavailable
-    - Blocking: Waits until lock becomes available (not recommended for asyncio)
+    **Blocking Mode**:
+    - ``blocking=False`` (default): Returns immediately if the lock is held.
+      Callers retry with their own backoff when they need to wait.
+    - ``blocking=True``: Rejected with :class:`TypeError`. Synchronous
+      ``fcntl.flock`` would freeze the asyncio event loop, so waiting is the
+      caller's responsibility.
 
     Attributes:
         lock_dir: Directory for lock files
-        metrics: Lock performance metrics
     """
 
-    def __init__(
-        self,
-        lock_dir: Path,
-        *,
-        enable_metrics: bool = True,
-    ) -> None:
+    def __init__(self, lock_dir: Path) -> None:
         """Initialize FileLock.
 
         Args:
             lock_dir: Directory for storing lock files
-            enable_metrics: Whether to collect performance metrics
         """
         self.lock_dir = lock_dir
         self.lock_dir.mkdir(parents=True, exist_ok=True)
-        self._enable_metrics = enable_metrics
-        self.metrics = LockMetrics() if enable_metrics else None
 
     @asynccontextmanager
     async def acquire(
@@ -168,12 +110,11 @@ class FileLock:
         Args:
             resource_id: Unique identifier for the resource to lock
             mode: Lock mode - "exclusive" for write, "shared" for read
-            blocking: If False, returns immediately if lock unavailable.
-                     If True, waits for lock (not recommended for asyncio).
+            blocking: Must be False. Passing True raises TypeError because a
+                synchronous blocking flock would freeze the asyncio loop.
 
         Yields:
             True if lock acquired successfully, False if already locked
-            (only when blocking=False)
 
         Example:
             >>> lock = FileLock(Path("/tmp/locks"))
@@ -185,90 +126,68 @@ class FileLock:
             ...         # Already locked by another task
             ...         pass
         """
-        lock_file = self.lock_dir / f"{resource_id}.lock"
-        start_time = time.perf_counter()
+        if blocking:
+            raise TypeError(
+                "FileLock blocking=True is unsupported: synchronous fcntl.flock "
+                "would freeze the asyncio event loop. Use blocking=False and "
+                "retry with your own backoff, or serialize with asyncio.Lock."
+            )
+        if mode not in _LOCK_MODES:
+            raise ValueError(
+                f"FileLock mode={mode!r} is unsupported; use 'exclusive' or 'shared'."
+            )
 
-        if self.metrics:
-            self.metrics.record_attempt()
+        lock_file = self.lock_dir / f"{_sanitize_lock_key(resource_id)}.lock"
 
-        file_handle = None
-        lock_acquired = False
-
+        # Open with O_NOFOLLOW so a symlink planted in the lock directory can
+        # never be followed and truncated as an empty lock file. Plain
+        # ``open(..., "w")`` would happily truncate whatever the symlink points
+        # at (e.g. ``~/.env``) — a real data-loss path for a framework-level
+        # public API. ``0o600`` keeps the lock file private to the sandbox.
+        open_flags = os.O_CREAT | os.O_RDWR
+        if hasattr(os, "O_NOFOLLOW"):
+            open_flags |= os.O_NOFOLLOW
         try:
-            # Open lock file
-            file_handle = open(lock_file, "w", encoding="utf-8")  # noqa: SIM115
+            lock_fd = os.open(lock_file, open_flags, 0o600)
+        except OSError as e:
+            logger.warning("Failed to open lock file for %s: %s", resource_id, e)
+            yield False
+            return
+        file_handle = os.fdopen(lock_fd, "w", encoding="utf-8")
 
-            # Determine lock flags
+        lock_acquired = False
+        try:
             lock_flags = fcntl.LOCK_EX if mode == "exclusive" else fcntl.LOCK_SH
-            if not blocking:
-                lock_flags |= fcntl.LOCK_NB
+            lock_flags |= fcntl.LOCK_NB
 
             try:
-                # Acquire lock
                 fcntl.flock(file_handle.fileno(), lock_flags)
-                lock_acquired = True
-
-                wait_time_ms = (time.perf_counter() - start_time) * 1000
-                if self.metrics:
-                    self.metrics.record_acquired(wait_time_ms)
-
-                logger.debug(f"Acquired {mode} lock for resource: {resource_id} (wait: {wait_time_ms:.2f}ms)")
-                yield True
-
             except BlockingIOError:
-                # Lock already held by another task
-                if self.metrics:
-                    self.metrics.record_failed()
-
-                logger.debug(f"Resource already locked: {resource_id}")
+                logger.debug("Resource already locked: %s", resource_id)
                 yield False
+                return
 
-        except Exception as e:
-            if self.metrics:
-                self.metrics.record_error()
-
-            logger.error(f"Error acquiring lock for {resource_id}: {e}")
-            yield False
-
+            lock_acquired = True
+            logger.debug("Acquired %s lock for resource: %s", mode, resource_id)
+            yield True
         finally:
-            # Release lock and cleanup
-            if lock_acquired and file_handle:
+            if lock_acquired:
                 try:
                     fcntl.flock(file_handle.fileno(), fcntl.LOCK_UN)
-                except Exception as e:
-                    logger.warning(f"Failed to release lock for {resource_id}: {e}")
-
-            if file_handle:
-                try:
-                    file_handle.close()
-                except Exception as e:
-                    logger.warning(f"Failed to close lock file for {resource_id}: {e}")
-
-            # Clean up lock file
+                except OSError as e:
+                    logger.warning("Failed to release lock for %s: %s", resource_id, e)
+            try:
+                file_handle.close()
+            except OSError as e:
+                logger.warning("Failed to close lock file for %s: %s", resource_id, e)
             if lock_acquired:
                 try:
                     if lock_file.exists():
                         lock_file.unlink()
-                except Exception as e:
-                    logger.warning(f"Failed to remove lock file for {resource_id}: {e}")
-
-    def get_metrics(self) -> dict[str, float] | None:
-        """Get current lock metrics.
-
-        Returns:
-            Metrics dictionary, or None if metrics disabled
-        """
-        if self.metrics:
-            return self.metrics.to_dict()
-        return None
-
-    def reset_metrics(self) -> None:
-        """Reset metrics counters."""
-        if self.metrics:
-            self.metrics = LockMetrics()
+                except OSError as e:
+                    logger.warning("Failed to remove lock file for %s: %s", resource_id, e)
 
 
-# Convenience function for backward compatibility
 @asynccontextmanager
 async def acquire_file_lock(
     resource_id: str,
@@ -279,14 +198,11 @@ async def acquire_file_lock(
 ) -> AsyncIterator[bool]:
     """Convenience function for acquiring file locks.
 
-    This is a simplified API for common use cases. For advanced usage
-    (metrics collection, reusable lock objects), use FileLock class directly.
-
     Args:
         resource_id: Unique identifier for the resource to lock
         lock_dir: Directory for storing lock files
         mode: Lock mode - "exclusive" for write, "shared" for read
-        blocking: If False, returns immediately if lock unavailable
+        blocking: Must be False (see :meth:`FileLock.acquire`)
 
     Yields:
         True if lock acquired successfully, False if already locked
@@ -297,6 +213,6 @@ async def acquire_file_lock(
         ...         # Process message
         ...         pass
     """
-    lock = FileLock(lock_dir, enable_metrics=False)
+    lock = FileLock(lock_dir)
     async with lock.acquire(resource_id, mode=mode, blocking=blocking) as acquired:
         yield acquired

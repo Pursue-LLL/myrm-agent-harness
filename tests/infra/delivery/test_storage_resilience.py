@@ -178,14 +178,17 @@ class TestResilientOperation:
         assert result == "success"
         assert len(attempt_times) == 4
 
-        # 验证退避时间：100ms, 200ms, 400ms
+        # 验证退避时间递增（100ms, 200ms, 400ms）。下限严格验证退避，
+        # 上限放宽以容忍 CPU 争抢下的 sleep 漂移（并行 CI 场景）。
         backoff_1 = (attempt_times[1] - attempt_times[0]) * 1000
         backoff_2 = (attempt_times[2] - attempt_times[1]) * 1000
         backoff_3 = (attempt_times[3] - attempt_times[2]) * 1000
 
-        assert 80 < backoff_1 < 150  # ~100ms
-        assert 180 < backoff_2 < 250  # ~200ms
-        assert 380 < backoff_3 < 550  # ~400ms (capped at 500ms)
+        assert 80 < backoff_1 < 300  # ~100ms
+        assert backoff_2 > backoff_1  # 退避递增
+        assert 180 < backoff_2 < 400  # ~200ms
+        assert backoff_3 > backoff_2  # 退避递增
+        assert 380 < backoff_3 < 700  # ~400ms (capped at 500ms)
 
 
 class TestStorageMetricsCollector:

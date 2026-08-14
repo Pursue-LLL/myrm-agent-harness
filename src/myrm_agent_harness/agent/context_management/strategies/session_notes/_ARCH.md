@@ -1,7 +1,7 @@
 # session_notes/
 
 ## Overview
-Real-time structured session notes. Asynchronously maintains notes during conversation, serving as zero-API-call summaries during compression. Injects a **HumanMessage** with `[System note: Session Notes Summary]` prefix when compacting — preserves prompt cache by not altering the SystemMessage prefix. Skipped on Resume/HITL for cache preservation. Calls `notify_compaction()` to reset cache-break detector baseline.
+Real-time structured session notes. Asynchronously maintains notes during conversation, serving as zero-API-call summaries during compression. Injects a **HumanMessage** with `[System note: Session Notes Summary]` prefix when compacting — preserves prompt cache by not altering the SystemMessage prefix. The injected block embeds a `<!-- SUMMARY_JSON` structured block (built from `_build_structured_summary`) so `extract_existing_summary` can recognize it and upgrade a later Summarize run to incremental merge. Skipped on Resume/HITL for cache preservation. Calls `notify_compaction()` to reset cache-break detector baseline.
 
 ## File & Submodule Index
 

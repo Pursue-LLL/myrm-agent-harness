@@ -14,6 +14,7 @@ Unit tests for `myrm_agent_harness.agent.streaming.broadcast` (`ToolBroadcastBus
 | `test_progress_sink.py` | Progress sink integration |
 | `test_catchup_brief_extractor.py` | CatchupBriefExtractor |
 | `test_p0_fixes.py` | Truncation / backpressure regressions |
+| `test_event_bus_lifecycle.py` | ToolBroadcastBus lifecycle / batch publish / subscriber isolation |
 
 ## Key Dependencies
 

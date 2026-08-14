@@ -12,6 +12,7 @@
 - format_messages_for_summary: convert messages to text for LLM summarisation (with credential redaction)
 - extract_messages_after_summary: slice messages after summary marker
 - parse_summary_response: parse StructuredSummary from raw LLM JSON / mixed text
+- parse_structured_summary_json: parse StructuredSummary from strict JSON string (None on failure; shared by server persistence boundary)
 
 [POS]
 Summary parsing and message formatting utilities.
@@ -65,28 +66,36 @@ def is_summary_message(msg: BaseMessage) -> bool:
 
 
 def extract_existing_summary(messages: list[BaseMessage]) -> StructuredSummary | None:
-    """从消息列表中提取已有摘要（不依赖消息类型）。
+    """从消息列表中提取最新摘要（最后一个可解析摘要块）。
 
     优先检测 ``<!-- SUMMARY_JSON`` 嵌入块（Pipeline 产生的摘要以 ``<memory-context>``
     开头，内含此 JSON 块）。回退到 legacy 文本前缀检测（``[历史摘要]`` /
     ``[Previous conversation summary]``）以兼容持久化回写的旧格式摘要。
+
+    压缩重建总是把新摘要块放在消息列表的尾部位置（``create_summary_message``
+    置于 protected_head 之后、recent_messages 之前），因此消息位置即时间顺序：
+    反向遍历取最后一个可解析块 = 最新摘要。多块残留场景（修复前的历史会话）下
+    避免增量合并以旧摘要为基准，导致新摘要信息丢失。
     """
-    for msg in messages:
+    for msg in reversed(messages):
         content = msg.content if isinstance(msg.content, str) else str(msg.content)
         if _is_summary_message(content):
-            return _parse_summary_from_message(content)
+            parsed = _parse_summary_from_message(content)
+            if parsed is not None:
+                return parsed
     return None
 
 
 def extract_messages_after_summary(messages: list[BaseMessage]) -> list[BaseMessage]:
-    """提取摘要消息之后的新消息（用于增量合并模式）。
+    """提取最新摘要块之后的新消息（用于增量合并模式）。
 
-    使用与 ``extract_existing_summary`` 相同的检测逻辑（JSON 块 + legacy 文本前缀）。
-    同时剔除切片结果中残留的孤儿摘要块，避免旧压缩块进入增量合并输入。
+    与 ``extract_existing_summary`` 定位同一个（最后一个可解析）摘要块作为锚点，
+    保证增量合并输入与 ``existing_summary`` 对齐——锚点之前的内容已并入该摘要，
+    不重复合并。同时剔除切片结果中残留的孤儿摘要块，避免旧压缩块进入增量合并输入。
     """
-    for i, msg in enumerate(messages):
-        content = msg.content if isinstance(msg.content, str) else str(msg.content)
-        if _is_summary_message(content):
+    for i in range(len(messages) - 1, -1, -1):
+        content = messages[i].content if isinstance(messages[i].content, str) else str(messages[i].content)
+        if _is_summary_message(content) and _parse_summary_from_message(content) is not None:
             return [m for m in messages[i + 1 :] if not is_summary_message(m)]
     return [m for m in messages if not is_summary_message(m)]
 
@@ -145,6 +154,8 @@ def _build_summary_from_dict(
         resolved_questions=_as_str_list(data.get("resolved_questions")),
         pending_user_asks=_as_str_list(data.get("pending_user_asks")),
         active_state=str(data.get("active_state", "")),
+        blocked_items=_as_str_list(data.get("blocked_items")),
+        next_steps=_as_str_list(data.get("next_steps")),
     )
 
 
@@ -170,6 +181,21 @@ def _try_json_load_dict(raw: str) -> dict[str, object] | None:
     if isinstance(val, dict):
         return val
     return None
+
+
+def parse_structured_summary_json(summary_json: str) -> StructuredSummary | None:
+    """从严格 JSON 字符串解析 StructuredSummary（失败返回 None）。
+
+    与 ``parse_summary_response``（容错解析 LLM 输出）不同，本函数仅接受
+    已序列化的 JSON 文本（如 ``StructuredSummary.to_json`` 产物或 DB 持久化
+    的 ``compacted_summary``），解析失败返回 None 而非占位摘要——调用方据此
+    走 full 模式而不是用残破基准做增量合并。字段映射统一走
+    ``_build_summary_from_dict``，保证跨持久化边界的字段完整性。
+    """
+    data = _try_json_load_dict(summary_json)
+    if data is None:
+        return None
+    return _build_summary_from_dict(data)
 
 
 def _extract_summary_dict_from_llm_text(text: str) -> dict[str, object] | None:
@@ -215,24 +241,26 @@ def _parse_summary_from_json_block(content: str) -> StructuredSummary | None:
     {...}
     -->
     """
-    try:
-        start_marker = "<!-- SUMMARY_JSON"
-        end_marker = "-->"
+    start_marker = "<!-- SUMMARY_JSON"
+    end_marker = "-->"
 
-        start_idx = content.find(start_marker)
-        if start_idx == -1:
-            return None
+    start_idx = content.find(start_marker)
+    if start_idx == -1:
+        return None
 
-        json_start = content.find("\n", start_idx) + 1
-        end_idx = content.find(end_marker, json_start)
+    json_start = content.find("\n", start_idx) + 1
+
+    # JSON 值可能包含字面 "-->"（如 markdown 箭头、代码片段），逐个尝试闭合
+    # 标记直到 JSON 解析成功；正常块首次即命中，无额外开销。
+    search_from = json_start
+    while True:
+        end_idx = content.find(end_marker, search_from)
         if end_idx == -1:
             return None
-
-        json_str = content[json_start:end_idx].strip()
-        data = json.loads(json_str)
-        return _build_summary_from_dict(data)
-    except Exception:
-        return None
+        data = _try_json_load_dict(content[json_start:end_idx].strip())
+        if data is not None:
+            return _build_summary_from_dict(data)
+        search_from = end_idx + len(end_marker)
 
 
 def _parse_summary_from_text(content: str) -> StructuredSummary | None:

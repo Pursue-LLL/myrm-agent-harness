@@ -118,8 +118,12 @@ def _resolve_pkg_root(root: Path, repo_root: Path) -> Path | None:
 
 
 def _top_level_module_dirs(pkg_root: Path) -> frozenset[str]:
-    """Top-level package directories used as module-shortcut prefixes."""
-    return frozenset(p.name for p in pkg_root.iterdir() if p.is_dir())
+    """Top-level package directories used as module-shortcut prefixes.
+
+    Cache/artifact dirs are excluded so they are never recognized as module
+    shortcuts."""
+    skip = {"__pycache__"}
+    return frozenset(p.name for p in pkg_root.iterdir() if p.is_dir() and p.name not in skip)
 
 
 def _has_env_var_segment(ref: str) -> bool:

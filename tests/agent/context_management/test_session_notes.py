@@ -619,7 +619,9 @@ class TestSessionNotesProcessor:
         )
 
         session_notes_block = next(
-            m for m in result.messages if "Session Notes Summary" in m.content
+            m
+            for m in result.messages
+            if isinstance(m.content, str) and "Session Notes Summary" in m.content
         )
         assert is_summary_message(session_notes_block)
         parsed = extract_existing_summary(result.messages)

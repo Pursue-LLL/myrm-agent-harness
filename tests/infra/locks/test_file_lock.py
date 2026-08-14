@@ -1,38 +1,20 @@
 """Tests for FileLock."""
 
+import asyncio
 import os
 import stat
+from pathlib import Path
+from unittest import mock
 
 import pytest
 
+from myrm_agent_harness.infra.locks import file_lock as file_lock_module
 from myrm_agent_harness.infra.locks.file_lock import (
     FileLock,
-    LockMetrics,
+    _sanitize_lock_key,
     acquire_file_lock,
 )
 
-
-def test_lock_metrics():
-    metrics = LockMetrics()
-    assert metrics.success_rate == 0.0
-    assert metrics.avg_wait_time_ms == 0.0
-
-    metrics.record_attempt()
-    metrics.record_acquired(10.0)
-    assert metrics.success_rate == 1.0
-    assert metrics.avg_wait_time_ms == 10.0
-
-    metrics.record_attempt()
-    metrics.record_failed()
-    assert metrics.success_rate == 0.5
-
-    metrics.record_error()
-    assert metrics.lock_errors == 1
-
-    d = metrics.to_dict()
-    assert d["lock_attempts"] == 2
-    assert d["lock_acquired"] == 1
-    assert d["lock_failed"] == 1
 
 @pytest.mark.asyncio
 async def test_file_lock_success(tmp_path):
@@ -45,9 +27,6 @@ async def test_file_lock_success(tmp_path):
     # Lock file should be removed
     assert not (tmp_path / "res1.lock").exists()
 
-    metrics = lock.get_metrics()
-    assert metrics["lock_attempts"] == 1
-    assert metrics["lock_acquired"] == 1
 
 @pytest.mark.asyncio
 async def test_file_lock_contention(tmp_path):
@@ -58,10 +37,9 @@ async def test_file_lock_contention(tmp_path):
         assert acq1 is True
 
         # Second lock attempt should fail (non-blocking)
-        async with lock2.acquire("res_contended", blocking=False) as acq2:
+        async with lock2.acquire("res_contended") as acq2:
             assert acq2 is False
 
-    assert lock2.metrics.lock_failed == 1
 
 @pytest.mark.asyncio
 async def test_file_lock_shared(tmp_path):
@@ -75,6 +53,7 @@ async def test_file_lock_shared(tmp_path):
         async with lock2.acquire("res_shared", mode="shared") as acq2:
             assert acq2 is True
 
+
 @pytest.mark.asyncio
 async def test_file_lock_error_handling(tmp_path):
     # Create a read-only directory
@@ -86,11 +65,20 @@ async def test_file_lock_error_handling(tmp_path):
         lock = FileLock(ro_dir)
         async with lock.acquire("res_err") as acquired:
             assert acquired is False
-
-        assert lock.metrics.lock_errors == 1
     finally:
         # Restore permissions for cleanup
         os.chmod(ro_dir, stat.S_IRWXU)
+
+
+@pytest.mark.asyncio
+async def test_blocking_mode_rejected(tmp_path):
+    """blocking=True is rejected with TypeError to avoid freezing the loop."""
+    lock = FileLock(tmp_path)
+
+    with pytest.raises(TypeError):
+        async with lock.acquire("res_blocking", blocking=True):
+            pass
+
 
 @pytest.mark.asyncio
 async def test_acquire_file_lock_helper(tmp_path):
@@ -100,18 +88,171 @@ async def test_acquire_file_lock_helper(tmp_path):
 
     assert not (tmp_path / "helper_res.lock").exists()
 
-def test_reset_metrics(tmp_path):
+
+def test_sanitize_lock_key_keeps_safe_chars():
+    assert _sanitize_lock_key("res-1_2") == "res-1_2"
+
+
+def test_sanitize_lock_key_replaces_unsafe_chars():
+    # '/', '.', '..' all collapse to '_' — no path separators or hidden files
+    assert _sanitize_lock_key("res/../evil") == "res____evil"
+    assert _sanitize_lock_key("../../escape") == "______escape"
+    assert _sanitize_lock_key("///") == "___"
+    assert _sanitize_lock_key("") == "_"
+
+
+def test_sanitize_lock_key_truncates_long_keys():
+    long_key = "k" * 500
+    sanitized = _sanitize_lock_key(long_key)
+    assert len(sanitized) == 128
+    # Readable prefix is preserved and a short hash suffix keeps uniqueness
+    assert sanitized.startswith("k" * 119)
+    assert len(sanitized.rsplit("-", 1)[-1]) == 8
+
+
+def test_sanitize_lock_key_distinct_when_truncated():
+    # Two long keys sharing a prefix keep distinct hashes after truncation
+    a = _sanitize_lock_key("shared" * 50 + "aaa")
+    b = _sanitize_lock_key("shared" * 50 + "bbb")
+    assert a != b
+
+
+def test_sanitize_lock_key_unicode_replaced():
+    """Non-ASCII characters (CJK/emoji) collapse to '_', staying filesystem-safe."""
+    assert _sanitize_lock_key("消息-1") == "__-1"
+    assert _sanitize_lock_key("📦id") == "_id"
+
+
+def test_sanitized_key_cannot_escape_lock_dir(tmp_path):
+    """Path traversal via resource_id must stay inside lock_dir."""
     lock = FileLock(tmp_path)
-    lock.metrics.record_attempt()
-    assert lock.metrics.lock_attempts == 1
+    seen_paths: list[Path] = []
 
-    lock.reset_metrics()
-    assert lock.metrics.lock_attempts == 0
+    async def _exercise():
+        async with lock.acquire("../../escape") as acquired:
+            assert acquired is True
+            seen_paths.extend(tmp_path.glob("*.lock"))
 
-def test_disable_metrics(tmp_path):
-    lock = FileLock(tmp_path, enable_metrics=False)
-    assert lock.metrics is None
-    assert lock.get_metrics() is None
+    asyncio.run(_exercise())
 
-    # Operations should not crash when metrics are disabled
-    lock.reset_metrics()
+    # The lock file was created inside lock_dir (not escaped), then removed
+    assert len(seen_paths) == 1
+    assert seen_paths[0].parent == tmp_path
+    assert seen_paths[0].name == "______escape.lock"
+
+
+@pytest.mark.asyncio
+async def test_file_lock_propagates_body_exception(tmp_path):
+    """Exceptions raised inside the lock body must propagate unchanged —
+    the lock machinery must not swallow them — and the lock must still be
+    released so the resource is re-acquirable."""
+    lock = FileLock(tmp_path)
+
+    class DeliveryError(Exception):
+        pass
+
+    with pytest.raises(DeliveryError):
+        async with lock.acquire("res_body_err") as acquired:
+            assert acquired is True
+            raise DeliveryError("delivery failed")
+
+    assert not (tmp_path / "res_body_err.lock").exists()
+
+    async with lock.acquire("res_body_err") as acquired:
+        assert acquired is True
+
+
+@pytest.mark.asyncio
+async def test_invalid_mode_rejected(tmp_path):
+    """Unrecognized mode must fail fast with ValueError instead of silently
+    downgrading an exclusive lock to a shared one."""
+    lock = FileLock(tmp_path)
+
+    with pytest.raises(ValueError):
+        async with lock.acquire("res_bad_mode", mode="exclusiv"):
+            pass
+
+
+@pytest.mark.asyncio
+async def test_unlock_failure_cleans_up(tmp_path):
+    """An OSError while releasing the lock must not leak the file handle or
+    leave a stale lock file behind."""
+    lock = FileLock(tmp_path)
+
+    with mock.patch.object(
+        file_lock_module.fcntl,
+        "flock",
+        autospec=True,
+        side_effect=[None, OSError("release failed")],
+    ):
+        async with lock.acquire("res_unlock_fail") as acquired:
+            assert acquired is True
+
+    assert not (tmp_path / "res_unlock_fail.lock").exists()
+
+
+@pytest.mark.asyncio
+async def test_close_failure_still_unlinks(tmp_path):
+    """An OSError while closing the lock file must still remove the lock file
+    so the resource stays re-acquirable."""
+    lock = FileLock(tmp_path)
+    real_open = open
+
+    class _CloseFailsFile:
+        def __init__(self, handle):
+            self._handle = handle
+
+        def fileno(self):
+            return self._handle.fileno()
+
+        def close(self):
+            raise OSError("close failed")
+
+    with mock.patch(
+        "myrm_agent_harness.infra.locks.file_lock.open",
+        side_effect=lambda path, *a, **kw: _CloseFailsFile(real_open(path, *a, **kw)),
+    ):
+        async with lock.acquire("res_close_fail") as acquired:
+            assert acquired is True
+
+    assert not (tmp_path / "res_close_fail.lock").exists()
+
+
+@pytest.mark.asyncio
+async def test_unlink_failure_logged_and_locked(tmp_path):
+    """An OSError while unlinking the lock file must be contained: the caller
+    gets a successful acquisition and the lock itself remains held."""
+    lock = FileLock(tmp_path)
+    lock_file = tmp_path / "res_unlink_fail.lock"
+
+    with mock.patch.object(
+        Path, "unlink", side_effect=OSError("unlink failed")
+    ) as mock_unlink:
+        async with lock.acquire("res_unlink_fail") as acquired:
+            assert acquired is True
+            assert lock_file.exists()
+
+    mock_unlink.assert_called_once()
+    assert lock_file.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Creating symlinks on Windows typically requires elevated privileges",
+)
+async def test_symlink_lock_rejected(tmp_path):
+    """A symlink planted in the lock directory must be rejected (O_NOFOLLOW):
+    acquisition returns False and the file the symlink points at stays intact."""
+    lock = FileLock(tmp_path)
+    victim = tmp_path / "victim.txt"
+    victim.write_text("precious-data")
+
+    symlink = tmp_path / "res_symlink.lock"
+    symlink.symlink_to(victim)
+
+    async with lock.acquire("res_symlink") as acquired:
+        assert acquired is False
+
+    assert victim.read_text() == "precious-data"
+    assert symlink.is_symlink()

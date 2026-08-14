@@ -246,7 +246,7 @@ class TestInstallDomainFilterAdBlocking:
 
         await handler(route)
 
-        route.continue_.assert_called_once()
+        route.fallback.assert_called_once()
 
     @pytest.mark.asyncio()
     async def test_ad_blocking_with_resource_type_blocking(
@@ -432,7 +432,7 @@ class TestAdBlockingEdgeCases:
         route.request.url = "blob:null/abc123"
         route.request.resource_type = "script"
         await handler(route)
-        route.continue_.assert_called_once()
+        route.fallback.assert_called_once()
 
     @pytest.mark.asyncio()
     async def test_only_ad_blocking_no_resource_type_blocking(self) -> None:
@@ -460,7 +460,7 @@ class TestAdBlockingEdgeCases:
         route.request.url = "https://example.com/photo.png"
         route.request.resource_type = "image"
         await handler(route)
-        route.continue_.assert_called_once()
+        route.fallback.assert_called_once()
 
     @pytest.mark.asyncio()
     async def test_ad_blocking_with_domain_allowlist(self) -> None:
@@ -501,7 +501,7 @@ class TestAdBlockingEdgeCases:
         route_ok.request.url = "https://cdn.example.com/lib.js"
         route_ok.request.resource_type = "script"
         await handler(route_ok)
-        route_ok.continue_.assert_called_once()
+        route_ok.fallback.assert_called_once()
 
     @pytest.mark.asyncio()
     async def test_hostname_parse_edge_case_no_hostname(self) -> None:
@@ -526,4 +526,4 @@ class TestAdBlockingEdgeCases:
         route.request.resource_type = "document"
         await handler(route)
         # Empty hostname won't match any ad domain, should continue
-        route.continue_.assert_called_once()
+        route.fallback.assert_called_once()

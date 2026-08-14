@@ -434,12 +434,12 @@ async def test_http_filter_blocks_non_allowed_domain() -> None:
     mock_route.request.url = "https://blocked.com/path"
     mock_route.request.resource_type = "document"
     mock_route.abort = AsyncMock()
-    mock_route.continue_ = AsyncMock()
+    mock_route.fallback = AsyncMock()
 
     await route_handler(mock_route)
 
     mock_route.abort.assert_called_once_with("blockedbyclient")
-    mock_route.continue_.assert_not_called()
+    mock_route.fallback.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -464,11 +464,11 @@ async def test_http_filter_allows_allowed_domain() -> None:
     mock_route.request.url = "https://example.com/path"
     mock_route.request.resource_type = "document"
     mock_route.abort = AsyncMock()
-    mock_route.continue_ = AsyncMock()
+    mock_route.fallback = AsyncMock()
 
     await route_handler(mock_route)
 
-    mock_route.continue_.assert_called_once()
+    mock_route.fallback.assert_called_once()
     mock_route.abort.assert_not_called()
 
 
@@ -494,7 +494,7 @@ async def test_http_filter_non_http_document_blocked() -> None:
     mock_route.request.url = "chrome://version"
     mock_route.request.resource_type = "document"
     mock_route.abort = AsyncMock()
-    mock_route.continue_ = AsyncMock()
+    mock_route.fallback = AsyncMock()
 
     await route_handler(mock_route)
 
@@ -524,12 +524,12 @@ async def test_http_filter_blocks_domain_blocklist_before_allowlist() -> None:
     mock_route.request.url = "https://blocked.com/path"
     mock_route.request.resource_type = "document"
     mock_route.abort = AsyncMock()
-    mock_route.continue_ = AsyncMock()
+    mock_route.fallback = AsyncMock()
 
     await route_handler(mock_route)
 
     mock_route.abort.assert_called_once_with("blockedbyclient")
-    mock_route.continue_.assert_not_called()
+    mock_route.fallback.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -554,11 +554,11 @@ async def test_http_filter_non_http_non_document_allowed() -> None:
     mock_route.request.url = "data:text/html,<h1>Test</h1>"
     mock_route.request.resource_type = "image"
     mock_route.abort = AsyncMock()
-    mock_route.continue_ = AsyncMock()
+    mock_route.fallback = AsyncMock()
 
     await route_handler(mock_route)
 
-    mock_route.continue_.assert_called_once()
+    mock_route.fallback.assert_called_once()
 
 
 # =============================================================================

@@ -2,7 +2,7 @@
 # CI: check_file_line_limit.py --baseline this file
 # Files listed here may exceed 500 lines; line count must not grow.
 # Remove entries after splitting below 500 lines.
-# TOTAL: 128 files
+# TOTAL: 129 files
 myrm_agent_harness/agent/_internals/memory_extraction.py	512
 myrm_agent_harness/agent/background_worker/idle_tasks.py	562
 myrm_agent_harness/agent/context_management/strategies/compactor/compactor.py	507
@@ -16,6 +16,7 @@ myrm_agent_harness/agent/meta_tools/bash/_security/preflight_checks.py	611
 myrm_agent_harness/agent/meta_tools/file_ops/core/file_operation_service.py	591
 myrm_agent_harness/agent/meta_tools/skills/manage/skill_manage_tool.py	504
 myrm_agent_harness/agent/middlewares/approval/middleware.py	521
+myrm_agent_harness/agent/middlewares/completion/completion_guard.py	519
 myrm_agent_harness/agent/middlewares/context_pipeline_middleware.py	527
 myrm_agent_harness/agent/skill_agent/skill_agent.py	556
 myrm_agent_harness/agent/skills/market/service.py	558

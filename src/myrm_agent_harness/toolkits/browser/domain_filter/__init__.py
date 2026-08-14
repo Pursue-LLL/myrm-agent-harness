@@ -340,9 +340,16 @@ _RESOURCE_TYPE_MAP: dict[str, str] = {
 
 
 async def _continue_route_safely(route: Route) -> None:
-    """Continue route; ignore duplicate handling when page+context handlers overlap."""
+    """Continue route; ignore duplicate handling when page+context handlers overlap.
+
+    Uses ``route.fallback()`` instead of ``route.continue_()`` so the request
+    flows through any subsequent route handlers. patchright installs an inject
+    route (via ``add_init_script``) that must see document requests to inject
+    init scripts (DOM enhancer, localStorage restore, stealth). ``continue_()``
+    would terminate the chain and silently disable all init scripts.
+    """
     try:
-        await route.continue_()
+        await route.fallback()
     except Exception as exc:
         if "Route is already handled" in str(exc):
             return

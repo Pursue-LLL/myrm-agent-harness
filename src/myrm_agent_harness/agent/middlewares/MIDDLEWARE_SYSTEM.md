@@ -65,7 +65,7 @@
 | `approval/` | HITL 审批队列、batch、scheduler、correction_learning |
 | `approval_interception/` | 审批拦截识别与注入 |
 | `guardrails/` | Provider 链 + `GuardrailMiddleware` |
-| `completion_guard.py` | 代码任务完成验证门 + 外部证据缺失门控（web/browser/MCP：PTC bash `skills.mcp_*` 或 Direct FC `mcp__{server}__{tool}`）；Mixed Message Guard |
+| `completion_guard.py` | 代码任务完成验证门 + 外部证据缺失门控（web/browser/MCP：PTC bash `skills.mcp_*` 或 Direct FC `mcp__{server}__{tool}`；本地代码任务豁免）；Mixed Message Guard（保留变异调用 `is_mutating_tool` registry fail-closed + 交互/UI 承载工具，仅剥离确定无副作用无交互的只读工具；证据缺失时保留只读 tool_calls 防未核实内容直达用户） |
 | `context_pipeline_middleware.py` | 桥接 `context_management/pipeline/` |
 | `concurrency_limiter.py` | 按 agent_type Semaphore |
 | `concurrency_router.py` | 智能并发路由（与 safety_dispatcher 协作） |

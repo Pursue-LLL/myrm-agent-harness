@@ -122,12 +122,10 @@ class ActionCaptureEngine:
                     "__myrmCaptureCallback",
                     self._on_action_event,
                 )
+                self._page.on("framenavigated", self._on_navigation)
                 self._attached = True
 
-            await self._page.add_init_script(_CAPTURE_JS)
-            await self._page.evaluate(_CAPTURE_JS)
-
-            self._page.on("framenavigated", self._on_navigation)
+            await self._inject_capture(active=True)
 
             logger.info(f"Action capture started: session={session_id}")
             return self._session
@@ -138,8 +136,7 @@ class ActionCaptureEngine:
             if not self._session:
                 return None
             self._session.status = "stopped"
-            with contextlib.suppress(Exception):
-                await self._page.evaluate("window.__myrmCaptureActive = false")
+            await self._inject_capture(active=False)
             session = self._session
             logger.info(
                 f"Action capture stopped: session={session.session_id}, "
@@ -151,15 +148,32 @@ class ActionCaptureEngine:
         """Pause capture (events are silently dropped on the JS side)."""
         if self._session and self._session.status == "recording":
             self._session.status = "paused"
-            with contextlib.suppress(Exception):
-                await self._page.evaluate("window.__myrmCaptureActive = false")
+            await self._inject_capture(active=False)
 
     async def resume(self) -> None:
         """Resume paused capture."""
         if self._session and self._session.status == "paused":
             self._session.status = "recording"
-            with contextlib.suppress(Exception):
-                await self._page.evaluate("window.__myrmCaptureActive = true")
+            await self._inject_capture(active=True)
+
+    async def _inject_capture(self, *, active: bool) -> None:
+        """(Re)inject capture listeners and sync the active gate in one world.
+
+        `add_init_script` is deliberately not used: it targets the main world
+        while `page.evaluate` defaults to the isolated world, and a main-world
+        context is only materialized lazily after navigation — listeners would
+        silently stop firing. Injecting via `evaluate` keeps every listener in
+        the same world as the state gate, so stop/pause/resume always control
+        exactly the listeners that produce steps. Re-injection is idempotent:
+        `capture_script.js` guards on `window.__myrmActionCapture`.
+        """
+        try:
+            await self._page.evaluate(_CAPTURE_JS)
+            await self._page.evaluate(
+                f"window.__myrmCaptureActive = {'true' if active else 'false'}"
+            )
+        except Exception:
+            logger.debug("Capture injection failed (page may have closed)")
 
     async def _on_action_event(self, raw_json: str) -> None:
         """Bridge callback invoked from JS — parse and dispatch."""
@@ -224,6 +238,10 @@ class ActionCaptureEngine:
         try:
             page_frame = self._page.main_frame
             if hasattr(frame, "url") and frame == page_frame:
+                # The previous document's JS context (and its listeners) was
+                # destroyed by navigation, so listeners must be re-injected
+                # before the next interaction can be recorded.
+                await self._inject_capture(active=True)
                 await self._record_navigation(getattr(frame, "url", ""))
         except Exception:
             logger.debug("Navigation capture failed (page may have closed)")

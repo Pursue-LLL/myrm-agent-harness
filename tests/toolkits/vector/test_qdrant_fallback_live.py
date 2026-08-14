@@ -64,6 +64,7 @@ async def test_fallback_store_is_fully_usable(tmp_path: Path) -> None:
 
     assert store.config.local_path == ":memory:"
     assert await store.health_check() is True
+    assert store.is_persistent is False
 
     await store.create_collection("mem_fb", dimension=DIM, distance="cosine")
     await store.upsert(
@@ -138,3 +139,29 @@ async def test_fallback_recreated_after_evict(tmp_path: Path) -> None:
     await store1.hard_close()
     await evict_embedded_store(str(bad_path))
     await store2.hard_close()
+
+
+@pytest.mark.asyncio
+async def test_writable_store_is_persistent(tmp_path: Path) -> None:
+    """A writable embedded store reports durable persistence (data survives restarts)."""
+    writable = tmp_path / "persistent_vector"
+    store = await create_embedded_store(path=str(writable))
+
+    assert store.config.local_path == str(writable.resolve())
+    assert store.is_persistent is True
+
+    await evict_embedded_store(str(writable))
+    await store.hard_close()
+
+
+@pytest.mark.asyncio
+async def test_fallback_reports_ephemeral(tmp_path: Path) -> None:
+    """The fallback :memory: store must report ephemeral so the UI can warn."""
+    bad_path = _blocker_path(tmp_path)
+    store = await create_embedded_store(path=str(bad_path))
+
+    assert store.config.local_path == ":memory:"
+    assert store.is_persistent is False
+
+    await evict_embedded_store(str(bad_path))
+    await store.hard_close()

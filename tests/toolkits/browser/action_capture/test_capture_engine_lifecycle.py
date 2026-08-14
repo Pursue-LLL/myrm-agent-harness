@@ -91,10 +91,10 @@ async def test_start_attaches_and_evaluates_script() -> None:
     assert session.session_id
     assert session.start_url == "https://example.com/start"
     assert page.exposed == ["__myrmCaptureCallback"]
-    assert len(page.init_scripts) == 1
-    assert "function truncateText" in page.init_scripts[0]
-    assert len(page.evaluated) == 1
-    assert "__myrmCaptureActive" in page.evaluated[0]
+    assert len(page.init_scripts) == 0  # injection uses evaluate, not add_init_script
+    assert len(page.evaluated) == 2
+    assert "function truncateText" in page.evaluated[0]
+    assert page.evaluated[1] == "window.__myrmCaptureActive = true"
     assert "framenavigated" in page.listeners
 
 
@@ -121,6 +121,7 @@ async def test_stop_marks_session_stopped_and_returns_it() -> None:
     stopped = await eng.stop()
     assert stopped is session
     assert stopped.status == "stopped"
+    # stop re-injects the script and then sets the active gate to false
     assert page.evaluated[-1] == "window.__myrmCaptureActive = false"
 
 

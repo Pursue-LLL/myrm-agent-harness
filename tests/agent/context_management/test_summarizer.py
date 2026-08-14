@@ -1035,3 +1035,88 @@ class TestGuardAuxContextIntegration:
 
         call_args = mock_structured.ainvoke.call_args[0][0]
         assert len(call_args) == len(msgs) + 1
+
+
+class TestSequentialCompactionInvariant:
+    """锁定核心不变量：压缩重建后消息列表恰好只有一个（最新）摘要块。"""
+
+    @pytest.mark.asyncio
+    async def test_two_sequential_compactions_yield_single_latest_summary(self) -> None:
+        """连续两次压缩后列表恰好只剩一个摘要块，无孤儿残留。"""
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_parser import (
+            is_summary_message,
+        )
+
+        first = StructuredSummary(user_goal="第一轮目标", completed_actions=["动作1"])
+        second = StructuredSummary(user_goal="第二轮目标", completed_actions=["动作1", "动作2"])
+
+        messages: list[BaseMessage] = [
+            SystemMessage(content="system prompt"),
+            HumanMessage(content="第一轮任务"),
+            AIMessage(content="完成动作1"),
+            HumanMessage(content="继续动作2"),
+            AIMessage(content="完成动作2"),
+        ]
+
+        llm = AsyncMock()
+
+        with patch(
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._summarize_full_with_audit",
+            new=AsyncMock(return_value=first),
+        ):
+            rebuilt1, _ = await generate_structured_summary(messages=messages, llm=llm)
+        assert sum(1 for m in rebuilt1 if is_summary_message(m)) == 1
+
+        with patch(
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._summarize_incremental_with_audit",
+            new=AsyncMock(return_value=second),
+        ) as mock_incremental:
+            rebuilt2, final = await generate_structured_summary(messages=rebuilt1, llm=llm)
+
+        # 第二次压缩走真实 extract_existing_summary 提取路径 → 增量模式
+        assert mock_incremental.await_count == 1
+        assert final.user_goal == "第二轮目标"
+        summary_msgs = [m for m in rebuilt2 if is_summary_message(m)]
+        assert len(summary_msgs) == 1
+
+    @pytest.mark.asyncio
+    async def test_residual_multi_block_anchors_latest_and_cleans(self) -> None:
+        """F1-F5 修复前多块残留会话：增量锚点为最新可解析摘要块，压缩后孤儿全清。"""
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            create_summary_message,
+        )
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_parser import (
+            is_summary_message,
+        )
+
+        s_old = create_summary_message(
+            StructuredSummary(user_goal="旧摘要", completed_actions=["旧动作"])
+        )
+        s_new = create_summary_message(
+            StructuredSummary(user_goal="新摘要", completed_actions=["旧动作", "新动作"])
+        )
+        messages: list[BaseMessage] = [
+            SystemMessage(content="system prompt"),
+            s_old,
+            HumanMessage(content="已被新摘要覆盖"),
+            s_new,
+            HumanMessage(content="真正的新消息"),
+        ]
+
+        merged = StructuredSummary(user_goal="合并目标", completed_actions=["最终"])
+        llm = AsyncMock()
+
+        with patch(
+            "myrm_agent_harness.agent.context_management.strategies.summary.summarizer._summarize_incremental_with_audit",
+            new=AsyncMock(return_value=merged),
+        ) as mock_incremental:
+            rebuilt, final = await generate_structured_summary(messages=messages, llm=llm)
+
+        assert mock_incremental.await_count == 1
+        anchor = mock_incremental.await_args.args[1]
+        assert isinstance(anchor, StructuredSummary)
+        assert anchor.user_goal == "新摘要"
+        new_msgs = mock_incremental.await_args.args[2]
+        assert [m.content for m in new_msgs] == ["真正的新消息"]
+        assert final.user_goal == "合并目标"
+        assert sum(1 for m in rebuilt if is_summary_message(m)) == 1

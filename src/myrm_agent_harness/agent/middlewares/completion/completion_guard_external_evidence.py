@@ -4,6 +4,14 @@ Detects freshness-sensitive user requests and verifies that the session
 CallRecord window contains successful web/browser/MCP evidence before
 allowing completion. MCP evidence covers both PTC bash imports
 (``skills.mcp_*``) and Direct FC tool calls (``mcp__{server}__{tool}``).
+Intercepted calls (``success_level is None``) never count as evidence —
+an unexecuted tool provides no external data.
+
+Local code-work requests (e.g. "analyze the latest code changes") are
+exempted from the freshness gate: their "latest" phrasing refers to the
+user's own repository, not external data, so forcing a web search would
+be meaningless. An explicit external hint (links/sources/web) suppresses
+the exemption.
 
 [INPUT]
 - langchain_core.messages::HumanMessage (POS: human turn content extraction)
@@ -87,6 +95,46 @@ _EXTERNAL_WEB_HINT_KEYWORDS: tuple[str, ...] = (
     "联网",
 )
 
+# 本地代码工作线索：命中表示用户要的是自己代码库/项目内的"最新"状态，
+# 而非外部新鲜数据——此时不应触发外部证据门（否则本地任务会被逼着联网）。
+_EXTERNAL_LOCAL_WORK_KEYWORDS: tuple[str, ...] = (
+    "代码",
+    "项目",
+    "文件",
+    "仓库",
+    "提交",
+    "模块",
+    "接口",
+    "改动",
+    "重构",
+    "函数",
+    "逻辑",
+    "分支",
+    "测试",
+    "脚本",
+    "日志",
+    "code",
+    "project",
+    "file",
+    "repo",
+    "repository",
+    "git",
+    "commit",
+    "module",
+    "interface",
+    "refactor",
+    "function",
+    "logic",
+    "branch",
+    "test",
+    "tests",
+    "testing",
+    "script",
+    "scripts",
+    "log",
+    "logs",
+)
+
 
 def extract_latest_human_text(messages: list[object]) -> str | None:
     from myrm_agent_harness.agent.skills.runtime.skill_catalog_delivery import (
@@ -115,9 +163,24 @@ def extract_latest_human_text(messages: list[object]) -> str | None:
     return None
 
 
+def _has_external_hint(text: str) -> bool:
+    """True when the request explicitly asks for external material (links/sources/web)."""
+    return _contains_keyword(
+        text, _EXTERNAL_CITATION_KEYWORDS + _EXTERNAL_WEB_HINT_KEYWORDS
+    )
+
+
 def _requires_external_evidence(user_text: str) -> bool:
     lowered = user_text.lower()
     if _contains_keyword(lowered, _EXTERNAL_FRESHNESS_KEYWORDS):
+        # 本地代码工作上下文豁免：用户问的是自己代码库里的"最新"状态
+        # （如"最新改动的代码逻辑"），并非要外部新鲜数据——要求联网只会
+        # 让 Agent 执行无意义的搜索。只要用户明确要求外部材料（链接/来源/
+        # 搜索/网站），豁免即被抑制，仍强制外部证据。
+        if _contains_keyword(lowered, _EXTERNAL_LOCAL_WORK_KEYWORDS) and not (
+            _has_external_hint(lowered)
+        ):
+            return False
         return True
     has_citation = _contains_keyword(lowered, _EXTERNAL_CITATION_KEYWORDS)
     has_web_hint = _contains_keyword(lowered, _EXTERNAL_WEB_HINT_KEYWORDS)
@@ -146,18 +209,21 @@ def _bash_command_text(args: object) -> str:
     command = args.get("command")
     if isinstance(command, str):
         return command
-    code = args.get("code")
-    if isinstance(code, str):
-        return code
     return ""
 
 
 def _bash_mcp_ptc_evidence_succeeded(record: object) -> bool:
-    """True when bash executed a successful MCP PTC import path (skills.mcp_*)."""
+    """True when bash executed a successful MCP PTC import path (skills.mcp_*).
+
+    Intercepted calls (``success_level is None``) never count as evidence —
+    an unexecuted tool provides no external data.
+    """
     tool_name = getattr(record, "tool_name", "")
     if tool_name != "bash_code_execute_tool":
         return False
     success_level = getattr(record, "success_level", None)
+    if success_level is None:
+        return False
     if getattr(success_level, "name", "") == "FAILURE":
         return False
     args = getattr(record, "args", None)
@@ -170,11 +236,16 @@ def _mcp_direct_evidence_succeeded(record: object) -> bool:
     Small MCP servers (schema <= Direct FC threshold) are bound as first-class
     tools rather than routed through bash PTC, so their tool name — not a
     ``skills.mcp_*`` bash import — is the external evidence marker.
+
+    Intercepted calls (``success_level is None``) never count as evidence —
+    an unexecuted tool provides no external data.
     """
     tool_name = getattr(record, "tool_name", "")
     if not is_mcp_tool_name(tool_name):
         return False
     success_level = getattr(record, "success_level", None)
+    if success_level is None:
+        return False
     return getattr(success_level, "name", "") != "FAILURE"
 
 
@@ -188,6 +259,8 @@ def has_external_evidence(records: list[object]) -> bool:
         if tool_name not in _EXTERNAL_EVIDENCE_TOOLS:
             continue
         success_level = getattr(record, "success_level", None)
+        if success_level is None:
+            continue
         if getattr(success_level, "name", "") == "FAILURE":
             continue
         return True

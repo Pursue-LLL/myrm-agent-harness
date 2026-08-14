@@ -14,4 +14,4 @@ Storage-agnostic protocols for the memory system.
 | graph.py | Core | Memory-system graph store protocol。Defines the graph operation interface required by the memory module, including list_nodes/list_relationships/get_stats for visualization, exports GraphNode, GraphRelationship, GraphStats | ✅ |
 | hooks.py | Core | Memory lifecycle hook protocol. Defines optional provider callbacks for turn start, pre-compression, writes, delegation, and session end. | ✅ |
 | relational.py | Core | Relational store protocol. Defines the relational storage interface for Profile, Procedural, | ✅ |
-| vector.py | Core | Memory-system vector store protocol. Defines the vector operation interface required by the memory m | ✅ |
+| vector.py | Core | Memory-system vector store protocol. Defines the vector operation interface required by the memory module, including `is_persistent` (persistence introspection so the memory layer can surface `:memory:`-degraded backends), exports VectorStoreProtocol, VectorDocument, VectorSearchResult | ✅ |

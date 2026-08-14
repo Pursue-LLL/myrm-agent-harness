@@ -20,7 +20,13 @@ sandbox before allowing completion — zero LLM cost, no agent trust required.
 Also implements the **Mixed Message Guard**: when an LLM outputs both a
 substantive final response AND read-only tool_calls in the same message,
 strips the tool_calls to let the agent terminate immediately — saving
-unnecessary tool execution rounds and extra LLM calls.
+unnecessary tool execution rounds and extra LLM calls. A call is preserved
+when it is effectful (`is_mutating_tool`) or is an interaction/UI carrier
+(`_INTERACTION_UI_TOOLS`) — dropping either would lose a user-visible side
+effect or break the interaction chain. When the user request demands external
+evidence (freshness/citation) and no successful evidence exists yet, the
+tool_calls are kept so the agent gathers real data instead of letting
+unverified content reach the user.
 
 Internal tool CallRecords (``_``-prefixed names like ``_completion_check``)
 are excluded from the checklist to prevent self-feedback loops.
@@ -36,10 +42,11 @@ persisting across ReAct cycles.
 - agent.middlewares.completion.completion_guard_checklist::build_checklist, classify_verification, find_last_successful_verification_command (POS: Verification command classification, checklist generation, and temporal-order verification command extraction for CompletionGuard.)
 - agent.middlewares.completion.completion_guard_external_evidence::build_external_evidence_reason (POS: Freshness-sensitive external evidence gate including MCP PTC bash via skills.mcp_* and Direct FC via mcp__{server}__{tool})
 - agent.middlewares.completion.deliverable_write_verifier::check_deliverable_write_claim (POS: Zero-call deliverable write claim detection for CompletionGuard)
+- core.security.tool_registry::resolve_safety_metadata (POS: tool safety metadata incl. MCP readOnlyHint)
 
 [OUTPUT]
 - CompletionGuard: after_model middleware for critical completion verification + independent re-run
-- is_mutating_tool(): SSOT for side-effect tool detection
+- is_mutating_tool(): SSOT for effectful tool detection (static mutation set, registry fail-closed fallback)
 - classify_verification(): re-export from completion_guard_checklist
 - reset_completion_guard(): reset session state for new run
 
@@ -83,6 +90,7 @@ from myrm_agent_harness.agent.security.guards.loop_guard import (
     ToolGroup,
     get_tool_group,
 )
+from myrm_agent_harness.core.security.tool_registry import resolve_safety_metadata
 
 _build_checklist = build_checklist
 _find_last_verification_cmd = find_last_successful_verification_command
@@ -91,6 +99,7 @@ logger = logging.getLogger(__name__)
 
 _MUTATION_TOOLS: frozenset[str] = frozenset(
     {
+        # 写/执行/管理类（会改变工作区或外部状态）
         "write_file",
         "create_file",
         "edit_file",
@@ -120,10 +129,29 @@ _MUTATION_TOOLS: frozenset[str] = frozenset(
     }
 )
 
+# 交互/UI 承载类：registry 标只读，但剥离会丢失用户可见功能（提问/授权/渲染/人类接管）
+_INTERACTION_UI_TOOLS: frozenset[str] = frozenset(
+    {
+        "ask_question_tool",
+        "request_directory_tool",
+        "render_ui_tool",
+        "update_ui_data_tool",
+        "browser_ask_human_tool",
+    }
+)
+
 
 def is_mutating_tool(tool_name: str) -> bool:
-    """Return True when the tool may mutate workspace or external state."""
-    return tool_name in _MUTATION_TOOLS
+    """Return True when the tool mutates workspace or external state (effectful).
+
+    SSOT used by Cron post-run verification to decide whether a run needs an
+    adversarial-reviewer pass. The static alias set is authoritative; everything
+    else resolves via registry metadata (fail-closed: unknown tools assumed
+    effectful, since a side effect must never go unverified).
+    """
+    if tool_name in _MUTATION_TOOLS:
+        return True
+    return not resolve_safety_metadata(tool_name).is_read_only
 
 
 _rejection_count: int = 0
@@ -144,11 +172,11 @@ def _completion_check_tool(
     evidence_reason: str = "",
     deliverable_write_reason: str = "",
 ) -> str:
-    """Internal verification checkpoint — generates a task-aware checklist.
+    """Generate a task-aware verification checklist before finishing.
 
-    This tool is injected by the CompletionGuard middleware. It reads the
-    session's tool-call history to produce a verification checklist so the
-    Agent can self-audit before delivering its final answer.
+    Review the session's tool-call history and produce a checklist of items
+    to verify (tests, lint, type-check, browser state, execution results)
+    before delivering the final answer.
     """
     if force_fail:
         return (
@@ -165,8 +193,7 @@ def _completion_check_tool(
             "but no successful evidence-gathering tools were observed in this run.\n"
             f"Reason: {evidence_reason}\n"
             "Before finishing, run at least one successful evidence step (web_search_tool, "
-            "web_fetch_tool, browser evidence tools, MCP PTC bash via skills.mcp_*, "
-            "or a Direct FC MCP tool), then synthesize the answer."
+            "web_fetch_tool, browser evidence tools, or MCP tools), then synthesize the answer."
         )
 
     if deliverable_write_reason.strip():
@@ -268,7 +295,9 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
     (tests, lint, type-check). Non-critical tasks pass through immediately.
 
     Also implements the Mixed Message Guard to strip read-only tool_calls
-    from messages that already contain a substantive final answer.
+    from messages that already contain a substantive final answer. Only tools
+    that are guaranteed side-effect free AND carry no interaction/UI function
+    are stripped; effectful calls and interaction/UI carriers are preserved.
 
     Parameters
     ----------
@@ -337,12 +366,33 @@ class CompletionGuard(AgentMiddleware):  # type: ignore[type-arg]
                     else str(last_ai_msg.content)
                 )
                 if _is_substantive_final_response(content_str):
-                    has_mutation = any(
-                        tc.get("name") in _MUTATION_TOOLS
+                    has_non_strippable = any(
+                        is_mutating_tool(str(tc.get("name", "")))
+                        or str(tc.get("name", "")) in _INTERACTION_UI_TOOLS
                         for tc in last_ai_msg.tool_calls
                         if isinstance(tc, dict)
                     )
-                    if not has_mutation:
+                    if not has_non_strippable:
+                        # 防假完成：用户请求外部/新鲜数据但会话中尚无成功证据时，
+                        # 保留只读工具调用让 Agent 真正获取数据，避免未核实内容直接到达用户。
+                        from myrm_agent_harness.agent.middlewares.tool_interceptor_middleware import (
+                            get_loop_guard,
+                        )
+
+                        guard = get_loop_guard()
+                        window_records = list(guard._window)
+                        filtered = [
+                            r for r in window_records if not r.tool_name.startswith("_")
+                        ]
+                        requires_evidence = (
+                            build_external_evidence_reason(
+                                messages=messages,
+                                records=filtered,
+                            )
+                            is not None
+                        )
+                        if requires_evidence:
+                            return None
                         logger.info(
                             "[CompletionGuard] Mixed message detected: content is substantive "
                             "final response with %d read-only tool_calls — stripping to terminate early.",

@@ -98,6 +98,7 @@ _MEMORY_PUBLIC_SUBDIRS: frozenset[str] = frozenset(
         "_manager",
         "conversation_search",
         "_internal",
+        "agent_surface",
     }
 )
 

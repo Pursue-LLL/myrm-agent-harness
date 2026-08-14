@@ -126,13 +126,8 @@ def extract_recent_messages(messages: list[BaseMessage], tail_budget_tokens: int
 
     cut_idx = _align_boundary_backward(messages, cut_idx)
 
-    result: list[BaseMessage] = []
-    kept_tokens = 0
-    for m in messages[cut_idx:]:
-        if is_summary_message(m):
-            continue
-        result.append(m)
-        kept_tokens += estimate_message_tokens(m)
+    result = [m for m in messages[cut_idx:] if not is_summary_message(m)]
+    kept_tokens = sum(estimate_message_tokens(m) for m in result)
     logger.debug(
         "Tail protection: extracted %d messages (~%d tokens) from total %d messages",
         len(result),

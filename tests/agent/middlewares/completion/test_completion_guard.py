@@ -24,6 +24,10 @@ from myrm_agent_harness.agent.security.guards.loop_guard import (
     SuccessLevel,
     VerificationCategory,
 )
+from myrm_agent_harness.core.security.tool_registry import (
+    SafetyMetadata,
+    register_ptc_safety_metadata,
+)
 
 LOOP_GUARD_PATCH = (
     "myrm_agent_harness.agent.middlewares.tool_interceptor_middleware.get_loop_guard"
@@ -1082,6 +1086,56 @@ class TestMixedMessageGuard:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_preserves_background_process_mutation(self) -> None:
+        """Safety: content + bash_process_tool(kill) must NOT be stripped — the
+        kill/stdin actions mutate process state and stripping would silently
+        drop the cleanup side effect."""
+        state = _make_state(
+            [
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "bash_process_tool",
+                            "args": {"action": "kill", "pid": 123, "force": False},
+                        },
+                    ],
+                ),
+            ]
+        )
+        result = await self.guard.aafter_model(state, None)
+        assert result is None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool_name", "args"),
+        [
+            ("ask_question_tool", {"question": "Which quarter?"}),
+            ("request_directory_tool", {"path": "/data"}),
+            ("render_ui_tool", {"component": "KanbanBoard"}),
+            ("update_ui_data_tool", {"surface_id": "sb1", "data": {"done": 3}}),
+            ("browser_ask_human_tool", {"reason": "Enter SMS code"}),
+        ],
+    )
+    async def test_preserves_interaction_ui_carriers(
+        self, tool_name: str, args: dict[str, object]
+    ) -> None:
+        """Safety: content + interaction/UI carrier must NOT be stripped — these
+        are registry read-only but carry user-visible functionality (question,
+        grant, render); dropping them breaks the interaction/UI chain."""
+        state = _make_state(
+            [
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[{"id": "tc1", "name": tool_name, "args": args}],
+                ),
+            ]
+        )
+        result = await self.guard.aafter_model(state, None)
+        assert result is None
+
+    @pytest.mark.asyncio
     async def test_preserves_mixed_mutation_and_readonly(self) -> None:
         """Safety: content + mix of mutation and read-only tools -> do NOT strip."""
         state = _make_state(
@@ -1258,6 +1312,125 @@ class TestMixedMessageGuard:
         )
         result = await self.guard.aafter_model(state, None)
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_keeps_tool_calls_when_external_evidence_missing(self) -> None:
+        """Freshness query + substantive content + read-only tools + NO evidence:
+        must NOT strip — the agent needs to gather real data (anti-hallucination)."""
+        state = _make_state(
+            [
+                HumanMessage(content="今天最新的 AI 新闻是什么？"),
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "web_search_tool",
+                            "args": {"query": "AI news today"},
+                        },
+                    ],
+                ),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_strips_when_external_evidence_exists(self) -> None:
+        """Freshness query + substantive content + read-only tools WITH evidence:
+        still strips to save tokens."""
+        state = _make_state(
+            [
+                HumanMessage(content="今天最新的 AI 新闻是什么？"),
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "web_search_tool",
+                            "args": {"query": "AI news today"},
+                        },
+                    ],
+                ),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = [
+                CallRecord(
+                    tool_name="web_search_tool",
+                    args_hash="evidence1",
+                    args={"query": "AI news"},
+                    success_level=SuccessLevel.FULL_SUCCESS,
+                )
+            ]
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is not None
+        ai_msg = result["messages"][0]
+        assert ai_msg.tool_calls == []
+
+    @pytest.mark.asyncio
+    async def test_keeps_unannotated_mcp_tool_calls(self) -> None:
+        """MCP tool without readOnlyHint (fail-closed non-read-only) must NOT be
+        stripped — stripping could silently drop a side-effecting call such as
+        booking/payment while the content claims completion."""
+        state = _make_state(
+            [
+                HumanMessage(content="帮我订一张明天去北京的火车票"),
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": "mcp__payments__charge_card",
+                            "args": {"amount": 553},
+                        },
+                    ],
+                ),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_strips_readonly_annotated_mcp_tool_calls(self) -> None:
+        """MCP tool with explicit readOnlyHint=True is safe to strip — keeps
+        the token-saving optimization for genuinely read-only MCP servers."""
+        tool_name = "mcp__meteo__get_temperature"
+        register_ptc_safety_metadata(
+            "mcp_meteo_skill",
+            tool_name,
+            SafetyMetadata(is_read_only=True, is_concurrent_safe=True),
+            {"readOnlyHint": True},
+        )
+        state = _make_state(
+            [
+                HumanMessage(content="北京现在多少度？"),
+                AIMessage(
+                    content=self._long_answer(),
+                    tool_calls=[
+                        {
+                            "id": "tc1",
+                            "name": tool_name,
+                            "args": {"city": "Beijing"},
+                        },
+                    ],
+                ),
+            ]
+        )
+        with patch(LOOP_GUARD_PATCH) as mock_guard:
+            mock_guard.return_value._window = []
+            result = await self.guard.aafter_model(state, None)
+
+        assert result is not None
+        ai_msg = result["messages"][0]
+        assert ai_msg.tool_calls == []
 
 
 class TestTemporalOrderChecking:
@@ -1863,6 +2036,120 @@ class TestHasExternalEvidence:
         reason = build_external_evidence_reason(messages=messages, records=[])
         assert reason is None
 
+    def test_no_evidence_required_for_internal_code_task_with_latest(self) -> None:
+        """A local code task phrased with 'latest' must NOT require external
+        evidence — the agent would otherwise be pushed into a meaningless web
+        search for its own repository's recent changes."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(content="帮我分析一下项目里最新改动的代码逻辑"),
+            AIMessage(content="All done."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is None
+
+    def test_internal_code_task_english_variant_no_evidence(self) -> None:
+        """English equivalent of an internal code task is also exempted."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(
+                content="What are the latest code changes in the auth module?"
+            ),
+            AIMessage(content="All done."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is None
+
+    def test_evidence_still_required_for_genuine_freshness(self) -> None:
+        """A real freshness request without local-work context still requires
+        external evidence — the exemption must not weaken the anti-hallucination gate."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(content="今天最新的 AI 新闻是什么？"),
+            AIMessage(content="All done."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is not None
+
+    def test_internal_task_with_external_hint_still_requires_evidence(self) -> None:
+        """An explicit external hint (links/search) suppresses the local-work
+        exemption — the user clearly wants outside material."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(content="分析最新代码改动，并搜索网上的最佳实践"),
+            AIMessage(content="All done."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is not None
+
+    def test_no_evidence_required_for_local_test_result_zh(self) -> None:
+        """A local test-result query phrased with 'latest' must NOT require external
+        evidence — test runs live in the user's own repository, not on the web."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(content="帮我看看最新的测试结果"),
+            AIMessage(content="All done."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is None
+
+    def test_no_evidence_required_for_local_test_result_en(self) -> None:
+        """English equivalent of a local test-result query is also exempted."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(content="What are the latest test results?"),
+            AIMessage(content="All done."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is None
+
+    def test_no_evidence_required_for_local_logs_and_scripts(self) -> None:
+        """Local log/script queries are exempted — logs and scripts are workspace
+        artifacts, not external material."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(content="最新日志和脚本的改动情况"),
+            AIMessage(content="All done."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is None
+
+    def test_evidence_still_required_for_external_price_query(self) -> None:
+        """A genuine freshness query about market data must NOT be exempted —
+        '金价/price' carries no local-work signal, so the anti-hallucination
+        gate must keep forcing external evidence."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            build_external_evidence_reason,
+        )
+
+        messages = [
+            HumanMessage(content="今天最新金价是多少"),
+            AIMessage(content="All done."),
+        ]
+        reason = build_external_evidence_reason(messages=messages, records=[])
+        assert reason is not None
+
     def test_returns_true_for_successful_mcp_direct_fc_tool(self) -> None:
         """A successful Direct FC MCP tool call (mcp__{server}__{tool}) is external evidence."""
         from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
@@ -1902,6 +2189,49 @@ class TestHasExternalEvidence:
             args_hash="m1",
             args={},
             success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        assert has_external_evidence([record]) is False
+
+    def test_returns_false_for_intercepted_mcp_direct_fc_tool(self) -> None:
+        """An intercepted Direct FC MCP call (success_level=None) is NOT evidence —
+        an unexecuted tool provides no external data."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="mcp__12306__query_tickets",
+            args_hash="d1",
+            args={},
+            success_level=None,
+        )
+        assert has_external_evidence([record]) is False
+
+    def test_returns_false_for_intercepted_mcp_ptc_bash(self) -> None:
+        """An intercepted MCP PTC bash call (success_level=None) is NOT evidence."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="bash_code_execute_tool",
+            args_hash="mcp1",
+            args={"command": "from skills.mcp_12306_skill import get_tickets"},
+            success_level=None,
+        )
+        assert has_external_evidence([record]) is False
+
+    def test_returns_false_for_intercepted_builtin_evidence_tool(self) -> None:
+        """An intercepted built-in evidence tool (success_level=None) is NOT evidence."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            has_external_evidence,
+        )
+
+        record = CallRecord(
+            tool_name="web_search_tool",
+            args_hash="s1",
+            args={"query": "today's news"},
+            success_level=None,
         )
         assert has_external_evidence([record]) is False
 

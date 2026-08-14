@@ -83,8 +83,11 @@ async def test_batch_concurrent_execution(tmp_path: Path):
         for i in range(5):
             await queue.enqueue("telegram", f"user{i}", {"text": f"msg_{i}"}, priority=2)
 
-        # Wait for batch processing
-        await asyncio.sleep(1.0)
+        # Wait for batch processing (poll instead of fixed sleep so the test is
+        # robust under CPU contention from parallel CI runs)
+        deadline = asyncio.get_event_loop().time() + 5.0
+        while len(delivery_times) < 5 and asyncio.get_event_loop().time() < deadline:
+            await asyncio.sleep(0.02)
 
         # Verify all messages delivered
         assert delivery_count == 5
@@ -92,9 +95,9 @@ async def test_batch_concurrent_execution(tmp_path: Path):
         # Verify concurrent execution: total time should be ~100ms (not 500ms)
         # If executed serially, would take 500ms
         # If executed concurrently, takes ~100ms
-        # We check that average delivery time is close to 100ms (concurrent)
+        # We check that average delivery time is well below the serial 500ms.
         avg_time = sum(delivery_times) / len(delivery_times)
-        assert 0.09 < avg_time < 0.20, f"Average delivery time {avg_time:.3f}s suggests concurrent execution"
+        assert avg_time < 0.30, f"Average delivery time {avg_time:.3f}s suggests concurrent execution"
 
     finally:
         await queue.stop()

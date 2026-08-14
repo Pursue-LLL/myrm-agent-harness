@@ -31,8 +31,11 @@ async def test_priority_ordering(tmp_path: Path):
         await queue.enqueue("telegram", "user4", {"text": "Highest priority"}, priority=0)
         await queue.enqueue("telegram", "user5", {"text": "Another high"}, priority=1)
 
-        # Wait for all deliveries
-        await asyncio.sleep(0.5)
+        # Wait for all deliveries (poll instead of fixed sleep so the test is
+        # robust under CPU contention from parallel CI runs)
+        deadline = asyncio.get_event_loop().time() + 5.0
+        while len(calls) < 5 and asyncio.get_event_loop().time() < deadline:
+            await asyncio.sleep(0.02)
 
         # Verify delivery order: 0 -> 1 -> 1 -> 2 -> 3
         assert len(calls) == 5

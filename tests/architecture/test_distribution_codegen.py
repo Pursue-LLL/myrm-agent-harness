@@ -25,9 +25,9 @@ from myrm_agent_harness.distribution.core_ip_manifest import CORE_IP_IMPORTS
 def test_core_manifest_directory_expansion_covers_algorithm_subtrees() -> None:
     """Core IP directories must resolve to the expected protected module count."""
     manifest = load_core_manifest()
-    assert len(manifest.module_paths) == 80
-    assert len(manifest_import_names()) == 80
-    assert len(manifest_source_relpaths()) == 80
+    assert len(manifest.module_paths) == 81
+    assert len(manifest_import_names()) == 81
+    assert len(manifest_source_relpaths()) == 81
 
 
 @pytest.mark.architecture
