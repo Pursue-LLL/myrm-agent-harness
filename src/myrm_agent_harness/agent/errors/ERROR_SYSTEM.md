@@ -351,22 +351,20 @@ class MyToolkitError(Exception):
 ```
 LLM执行异常（RateLimitError / AuthenticationError / TimeoutError / etc.）
     ↓
-stream_executor.py（异常捕获）
-    │ classify_error(e) → ErrorKind（10种分类）
-    │ default_provider.get_message(error_kind, "en") → ErrorMessage
+stream_executor.py `_emit_fatal_error`（异常捕获）
+    │ classify_error(exc) → ErrorKind（toolkits/llms/errors/classifier.py）
+    │ LLMErrorDiagnostic.diagnose(exc, ErrorContext) → DiagnosticResult（本地化 user_message + resolution_steps + is_retryable）
     │ 构建 error_event:
     │   - error_kind: str（如 "rate_limit"）
-    │   - recovery_actions: list[str]（如 ["upgrade_api_plan", "switch_model"]）
-    │   - default_hint: str（如 "If this persists, consider upgrading..."）
-    │   - cooldown_remaining_ms: int（瞬态错误的重试倒计时）
+    │   - error_type: str
+    │   - failover_reason: str
+    │   - cooldown_remaining_ms: int（瞬态错误的重试倒计时，可选）
     ↓
 SSE推送到前端
     ↓
 messageStreamHandler.ts（前端消费）
-    │ 检测用户语言（navigator.language）：zh/en/ja/ko/de
+    │ getUserFriendlyError(error_kind, rawError, cooldown_remaining_ms)
     │ 动态import locales/${locale}.json
-    │ getUserFriendlyError(error_kind) → { message, hint }
-    │ 添加本地化cooldown倒计时（如 "，约30秒后可重试"）
     ↓
 ProgressSteps.tsx（UI展示）
     └ 显示本地化错误消息 + hint提示 + 倒计时
@@ -374,15 +372,18 @@ ProgressSteps.tsx（UI展示）
 
 ### 核心组件
 
-#### 1. 框架层（toolkits/llms/errors/i18n/）
+#### 1. 框架层（agent/errors/diagnostics/）
 
 | 模块 | 职责 |
 |------|------|
-| `protocols.py` | `ErrorMessage` dataclass + `ErrorMessageProvider` Protocol接口 |
-| `default_messages.py` | `DefaultErrorMessageProvider` 实现 + 10种错误的默认英文消息 + `default_provider` 单例 |
-| `__init__.py` | 导出i18n API |
+| `engine.py` | `LLMErrorDiagnostic` 静态分类器：LLM 异常 → 本地化 `DiagnosticResult` |
+| `types.py` | `DiagnosticResult` / `ErrorContext` 数据结构 |
+| `i18n/manager.py` | `LocaleManager`：locale 检测 + 捆绑 JSON 加载 + 消息格式化 |
+| `i18n/__init__.py` | `get_locale_manager()` 全局单例 |
+| `i18n/constants.py` | `REQUIRED_ERROR_TYPES` 翻译完整性校验 |
+| `i18n/locales/` | 5 语言 JSON（en/zh-CN/ja/ko/de） |
 
-#### 2. 10种ErrorKind分类
+#### 2. ErrorKind分类（`toolkits/llms/errors/classifier.py`，11种）
 
 | ErrorKind | 中文名称 | 严重级别 | 恢复操作示例 |
 |-----------|---------|---------|-------------|
@@ -391,92 +392,77 @@ ProgressSteps.tsx（UI展示）
 | `timeout` | 服务超时 | warning | check_network, verify_base_url, retry |
 | `billing` | 余额不足 | error | top_up_account, switch_api_key |
 | `auth` | 认证失败 | error | check_api_key, verify_expiry |
-| `session_expired` | 会话过期 | warning | re_login, refresh_session |
 | `model_not_found` | 模型不存在 | error | verify_model_name, check_configuration |
 | `format_error` | 请求格式错误 | error | contact_support |
+| `response_format_error` | 响应格式错误 | error | contact_support, retry |
 | `context_overflow` | 上下文过长 | warning | start_new_chat, wait_compression |
+| `safety_block` | 安全拦截 | error | review_content, adjust_input |
 | `unknown` | 未知错误 | error | retry, contact_support |
 
-#### 3. ErrorMessage结构
+#### 3. DiagnosticResult结构
 
 ```python
 @dataclass(frozen=True)
-class ErrorMessage:
-    message: str                      # 错误消息（必需）
-    hint: str | None = None          # 用户提示（可选）
-    severity: str = "error"          # 严重级别：info/warning/error
-    recovery_actions: list[str] | None = None  # 恢复操作建议（可选）
+class DiagnosticResult:
+    error_type: str                   # 错误类型（如 "rate_limit"）
+    user_message: str                 # 本地化用户消息
+    resolution_steps: list[str]       # 恢复步骤建议
+    is_retryable: bool                # 是否可重试
+    locale: str                       # 已解析语言（en/zh-CN/ja/ko/de）
 ```
 
-### 前端多语言支持
+### 前端错误处理
 
 #### 支持的语言
 
-- 🇨🇳 **中文（zh）**：完整10种错误翻译
-- 🇺🇸 **英文（en）**：完整10种错误翻译
-- 🇯🇵 **日语（ja）**：完整10种错误翻译
-- 🇰🇷 **韩语（ko）**：完整10种错误翻译
-- 🇩🇪 **德语（de）**：完整10种错误翻译
+前端 locales 提供 5 种语言（`zh`/`zh-TW`/`en`/`ja`/`ko`），`errors` section 含常见错误分类的 message/hint 翻译。
 
-#### 前端实现细节
+#### 前端消费链路
+
+- `agentControlEvents.ts`：收到 ERROR 事件 → `getUserFriendlyError(error_kind, rawError, cooldown_remaining_ms)`
+- `streamHelpers.ts` `getUserFriendlyError()`：`concurrency_limit` 特判中英双语消息，其余分类原样返回原始错误
+- `ProgressSteps.tsx`：渲染错误 UI（红色区域 + 重试历史）
 
 ```typescript
-// locales/zh.json 示例
-{
-  "llm_error": {
-    "rate_limit": {
-      "message": "API 请求频率受限，请稍后重试",
-      "hint": "如持续出现，可升级 API 计划或切换其他模型。"
-    },
-    // ... 其余9种错误
-  }
-}
-
-// messageStreamHandler.ts
-async function getUserFriendlyError(
-  errorKind: ErrorKind,
+// streamHelpers.ts 真实实现（简化）
+export async function getUserFriendlyError(
+  errorKind: ErrorKind | undefined,
   rawError: string,
-  cooldownMs?: number
+  _cooldownMs?: number,
 ): Promise<FriendlyError> {
-  // 自动检测语言
-  const locale = detectLocale(); // zh/en/ja/ko/de
-  
-  // 动态加载翻译
-  const translations = await import(`@/locales/${locale}.json`);
-  const errorMessages = translations.llm_error?.[errorKind];
-  
-  // 添加cooldown倒计时（本地化）
-  if (cooldownMs > 0) {
-    message += getLocalizedCountdown(cooldownMs, locale);
+  if (errorKind === 'concurrency_limit') {
+    const isZh = document.documentElement.lang?.startsWith('zh');
+    return {
+      message: isZh
+        ? '并发会话已达上限，无法接收新请求。请先结束部分运行中的任务后重试。'
+        : 'Concurrency limit reached; the request could not be accepted. Please finish or stop some running tasks and retry.',
+    };
   }
-  
-  return { message, hint: errorMessages.hint };
+  return { message: rawError };
 }
 ```
 
 ### 类型安全保证
 
-- **后端**：`ErrorKind` enum + `ErrorMessage` dataclass（Python Protocol）
+- **后端**：`ErrorKind` enum（`toolkits/llms/errors/classifier.py`）+ `DiagnosticResult` dataclass（`diagnostics/types.py`）
 - **前端**：`ErrorKind` type + `ErrorStreamEvent` interface（TypeScript）
 - **SSE字段同步**：
   - `error_kind: string`
-  - `recovery_actions?: string[]`
-  - `default_hint?: string`
+  - `error_type: string`
+  - `failover_reason: string`
   - `cooldown_remaining_ms?: number`
 
-### 扩展业务层自定义i18n
+### 扩展业务层自定义翻译
 
 ```python
-# 业务层可实现自定义Provider
-class CustomI18nProvider:
-    def get_message(self, error_kind: str, locale: str) -> ErrorMessage | None:
-        # 从数据库/JSON文件加载本地化消息
-        translations = load_translations(locale)
-        return translations.get(error_kind)
+# 业务层可注册/合并自定义翻译（LocaleManager.register_translations）
+from myrm_agent_harness.agent.errors.diagnostics.i18n import get_locale_manager
 
-# 在stream_executor.py中替换default_provider
-custom_provider = CustomI18nProvider()
-error_msg = custom_provider.get_message(error_kind.value, user_locale)
+get_locale_manager().register_translations(
+    "zh-CN",
+    {"rate_limit": {"message": "API 请求频率受限，请稍后重试", "hint": "可升级 API 计划或切换模型"}},
+)
+# 或通过环境变量 MYRM_LOCALES_DIR 指定自定义 locale JSON 目录（扁平键 cooldown_hint_* 自动展平）
 ```
 
 ---
@@ -498,19 +484,20 @@ error_msg = custom_provider.get_message(error_kind.value, user_locale)
 
 | 文件 | 角色 |
 |------|------|
-| `toolkits/llms/errors/classifier.py` | LLM错误分类器（`classify_error()`，10种ErrorKind） |
+| `toolkits/llms/errors/classifier.py` | LLM错误分类器（`classify_error()`，`ErrorKind` enum） |
 | `toolkits/llms/errors/error_types.py` | 三层分类体系（RecoverabilityLevel / FailoverReason / ProbePolicy） |
-| `toolkits/llms/errors/i18n/protocols.py` | ErrorMessage dataclass + ErrorMessageProvider Protocol |
-| `toolkits/llms/errors/i18n/default_messages.py` | DefaultErrorMessageProvider + 默认英文消息 + default_provider单例 |
-| `toolkits/llms/errors/i18n/__init__.py` | i18n API导出 |
-| `agent/streaming/stream_executor.py` | LLM异常捕获 + default_provider调用 + SSE推送（316-337行） |
+| `agent/errors/diagnostics/engine.py` | `LLMErrorDiagnostic`：LLM 异常 → 本地化 `DiagnosticResult` |
+| `agent/errors/diagnostics/types.py` | `DiagnosticResult` / `ErrorContext` 数据结构 |
+| `agent/errors/diagnostics/i18n/manager.py` | `LocaleManager`（locale 检测 + 捆绑 JSON + `register_translations()` 扩展） |
+| `agent/errors/diagnostics/i18n/__init__.py` | `get_locale_manager()` 全局单例 |
+| `agent/streaming/stream_executor.py` | LLM异常捕获（`_emit_fatal_error`）+ `classify_error()` + SSE推送 |
 
 ### 前端错误渲染
 
 | 文件 | 角色 |
 |------|------|
-| `myrm-agent-frontend/src/store/chat/messageStreamHandler.ts` | 前端错误事件消费 + 动态i18n加载 + getUserFriendlyError() |
-| `myrm-agent-frontend/src/store/chat/types.ts` | ErrorKind类型定义 + ErrorStreamEvent接口 |
-| `myrm-agent-frontend/locales/*.json` | 5种语言翻译文件（zh/en/ja/ko/de，llm_error section） |
+| `myrm-agent-frontend/src/store/chat/messageStream/streamHelpers.ts` | 前端错误事件消费 + getUserFriendlyError() |
+| `myrm-agent-frontend/src/store/chat/types/agentStream/part1.ts` | `ErrorKind` type + `ErrorStreamEvent` interface 定义 |
+| `myrm-agent-frontend/locales/*.json` | 5种语言翻译文件（zh/zh-TW/en/ja/ko，errors section 含错误分类翻译） |
 | `myrm-agent-frontend/src/i18n/config.ts` | next-intl配置（支持的locales） |
 | `myrm-agent-frontend/src/components/ui/message-box/progress-steps/ProgressSteps.tsx` | 错误 UI 渲染 |

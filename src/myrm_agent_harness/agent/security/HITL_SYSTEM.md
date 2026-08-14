@@ -305,7 +305,7 @@ and ask for permission or alternative instructions.]
 ```
 
 ### 速率限制
-防止恶意用户发起大量审批请求（配置在`approval_rate_limiter.py`）。
+防止恶意用户发起大量审批请求（配置在`middlewares/approval/rate_limiter.py`）。
 
 ---
 

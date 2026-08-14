@@ -65,6 +65,9 @@ from myrm_agent_harness.agent.skill_agent.context import (
     set_permission_invalidation_callback,
     set_task_intent,
 )
+from myrm_agent_harness.core.security.detection.pseudonym_store import (
+    get_pseudonym_store as build_pseudonym_store,
+)
 from myrm_agent_harness.core.security.guards.privacy_tracker import (
     get_privacy_policy,
     set_privacy_policy,
@@ -92,6 +95,7 @@ __all__ = [
     "BackgroundProcessInfo",
     "auto_extract_memories",
     "build_evicted_basename",
+    "build_pseudonym_store",
     "build_step_data",
     "configure_background_job_store",
     "count_running_background_shell_jobs",

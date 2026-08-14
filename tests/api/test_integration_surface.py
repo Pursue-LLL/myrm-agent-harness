@@ -47,6 +47,7 @@ description: Demo skill for api.skills smoke test.
                 "invalidate_permissions",
                 "map_store_status_to_shell_task_status",
                 "build_evicted_basename",
+                "build_pseudonym_store",
                 "build_step_data",
                 "persist_extracted_memories",
                 "persist_terminal_state",
