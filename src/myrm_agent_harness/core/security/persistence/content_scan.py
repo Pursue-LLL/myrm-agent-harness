@@ -6,6 +6,7 @@ See module docstring.
 
 from __future__ import annotations
 
+import contextvars
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -25,7 +26,9 @@ from myrm_agent_harness.core.security.detection.prompt_guard import scan_input
 
 PseudonymizeFn = Callable[[str], str]
 
-_pii_pseudonymizer: PseudonymizeFn | None = None
+_pii_pseudonymizer_var: contextvars.ContextVar[PseudonymizeFn | None] = (
+    contextvars.ContextVar("pii_pseudonymizer", default=None)
+)
 
 
 class PersistScanProfile(StrEnum):
@@ -57,13 +60,17 @@ class PersistScanResult:
 
 
 def set_pii_pseudonymizer(fn: PseudonymizeFn | None) -> None:
-    """Register PII pseudonymization (Memory write path only)."""
-    global _pii_pseudonymizer
-    _pii_pseudonymizer = fn
+    """Register PII pseudonymization for the current task context (Memory write path only).
+
+    Stored in a ContextVar so fire-and-forget memory writes inherit the closure
+    via ``asyncio.create_task`` context snapshot while run-end cleanup does not
+    leak the closure across concurrently running tasks.
+    """
+    _pii_pseudonymizer_var.set(fn)
 
 
 def get_pii_pseudonymizer() -> PseudonymizeFn | None:
-    return _pii_pseudonymizer
+    return _pii_pseudonymizer_var.get()
 
 
 def sanitize_display_secrets(message: str, *, max_length: int = 240) -> str:
@@ -171,8 +178,10 @@ def scan_persistable_content(
         verdict = PersistScanVerdict.REDACTED
         finding_codes.append("password_like_redacted")
 
-    if profile == PersistScanProfile.MEMORY_WRITE and _pii_pseudonymizer is not None:
-        cleaned = _pii_pseudonymizer(cleaned)
+    if profile == PersistScanProfile.MEMORY_WRITE:
+        pseudonymizer = _pii_pseudonymizer_var.get()
+        if pseudonymizer is not None:
+            cleaned = pseudonymizer(cleaned)
 
     return PersistScanResult(
         verdict=verdict,
