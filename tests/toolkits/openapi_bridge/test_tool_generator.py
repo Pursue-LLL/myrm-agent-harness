@@ -312,6 +312,227 @@ class TestToolExecution:
         assert call_kwargs["query_params"] == {"limit": "10"}
         assert call_kwargs["body"] is None
 
+    @pytest.mark.asyncio
+    async def test_post_body_array_sent_as_request_body(self):
+        """Spec-declared array request bodies are sent directly, not nested."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="bulkCreate",
+                method="POST",
+                path="/items/bulk",
+                summary="Bulk create",
+                param_schema={
+                    "type": "object",
+                    "properties": {"body": {"type": "array", "items": {"type": "object"}}},
+                },
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = "[]"
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].coroutine(body=[{"id": 1}, {"id": 2}])
+
+        call_kwargs = mock_executor.execute.call_args[1]
+        assert call_kwargs["body"] == [{"id": 1}, {"id": 2}]
+
+    @pytest.mark.asyncio
+    async def test_post_body_object_sent_as_request_body(self):
+        """Schema-declared object request bodies are sent directly."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="createUser",
+                method="POST",
+                path="/users",
+                summary="Create user",
+                param_schema={
+                    "type": "object",
+                    "properties": {"name": {"type": "string"}},
+                },
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = "{}"
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].coroutine(name="Alice")
+
+        call_kwargs = mock_executor.execute.call_args[1]
+        assert call_kwargs["body"] == {"name": "Alice"}
+
+    @pytest.mark.asyncio
+    async def test_post_body_string_kept_verbatim(self):
+        """Spec-declared string bodies are sent verbatim, never wrapped."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="echo",
+                method="POST",
+                path="/echo",
+                summary="Echo body",
+                param_schema={
+                    "type": "object",
+                    "properties": {"body": {"type": "string"}},
+                },
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = "ok"
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].coroutine(body="hello")
+            assert mock_executor.execute.call_args[1]["body"] == "hello"
+            # A numeric-looking string body is also kept verbatim, not int-cast.
+            await tools[0].coroutine(body="123")
+            assert mock_executor.execute.call_args[1]["body"] == "123"
+
+    @pytest.mark.asyncio
+    async def test_post_body_json_string_parsed_to_object(self):
+        """Weak models emitting stringified JSON bodies still route correctly."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="createOrder",
+                method="POST",
+                path="/orders",
+                summary="Create order",
+                param_schema={
+                    "type": "object",
+                    "properties": {"body": {"type": "object"}},
+                },
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = "{}"
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].coroutine(body='{"id": 42}')
+
+        call_kwargs = mock_executor.execute.call_args[1]
+        assert call_kwargs["body"] == {"id": 42}
+
+    @pytest.mark.asyncio
+    async def test_query_object_serialized_as_compact_json(self):
+        """Object query params serialize to compact JSON, not Python repr."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="listItems",
+                method="GET",
+                path="/items",
+                summary="List items",
+                param_schema={
+                    "type": "object",
+                    "properties": {"filter": {"type": "object"}},
+                },
+                query_param_keys={"filter"},
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = "[]"
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].coroutine(filter={"status": "shipped"})
+
+        call_kwargs = mock_executor.execute.call_args[1]
+        assert call_kwargs["query_params"] == {"filter": '{"status":"shipped"}'}
+
+    @pytest.mark.asyncio
+    async def test_query_bool_serialized_lowercase(self):
+        """Boolean query params serialize lowercase (true/false), not Python True."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="listItems2",
+                method="GET",
+                path="/items",
+                summary="List items",
+                param_schema={
+                    "type": "object",
+                    "properties": {"paginated": {"type": "boolean"}},
+                },
+                query_param_keys={"paginated"},
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = "[]"
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].coroutine(paginated=True)
+
+        call_kwargs = mock_executor.execute.call_args[1]
+        assert call_kwargs["query_params"] == {"paginated": "true"}
+
+    @pytest.mark.asyncio
+    async def test_query_none_parameter_omitted(self):
+        """Null query params are omitted from the query string, not sent as 'None'."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="listItems3",
+                method="GET",
+                path="/items",
+                summary="List items",
+                param_schema={
+                    "type": "object",
+                    "properties": {"status": {"type": ["string", "null"]}},
+                },
+                query_param_keys={"status"},
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = "[]"
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].coroutine(status=None)
+
+        call_kwargs = mock_executor.execute.call_args[1]
+        assert call_kwargs["query_params"] is None or "status" not in (call_kwargs["query_params"] or {})
+
 
 class TestOpenAPIBridge:
     """Test the OpenAPIBridge facade class."""

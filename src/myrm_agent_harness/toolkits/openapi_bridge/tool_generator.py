@@ -138,18 +138,23 @@ def _create_tool_for_endpoint(
                 # Primitive/array/object request bodies (spec-declared `body`
                 # parameter or LLM-emitted `_body`/`request_body`) become the
                 # request body directly, never a nested {"body": ...} wrapper.
+                # JSON containers were already parsed by schema coercion; a
+                # residual string is sent verbatim unless it itself parses to a
+                # JSON container (weak models emit stringified objects).
                 if isinstance(value, str):
                     try:
-                        body = json.loads(value)
+                        parsed = json.loads(value)
                     except json.JSONDecodeError:
-                        body = {"data": value}
+                        parsed = None
+                    body = parsed if isinstance(parsed, (dict, list)) else value
                 else:
                     body = value
             elif has_structured_keys:
                 # Schema-defined endpoints: query keys go to the query string,
                 # every other declared field belongs to the JSON body.
                 if key in query_keys:
-                    q_params[key] = _serialize_query_value(value)
+                    if value is not None:
+                        q_params[key] = _serialize_query_value(value)
                 else:
                     if body is None:
                         body = {}
@@ -157,7 +162,8 @@ def _create_tool_for_endpoint(
             else:
                 # For GET/DELETE: query params; for POST/PUT/PATCH: body fields
                 if method in ("GET", "HEAD", "OPTIONS", "DELETE"):
-                    q_params[key] = _serialize_query_value(value)
+                    if value is not None:
+                        q_params[key] = _serialize_query_value(value)
                 else:
                     if body is None:
                         body = {}

@@ -78,8 +78,10 @@ OpenAPIServiceConfig (user config)
    strict typed APIs never receive stringified or precision-lost numbers. Schema-less
    specs fall back to the legacy path-only / method-based dispatch. Body parameters
    declared as primitives/arrays (spec `body` param, `_body`, `request_body`) are sent
-   as the request body directly, never wrapped; query values serialize by type
-   (objects/arrays → compact JSON, booleans → lowercase, scalars → plain string).
+   as the request body directly, never wrapped — residual string bodies go verbatim
+   unless they parse to a JSON container (weak-model stringified objects); query values
+   serialize by type (objects/arrays → compact JSON, booleans → lowercase, scalars →
+   plain string) and null values are omitted from the query string.
 
 7. **Ephemeral User Credentials Propagation**: `OpenAPIExecutor` integrates with
    `user_credentials_ctx` to intercept requests, dynamically override the Bearer token with
