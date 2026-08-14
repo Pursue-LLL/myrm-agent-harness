@@ -412,6 +412,36 @@ class TestParseSwagger2:
         # in: body schema {"type": "object"} without properties → body param
         assert props["body"] == {"type": "object"}
 
+    def test_swagger2_body_ref_resolved_from_definitions(self):
+        """Swagger 2.0 ``in: body`` schema ``$ref`` into definitions is inlined."""
+        spec_json = json.dumps({
+            "swagger": "2.0",
+            "info": {"title": "Legacy API", "version": "2.0.0"},
+            "host": "api.legacy.io",
+            "definitions": {
+                "User": {
+                    "type": "object",
+                    "properties": {"id": {"type": "integer"}},
+                }
+            },
+            "paths": {
+                "/users": {
+                    "post": {
+                        "operationId": "createUser",
+                        "parameters": [
+                            {"name": "body", "in": "body", "schema": {"$ref": "#/definitions/User"}}
+                        ],
+                        "responses": {"201": {"description": "Created"}},
+                    },
+                },
+            },
+        })
+        spec = parse_spec_from_content(spec_json)
+        ep = spec.endpoints[0]
+        assert ep.param_schema is not None
+        assert ep.param_schema["properties"]["id"] == {"type": "integer"}
+        assert "$ref" not in json.dumps(ep.param_schema)
+
     def test_base_url_without_host_fallback_to_source(self):
         spec_dict = {
             "swagger": "2.0",
