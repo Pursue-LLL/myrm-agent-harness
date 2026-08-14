@@ -39,7 +39,7 @@ host application (Myrm server + frontend).
 | Video/TTS batch with same chat-bound UX | **Yes** | Same queue + executor pattern |
 | Daily briefing at 8:00 | **No** → `toolkits/cron/` | Time/trigger driven |
 | Multi-agent project board with heartbeats | **No** → `toolkits/kanban/` | Orchestration, not single job |
-| Deep crawl job groups | **No** → `toolkits/web_fetch/task_store.py` | Crawl-specific semantics |
+| Deep crawl job groups | **No** → `toolkits/web_fetch/engine/` | Crawl-specific semantics |
 | Agent idle memory consolidation | **No** → `agent/background_worker/` | Runs when agent is inactive |
 | Sub-second web search / fetch | **No** | Direct tool call |
 

@@ -641,3 +641,47 @@ async def test_file_read_disabled_path_when_resolve_raises_value_error() -> None
             config=config,
         )
 
+
+@pytest.mark.asyncio
+async def test_file_read_appends_mcp_next_step_hint_for_mcp_doc_batch() -> None:
+    """Reading a batch of /mcp/ function docs must append the [MCP NEXT STEP]
+    hint so the agent continues toward a single bash PTC call."""
+    tool = create_file_read_tool()
+    mock_executor = MagicMock()
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+        return_value=mock_executor,
+    ), patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+        new_callable=AsyncMock,
+        return_value=["=== func a ===", "=== func b ==="],
+    ):
+        result = await tool.ainvoke(
+            {"paths": ["/mcp/demo_skill/get_a.md", "/mcp/demo_skill/get_b.md"]},
+            config=_DUMMY_CONFIG,
+        )
+    assert isinstance(result, str)
+    assert "[MCP NEXT STEP]" in result
+    assert "[RESULT]" in result
+
+
+@pytest.mark.asyncio
+async def test_file_read_no_hint_for_plain_workspace_paths() -> None:
+    """Plain workspace reads must stay untouched by the MCP next-step hint."""
+    tool = create_file_read_tool()
+    mock_executor = MagicMock()
+    with patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.get_executor",
+        return_value=mock_executor,
+    ), patch(
+        "myrm_agent_harness.agent.meta_tools.file_ops.file_read_tool.process_text_paths",
+        new_callable=AsyncMock,
+        return_value=["workspace content"],
+    ):
+        result = await tool.ainvoke(
+            {"paths": ["src/foo.py"]},
+            config=_DUMMY_CONFIG,
+        )
+    assert isinstance(result, str)
+    assert "[MCP NEXT STEP]" not in result
+

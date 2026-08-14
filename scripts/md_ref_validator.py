@@ -14,9 +14,12 @@ a deterministic order:
    package root ``src/myrm_agent_harness/``, then the ``tests/`` mirror tree.
 
 Symbol suffixes (``pkg/mod.attr``, ``path/::member``, trailing CamelCase class
-names) are stripped so only the path prefix is verified. Non-path spans (IP
-ranges, API routes, timezones, env vars, globs) are skipped. Docs whose refs
-carry planning semantics (e.g. competitor benchmark tables) are exempted via
+names) are handled by progressive resolution: the full span is tried first,
+then trailing dotted attributes are stripped one segment at a time, so a real
+file like ``assets/ad_domains.txt`` or ``docker/Dockerfile.official`` resolves
+before any stripping is attempted. Non-path spans (IP ranges, API routes,
+timezones, env vars, globs) are skipped. Docs whose refs carry planning
+semantics (e.g. competitor benchmark tables) are exempted via
 ``_MD_REF_SKIP_FILES``.
 """
 
@@ -48,6 +51,10 @@ _MD_TRAILING_PUNCT = ".,;:!?)]}>'\""
 _FILE_EXTENSIONS = frozenset(
     {".py", ".md", ".ts", ".tsx", ".mjs", ".js", ".cjs", ".sh", ".json", ".yaml", ".yml", ".toml"}
 )
+# Data file extensions commonly backticked in docs; treated as file refs, not
+# dotted symbol suffixes.
+_DATA_EXTENSIONS = frozenset({".txt", ".jsonl", ".ndjson", ".csv", ".tsv", ".lock", ".env"})
+_FILE_SUFFIXES = _FILE_EXTENSIONS | _DATA_EXTENSIONS
 # Repo aliases resolved against the monorepo root.
 _REPO_ALIAS_DIRS = frozenset({"myrm-agent", "myrm-agent-harness", "myrm-control-plane", "myrm-agent-brand"})
 _SUBREPO_ALIASES = {
@@ -58,8 +65,14 @@ _SUBREPO_ALIASES = {
 # Directories whose .md are runtime/packaging artifacts, not source refs.
 _MD_SKIP_DIR_NAMES = frozenset({"prebuilt_skills"})
 # Docs whose backtick refs carry planning/benchmark semantics (competitor
-# comparison tables) rather than assertions about existing files.
-_MD_REF_SKIP_FILES = frozenset({"src/myrm_agent_harness/agent/skills/SKILL_SYSTEM.md"})
+# comparison tables, candidate-placement verdicts) rather than assertions about
+# existing files.
+_MD_REF_SKIP_FILES = frozenset(
+    {
+        "src/myrm_agent_harness/agent/skills/SKILL_SYSTEM.md",
+        "src/myrm_agent_harness/eval/_ARCH.md",
+    }
+)
 _PRUNE_DIR_NAMES = frozenset({"__pycache__", "node_modules", ".git", ".venv", ".mypy_cache", ".myrm"})
 
 
@@ -84,27 +97,36 @@ def _has_env_var_segment(ref: str) -> bool:
     return any(seg.isupper() and "_" in seg for seg in ref.split("/"))
 
 
-def _is_symbol_suffix(ref: str) -> bool:
-    """True when the final segment names a symbol, not a file: ``pkg/mod.attr``,
-    ``path/::member``, or a trailing CamelCase class name."""
-    last = ref.rsplit("/", 1)[-1]
-    if "::" in last:
-        return True
-    if "." in last and not last.endswith(tuple(_FILE_EXTENSIONS)):
-        return True
-    return bool(last.isidentifier() and last[0].isupper())
+def _progressive_paths(ref: str) -> list[str]:
+    """Return the ref plus progressively stripped attribute suffixes.
 
-
-def _strip_symbol_suffix(ref: str) -> str:
-    """Reduce a module-attr / member ref to its verifiable path prefix."""
-    last = ref.rsplit("/", 1)[-1]
-    if "::" in last:
-        return ref.split("::", 1)[0].rstrip("/")
-    if "." in last and not last.endswith(tuple(_FILE_EXTENSIONS)):
-        return ref.rsplit(".", 1)[0]
-    if last.isidentifier() and last[0].isupper():
-        return ref.rsplit("/", 1)[0]
-    return ref
+    Handles ``::`` members (``path/utils::is_timeout_error``), dotted chains
+    (``toolkits/mcp/schema.normalize.canonicalize``), and trailing CamelCase
+    class names (``agent/.../broadcast/ToolBroadcastBus``). Real files whose
+    names contain dots (``assets/ad_domains.txt``, ``docker/Dockerfile.official``)
+    are tried first and resolve unchanged."""
+    paths = [ref]
+    head = ref
+    if "::" in head:
+        head = head.split("::", 1)[0].rstrip("/")
+        if head:
+            paths.append(head)
+    while "/" in head:
+        last = head.rsplit("/", 1)[-1]
+        if not last:
+            break
+        if last.endswith(tuple(_FILE_SUFFIXES)):
+            break
+        if "." in last:
+            head = head.rsplit(".", 1)[0]
+        elif last.isidentifier() and last[0].isupper():
+            head = head.rsplit("/", 1)[0]
+        else:
+            break
+        if not head or "/" not in head:
+            break
+        paths.append(head)
+    return paths
 
 
 def _is_verifiable_ref(ref: str, top_dirs: frozenset[str]) -> bool:
@@ -118,7 +140,9 @@ def _is_verifiable_ref(ref: str, top_dirs: frozenset[str]) -> bool:
 
 def _path_exists(base: Path, ref: str) -> bool:
     """Check a file, a bare module name (``mod`` -> ``mod.py`` / ``mod/``), or
-    a package directory (``pkg/mod`` -> ``pkg/mod/__init__.py``)."""
+    a package directory (``pkg/mod`` -> ``pkg/mod/__init__.py``). A trailing
+    slash (``pkg/mod/``) is tolerated for file refs."""
+    ref = ref.rstrip("/")
     if (base / ref).exists():
         return True
     if (base / f"{ref}.py").exists():
@@ -126,13 +150,16 @@ def _path_exists(base: Path, ref: str) -> bool:
     return (base / ref / "__init__.py").exists()
 
 
-def _extract_md_refs(md_path: Path, repo_root: Path = _REPO_ROOT) -> list[tuple[str, int, str | None]]:
+def _extract_md_refs(md_path: Path, top_dirs: frozenset[str]) -> list[tuple[str, int, str | None]]:
     """Extract backtick path candidates that carry a directory separator.
+
+    ``top_dirs`` are the harness top-level module directories used to recognize
+    module-shortcut refs; pass an empty set to restrict validation to explicit
+    relatives and cross-repo aliases.
 
     For table rows whose first cell is a backticked directory (e.g.
     ``| `docker/` | ... ``), that directory is returned as ``row_dir`` so
     cell refs can be resolved relative to it before falling back to the md."""
-    top_dirs = _top_level_module_dirs(repo_root)
     refs: list[tuple[str, int, str | None]] = []
     for line_no, line in enumerate(md_path.read_text(encoding="utf-8").splitlines(), start=1):
         row_dir: str | None = None
@@ -160,9 +187,6 @@ def _extract_md_refs(md_path: Path, repo_root: Path = _REPO_ROOT) -> list[tuple[
                 continue
             if not _is_verifiable_ref(cleaned, top_dirs):
                 continue
-            cleaned = _strip_symbol_suffix(cleaned)
-            if not cleaned or "/" not in cleaned:
-                continue
             refs.append((cleaned, line_no, row_dir))
     return refs
 
@@ -178,32 +202,47 @@ def _resolve_md_ref(
     """Resolve a markdown path ref in the order described by the module docstring.
     Cross-repo refs whose repo dir is absent locally (standalone harness) are
     treated as unverifiable and skipped, keeping false positives at zero."""
-    if ref.startswith(("./", "../")):
-        if _path_exists(md_path.parent, ref):
+    for cand in _progressive_paths(ref):
+        if cand.startswith(("./", "../")):
+            if _path_exists(md_path.parent, cand):
+                return True
+            if row_dir is not None and _path_exists(md_path.parent / row_dir, cand):
+                return True
+            continue
+        first = cand.split("/", 1)[0]
+        if first in _REPO_ALIAS_DIRS or first in _SUBREPO_ALIASES:
+            target_dir = _SUBREPO_ALIASES.get(first, first)
+            if not (monorepo_root / target_dir).is_dir():
+                return True  # repo not checked out locally; unverifiable
+            rest = cand.split("/", 1)[1]
+            if _path_exists(monorepo_root / target_dir, rest):
+                return True
+            if first == "myrm-agent-harness":
+                return _path_exists(monorepo_root / target_dir / _HARNESS_PKG_PREFIX, rest)
+            continue
+        # Module shortcut: md directory -> package root -> tests mirror.
+        if _path_exists(md_path.parent, cand):
             return True
-        if row_dir is not None and _path_exists(md_path.parent / row_dir, ref):
+        if _path_exists(repo_root / _PKG_REL, cand):
             return True
-        return False
-    first = ref.split("/", 1)[0]
-    if first in _REPO_ALIAS_DIRS or first in _SUBREPO_ALIASES:
-        target_dir = _SUBREPO_ALIASES.get(first, first)
-        if not (monorepo_root / target_dir).is_dir():
-            return True  # repo not checked out locally; unverifiable
-        rest = ref.split("/", 1)[1]
-        if _path_exists(monorepo_root / target_dir, rest):
+        if _path_exists(repo_root / "tests", cand):
             return True
-        if first == "myrm-agent-harness":
-            return _path_exists(monorepo_root / target_dir / _HARNESS_PKG_PREFIX, rest)
-        return False
-    # Module shortcut: md directory -> package root -> tests mirror.
-    if _path_exists(md_path.parent, ref):
-        return True
-    if _path_exists(repo_root / _PKG_REL, ref):
-        return True
-    return _path_exists(repo_root / "tests", ref)
+    return False
 
 
 def scan_md_refs(root: Path, monorepo_root: Path, repo_root: Path) -> list[MdRefReport]:
+    """Scan ``*.md`` under ``root`` for unresolved path refs.
+
+    Module-shortcut resolution (``agent/hooks/...``) applies only to harness
+    docs: the harness top-level module dirs are derived from ``repo_root`` when
+    ``root`` lives inside it. Cross-repo scans (e.g. ``myrm-agent-server``) fall
+    back to explicit relatives and cross-repo aliases only, since each repo has
+    its own naming conventions."""
+    harness_src = repo_root / _PKG_REL
+    if harness_src.is_dir() and root.is_relative_to(repo_root):
+        top_dirs = _top_level_module_dirs(repo_root)
+    else:
+        top_dirs = frozenset()
     reports: list[MdRefReport] = []
     for md in sorted(root.rglob("*.md")):
         if any(part in _PRUNE_DIR_NAMES for part in md.parts):
@@ -216,7 +255,7 @@ def scan_md_refs(root: Path, monorepo_root: Path, repo_root: Path) -> list[MdRef
             rel = str(md)
         if rel in _MD_REF_SKIP_FILES:
             continue
-        refs = _extract_md_refs(md, repo_root)
+        refs = _extract_md_refs(md, top_dirs)
         if not refs:
             continue
         broken = tuple(

@@ -274,3 +274,49 @@ async def test_grace_call_drops_leading_orphan_tool_in_tail_slice():
     sent_messages = mock_llm.ainvoke.await_args.args[0]
     assert all(getattr(m, "type", None) != "tool" for m in sent_messages[:-1])
     assert sent_messages[-1].type == "human"
+
+
+@pytest.mark.asyncio
+async def test_grace_prompt_preserves_prior_external_results():
+    """Grace prompt must instruct the LLM to faithfully summarize prior MCP/web
+    results instead of denying they were called."""
+    from langgraph.errors import GraphRecursionError
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke.return_value = AIMessage(content="Summary.")
+
+    ctx = _make_ctx(recursion_limit=50, node_count=49, llm=mock_llm)
+    executor = _make_executor(ctx)
+
+    await executor._handle_iteration_limit(
+        GraphRecursionError("limit"), list(_SAMPLE_MESSAGES)
+    )
+
+    sent_messages = mock_llm.ainvoke.await_args.args[0]
+    grace_prompt = sent_messages[-1]
+    content = grace_prompt.content if isinstance(grace_prompt.content, str) else ""
+    assert "maximum iteration limit" in content
+    assert "Do NOT call any tools" in content
+    assert "successful MCP, web search" in content
+    assert "do not claim tools were not called" in content
+
+
+@pytest.mark.asyncio
+async def test_grace_prompt_locale_driven_language_instruction():
+    """Grace prompt must ask for the same language as the conversation."""
+    from langgraph.errors import GraphRecursionError
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke.return_value = AIMessage(content="总结。")
+
+    ctx = _make_ctx(recursion_limit=50, node_count=49, llm=mock_llm)
+    executor = _make_executor(ctx)
+
+    await executor._handle_iteration_limit(
+        GraphRecursionError("limit"), list(_SAMPLE_MESSAGES)
+    )
+
+    sent_messages = mock_llm.ainvoke.await_args.args[0]
+    content = sent_messages[-1].content
+    assert isinstance(content, str)
+    assert "same language as the conversation" in content

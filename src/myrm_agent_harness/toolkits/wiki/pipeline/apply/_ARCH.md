@@ -27,11 +27,11 @@ All operations route through `publish_concept_article` (WPG) after section-aware
 
 Caller gates: `replace_full_document` is rejected unless `caller=settings`.
 All successful writes stamp `content_hash` (page lease) and enforce optional `if_match`.
-`create_note` rejects canonical id / alias collisions via `core/canonical_registry.py`.
+`create_note` rejects canonical id / alias collisions via `toolkits/wiki/core/canonical_registry.py`.
 
 ## Dependencies
 
-- `core/section_contract.py` — managed block SSOT
-- `core/canonical_registry.py` — canonical id, alias index, page lease hash
-- `core/claims_contract.py` — claim merge + compile snapshots
+- `toolkits/wiki/core/section_contract.py` — managed block SSOT
+- `toolkits/wiki/core/canonical_registry.py` — canonical id, alias index, page lease hash
+- `toolkits/wiki/core/claims_contract.py` — claim merge + compile snapshots
 - `pipeline/publication/publish.py` — WPG publish gate

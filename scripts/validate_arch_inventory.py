@@ -35,6 +35,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 from md_ref_validator import MdRefReport, scan_md_refs
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -178,13 +180,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: not a directory: {root}", file=sys.stderr)
         return 2
 
-    # The _ARCH.md table inventory reflects this repo's own table convention
-    # (harness lists __init__.py; other repos generate tables differently), so
-    # table validation only applies inside the harness repo. Cross-repo scans
-    # are supported exclusively for markdown path reference validation.
-    scan_tables = root.is_relative_to(_REPO_ROOT)
+    # The _ARCH.md table inventory reflects this repo's own source-tree table
+    # convention (harness lists __init__.py; other repos generate tables
+    # differently), so table validation only applies inside src/. Cross-repo and
+    # repo-root scans are supported exclusively for markdown path reference
+    # validation.
+    src_root = _REPO_ROOT / "src"
+    scan_tables = root.is_relative_to(src_root)
     if not scan_tables and not args.md_refs:
-        print(f"ERROR: table inventory validation only supports roots inside {_REPO_ROOT}", file=sys.stderr)
+        print(f"ERROR: table inventory validation only supports roots inside {src_root}", file=sys.stderr)
         return 2
 
     reports = scan_tree(root) if scan_tables else []

@@ -26,6 +26,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+_DEFAULT_VAULT_SPILL_CHAR_THRESHOLD = 30000
+
+
 @runtime_checkable
 class ContentVault(Protocol):
     """Minimal vault interface for persisting large extracted content."""
@@ -68,7 +71,7 @@ class BrowserSessionExtractionMixin:
 
         if resume_cursor + max_length < total_len:
             next_cursor = resume_cursor + max_length
-            if total_len > 100000 and resume_cursor == 0 and self._content_vault is not None:
+            if total_len > _DEFAULT_VAULT_SPILL_CHAR_THRESHOLD and resume_cursor == 0 and self._content_vault is not None:
                 try:
                     page = self._tab_controller.get_active_page()
                     url = page.url

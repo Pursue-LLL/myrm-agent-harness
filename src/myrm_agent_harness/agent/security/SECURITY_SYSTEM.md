@@ -223,7 +223,7 @@ class SSRFResult:
 
 ### 3.2.1 Shell Command Analyzer
 
-**位置**：`toolkits/execution/security/shell_command_analyzer.py`
+**位置**：`toolkits/code_execution/security/shell_command_analyzer.py`
 
 统一 Shell 命令安全分析模块，多层检测（带引号感知预处理）：
 

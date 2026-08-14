@@ -1,4 +1,4 @@
-"""Tests for scripts/validate_arch_inventory.py."""
+"""Tests for scripts/validate_arch_inventory.py and scripts/md_ref_validator.py."""
 
 from __future__ import annotations
 
@@ -10,14 +10,21 @@ import pytest
 _repo_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_repo_root))
 
-from scripts.validate_arch_inventory import (
+from scripts.md_ref_validator import (
     _extract_md_refs,
-    _is_inventory_file_cell,
-    _listed_py_in_arch,
+    _is_verifiable_ref,
+    _path_exists,
+    _progressive_paths,
     _resolve_md_ref,
-    scan_directory,
     scan_md_refs,
 )
+from scripts.validate_arch_inventory import (
+    _is_inventory_file_cell,
+    _listed_py_in_arch,
+    scan_directory,
+)
+
+_TOP_DIRS = frozenset({"agent", "api", "backends", "core", "distribution", "eval", "infra", "observability", "runtime", "toolkits", "utils"})
 
 
 @pytest.mark.architecture
@@ -123,13 +130,14 @@ def test_harness_arch_inventory_passes() -> None:
 
 @pytest.mark.architecture
 def test_harness_md_refs_pass() -> None:
+    """Repo-root scan: table validation stays off, md refs must resolve (incl.
+    top-level docs such as ARCHITECTURE.md and FRAMEWORK_DESIGN_PRINCIPLES.md)."""
     import subprocess
     import sys
 
-    harness_root = _repo_root / "src" / "myrm_agent_harness"
     script = _repo_root / "scripts" / "validate_arch_inventory.py"
     result = subprocess.run(
-        [sys.executable, str(script), "--root", str(harness_root), "--md-refs"],
+        [sys.executable, str(script), "--root", str(_repo_root), "--md-refs"],
         cwd=_repo_root,
         check=False,
         capture_output=True,
@@ -159,21 +167,42 @@ def test_server_md_refs_pass_in_monorepo() -> None:
 
 
 @pytest.mark.architecture
-def test_extract_md_refs_keeps_explicit_paths_and_drops_noise(tmp_path: Path) -> None:
+def test_extract_md_refs_keeps_explicit_paths_and_module_shortcuts(tmp_path: Path) -> None:
     md = tmp_path / "doc.md"
     md.write_text(
         """# Doc
 
 See `./toolkits/errors/classifier.py` and `myrm-agent-server/app/api/curator.py`.
-Module shortcut `toolkits/errors/classifier.py` (no ./) is not verified.
+Module shortcut `toolkits/errors/classifier.py` is resolved via top-level dirs.
 URL `https://example.com/x.py`, bare `runner.py`, and `/etc/hosts` are skipped.
 """,
         encoding="utf-8",
     )
-    refs = _extract_md_refs(md)
+    refs = _extract_md_refs(md, _TOP_DIRS)
     assert [(ref, line) for ref, line, _ in refs] == [
         ("./toolkits/errors/classifier.py", 3),
         ("myrm-agent-server/app/api/curator.py", 3),
+        ("toolkits/errors/classifier.py", 4),
+    ]
+
+
+@pytest.mark.architecture
+def test_extract_md_refs_drops_noise_without_top_dirs(tmp_path: Path) -> None:
+    """Without harness top-level dirs (cross-repo scan), module shortcuts are
+    not verifiable and are dropped; only explicit refs survive."""
+    md = tmp_path / "doc.md"
+    md.write_text(
+        """# Doc
+
+Module shortcut `toolkits/errors/classifier.py` is not verifiable here.
+Explicit `./local.py` and alias `myrm-agent-server/app/api/curator.py` survive.
+""",
+        encoding="utf-8",
+    )
+    refs = _extract_md_refs(md, frozenset())
+    assert [(ref, line) for ref, line, _ in refs] == [
+        ("./local.py", 4),
+        ("myrm-agent-server/app/api/curator.py", 4),
     ]
 
 
@@ -186,38 +215,88 @@ def test_extract_md_refs_captures_table_row_dir(tmp_path: Path) -> None:
 """,
         encoding="utf-8",
     )
-    refs = _extract_md_refs(md)
-    # Only `./`/`../` and alias-prefixed refs are verifiable. The first-cell
-    # `docker/` and bare `sandbox/` / `toolkits/tasks/` are skipped, while the
-    # `../Dockerfile` cell captures the row's first-cell dir as its base.
-    assert refs == [("../Dockerfile", 1, "docker")]
+    refs = _extract_md_refs(md, _TOP_DIRS)
+    # The first-cell `docker/` and bare `sandbox/` are not verifiable; the
+    # `../Dockerfile` cell captures the row's first-cell dir as its base, and
+    # `toolkits/tasks/` is a harness module shortcut.
+    assert refs == [
+        ("../Dockerfile", 1, "docker"),
+        ("toolkits/tasks/", 2, "app/tasks"),
+    ]
+
+
+@pytest.mark.architecture
+def test_progressive_paths_strips_symbol_suffixes() -> None:
+    assert _progressive_paths("toolkits/mcp/schema.normalize.canonicalize_schema_for_cache") == [
+        "toolkits/mcp/schema.normalize.canonicalize_schema_for_cache",
+        "toolkits/mcp/schema.normalize",
+        "toolkits/mcp/schema",
+    ]
+    # Real files with dotted names resolve unchanged (first candidate).
+    assert _progressive_paths("toolkits/browser/assets/ad_domains.txt") == [
+        "toolkits/browser/assets/ad_domains.txt"
+    ]
+    assert _progressive_paths("docker/Dockerfile.official") == [
+        "docker/Dockerfile.official",
+        "docker/Dockerfile",
+    ]
+    assert _progressive_paths("agent/streaming/broadcast/ToolBroadcastBus") == [
+        "agent/streaming/broadcast/ToolBroadcastBus",
+        "agent/streaming/broadcast",
+    ]
+    assert _progressive_paths("path/utils::is_timeout_error") == [
+        "path/utils::is_timeout_error",
+        "path/utils",
+    ]
 
 
 @pytest.mark.architecture
 def test_resolve_md_ref_local_relative_and_cross_repo(tmp_path: Path) -> None:
-    (tmp_path / "docs").mkdir()
-    (tmp_path / "pkg").mkdir()
-    (tmp_path / "docker").mkdir()
-    (tmp_path / "docs" / "guide.md").write_text("", encoding="utf-8")
-    (tmp_path / "pkg" / "mod.py").write_text("x = 1\n", encoding="utf-8")
-    (tmp_path / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
-
-    # Harness shorthand: monorepo root -> myrm-agent-harness/src/myrm_agent_harness/
-    harness_pkg = tmp_path / "myrm-agent-harness" / "src" / "myrm_agent_harness"
+    harness_root = tmp_path / "myrm-agent-harness"
+    harness_pkg = harness_root / "src" / "myrm_agent_harness"
+    (harness_root / "docs").mkdir(parents=True)
+    (harness_root / "pkg").mkdir()
     (harness_pkg / "agent" / "errors").mkdir(parents=True)
     (harness_pkg / "agent" / "errors" / "classifier.py").write_text("x = 1\n", encoding="utf-8")
+    (harness_pkg / "agent" / "streaming" / "broadcast").mkdir(parents=True)
+    (harness_pkg / "toolkits" / "mcp" / "schema").mkdir(parents=True)
+    (harness_pkg / "toolkits" / "mcp" / "schema" / "__init__.py").write_text("", encoding="utf-8")
+    (harness_root / "pkg" / "mod.py").write_text("x = 1\n", encoding="utf-8")
+    (harness_root / "docs" / "docker").mkdir()
+    (harness_root / "docs" / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (harness_root / "docs" / "guide.md").write_text("", encoding="utf-8")
 
-    md = tmp_path / "docs" / "guide.md"
-    assert _resolve_md_ref(md, "./guide.md", None, tmp_path, tmp_path, tmp_path)
-    assert _resolve_md_ref(md, "../pkg/mod.py", None, tmp_path, tmp_path, tmp_path)
-    assert not _resolve_md_ref(md, "./missing/target.py", None, tmp_path, tmp_path, tmp_path)
-    # Table row dir acts as a secondary base: `../Dockerfile` under `docker/`.
-    assert _resolve_md_ref(md, "../Dockerfile", "docker", tmp_path, tmp_path, tmp_path)
+    md = harness_root / "docs" / "guide.md"
+    assert _path_exists(harness_root / "docs", "./guide.md")
+    assert _resolve_md_ref(md, "../pkg/mod.py", None, tmp_path, tmp_path, harness_root)
+    # Module shortcut resolution order: md dir -> package root -> tests mirror.
+    assert _resolve_md_ref(md, "agent/errors/classifier.py", None, tmp_path, tmp_path, harness_root)
+    assert not _resolve_md_ref(md, "agent/errors/ghost.py", None, tmp_path, tmp_path, harness_root)
+    # Table row dir acts as a secondary base: `../Dockerfile` under `docs/docker/`.
+    assert _resolve_md_ref(md, "../Dockerfile", "docker", tmp_path, tmp_path, harness_root)
     # Harness shorthand drops the src/myrm_agent_harness package prefix.
     assert _resolve_md_ref(md, "myrm-agent-harness/agent/errors/classifier.py", None,
-                           tmp_path, tmp_path, tmp_path)
+                           tmp_path, tmp_path, harness_root)
     assert not _resolve_md_ref(md, "myrm-agent-harness/agent/errors/ghost.py", None,
-                               tmp_path, tmp_path, tmp_path)
+                               tmp_path, tmp_path, harness_root)
+    # Progressive resolution: dotted chain and CamelCase class suffix.
+    assert _resolve_md_ref(
+        md, "toolkits/mcp/schema.normalize.canonicalize_schema_for_cache", None,
+        tmp_path, tmp_path, harness_root,
+    )
+    assert _resolve_md_ref(
+        md, "agent/streaming/broadcast/ToolBroadcastBus", None, tmp_path, tmp_path, harness_root,
+    )
+
+
+@pytest.mark.architecture
+def test_is_verifiable_ref_scopes_top_dirs() -> None:
+    assert _is_verifiable_ref("./x.py", frozenset())
+    assert _is_verifiable_ref("../x/y.py", frozenset())
+    assert _is_verifiable_ref("myrm-agent-server/app/x.py", frozenset())
+    assert not _is_verifiable_ref("app/services/features/x.py", frozenset())
+    assert _is_verifiable_ref("toolkits/errors/classifier.py", _TOP_DIRS)
+    assert not _is_verifiable_ref("toolkits/errors/classifier.py", frozenset())
 
 
 @pytest.mark.architecture

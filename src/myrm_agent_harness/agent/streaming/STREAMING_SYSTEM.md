@@ -84,7 +84,7 @@ streaming 产出的事件可被 observability 层订阅，但不反向依赖。
 
 1. 新 SSE 事件类型 → `types.py` 枚举 + `event_handlers.py` 转换 + 前端契约
 2. 新恢复策略 → 独立 mixin 模块，由 `stream_recovery.py` 组合
-3. 禁止在 streaming 层写业务 channel 逻辑 → `toolkits/channels/` 或 Server
+3. 禁止在 streaming 层写业务 channel 逻辑 → `myrm-agent-server/app/core/channel_bridge/` 或 Server
 
 ---
 

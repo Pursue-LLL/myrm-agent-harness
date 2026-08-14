@@ -284,6 +284,26 @@ class TestMemoryListTool:
         )
         assert "list_budget" in result or "s0" in result
 
+    @pytest.mark.asyncio
+    async def test_list_category_budget_break(self, mcp_server, mock_manager):
+        """Tiny budget leaves no room even for one line: break + list_budget notice."""
+        from unittest.mock import patch
+
+        mock_manager.count_memories.return_value = 3
+        mock_manager.list_memories.return_value = [
+            SemanticMemory(id="s0", content="item"),
+            SemanticMemory(id="s1", content="item"),
+        ]
+        with patch(
+            "myrm_agent_harness.toolkits.memory.agent_surface.mcp_server.MAX_RECALL_OUTPUT_CHARS",
+            40,
+        ):
+            result = await _get_tool_fn(mcp_server, "memory_list")(
+                category="knowledge", page_size=2
+            )
+        assert "list_budget" in result
+        assert "item" not in result
+
 
 class TestMemoryRecallTool:
     @pytest.mark.asyncio
@@ -424,6 +444,16 @@ class TestMemoryRecallTool:
         await _get_tool_fn(mcp_server, "memory_recall")(query="test", categories="")
         call_kwargs = mock_manager.search.call_args[1]
         assert call_kwargs["memory_types"] is None
+
+    def test_parse_string_list_drops_none_items(self):
+        """None/null elements are dropped, never stringified into 'None'."""
+        from myrm_agent_harness.toolkits.memory.agent_surface.mcp_server import (
+            _parse_string_list,
+        )
+
+        assert _parse_string_list(["knowledge", None]) == ["knowledge"]
+        assert _parse_string_list('[null, "knowledge"]') == ["knowledge"]
+        assert _parse_string_list(["knowledge", None, ""]) == ["knowledge"]
 
     @pytest.mark.asyncio
     async def test_recall_claim_memory_renders_graph_suffix(

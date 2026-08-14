@@ -21,5 +21,5 @@ comparison pages through the existing HITL pending queue.
 ## Key Dependencies
 
 - `pipeline/pending.py` — HITL staging
-- `core/canonical_registry.py` — pairing signals
+- `toolkits/wiki/core/canonical_registry.py` — pairing signals
 - Replaces dead `maintenance/linter._check_consistency` path

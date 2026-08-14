@@ -18,4 +18,4 @@ Pipeline module.
 ## Key Dependencies
 
 - `utils`
-- `infra/session_lock.py`
+- `agent/context_management/infra/session_lock.py`

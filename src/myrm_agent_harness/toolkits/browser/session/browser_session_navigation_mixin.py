@@ -26,7 +26,8 @@ from myrm_agent_harness.toolkits.browser.exceptions import BrowserLaunchError
 
 logger = logging.getLogger(__name__)
 
-_NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES = 20
+_NAVIGATE_INTERACTIVE_SUMMARY_MAX_TOKENS = 1500
+_NAVIGATE_INTERACTIVE_SUMMARY_MAX_LINES = 100
 
 _CAMOUFOX_INSTALL_HINT = (
     "Camoufox stealth engine is unavailable. "
@@ -115,7 +116,7 @@ class BrowserSessionNavigationMixin:
                 scope="interactive",
                 compact=True,
                 diff=False,
-                max_tokens=2500,
+                max_tokens=_NAVIGATE_INTERACTIVE_SUMMARY_MAX_TOKENS,
             )
             lines = [line for line in snap.aria_tree.splitlines() if line.strip()]
             if not lines:

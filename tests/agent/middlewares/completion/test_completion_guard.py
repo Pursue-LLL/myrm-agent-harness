@@ -1800,3 +1800,25 @@ class TestHasExternalEvidence:
             success_level=SuccessLevel.FULL_SUCCESS,
         )
         assert has_external_evidence([record]) is False
+
+    def test_returns_false_when_bash_args_are_not_a_dict(self) -> None:
+        """Bash args that are empty or lack command/code must not count as MCP PTC evidence."""
+        from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_evidence import (
+            has_external_evidence,
+        )
+
+        empty_args = CallRecord(
+            tool_name="bash_code_execute_tool",
+            args_hash="b0",
+            args={},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        assert has_external_evidence([empty_args]) is False
+
+        non_command_args = CallRecord(
+            tool_name="bash_code_execute_tool",
+            args_hash="b1",
+            args={"timeout": 120},
+            success_level=SuccessLevel.FULL_SUCCESS,
+        )
+        assert has_external_evidence([non_command_args]) is False

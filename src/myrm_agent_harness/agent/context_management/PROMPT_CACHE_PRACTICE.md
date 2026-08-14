@@ -7,7 +7,7 @@
 > | §2.2 时间戳注入 & Agent 行为规则 | `streaming/utils.py`, `base_agent.py` |
 > | §2.3 Cron 场景 | `app/core/cron/adapters/agent_runner.py` |
 > | §2.4 安全边界与用户指令注入 | `app/ai_agents/agent_middlewares/user_instructions_middleware.py` |
-> | §2.5–2.6 记忆 / 入账 Human 前缀 | `middlewares/memory_context_middleware.py`；`delivery_provenance.py`、`channels/agent_executor/helpers.py`、`general_agent/stream_pipeline.py`、`api/agents/general_agent/streaming.py`、`services/agent/wakeup_handler.py`、`fast_search_agent/agent.py` |
+> | §2.5–2.6 记忆 / 入账 Human 前缀 | `agent/middlewares/memory_context_middleware.py`；`delivery_provenance.py`、`channels/agent_executor/helpers.py`、`general_agent/stream_pipeline.py`、`myrm-agent-server/app/api/agents/general_agent/streaming.py`、`services/agent/wakeup_handler.py`、`fast_search_agent/agent.py` |
 > | §3 显式缓存优化器 | `pipeline/processors/cache_optimizer.py` |
 > | §4.1 批量清理 | `pipeline/processors/compress_processor.py` |
 > | §4.2 compress_min_save | `schemas.py` |
@@ -16,7 +16,7 @@
 > | §4.5 摘要与缓存生命周期 | `strategies/summarizer.py` |
 > | §5.1 Cache-TTL 归档与恢复 | `pipeline/processors/cache_ttl_prune_processor.py`, `infra/archive_reference.py`, `tracking/task_metrics.py`, `meta_tools/file_ops/core/file_operation_service.py` |
 > | §5 Pipeline | `pipeline/engine.py`, `middlewares/context_pipeline_middleware.py` |
-> | §6.1-6.2 LLM 层 | `toolkits/llms/llm.py` |
+> | §6.1-6.2 LLM 层 | `toolkits/llms/core/llm.py` |
 > | §6.3 缓存可观测性 | `utils/token_economics/tracker.py`, `toolkits/llms/utils/logger.py` |
 > | §6.3 层次5 缓存断裂诊断 | `infra/cache_break_detector.py`, `infra/cache_metrics_collector.py` |
 > | §6.4 前缀缓存预热与空闲保活 | `preheat.py`, `base_agent.py` |
@@ -277,7 +277,7 @@ Human: 用户第一句 …                             ← varies
 - **一次性注入**：同时检测 `<user_memory_context` **与** `<<<UNTRUSTED_DATA`（cover learned-only）。
 - **`MemoryConfig.max_learned_context_chars`**：依旧在 learned 数据源侧裁剪；中间件再做 token/char envelope 兜底。
 
-**业务侧入账 Human 前缀（IM + pipeline）**：`myrm-agent-server/app/core/utils/delivery_provenance.py` 提供统一横幅与 `resolve_general_agent_pipeline_labels`。IM 仍由 `app/core/channel_bridge/agent_executor/helpers.py::build_channel_inbound_query` 调用 `prepend_plain_banner`（支持多模态图片+文本）。HTTP/SSE `/agent-stream` LangGraph 主路径在 `general_agent/stream_pipeline.py::execute_stream_pipeline` **进入 `SkillAgent.run` 之前**：先 **INFO `general_agent_delivery_labels`**（`channel_label`/`ingress_label`），再 **`apply_delivery_banner`**；其中 `GeneralAgent.channel_name=="web_chat"` 仍等价 `http_gui`/`browser_sse`，`cron`/`eval`/`headless_wakeup` 等由其映射。**Headless wakeup** 在 `app/services/agent/wakeup_handler.py` 显式改写 `channel_name=headless_wakeup` 并在 `memory_channel_id` 缺省时 **写回 `web_chat`**，以免记忆分区随投递前缀漂移。FastLane/DeepResearch 在 `api/agents/general_agent/streaming.py` 使用 `apply_general_agent_pipeline_banner` + `GeneralAgentParams.channel_name`；`FastSearchAgent` 默认等价 `web_chat` 并把 `workspaces_storage_root` 写入 `context`。群组上下文块仍仅在 IM executor 拼接。
+**业务侧入账 Human 前缀（IM + pipeline）**：`myrm-agent-server/app/core/utils/delivery_provenance.py` 提供统一横幅与 `resolve_general_agent_pipeline_labels`。IM 仍由 `app/core/channel_bridge/agent_executor/helpers.py::build_channel_inbound_query` 调用 `prepend_plain_banner`（支持多模态图片+文本）。HTTP/SSE `/agent-stream` LangGraph 主路径在 `general_agent/stream_pipeline.py::execute_stream_pipeline` **进入 `SkillAgent.run` 之前**：先 **INFO `general_agent_delivery_labels`**（`channel_label`/`ingress_label`），再 **`apply_delivery_banner`**；其中 `GeneralAgent.channel_name=="web_chat"` 仍等价 `http_gui`/`browser_sse`，`cron`/`eval`/`headless_wakeup` 等由其映射。**Headless wakeup** 在 `app/services/agent/wakeup_handler.py` 显式改写 `channel_name=headless_wakeup` 并在 `memory_channel_id` 缺省时 **写回 `web_chat`**，以免记忆分区随投递前缀漂移。FastLane/DeepResearch 在 `myrm-agent-server/app/api/agents/general_agent/streaming.py` 使用 `apply_general_agent_pipeline_banner` + `GeneralAgentParams.channel_name`；`FastSearchAgent` 默认等价 `web_chat` 并把 `workspaces_storage_root` 写入 `context`。群组上下文块仍仅在 IM executor 拼接。
 
 ### 2.6 只增不改的消息历史
 
@@ -1283,7 +1283,7 @@ MCP 本身不直接改 SystemMessage；常见 ``system prompt changed`` 来自 p
 | `pipeline/processors/summarize_processor.py` | 结构化摘要（最后手段） |
 | `pipeline/processors/thinking_cleaner.py` | Thinking Block 清理（减少无效 token） |
 | `middlewares/context_pipeline_middleware.py` | 中间件集成入口 |
-| `toolkits/llms/llm.py` | LLM 层 cache_control 传递说明 |
+| `toolkits/llms/core/llm.py` | LLM 层 cache_control 传递说明 |
 | `utils/token_economics/cache_economics.py` | ``coerce_usage_non_negative_int``（严格类型检查）、``compute_prompt_cache_stats``（自动异常日志，``cache_read_ratio`` 参数化） — 日志、NDJSON、``get_cache_effectiveness`` 使用统一计数与定价逻辑 |
 | `utils/token_economics/tracker.py` | ``TokenUsage.get_cache_effectiveness()`` — 调用 ``compute_prompt_cache_stats`` |
 | `toolkits/llms/utils/logger.py` | 单次调用缓存日志（coerce + ``compute_prompt_cache_stats``）；``log_llm_response`` 内触发可选 NDJSON |

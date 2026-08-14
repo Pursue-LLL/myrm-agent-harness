@@ -149,11 +149,11 @@ def _parse_string_list(val: str | list[str] | None) -> list[str]:
     if val is None:
         return []
     if isinstance(val, list):
-        return [str(x).strip() for x in val if str(x).strip()]
+        return [str(x).strip() for x in val if x is not None and str(x).strip()]
     try:
         parsed = json.loads(val)
         if isinstance(parsed, list):
-            return [str(x).strip() for x in parsed if str(x).strip()]
+            return [str(x).strip() for x in parsed if x is not None and str(x).strip()]
     except (json.JSONDecodeError, TypeError):
         pass
     return [part.strip() for part in val.split(",") if part.strip()]

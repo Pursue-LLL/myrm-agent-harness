@@ -20,6 +20,7 @@ Tests cover:
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -519,3 +520,89 @@ class TestMemoryStoreIntegration:
 
         assert "Failed to store memory" in result
         relational.create_rule.assert_not_awaited()
+
+
+async def _hang_embedding(*args: object, **kwargs: object) -> list[object]:
+    """Embedding side-effect that outlives the tiny test timeout."""
+    await asyncio.sleep(0.5)
+    return []
+
+
+class TestMemoryRecallDegradationIntegration:
+    """MCP memory_recall → real MemoryManager → real timeout fail-open → notice.
+
+    Exercises the full degraded path without mocking the search service: a
+    hanging embedding is cut by the real wall-clock deadline, the retrieval is
+    marked degraded, and memory_recall surfaces the degradation notice instead
+    of a silent empty result.
+    """
+
+    @pytest.mark.asyncio
+    async def test_embedding_timeout_returns_degradation_notice(
+        self, _stores, _mock_ctx
+    ) -> None:
+        from myrm_agent_harness.toolkits.memory.config import RetrievalConfig
+
+        vector, relational, embedding = _stores
+        embedding.embed.side_effect = _hang_embedding
+        vector.count.return_value = 1
+        vector.search.return_value = []
+        relational.search_rules = AsyncMock(return_value=[])
+
+        config = MemoryConfig(
+            embedding_model="test-model",
+            collection_prefix="integration_degraded",
+            bm25_top_k=50,
+            bm25_max_corpus_size=5000,
+            retrieval=RetrievalConfig(timeout_seconds=0.05),
+        )
+        manager = MemoryManager(
+            config,
+            user_id="integration_user",
+            vector=vector,
+            relational=relational,
+            embedding=embedding,
+        )
+        server = MemoryMCPServer(manager)
+
+        result = await _call_tool(
+            server, "memory_recall", {"query": "pricing"}, _mock_ctx
+        )
+
+        assert "timed out" in result.lower()
+        assert "retry" in result.lower()
+        assert manager.last_retrieval_trace is not None
+        assert manager.last_retrieval_trace.degraded is True
+
+    @pytest.mark.asyncio
+    async def test_healthy_empty_recall_returns_no_memories_notice(
+        self, _stores, _mock_ctx
+    ) -> None:
+        """A clean empty result (no degradation) must NOT show the timeout notice."""
+        vector, relational, embedding = _stores
+        vector.count.return_value = 0
+        vector.search.return_value = []
+        relational.search_rules = AsyncMock(return_value=[])
+
+        manager = MemoryManager(
+            MemoryConfig(
+                embedding_model="test-model",
+                collection_prefix="integration_healthy",
+                bm25_top_k=50,
+                bm25_max_corpus_size=5000,
+            ),
+            user_id="integration_user",
+            vector=vector,
+            relational=relational,
+            embedding=embedding,
+        )
+        server = MemoryMCPServer(manager)
+
+        result = await _call_tool(
+            server, "memory_recall", {"query": "pricing"}, _mock_ctx
+        )
+
+        assert "timed out" not in result.lower()
+        assert "No relevant memories found." in result
+        assert manager.last_retrieval_trace is not None
+        assert manager.last_retrieval_trace.degraded is False

@@ -5,6 +5,8 @@ on:
     paths:
       - 'src/myrm_agent_harness/**/*.py'
       - 'tests/**'
+      - 'scripts/**'
+      - '**/*.md'
       - 'pyproject.toml'
       - 'uv.lock'
   push:
@@ -13,6 +15,8 @@ on:
     paths:
       - 'src/myrm_agent_harness/**/*.py'
       - 'tests/**'
+      - 'scripts/**'
+      - '**/*.md'
       - 'pyproject.toml'
       - 'uv.lock'
 

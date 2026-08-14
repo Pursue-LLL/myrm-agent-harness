@@ -131,7 +131,7 @@ WebSearchError
 
 ### 4. Sandbox ExecutionHelper
 
-- **位置**：`toolkits/execution/executors/common/error_handler.py`
+- **位置**：`toolkits/code_execution/executors/common/error_handler.py`
 - **机制**：装饰器模式，构建 `ExecutionResult` 而非抛异常
 - **与上述体系独立**，通过 `ExecutionHelper.build_error_result()` 返回结构化结果
 
@@ -483,7 +483,7 @@ get_locale_manager().register_translations(
 | `toolkits/web_search/exceptions.py` | WebSearchError 异常树（含 retryable 信息） |
 | `agent/middlewares/_tool_helpers.py` | 工具异常格式化（`format_tool_error`：format_for_llm 协议 + 脱敏兜底） |
 | `agent/streaming/event_handlers.py` | 错误事件转换（ToolMessage → SSE 事件） |
-| `toolkits/execution/executors/common/error_handler.py` | Sandbox 错误处理装饰器 |
+| `toolkits/code_execution/executors/common/error_handler.py` | Sandbox 错误处理装饰器 |
 
 ### LLM错误本地化
 

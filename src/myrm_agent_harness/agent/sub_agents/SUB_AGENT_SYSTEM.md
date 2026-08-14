@@ -56,7 +56,7 @@
 | `agent/sub_agents/checkpoint/saver.py` | 检查点保存/恢复（SubagentCheckpoint, SubagentCheckpointStorage, JSON后端） |
 | `agent/sub_agents/checkpoint/state_extractor.py` | 状态提取工具（extract_subagent_state_sync/async，从child agent提取context/stats/messages） |
 | `agent/sub_agents/config_loader.py` | YAML 配置加载器（SubagentConfigLoader, Pydantic 验证, 批量目录加载） |
-| `agent/graceful_shutdown.py` | 优雅关机管理器（GracefulShutdownManager，SIGTERM/SIGINT信号处理，单例模式） |
+| `agent/hooks/graceful_shutdown.py` | 优雅关机管理器（GracefulShutdownManager，SIGTERM/SIGINT信号处理，单例模式） |
 | `agent/base_agent.py` | 委托入口 + `_last_context` 保存 + 父取消传播 |
 | `agent/meta_tools/spawn_subagent/delegate_task_tool.py` | LLM `delegate_task_tool`（mode=single|batch|parallel；动态 roster + session 缓存 + 预算并发） |
 | `agent/meta_tools/spawn_subagent/agent_manage_tool.py` | LLM `subagent_control_tool`（list/cancel/steer） |

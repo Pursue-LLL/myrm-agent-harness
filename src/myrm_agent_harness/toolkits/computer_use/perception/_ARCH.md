@@ -20,7 +20,7 @@ Platform AX/UIA/AT-SPI snapshot capture, tree rendering, incremental diff, eleme
 
 - `computer_use/dref/types.py` (POS: @dref types)
 - `computer_use/dref/registry.py` (POS: @dref registry; diff reads current refs via `all_refs()`/`meta` before `replace()`)
-- `backends/protocols.py` (POS: ComputerBackend protocol)
+- `computer_use/backends/protocols.py` (POS: ComputerBackend protocol)
 - Used by `desktop_session.py` (POS: semantic desktop orchestrator)
 
 ## Key Design: Incremental AX Tree Diff
