@@ -67,6 +67,32 @@ def test_coerce_arguments_number():
     assert isinstance(coerced["threshold"], float)
 
 
+def test_coerce_number_big_integer_preserves_precision():
+    """number schema with a pure-integer literal must keep full precision (int)."""
+    big_id = "9007199254740993"  # 2**53 + 1 — float() would round to ...992.0
+    schema = {"properties": {"id": {"type": "number"}}}
+    coerced = coerce_arguments_by_schema(schema, {"id": big_id})
+    assert coerced["id"] == 9007199254740993
+    assert isinstance(coerced["id"], int)
+
+
+def test_coerce_number_big_integer_negative_preserves_precision():
+    schema = {"properties": {"delta": {"type": "number"}}}
+    coerced = coerce_arguments_by_schema(schema, {"delta": "-9007199254740993"})
+    assert coerced["delta"] == -9007199254740993
+    assert isinstance(coerced["delta"], int)
+
+
+def test_coerce_number_decimal_and_exponent_still_float():
+    """Decimal / exponent forms must still coerce to float for number schema."""
+    schema = {"properties": {"a": {"type": "number"}, "b": {"type": "number"}}}
+    coerced = coerce_arguments_by_schema(schema, {"a": "3.14", "b": "1e10"})
+    assert coerced["a"] == 3.14
+    assert isinstance(coerced["a"], float)
+    assert coerced["b"] == 1e10
+    assert isinstance(coerced["b"], float)
+
+
 def test_coerce_arguments_recursive():
     schema = {
         "properties": {

@@ -280,9 +280,15 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
                 value = False
         elif expected_type in ("integer", "number"):
             with contextlib.suppress(ValueError):
+                # Integer-first coercion: pure integer literals (no "." / "e" /
+                # "E") parse via int() so large IDs / snowflake IDs survive
+                # intact (Python ints are unbounded); decimal/exponent forms
+                # still go through float().  float() would silently lose
+                # precision on e.g. "9007199254740993" -> 9007199254740992.0.
+                is_pure_int = not any(ch in clean_value for ch in ".eE")
                 value = (
                     int(clean_value)
-                    if expected_type == "integer"
+                    if expected_type == "integer" or is_pure_int
                     else float(clean_value)
                 )
 
