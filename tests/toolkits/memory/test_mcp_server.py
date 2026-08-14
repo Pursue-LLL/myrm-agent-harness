@@ -394,6 +394,113 @@ class TestMemoryRecallTool:
         call_kwargs = mock_manager.search.call_args[1]
         assert call_kwargs["limit"] == 15
 
+    @pytest.mark.asyncio
+    async def test_recall_categories_as_list(self, mcp_server, mock_manager):
+        mock_manager.search.return_value = []
+        await _get_tool_fn(mcp_server, "memory_recall")(
+            query="test", categories=["knowledge", "event"]
+        )
+        call_kwargs = mock_manager.search.call_args[1]
+        assert call_kwargs["memory_types"] == [
+            MemoryType.SEMANTIC,
+            MemoryType.EPISODIC,
+        ]
+
+    @pytest.mark.asyncio
+    async def test_recall_categories_as_json_string(self, mcp_server, mock_manager):
+        mock_manager.search.return_value = []
+        await _get_tool_fn(mcp_server, "memory_recall")(
+            query="test", categories='["knowledge","preference"]'
+        )
+        call_kwargs = mock_manager.search.call_args[1]
+        assert call_kwargs["memory_types"] == [
+            MemoryType.SEMANTIC,
+            MemoryType.PROFILE,
+        ]
+
+    @pytest.mark.asyncio
+    async def test_recall_categories_empty_string(self, mcp_server, mock_manager):
+        mock_manager.search.return_value = []
+        await _get_tool_fn(mcp_server, "memory_recall")(query="test", categories="")
+        call_kwargs = mock_manager.search.call_args[1]
+        assert call_kwargs["memory_types"] is None
+
+    @pytest.mark.asyncio
+    async def test_recall_claim_memory_renders_graph_suffix(
+        self, mcp_server, mock_manager
+    ):
+        from myrm_agent_harness.toolkits.memory.types import ClaimMemory
+
+        claim = ClaimMemory(
+            id="claim:1",
+            content="Claim: Auth is the bottleneck",
+            claim_key="auth-bottleneck",
+            title="Auth bottleneck",
+            claim_text="Auth is the bottleneck",
+            freshness="fresh",
+            contradiction_status="contradicted",
+            evidence_count=3,
+            metadata={"latest_relationship_type": "SUPPORTS"},
+        )
+        mock_manager.search.return_value = [
+            MemorySearchResult(
+                memory=claim, score=0.9, memory_type=MemoryType.CLAIM
+            )
+        ]
+        result = await _get_tool_fn(mcp_server, "memory_recall")(query="auth")
+        assert "freshness=fresh" in result
+        assert "contradiction=contradicted" in result
+        assert "evidence=3" in result
+        assert "relation=supports" in result
+
+    @pytest.mark.asyncio
+    async def test_recall_source_error_suffix(self, mcp_server, mock_manager):
+        mem = SemanticMemory(content="partial fact", source_error="embedding failed")
+        mock_manager.search.return_value = [
+            MemorySearchResult(memory=mem, score=0.7, memory_type=MemoryType.SEMANTIC)
+        ]
+        result = await _get_tool_fn(mcp_server, "memory_recall")(query="fact")
+        assert "source_error" in result or "embedding failed" in result
+
+    @pytest.mark.asyncio
+    async def test_recall_stale_memory_notice(self, mcp_server, mock_manager):
+        from datetime import UTC, datetime, timedelta
+
+        mem = SemanticMemory(
+            id="old-1",
+            content="outdated pricing",
+            created_at=datetime.now(UTC) - timedelta(days=3),
+        )
+        mock_manager.search.return_value = [
+            MemorySearchResult(memory=mem, score=0.6, memory_type=MemoryType.SEMANTIC)
+        ]
+        result = await _get_tool_fn(mcp_server, "memory_recall")(query="pricing")
+        assert "may be outdated" in result
+
+    @pytest.mark.asyncio
+    async def test_recall_budget_truncation_notice(self, mcp_server, mock_manager):
+        mem = SemanticMemory(id="big-1", content="x" * 20000)
+        mock_manager.search.return_value = [
+            MemorySearchResult(memory=mem, score=0.9, memory_type=MemoryType.SEMANTIC)
+        ]
+        result = await _get_tool_fn(mcp_server, "memory_recall")(query="big")
+        assert "recall_budget" in result
+
+    @pytest.mark.asyncio
+    async def test_recall_budget_line_break(self, mcp_server, mock_manager):
+        from unittest.mock import patch
+
+        mem = SemanticMemory(id="m1", content="content")
+        mock_manager.search.return_value = [
+            MemorySearchResult(memory=mem, score=0.9, memory_type=MemoryType.SEMANTIC)
+        ]
+        with patch(
+            "myrm_agent_harness.toolkits.memory.agent_surface.mcp_server.MAX_RECALL_OUTPUT_CHARS",
+            40,
+        ):
+            result = await _get_tool_fn(mcp_server, "memory_recall")(query="test")
+        assert "content" not in result
+
 
 class TestMemoryStoreTool:
     @pytest.mark.asyncio
@@ -538,6 +645,61 @@ class TestMemoryStoreTool:
         )
         assert "Error" in result
 
+    @pytest.mark.asyncio
+    async def test_store_knowledge_disabled(self, mcp_server, mock_manager):
+        mock_manager.has_vector = False
+        result = await _get_tool_fn(mcp_server, "memory_store")(
+            content="fact", category="knowledge"
+        )
+        assert "not enabled" in result
+
+    @pytest.mark.asyncio
+    async def test_store_event_disabled(self, mcp_server, mock_manager):
+        mock_manager.has_vector = False
+        result = await _get_tool_fn(mcp_server, "memory_store")(
+            content="event", category="event"
+        )
+        assert "not enabled" in result
+
+    @pytest.mark.asyncio
+    async def test_store_preference_disabled(self, mcp_server, mock_manager):
+        mock_manager.has_relational = False
+        result = await _get_tool_fn(mcp_server, "memory_store")(
+            content="dark mode", category="preference", preference_key="theme"
+        )
+        assert "not enabled" in result
+
+    @pytest.mark.asyncio
+    async def test_store_preference_pending_approval(self, mcp_server, mock_manager):
+        mock_manager.approval_required = True
+        mock_manager.set_profile_attribute.return_value = "pending"
+        result = await _get_tool_fn(mcp_server, "memory_store")(
+            content="dark mode", category="preference", preference_key="theme"
+        )
+        assert "submitted for approval" in result
+
+    @pytest.mark.asyncio
+    async def test_store_rule_disabled(self, mcp_server, mock_manager):
+        mock_manager.has_relational = False
+        result = await _get_tool_fn(mcp_server, "memory_store")(
+            content="use async", category="rule", rule_trigger="python"
+        )
+        assert "not enabled" in result
+
+    @pytest.mark.asyncio
+    async def test_store_instruction_disabled(self, mcp_server, mock_manager):
+        mock_manager.has_relational = False
+        result = await _get_tool_fn(mcp_server, "memory_store")(
+            content="always lint", category="instruction"
+        )
+        assert "not enabled" in result
+
+    @pytest.mark.asyncio
+    async def test_store_exception_returns_failure(self, mcp_server, mock_manager):
+        mock_manager.add_knowledge = AsyncMock(side_effect=RuntimeError("boom"))
+        result = await _get_tool_fn(mcp_server, "memory_store")(content="fact")
+        assert result == "Failed to store memory"
+
 
 class TestMemoryManageTool:
     @pytest.mark.asyncio
@@ -633,6 +795,75 @@ class TestMemoryManageTool:
             action="delete", memory_id="p1", category="preference"
         )
         assert "cannot be deleted" in result
+
+    @pytest.mark.asyncio
+    async def test_manage_rate_rule_rejected(self, mcp_server, mock_manager):
+        result = await _get_tool_fn(mcp_server, "memory_manage")(
+            action="rate", memory_id="r1", category="rule", rating_score=5
+        )
+        assert "only supported for knowledge/event" in result
+
+    @pytest.mark.asyncio
+    async def test_manage_rate_vector_disabled(self, mcp_server, mock_manager):
+        mock_manager.has_vector = False
+        result = await _get_tool_fn(mcp_server, "memory_manage")(
+            action="rate", memory_id="m1", category="knowledge", rating_score=5
+        )
+        assert "not enabled" in result
+
+    @pytest.mark.asyncio
+    async def test_manage_rate_not_found(self, mcp_server, mock_manager):
+        mock_manager.rate_memory.return_value = False
+        result = await _get_tool_fn(mcp_server, "memory_manage")(
+            action="rate", memory_id="missing", category="knowledge", rating_score=5
+        )
+        assert "not found" in result
+
+    @pytest.mark.asyncio
+    async def test_manage_delete_vector_disabled(self, mcp_server, mock_manager):
+        mock_manager.has_vector = False
+        result = await _get_tool_fn(mcp_server, "memory_manage")(
+            action="delete", memory_id="m1", category="knowledge"
+        )
+        assert "not enabled" in result
+
+    @pytest.mark.asyncio
+    async def test_manage_delete_rule_disabled(self, mcp_server, mock_manager):
+        mock_manager.has_relational = False
+        result = await _get_tool_fn(mcp_server, "memory_manage")(
+            action="delete", memory_id="r1", category="rule"
+        )
+        assert "not enabled" in result
+
+    @pytest.mark.asyncio
+    async def test_manage_correct_missing_content(self, mcp_server, mock_manager):
+        result = await _get_tool_fn(mcp_server, "memory_manage")(
+            action="correct", memory_id="m1", category="knowledge"
+        )
+        assert "new_content" in result
+
+    @pytest.mark.asyncio
+    async def test_manage_correct_non_semantic(self, mcp_server, mock_manager):
+        result = await _get_tool_fn(mcp_server, "memory_manage")(
+            action="correct", memory_id="r1", category="rule", new_content="fix"
+        )
+        assert "only supported for knowledge" in result
+
+    @pytest.mark.asyncio
+    async def test_manage_correct_vector_disabled(self, mcp_server, mock_manager):
+        mock_manager.has_vector = False
+        result = await _get_tool_fn(mcp_server, "memory_manage")(
+            action="correct", memory_id="m1", category="knowledge", new_content="fix"
+        )
+        assert "not enabled" in result
+
+    @pytest.mark.asyncio
+    async def test_manage_exception_returns_failure(self, mcp_server, mock_manager):
+        mock_manager.update_memory = AsyncMock(side_effect=RuntimeError("boom"))
+        result = await _get_tool_fn(mcp_server, "memory_manage")(
+            action="update", memory_id="m1", category="knowledge", new_content="x"
+        )
+        assert result == "Failed to manage memory"
 
 
 class TestManagerResolver:

@@ -140,16 +140,20 @@ _CATEGORY_TO_TYPE: dict[str, MemoryType] = {
 }
 
 
-def _parse_string_list(val: list[str] | str | None) -> list[str]:
-    """Parse a value that may be a list, JSON string, or comma-separated string."""
+def _parse_string_list(val: str | list[str] | None) -> list[str]:
+    """Parse a comma-separated string / JSON array / raw list into non-empty items.
+
+    Accepts the three shapes an LLM may produce when calling an MCP tool:
+    a literal list, a JSON-encoded array, or a comma-separated string.
+    """
     if val is None:
         return []
     if isinstance(val, list):
-        return val
+        return [str(x).strip() for x in val if str(x).strip()]
     try:
         parsed = json.loads(val)
         if isinstance(parsed, list):
-            return [str(x) for x in parsed]
+            return [str(x).strip() for x in parsed if str(x).strip()]
     except (json.JSONDecodeError, TypeError):
         pass
     return [part.strip() for part in val.split(",") if part.strip()]
@@ -241,7 +245,7 @@ class MemoryMCPServer:
         )
         async def memory_recall(
             query: str,
-            categories: str | None = None,
+            categories: str | list[str] | None = None,
             limit: int = 5,
             profile_key: str | None = None,
             since: str | None = None,
@@ -251,8 +255,9 @@ class MemoryMCPServer:
 
             Args:
                 query: Semantic search query. Be specific for better results.
-                categories: Comma-separated filter: knowledge, claim, event,
-                    preference, rule. None = all types.
+                categories: Filter: knowledge, claim, event, preference, rule.
+                    Accepts a comma-separated string, a JSON array, or a raw list.
+                    None = all types.
                 limit: Max results (1-15, default 5).
                 profile_key: Quick-access a profile attribute (e.g. "name").
                     When set, query is ignored and returns the attribute value directly.
@@ -540,12 +545,12 @@ class MemoryMCPServer:
             content: str,
             category: str = "knowledge",
             importance: float = 0.5,
-            tags: str | None = None,
+            tags: str | list[str] | None = None,
             write_target: str = "bound",
             preference_key: str | None = None,
             rule_trigger: str | None = None,
             rule_priority: int = 0,
-            rule_keywords: str | None = None,
+            rule_keywords: str | list[str] | None = None,
         ) -> str:
             """Store a memory.
 
@@ -553,12 +558,14 @@ class MemoryMCPServer:
                 content: The memory content to store.
                 category: knowledge | event | preference | rule | instruction.
                 importance: 0.0-1.0 importance score (default 0.5).
-                tags: Comma-separated tags (knowledge/event only).
+                tags: Tags (knowledge/event only). Accepts a comma-separated
+                    string, a JSON array, or a raw list.
                 write_target: "bound" (agent scope) or "shared" (broadest namespace).
                 preference_key: Required for preference category (e.g. "language", "framework").
                 rule_trigger: Required for rule category — describes when the rule applies.
                 rule_priority: Priority for rules (higher = stronger, default 0).
-                rule_keywords: Comma-separated trigger keywords for rules.
+                rule_keywords: Trigger keywords for rules. Accepts a comma-separated
+                    string, a JSON array, or a raw list.
             """
             if not content or not content.strip():
                 return "Error: content cannot be empty."

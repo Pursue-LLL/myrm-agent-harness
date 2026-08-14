@@ -174,3 +174,26 @@ async def test_approve_preserves_nested_claims(wiki_structure, mock_indexer) -> 
     claims = parse_claims_from_content(saved)
     assert len(claims) == 1
     assert claims[0].id == "claim.pending.item"
+
+
+@pytest.mark.asyncio
+async def test_approve_preserves_provenance_fields(wiki_structure, mock_indexer) -> None:
+    """Approve must publish source_chat/source_message provenance into the concept file."""
+    draft = (
+        "---\ntype: concept\n"
+        "source_chat: chat-provenance-1\nsource_message: msg-provenance-1\n"
+        "compound_provenance: chat-compound\n---\n\n"
+        "## Compiled Truth\nTraceable content.\n"
+    )
+    mgr = WikiPendingEditsManager(wiki_structure, indexer=mock_indexer)
+    mgr.add_pending_edit("Provenance Concept", draft)
+    edit_id = mgr.get_pending_edits()[0]["id"]
+
+    assert await mgr.approve_edit(edit_id) is True
+
+    saved = wiki_structure.get_concept_file_path("Provenance Concept").read_text(encoding="utf-8")
+    metadata, _ = parse_frontmatter(saved)
+    assert metadata.get("source_chat") == "chat-provenance-1"
+    assert metadata.get("source_message") == "msg-provenance-1"
+    assert metadata.get("compound_provenance") == "chat-compound"
+    assert metadata.get(PUBLISH_STATUS_KEY) == WikiPublishStatus.PUBLISHED.value
