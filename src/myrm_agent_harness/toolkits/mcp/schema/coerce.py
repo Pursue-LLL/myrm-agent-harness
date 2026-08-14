@@ -2,9 +2,14 @@
 
 Normalizes LLM-emitted tool arguments against the tool's JSON Schema before
 dispatch: type coercion (string "100" → int, "true" → bool, container
-literals → object/array), strict-host nullable completion (missing
-required+nullable fields → explicit ``None``), and stripping of null
-optional fields that strict MCP servers reject.
+literals → object/array), arbitrary-precision numeric preservation (exact
+Decimal parsing keeps big integers and whole-valued exponent/float-form
+literals lossless, bounded by int_max_str_digits; non-finite literals stay
+strings), bare-scalar → single-element array wrapping for ``array`` schemas,
+numeric 1/0 ↔ boolean bidirectional coercion, a 64KB length guard on
+container-literal parsing (degenerate-output CPU/memory defense), strict-host
+nullable completion (missing required+nullable fields → explicit ``None``),
+and stripping of null optional fields that strict MCP servers reject.
 
 [INPUT]
 - args_schema dict (from ``StructuredTool.args_schema``)
@@ -31,6 +36,12 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Strings longer than this are never parsed as JSON/AST container literals.
+# A degenerate LLM output (multi-hundred-KB "object") would otherwise burn
+# CPU on json.loads/ast.literal_eval for nothing. Mirrors openclaw's
+# MAX_JSON_COERCE_LENGTH (64 * 1024).
+_MAX_JSON_COERCE_LENGTH = 64 * 1024
+
 _SCHEMA_COERCION_STAT_KEYS = (
     "coerce_argument_calls",
     "null_string_to_none",
@@ -39,6 +50,8 @@ _SCHEMA_COERCION_STAT_KEYS = (
     "json_type_guard_rejections",
     "ast_container_coercions",
     "ast_type_guard_rejections",
+    "scalar_to_array_wraps",
+    "bool_number_cross_coercions",
 )
 _SCHEMA_COERCION_STATS: dict[str, int] = {key: 0 for key in _SCHEMA_COERCION_STAT_KEYS}
 
@@ -225,7 +238,7 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
                 "object",
             ) or _looks_like_json_container_literal(clean_value)
 
-        if should_attempt_container_parse:
+        if should_attempt_container_parse and len(clean_value) <= _MAX_JSON_COERCE_LENGTH:
             try:
                 coerced_value = json.loads(clean_value)
                 if expects_array and isinstance(coerced_value, list):
@@ -330,6 +343,44 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
             value = str(value)
         elif isinstance(value, list):
             value = json.dumps(value, ensure_ascii=False)
+
+    # Bare scalar → single-element array when the schema expects an array.
+    # Open-weight models (DeepSeek, Qwen, GLM) often emit a bare scalar where
+    # a list is required (e.g. {"urls": "https://a.com"} for urls: array).
+    # Wrapping repairs the call instead of failing it; skip when the value is
+    # already a list or when the schema already accepts its current type.
+    # Mirrors hermes-agent's coerce_tool_args wrapping (with its warning when
+    # a JSON-array-looking string could not be parsed).
+    if (
+        expected_type == "array"
+        and value is not None
+        and not isinstance(value, (list, tuple))
+        and not _value_conforms_to_schema_types(schema, value)
+    ):
+        looks_like_container = isinstance(value, str) and value.strip().startswith(("[", "{"))
+        length_guarded = isinstance(value, str) and len(value.strip()) > _MAX_JSON_COERCE_LENGTH
+        if not (looks_like_container and length_guarded):
+            if looks_like_container:
+                logger.warning(
+                    "coerce_value: value %r looks like a JSON array string but could "
+                    "not be parsed — wrapping into a single-element list",
+                    value,
+                )
+            value = [value]
+            _bump_schema_coercion_stat("scalar_to_array_wraps")
+
+    # Numeric 1/0 ↔ boolean bidirectional coercion. LLMs sometimes emit 1/0
+    # for a boolean field (or True/False for a number field) — convert only
+    # when the current type is not already accepted by the schema.
+    # Mirrors openclaw validation.ts coercePrimitiveByType.
+    if expected_type == "boolean" and not _value_conforms_to_schema_types(schema, value):
+        if isinstance(value, int) and not isinstance(value, bool) and value in (0, 1):
+            value = bool(value)
+            _bump_schema_coercion_stat("bool_number_cross_coercions")
+    elif expected_type in ("integer", "number") and not _value_conforms_to_schema_types(schema, value):
+        if isinstance(value, bool):
+            value = int(value)
+            _bump_schema_coercion_stat("bool_number_cross_coercions")
 
     # Recursive descent for objects
     if _schema_expects_type(schema, "object") and isinstance(value, dict):
