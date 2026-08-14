@@ -124,7 +124,7 @@ def _create_tool_for_endpoint(
         # Coerce LLM-emitted types against the endpoint's parameter schema
         # (string "25" -> int, big-int precision preserved) before dispatch.
         coerced_kwargs = coerce_arguments_by_schema(endpoint_param_schema, kwargs)
-        has_structured_keys = bool(endpoint_param_schema)
+        has_param_schema = bool(endpoint_param_schema)
 
         # Separate path params from body/query params
         p_params: dict[str, str] = {}
@@ -149,7 +149,7 @@ def _create_tool_for_endpoint(
                     body = parsed if isinstance(parsed, (dict, list)) else value
                 else:
                     body = value
-            elif has_structured_keys:
+            elif has_param_schema:
                 # Schema-defined endpoints: query keys go to the query string,
                 # every other declared field belongs to the JSON body.
                 if key in query_keys:
