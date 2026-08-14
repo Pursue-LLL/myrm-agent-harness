@@ -42,13 +42,13 @@ persisting across ReAct cycles.
 - agent.middlewares.completion.completion_guard_checklist::build_checklist, classify_verification, find_last_successful_verification_command (POS: Verification command classification, checklist generation, and temporal-order verification command extraction for CompletionGuard.)
 - agent.middlewares.completion.completion_guard_external_evidence::build_external_evidence_reason (POS: Freshness-sensitive external evidence gate including MCP PTC bash via skills.mcp_* and Direct FC via mcp__{server}__{tool})
 - agent.middlewares.completion.deliverable_write_verifier::check_deliverable_write_claim (POS: Zero-call deliverable write claim detection for CompletionGuard)
-- core.security.tool_registry::resolve_safety_metadata (POS: tool safety metadata incl. MCP readOnlyHint)
+- agent.middlewares.completion.completion_guard_safety::is_mutating_tool, _INTERACTION_UI_TOOLS (POS: Effectful tool detection SSOT and interaction/UI carriers for Mixed Message Guard)
 
 [OUTPUT]
 - CompletionGuard: after_model middleware for critical completion verification + independent re-run
-- is_mutating_tool(): SSOT for effectful tool detection (static mutation set, registry fail-closed fallback)
 - classify_verification(): re-export from completion_guard_checklist
 - reset_completion_guard(): reset session state for new run
+- is_mutating_tool(): re-export from completion_guard_safety
 
 [POS]
 Fills the "Agent finishing" gap in the guard chain. Existing guards cover
@@ -85,75 +85,20 @@ from myrm_agent_harness.agent.middlewares.completion.completion_guard_external_e
 from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier import (
     check_deliverable_write_claim,
 )
+from myrm_agent_harness.agent.middlewares.completion.completion_guard_safety import (
+    _INTERACTION_UI_TOOLS,
+    is_mutating_tool,
+)
 from myrm_agent_harness.agent.orchestration.hooks import COMPLETION_CHECK_TOOL_NAME
 from myrm_agent_harness.agent.security.guards.loop_guard import (
     ToolGroup,
     get_tool_group,
 )
-from myrm_agent_harness.core.security.tool_registry import resolve_safety_metadata
 
 _build_checklist = build_checklist
 _find_last_verification_cmd = find_last_successful_verification_command
 
 logger = logging.getLogger(__name__)
-
-_MUTATION_TOOLS: frozenset[str] = frozenset(
-    {
-        # 写/执行/管理类（会改变工作区或外部状态）
-        "write_file",
-        "create_file",
-        "edit_file",
-        "delete_file",
-        "file_write_tool",
-        "file_edit_tool",
-        "file_create_tool",
-        "execute_command",
-        "run_terminal",
-        "bash_code_execute_tool",
-        "send_message",
-        "git_commit",
-        "git_push",
-        "apply_diff",
-        "delegate_task_tool",
-        "spawn_subagent",
-        "request_answer_user_tool",
-        "answer_user",
-        "finish",
-        "complete_task",
-        "browser_navigate_tool",
-        "browser_click_tool",
-        "browser_type_tool",
-        "skill_manage_tool",
-        "skill_market_tool",  # install/uninstall/install_from_url 写入技能库，registry 只读标注但实为变异
-        "kanban_manage_tool",
-        "cron_manage_tool",
-    }
-)
-
-# 交互/UI 承载类：registry 标只读，但剥离会丢失用户可见功能（提问/授权/渲染/人类接管）
-_INTERACTION_UI_TOOLS: frozenset[str] = frozenset(
-    {
-        "ask_question_tool",
-        "request_directory_tool",
-        "render_ui_tool",
-        "update_ui_data_tool",
-        "browser_ask_human_tool",
-    }
-)
-
-
-def is_mutating_tool(tool_name: str) -> bool:
-    """Return True when the tool mutates workspace or external state (effectful).
-
-    SSOT used by Cron post-run verification to decide whether a run needs an
-    adversarial-reviewer pass. The static alias set is authoritative; everything
-    else resolves via registry metadata (fail-closed: unknown tools assumed
-    effectful, since a side effect must never go unverified).
-    """
-    if tool_name in _MUTATION_TOOLS:
-        return True
-    return not resolve_safety_metadata(tool_name).is_read_only
-
 
 _rejection_count: int = 0
 _forced_finish: bool = False

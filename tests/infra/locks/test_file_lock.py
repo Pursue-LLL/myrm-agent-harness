@@ -256,3 +256,37 @@ async def test_symlink_lock_rejected(tmp_path):
 
     assert victim.read_text() == "precious-data"
     assert symlink.is_symlink()
+
+
+@pytest.mark.asyncio
+async def test_symlink_rejected_then_recoverable(tmp_path):
+    """After a symlink is rejected, removing it must make the resource
+    immediately acquirable again — rejection must not poison the lock path."""
+    lock = FileLock(tmp_path)
+    victim = tmp_path / "victim.txt"
+    victim.write_text("precious-data")
+
+    symlink = tmp_path / "res_symlink_recover.lock"
+    symlink.symlink_to(victim)
+
+    async with lock.acquire("res_symlink_recover") as acquired:
+        assert acquired is False
+
+    symlink.unlink()
+    async with lock.acquire("res_symlink_recover") as acquired:
+        assert acquired is True
+
+    assert not (tmp_path / "res_symlink_recover.lock").exists()
+
+
+@pytest.mark.asyncio
+async def test_no_no_follow_flag_degrades_gracefully(tmp_path, monkeypatch):
+    """When the platform has no O_NOFOLLOW (e.g. Windows), opening falls back
+    to plain O_CREAT|O_RDWR and locking still works for a normal file."""
+    lock = FileLock(tmp_path)
+
+    monkeypatch.delattr(os, "O_NOFOLLOW", raising=False)
+    async with lock.acquire("res_no_nofollow") as acquired:
+        assert acquired is True
+
+    assert not (tmp_path / "res_no_nofollow.lock").exists()

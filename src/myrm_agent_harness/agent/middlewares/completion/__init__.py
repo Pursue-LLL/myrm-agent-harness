@@ -16,11 +16,13 @@ verification and deliverable checks pass.
 from myrm_agent_harness.agent.middlewares.completion.completion_guard import (
     CompletionGuard,
     classify_verification,
-    is_mutating_tool,
     reset_completion_guard,
 )
 from myrm_agent_harness.agent.middlewares.completion.completion_guard_checklist import (
     build_checklist,
+)
+from myrm_agent_harness.agent.middlewares.completion.completion_guard_safety import (
+    is_mutating_tool,
 )
 from myrm_agent_harness.agent.middlewares.completion.deliverable_write_verifier import (
     check_deliverable_write_claim,

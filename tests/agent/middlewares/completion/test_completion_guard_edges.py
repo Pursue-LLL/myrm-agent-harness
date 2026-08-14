@@ -5,9 +5,9 @@ from __future__ import annotations
 import pytest
 from langchain_core.messages import AIMessage
 
+from myrm_agent_harness.agent.middlewares.completion import is_mutating_tool
 from myrm_agent_harness.agent.middlewares.completion.completion_guard import (
     _completion_check_tool,
-    is_mutating_tool,
     reset_completion_guard,
 )
 

@@ -675,6 +675,11 @@ async def post_run_events(
         from myrm_agent_harness.utils.token_economics.tracker import get_token_tracker
 
         tracker = get_token_tracker()
+        import logging as _lg
+
+        _lg.getLogger("myrm_agent_harness").warning(
+            "[DIAG] post_run_events tracker=%s", type(tracker).__name__ if tracker else None
+        )
         if tracker is not None:
             message_end_event["token_economics"] = tracker.to_dict()
     except Exception:

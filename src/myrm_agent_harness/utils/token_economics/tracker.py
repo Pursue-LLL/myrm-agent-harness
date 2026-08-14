@@ -492,6 +492,13 @@ def init_token_tracker(
     """初始化当前请求的 token 追踪器"""
     tracker = TokenTracker(budget_checker=budget_checker)
     _current_tracker.set(tracker)
+    import logging as _lg
+
+    _lg.getLogger("myrm_agent_harness.utils.token_economics.tracker").warning(
+        "[DIAG] init_token_tracker id=%d ctx=%r",
+        id(tracker),
+        _current_tracker.get(),
+    )
     return tracker
 
 
@@ -515,6 +522,11 @@ def get_token_tracker() -> TokenTracker | None:
 
 def reset_token_tracker() -> None:
     """重置当前请求的 token 追踪器和 UsageLedger"""
+    import logging as _lg
+
+    _lg.getLogger("myrm_agent_harness.utils.token_economics.tracker").warning(
+        "[DIAG] reset_token_tracker was=%r", _current_tracker.get()
+    )
     _current_tracker.set(None)
     _current_ledger.set(None)
 
