@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Any
 
 import httpx
@@ -31,6 +32,7 @@ from myrm_agent_harness.core.security.http.secure_fetch import (
     ContentTooLargeError,
     secure_request,
 )
+from myrm_agent_harness.core.security.types import user_credentials_ctx
 from myrm_agent_harness.infra.tls_compat import create_httpx_client
 
 from .auth import OpenAPIAuthProvider
@@ -110,7 +112,6 @@ class OpenAPIExecutor:
         auth_query = self._auth.get_query_params()
 
         user_auth_headers: dict[str, str] = {}
-        from myrm_agent_harness.core.security.types import user_credentials_ctx
 
         try:
             credentials = user_credentials_ctx.get()
@@ -118,8 +119,6 @@ class OpenAPIExecutor:
                 if (self._service_name and cred.issuer == self._service_name) or (
                     cred.issuer in self._base_url.lower()
                 ):
-                    import time
-
                     token = cred.token
                     if (
                         cred.expires_at is not None
@@ -172,8 +171,6 @@ class OpenAPIExecutor:
                 )
 
                 if response.status_code == 401:
-                    from myrm_agent_harness.core.security.types import user_credentials_ctx
-
                     try:
                         credentials = user_credentials_ctx.get()
                         for cred in credentials:
