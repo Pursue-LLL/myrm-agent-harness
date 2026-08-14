@@ -82,28 +82,59 @@ class SecurityDecision:
     reason: str
     tainted: bool = False
     timestamp: float = field(default_factory=time.time)
+    tool_call_id: str | None = None
+    labels: frozenset[str] = frozenset()
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        result: dict[str, object] = {
             "tool": self.tool_name,
             "decision": self.decision,
             "reason": self.reason,
             "tainted": self.tainted,
             "ts": round(self.timestamp, 3),
         }
+        if self.tool_call_id:
+            result["tool_call_id"] = self.tool_call_id
+        if self.labels:
+            result["labels"] = sorted(self.labels)
+        return result
 
 
 _audit_log_var: ContextVar[list[SecurityDecision]] = ContextVar("security_audit_log")
 
 
-def record_decision(tool_name: str, decision: DecisionKind, reason: str, *, tainted: bool = False) -> None:
-    """Append a security decision to the current session's audit log."""
+def record_decision(
+    tool_name: str,
+    decision: DecisionKind,
+    reason: str,
+    *,
+    tainted: bool = False,
+    tool_call_id: str | None = None,
+    labels: frozenset[str] | tuple[str, ...] = (),
+) -> None:
+    """Append a security decision to the current session's audit log.
+
+    ``tool_call_id`` links the decision to the concrete tool invocation it
+    fired on (when available) so downstream lineage views can attach security
+    tags to the exact call. ``labels`` carries optional step-level security
+    tags that propagate along the instruction lineage.
+    """
     try:
         log = _audit_log_var.get()
     except LookupError:
         log = []
         _audit_log_var.set(log)
-    log.append(SecurityDecision(tool_name=tool_name, decision=decision, reason=reason, tainted=tainted))
+    label_set = labels if isinstance(labels, frozenset) else frozenset(labels)
+    log.append(
+        SecurityDecision(
+            tool_name=tool_name,
+            decision=decision,
+            reason=reason,
+            tainted=tainted,
+            tool_call_id=tool_call_id,
+            labels=label_set,
+        )
+    )
 
     if "BLOCK" in decision or "DENY" in decision or "REDACT" in decision or "LEAK" in decision:
         try:

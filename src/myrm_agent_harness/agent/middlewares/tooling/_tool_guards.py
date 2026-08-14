@@ -165,7 +165,7 @@ async def run_pre_call_guards(
         {"tool_name": tool_name, "tool_input": tool_args, "tool_call_id": tool_call_id},
     )
     if pre_hook_result.blocked:
-        record_decision(tool_name, "HOOK_BLOCKED", pre_hook_result.reason)
+        record_decision(tool_name, "HOOK_BLOCKED", pre_hook_result.reason, tool_call_id=tool_call_id)
         return make_error_msg(
             tool_name,
             tool_call_id,
@@ -187,6 +187,7 @@ async def run_pre_call_guards(
             tool_name,
             "ESTOP_BLOCKED",
             f"E-Stop active: {estop_state.level} — {estop_state.reason}",
+            tool_call_id=tool_call_id,
         )
         msg = f"E-Stop active ({estop_state.level}): all tool execution is suspended. Reason: {estop_state.reason}"
         if estop_state.level == EStopLevel.KILL_ALL:
@@ -249,7 +250,9 @@ async def run_pre_call_guards(
         loop_kind = raw_loop_kind if isinstance(raw_loop_kind, str) else "loop_break"
 
         if loop_kind == "sandbox_boundary":
-            record_decision(tool_name, "SANDBOX_BOUNDARY_ESCALATE", loop_verdict.reason)
+            record_decision(
+                tool_name, "SANDBOX_BOUNDARY_ESCALATE", loop_verdict.reason, tool_call_id=tool_call_id
+            )
             logger.warning("Sandbox boundary escalation: %s -- %s", tool_name, loop_verdict.reason)
             await _emit_loop_guard_event("sandbox_boundary", tool_name, loop_verdict.reason, "error")
             return make_error_msg(
@@ -260,7 +263,7 @@ async def run_pre_call_guards(
                 loop_kind=loop_kind,
             )
 
-        record_decision(tool_name, "LOOP_BREAK", loop_verdict.reason)
+        record_decision(tool_name, "LOOP_BREAK", loop_verdict.reason, tool_call_id=tool_call_id)
         logger.warning("Loop break: %s -- %s", tool_name, loop_verdict.reason)
         await _emit_loop_guard_event("loop_guard_break", tool_name, loop_verdict.reason, "error")
         return make_error_msg(
@@ -271,7 +274,7 @@ async def run_pre_call_guards(
             loop_kind=loop_kind,
         )
     if loop_verdict.action == LoopAction.WARN:
-        record_decision(tool_name, "LOOP_WARN", loop_verdict.reason)
+        record_decision(tool_name, "LOOP_WARN", loop_verdict.reason, tool_call_id=tool_call_id)
         logger.warning("Loop warning: %s -- %s", tool_name, loop_verdict.reason)
         await _emit_loop_guard_event("loop_guard_warn", tool_name, loop_verdict.reason, "warning")
 
@@ -283,7 +286,7 @@ async def run_pre_call_guards(
         units=turn_budget_units,
     )
     if turn_budget_verdict.action == TurnBudgetAction.BREAK:
-        record_decision(tool_name, "TURN_BUDGET_BREAK", turn_budget_verdict.reason)
+        record_decision(tool_name, "TURN_BUDGET_BREAK", turn_budget_verdict.reason, tool_call_id=tool_call_id)
         logger.warning("Turn budget break: %s -- %s", tool_name, turn_budget_verdict.reason)
         unit_label = "search queries" if tool_name == "web_search_tool" else "calls"
         return make_error_msg(
@@ -300,7 +303,7 @@ async def run_pre_call_guards(
     freq_verdict = freq_guard.check(tool_name)
 
     if freq_verdict.action == FrequencyAction.BREAK:
-        record_decision(tool_name, "FREQUENCY_BREAK", freq_verdict.reason)
+        record_decision(tool_name, "FREQUENCY_BREAK", freq_verdict.reason, tool_call_id=tool_call_id)
         logger.warning("Frequency break: %s -- %s", tool_name, freq_verdict.reason)
         return make_error_msg(
             tool_name,
@@ -313,7 +316,7 @@ async def run_pre_call_guards(
             error_category=ToolErrorCategory.FREQUENCY_GUARD,
         )
     if freq_verdict.action == FrequencyAction.WARN:
-        record_decision(tool_name, "FREQUENCY_WARN", freq_verdict.reason)
+        record_decision(tool_name, "FREQUENCY_WARN", freq_verdict.reason, tool_call_id=tool_call_id)
         logger.warning("Frequency warning: %s -- %s", tool_name, freq_verdict.reason)
 
     steering_token = get_steering_token()
@@ -463,7 +466,7 @@ async def run_post_call_guards(
     budget_guard = get_context_budget_guard()
     budget_verdict = budget_guard.check_and_truncate(result_text, tool_name)
     if budget_verdict.action == BudgetAction.PERSISTED:
-        record_decision(tool_name, "CONTEXT_PERSISTED", budget_verdict.reason)
+        record_decision(tool_name, "CONTEXT_PERSISTED", budget_verdict.reason, tool_call_id=tool_call_id)
         logger.info(
             "Context budget persisted: %s -> %s",
             tool_name,
@@ -491,7 +494,7 @@ async def run_post_call_guards(
         )
         result_text = budget_verdict.content
     elif budget_verdict.action == BudgetAction.TRUNCATED:
-        record_decision(tool_name, "CONTEXT_TRUNCATED", budget_verdict.reason)
+        record_decision(tool_name, "CONTEXT_TRUNCATED", budget_verdict.reason, tool_call_id=tool_call_id)
         logger.warning("Context budget truncated: %s -- %s", tool_name, budget_verdict.reason)
         result = ToolMessage(
             content=budget_verdict.content,
@@ -532,15 +535,15 @@ async def run_post_call_guards(
     if post_verdict.action == LoopAction.BREAK:
         post_loop_kind = getattr(post_verdict, "loop_kind", None)
         if post_loop_kind == "sandbox_boundary":
-            record_decision(tool_name, "SANDBOX_BOUNDARY_ESCALATE", post_verdict.reason)
+            record_decision(tool_name, "SANDBOX_BOUNDARY_ESCALATE", post_verdict.reason, tool_call_id=tool_call_id)
             logger.warning("Sandbox boundary (post-call): %s -- %s", tool_name, post_verdict.reason)
             await _emit_loop_guard_event("sandbox_boundary", tool_name, post_verdict.reason, "error")
         else:
-            record_decision(tool_name, "LOOP_BREAK", post_verdict.reason)
+            record_decision(tool_name, "LOOP_BREAK", post_verdict.reason, tool_call_id=tool_call_id)
             logger.warning("Loop output break: %s -- %s", tool_name, post_verdict.reason)
             await _emit_loop_guard_event("loop_guard_break", tool_name, post_verdict.reason, "error")
     elif post_verdict.action == LoopAction.WARN:
-        record_decision(tool_name, "LOOP_WARN", post_verdict.reason)
+        record_decision(tool_name, "LOOP_WARN", post_verdict.reason, tool_call_id=tool_call_id)
         logger.warning("Loop output warning: %s -- %s", tool_name, post_verdict.reason)
         await _emit_loop_guard_event("loop_guard_warn", tool_name, post_verdict.reason, "warning")
 

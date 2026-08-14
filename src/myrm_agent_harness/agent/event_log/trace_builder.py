@@ -129,7 +129,14 @@ def _aggregate_events(session_id: str, events: list[StructuredEvent]) -> Executi
 class _PendingTool:
     """Tracks a tool_start waiting for its tool_end/tool_failure."""
 
-    __slots__ = ("input_data", "sequence", "start_time", "tool_name")
+    __slots__ = (
+        "input_data",
+        "message_id",
+        "sequence",
+        "start_time",
+        "tool_call_id",
+        "tool_name",
+    )
 
     def __init__(
         self,
@@ -137,11 +144,15 @@ class _PendingTool:
         tool_name: str,
         start_time: float,
         input_data: dict[str, object],
+        tool_call_id: str | None = None,
+        message_id: str | None = None,
     ) -> None:
         self.sequence = sequence
         self.tool_name = tool_name
         self.start_time = start_time
         self.input_data = input_data
+        self.tool_call_id = tool_call_id
+        self.message_id = message_id
 
 
 class _PendingLLMRequest:
@@ -175,11 +186,28 @@ def _extract_metadata(event: StructuredEvent) -> TraceMetadata:
     )
 
 
-def _pop_pending(pending: dict[str, list[_PendingTool]], tool_name: str) -> _PendingTool | None:
-    """Pop the oldest pending tool by name (FIFO)."""
+def _pop_pending(
+    pending: dict[str, list[_PendingTool]], tool_name: str, tool_call_id: str | None = None
+) -> _PendingTool | None:
+    """Pop the matching pending tool.
+
+    Prefers an exact ``tool_call_id`` match (concurrent/re-entrant invocations
+    of the same tool must not be paired by name alone); falls back to the
+    oldest entry for ``tool_name`` (FIFO) when the id is absent — e.g. legacy
+    or id-less event streams.
+    """
     queue = pending.get(tool_name)
     if not queue:
         return None
+
+    if tool_call_id:
+        for idx, pt in enumerate(queue):
+            if pt.tool_call_id == tool_call_id:
+                queue.pop(idx)
+                if not queue:
+                    del pending[tool_name]
+                return pt
+
     pt = queue.pop(0)
     if not queue:
         del pending[tool_name]
@@ -260,13 +288,15 @@ def _process_event(
                     tool_name=tool_name,
                     start_time=event.timestamp,
                     input_data={k: v for k, v in data.items() if not k.startswith("_") and k != "tool_name"},
+                    tool_call_id=_str_or_none(data.get("tool_call_id")),
+                    message_id=_str_or_none(data.get("message_id")),
                 )
             )
 
     elif et == "tool_end":
         tool_name = data.get("tool_name")
         if isinstance(tool_name, str):
-            pt = _pop_pending(pending, tool_name)
+            pt = _pop_pending(pending, tool_name, _str_or_none(data.get("tool_call_id")))
             if pt:
                 duration_ms = data.get("duration_ms")
                 trace.tool_calls.append(
@@ -277,6 +307,8 @@ def _process_event(
                         end_time=event.timestamp,
                         duration_ms=(float(duration_ms) if isinstance(duration_ms, (int, float)) else None),
                         success=True,
+                        tool_call_id=pt.tool_call_id,
+                        message_id=pt.message_id,
                         input_data=pt.input_data,
                         output_summary=_str_or_none(data.get("output_summary")),
                         output_data=data.get("output") or data.get("result"),
@@ -286,7 +318,7 @@ def _process_event(
     elif et == "tool_failure":
         tool_name = data.get("tool_name")
         if isinstance(tool_name, str):
-            pt = _pop_pending(pending, tool_name)
+            pt = _pop_pending(pending, tool_name, _str_or_none(data.get("tool_call_id")))
             error_msg = data.get("error") or data.get("error_message") or ""
             duration_ms = data.get("duration_ms")
             trace.tool_calls.append(
@@ -298,6 +330,8 @@ def _process_event(
                     duration_ms=(float(duration_ms) if isinstance(duration_ms, (int, float)) else None),
                     success=False,
                     error=str(error_msg) if error_msg else None,
+                    tool_call_id=pt.tool_call_id if pt else _str_or_none(data.get("tool_call_id")),
+                    message_id=pt.message_id if pt else _str_or_none(data.get("message_id")),
                     input_data=pt.input_data if pt else {},
                     fault_side=_str_or_none(data.get("fault_side")),
                 )

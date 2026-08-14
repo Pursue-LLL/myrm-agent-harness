@@ -57,6 +57,8 @@ class ToolCallRecord:
     duration_ms: float | None = None
     success: bool = True
     error: str | None = None
+    tool_call_id: str | None = None
+    message_id: str | None = None
     input_data: dict[str, object] = field(default_factory=dict)
     output_summary: str | None = None
     output_data: str | dict[str, object] | list[object] | None = None
@@ -133,6 +135,8 @@ class ExecutionTrace:
                     "duration_ms": tc.duration_ms,
                     "success": tc.success,
                     "error": tc.error,
+                    "tool_call_id": tc.tool_call_id,
+                    "message_id": tc.message_id,
                     "input_data": tc.input_data,
                     "output_summary": tc.output_summary,
                     "output_data": tc.output_data,
