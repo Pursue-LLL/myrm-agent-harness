@@ -135,6 +135,82 @@ class TestParseOpenAPI3:
         ep_map = {ep.operation_id: ep for ep in spec.endpoints}
         assert ep_map["deletePet"].deprecated is True
 
+    def test_query_and_path_parameter_schema(self):
+        spec = parse_spec_from_content(OPENAPI_3_SPEC)
+        ep_map = {ep.operation_id: ep for ep in spec.endpoints}
+
+        list_pets = ep_map["listPets"]
+        assert list_pets.param_schema is not None
+        props = list_pets.param_schema["properties"]
+        assert props["limit"] == {"type": "integer"}
+        assert "limit" in list_pets.query_param_keys
+        assert "limit" not in list_pets.path_param_keys
+
+        get_pet = ep_map["getPetById"]
+        assert get_pet.param_schema is not None
+        assert get_pet.param_schema["properties"]["petId"] == {"type": "string"}
+        assert "petId" in get_pet.path_param_keys
+        assert get_pet.param_schema["required"] == ["petId"]
+
+    def test_request_body_object_expands_into_properties(self):
+        spec_json = json.dumps({
+            "openapi": "3.0.3",
+            "info": {"title": "T", "version": "1"},
+            "paths": {
+                "/orders": {
+                    "post": {
+                        "operationId": "createOrder",
+                        "requestBody": {
+                            "required": True,
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "product_id": {"type": "integer"},
+                                            "amount": {"type": "number"},
+                                        },
+                                        "required": ["product_id", "amount"],
+                                    }
+                                }
+                            },
+                        },
+                        "responses": {"201": {"description": "Created"}},
+                    },
+                },
+            },
+        })
+        spec = parse_spec_from_content(spec_json)
+        ep = spec.endpoints[0]
+        assert ep.param_schema is not None
+        props = ep.param_schema["properties"]
+        assert props["product_id"] == {"type": "integer"}
+        assert props["amount"] == {"type": "number"}
+        assert ep.param_schema["required"] == ["product_id", "amount"]
+
+    def test_request_body_primitive_becomes_body_param(self):
+        spec_json = json.dumps({
+            "openapi": "3.0.3",
+            "info": {"title": "T", "version": "1"},
+            "paths": {
+                "/search": {
+                    "post": {
+                        "operationId": "search",
+                        "requestBody": {
+                            "content": {
+                                "application/json": {"schema": {"type": "array"}},
+                            },
+                        },
+                        "responses": {"200": {"description": "OK"}},
+                    },
+                },
+            },
+        })
+        spec = parse_spec_from_content(spec_json)
+        ep = spec.endpoints[0]
+        assert ep.param_schema is not None
+        assert ep.param_schema["properties"]["body"] == {"type": "array"}
+
     def test_tags_extraction(self):
         spec = parse_spec_from_content(OPENAPI_3_SPEC)
         assert "pets" in spec.tags
@@ -187,6 +263,23 @@ class TestParseSwagger2:
 
         assert "getUserById" in ep_map
         assert ep_map["getUserById"].path == "/users/{userId}"
+
+    def test_getUserById_param_schema(self):
+        spec = parse_spec_from_content(SWAGGER_2_SPEC)
+        ep_map = {ep.operation_id: ep for ep in spec.endpoints}
+        get_user = ep_map["getUserById"]
+        assert get_user.param_schema is not None
+        assert get_user.param_schema["properties"]["userId"] == {"type": "string"}
+        assert "userId" in get_user.path_param_keys
+
+    def test_swagger2_body_param_schema(self):
+        spec = parse_spec_from_content(SWAGGER_2_SPEC)
+        ep_map = {ep.operation_id: ep for ep in spec.endpoints}
+        create_user = ep_map["createUser"]
+        assert create_user.param_schema is not None
+        props = create_user.param_schema["properties"]
+        # in: body schema {"type": "object"} without properties → body param
+        assert props["body"] == {"type": "object"}
 
     def test_base_url_without_host_fallback_to_source(self):
         spec_dict = {

@@ -167,7 +167,7 @@ def _parse_openapi_3x(spec: dict[str, object], *, source_url: str = "") -> Parse
 
     base_url = _resolve_base_url_3x(spec, source_url)
     tags_map = _extract_tags(spec)
-    endpoints = _extract_endpoints(spec)
+    endpoints = _extract_endpoints(spec, is_swagger_2=False)
 
     return ParsedSpec(
         title=str(info.get("title", "Untitled API")),
@@ -188,7 +188,7 @@ def _parse_swagger_2(spec: dict[str, object], *, source_url: str = "") -> Parsed
 
     base_url = _resolve_base_url_2(spec, source_url)
     tags_map = _extract_tags(spec)
-    endpoints = _extract_endpoints(spec)
+    endpoints = _extract_endpoints(spec, is_swagger_2=True)
 
     return ParsedSpec(
         title=str(info.get("title", "Untitled API")),
@@ -256,7 +256,11 @@ def _extract_tags(spec: dict[str, object]) -> dict[str, str]:
     return result
 
 
-def _extract_endpoints(spec: dict[str, object]) -> list[ParsedEndpoint]:
+def _extract_endpoints(
+    spec: dict[str, object],
+    *,
+    is_swagger_2: bool,
+) -> list[ParsedEndpoint]:
     """Extract all endpoints from paths object."""
     paths = spec.get("paths")
     if not isinstance(paths, dict):
@@ -285,6 +289,10 @@ def _extract_endpoints(spec: dict[str, object]) -> list[ParsedEndpoint]:
             description = str(operation.get("description", ""))
             deprecated = bool(operation.get("deprecated", False))
 
+            param_schema, path_keys, query_keys = _extract_endpoint_params(
+                operation, path_item, is_swagger_2=is_swagger_2
+            )
+
             endpoints.append(
                 ParsedEndpoint(
                     operation_id=operation_id,
@@ -294,10 +302,113 @@ def _extract_endpoints(spec: dict[str, object]) -> list[ParsedEndpoint]:
                     description=description,
                     tags=tags,
                     deprecated=deprecated,
+                    param_schema=param_schema,
+                    path_param_keys=path_keys,
+                    query_param_keys=query_keys,
                 )
             )
 
     return endpoints
+
+
+def _pick_json_schema(request_body: dict[str, object]) -> dict[str, object] | None:
+    """Pick the first JSON-encodable schema from an OpenAPI 3.x requestBody."""
+    content = request_body.get("content")
+    if not isinstance(content, dict):
+        return None
+    media = content.get("application/json")
+    if not isinstance(media, dict):
+        media = content.get("*/*")
+    if not isinstance(media, dict):
+        for candidate in content.values():
+            if isinstance(candidate, dict):
+                media = candidate
+                break
+    if isinstance(media, dict):
+        schema = media.get("schema")
+        if isinstance(schema, dict):
+            return schema
+    return None
+
+
+def _extract_endpoint_params(
+    operation: dict[str, object],
+    path_item: dict[str, object],
+    *,
+    is_swagger_2: bool,
+) -> tuple[dict[str, object] | None, set[str], set[str]]:
+    """Extract a merged parameter JSON Schema for an operation.
+
+    Merges path-level and operation-level ``parameters`` (operation wins on
+    name+location collision) plus the request body (OpenAPI 3.x
+    ``requestBody`` / Swagger 2.0 ``in: body``). Returns ``None`` when the spec
+    declares no usable parameters.
+    """
+    properties: dict[str, object] = {}
+    required: list[str] = []
+    path_keys: set[str] = set()
+    query_keys: set[str] = set()
+
+    raw_params: dict[tuple[str, str], dict[str, object]] = {}
+    for container in (path_item, operation):
+        params = container.get("parameters")
+        if not isinstance(params, list):
+            continue
+        for param in params:
+            if not isinstance(param, dict):
+                continue
+            name = param.get("name")
+            location = param.get("in")
+            if not isinstance(name, str) or not name or location in ("", "header"):
+                continue
+            raw_params[(name, str(location))] = param
+
+    for (name, location), param in raw_params.items():
+        if location == "path":
+            path_keys.add(name)
+        elif location == "query":
+            query_keys.add(name)
+        schema = param.get("schema")
+        if not isinstance(schema, dict):
+            schema = {"type": str(param.get("type", "string"))}
+        properties[name] = schema
+        if param.get("required") is True:
+            required.append(name)
+
+    body_schema: dict[str, object] | None = None
+    if not is_swagger_2:
+        request_body = operation.get("requestBody")
+        if isinstance(request_body, dict):
+            body_schema = _pick_json_schema(request_body)
+    else:
+        body_param = raw_params.get(("body", "body"))
+        if body_param is not None:
+            candidate = body_param.get("schema")
+            if isinstance(candidate, dict):
+                body_schema = candidate
+
+    if isinstance(body_schema, dict):
+        body_type = body_schema.get("type")
+        body_props = body_schema.get("properties")
+        if body_type == "object" and isinstance(body_props, dict) and body_props:
+            for name, prop in body_props.items():
+                properties.setdefault(str(name), prop)
+            body_required = body_schema.get("required")
+            if isinstance(body_required, list):
+                for name in body_required:
+                    key = str(name)
+                    if key not in required and key in properties:
+                        required.append(key)
+        else:
+            properties["body"] = body_schema
+
+    if not properties:
+        return None, path_keys, query_keys
+
+    schema: dict[str, object] = {"type": "object", "properties": properties}
+    if required:
+        schema["required"] = required
+    return schema, path_keys, query_keys
 
 
 def _resolve_operation_id(

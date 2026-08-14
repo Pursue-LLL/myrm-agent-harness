@@ -179,6 +179,136 @@ class TestToolExecution:
         call_kwargs = mock_executor.execute.call_args[1]
         assert call_kwargs["body"] == {"name": "Rex", "type": "dog"}
 
+    @pytest.mark.asyncio
+    async def test_args_schema_exposes_query_and_body_fields(self):
+        """Tool args_schema carries schema-declared query/body parameters."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="createOrder",
+                method="POST",
+                path="/orders",
+                summary="Create order",
+                param_schema={
+                    "type": "object",
+                    "properties": {
+                        "source": {"type": "string"},
+                        "product_id": {"type": "integer"},
+                    },
+                    "required": ["product_id"],
+                },
+                query_param_keys={"source"},
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+        tools = await generate_tools(config, spec)
+        args_schema = tools[0].args_schema
+        props = args_schema["properties"]
+        assert props["source"] == {"type": "string"}
+        assert props["product_id"] == {"type": "integer"}
+        assert args_schema["required"] == ["product_id"]
+
+    @pytest.mark.asyncio
+    async def test_post_body_string_number_coerced_to_int(self):
+        """LLM-emitted string numbers are coerced against the body schema."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="createOrder",
+                method="POST",
+                path="/orders",
+                summary="Create order",
+                param_schema={
+                    "type": "object",
+                    "properties": {
+                        "product_id": {"type": "integer"},
+                        "amount": {"type": "number"},
+                    },
+                },
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = '{"id": "new"}'
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].coroutine(product_id="99021", amount="2500")
+
+        call_kwargs = mock_executor.execute.call_args[1]
+        assert call_kwargs["body"] == {"product_id": 99021, "amount": 2500}
+        assert isinstance(call_kwargs["body"]["product_id"], int)
+        assert isinstance(call_kwargs["body"]["amount"], int)
+
+    @pytest.mark.asyncio
+    async def test_post_body_big_integer_preserves_precision(self):
+        """2**53+1-style big integer IDs survive coercion without float rounding."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="lookup",
+                method="POST",
+                path="/lookup",
+                summary="Lookup",
+                param_schema={
+                    "type": "object",
+                    "properties": {"snowflake_id": {"type": "number"}},
+                },
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = '{"ok": true}'
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].coroutine(snowflake_id="9007199254740993")
+
+        call_kwargs = mock_executor.execute.call_args[1]
+        assert call_kwargs["body"] == {"snowflake_id": 9007199254740993}
+        assert isinstance(call_kwargs["body"]["snowflake_id"], int)
+
+    @pytest.mark.asyncio
+    async def test_query_number_coerced_and_serialized_as_string(self):
+        """Schema-declared query params route to the query string after coercion."""
+        endpoints = [
+            ParsedEndpoint(
+                operation_id="listOrders",
+                method="GET",
+                path="/orders",
+                summary="List orders",
+                param_schema={
+                    "type": "object",
+                    "properties": {"limit": {"type": "integer"}},
+                },
+                query_param_keys={"limit"},
+            ),
+        ]
+        spec = _make_spec(endpoints=endpoints)
+        config = _make_config()
+
+        with patch(
+            "myrm_agent_harness.toolkits.openapi_bridge.tool_generator.OpenAPIExecutor",
+        ) as MockExecutorCls:  # noqa: N806 mock 类名别名
+            mock_executor = AsyncMock()
+            mock_executor.execute.return_value = "[]"
+            MockExecutorCls.return_value = mock_executor
+
+            tools = await generate_tools(config, spec)
+            await tools[0].coroutine(limit="10")
+
+        call_kwargs = mock_executor.execute.call_args[1]
+        assert call_kwargs["query_params"] == {"limit": "10"}
+        assert call_kwargs["body"] is None
+
 
 class TestOpenAPIBridge:
     """Test the OpenAPIBridge facade class."""

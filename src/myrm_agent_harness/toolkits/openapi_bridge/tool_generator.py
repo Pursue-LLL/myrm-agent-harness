@@ -27,6 +27,8 @@ from typing import Any, ClassVar
 
 from langchain_core.tools import BaseTool, StructuredTool
 
+from myrm_agent_harness.toolkits.mcp.schema import coerce_arguments_by_schema
+
 from .config import OpenAPIServiceConfig, ParsedEndpoint
 from .http_executor import OpenAPIExecutor
 from .spec_parser import ParsedSpec, parse_spec_from_content, parse_spec_from_url
@@ -111,15 +113,25 @@ def _create_tool_for_endpoint(
     # Build the tool function
     method = endpoint.method
     path = endpoint.path
+    endpoint_param_schema = endpoint.param_schema
+    # Prefer schema-declared path keys; fall back to the path template regex
+    # for legacy specs without parameter definitions.
+    path_keys = endpoint.path_param_keys or path_params
+    query_keys = endpoint.query_param_keys
 
     async def _execute_endpoint(**kwargs: Any) -> str:
+        # Coerce LLM-emitted types against the endpoint's parameter schema
+        # (string "25" -> int, big-int precision preserved) before dispatch.
+        coerced_kwargs = coerce_arguments_by_schema(endpoint_param_schema, kwargs)
+        has_structured_keys = bool(endpoint_param_schema)
+
         # Separate path params from body/query params
         p_params: dict[str, str] = {}
         q_params: dict[str, str] = {}
         body: dict[str, Any] | None = None
 
-        for key, value in kwargs.items():
-            if key in path_params:
+        for key, value in coerced_kwargs.items():
+            if key in path_keys:
                 p_params[key] = str(value)
             elif key == "_body" or key == "request_body":
                 if isinstance(value, dict):
@@ -129,6 +141,15 @@ def _create_tool_for_endpoint(
                         body = json.loads(value)
                     except json.JSONDecodeError:
                         body = {"data": value}
+            elif has_structured_keys:
+                # Schema-defined endpoints: query keys go to the query string,
+                # every other declared field belongs to the JSON body.
+                if key in query_keys:
+                    q_params[key] = str(value)
+                else:
+                    if body is None:
+                        body = {}
+                    body[key] = value
             else:
                 # For GET/DELETE: query params; for POST/PUT/PATCH: body fields
                 if method in ("GET", "HEAD", "OPTIONS", "DELETE"):
@@ -195,8 +216,12 @@ def _build_param_schema(
 ) -> dict[str, Any] | None:
     """Build a JSON Schema for the tool's parameters.
 
-    Combines path parameters (always required) with method-appropriate params.
+    Prefers the schema extracted from the spec (path/query/body); falls back
+    to path-only parameters for legacy specs without parameter definitions.
     """
+    if endpoint.param_schema:
+        return endpoint.param_schema
+
     properties: dict[str, Any] = {}
     required: list[str] = []
 

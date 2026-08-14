@@ -21,7 +21,7 @@ authentication, and endpoint selection.
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -97,6 +97,18 @@ class ParsedEndpoint(BaseModel):
     description: str = Field(default="", description="Full endpoint description")
     tags: list[str] = Field(default_factory=list, description="OpenAPI tags for grouping")
     deprecated: bool = Field(default=False, description="Whether endpoint is deprecated")
+    param_schema: dict[str, object] | None = Field(
+        default=None,
+        description="Merged JSON Schema of path/query/body parameters (None when the spec declares none)",
+    )
+    path_param_keys: set[str] = Field(
+        default_factory=set,
+        description="Parameter names bound to the URL path template",
+    )
+    query_param_keys: set[str] = Field(
+        default_factory=set,
+        description="Parameter names bound to the query string",
+    )
 
 
 class OpenAPIServiceConfig(BaseModel):
