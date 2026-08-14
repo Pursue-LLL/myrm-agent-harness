@@ -59,17 +59,27 @@ OpenAPIServiceConfig (user config)
 5. **Swagger 2.0 support**: Internal conversion to unified representation enables
    supporting legacy APIs without dual code paths.
 
-6. **Ephemeral User Credentials Propagation**: `OpenAPIExecutor` integrates with
+6. **Schema-driven parameter extraction & coercion**: `spec_parser` merges
+   path/query/body parameters (OpenAPI 3.x `parameters` + `requestBody`, Swagger 2.0
+   `in: body`) into a per-endpoint JSON Schema (`ParsedEndpoint.param_schema`) with
+   path/query key sets for exact dispatch. `tool_generator` builds the tool's
+   `args_schema` from this schema and runs `coerce_arguments_by_schema` (shared with
+   MCP, from `mcp/schema/coerce.py`) on LLM-emitted arguments before dispatch —
+   string `"25"` → `int 25`, big-int precision preserved — so strict typed APIs never
+   receive stringified numbers. Schema-less specs fall back to the legacy
+   path-only / method-based dispatch.
+
+7. **Ephemeral User Credentials Propagation**: `OpenAPIExecutor` integrates with
    `user_credentials_ctx` to intercept requests, dynamically override the Bearer token with
    the context-bound user token matching the service name, and perform preemptive and
    reactive (on 401 response) token refresh using the bound refresh callback.
 
-7. **Turn1 direct budget**: When generated tool schemas exceed `AGGREGATE_DIRECT_TOKEN_BUDGET`
+8. **Turn1 direct budget**: When generated tool schemas exceed `AGGREGATE_DIRECT_TOKEN_BUDGET`
    (1200 tokens, shared with MCP direct routing), `create_skill_agent` raises
    `ConfigIncompleteError` (`openapi_direct_budget_exceeded`). Reduce selected endpoints in
    Agent settings — no silent skip.
 
-8. **Turn1 load failure**: When one or more OpenAPI services are enabled but loading produces
+9. **Turn1 load failure**: When one or more OpenAPI services are enabled but loading produces
    zero tools (bad spec, auth, or endpoint selection), `create_skill_agent` raises
    `ConfigIncompleteError` (`openapi_load_failed`) — no silent zero-tool agent.
 
