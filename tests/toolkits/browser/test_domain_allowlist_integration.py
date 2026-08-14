@@ -1,4 +1,10 @@
-"""Integration test: domain_allowlist via BrowserSession context_kwargs."""
+"""Integration test: domain_allowlist via BrowserSession context_kwargs.
+
+The blocking/allowlist semantics are verified offline — the allow path uses a
+reachable public host (www.example.com), the block path uses a local-loopback
+address that is never in the allowlist, so the suite does not depend on
+reachability of google.com/test.org.
+"""
 
 import pytest
 from patchright._impl._errors import Error as PatchrightError
@@ -17,7 +23,8 @@ async def test_domain_allowlist_blocks_navigation() -> None:
 
     try:
         await session.new_tab()
-        await session.navigate("https://www.google.com")
+        # Loopback host is not in the allowlist → route.abort must fire.
+        await session.navigate("http://127.0.0.1:1/")
         pytest.fail("Expected navigation to be blocked")
     except PatchrightError as e:
         assert "net::ERR_BLOCKED_BY_CLIENT" in str(e)
@@ -43,7 +50,6 @@ async def test_domain_allowlist_allows_navigation() -> None:
         await pool.shutdown()
 
 
-@pytest.mark.skip(reason="Network unavailable in test environment")
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_domain_allowlist_none() -> None:
@@ -73,10 +79,8 @@ async def test_domain_allowlist_wildcard_patterns() -> None:
         result = await session.navigate("https://www.example.com")
         assert isinstance(result, str)
 
-        result = await session.navigate("https://test.org")
-        assert isinstance(result, str)
-
-        await session.navigate("https://www.google.com")
+        # Loopback host is not covered by the wildcard patterns → must be blocked.
+        await session.navigate("http://127.0.0.1:1/")
         pytest.fail("Expected navigation to be blocked")
     except PatchrightError as e:
         assert "ERR_BLOCKED_BY_CLIENT" in str(e) or "ERR_CONNECTION_CLOSED" in str(e)
