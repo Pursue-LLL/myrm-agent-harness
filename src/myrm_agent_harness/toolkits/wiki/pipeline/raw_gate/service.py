@@ -137,17 +137,17 @@ def _relative_raw_display(structure: WikiStructure, raw_path: Path) -> str:
 
 
 def _merge_metadata_frontmatter(
-    existing_content: str | None, new_body: str, metadata: dict[str, str]
+    existing_content: str | None, new_content: str, metadata: dict[str, str]
 ) -> str:
     """Merge caller-supplied metadata into the frontmatter of a raw write.
 
     ``existing_content`` (the current on-disk file, when present) provides the
-    frontmatter base so unrelated fields such as ``source_url`` survive re-imports;
-    ``new_body`` is the security-scanned replacement body. Caller metadata wins over
-    the existing frontmatter.
+    frontmatter base so unrelated fields such as ``source_url`` survive re-imports.
+    ``new_content`` is the security-scanned replacement; its own frontmatter (if any)
+    overrides the base, and caller metadata has the highest priority.
     """
     if not metadata:
-        return new_body
+        return new_content
     from myrm_agent_harness.toolkits.wiki.core.frontmatter_contract import (
         load_frontmatter_metadata,
         serialize_frontmatter_block,
@@ -156,7 +156,8 @@ def _merge_metadata_frontmatter(
     base_meta: dict[str, object] = {}
     if existing_content:
         base_meta, _ = load_frontmatter_metadata(existing_content)
-    merged = {**base_meta, **metadata}
+    new_meta, new_body = load_frontmatter_metadata(new_content)
+    merged = {**base_meta, **new_meta, **metadata}
     return serialize_frontmatter_block(merged) + new_body.lstrip("\n")
 
 

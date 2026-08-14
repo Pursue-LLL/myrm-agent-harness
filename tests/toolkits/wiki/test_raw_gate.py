@@ -324,3 +324,26 @@ async def test_publish_raw_metadata_merges_keeps_existing_fields(
     written = wiki_structure.get_raw_file_path("notes/merge2.md").read_text(encoding="utf-8")
     assert "source_chat: chat-new" in written
     assert "https://example.com/a" in written
+
+
+@pytest.mark.asyncio
+async def test_publish_raw_metadata_merges_new_content_frontmatter(
+    wiki_structure: WikiStructure,
+) -> None:
+    """New content carrying its own frontmatter must not produce a double block."""
+    content = "---\nweb_metadata:\n  title: Example\n---\n# Body\n"
+    result = await publish_raw(
+        wiki_structure,
+        RawPublishRequest(
+            relative_path="notes/merge3.md",
+            content=content,
+            conflict_policy=RawConflictPolicy.FAIL,
+            metadata={"source_chat": "chat-meta"},
+        ),
+        caller="agent",
+    )
+    assert result.created is True
+    written = wiki_structure.get_raw_file_path("notes/merge3.md").read_text(encoding="utf-8")
+    assert "source_chat: chat-meta" in written
+    assert "title: Example" in written
+    assert written.count("---") == 2  # opening + closing fence, no duplicated block

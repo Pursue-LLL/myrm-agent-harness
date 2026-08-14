@@ -250,6 +250,34 @@ class TestMaybeArchiveToWiki:
         turn_files = list(structure.raw_dir.glob("turn_review-chat_*.md"))
         assert len(turn_files) == 1
         compiler.enqueue_file.assert_called_once()
+        archived = turn_files[0].read_text(encoding="utf-8")
+        assert "source_chat: review-chat" in archived
+
+    @pytest.mark.asyncio
+    async def test_archive_omits_source_chat_when_chat_id_unknown(
+        self, tmp_path: Path
+    ) -> None:
+        from myrm_agent_harness.toolkits.wiki import (
+            WikiCompiler,
+            WikiConfig,
+            WikiStructure,
+        )
+
+        wiki_dir = tmp_path / "wiki"
+        structure = WikiStructure(wiki_dir)
+        structure.ensure_structure()
+        compiler = WikiCompiler(MagicMock(), structure, WikiConfig())
+        compiler.enqueue_file = MagicMock()
+
+        agent = FakeSkillAgent(wiki_compiler=compiler, wiki_structure=structure)
+        agent.config.chat_id = None
+        agent._maybe_archive_to_wiki("query", ["y" * 600])
+        await asyncio.sleep(0.2)
+
+        turn_files = list(structure.raw_dir.glob("turn_unknown_*.md"))
+        assert len(turn_files) == 1
+        archived = turn_files[0].read_text(encoding="utf-8")
+        assert "source_chat" not in archived
 
 
 # ---------------------------------------------------------------------------

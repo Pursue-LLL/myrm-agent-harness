@@ -31,6 +31,8 @@ class RawPublishRequest:
     conflict_policy: RawConflictPolicy = RawConflictPolicy.FAIL
     supersede_reason: str = ""
     replace_source_url: str | None = None
+    # Structured provenance merged into the raw file frontmatter on write
+    # (e.g. source_chat for turn archives). Never used as free-text body content.
     metadata: dict[str, str] = field(default_factory=dict)
 
 
