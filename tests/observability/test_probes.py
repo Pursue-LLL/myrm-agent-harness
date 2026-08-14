@@ -72,8 +72,10 @@ class TestCheckWorkspaceStorageHealth:
         """Workspace can be healthy while rg is absent — surface warn for Doctor UI."""
         from myrm_agent_harness.observability.diagnostics.probes import check_workspace_storage_health
 
-        with tempfile.TemporaryDirectory() as tmpdir, patch.dict(os.environ, {"MYRM_DATA_DIR": str(tmpdir)}), patch(
-            "shutil.which", return_value=None
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch.dict(os.environ, {"MYRM_DATA_DIR": str(tmpdir)}),
+            patch("shutil.which", return_value=None),
         ):
             report = await check_workspace_storage_health()
             assert report.status == "warn"
@@ -249,15 +251,20 @@ class TestCheckDesktopPermissionsHealth:
             accessibility=True,
             screen_recording=True,
             platform="darwin",
-            settings_deeplinks={"accessibility": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"},
+            settings_deeplinks={
+                "accessibility": "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+            },
         )
         mock_session = MagicMock()
         mock_session.check_permissions = AsyncMock(return_value=mock_status)
         mock_session.close = AsyncMock()
 
-        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False), patch(
-            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
-            return_value=mock_session,
+        with (
+            patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+                return_value=mock_session,
+            ),
         ):
             report = await check_desktop_permissions_health()
 
@@ -270,9 +277,7 @@ class TestCheckDesktopPermissionsHealth:
         from myrm_agent_harness.observability.diagnostics.probes import check_desktop_permissions_health
         from myrm_agent_harness.toolkits.computer_use.types import PermissionStatus
 
-        accessibility_deeplink = (
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-        )
+        accessibility_deeplink = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         mock_status = PermissionStatus(
             accessibility=False,
             screen_recording=True,
@@ -283,9 +288,12 @@ class TestCheckDesktopPermissionsHealth:
         mock_session.check_permissions = AsyncMock(return_value=mock_status)
         mock_session.close = AsyncMock()
 
-        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False), patch(
-            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
-            return_value=mock_session,
+        with (
+            patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+                return_value=mock_session,
+            ),
         ):
             report = await check_desktop_permissions_health()
 
@@ -314,9 +322,12 @@ class TestCheckDesktopPermissionsHealth:
         mock_session.check_permissions = AsyncMock(return_value=mock_status)
         mock_session.close = AsyncMock()
 
-        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False), patch(
-            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
-            return_value=mock_session,
+        with (
+            patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+                return_value=mock_session,
+            ),
         ):
             report = await check_desktop_permissions_health()
 
@@ -329,9 +340,12 @@ class TestCheckDesktopPermissionsHealth:
     async def test_create_session_failure_returns_fail(self):
         from myrm_agent_harness.observability.diagnostics.probes import check_desktop_permissions_health
 
-        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False), patch(
-            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
-            side_effect=RuntimeError("harness unavailable"),
+        with (
+            patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+                side_effect=RuntimeError("harness unavailable"),
+            ),
         ):
             report = await check_desktop_permissions_health()
 
@@ -347,9 +361,12 @@ class TestCheckDesktopPermissionsHealth:
         mock_session.check_permissions = AsyncMock(side_effect=OSError("AX probe crash"))
         mock_session.close = AsyncMock()
 
-        with patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False), patch(
-            "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
-            return_value=mock_session,
+        with (
+            patch.dict(os.environ, {"DEPLOY_MODE": "local"}, clear=False),
+            patch(
+                "myrm_agent_harness.toolkits.computer_use.session.create_computer_session",
+                return_value=mock_session,
+            ),
         ):
             report = await check_desktop_permissions_health()
 
@@ -363,3 +380,180 @@ class TestCheckDesktopPermissionsHealth:
 
         names = [fn.__name__ for fn in _diagnostic_hooks]
         assert "check_desktop_permissions_health" in names
+
+
+class TestProbesErrorBranches:
+    """Error/fallback branches of storage, database, qdrant and FTS5 probes."""
+
+    @staticmethod
+    def _mkdir_patch(exc):
+        return patch(
+            "myrm_agent_harness.observability.diagnostics.probes.Path.mkdir",
+            side_effect=exc,
+        )
+
+    @pytest.mark.asyncio
+    async def test_workspace_storage_permission_error(self):
+        from myrm_agent_harness.observability.diagnostics.probes import (
+            check_workspace_storage_health,
+        )
+
+        with self._mkdir_patch(PermissionError("denied")):
+            report = await check_workspace_storage_health()
+        assert report.status == "fail"
+        assert "permission" in report.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_workspace_storage_no_space(self):
+        from myrm_agent_harness.observability.diagnostics.probes import (
+            check_workspace_storage_health,
+        )
+
+        with self._mkdir_patch(OSError(28, "No space left")):
+            report = await check_workspace_storage_health()
+        assert report.status == "fail"
+        assert "space" in report.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_workspace_storage_generic_error(self):
+        from myrm_agent_harness.observability.diagnostics.probes import (
+            check_workspace_storage_health,
+        )
+
+        with self._mkdir_patch(RuntimeError("boom")):
+            report = await check_workspace_storage_health()
+        assert report.status == "fail"
+        assert "unexpected" in report.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_workspace_storage_other_os_error(self):
+        from myrm_agent_harness.observability.diagnostics.probes import (
+            check_workspace_storage_health,
+        )
+
+        with self._mkdir_patch(OSError(5, "Input/output error")):
+            report = await check_workspace_storage_health()
+        assert report.status == "fail"
+        assert "I/O error" in report.detail
+
+    @pytest.mark.asyncio
+    async def test_database_sqlite_integrity_error(self):
+        from myrm_agent_harness.observability.diagnostics.probes import (
+            check_database_health,
+        )
+        from myrm_agent_harness.utils.db.sqlite import SQLiteIntegrityError
+
+        with patch(
+            "myrm_agent_harness.utils.db.sqlite.validate_sqlite_header",
+            side_effect=SQLiteIntegrityError("integrity check: ok, page count mismatch"),
+        ):
+            report = await check_database_health()
+        assert report.status == "fail"
+        assert report.measured is not None
+        assert report.cause is not None
+
+    @pytest.mark.asyncio
+    async def test_database_integrity_error(self):
+        from myrm_agent_harness.observability.diagnostics.probes import (
+            check_database_health,
+        )
+
+        with patch(
+            "myrm_agent_harness.utils.db.sqlite.validate_sqlite_header",
+            side_effect=RuntimeError("torn write"),
+        ):
+            report = await check_database_health()
+        assert report.status == "fail"
+        assert "unexpected database error" in report.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_database_operational_error(self):
+        from myrm_agent_harness.observability.diagnostics.probes import (
+            check_database_health,
+        )
+
+        with patch(
+            "myrm_agent_harness.observability.diagnostics.probes.sqlite3.connect",
+            side_effect=sqlite3.OperationalError("database is locked"),
+        ):
+            report = await check_database_health()
+        assert report.status == "fail"
+        assert "temporarily unavailable" in report.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_qdrant_generic_error(self):
+        from myrm_agent_harness.observability.diagnostics.probes import (
+            check_qdrant_health,
+        )
+
+        with patch(
+            "myrm_agent_harness.toolkits.vector.qdrant.create_vector_store",
+            side_effect=RuntimeError("qdrant down"),
+        ):
+            report = await check_qdrant_health()
+        assert report.status == "fail"
+        assert "qdrant" in report.detail.lower()
+
+    def test_fts5_missing_db_returns_empty(self):
+        import tempfile
+
+        from myrm_agent_harness.observability.diagnostics.probes import _check_fts5_indexes
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = _check_fts5_indexes(tmpdir)
+        assert result == ""
+
+    def test_fts5_integrity_ok(self, tmp_path):
+        from myrm_agent_harness.observability.diagnostics.probes import _check_fts5_indexes
+
+        wiki_dir = tmp_path / "wiki"
+        wiki_dir.mkdir()
+        db_path = wiki_dir / ".wiki_index.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("CREATE TABLE wiki_fts (id INTEGER)")
+        conn.close()
+
+        with patch(
+            "myrm_agent_harness.utils.db.fts5.fts5_integrity_check",
+            return_value=True,
+        ):
+            result = _check_fts5_indexes(str(tmp_path))
+        assert "wiki_fts OK" in result
+
+    def test_fts5_rebuild_when_corrupted(self, tmp_path):
+        from myrm_agent_harness.observability.diagnostics.probes import _check_fts5_indexes
+
+        wiki_dir = tmp_path / "wiki"
+        wiki_dir.mkdir()
+        db_path = wiki_dir / ".wiki_index.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("CREATE TABLE wiki_fts (id INTEGER)")
+        conn.close()
+
+        with (
+            patch(
+                "myrm_agent_harness.utils.db.fts5.fts5_integrity_check",
+                return_value=False,
+            ),
+            patch("myrm_agent_harness.utils.db.fts5.fts5_rebuild") as rebuild,
+        ):
+            result = _check_fts5_indexes(str(tmp_path))
+        assert "rebuilt" in result
+        rebuild.assert_called_once()
+
+    def test_fts5_error_reported(self, tmp_path):
+        from myrm_agent_harness.observability.diagnostics.probes import _check_fts5_indexes
+
+        wiki_dir = tmp_path / "wiki"
+        wiki_dir.mkdir()
+        db_path = wiki_dir / ".wiki_index.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("CREATE TABLE wiki_fts (id INTEGER)")
+        conn.close()
+
+        with patch(
+            "myrm_agent_harness.observability.diagnostics.probes.sqlite3.connect",
+            side_effect=sqlite3.DatabaseError("file is not a database"),
+        ):
+            result = _check_fts5_indexes(str(tmp_path))
+        assert "check failed" in result

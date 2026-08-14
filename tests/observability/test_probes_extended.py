@@ -355,6 +355,96 @@ class TestPidSaturation:
         assert summary.index("firefox") < summary.index("python") < summary.index("node")
 
 
+class TestSystemResourcesFallbacks:
+    """Fallback branches of the resource probe (psutil absent / dead processes)."""
+
+    def test_psutil_missing_returns_warn(self):
+        import asyncio
+
+        from myrm_agent_harness.observability.diagnostics.system_resources import (
+            check_system_resources,
+        )
+
+        with patch(
+            "myrm_agent_harness.observability.diagnostics.system_resources.psutil",
+            None,
+        ):
+            report = asyncio.run(check_system_resources())
+        assert report.status == "warn"
+        assert "psutil" in report.detail.lower()
+
+    def test_sample_tree_returns_empty_without_psutil(self):
+        from myrm_agent_harness.observability.diagnostics.system_resources import (
+            _sample_process_tree,
+        )
+
+        with patch(
+            "myrm_agent_harness.observability.diagnostics.system_resources.psutil",
+            None,
+        ):
+            assert _sample_process_tree() == (0, 0)
+
+    def test_sample_tree_skips_dead_children(self):
+        from myrm_agent_harness.observability.diagnostics import system_resources as sr
+
+        import psutil as real_psutil
+
+        dead = MagicMock()
+        dead.name.side_effect = real_psutil.NoSuchProcess(999)
+        alive = MagicMock()
+        alive.name.return_value = "python"
+        alive.cmdline.return_value = ["python"]
+
+        root = MagicMock()
+        root.children.return_value = [dead, alive]
+
+        with patch.object(sr.psutil, "Process", return_value=root):
+            # total counts every child; browser attribution skips the dead one.
+            assert sr._sample_process_tree() == (2, 0)
+
+    def test_sample_tree_handles_children_raises(self):
+        from myrm_agent_harness.observability.diagnostics import system_resources as sr
+
+        import psutil as real_psutil
+
+        root = MagicMock()
+        root.children.side_effect = real_psutil.AccessDenied()
+
+        with patch.object(sr.psutil, "Process", return_value=root):
+            assert sr._sample_process_tree() == (0, 0)
+
+    def test_top_memory_skips_dead_process(self):
+        from myrm_agent_harness.observability.diagnostics import system_resources as sr
+
+        import psutil as real_psutil
+
+        class ThrowingInfo:
+            def __getitem__(self, key):
+                raise real_psutil.NoSuchProcess(1)
+
+        class DeadProc:
+            info = ThrowingInfo()
+
+        class LiveProc:
+            info = {"name": "python", "memory_percent": 3.0}
+
+        with patch.object(sr.psutil, "process_iter", return_value=[DeadProc, LiveProc]):
+            summary = sr._top_memory_processes(limit=5)
+        assert "python 3.0%" in summary
+        assert "gone" not in summary
+
+    def test_top_memory_returns_empty_without_psutil(self):
+        from myrm_agent_harness.observability.diagnostics.system_resources import (
+            _top_memory_processes,
+        )
+
+        with patch(
+            "myrm_agent_harness.observability.diagnostics.system_resources.psutil",
+            None,
+        ):
+            assert _top_memory_processes() == ""
+
+
 class TestCheckQdrantHealth:
     @pytest.mark.asyncio
     async def test_vector_toolkit_missing_returns_warn(self):

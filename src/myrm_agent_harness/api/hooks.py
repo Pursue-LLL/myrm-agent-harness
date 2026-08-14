@@ -5,12 +5,13 @@
 - myrm_agent_harness.agent._internals.memory_extraction (POS: session memory extraction helpers)
 - myrm_agent_harness.agent.middlewares._session_context (POS: middleware session ContextVar registry)
 - myrm_agent_harness.agent.meta_tools.bash._background.registry (POS: background bash job registry)
+- myrm_agent_harness.core.security.guards.privacy_tracker (POS: ContextVar privacy policy access)
 - myrm_agent_harness.utils.runtime.background_job_finish_registry (POS: bash job finish hook registry)
 
 [OUTPUT]
 - Session, skill-agent context, task intent, memory telemetry（budget/injection）
-  and injection contract, memory-extraction, bash-registry, and background-job-finish
-  hook callables for server integration.
+  and injection contract, memory-extraction, bash-registry, background-job-finish,
+  and privacy-context（policy/pseudonym-store）hook callables for server integration.
 
 [POS]
 Public re-export facade. Product code imports hooks here instead of private ``agent._*`` modules.
@@ -48,8 +49,10 @@ from myrm_agent_harness.agent.meta_tools.bash._background.types import (
 )
 from myrm_agent_harness.agent.middlewares._session_context import (
     get_event_logger,
+    get_pseudonym_store,
     get_terminal_errors,
     set_approval_user_id,
+    set_pseudonym_store,
     set_security_config,
 )
 from myrm_agent_harness.agent.skill_agent.context import (
@@ -61,6 +64,10 @@ from myrm_agent_harness.agent.skill_agent.context import (
     invalidate_permissions,
     set_permission_invalidation_callback,
     set_task_intent,
+)
+from myrm_agent_harness.core.security.guards.privacy_tracker import (
+    get_privacy_policy,
+    set_privacy_policy,
 )
 from myrm_agent_harness.agent.streaming.step_builder import build_step_data
 from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
@@ -97,6 +104,8 @@ __all__ = [
     "get_memory_runtime_budget",
     "get_memory_runtime_injection",
     "get_memory_runtime_injection_contract",
+    "get_privacy_policy",
+    "get_pseudonym_store",
     "get_task_intent",
     "get_terminal_errors",
     "invalidate_permissions",
@@ -107,6 +116,8 @@ __all__ = [
     "set_approval_user_id",
     "set_global_background_job_finish_handler",
     "set_permission_invalidation_callback",
+    "set_privacy_policy",
+    "set_pseudonym_store",
     "set_security_config",
     "set_task_intent",
 ]

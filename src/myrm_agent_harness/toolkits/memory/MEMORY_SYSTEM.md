@@ -788,7 +788,7 @@ tools = create_memory_tools(manager=manager)
 
 **检索墙钟超时（fail-open）**：`memory_search_tool` 各 corpus 共用 `RetrievalConfig.timeout_seconds`（默认 10s）作为检索墙钟上限——memory corpus 在 `_internal/search_service.py` 内部分配给 embedding / collection / graph enrichment 三阶段共享 deadline；wiki/sessions/web corpus 统一经 `agent_surface/memory_search_execution.py::_run_with_timeout` 以 `asyncio.wait_for` 截止（web 在 `memory_agent_tools.py` 复用同一 helper）。任一 corpus 超时均 fail-open：返回降级提示而非阻塞 Agent turn（测试见 `tests/toolkits/memory/test_search_timeout.py`）。
 
-**Memory MCP HTTP**（`agent_surface/mcp_server.py`）：对外暴露 `memory_recall` / `memory_list` / `memory_store` / `memory_manage` 四工具；**`memory_manage` 与 `memory_store` 描述** import `agent_surface/_memory_agent_tool_descriptions` SSOT（`surface=mcp` 工具名映射；store 含 wiki boundary 文案）；wiki 启用时 `memory_store` 运行时硬拒 document-like 内容（与 GUI `memory_save_tool` 一致，server middleware 传 ContextVar）。recall/list 仍为 MCP 专用 inline 描述。
+**Memory MCP HTTP**（`agent_surface/mcp_server.py`）：对外暴露 `memory_recall` / `memory_list` / `memory_store` / `memory_manage` 四工具；**`memory_manage` 与 `memory_store` 描述** import `agent_surface/_memory_agent_tool_descriptions` SSOT（`surface=mcp` 工具名映射；store 默认不含 wiki boundary 文案——MCP 面无 wiki 工具、运行时 wiki 拦截由 server 按 agent 经 ContextVar 控制，静态描述不声称 wiki enabled，显式启用场景下 MCP 面也不泄漏 GUI 内部工具名 `wiki_ingest_tool`）；wiki 启用时 `memory_store` 运行时硬拒 document-like 内容（与 GUI `memory_save_tool` 一致，server middleware 传 ContextVar，拒绝消息同样不引用 GUI 内部工具）。recall/list 仍为 MCP 专用 inline 描述。
 
 `conversation_search/` 模块提供 Protocol、formatter 与 `create_conversation_search_tool` 单元测试工厂；产品路径（GeneralAgent 与 Custom 子 Agent）均通过 `memory_search_tool(corpus=sessions)` + Server `MemorySearchPolicy` ACL。Turn1 不 bind standalone LLM 工具名 `conversation_search_tool`。
 

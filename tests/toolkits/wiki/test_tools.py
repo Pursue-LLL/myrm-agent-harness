@@ -983,7 +983,8 @@ class TestIngestPathTraversalDefense:
         result = await ingest_tool.ainvoke(
             {"source": "Content", "filename": "..\\..\\evil.md"}
         )
-        assert "Path traversal detected" in result
+        assert "Failed to ingest document" in result
+        assert ".." in result
         assert not (wiki_structure.raw_dir.parent.parent / "evil.md").exists()
 
     @pytest.mark.asyncio

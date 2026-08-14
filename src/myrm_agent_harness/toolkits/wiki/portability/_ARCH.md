@@ -12,4 +12,4 @@ Deterministic full-vault ZIP export for `WikiStructure`. No Obsidian or HTTP dep
 | `vault_git.py` | 核心 | Local `.git` init + auto-commit on vault mutations when `WikiConfig.enable_version_control` | ✅ |
 | `__init__.py` | 入口 | Public exports (`build_vault_archive_zip`, `commit_vault_git_snapshot`, …) | ✅ |
 
-Server `obsidian_export.py` adds `.obsidian/graph.json` and README on top of this archive.
+Server `myrm-agent-server/app/services/wiki/obsidian/export.py` adds `.obsidian/graph.json` and README on top of this archive.

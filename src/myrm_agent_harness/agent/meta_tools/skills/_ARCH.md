@@ -1,7 +1,7 @@
 # skills/
 
 ## Overview
-Agent meta-tools for skills (select, search, manage, discovery). Bound skill **catalog** is injected on the first HumanMessage via `agent/skills/runtime/skill_catalog_delivery.py` (see `select/_ARCH.md`); `skill_select_tool.description` stays byte-stable. Skill hygiene / stale cleanup → WebUI **Curator** (`curator_service.py`), not an Agent tool.
+Agent meta-tools for skills (select, search, manage, discovery). Bound skill **catalog** is injected on the first HumanMessage via `agent/skills/runtime/skill_catalog_delivery.py` (see `select/_ARCH.md`); `skill_select_tool.description` stays byte-stable. Skill hygiene / stale cleanup → WebUI **Curator** (`myrm-agent-server/app/api/skills/curator.py`), not an Agent tool.
 
 ## File & Submodule Index
 

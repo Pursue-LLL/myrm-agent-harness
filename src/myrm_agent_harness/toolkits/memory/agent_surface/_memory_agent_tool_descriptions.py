@@ -24,7 +24,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import MemorySearchPolicy
+from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_policy import (
+    MemorySearchPolicy,
+)
 from myrm_agent_harness.toolkits.memory.agent_surface.wiki_memory_boundary import (
     WIKI_MEMORY_SAVE_MAX_CHARS,
     WIKI_MEMORY_SAVE_MIN_HEADINGS,
@@ -449,11 +451,18 @@ def build_memory_save_tool_description(
 
 def build_mcp_memory_store_tool_description(
     *,
-    wiki_boundary_in_description: bool = True,
+    wiki_boundary_in_description: bool = False,
     approval_required: bool = False,
     locale: str | None = DEFAULT_MEMORY_TOOL_DESCRIPTION_LOCALE,
 ) -> str:
-    """Build memory_store MCP @tool description from save SSOT core."""
+    """Build memory_store MCP @tool description from save SSOT core.
+
+    The wiki boundary fragment is excluded by default: the MCP surface exposes
+    no wiki tools, and the runtime wiki guard is enabled per-request by the
+    server (ContextVar), so a static "(wiki corpus enabled)" claim would be
+    false for most connected agents. Callers that manage their own per-agent
+    wiki enablement may opt in via ``wiki_boundary_in_description``.
+    """
     policy = MemorySearchPolicy(allow_wiki=wiki_boundary_in_description)
     return build_memory_save_tool_description(
         policy,

@@ -55,6 +55,7 @@ def test_mcp_surface_maps_gui_tool_names() -> None:
     assert "do not store via memory_store" in store_mcp
     assert "memory_save_tool" not in store_mcp
     assert "WIKI BOUNDARY" in store_mcp
+    assert "wiki_ingest_tool" not in store_mcp
 
 
 def test_memory_save_core_description_token_budget() -> None:

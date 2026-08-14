@@ -8,6 +8,7 @@ for auto-extraction prompts.
 
 [OUTPUT]
 - looks_like_wiki_document: Heuristic for document-like memory_save payloads.
+- wiki_memory_save_rejection_message: Rejection message (optional GUI tool hint).
 - filter_wiki_document_vector_memories: Drop document-like semantic/episodic before persist.
 - record_wiki_memory_save_rejection / get_wiki_memory_save_rejection_count: Guard metrics.
 
@@ -46,7 +47,18 @@ def looks_like_wiki_document(content: str) -> bool:
     return len(_HEADING_PATTERN.findall(stripped)) >= WIKI_MEMORY_SAVE_MIN_HEADINGS
 
 
-def wiki_memory_save_rejection_message() -> str:
+def wiki_memory_save_rejection_message(*, include_tool_hint: bool = True) -> str:
+    """Rejection message for document-like memory payloads.
+
+    ``include_tool_hint=False`` drops the GUI-only ``wiki_ingest_tool``
+    reference for surfaces (e.g. MCP) that do not expose that tool.
+    """
+    if not include_tool_hint:
+        return (
+            "Rejected: content looks like a document, not a compact memory entry. "
+            "Long-form articles, notes, or reference text are not appropriate for "
+            "memory. Memory is for short durable facts (preferences, constraints, profile)."
+        )
     return (
         "Rejected: content looks like a document, not a compact memory entry. "
         "Use wiki_ingest_tool to add articles, notes, or long reference text to the knowledge base. "
@@ -89,7 +101,9 @@ def filter_wiki_document_vector_memories(
     kept: list[AnyMemory] = []
     dropped = 0
     for mem in memories:
-        if isinstance(mem, (SemanticMemory, EpisodicMemory)) and looks_like_wiki_document(mem.content):
+        if isinstance(
+            mem, (SemanticMemory, EpisodicMemory)
+        ) and looks_like_wiki_document(mem.content):
             dropped += 1
             continue
         kept.append(mem)

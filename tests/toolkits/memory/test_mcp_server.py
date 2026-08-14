@@ -107,7 +107,6 @@ class TestMemoryMCPServerInit:
         tools_by_name = {t.name: t for t in await mcp_server.mcp.list_tools()}
         expected_manage = resolve_memory_manage_tool_description(surface="mcp")
         expected_store = build_mcp_memory_store_tool_description(
-            wiki_boundary_in_description=True,
             approval_required=False,
         )
         assert tools_by_name["memory_manage"].description == expected_manage
@@ -117,7 +116,7 @@ class TestMemoryMCPServerInit:
         assert "memory_search_tool" not in tools_by_name["memory_manage"].description
         assert "memory_save_tool" not in tools_by_name["memory_manage"].description
         assert "instruction saves" in tools_by_name["memory_manage"].description
-        assert "WIKI BOUNDARY" in tools_by_name["memory_store"].description
+        assert "WIKI BOUNDARY" not in tools_by_name["memory_store"].description
         assert "wiki_ingest_tool" not in tools_by_name["memory_store"].description
         assert "demoted" not in tools_by_name["memory_manage"].description.lower()
 
@@ -395,7 +394,7 @@ class TestMemoryStoreTool:
                 category="knowledge",
             )
             assert "Rejected" in result
-            assert "wiki_ingest_tool" in result
+            assert "wiki_ingest_tool" not in result
             mock_manager.add_knowledge.assert_not_called()
         finally:
             reset_request_wiki_boundary_enabled(token)

@@ -186,7 +186,6 @@ class MemoryMCPServer:
         self._manager_resolver = manager_resolver
         self._stateless_http = stateless_http
         self._store_tool_description = build_mcp_memory_store_tool_description(
-            wiki_boundary_in_description=True,
             approval_required=memory_manager.approval_required,
         )
         self._manage_tool_description = resolve_memory_manage_tool_description(
@@ -579,7 +578,7 @@ class MemoryMCPServer:
                 and looks_like_wiki_document(content)
             ):
                 record_wiki_memory_save_rejection()
-                return wiki_memory_save_rejection_message()
+                return wiki_memory_save_rejection_message(include_tool_hint=False)
 
             try:
                 if category == "knowledge":

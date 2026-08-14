@@ -354,3 +354,134 @@ async def test_default_click_off_viewport_lands_real(
         assert clicked == "1", "DEFAULT click must still land after R1 changes"
     finally:
         await browser.release_page(page, ctx)
+
+
+# =============================================================================
+# Visual Mode: coordinate interactions at viewport positions (canvas/rich editors)
+# =============================================================================
+
+_COORD_PAGE = """<!DOCTYPE html><html><body>
+<button id="deep" style="position:fixed;left:200px;top:200px;width:100px;height:50px"
+        onclick="this.dataset.clicked='1'">Deep</button>
+</body></html>"""
+
+_DRAG_PAGE = """<!DOCTYPE html><html><body>
+<div id="src" style="position:fixed;left:120px;top:130px;width:60px;height:60px"></div>
+<div id="dst" style="position:fixed;left:420px;top:130px;width:60px;height:60px"></div>
+</body></html>"""
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_interact_at_click_lands_real(browser: GlobalBrowserPool) -> None:
+    """Visual Mode click at viewport coords really lands on the element."""
+    page, ctx = await _open_page(browser, _COORD_PAGE)
+    try:
+        interactor = _interactor(page, HumanizeMode.CAREFUL)
+        result = await interactor.interact_at("click", 250, 225)
+
+        assert "Clicked at (250, 225)" in result, result
+        clicked = await page.evaluate("document.getElementById('deep').dataset.clicked")
+        assert clicked == "1", "coord click must land on the fixed button"
+    finally:
+        await browser.release_page(page, ctx)
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_interact_at_scroll_moves_page_real(browser: GlobalBrowserPool) -> None:
+    """Visual Mode wheel-scroll at a viewport position really moves the page."""
+    page, ctx = await _open_page(browser, _LONG_PAGE)
+    try:
+        interactor = _interactor(page, HumanizeMode.CAREFUL)
+        result = await interactor.interact_at("scroll", 640, 360, text="500")
+
+        assert "Scrolled 500px" in result, result
+        top = await page.evaluate("window.scrollY")
+        assert top >= 300, f"coord scroll did not move page: {top}"
+    finally:
+        await browser.release_page(page, ctx)
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_interact_at_type_focuses_and_types_real(
+    browser: GlobalBrowserPool,
+) -> None:
+    """Visual Mode type focuses the field and enters the text for real."""
+    page, ctx = await _open_page(
+        browser,
+        "<!DOCTYPE html><html><body>"
+        '<input id="fld" style="position:fixed;left:200px;top:200px;width:220px;height:40px">'
+        "</body></html>",
+    )
+    try:
+        interactor = _interactor(page, HumanizeMode.CAREFUL)
+        result = await interactor.interact_at("type", 310, 220, text="hello world")
+
+        assert "Typed 'hello world' at (310, 220)" in result, result
+        value = await page.evaluate("document.getElementById('fld').value")
+        assert value == "hello world", f"typed text must reach the field: {value!r}"
+    finally:
+        await browser.release_page(page, ctx)
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_interact_at_dblclick_real(browser: GlobalBrowserPool) -> None:
+    """Visual Mode dblclick dispatches a real dblclick event on the target."""
+    page, ctx = await _open_page(
+        browser,
+        "<!DOCTYPE html><html><body>"
+        '<button id="deep" style="position:fixed;left:200px;top:200px;width:120px;height:50px">Deep</button>'
+        "</body></html>",
+    )
+    try:
+        await page.evaluate(
+            "window.__dbl=0;"
+            "document.getElementById('deep').addEventListener('dblclick',()=>window.__dbl++,true);"
+        )
+        interactor = _interactor(page, HumanizeMode.CAREFUL)
+        result = await interactor.interact_at("dblclick", 260, 225)
+
+        assert "Double-clicked at (260, 225)" in result, result
+        dbl = await page.evaluate("window.__dbl")
+        assert dbl >= 1, f"dblclick event must reach the button: {dbl}"
+    finally:
+        await browser.release_page(page, ctx)
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_interact_at_drag_real(browser: GlobalBrowserPool) -> None:
+    """Visual Mode drag dispatches mousedown on source and mouseup on target.
+
+    Inline onmousedown/onmouseup attributes are unusable here: patchright's
+    stealth layer un-binds inline event properties while forwarding click via a
+    document-level delegate, so drag dispatch is asserted through addEventListener.
+    """
+    page, ctx = await _open_page(browser, _DRAG_PAGE)
+    try:
+        await page.evaluate(
+            "window.__events=[];"
+            "const src=document.getElementById('src');"
+            "const dst=document.getElementById('dst');"
+            "src.addEventListener('mousedown',()=>window.__events.push('src-down'),true);"
+            "dst.addEventListener('mouseup',()=>window.__events.push('dst-up'),true);"
+        )
+        interactor = _interactor(page, HumanizeMode.CAREFUL)
+        result = await interactor.interact_at(
+            "drag", 150, 160, target_x=450, target_y=160
+        )
+
+        assert "Dragged from (150, 160)" in result, result
+        events = await page.evaluate("window.__events")
+        assert "src-down" in events, f"mousedown must land on src: {events}"
+        assert "dst-up" in events, f"mouseup must land on dst: {events}"
+    finally:
+        await browser.release_page(page, ctx)
