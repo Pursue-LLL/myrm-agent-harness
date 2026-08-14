@@ -4,11 +4,11 @@
 - langchain_core.messages::BaseMessage (POS: LangChain message base class)
 - myrm_agent_harness.agent.security.detection.leak_detector::redact_leaks (POS: credential leak redaction)
 - myrm_agent_harness.agent.security.detection.pii_redactor::redact_pii (POS: PII redaction for phone/email/SSN/ID/address)
-- myrm_agent_harness.agent.security.detection.constraint_marker::contains_constraint_marker (POS: constraint signal detection)
 
 [OUTPUT]
 - build_dropped_manifest: pure function — extract short, sanitized constraint snippets
   that compaction evicted from the conversation window
+- contains_constraint_marker: constraint-signal keyword matcher (shared by audit tooling)
 
 [POS]
 Fault-side attribution support (InteractionCentricFailureLocalizerStack):
@@ -39,6 +39,86 @@ _MAX_MANIFEST_ITEMS = 3
 # Per-snippet character budget after PII/credential redaction. Long instructions
 # are prefixed with the signal word (the part that actually mattered).
 _MAX_SNIPPET_CHARS = 160
+
+# Constraint-signal keywords (Chinese + English). Detection is deliberately
+# conservative: only text that looks like an explicit preference/directive is
+# worth surfacing as "dropped". Conversational filler is ignored.
+_CONSTRAINT_KEYWORDS: tuple[str, ...] = (
+    # English
+    "must",
+    "must not",
+    "never",
+    "always",
+    "do not",
+    "don't",
+    "please remember",
+    "remember to",
+    "important",
+    "important:",
+    "requirement",
+    "requirements",
+    "ensure",
+    "make sure",
+    "should not",
+    "shouldn't",
+    "forbidden",
+    "prohibited",
+    "no need to",
+    "avoid",
+    "prefer",
+    "preference",
+    "rule",
+    "rules",
+    "constraint",
+    "constraints",
+    "key point",
+    "note that",
+    "caution",
+    "warning",
+    # Chinese
+    "不要",
+    "别",
+    "必须",
+    "务必",
+    "一定",
+    "禁止",
+    "切勿",
+    "千万",
+    "记住",
+    "请注意",
+    "注意",
+    "重要",
+    "要求",
+    "规则",
+    "切记",
+    "严格",
+    "只能",
+    "仅能",
+    "确保",
+    "请务必",
+    "请记得",
+    "前提",
+    "限制",
+    "约束",
+    "除非",
+)
+
+
+def contains_constraint_marker(content: str) -> bool:
+    """Return whether a message carries an explicit constraint/preference signal.
+
+    Keyword-based, deterministic, O(1) per candidate — no LLM, no network.
+    Used to decide which evicted user messages deserve a spot in the
+    dropped-constraint manifest.
+
+    Args:
+        content: Raw message text.
+
+    Returns:
+        True when the text contains a constraint keyword, else False.
+    """
+    lowered = content.lower()
+    return any(keyword in lowered for keyword in _CONSTRAINT_KEYWORDS)
 
 
 def _role_of(message: object) -> str:
@@ -73,10 +153,6 @@ def build_dropped_manifest(
     Returns:
         Up to ``_MAX_MANIFEST_ITEMS`` short constraint snippets, or [].
     """
-    from myrm_agent_harness.agent.security.detection.constraint_marker import (
-        contains_constraint_marker,
-    )
-
     dropped: list[str] = []
     seen: set[str] = set()
 
@@ -90,7 +166,7 @@ def build_dropped_manifest(
         if not isinstance(content, str) or not content.strip():
             continue
 
-        snippet = _sanitize_snippet(content, contains_constraint_marker(content))
+        snippet = _sanitize_snippet(content)
         if not snippet:
             continue
         if snippet in seen:
@@ -103,14 +179,13 @@ def build_dropped_manifest(
     return dropped
 
 
-def _sanitize_snippet(content: str, is_constraint: bool) -> str:
+def _sanitize_snippet(content: str) -> str:
     """Redact + truncate a raw message into a safe audit snippet.
 
-    For constraint-like content we retain a small head window (the signal usually
-    lives at the start). For non-constraint content we return "" so the manifest
-    stays focused on actionable lost instructions.
+    Non-constraint content returns "" so the manifest stays focused on
+    actionable lost instructions.
     """
-    if not is_constraint:
+    if not contains_constraint_marker(content):
         return ""
 
     redacted = redact_leaks(content)
@@ -118,4 +193,4 @@ def _sanitize_snippet(content: str, is_constraint: bool) -> str:
     return redacted[:_MAX_SNIPPET_CHARS]
 
 
-__all__ = ["build_dropped_manifest"]
+__all__ = ["build_dropped_manifest", "contains_constraint_marker"]

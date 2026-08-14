@@ -80,13 +80,19 @@ def test_coerce_number_big_integer_negative_preserves_precision():
 
 
 def test_coerce_number_decimal_and_exponent_still_float():
-    """Decimal / exponent forms must still coerce to float for number schema."""
+    """Decimal forms stay float; integral exponent forms preserve exactness as int.
+
+    ``"1e10"`` parses exactly via Decimal to 10000000000, so coercing it to
+    ``int`` preserves precision (and serializes without a trailing ``.0`` that
+    strict APIs reject), while non-integral decimals like ``"3.14"`` coerce to
+    ``float``.
+    """
     schema = {"properties": {"a": {"type": "number"}, "b": {"type": "number"}}}
     coerced = coerce_arguments_by_schema(schema, {"a": "3.14", "b": "1e10"})
     assert coerced["a"] == 3.14
     assert isinstance(coerced["a"], float)
-    assert coerced["b"] == 1e10
-    assert isinstance(coerced["b"], float)
+    assert coerced["b"] == 10000000000
+    assert isinstance(coerced["b"], int)
 
 
 def test_coerce_integer_float_form_literal_to_int():
@@ -137,6 +143,29 @@ def test_coerce_integer_invalid_numeric_literal_keeps_string():
     for raw in ("0x10", "abc", "nan", "inf"):
         coerced = coerce_arguments_by_schema(schema, {"count": raw})
         assert coerced["count"] == raw, raw
+
+
+def test_coerce_number_non_finite_keeps_string():
+    """inf / nan are not valid JSON numbers — keep the string.
+
+    Mirrors openclaw's Number.isFinite guard: Number("1e100000") → Infinity
+    fails the finite check and the raw string is preserved.
+    """
+    schema = {"properties": {"v": {"type": "number"}}}
+    for raw in ("inf", "-inf", "nan", "Infinity", "1e100000"):
+        coerced = coerce_arguments_by_schema(schema, {"v": raw})
+        assert coerced["v"] == raw, raw
+
+
+def test_coerce_number_huge_exponent_integer_stays_string():
+    """Exponent literals whose integer value exceeds int_max_str_digits stay strings.
+
+    int(Decimal("1e100000")) would materialize a 100001-digit int (memory DoS)
+    and bypass Python's int_max_str_digits guard — we enforce the same limit.
+    """
+    schema = {"properties": {"v": {"type": "number"}}}
+    coerced = coerce_arguments_by_schema(schema, {"v": "1e100000"})
+    assert coerced["v"] == "1e100000"
 
 
 def test_coerce_arguments_recursive():

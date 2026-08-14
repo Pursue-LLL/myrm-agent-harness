@@ -437,6 +437,24 @@ async def generate_structured_summary(
     protected_ids = {id(m) for m in protected_head}
     recent_messages = [m for m in recent_messages if id(m) not in protected_ids]
 
+    # Dropped-constraint audit: record user constraints evicted by this
+    # compaction (redacted + truncated) so the GUI can distinguish "compression
+    # dropped my instruction" from "the model failed to follow it". Pure local
+    # computation — never enters to_json()/prompts.
+    from .dropped_manifest import build_dropped_manifest
+
+    summary.dropped_manifest = build_dropped_manifest(
+        messages,
+        protected_ids=protected_ids,
+        recent_ids={id(m) for m in recent_messages},
+    )
+    if summary.dropped_manifest:
+        logger.warning(
+            " Summary dropped %d user constraint snippet(s) from context: %s",
+            len(summary.dropped_manifest),
+            summary.dropped_manifest,
+        )
+
     # Remove old preserved context messages to prevent accumulation
     protected_head = [
         msg

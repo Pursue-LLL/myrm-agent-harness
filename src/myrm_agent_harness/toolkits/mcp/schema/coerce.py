@@ -24,7 +24,9 @@ observability counters.
 import ast
 import json
 import logging
+import math
 import re
+import sys
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -274,7 +276,9 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
                 is_pure_int = not any(ch in clean_value for ch in ".eE")
                 if is_pure_int:
                     # Pure integer literal: int() preserves arbitrary precision
-                    # (Python ints are unbounded).
+                    # (Python ints are unbounded). Python's built-in
+                    # int_max_str_digits guard (4300 digits) rejects absurdly
+                    # long literals with ValueError, which we swallow below.
                     value = int(clean_value)
                 else:
                     # Decimal/exponent form: parse exactly with Decimal and
@@ -290,9 +294,19 @@ def coerce_value(schema: dict[str, Any], value: Any) -> Any:
                     except InvalidOperation:
                         decimal_value = None
                     if decimal_value is not None and decimal_value == decimal_value.to_integral_value():
+                        # int(Decimal) bypasses the int_max_str_digits string
+                        # guard, so enforce the same limit ourselves to avoid
+                        # materializing a gigantic int (memory DoS).
+                        if decimal_value.adjusted() + 1 > sys.get_int_max_str_digits():
+                            raise ValueError(f"{clean_value!r} exceeds int digit limit")
                         value = int(decimal_value)
                     elif expected_type == "number":
                         value = float(clean_value)
+                        if not math.isfinite(value):
+                            # "inf" / "-inf" / "nan" are not valid JSON numbers
+                            # — keep the string (mirrors openclaw's
+                            # Number.isFinite guard).
+                            value = clean_value
                     else:
                         # "integer" expectation with a genuinely fractional
                         # literal: keep the string (mirrors openclaw's

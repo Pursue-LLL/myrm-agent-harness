@@ -398,7 +398,12 @@ class SummarizeProcessor(BaseProcessor):
         saved = original_tokens - new_tokens
         context.tokens_saved += saved
 
-        await self._emit_compaction_status(context, "completed", tokens_saved=saved)
+        await self._emit_compaction_status(
+            context,
+            "completed",
+            tokens_saved=saved,
+            dropped_manifest=summary.dropped_manifest,
+        )
 
         context.structured_summary = summary
         if isinstance(last_msg_db_id, str) and last_msg_db_id:
