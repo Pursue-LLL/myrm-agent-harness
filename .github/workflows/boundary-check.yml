@@ -17,6 +17,8 @@ on:
       - 'scripts/sync_distribution_metadata.py'
       - 'src/myrm_agent_harness/distribution/verify.py'
       - 'scripts/check_package_root_layout.py'
+      - 'scripts/check_file_line_limit.py'
+      - 'scripts/file_line_baseline.txt'
       - 'packages/myrm-agent-harness-core/**'
       - '.pre-commit-config.yaml'
 
