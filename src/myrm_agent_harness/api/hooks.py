@@ -51,9 +51,11 @@ from myrm_agent_harness.agent.middlewares._session_context import (
     get_event_logger,
     get_pseudonym_store,
     get_terminal_errors,
+    get_workspace_root as _get_workspace_root,
     set_approval_user_id,
     set_pseudonym_store,
     set_security_config,
+    set_workspace_root as _set_workspace_root,
 )
 from myrm_agent_harness.agent.skill_agent.context import (
     get_memory_manager,
@@ -88,6 +90,21 @@ from myrm_agent_harness.utils.runtime.background_job_finish_registry import (
 def count_running_background_shell_jobs(session_id: str | None = None) -> int:
     """Return the number of running harness background shell jobs."""
     return get_background_registry().count_running(session_id)
+
+
+def get_workspace_root() -> str:
+    """Return the workspace root bound for the current async context."""
+    return _get_workspace_root()
+
+
+def set_workspace_root(path: str) -> None:
+    """Bind the workspace root for the current async context.
+
+    Re-exported so product code can resolve container/snapshot paths (e.g.
+    ``/workspace/...``) without importing harness internals. Sets both the
+    middleware-local and the cross-layer ``core.context_vars`` value.
+    """
+    return _set_workspace_root(path)
 
 
 def install_memory_pseudonymizer(policy: object, store: object) -> object | None:
@@ -138,6 +155,7 @@ __all__ = [
     "get_pseudonym_store",
     "get_task_intent",
     "get_terminal_errors",
+    "get_workspace_root",
     "install_memory_pseudonymizer",
     "invalidate_permissions",
     "map_store_status_to_shell_task_status",
@@ -152,4 +170,5 @@ __all__ = [
     "set_pseudonym_store",
     "set_security_config",
     "set_task_intent",
+    "set_workspace_root",
 ]

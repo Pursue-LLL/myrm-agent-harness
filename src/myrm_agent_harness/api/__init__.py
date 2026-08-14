@@ -35,7 +35,9 @@ __all__ = [
     "build_parent_delegatable_toolkit",
     "create_skill_agent",
     "get_distribution_mode",
+    "get_workspace_root",
     "is_compiled_distribution",
+    "set_workspace_root",
     "track_background_task",
 ]
 
@@ -67,10 +69,12 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "myrm_agent_harness.distribution.probe",
         "get_distribution_mode",
     ),
+    "get_workspace_root": ("myrm_agent_harness.api.hooks", "get_workspace_root"),
     "is_compiled_distribution": (
         "myrm_agent_harness.distribution.probe",
         "is_compiled_distribution",
     ),
+    "set_workspace_root": ("myrm_agent_harness.api.hooks", "set_workspace_root"),
     "track_background_task": (
         "myrm_agent_harness.agent.skill_agent.context",
         "track_background_task",
