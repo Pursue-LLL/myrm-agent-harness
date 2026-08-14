@@ -6,7 +6,8 @@
 - langchain_core.messages::BaseMessage (POS: LangChain message base class)
 
 [OUTPUT]
-- extract_recent_messages: keep last N tool-call pairs from message history
+- extract_protected_head: keep system messages + first genuine user turn (skipping stale summary blocks)
+- extract_recent_messages: keep last N tool-call pairs from message history (excluding summary blocks)
 - create_summary_message: build HumanMessage with Lost-in-Middle awareness
 
 [POS]
@@ -23,6 +24,7 @@ from myrm_agent_harness.utils.logger_utils import get_agent_logger
 
 from ...infra.schemas import StructuredSummary
 from ...tracking.artifact_tracker import get_artifact_tracker
+from .summary_parser import is_summary_message
 
 logger = get_agent_logger(__name__)
 
@@ -42,9 +44,13 @@ SUMMARY_END_MARKER = (
 def extract_protected_head(messages: list[BaseMessage]) -> list[BaseMessage]:
     """Extract protected head messages (U-curve memory protection).
 
-    Preserves leading SystemMessages (prompt cache), first user instruction,
-    and first model reply to prevent "forgetting initial instructions" in long
-    conversations while maximizing prefix cache hits.
+    Preserves leading SystemMessages (prompt cache), the first genuine user
+    instruction, and its following model reply to prevent "forgetting initial
+    instructions" in long conversations while maximizing prefix cache hits.
+
+    Stale context summary blocks are skipped while scanning for the first real
+    user instruction — a leftover summary must never be mistaken for the first
+    user turn, otherwise compaction rebuilds accumulate duplicate summary blocks.
     """
     head: list[BaseMessage] = []
     if not messages:
@@ -55,13 +61,15 @@ def extract_protected_head(messages: list[BaseMessage]) -> list[BaseMessage]:
         head.append(messages[start_idx])
         start_idx += 1
 
-    for i in range(start_idx, min(start_idx + 2, len(messages))):
+    i = start_idx
+    while i < len(messages):
         msg = messages[i]
-        if isinstance(msg, HumanMessage):
+        if isinstance(msg, HumanMessage) and not is_summary_message(msg):
             head.append(msg)
             if i + 1 < len(messages) and isinstance(messages[i + 1], AIMessage):
                 head.append(messages[i + 1])
             break
+        i += 1
 
     return head
 
@@ -116,7 +124,7 @@ def extract_recent_messages(messages: list[BaseMessage], tail_budget_tokens: int
 
     cut_idx = _align_boundary_backward(messages, cut_idx)
 
-    result = messages[cut_idx:]
+    result = [m for m in messages[cut_idx:] if not is_summary_message(m)]
     logger.debug(
         "Tail protection: extracted %d messages (~%d tokens) from total %d messages", len(result), accumulated, n
     )

@@ -73,6 +73,34 @@ class TestExtractRecentMessages:
         result = extract_recent_messages(msgs, tail_budget_tokens=1000)
         assert len(result) == 1
 
+    def test_filters_summary_blocks_from_tail(self) -> None:
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            create_summary_message,
+        )
+
+        msgs = [
+            create_summary_message(StructuredSummary(user_goal="stale pipeline")),
+            AIMessage(content="[Previous conversation summary]\nUser Goal: stale legacy"),
+            HumanMessage(content="real question"),
+            AIMessage(content="real answer"),
+        ]
+        result = extract_recent_messages(msgs, tail_budget_tokens=1000)
+        assert all("stale" not in str(m.content) for m in result)
+        assert any(isinstance(m, HumanMessage) and m.content == "real question" for m in result)
+
+    def test_all_summary_tail_returns_empty(self) -> None:
+        """When the whole retained tail is stale summary blocks, the result is empty (safe no-op)."""
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            create_summary_message,
+        )
+
+        msgs = [
+            create_summary_message(StructuredSummary(user_goal="stale")),
+            AIMessage(content="[Previous conversation summary]\nUser Goal: stale legacy"),
+        ]
+        result = extract_recent_messages(msgs, tail_budget_tokens=1000)
+        assert result == []
+
 
 class TestCreateSummaryMessage:
     def test_basic_structure(self) -> None:
@@ -332,3 +360,53 @@ class TestExtractProtectedHead:
         )
 
         assert extract_protected_head([]) == []
+
+    def test_skips_stale_summary_to_first_real_instruction(self) -> None:
+        """A stale pipeline summary after SystemMessages must not be treated as the first user instruction."""
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            create_summary_message,
+            extract_protected_head,
+        )
+
+        messages = [
+            SystemMessage(content="sys1"),
+            create_summary_message(StructuredSummary(user_goal="stale")),
+            AIMessage(content="[Previous conversation summary]\nUser Goal: stale legacy"),
+            HumanMessage(content="real first instruction"),
+            AIMessage(content="real first reply"),
+        ]
+        head = extract_protected_head(messages)
+        assert len(head) == 3
+        assert isinstance(head[0], SystemMessage)
+        assert isinstance(head[1], HumanMessage)
+        assert head[1].content == "real first instruction"
+        assert isinstance(head[2], AIMessage)
+
+    def test_no_summary_keeps_first_turn(self) -> None:
+        """Behavior without any summary block is unchanged."""
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            extract_protected_head,
+        )
+
+        messages = [
+            SystemMessage(content="sys1"),
+            HumanMessage(content="first"),
+            AIMessage(content="reply"),
+        ]
+        head = extract_protected_head(messages)
+        assert len(head) == 3
+
+    def test_system_only_when_no_human_after_summary(self) -> None:
+        """Only stale summaries after system: head keeps system and stops (no fake first turn)."""
+        from myrm_agent_harness.agent.context_management.strategies.summary.summary_builder import (
+            create_summary_message,
+            extract_protected_head,
+        )
+
+        messages = [
+            SystemMessage(content="sys1"),
+            create_summary_message(StructuredSummary(user_goal="stale")),
+        ]
+        head = extract_protected_head(messages)
+        assert len(head) == 1
+        assert isinstance(head[0], SystemMessage)

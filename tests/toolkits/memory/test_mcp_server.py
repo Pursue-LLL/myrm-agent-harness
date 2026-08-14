@@ -46,6 +46,7 @@ def mock_manager():
     manager.correct_memory = AsyncMock()
     manager.list_memories = AsyncMock(return_value=[])
     manager.count_memories = AsyncMock(return_value=0)
+    manager.last_retrieval_trace = None
     manager.config = AsyncMock()
     manager.config.semantic_collection = "semantic"
     manager.config.episodic_collection = "episodic"
@@ -290,6 +291,27 @@ class TestMemoryRecallTool:
         mock_manager.search.return_value = []
         result = await _get_tool_fn(mcp_server, "memory_recall")(query="test query")
         assert result == "No relevant memories found."
+
+    @pytest.mark.asyncio
+    async def test_recall_no_results_degraded_returns_timeout_notice(
+        self, mcp_server, mock_manager
+    ):
+        from datetime import UTC, datetime
+
+        from myrm_agent_harness.toolkits.memory.observability import (
+            MemoryRetrievalTrace,
+        )
+
+        mock_manager.search.return_value = []
+        mock_manager.last_retrieval_trace = MemoryRetrievalTrace(
+            id="trace-1",
+            query_preview="pricing",
+            occurred_at=datetime.now(UTC),
+            degraded=True,
+        )
+        result = await _get_tool_fn(mcp_server, "memory_recall")(query="pricing")
+        assert "timed out" in result.lower()
+        assert "retry" in result.lower()
 
     @pytest.mark.asyncio
     async def test_recall_with_results(self, mcp_server, mock_manager):

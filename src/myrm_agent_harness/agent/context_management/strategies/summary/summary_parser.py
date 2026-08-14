@@ -8,6 +8,7 @@
 
 [OUTPUT]
 - extract_existing_summary: detect existing summary in message list
+- is_summary_message: detect whether a message is a context summary block
 - format_messages_for_summary: convert messages to text for LLM summarisation (with credential redaction)
 - extract_messages_after_summary: slice messages after summary marker
 - parse_summary_response: parse StructuredSummary from raw LLM JSON / mixed text
@@ -50,6 +51,19 @@ def _is_summary_message(content: str) -> bool:
     return any(content.startswith(marker) for marker in _LEGACY_TEXT_MARKERS)
 
 
+def is_summary_message(msg: BaseMessage) -> bool:
+    """Detect whether a message is a context summary block.
+
+    Matches both pipeline-generated summaries (``HumanMessage`` from
+    ``create_summary_message``, which embeds a ``<!-- SUMMARY_JSON`` block) and
+    server-injected legacy summaries (``[历史摘要]`` / ``[Previous conversation
+    summary]`` prefix). Shared by message-reconstruction paths so stale summary
+    blocks never survive a compaction rebuild.
+    """
+    content = msg.content if isinstance(msg.content, str) else str(msg.content)
+    return _is_summary_message(content)
+
+
 def extract_existing_summary(messages: list[BaseMessage]) -> StructuredSummary | None:
     """从消息列表中提取已有摘要（不依赖消息类型）。
 
@@ -68,12 +82,13 @@ def extract_messages_after_summary(messages: list[BaseMessage]) -> list[BaseMess
     """提取摘要消息之后的新消息（用于增量合并模式）。
 
     使用与 ``extract_existing_summary`` 相同的检测逻辑（JSON 块 + legacy 文本前缀）。
+    同时剔除切片结果中残留的孤儿摘要块，避免旧压缩块进入增量合并输入。
     """
     for i, msg in enumerate(messages):
         content = msg.content if isinstance(msg.content, str) else str(msg.content)
         if _is_summary_message(content):
-            return messages[i + 1 :]
-    return messages
+            return [m for m in messages[i + 1 :] if not is_summary_message(m)]
+    return [m for m in messages if not is_summary_message(m)]
 
 
 def format_messages_for_summary(messages: list[BaseMessage]) -> str:
@@ -81,6 +96,8 @@ def format_messages_for_summary(messages: list[BaseMessage]) -> str:
     formatted_parts = []
 
     for msg in messages:
+        if is_summary_message(msg):
+            continue
         if isinstance(msg, HumanMessage):
             content = msg.content if isinstance(msg.content, str) else str(msg.content)
             formatted_parts.append(f"[用户] {content[:500]}...")

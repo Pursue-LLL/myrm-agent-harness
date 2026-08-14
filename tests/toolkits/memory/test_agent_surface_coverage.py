@@ -6,17 +6,26 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from myrm_agent_harness.toolkits.memory import memory_recall_formatting as root_formatting
-from myrm_agent_harness.toolkits.memory.agent_surface import memory_recall_formatting as surface_formatting
+from myrm_agent_harness.toolkits.memory import (
+    memory_recall_formatting as root_formatting,
+)
+from myrm_agent_harness.toolkits.memory.agent_surface import (
+    memory_recall_formatting as surface_formatting,
+)
 from myrm_agent_harness.toolkits.memory.agent_surface.memory_search_execution import (
     search_memory_corpus,
 )
 from myrm_agent_harness.toolkits.memory.types import MemoryType, SemanticMemory
-from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import looks_like_wiki_document
+from myrm_agent_harness.toolkits.memory.wiki_memory_boundary import (
+    looks_like_wiki_document,
+)
 
 
 def test_root_facade_reexports_same_sanitize_callable() -> None:
-    assert root_formatting.sanitize_recalled_content is surface_formatting.sanitize_recalled_content
+    assert (
+        root_formatting.sanitize_recalled_content
+        is surface_formatting.sanitize_recalled_content
+    )
 
 
 def test_looks_like_wiki_document_rejects_empty_content() -> None:

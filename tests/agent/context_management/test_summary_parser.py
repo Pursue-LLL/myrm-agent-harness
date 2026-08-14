@@ -12,8 +12,33 @@ from myrm_agent_harness.agent.context_management.strategies.summary.summary_pars
     extract_existing_summary,
     extract_messages_after_summary,
     format_messages_for_summary,
+    is_summary_message,
     parse_summary_response,
 )
+
+
+class TestIsSummaryMessage:
+    def test_detects_pipeline_summary(self) -> None:
+        msg = create_summary_message(StructuredSummary(user_goal="test"))
+        assert is_summary_message(msg)
+
+    def test_detects_server_injected_legacy(self) -> None:
+        msg = AIMessage(content="[Previous conversation summary]\nUser Goal: x")
+        assert is_summary_message(msg)
+
+    def test_detects_zh_legacy(self) -> None:
+        msg = SystemMessage(content="[历史摘要]\n用户目标: 修bug")
+        assert is_summary_message(msg)
+
+    def test_rejects_normal_message(self) -> None:
+        assert not is_summary_message(HumanMessage(content="hello world"))
+
+    def test_rejects_ai_reply(self) -> None:
+        assert not is_summary_message(AIMessage(content="normal answer"))
+
+    def test_non_string_content_handled(self) -> None:
+        msg = HumanMessage(content=["not", "a", "summary"])
+        assert not is_summary_message(msg)
 
 
 class TestExtractExistingSummary:
@@ -72,6 +97,40 @@ class TestExtractMessagesAfterSummary:
         result = extract_messages_after_summary(msgs)
         assert len(result) == 1
 
+    def test_filters_orphan_summary_after_first(self) -> None:
+        """A stale summary block after the first summary must not leak into the increment."""
+        msgs = [
+            SystemMessage(content="[历史摘要]\n用户目标: old"),
+            HumanMessage(content="new question"),
+            AIMessage(content="[Previous conversation summary]\nUser Goal: stale"),
+            HumanMessage(content="after orphan"),
+        ]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 2
+        assert result[0].content == "new question"
+        assert result[1].content == "after orphan"
+
+    def test_filters_pipeline_summary_orphan(self) -> None:
+        old_summary = create_summary_message(StructuredSummary(user_goal="stale"))
+        msgs = [
+            SystemMessage(content="[历史摘要]\n用户目标: old"),
+            HumanMessage(content="real question"),
+            old_summary,
+            HumanMessage(content="after orphan"),
+        ]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 2
+        assert old_summary not in result
+
+    def test_no_summary_returns_all(self) -> None:
+        msgs = [
+            HumanMessage(content="hello"),
+            AIMessage(content="hi"),
+            HumanMessage(content="more"),
+        ]
+        result = extract_messages_after_summary(msgs)
+        assert len(result) == 3
+
 
 class TestFormatMessagesForSummary:
     def test_formats_human_messages(self) -> None:
@@ -100,6 +159,24 @@ class TestFormatMessagesForSummary:
         msgs = [SystemMessage(content="system prompt")]
         result = format_messages_for_summary(msgs)
         assert result == ""
+
+    def test_skips_summary_messages(self) -> None:
+        msgs = [
+            create_summary_message(StructuredSummary(user_goal="stale")),
+            HumanMessage(content="real content"),
+        ]
+        result = format_messages_for_summary(msgs)
+        assert "stale" not in result
+        assert "real content" in result
+
+    def test_skips_server_injected_legacy_summary(self) -> None:
+        msgs = [
+            AIMessage(content="[Previous conversation summary]\nUser Goal: old goal"),
+            HumanMessage(content="next"),
+        ]
+        result = format_messages_for_summary(msgs)
+        assert "old goal" not in result
+        assert "next" in result
 
     def test_truncates_long_content(self) -> None:
         long_content = "x" * 1000
