@@ -79,9 +79,12 @@ async def create_embedded_store(
             # Derive the cache key from the original path so fallback stores of
             # different base_paths never share one in-memory Qdrant instance.
             logger.error(f" Failed to initialize Qdrant at {data_path}: {e}. Falling back to :memory:")
+            cache_key = f"{cache_key}:memory_fallback"
+            if cache_key in _embedded_clients:
+                logger.debug("Cache hit for fallback %s", cache_key)
+                return _embedded_clients[cache_key]
             client = QdrantClient(path=":memory:")
             actual_path = ":memory:"
-            cache_key = f"{cache_key}:memory_fallback"
 
         config = VectorStoreConfig(
             mode=DeploymentMode.EMBEDDED,

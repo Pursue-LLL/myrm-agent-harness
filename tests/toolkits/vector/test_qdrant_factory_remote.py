@@ -3,11 +3,20 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from myrm_agent_harness.toolkits.vector.config import DeploymentMode, VectorStoreConfig
+from myrm_agent_harness.toolkits.vector.qdrant import factory as qdrant_factory
 from myrm_agent_harness.toolkits.vector.qdrant.factory import (
     create_embedded_store,
     create_remote_store,
     create_vector_store,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_embedded_cache():
+    """Clear singleton cache between tests so stores never leak across cases."""
+    qdrant_factory._embedded_clients.clear()
+    yield
+    qdrant_factory._embedded_clients.clear()
 
 
 @pytest.mark.asyncio
