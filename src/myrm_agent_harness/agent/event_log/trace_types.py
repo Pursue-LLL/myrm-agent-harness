@@ -60,6 +60,7 @@ class ToolCallRecord:
     input_data: dict[str, object] = field(default_factory=dict)
     output_summary: str | None = None
     output_data: str | dict[str, object] | list[object] | None = None
+    fault_side: str | None = None  # Deterministic attribution (FaultSide enum value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +103,8 @@ class ExecutionTrace:
     llm_calls: list[LLMCallRecord] = field(default_factory=list)
     errors: list[dict[str, object]] = field(default_factory=list)
     human_feedback: list[dict[str, object]] = field(default_factory=list)
+    first_irrecoverable_index: int | None = None
+    first_irrecoverable_timestamp: float | None = None
 
     total_events: int = 0
     total_tokens: int = 0
@@ -133,6 +136,7 @@ class ExecutionTrace:
                     "input_data": tc.input_data,
                     "output_summary": tc.output_summary,
                     "output_data": tc.output_data,
+                    "fault_side": tc.fault_side,
                 }
                 for tc in self.tool_calls
             ],
@@ -154,6 +158,8 @@ class ExecutionTrace:
             ],
             "errors": self.errors,
             "human_feedback": self.human_feedback,
+            "first_irrecoverable_index": self.first_irrecoverable_index,
+            "first_irrecoverable_timestamp": self.first_irrecoverable_timestamp,
             "total_events": self.total_events,
             "total_tokens": self.total_tokens,
         }

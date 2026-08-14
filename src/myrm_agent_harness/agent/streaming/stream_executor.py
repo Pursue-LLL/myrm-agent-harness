@@ -30,6 +30,7 @@ from langchain.agents.middleware.types import AgentState
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.types import Command
 
+from myrm_agent_harness.agent.errors.fault_side import classify_fault_side
 from myrm_agent_harness.agent.middlewares.tooling.tool_interceptor_middleware import (
     reset_loop_guard,
 )

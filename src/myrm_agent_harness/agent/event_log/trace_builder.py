@@ -117,6 +117,9 @@ def _aggregate_events(session_id: str, events: list[StructuredEvent]) -> Executi
 
     if trace.errors:
         trace.outcome = TraceOutcome.FAILURE
+        first_idx, first_ts = _find_first_irrecoverable(trace.errors, trace.tool_calls)
+        trace.first_irrecoverable_index = first_idx
+        trace.first_irrecoverable_timestamp = first_ts
     elif trace.end_time > 0:
         trace.outcome = TraceOutcome.SUCCESS
 
@@ -193,6 +196,36 @@ def _int_or_zero(value: object) -> int:
     return 0
 
 
+def _find_first_irrecoverable(
+    errors: list[dict[str, object]], tool_calls: list[ToolCallRecord]
+) -> tuple[int | None, float | None]:
+    """Locate the earliest failure from which execution never recovered.
+
+    The "irrecoverable chain" starts at the first error whose timestamp is
+    later than the last successful tool call: anything after that point ran
+    without a successful recovery (failover/replan may have rescued earlier
+    errors).  When there is no successful tool call at all, the first error is
+    the root cause.
+
+    Returns ``(errors_index, timestamp)`` or ``(None, None)`` when no errors exist.
+    """
+    if not errors:
+        return None, None
+
+    last_success_end = max(
+        (tc.end_time for tc in tool_calls if tc.success and tc.end_time is not None),
+        default=None,
+    )
+    if last_success_end is None:
+        return 0, float(errors[0].get("timestamp", 0) or 0)
+
+    for idx, err in enumerate(errors):
+        ts = err.get("timestamp")
+        if isinstance(ts, (int, float)) and ts > last_success_end:
+            return idx, float(ts)
+    return len(errors) - 1, float(errors[-1].get("timestamp", 0) or 0)
+
+
 def _process_event(
     event: StructuredEvent,
     trace: ExecutionTrace,
@@ -266,17 +299,26 @@ def _process_event(
                     success=False,
                     error=str(error_msg) if error_msg else None,
                     input_data=pt.input_data if pt else {},
+                    fault_side=_str_or_none(data.get("fault_side")),
                 )
             )
 
     elif et == "error":
-        trace.errors.append(
-            {
-                "timestamp": event.timestamp,
-                "error": data.get("error") or data.get("message") or str(data),
-                "error_type": data.get("error_type", "unknown"),
-            }
-        )
+        error_entry: dict[str, object] = {
+            "timestamp": event.timestamp,
+            "error": data.get("error") or data.get("message") or str(data),
+            "error_type": data.get("error_type", "unknown"),
+        }
+        # Surface deterministic attribution + recovery guidance for the GUI's
+        # post-mortem view (was previously dropped at aggregation time).
+        if fault_side := _str_or_none(data.get("fault_side")):
+            error_entry["fault_side"] = fault_side
+        if error_kind := _str_or_none(data.get("error_kind")):
+            error_entry["error_kind"] = error_kind
+        recovery_actions = data.get("recovery_actions")
+        if isinstance(recovery_actions, list):
+            error_entry["recovery_actions"] = recovery_actions
+        trace.errors.append(error_entry)
 
     elif et == "llm_request":
         pending_llm.append(

@@ -19,6 +19,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from myrm_agent_harness.agent.errors.fault_side import FaultSide
 from myrm_agent_harness.agent.hooks.types import HookResult
 from myrm_agent_harness.agent.streaming.broadcast.event_bus import ToolBroadcastBus
 from myrm_agent_harness.agent.streaming.broadcast.types import ToolCallEventData, _truncate_for_event
@@ -171,6 +172,7 @@ class ToolCallBroadcaster:
             message_id=str(payload.get("message_id")) if payload.get("message_id") else None,
             tool_call_id=tool_call_id if tool_call_id else None,
             version=(resolved_skill_versions_var.get() or {}).get(tool_name),
+            fault_side=FaultSide.HARNESS_TOOL.value,
         )
 
         bus = await self._ensure_event_bus()
