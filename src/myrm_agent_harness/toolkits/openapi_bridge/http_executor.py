@@ -8,6 +8,7 @@ authentication injection, timeout handling, and retry logic.
 - .auth::OpenAPIAuthProvider (POS: authentication header resolver)
 - .config::OpenAPIServiceConfig (POS: service configuration)
 - core.security.http.secure_fetch::secure_request / ContentTooLargeError (POS: SSRF-protected request execution with size cap)
+- core.security.types::user_credentials_ctx (POS: security type foundation — ephemeral user credential context holder)
 
 [OUTPUT]
 - OpenAPIExecutor: Async HTTP request executor for OpenAPI endpoints

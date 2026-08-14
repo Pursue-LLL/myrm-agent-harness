@@ -13,7 +13,7 @@ instances with namespace isolation, and handles HTTP execution with authenticati
 | config.py | Config | Configuration models: OpenAPIServiceConfig, AuthConfig, AuthType, ParsedEndpoint. | ✅ |
 | spec_parser.py | Core | OpenAPI 3.x / Swagger 2.0 parser. Fetches remote specs via `core.security.http.secure_fetch`. | ✅ |
 | auth.py | Core | Authentication resolver: API Key, Bearer, Basic, OAuth2 client_credentials. Caches OAuth2 tokens. | ✅ |
-| http_executor.py | Core | Async HTTP executor via `secure_request` (SSRF + redirect-safe). Path params, auth, timeout/retry. | ✅ |
+| http_executor.py | Core | Async HTTP executor via `secure_request` (SSRF + redirect-safe). Path params, auth (incl. ephemeral user credential injection), timeout/retry. | ✅ |
 | param_schema.py | Core | Merged per-endpoint parameter JSON Schema extraction (path/query/body) with local `$ref` inlining via `mcp.schema.normalize::flatten_json_schema`. | ✅ |
 | tool_generator.py | Core | Endpoint → StructuredTool converter. Namespace isolation, parameter schema propagation. OpenAPIBridge facade. | ✅ |
 
