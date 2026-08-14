@@ -552,6 +552,39 @@ class TestInvokeSummaryWithParser:
         assert result.files_modified == ["auth.py", "redis_client.py"]
         mock_structured.ainvoke.assert_called_once()
 
+    def test_coerce_direct_structured_summary_instance(self) -> None:
+        """Already-a-StructuredSummary output must pass through unchanged."""
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
+            _coerce_to_structured_summary,
+        )
+
+        summary = StructuredSummary(user_goal="已有摘要", last_action="done")
+        result = _coerce_to_structured_summary(summary, "/dump")
+        assert result is summary
+        assert result.context_dump_path == ""
+
+    def test_coerce_tagged_text_falls_back_to_parser(self) -> None:
+        """Non-dict non-model output (tagged JSON text) must fall back to parser."""
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
+            _coerce_to_structured_summary,
+        )
+
+        result = _coerce_to_structured_summary(
+            '<summary>\n{"user_goal": "文本摘要", "last_action": "ok"}\n</summary>',
+            "/dump",
+        )
+        assert result.user_goal == "文本摘要"
+        assert result.context_dump_path == "/dump"
+
+    def test_coerce_unparseable_text_returns_fallback_summary(self) -> None:
+        """Unparseable output must not raise — returns the explicit fallback summary."""
+        from myrm_agent_harness.agent.context_management.strategies.summary.summarizer import (
+            _coerce_to_structured_summary,
+        )
+
+        result = _coerce_to_structured_summary("nothing parseable here", "/dump")
+        assert result.user_goal == "[摘要解析失败]"
+
     def test_build_summary_invocation_messages_preserves_prefix_order(self) -> None:
         prefix: list[BaseMessage] = [
             HumanMessage(content="first"),

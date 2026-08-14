@@ -211,6 +211,137 @@ class TestParseOpenAPI3:
         assert ep.param_schema is not None
         assert ep.param_schema["properties"]["body"] == {"type": "array"}
 
+    def test_request_body_ref_resolved_from_components(self):
+        """OpenAPI 3.x requestBody ``$ref`` into components/schemas is inlined."""
+        spec_json = json.dumps({
+            "openapi": "3.0.3",
+            "info": {"title": "T", "version": "1"},
+            "components": {
+                "schemas": {
+                    "CreateUserRequest": {
+                        "type": "object",
+                        "required": ["user_id"],
+                        "properties": {
+                            "user_id": {"type": "integer", "format": "int64"},
+                            "name": {"type": "string"},
+                        },
+                    }
+                }
+            },
+            "paths": {
+                "/users": {
+                    "post": {
+                        "operationId": "createUser",
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/CreateUserRequest"}
+                                }
+                            },
+                        },
+                        "responses": {"201": {"description": "Created"}},
+                    },
+                },
+            },
+        })
+        spec = parse_spec_from_content(spec_json)
+        ep = spec.endpoints[0]
+        assert ep.param_schema is not None
+        props = ep.param_schema["properties"]
+        assert props["user_id"] == {"type": "integer", "format": "int64"}
+        assert props["name"] == {"type": "string"}
+        assert ep.param_schema["required"] == ["user_id"]
+        # No raw $ref may leak into the merged schema (strict providers reject it)
+        assert "$ref" not in json.dumps(ep.param_schema)
+
+    def test_query_parameter_schema_ref_resolved(self):
+        """Query parameter schema ``$ref`` into components/schemas is inlined."""
+        spec_json = json.dumps({
+            "openapi": "3.0.3",
+            "info": {"title": "T", "version": "1"},
+            "components": {"schemas": {"Limit": {"type": "integer", "format": "int32"}}},
+            "paths": {
+                "/items": {
+                    "get": {
+                        "operationId": "listItems",
+                        "parameters": [
+                            {
+                                "name": "limit",
+                                "in": "query",
+                                "schema": {"$ref": "#/components/schemas/Limit"},
+                            }
+                        ],
+                        "responses": {"200": {"description": "OK"}},
+                    },
+                },
+            },
+        })
+        spec = parse_spec_from_content(spec_json)
+        ep = spec.endpoints[0]
+        assert ep.param_schema is not None
+        assert ep.param_schema["properties"]["limit"] == {"type": "integer", "format": "int32"}
+        assert "limit" in ep.query_param_keys
+        assert "$ref" not in json.dumps(ep.param_schema)
+
+    def test_parameter_level_ref_resolved(self):
+        """Operation-level parameter ``$ref`` into components/parameters is inlined."""
+        spec_json = json.dumps({
+            "openapi": "3.0.3",
+            "info": {"title": "T", "version": "1"},
+            "components": {
+                "parameters": {
+                    "LimitParam": {
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {"type": "integer"},
+                    }
+                }
+            },
+            "paths": {
+                "/items": {
+                    "get": {
+                        "operationId": "listItems",
+                        "parameters": [{"$ref": "#/components/parameters/LimitParam"}],
+                        "responses": {"200": {"description": "OK"}},
+                    },
+                },
+            },
+        })
+        spec = parse_spec_from_content(spec_json)
+        ep = spec.endpoints[0]
+        assert ep.param_schema is not None
+        assert ep.param_schema["properties"]["limit"] == {"type": "integer"}
+        assert "limit" in ep.query_param_keys
+        assert "$ref" not in json.dumps(ep.param_schema)
+
+    def test_unresolvable_external_ref_degrades(self):
+        """External/unknown ``$ref`` degrades to permissive schema instead of leaking the pointer."""
+        spec_json = json.dumps({
+            "openapi": "3.0.3",
+            "info": {"title": "T", "version": "1"},
+            "paths": {
+                "/x": {
+                    "post": {
+                        "operationId": "createX",
+                        "requestBody": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "https://example.com/external.json#/X"}
+                                }
+                            },
+                        },
+                        "responses": {"201": {"description": "Created"}},
+                    },
+                },
+            },
+        })
+        spec = parse_spec_from_content(spec_json)
+        ep = spec.endpoints[0]
+        assert ep.param_schema is not None
+        body_props = ep.param_schema["properties"]
+        assert "$ref" not in json.dumps(ep.param_schema)
+        assert body_props["body"].get("type") in (None, "object")
+
     def test_tags_extraction(self):
         spec = parse_spec_from_content(OPENAPI_3_SPEC)
         assert "pets" in spec.tags
