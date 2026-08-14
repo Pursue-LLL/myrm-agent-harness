@@ -95,7 +95,13 @@ async def test_health_high_utilization() -> None:
 
 @pytest.mark.asyncio
 async def test_health_handles_unexpected_exception() -> None:
-    """Verify health() handles unexpected exceptions gracefully."""
+    """Verify health() degrades browsers whose liveness probe raises.
+
+    ``_check_browser_alive`` treats any per-page probe failure as "cannot
+    answer" (the page may be transiently stuck, the process may not be dead),
+    so unexpected exceptions surface as "unresponsive" rather than crashing
+    ``health()``.
+    """
     pool = GlobalBrowserPool(max_browsers=3)
 
     mock_browsers = []
@@ -123,10 +129,10 @@ async def test_health_handles_unexpected_exception() -> None:
     assert health_status["browsers_total"] == 3
     assert health_status["status"] == "degraded"
     assert any(
-        "Browser #1 check failed: AttributeError" in issue
+        "Browser #1 unresponsive" in issue
         for issue in health_status["issues"]
     )
     assert any(
-        "Browser #2 check failed: MemoryError" in issue
+        "Browser #2 unresponsive" in issue
         for issue in health_status["issues"]
     )

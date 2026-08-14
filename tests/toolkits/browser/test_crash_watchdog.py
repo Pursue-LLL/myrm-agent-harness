@@ -47,7 +47,7 @@ def _inst_with_pool(
     browser = _mock_browser()
     inst = BrowserInstance(browser=browser, is_managed=is_managed)
     inst.load = load
-    page_pool = MagicMock()
+    page_pool = MagicMock(shutdown=AsyncMock())
     page_pool._busy = busy if busy is not None else {_alive_page()}
     page_pool._idle = idle if idle is not None else []
     inst.page_pools = {"agent": page_pool}
@@ -128,6 +128,29 @@ async def test_register_page_crash_handler_and_handle_page_crashed() -> None:
     assert inst.load == 0
     assert page not in inst.page_pools["agent"]._busy
     assert pool._global_semaphore._value == 11  # released exactly one slot
+
+    # Second crash callback is idempotent: page_id already handled -> no-op.
+    pool._crash_count_page = 0
+    callback()
+    await asyncio.sleep(0.05)
+    assert pool._crash_count_page == 0  # not double-counted
+    await pool.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_handle_page_crashed_noop_when_browser_disconnected() -> None:
+    """A page crash on an already-disconnected browser must be a no-op."""
+    pool = GlobalBrowserPool(max_browsers=2)
+    pool._global_semaphore = asyncio.Semaphore(10)
+    page = MagicMock()
+    inst = _inst_with_pool(pool, busy={page})
+    inst._disconnected = True  # browser already handled by the L1 flow
+
+    await pool._handle_page_crashed(page, inst)
+
+    assert pool._crash_count_page == 0
+    assert inst.load == 1  # untouched
+    assert pool._global_semaphore._value == 10  # no slot released
     await pool.shutdown()
 
 
@@ -214,8 +237,12 @@ async def test_check_browser_alive_falls_back_false_on_outer_error() -> None:
 
 
 @pytest.mark.asyncio
-async def test_close_browser_instance_graceful() -> None:
-    """Closing a browser instance must shut down pools, contexts, and the browser."""
+async def test_pool_close_browser_instance_graceful() -> None:
+    """Closing a pool browser instance shuts down pools, contexts, and the browser.
+
+    Exercises ``GlobalBrowserPool._close_browser_instance`` (browser_pool.py),
+    the pool-owned close path used by all crash-handling flows.
+    """
     pool = GlobalBrowserPool(max_browsers=2)
     inst = _inst_with_pool(pool)
     ctx = AsyncMock()

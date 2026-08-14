@@ -19,6 +19,7 @@ recommendations for suggestion coverage.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 from collections import defaultdict
@@ -66,12 +67,13 @@ class LoopGuardStatsDB:
         self.db_path = Path(db_path)
         self._init_db()
 
-    def _connect(self) -> sqlite3.Connection:
+    def _connect(self) -> contextlib.AbstractContextManager[sqlite3.Connection]:
+        """Open a hardened connection that closes on context exit."""
         from myrm_agent_harness.utils.db.sqlite import CACHE, harden_connection_sync
 
         conn = sqlite3.connect(self.db_path)
         harden_connection_sync(conn, CACHE, db_path=self.db_path)
-        return conn
+        return contextlib.closing(conn)
 
     def _init_db(self) -> None:
         """Initialize database schema."""

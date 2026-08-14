@@ -149,6 +149,9 @@ class TestBrowserSessionEdgeCases:
         # (RuntimeWarning) when get_final_screenshot -> _ensure_components attaches
         # the network/dialog loggers to the page.
         mock_page.on = Mock()
+        # page.locator must be a synchronous call as well: get_final_screenshot
+        # passes its result into screenshot(mask=[...]) without awaiting it.
+        mock_page.locator = Mock(return_value=MagicMock())
         cdp = Mock()
         cdp.on = Mock()
         cdp.send = AsyncMock()

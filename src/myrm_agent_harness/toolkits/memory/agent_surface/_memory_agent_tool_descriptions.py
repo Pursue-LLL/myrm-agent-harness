@@ -50,6 +50,12 @@ _MCP_SURFACE_EXTRA_REPLACEMENTS_EN: tuple[tuple[str, str], ...] = (
         "Task progress or chat history → memory_recall with corpus=sessions",
         "Task progress or chat history → do not use memory_manage for session logs",
     ),
+    (
+        "- Use wiki_ingest_tool for articles, notes, or long reference text. "
+        "Memory is for short durable facts.",
+        "- Long-form articles, notes, or reference text are not appropriate for memory. "
+        "Memory is for short durable facts.",
+    ),
 )
 
 _MCP_SURFACE_EXTRA_REPLACEMENTS_ZH: tuple[tuple[str, str], ...] = (
@@ -60,6 +66,10 @@ _MCP_SURFACE_EXTRA_REPLACEMENTS_ZH: tuple[tuple[str, str], ...] = (
     (
         "任务进度或聊天历史 → memory_recall，corpus=sessions",
         "任务进度或聊天历史 → 不要用 memory_manage 管理会话日志",
+    ),
+    (
+        "- 长文/笔记/参考资料请用 wiki_ingest_tool；memory 只存短小的持久事实。",
+        "- 长文/笔记/参考资料不属于 memory；memory 只存短小的持久事实。",
     ),
 )
 

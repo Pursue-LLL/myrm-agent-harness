@@ -131,7 +131,7 @@ async def test_browser_launch_retry_on_timeout() -> None:
         attempt_count += 1
         if attempt_count <= 2:
             raise TimeoutError("Launch timeout")
-        mock_browser = MagicMock()
+        mock_browser = MagicMock(close=AsyncMock())
         return mock_browser
 
     mock_playwright = AsyncMock()
@@ -159,7 +159,7 @@ async def test_browser_launch_retry_on_connection_error() -> None:
         attempt_count += 1
         if attempt_count <= 2:
             raise ConnectionError("Connection failed")
-        mock_browser = MagicMock()
+        mock_browser = MagicMock(close=AsyncMock())
         return mock_browser
 
     mock_playwright = AsyncMock()
@@ -187,7 +187,7 @@ async def test_browser_launch_retry_on_generic_exception() -> None:
         attempt_count += 1
         if attempt_count == 1:
             raise RuntimeError("Launch failed")
-        mock_browser = MagicMock()
+        mock_browser = MagicMock(close=AsyncMock())
         return mock_browser
 
     mock_playwright = AsyncMock()
@@ -231,7 +231,7 @@ async def test_browser_scaling_on_high_load() -> None:
     """Test pool creates new browser when load is high."""
     pool = GlobalBrowserPool(max_browsers=3)
 
-    mock_browser = MagicMock()
+    mock_browser = MagicMock(close=AsyncMock())
     mock_context = AsyncMock()
     mock_browser.new_context = AsyncMock(return_value=mock_context)
 
@@ -256,12 +256,12 @@ async def test_get_least_loaded_browser_connect_skips_managed_warmup() -> None:
     """CONNECT must not reuse warmup managed browsers (takeover routes to extension banner)."""
     pool = GlobalBrowserPool(max_browsers=3)
 
-    managed_browser = MagicMock()
+    managed_browser = MagicMock(close=AsyncMock())
     pool._browsers.append(
         BrowserInstance(browser=managed_browser, engine="chromium", is_managed=True),
     )
 
-    external_browser = MagicMock()
+    external_browser = MagicMock(close=AsyncMock())
     external_inst = BrowserInstance(browser=external_browser, engine="chromium", is_managed=False)
 
     launcher = pool._get_launcher(pool._config.engine, LaunchMode.CONNECT)
@@ -501,7 +501,11 @@ def test_cleanup_global_pool_with_running_loop() -> None:
 
     mock_loop = MagicMock()
     mock_loop.is_running = MagicMock(return_value=True)
-    mock_loop.create_task = MagicMock()
+
+    def _consume_task(coro: object) -> None:
+        coro.close()  # type: ignore[attr-defined]
+
+    mock_loop.create_task = MagicMock(side_effect=_consume_task)
 
     with patch("myrm_agent_harness.toolkits.browser.pool.singleton._global_pool") as mock_pool:
         mock_pool.shutdown = AsyncMock()
@@ -521,10 +525,14 @@ def test_cleanup_global_pool_no_running_loop() -> None:
     with patch("myrm_agent_harness.toolkits.browser.pool.singleton._global_pool") as mock_pool:
         mock_pool.shutdown = AsyncMock()
 
+        def _consume(coro: object) -> None:
+            coro.close()  # type: ignore[attr-defined]
+
         with (
             patch("asyncio.get_running_loop", side_effect=RuntimeError("No loop")),
             patch("asyncio.run") as mock_run,
         ):
+            mock_run.side_effect = _consume
             _cleanup_global_pool()
 
             mock_run.assert_called_once()

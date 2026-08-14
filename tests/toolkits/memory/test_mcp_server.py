@@ -118,6 +118,7 @@ class TestMemoryMCPServerInit:
         assert "memory_save_tool" not in tools_by_name["memory_manage"].description
         assert "instruction saves" in tools_by_name["memory_manage"].description
         assert "WIKI BOUNDARY" in tools_by_name["memory_store"].description
+        assert "wiki_ingest_tool" not in tools_by_name["memory_store"].description
         assert "demoted" not in tools_by_name["memory_manage"].description.lower()
 
     def test_get_streamable_http_app_returns_starlette(self, mcp_server):

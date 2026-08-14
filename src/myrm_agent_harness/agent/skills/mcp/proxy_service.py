@@ -362,51 +362,41 @@ class MCPSkillProxyService:
                     parsed_items.append(item)
 
             if len(parsed_items) == 1:
-                return self._normalize_ptc_value(
-                    self._extract_text_content(parsed_items[0])
-                )
+                return self._parse_final(parsed_items[0])
 
             if all(isinstance(item, str) for item in content):
                 combined = "".join(content)
                 try:
-                    return self._normalize_ptc_value(
-                        self._extract_text_content(json.loads(combined))
-                    )
+                    return self._parse_final(json.loads(combined))
                 except (json.JSONDecodeError, ValueError):
                     pass
 
-            return [
-                self._normalize_ptc_value(self._extract_text_content(item))
-                for item in parsed_items
-            ]
+            return [self._parse_final(item) for item in parsed_items]
 
         # 如果是字符串
         if isinstance(content, str):
             try:
-                parsed = json.loads(content)
-                return self._normalize_ptc_value(self._extract_text_content(parsed))
+                return self._parse_final(json.loads(content))
             except (json.JSONDecodeError, ValueError):
                 return self._normalize_ptc_value(content)
 
+        return self._parse_final(content)
+
+    def _parse_final(self, content: object) -> object:
+        """提取 MCP 文本内容并递归 normalize（unwrap 边界 + 尝试 JSON 解析）。"""
         return self._normalize_ptc_value(self._extract_text_content(content))
 
     def _normalize_ptc_value(self, value: object) -> object:
         """Unwrap security envelopes and parse JSON strings for PTC Python consumers."""
-        if isinstance(value, str):
-            from myrm_agent_harness.core.security.detection.content_boundary import (
-                extract_wrapped_payload,
-            )
-
-            unwrapped = extract_wrapped_payload(value)
-            if unwrapped != value:
-                try:
-                    return json.loads(unwrapped)
-                except (json.JSONDecodeError, ValueError):
-                    return unwrapped
-            return value
         if isinstance(value, list):
             return [self._normalize_ptc_value(item) for item in value]
-        return value
+        if not isinstance(value, str):
+            return value
+        unwrapped = extract_wrapped_payload(value)
+        try:
+            return json.loads(unwrapped)
+        except (json.JSONDecodeError, ValueError):
+            return unwrapped
 
     def _extract_text_content(self, content: object) -> object:
         """提取 MCP 内容中的实际数据
