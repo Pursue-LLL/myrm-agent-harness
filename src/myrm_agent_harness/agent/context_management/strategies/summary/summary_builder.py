@@ -87,8 +87,10 @@ def _align_boundary_backward(messages: list[BaseMessage], idx: int) -> int:
         check = idx - 1
         while check >= 0 and isinstance(messages[check], ToolMessage):
             check -= 1
-        if check >= 0 and isinstance(messages[check], AIMessage) and messages[check].tool_calls:
-            return check
+        if check >= 0:
+            candidate = messages[check]
+            if isinstance(candidate, AIMessage) and candidate.tool_calls:
+                return check
     return idx
 
 

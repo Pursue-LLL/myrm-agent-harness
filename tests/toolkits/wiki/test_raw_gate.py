@@ -226,6 +226,21 @@ async def test_publish_raw_rejects_overlong_path(wiki_structure: WikiStructure) 
 
 
 @pytest.mark.asyncio
+async def test_publish_raw_rejects_empty_path(wiki_structure: WikiStructure) -> None:
+    with pytest.raises(RawGateError) as exc_info:
+        await publish_raw(
+            wiki_structure,
+            RawPublishRequest(
+                relative_path="",
+                content="# empty\n",
+                conflict_policy=RawConflictPolicy.FAIL,
+            ),
+            caller="agent",
+        )
+    assert exc_info.value.code == "invalid_request"
+
+
+@pytest.mark.asyncio
 async def test_publish_raw_injects_metadata_into_frontmatter(
     wiki_structure: WikiStructure,
 ) -> None:
